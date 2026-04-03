@@ -1,0 +1,61 @@
+{
+  "skill_id": "237092d9-0103-4566-ad2b-0665fed13d53",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-22T22:04:58.061Z",
+  "updated_at": "2026-02-22T22:04:59.457Z",
+  "name": "strawpoll",
+  "intent_signature": "Interact with Strawpoll to manage poll configurations",
+  "domain": "strawpoll.com",
+  "description": "Interact with Strawpoll to manage poll configurations",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "strawpoll",
+  "endpoints": [
+    {
+      "endpoint_id": "9b327dcd-634d-4a32-8a92-589b5f76ea13",
+      "method": "POST",
+      "url_template": "https://strawpoll.com/__endpoint/9b327dcd-634d-4a32-8a92-589b5f76ea13",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createTrack",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "15c5eec5-05fb-4609-94ba-b2272df83f14",
+      "method": "GET",
+      "url_template": "https://strawpoll.com/__endpoint/15c5eec5-05fb-4609-94ba-b2272df83f14",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getSiteTrackingConfigById",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "78ZTC5GPoPnAS1gm6cJ51GTqLujfWiLzakHRW9VRKyjQ",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "35e3facbdec5a68f46e4898edfae3fa8e792b6fae9821d0fc03a95ecda6e6b9a"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: strawpoll\ndescription: Internal API for strawpoll\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://strawpoll.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 2\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Strawpoll API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /api/site/tracking-config/{tracking-configId}` — Retrieve configuration for tracking user activity.\n\n### Data Write (1)\n- `POST /api/track` — Record a user's interaction with a strawpoll.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"strawpoll\", executionMode: \"backend\", endpoint: \"GET /api/site/tracking-config/{tracking-configId}\" }\n```\n\nHere's the Quick Start section for the strawpoll API:\n\n```typescript\n// Retrieve the tracking configuration for a specific ID.\nasync function getTrackingConfig(trackingConfigId: string) {\n  try {\n    const config = await client.getApiSiteTrackingConfigTrackingConfigId({ trackingConfigId });\n    console.log(\"Tracking Configuration:\", config);\n    return config;\n  } catch (error) {\n    console.error(\"Error retrieving tracking config:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Record a user's interaction with a strawpoll.\nasync function trackUserInteraction(pollId: string, vote: string) {\n  try {\n    const response = await client.postApiTrack({\n      pollId: pollId,\n      vote: vote,\n      timestamp: new Date().toISOString()\n    });\n    console.log(\"Interaction recorded:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error recording interaction:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://strawpoll.com`\n**Captured Auth:** none captured\n\n## About This Skill\n\nThis skill provides access to Strawpoll's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Strawpoll data without official API access\n- Automate actions on strawpoll.com (faster than browser automation)\n- Call the same endpoints the Strawpoll frontend uses\n\n## Quick Start\n\n```typescript\nimport { StrawpollClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await StrawpollClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (2)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/site/tracking-config/{tracking-configId}`\n- `POST /api/track`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/site/tracking-config/{tracking-configId}`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /api/track`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -1,0 +1,962 @@
+{
+  "skill_id": "MjPpInQpwmsguglJHgF-I",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:46:48.107Z",
+  "updated_at": "2026-02-23T07:46:48.107Z",
+  "name": "netdiligence.com -- Retrieve configuration data for web interactives and",
+  "intent_signature": "Retrieve configuration data for web interactives and",
+  "domain": "netdiligence.com",
+  "description": "Auto-discovered skill for: Retrieve configuration data for web interactives and",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "R1huWvn8ays8R1bq5R61r",
+      "method": "GET",
+      "url_template": "https://netdiligence.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "foSlfMa2moz8bnUEZTS7j",
+      "method": "GET",
+      "url_template": "https://cdn.jsdelivr.net/npm/apexcharts",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://netdiligence.com/files/infographics/average-business-interruption-costs/average-business-interruption-costs.html",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "e0asqLDGyjrlR9fpgyKR9",
+      "method": "GET",
+      "url_template": "https://forms.hsforms.com/embed/v3/form/{id}/{id}/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://netdiligence.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "hs_static_app": "forms-embed",
+        "hs_static_app_version": "1.10590",
+        "X-HubSpot-Static-App-Info": "forms-embed-1.10590"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "properties": {
+              "portalId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "guid": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cssClass": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "inlineMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "redirectUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submitText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "formFieldGroups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "label": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "type": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "fieldType": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "description": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "groupName": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "displayOrder": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "required": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "selectedOptions": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "options": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "validation": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              },
+                              "message": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              },
+                              "data": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              },
+                              "useDefaultBlockList": {
+                                "type": "boolean",
+                                "inferred_from_samples": 1
+                              },
+                              "blockedEmailAddresses": {
+                                "type": "array",
+                                "inferred_from_samples": 1
+                              },
+                              "checkPhoneFormat": {
+                                "type": "boolean",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "message",
+                              "data",
+                              "useDefaultBlockList",
+                              "blockedEmailAddresses",
+                              "checkPhoneFormat"
+                            ],
+                            "inferred_from_samples": 1
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "hidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "defaultValue": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "isSmartField": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "unselectedLabel": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "placeholder": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "dependentFieldFilters": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "labelHidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "propertyObjectType": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "metaData": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "objectTypeId": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "label",
+                          "type",
+                          "fieldType",
+                          "description",
+                          "groupName",
+                          "displayOrder",
+                          "required",
+                          "selectedOptions",
+                          "options",
+                          "validation",
+                          "enabled",
+                          "hidden",
+                          "defaultValue",
+                          "isSmartField",
+                          "unselectedLabel",
+                          "placeholder",
+                          "dependentFieldFilters",
+                          "labelHidden",
+                          "propertyObjectType",
+                          "metaData",
+                          "objectTypeId"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "inferred_from_samples": 1
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "isSmartGroup": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "richText": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "type": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "type"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "isPageBreak": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "default",
+                    "isSmartGroup",
+                    "richText",
+                    "isPageBreak"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              },
+              "metaData": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "value": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "inferred_from_samples": 3
+                },
+                "inferred_from_samples": 1
+              },
+              "captchaEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "formTypeNumber": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "thankYouMessageJson": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "style": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "variantId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "isPublished": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "embedVersion": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "captchaVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "portalId",
+              "guid",
+              "cssClass",
+              "inlineMessage",
+              "redirectUrl",
+              "submitText",
+              "formFieldGroups",
+              "metaData",
+              "captchaEnabled",
+              "formTypeNumber",
+              "thankYouMessageJson",
+              "themeColor",
+              "themeName",
+              "style",
+              "variantId",
+              "isPublished",
+              "embedVersion",
+              "captchaVersion"
+            ],
+            "inferred_from_samples": 1
+          },
+          "properties": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "knownSmartFields": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "object",
+            "properties": {
+              "ServiceHub:Feedback:TrellisSmileys": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ServiceHub:Feedback:TrellisSmileys"
+            ],
+            "inferred_from_samples": 1
+          },
+          "scopes": {
+            "type": "object",
+            "properties": {
+              "noBranding": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "renderShell": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "rawHtmlAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "customStyleAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "noBranding",
+              "renderShell",
+              "rawHtmlAccess",
+              "customStyleAccess"
+            ],
+            "inferred_from_samples": 1
+          },
+          "time": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "themeCss": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "globalStyle": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "countryCode": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "portalSetting": {
+            "type": "object",
+            "properties": {
+              "enableLiveValidation": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enableLiveValidation"
+            ],
+            "inferred_from_samples": 1
+          },
+          "errorCode": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "form",
+          "properties",
+          "knownSmartFields",
+          "gates",
+          "scopes",
+          "time",
+          "themeCss",
+          "globalStyle",
+          "countryCode",
+          "portalSetting",
+          "errorCode"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "parJiOP54ECA_7FNQUX_0",
+      "method": "GET",
+      "url_template": "https://script.crazyegg.com/pages/data-scripts/{id}/{id}/site/netdiligence.com.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://netdiligence.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "t": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "dkey": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "updated_at": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "site_data_url_template": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "site_sampling_url_template": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "status_data_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "hud": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "script_url": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "core_api_auth_key": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "launch_origins": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "inferred_from_samples": 2
+                },
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "host",
+              "script_url",
+              "core_api_auth_key",
+              "launch_origins"
+            ],
+            "inferred_from_samples": 1
+          },
+          "survey_preview_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "survey_launch_origins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "inferred_from_samples": 1
+          },
+          "addon_preview_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "addon_launch_origins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "inferred_from_samples": 1
+          },
+          "ce_app_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "flow_preview_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "clock_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "common_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "status": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "counters_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "data_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "sampling_data_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "tracking_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "trackingpagestate_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "thirdparty_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "sites": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "segments": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "global_ip_block_list": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "is_using_ip_blocking": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "transformations_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "page_views_limit_reached": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "v11_tracking_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "recordings_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "recordings_sampling_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "ratio_v2_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "page_states_tracking_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "assets_tracking_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "disable_recordings_masking": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "disable_recordings_email_masking": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "disable_recordings_mobile": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "recordings_number": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "recordings_activation": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "asset_collector_ignore": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 37
+            },
+            "inferred_from_samples": 1
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "dnt": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "auto_identity": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "addons": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "tracking_key": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "explicit_agent": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "use_secure_cookies": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "public_tracking_api": {
+            "type": "object",
+            "properties": {
+              "endpoint": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "endpoint"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "uid",
+          "dkey",
+          "updated_at",
+          "version",
+          "site_data_url_template",
+          "site_sampling_url_template",
+          "status_data_url",
+          "hud",
+          "survey_preview_dest",
+          "survey_launch_origins",
+          "addon_preview_dest",
+          "addon_launch_origins",
+          "ce_app_url",
+          "flow_preview_url",
+          "clock_url",
+          "common_script_url",
+          "status",
+          "counters_dest",
+          "data_url",
+          "sampling_data_url",
+          "tracking_script_url",
+          "trackingpagestate_script_url",
+          "thirdparty_script_url",
+          "sites",
+          "segments",
+          "global_ip_block_list",
+          "is_using_ip_blocking",
+          "transformations_script_url",
+          "page_views_limit_reached",
+          "v11_tracking_dest",
+          "recordings_dest",
+          "recordings_sampling_dest",
+          "ratio_v2_dest",
+          "page_states_tracking_url",
+          "assets_tracking_url",
+          "disable_recordings_masking",
+          "disable_recordings_email_masking",
+          "disable_recordings_mobile",
+          "recordings_number",
+          "recordings_activation",
+          "asset_collector_ignore",
+          "features",
+          "dnt",
+          "auto_identity",
+          "addons",
+          "tracking_key",
+          "explicit_agent",
+          "use_secure_cookies",
+          "public_tracking_api"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "Meo2j96f0LR4DZGdnziAm",
+      "method": "GET",
+      "url_template": "https://forms.hscollectedforms.net/collected-forms/v1/config/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://netdiligence.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "6073855",
+        "utk": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "portalId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "submissionsApiDomain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "reportScraperTest": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "formCaptureEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "token": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "portalId",
+          "submissionsApiDomain",
+          "reportScraperTest",
+          "formCaptureEnabled",
+          "token"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "WDJjwfq8hGuoF5g6Rn8Jg",
+      "method": "GET",
+      "url_template": "https://script.crazyegg.com/pages/data-scripts/{id}/{id}/sampling/netdiligence.com.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://netdiligence.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "t": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "sites_sampling": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "version",
+          "sites_sampling"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "Pccc7d75zmhsZAdxAAbSQ",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://netdiligence.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Oswald:wght@400;500;700",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "4W_W5ZWOL3j47PsVXwSMu",
+      "method": "GET",
+      "url_template": "https://cta-service-cms2.hubspot.com/web-interactives/public/v1/embed/combinedConfigs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://netdiligence.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "6073855",
+        "currentUrl": "https://netdiligence.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "sortedAudienceConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "requestedConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "array",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "sortedAudienceConfigs",
+          "requestedConfigs",
+          "gates"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "netdiligence.com-session"
+}

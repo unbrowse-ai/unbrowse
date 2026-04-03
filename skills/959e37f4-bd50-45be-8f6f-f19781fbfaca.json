@@ -1,0 +1,149 @@
+{
+  "skill_id": "959e37f4-bd50-45be-8f6f-f19781fbfaca",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T17:03:00.766Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "nanobanana",
+  "intent_signature": "Manage AI prompts and execute batch image editing workflows through nanobanana. Access professional features, handle user authentication sessions, and process visual content using specialized editor tools.",
+  "domain": "nanobanana.io",
+  "description": "Manage AI prompts and execute batch image editing workflows through nanobanana. Access professional features, handle user authentication sessions, and process visual content using specialized editor tools.",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "nanobanana",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--_next-image",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/_next/image",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--{id}",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/{id}",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--auth-login",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/auth/login",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--batch-image-editor",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/batch-image-editor",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--en-nano-banana-pro",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/en/nano-banana-pro",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--nano-banana-pro",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/nano-banana-pro",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--pagead-conversion-{conversionId}-",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/pagead/conversion/{conversionId}/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--pagead-conversion-17510500606-",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/pagead/conversion/17510500606/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--prompts",
+      "method": "GET",
+      "url_template": "https://nanobanana.io/prompts",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "4MQsedTVMqU312HSzBRkC6Rkr5wbxdqJAX6CBAT1jotB",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "295b6b03da66413cb8c623344bbb633965c1328c18d4046eab21a291235b86e7"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: nanobanana\ndescription: Internal API for nanobanana\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://nanobanana.io\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 5\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Nanobanana API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /api/auth/{authId}` — Verify the status of an authentication flow.\n\n### Data Read (2)\n- `GET /{id}` — Retrieve data for a specific item by its ID.\n- `GET /en/nano-banana-pro` — Get details about the Nano Banana Pro product.\n\n### Media (1)\n- `GET /_next/image` — Download an image asset from the server.\n\n### Core API (1)\n- `GET /pagead/conversion/{conversionId}/` — Track a conversion event via Google Ads.\n\n## Quick Start\n\nHere are a few examples to get you started using the `nanobanana` API:\n\n```typescript\n// Retrieve data for a specific item by its ID.\nasync function getItemData(itemId: string) {\n  const itemData = await client.getById(itemId);\n  console.log(itemData);\n  return itemData;\n}\n```\n\n```typescript\n// Track a conversion event using a conversion ID.\nasync function trackConversion(conversionId: string) {\n  try {\n    await client.getPageadConversionByConversionId(conversionId);\n    console.log(\"Conversion tracked successfully.\");\n  } catch (error) {\n    console.error(\"Failed to track conversion:\", error);\n  }\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n\n\n### Data Read (2)\n\n\n### Media (1)\n\n\n### Core API (1)\n\n\n## Quick Start\n\nHere are a few examples to get you started with the `nanobanana` API:\n\n```typescript\n// Retrieve data for a specific item by its ID.\nasync function getItemData(itemId: string) {\n  const itemData = await client.getById(itemId);\n  return itemData;\n}\n```\n\n```typescript\n// Verify the status of an authentication flow.\nasync function checkAuthStatus(authId: string) {\n  const authStatus = await client.authFlow(authId);\n  return authStatus;\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n\n\n### Data Read (2)\n\n\n### Media (1)\n\n\n### Core API (1)\n\n\n## Quick Start\n\nHere's how to quickly get started interacting with the nanobanana API:\n\n```typescript\n// Retrieve details for a specific item using its ID.\nasync function getItemDetails(itemId: string) {\n  try {\n    const itemData = await client.getById(itemId);\n    console.log(\"Item Details:\", itemData);\n    return itemData;\n  } catch (error) {\n    console.error(\"Error fetching item details:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Track a conversion event using a conversion ID.\nasync function trackConversion(conversionId: string) {\n  try {\n    const response = await client.getPageadConversionByConversionId(conversionId);\n    console.log(\"Conversion Tracking Response:\", response);\n    return response; // You might want to check the response status here\n  } catch (error) {\n    console.error(\"Error tracking conversion:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n\n\n### Data Read (2)\n\n\n### Media (1)\n\n\n### Core API (1)\n\n\n## Quick Start\n\nHere are a few examples to get you started with the `nanobanana` API:\n\n```typescript\n// Retrieve conversion data for a specific conversion ID.\n// This is useful for tracking the success of marketing campaigns.\nconst conversionData = await client.pagead.conversion['12345'].get();\nconsole.log(conversionData);\n```\n\n```typescript\n// Retrieve details about the Nano Banana Pro product.\n// This is useful for displaying product information on a website or app.\nconst productDetails = await client.en['nano-banana-pro'].get();\nconsole.log(productDetails);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://nanobanana.io`\n**Captured Auth:** 1 auth headers, 8 session cookies\n\n## About This Skill\n\nThis skill provides access to Nanobanana's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Nanobanana data without official API access\n- Automate actions on nanobanana.io (faster than browser automation)\n- Call the same endpoints the Nanobanana frontend uses\n\n## Quick Start\n\n```typescript\nimport { NanobananaClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await NanobananaClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 8\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (9)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/auth/{authId}`\n- `GET /api/auth/get-session`\n- `GET /api/auth/session`\n- `GET /en/nano-banana-pro`\n- `GET /nano-banana-pro`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/auth/{authId}`\n- Status: `failed` | Quality: `1` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/auth/get-session`\n- Status: `failed` | Quality: `1` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/auth/session`\n- Status: `verified` | Quality: `2` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /en/nano-banana-pro`\n- Status: `verified` | Quality: `4` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /nano-banana-pro`\n- Status: `verified` | Quality: `4` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

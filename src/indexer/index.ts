@@ -17,6 +17,8 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 const UNBROWSE_CONFIG_PATH = join(homedir(), ".unbrowse", "config.json");
+const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
+  ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
 
 /** Read agent_id from local config — used for contributor attribution on publish. */
 function getLocalAgentId(): string | undefined {
@@ -283,10 +285,6 @@ export function mergeAgentReview(
     };
   });
 }
-
-
-const SKILL_SNAPSHOT_DIR = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
-
 /**
  * Find existing domain snapshots and merge incoming endpoints into them.
  * Returns a merged skill with all endpoints from both existing snapshots

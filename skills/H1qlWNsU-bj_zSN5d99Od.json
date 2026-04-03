@@ -1,0 +1,329 @@
+{
+  "skill_id": "H1qlWNsU-bj_zSN5d99Od",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:44:08.202Z",
+  "updated_at": "2026-02-23T07:44:08.202Z",
+  "name": "api.gog.com -- Access account details, browse current store sales",
+  "intent_signature": "Access account details, browse current store sales",
+  "domain": "api.gog.com",
+  "description": "Auto-discovered skill for: Access account details, browse current store sales",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "l6Qlz4C9tAF5E2JQUb6Cj",
+      "method": "GET",
+      "url_template": "https://api.gog.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "CKTg9K76F7F_V1PqwqwXZ",
+      "method": "GET",
+      "url_template": "https://api.gog.com/csrf-cookie",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://api.gog.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "1NUlSDSfFt6rX_eZ1OCS3",
+      "method": "GET",
+      "url_template": "https://api.gog.com/menu/debug/meta_missing",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://api.gog.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "page": "aHR0cHM6Ly9hcGkuZ29nLmNvbS8="
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "pVGJ4O4M0q3v4MB-_6jB1",
+      "method": "GET",
+      "url_template": "https://menu.gog.com/v1/account/basic",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://api.gog.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "locale": "en-US",
+        "currency": "USD",
+        "country": "US"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "h_ijY7w4qXe3gSYgo0BZt",
+      "method": "GET",
+      "url_template": "https://www.gog.com/cart",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://api.gog.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "NU5K1WUeLuafB2AV3Uclx",
+      "method": "GET",
+      "url_template": "https://www.gog.com/en/now_on_sale",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://api.gog.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "countryCode": "US",
+        "currencyCode": "USD",
+        "locale": "en-US"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "3J2uyADAq0_gaNx67Nbv9",
+      "method": "GET",
+      "url_template": "https://menu.gog.com/v1/store/configuration",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://api.gog.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "locale": "en-US",
+        "currency": "USD",
+        "country": "US"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "cdWDgYfKyGpvqEfymVq3p",
+      "method": "GET",
+      "url_template": "https://consentcdn.cookiebot.com/consentconfig/{id}/settings.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://api.gog.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "widget": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "distanceVerticalPx": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "distanceHorizontalPx": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "position",
+                  "distanceVerticalPx",
+                  "distanceHorizontalPx"
+                ],
+                "inferred_from_samples": 1
+              },
+              "theme": {
+                "type": "object",
+                "properties": {
+                  "closed": {
+                    "type": "object",
+                    "properties": {
+                      "backgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "foregroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "backgroundColor",
+                      "foregroundColor"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "opened": {
+                    "type": "object",
+                    "properties": {
+                      "backgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "foregroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "highlightColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "shadeColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeTextColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeBorderColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawTextColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawBorderColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "detailsBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "backgroundColor",
+                      "foregroundColor",
+                      "highlightColor",
+                      "shadeColor",
+                      "changeBackgroundColor",
+                      "changeTextColor",
+                      "changeBorderColor",
+                      "withdrawBackgroundColor",
+                      "withdrawTextColor",
+                      "withdrawBorderColor",
+                      "detailsBackgroundColor"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "closed",
+                  "opened"
+                ],
+                "inferred_from_samples": 1
+              },
+              "content": {
+                "type": "object",
+                "properties": {
+                  "cultures": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 6
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "default": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "autodetectLanguage": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "cultures",
+                  "default",
+                  "autodetectLanguage"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled",
+              "position",
+              "theme",
+              "content"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "widget"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "api.gog.com-session"
+}

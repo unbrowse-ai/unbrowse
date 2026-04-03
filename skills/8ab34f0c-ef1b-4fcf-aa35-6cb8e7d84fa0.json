@@ -1,0 +1,136 @@
+{
+  "skill_id": "8ab34f0c-ef1b-4fcf-aa35-6cb8e7d84fa0",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-15T15:55:54.571Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "vinted-de",
+  "intent_signature": "Browse product catalogs, retrieve item details,",
+  "domain": "www.vinted.de",
+  "description": "Browse product catalogs, retrieve item details,",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (x-csrf-token)",
+  "service_name": "vinted-de",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--cdn-prod-config",
+      "method": "GET",
+      "url_template": "https://www.vinted.de/cdn/prod/config",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--netconn",
+      "method": "GET",
+      "url_template": "https://www.vinted.de/netconn",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--netconn-eyJhbGciOiJSU0EtT0FFUCIsImVuYyI6IkExMjhDQkMtSFMyNTYifQ.IiD2EEyyoEDuzqdNx3hP5-gJUw3iKTn0bDpp396vRFeFs0oHgXpjC6SZoJS7f60mwp-VHpwLbOzpWDJ-hTRr7m34EDkDNpyxc931SdDd08MFso7QDPIY0PCqr3NkzsuoI6rXrujXbZ-a6i7z-LuHpoKQTtKX_He6Hrt9sP0aRuI235xQvMtcx7g7SjlFcc_lIMDECYFD7LQMIBv98EoveteKXm-R5ca4hxsXvEzr-SP4UOt44cUeisjEPS0u-TQzwELG6D8ZdcApiJTjeCBgMqgJVAM02aAIlNZ9JbxI2F-lSyN-r2tlX3qjLTGyZ5bDRozuX-qqRxR4Op14B_oHcA.DkEfgo7e3EBOFe65oKsiGw.E-f5E7rq4lutdOfAc2IimN0swgbqJq1lFU-R1dlqfYOB5eK40GUOJ6yPO_huqzfS._wncE2TdT7F6RipnMJVxKw",
+      "method": "GET",
+      "url_template": "https://www.vinted.de/netconn/eyJhbGciOiJSU0EtT0FFUCIsImVuYyI6IkExMjhDQkMtSFMyNTYifQ.IiD2EEyyoEDuzqdNx3hP5-gJUw3iKTn0bDpp396vRFeFs0oHgXpjC6SZoJS7f60mwp-VHpwLbOzpWDJ-hTRr7m34EDkDNpyxc931SdDd08MFso7QDPIY0PCqr3NkzsuoI6rXrujXbZ-a6i7z-LuHpoKQTtKX_He6Hrt9sP0aRuI235xQvMtcx7g7SjlFcc_lIMDECYFD7LQMIBv98EoveteKXm-R5ca4hxsXvEzr-SP4UOt44cUeisjEPS0u-TQzwELG6D8ZdcApiJTjeCBgMqgJVAM02aAIlNZ9JbxI2F-lSyN-r2tlX3qjLTGyZ5bDRozuX-qqRxR4Op14B_oHcA.DkEfgo7e3EBOFe65oKsiGw.E-f5E7rq4lutdOfAc2IimN0swgbqJq1lFU-R1dlqfYOB5eK40GUOJ6yPO_huqzfS._wncE2TdT7F6RipnMJVxKw",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--sid",
+      "method": "GET",
+      "url_template": "https://www.vinted.de/sid",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--connectioncheck",
+      "method": "POST",
+      "url_template": "https://www.vinted.de/connectioncheck",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--e-dtb-bid",
+      "method": "POST",
+      "url_template": "https://www.vinted.de/e/dtb/bid",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--js",
+      "method": "POST",
+      "url_template": "https://www.vinted.de/js",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--relay-events",
+      "method": "POST",
+      "url_template": "https://www.vinted.de/relay/events",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "7jZ6DdQ7ZNZM7YofbUVkiZSW4vjfrnVZch5oSLftus3x",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "af16f84e23ac0e2a9b78bd70d4fab3d1292f0b5a0dae7fee0fed6f01fcfe864e"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: vinted-de\ndescription: Internal API for vinted-de\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.vinted.de\"\n  authMethod: \"Session Token (x-csrf-token)\"\n  endpointCount: 12\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# VintedDe API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-csrf-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /netconn/{netconnToken}` — Authenticate and establish a network connection.\n\n### Data Read (4)\n- `GET /{id}` — Retrieve data associated with an ID.\n- `GET /api/v2/{v2Id}` — Retrieve data associated with a V2 ID.\n- `GET /api/v2/info_banners/catalog` — Retrieve catalog info banners.\n- `GET /v1/tag/{tagId}` — Get information about a specific tag.\n\n### Data Write (3)\n- `POST /{id}` — Update or create data associated with an ID.\n- `POST /e/dtb/bid` — Submit a bid.\n- `POST /v1/intake/web-vitals` — Report web vitals metrics.\n\n### Realtime (1)\n- `POST /relay/events` — Report real-time events happening on the platform.\n\n### Config (2)\n- `GET /cdn/prod/config` — Fetch configuration settings.\n- `POST /web/configs/v1` — Update web configurations.\n\n### Core API (1)\n- `POST /web/v4` — Access core Vinted API functionalities.\n\n## Quick Start\n\nHere's a Quick Start guide demonstrating common usage patterns with the `vinted-de` API:\n\n```typescript\n// Fetch configuration settings.  This is often a necessary first step.\nasync function getConfig() {\n  const config = await client.config();\n  console.log(\"Configuration:\", config);\n  return config;\n}\n```\n\n```typescript\n// Retrieve data associated with a specific item ID.\nasync function getItemDetails(itemId: string) {\n  const item = await client.get(itemId);\n  console.log(\"Item Details:\", item);\n  return item;\n}\n```\n\n```typescript\n// Submit a bid on an item.\nasync function submitBid(bidAmount: number, itemId: string) {\n  const response = await client.post_e_dtb_bid({ amount: bidAmount, item_id: itemId });\n  console.log(\"Bid Submission Response:\", response);\n  return response;\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-csrf-token)\n**Base URL:** `https://www.vinted.de`\n**Captured Auth:** 3 auth headers, 15 session cookies\n\n## About This Skill\n\nThis skill provides access to Vinted De's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Vinted De data without official API access\n- Automate actions on www.vinted.de (faster than browser automation)\n- Call the same endpoints the Vinted De frontend uses\n\n## Quick Start\n\n```typescript\nimport { VintedDeClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await VintedDeClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (sec-fetch-storage-access, x-csrf-token, icg-connection-token)\n- **Session cookies:** 15\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (183)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/v2/banners`\n- `GET /api/v2/info_banners/catalog`\n- `GET /api/v2/promoted_closets`\n- `GET /api/v2/search_suggestions`\n- `GET /v1/tag/67661136-7e02-42c4-9da1-8ab1f222b7fc`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/v2/banners`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v2/info_banners/catalog`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v2/promoted_closets`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v2/search_suggestions`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v1/tag/67661136-7e02-42c4-9da1-8ab1f222b7fc`\n- Status: `failed` | Quality: `20` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

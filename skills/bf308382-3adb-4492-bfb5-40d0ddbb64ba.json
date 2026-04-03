@@ -1,0 +1,87 @@
+{
+  "skill_id": "bf308382-3adb-4492-bfb5-40d0ddbb64ba",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T10:16:46.740Z",
+  "updated_at": "2026-02-20T10:16:49.880Z",
+  "name": "recordedfuture",
+  "intent_signature": "Retrieve threat intelligence data, access localized",
+  "domain": "www.recordedfuture.com",
+  "description": "Retrieve threat intelligence data, access localized",
+  "owner_type": "marketplace",
+  "auth_type": "Bearer Token",
+  "service_name": "recordedfuture",
+  "endpoints": [
+    {
+      "endpoint_id": "27240272-0c9d-4c42-be0f-4186a58aafdb",
+      "method": "GET",
+      "url_template": "https://www.recordedfuture.com/__endpoint/27240272-0c9d-4c42-be0f-4186a58aafdb",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getPlaceholdersJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "03ca13d7-0b0c-4294-9548-cc47246bb99d",
+      "method": "GET",
+      "url_template": "https://www.recordedfuture.com/__endpoint/03ca13d7-0b0c-4294-9548-cc47246bb99d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "get6OqzTuic61T629BmJsonById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "68cce37d-4885-46d0-910a-e69bd9f80d5f",
+      "method": "GET",
+      "url_template": "https://www.recordedfuture.com/__endpoint/68cce37d-4885-46d0-910a-e69bd9f80d5f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getLandingResourcesCustomers",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "cb78f49e-32e0-4830-b291-aef5cbdb04fa",
+      "method": "GET",
+      "url_template": "https://www.recordedfuture.com/__endpoint/cb78f49e-32e0-4830-b291-aef5cbdb04fa",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getFormPlaceholdersJson",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "2DcerCZkJgvjJ44a6HtQkij4gYXGMYR2fwA3wfyHaKHp",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "03a4e9602b916b4dc6c63b83829bd824bc72cf606d6d5ea89b0b1ce215a8ea66"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: recordedfuture\ndescription: Internal API for recordedfuture\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.recordedfuture.com\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Recordedfuture API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /{token}/{id}/en.json` — Authenticate and retrieve entity data in JSON format.\n\n### Data Read (2)\n- `GET /{id}` — Retrieve data for a specific entity by its ID.\n- `GET /data/landing/resources-for-customers.json` — Get resources for Recorded Future customers.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"recordedfuture\", executionMode: \"backend\", endpoint: \"GET /{id}\" }\n```\n\nHere are a few quick examples to get you started using the Recorded Future API:\n\n```typescript\n// Authenticate and retrieve data for an entity with a specific ID.\nasync function getEntityData(token: string, entityId: string) {\n  const data = await client.get(`/${token}/${entityId}/en.json`);\n  return data;\n}\n```\n\n```typescript\n// Retrieve data for a specific entity by its ID.\nasync function getDataForEntity(entityId: string) {\n  const entityData = await client.get(`/${entityId}`);\n  return entityData;\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://www.recordedfuture.com`\n**Captured Auth:** 3 auth headers\n\n## About This Skill\n\nThis skill provides access to Recordedfuture's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Recordedfuture data without official API access\n- Automate actions on www.recordedfuture.com (faster than browser automation)\n- Call the same endpoints the Recordedfuture frontend uses\n\n## Quick Start\n\n```typescript\nimport { RecordedfutureClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await RecordedfutureClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (authorization, x-goog-api-key, session-id)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (4)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /6oqzTUIc61T629bm/c783debc-13d4-4693-92d7-bbd7727c4f8f/en.json`\n- `GET /data/landing/resources-for-customers.json`\n- `GET /form-placeholders.json`\n- `GET /placeholders.json`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /6oqzTUIc61T629bm/c783debc-13d4-4693-92d7-bbd7727c4f8f/en.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /data/landing/resources-for-customers.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /form-placeholders.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /placeholders.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -1,0 +1,51 @@
+{
+  "skill_id": "c633e5bd-b7d7-480e-a69a-7b2bdd3f7c3d",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:11:38.289Z",
+  "updated_at": "2026-02-22T07:19:06.070Z",
+  "name": "figma",
+  "intent_signature": "Interact with Figma to manage design",
+  "domain": "www.figma.com",
+  "description": "Interact with Figma to manage design",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (figma.session)",
+  "service_name": "figma",
+  "endpoints": [
+    {
+      "endpoint_id": "723cf936-fa36-4cd3-996c-f989bf0dcb62",
+      "method": "POST",
+      "url_template": "https://www.figma.com/__endpoint/723cf936-fa36-4cd3-996c-f989bf0dcb62",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createBatch",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "AcfEsyp7yAS3AWCkWhGmh2Fu5raeMZxN6GsDHuFXk1Vj",
+    "download_count": 0,
+    "total_versions": 3,
+    "latest_version_hash": "79810dd33a7610987a3888b0e84e96cfb108a3e3e3371c8ef2f5d60487a1ab7f"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "SEQUENCES.json",
+    "TRANSFORMS.json",
+    "CORRELATIONS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: figma\ndescription: Internal API for figma\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.figma.com\"\n  authMethod: \"API Key (statsig-api-key)\"\n  endpointCount: 9\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Figma API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (statsig-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /{token}/{id}/{token}/v2/playlist/av/primary/prot/cXNyPTE/playlist.json` — Authenticate and retrieve a playlist.\n\n### Data Read (4)\n- `GET /` — Retrieve the main Figma page data.\n- `GET /{id}/` — Retrieve data associated with a specific ID.\n- `GET /api/{apiId}` — Get data from a specific API endpoint.\n- `GET /reports/the-business-value-of-design-systems/` — Retrieve the design systems business value report.\n\n### Data Write (2)\n- `POST /api/figment-proxy/{figment-proxyId}` — Write data via a Figment proxy.\n- `POST /v1/{v1Id}` — Write data to a specific v1 endpoint.\n\n### Media (2)\n- `GET /_netlify/_next/static/media/{mediaJwt}` — Download a specific media file.\n- `GET /video/{videoTimestamp}/outro` — Download the outro video for a given timestamp.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"figma\", executionMode: \"backend\", endpoint: \"GET /\" }\n```\n\nHere's a quick start to using the Figma API with a generated client. These examples demonstrate common read and write operations.\n\n```typescript\n// Retrieve the main Figma page data.\nasync function getMainPageData() {\n  const data = await client.get();\n  console.log(\"Main page data:\", data);\n  return data;\n}\n```\n\n```typescript\n// Write data via the Figment proxy.\nasync function updateFigmentProxy(figmentProxyId: string, payload: any) {\n  try {\n    const response = await client.postApiFigmentProxyFigmentProxyId({ figmentProxyId }, payload);\n    console.log(\"Figment proxy update response:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error updating figment proxy:\", error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (statsig-api-key)\n**Base URL:** `https://www.figma.com`\n**Captured Auth:** 2 auth headers, 9 session cookies\n\n## About This Skill\n\nThis skill provides access to Figma's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Figma data without official API access\n- Automate actions on www.figma.com (faster than browser automation)\n- Call the same endpoints the Figma frontend uses\n\n## Quick Start\n\n```typescript\nimport { FigmaClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await FigmaClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (sec-fetch-storage-access, statsig-api-key)\n- **Session cookies:** 9\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (53)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

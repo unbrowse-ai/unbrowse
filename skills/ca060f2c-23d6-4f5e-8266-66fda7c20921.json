@@ -1,0 +1,101 @@
+{
+  "skill_id": "ca060f2c-23d6-4f5e-8266-66fda7c20921",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T13:11:08.206Z",
+  "updated_at": "2026-02-20T13:11:11.509Z",
+  "name": "autosend",
+  "intent_signature": "Send messages and automate communication workflows through",
+  "domain": "autosend.com",
+  "description": "Send messages and automate communication workflows through",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "autosend",
+  "endpoints": [
+    {
+      "endpoint_id": "54d8669e-4277-4e22-9085-24c83dcaa2e6",
+      "method": "GET",
+      "url_template": "https://autosend.com/__endpoint/54d8669e-4277-4e22-9085-24c83dcaa2e6",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getObqZy9Ycowk6B108Dju3ClientMiddlewareManifest",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "4ca079f1-987a-467a-9daa-52cf50bd78f5",
+      "method": "GET",
+      "url_template": "https://autosend.com/__endpoint/4ca079f1-987a-467a-9daa-52cf50bd78f5",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getA2Hyc4W3Ax0Ux0Config",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "09fceb55-11b4-4d3c-9e1d-5824582dd96c",
+      "method": "POST",
+      "url_template": "https://autosend.com/__endpoint/09fceb55-11b4-4d3c-9e1d-5824582dd96c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createEndpoint",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "f53d413b-bb12-40e0-9c7b-e2038e6ee197",
+      "method": "POST",
+      "url_template": "https://autosend.com/__endpoint/f53d413b-bb12-40e0-9c7b-e2038e6ee197",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createFlags",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "94122e13-bf09-4fee-8c20-eabbdd2a0fe6",
+      "method": "POST",
+      "url_template": "https://autosend.com/__endpoint/94122e13-bf09-4fee-8c20-eabbdd2a0fe6",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createSend",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "6RQbstGXf4UCQBTdtfc48LZP2jqdhzeF6Q56AugXXAoQ",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "58678187257932bc16cdb5e8c431e9d690109fd4de9a274d39af541c7d00139d"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: autosend\ndescription: Internal API for autosend\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://autosend.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Autosend API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /_next/static/{staticToken}/{staticToken}` — Retrieve static assets for authentication flow.\n\n### Data Write (2)\n- `POST /{id}/` — Update data associated with a specific ID.\n- `POST /api/send` — Send an email via the autosend API.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"autosend\", executionMode: \"backend\", endpoint: \"GET /_next/static/{staticToken}/{staticToken}\" }\n```\n\n```typescript\n// Example: Sending an email\nasync function sendEmail(recipient: string, subject: string, body: string) {\n  try {\n    const response = await client.api.send({\n      to: recipient,\n      subject: subject,\n      body: body,\n    });\n    console.log(\"Email sent successfully:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to send email:\", error);\n    throw error;\n  }\n}\n```\n\n```typescript\n// Example: Updating data for a specific ID\nasync function updateData(id: string, data: any) {\n  try {\n    const response = await client[id].post(data);\n    console.log(`Data updated for ID ${id}:`, response);\n    return response;\n  } catch (error) {\n    console.error(`Failed to update data for ID ${id}:`, error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://autosend.com`\n**Captured Auth:** none captured\n\n## About This Skill\n\nThis skill provides access to Autosend's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Autosend data without official API access\n- Automate actions on autosend.com (faster than browser automation)\n- Call the same endpoints the Autosend frontend uses\n\n## Quick Start\n\n```typescript\nimport { AutosendClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await AutosendClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (5)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /_next/static/OBqZY9-yCowk6b108DJU3/_clientMiddlewareManifest.json`\n- `GET /pixels/a2_hyc4w3ax0ux0/config`\n- `POST /api/send`\n- `POST /e/`\n- `POST /flags/`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /_next/static/OBqZY9-yCowk6b108DJU3/_clientMiddlewareManifest.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pixels/a2_hyc4w3ax0ux0/config`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /api/send`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /e/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /flags/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

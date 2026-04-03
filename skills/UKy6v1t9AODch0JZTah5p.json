@@ -1,0 +1,567 @@
+{
+  "skill_id": "UKy6v1t9AODch0JZTah5p",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:49:27.619Z",
+  "updated_at": "2026-02-23T07:49:27.619Z",
+  "name": "youtube.com -- Navigate the YouTube interface, search for",
+  "intent_signature": "Navigate the YouTube interface, search for",
+  "domain": "youtube.com",
+  "description": "Auto-discovered skill for: Navigate the YouTube interface, search for",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "xQ2yQV7WnleiEynoMoUwR",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/s/search/audio/failure.mp3",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "range": "bytes=0-",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "CPh6loh55HcW4a9GXfFGL",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/s/search/audio/no_input.mp3",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "range": "bytes=0-",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "CPR5_DCUmTB1k6cc4lvRQ",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/s/search/audio/open.mp3",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "range": "bytes=0-",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "6XrT-Oy0uxFZZv0NDusKq",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/s/search/audio/success.mp3",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "range": "bytes=0-",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "WARcroRiYIDshWHgbzrgz",
+      "method": "POST",
+      "url_template": "https://www.youtube.com/youtubei/v1/feedback",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "x-youtube-client-name": "1",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-wow64": "?0",
+        "x-youtube-client-version": "2.20260220.01.00",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "content-type": "application/json",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "x-youtube-bootstrap-logged-in": "false",
+        "x-goog-visitor-id": "CgsxTElBUTFZVUU1USiBjfDMBjIKCgJVUxIEGgAgNg%3D%3D",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "responseContext": {
+            "type": "object",
+            "properties": {
+              "serviceTrackingParams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "service": {
+                      "type": "string",
+                      "inferred_from_samples": 4
+                    },
+                    "params": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "value": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value"
+                        ],
+                        "inferred_from_samples": 4
+                      },
+                      "inferred_from_samples": 4
+                    }
+                  },
+                  "required": [
+                    "service",
+                    "params"
+                  ],
+                  "inferred_from_samples": 4
+                },
+                "inferred_from_samples": 1
+              },
+              "mainAppWebResponseContext": {
+                "type": "object",
+                "properties": {
+                  "loggedOut": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "trackingParam": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "loggedOut",
+                  "trackingParam"
+                ],
+                "inferred_from_samples": 1
+              },
+              "webResponseContextExtensionData": {
+                "type": "object",
+                "properties": {
+                  "hasDecorated": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "hasDecorated"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "serviceTrackingParams",
+              "mainAppWebResponseContext",
+              "webResponseContextExtensionData"
+            ],
+            "inferred_from_samples": 1
+          },
+          "feedbackResponses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "isProcessed": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "isProcessed"
+              ],
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "responseContext",
+          "feedbackResponses"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "lLq8UMqHuAH-MOYoElWVo",
+      "method": "POST",
+      "url_template": "https://www.youtube.com/api/jnn/v1/GenerateIT",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "content-type": "application/json+protobuf",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "anyOf": [
+            {
+              "type": "string",
+              "inferred_from_samples": 3
+            },
+            {
+              "type": "integer",
+              "inferred_from_samples": 3
+            }
+          ],
+          "inferred_from_samples": 3
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "ui5chkBbx2R_p8cKDZX9w",
+      "method": "GET",
+      "url_template": "https://youtube.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "bSjWN4Fe-mldMzJFMkccB",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "YzffEPtcAL8cNCdo_IsFV",
+      "method": "GET",
+      "url_template": "https://i.ytimg.com/generate_204",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "f30Marr9yW423ZOmyDiMn",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/s/_/ytmainappweb/_/js/k=ytmainappweb.kevlar.en_US.WSfUxYmCZL0.es5.O/am=AAAAAAEAAAM/d=1/br=1/rs=AGKMywE5v359lrpNJupX82MDgQpbh62Peg/m=root_chunk,base_chunk,main_chunk",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "BT63dSqCbDKWFJ3xEqrzR",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {
+        "family": "YouTube Sans:wght@300..900",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "dXttyGXkHIu-XTF0UQspC",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/s/_/ytmainappweb/_/ss/k=ytmainappweb.kevlar.dM-oxml8Lvc.L.B1.O/am=AAAAAIEAQAM/d=0/br=1/rs=AGKMywHMlyhBP9ICVQgHpjJwdJnXSvKeCQ",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "-OKMbB8_7FN6FEJoYAL3h",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/s/_/ytmainappweb/_/js/k=ytmainappweb.kevlar.en_US.WSfUxYmCZL0.es5.O/am=AAAAAAEAAAM/d=1/exm=base_chunk,main_chunk,root_chunk/ed=1/br=1/rs=AGKMywE5v359lrpNJupX82MDgQpbh62Peg/m=x0IWkb",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "hwbN7A1FjSJ-zXYGgAE8l",
+      "method": "GET",
+      "url_template": "https://www.google.com/pagead/lvz",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {
+        "evtid": "ACd6Ktw7aDA-yvgjnW-STcAJeMdkGy0rP2U9VZutc-LazNkxnKrmrqwCpd_LQax099Zubf5p8yidYFH7mIMFf3lqMXSc4QAQCw",
+        "req_ts": "1771832961",
+        "pg": "MainAppBootstrap:Home",
+        "az": "1",
+        "sigh": "AB9vU40J3ZfjLwlShT27ERmHYodalzze8Q"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "0tETMP2UcoJW3I8ulxkEc",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {
+        "family": "Roboto:300italic,400italic,500italic,700italic"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "lWJiLN4tN6YP16AYUoxpO",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/generate_204",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "device-memory": "8",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-form-factors": "\"Desktop\"",
+        "sec-ch-ua-bitness": "\"64\"",
+        "sec-ch-ua-wow64": "?0",
+        "sec-ch-ua-arch": "\"x86\"",
+        "sec-ch-ua-full-version": "\"145.0.7632.6\"",
+        "sec-ch-viewport-width": "1280",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "query": {
+        "lLnb8A": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "youtube.com-session"
+}

@@ -1,0 +1,106 @@
+{
+  "skill_id": "qSMSfurjXx59t72yqlVn4",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:44:33.996Z",
+  "updated_at": "2026-02-23T07:44:33.996Z",
+  "name": "autosend.com -- Send automated messages and manage communication workflows through",
+  "intent_signature": "Send automated messages and manage communication workflows through",
+  "domain": "autosend.com",
+  "description": "Auto-discovered skill for: Send automated messages and manage communication workflows through",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "K6PP4P24XfG4ehKqMepXc",
+      "method": "POST",
+      "url_template": "https://stargazing.peerlist.io/api/send",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://autosend.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "KOS5Z7Lyx7kCJgykaH23G",
+      "method": "GET",
+      "url_template": "https://autosend.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "9ENU9H_eE_xpK6VvW62xg",
+      "method": "GET",
+      "url_template": "https://autosend.com/_next/data/OBqZY9-yCowk6b108DJU3/index.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://autosend.com/",
+        "purpose": "prefetch",
+        "x-middleware-prefetch": "1",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "x-nextjs-data": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ol3SjeeYbzAm7Q7TyJxtp",
+      "method": "GET",
+      "url_template": "https://pixel-config.reddit.com/pixels/a2_hyc4w3ax0ux0/config",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://autosend.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "aam": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "email"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "aam"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "autosend.com-session"
+}

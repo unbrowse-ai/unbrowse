@@ -1,0 +1,257 @@
+{
+  "skill_id": "11r1ne9-BHVnA0NfDk7Ik",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:48:18.723Z",
+  "updated_at": "2026-02-23T07:48:18.723Z",
+  "name": "featured.com -- Manage expert contributions and track media opportunities on",
+  "intent_signature": "Manage expert contributions and track media opportunities on",
+  "domain": "featured.com",
+  "description": "Auto-discovered skill for: Manage expert contributions and track media opportunities on",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "b0_6v2TNkJ-Bl9zSM48Al",
+      "method": "GET",
+      "url_template": "https://featured.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "nf3uN6ADz_I-ce9KrhyK8",
+      "method": "GET",
+      "url_template": "https://js.jam.dev/support/{id}",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "IJSfZt5rlUru7HyuOLI5d",
+      "method": "GET",
+      "url_template": "https://featured.com/_next/image",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "url": "https://featured-com-images.s3.us-west-1.amazonaws.com/public/2023-07/people-group-03-01.webp",
+        "w": "1080",
+        "q": "75"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "PMZhpRObjnonNG8Ndorrw",
+      "method": "GET",
+      "url_template": "https://featured.comhttps://featured.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "gMpP7DNkD2wYcTJaNc8rM",
+      "method": "GET",
+      "url_template": "https://featured.com/questions",
+      "headers_template": {
+        "rsc": "1",
+        "next-router-segment-prefetch": "/_tree",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "next-router-prefetch": "1",
+        "baggage": "sentry-environment=vercel-production,sentry-release=4b0ef5ad15e5229993741b53b463c5d9af52f9df,sentry-public_key=3d009864cee0076f1a4a0061150d218e,sentry-trace_id=a378525fa5ec48b0b153936f84a05596,sentry-org_id=4510702990852096,sentry-sampled=true,sentry-sample_rand=0.9730562921241357,sentry-sample_rate=1",
+        "sentry-trace": "a378525fa5ec48b0b153936f84a05596-b2b499b31d23934a-1",
+        "next-url": "/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-deployment-id": "dpl_HgdoabQtg5hRz2X7gGXaZahJmBpT"
+      },
+      "query": {
+        "_rsc": "1r34m"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "aoD9aiZ1ZMDcKN26yBz-r",
+      "method": "GET",
+      "url_template": "https://featured.com/experts",
+      "headers_template": {
+        "rsc": "1",
+        "next-router-segment-prefetch": "/_tree",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "next-router-prefetch": "1",
+        "baggage": "sentry-environment=vercel-production,sentry-release=4b0ef5ad15e5229993741b53b463c5d9af52f9df,sentry-public_key=3d009864cee0076f1a4a0061150d218e,sentry-trace_id=a378525fa5ec48b0b153936f84a05596,sentry-org_id=4510702990852096,sentry-sampled=true,sentry-sample_rand=0.9730562921241357,sentry-sample_rate=1",
+        "sentry-trace": "a378525fa5ec48b0b153936f84a05596-82e0a04dbff2336b-1",
+        "next-url": "/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-deployment-id": "dpl_HgdoabQtg5hRz2X7gGXaZahJmBpT"
+      },
+      "query": {
+        "_rsc": "1r34m"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "MwqNE0dEzAOj5LadnE0NO",
+      "method": "GET",
+      "url_template": "https://featured.com/publisher",
+      "headers_template": {
+        "rsc": "1",
+        "next-router-segment-prefetch": "/_tree",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "next-router-prefetch": "1",
+        "baggage": "sentry-environment=vercel-production,sentry-release=4b0ef5ad15e5229993741b53b463c5d9af52f9df,sentry-public_key=3d009864cee0076f1a4a0061150d218e,sentry-trace_id=a378525fa5ec48b0b153936f84a05596,sentry-org_id=4510702990852096,sentry-sampled=true,sentry-sample_rand=0.9730562921241357,sentry-sample_rate=1",
+        "sentry-trace": "a378525fa5ec48b0b153936f84a05596-99973aff7b41a396-1",
+        "next-url": "/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-deployment-id": "dpl_HgdoabQtg5hRz2X7gGXaZahJmBpT"
+      },
+      "query": {
+        "_rsc": "1r34m"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "TUGEBzG4NLrF4YIlWyyw8",
+      "method": "GET",
+      "url_template": "https://featured.com/expert",
+      "headers_template": {
+        "rsc": "1",
+        "next-router-segment-prefetch": "/_tree",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "next-router-prefetch": "1",
+        "baggage": "sentry-environment=vercel-production,sentry-release=4b0ef5ad15e5229993741b53b463c5d9af52f9df,sentry-public_key=3d009864cee0076f1a4a0061150d218e,sentry-trace_id=a378525fa5ec48b0b153936f84a05596,sentry-org_id=4510702990852096,sentry-sampled=true,sentry-sample_rand=0.9730562921241357,sentry-sample_rate=1",
+        "sentry-trace": "a378525fa5ec48b0b153936f84a05596-a33eb3e3d0f1b986-1",
+        "next-url": "/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-deployment-id": "dpl_HgdoabQtg5hRz2X7gGXaZahJmBpT"
+      },
+      "query": {
+        "_rsc": "1r34m"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "fAFwB-bLnxZPyp2NKZ2X9",
+      "method": "GET",
+      "url_template": "https://featured.com/submit-query",
+      "headers_template": {
+        "rsc": "1",
+        "next-router-segment-prefetch": "/_tree",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "next-router-prefetch": "1",
+        "baggage": "sentry-environment=vercel-production,sentry-release=4b0ef5ad15e5229993741b53b463c5d9af52f9df,sentry-public_key=3d009864cee0076f1a4a0061150d218e,sentry-trace_id=a378525fa5ec48b0b153936f84a05596,sentry-org_id=4510702990852096,sentry-sampled=true,sentry-sample_rand=0.9730562921241357,sentry-sample_rate=1",
+        "sentry-trace": "a378525fa5ec48b0b153936f84a05596-adf95b1171883f70-1",
+        "next-url": "/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-deployment-id": "dpl_HgdoabQtg5hRz2X7gGXaZahJmBpT"
+      },
+      "query": {
+        "_rsc": "1r34m"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ESMYQQ2APRbEc9Z9zjFE2",
+      "method": "GET",
+      "url_template": "https://featured.com/expert-pages",
+      "headers_template": {
+        "rsc": "1",
+        "next-router-segment-prefetch": "/_tree",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "next-router-prefetch": "1",
+        "baggage": "sentry-environment=vercel-production,sentry-release=4b0ef5ad15e5229993741b53b463c5d9af52f9df,sentry-public_key=3d009864cee0076f1a4a0061150d218e,sentry-trace_id=a378525fa5ec48b0b153936f84a05596,sentry-org_id=4510702990852096,sentry-sampled=true,sentry-sample_rand=0.9730562921241357,sentry-sample_rate=1",
+        "sentry-trace": "a378525fa5ec48b0b153936f84a05596-87cb42831972e176-1",
+        "next-url": "/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-deployment-id": "dpl_HgdoabQtg5hRz2X7gGXaZahJmBpT"
+      },
+      "query": {
+        "_rsc": "1r34m"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "AHhEnY85m9xc551N0xNJ4",
+      "method": "GET",
+      "url_template": "https://featured.com/sign-up",
+      "headers_template": {
+        "rsc": "1",
+        "next-router-segment-prefetch": "/_tree",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://featured.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "next-router-prefetch": "1",
+        "baggage": "sentry-environment=vercel-production,sentry-release=4b0ef5ad15e5229993741b53b463c5d9af52f9df,sentry-public_key=3d009864cee0076f1a4a0061150d218e,sentry-trace_id=a378525fa5ec48b0b153936f84a05596,sentry-org_id=4510702990852096,sentry-sampled=true,sentry-sample_rand=0.9730562921241357,sentry-sample_rate=1",
+        "sentry-trace": "a378525fa5ec48b0b153936f84a05596-a3c81f3e20752379-1",
+        "next-url": "/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-deployment-id": "dpl_HgdoabQtg5hRz2X7gGXaZahJmBpT"
+      },
+      "query": {
+        "_rsc": "1r34m"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "featured.com-session"
+}

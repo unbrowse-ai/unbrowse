@@ -1,0 +1,361 @@
+{
+  "skill_id": "5dXPRKfMkY5aCtNfpKYKu",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:48:43.783Z",
+  "updated_at": "2026-02-23T07:48:43.783Z",
+  "name": "www.marchandpetit.co.uk -- Retrieve user account details and manage property",
+  "intent_signature": "Retrieve user account details and manage property",
+  "domain": "www.marchandpetit.co.uk",
+  "description": "Auto-discovered skill for: Retrieve user account details and manage property",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "iZ1OhSNbYt5MlW_PMZ8fy",
+      "method": "GET",
+      "url_template": "https://www.marchandpetit.co.uk/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "HB6VeQOimFRqNzheJdGdK",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/bd0877/{id}dee0/30/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "n3",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "TNmLDKhCtIEaRdcXXC4DE",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/fda6bf/{id}dee2/30/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "n4",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "_A5ed4gyl3HFhDRGVC7tE",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/78ca66/{id}b9af038/27/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "n4",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "KZEZFuixWJKOLFy1X7FSU",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/624f00/{id}b9af037/27/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "n3",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "wyvUc1o2puXxY_KEDzpd-",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/f0a340/{id}b9af039/27/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "i4",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "50_2LmxazMHVWhIyU_geX",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/1db03a/{id}a08e/30/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "n4",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "WH4wIBwi95WXrlfpr5kMT",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/8de0c1/{id}b9af03a/27/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "n6",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "4SKOe9s-rqLhwRvXuGhbM",
+      "method": "GET",
+      "url_template": "https://www.marchandpetit.co.uk/user.ljson",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.marchandpetit.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "B6460-pnnZFVR_QP5iM_k",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/9f95de/{id}dedb/30/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "n6",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "VvbCVU3ZPF8ah4ypjTNc2",
+      "method": "GET",
+      "url_template": "https://use.typekit.net/af/e1ca79/{id}deda/30/l",
+      "headers_template": {
+        "origin": "https://www.marchandpetit.co.uk",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://use.typekit.net/ubc8ayt.css",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "primer": "7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191",
+        "fvd": "n5",
+        "v": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "n0NomkxV7O-tZyFt4_b9H",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/iframe_api",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.marchandpetit.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "b8-F7vGpQKF5Fk4LE3scf",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/embed/4LbYvsS51us",
+      "headers_template": {
+        "referer": "https://www.marchandpetit.co.uk/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "autoplay": "1",
+        "mute": "1",
+        "controls": "0",
+        "origin": "https://www.marchandpetit.co.uk",
+        "playsinline": "1",
+        "showinfo": "0",
+        "rel": "0",
+        "iv_load_policy": "3",
+        "modestbranding": "1",
+        "disablekb": "1",
+        "enablejsapi": "1",
+        "widgetid": "1",
+        "forigin": "https://www.marchandpetit.co.uk/#/",
+        "aoriginsup": "1",
+        "vf": "4"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "fYc46r06sA_dXGwgbMOOv",
+      "method": "GET",
+      "url_template": "https://yt3.ggpht.com/-q03JfdDVsPhOKFekzfg5Bt5NugLkjqx4N4A5H6Q23PIEQ4Rb27oLt-Ros-Ws5hG2zGI0trg=s68-c-k-c0x00ffffff-no-rj",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ylGQ7c2k2ec9Rkkhh2dbp",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/ptracking",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "x-goog-visitor-id": "CgtTaVhIVGthWVBKUSjVjPDMBjIKCgJVUxIEGgAgYWLfAgrcAjE2LllUPTEyQWJfQzQtOHMtaVNBb3NuNDJUVEtQLTlIVXlSaFh3eWZaZXcwSFNqbm5nSUFaaE1zYzN2RXpfNHFvcmI1cEF6cXkxeTByQlJMU2wwU0QwSjZmX0hmNDVvMTByX1NiUV82aDE2d3FEd1YxMDZ0WmJqWUtvaHZDUk5iLTdaZFBHVFdNUkNWQkhmVGxFWTlnNXM1dnV4V1lLSVNsdzk0RnZldlhrdmxLc2d1VU9TN1JFSTg1aVJxRmNZN1RwVng2NzctUnpscXdlQ0tpbEZ4U3d5UlJ6cUx4ZVd0Wjhsc25HQUVUT29yaVZ2WkM0WGY5eDI0RHBjcV9qMFk3SWJTUER1S1dMSTI4d3EyU1hoZTZSUWdNX2JFZmc1ZXphTnRYeDlxSk9TXy1Sc3JPOU5pSGR4TGladGo0U0kxQUFqLXh5eGJKbjhDZlo4SU1YUU5RZWRvcS1rUQ%3D%3D",
+        "referer": "https://www.youtube.com/embed/4LbYvsS51us?autoplay=1&mute=1&controls=0&origin=https%3A%2F%2Fwww.marchandpetit.co.uk&playsinline=1&showinfo=0&rel=0&iv_load_policy=3&modestbranding=1&disablekb=1&enablejsapi=1&widgetid=1&forigin=https%3A%2F%2Fwww.marchandpetit.co.uk%2F%23%2F&aoriginsup=1&vf=4",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "html5": "1",
+        "video_id": "4LbYvsS51us",
+        "cpn": "HSSYLP_-k4OkoWG-",
+        "ei": "VgacafeWLYmAsfIPhvXLsAM",
+        "ptk": "youtube_none",
+        "pltype": "contentugc"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "wbeaZyuVQiH7EJfyIYMEB",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/generate_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/embed/4LbYvsS51us?autoplay=1&mute=1&controls=0&origin=https%3A%2F%2Fwww.marchandpetit.co.uk&playsinline=1&showinfo=0&rel=0&iv_load_policy=3&modestbranding=1&disablekb=1&enablejsapi=1&widgetid=1&forigin=https%3A%2F%2Fwww.marchandpetit.co.uk%2F%23%2F&aoriginsup=1&vf=4",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "zLoUZQ": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "6LHdWkuNsLPt19O2mz0tC",
+      "method": "GET",
+      "url_template": "https://yt3.ggpht.com/-q03JfdDVsPhOKFekzfg5Bt5NugLkjqx4N4A5H6Q23PIEQ4Rb27oLt-Ros-Ws5hG2zGI0trg=s88-c-k-c0x00ffffff-no-rj",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.marchandpetit.co.uk-session"
+}

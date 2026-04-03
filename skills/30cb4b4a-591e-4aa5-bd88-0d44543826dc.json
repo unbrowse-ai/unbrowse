@@ -1,0 +1,58 @@
+{
+  "skill_id": "30cb4b4a-591e-4aa5-bd88-0d44543826dc",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-14T21:40:58.806Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "malt-fr",
+  "intent_signature": "Retrieve user profile details,",
+  "domain": "www.malt.fr",
+  "description": "Retrieve user profile details,",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (x-xsrf-token)",
+  "service_name": "malt-fr",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--pack-fr-EU",
+      "method": "GET",
+      "url_template": "https://www.malt.fr/pack/fr-EU",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--cookie-verify",
+      "method": "POST",
+      "url_template": "https://www.malt.fr/cookie-verify",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "5BWZ11ve8YSeWbhtch2ay3c7MrgdP875hps3J4CxJpYj",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "643e61e77a772f1d96499475e04158d23d306dfd48e1eb3ed9da638093109e6b"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: malt-fr\ndescription: Internal API for malt-fr\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.malt.fr\"\n  authMethod: \"Session Token (x-xsrf-token)\"\n  endpointCount: 13\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# MaltFr API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-xsrf-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n- `GET /{id}/_nuxt/builds/meta/{metaToken}` — Fetch build metadata for authentication flow.\n- `POST /cookie-verify` — Verify cookie for authentication.\n\n### Data Read (7)\n- `GET /{id}/api/supported-host/l10n/hosts` — Get supported hosts for localization.\n- `GET /{id}/api/user/me` — Get current user's profile data.\n- `GET /{id}/locales/locales.fr.json` — Retrieve French locale data (specific ID).\n- `GET /68234c0aa57bce8dd740205f.json` — Download a JSON data file.\n- `GET /cms/api/{apiId}/current` — Retrieve current CMS data by ID.\n- `GET /locales/locales.fr.json` — Retrieve French locale data.\n- `GET /pack/fr-EU` — Download the French language pack.\n\n### Data Write (2)\n- `POST /api/t/event` — Send a tracking event.\n- `POST /v1/analytics/evts` — Send analytics events.\n\n### Config (2)\n- `GET /{id}/api/sentry/config` — Get Sentry configuration.\n- `GET /registration/api/feature-flipping/disable-facebook-cta-in-signin` — Check if Facebook CTA is disabled in sign-in.\n\n## Quick Start\n\nHere are a few quick start examples to get you going:\n\n```typescript\n// Fetch user profile data.  Replace 'your_id' with the actual ID.\nasync function getUserProfile(id: string) {\n  try {\n    const userProfile = await client.get_id_api_user_me({ id: id });\n    console.log(\"User Profile:\", userProfile);\n    return userProfile;\n  } catch (error) {\n    console.error(\"Failed to fetch user profile:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Send a tracking event.  Adjust the event data as needed.\nasync function sendTrackingEvent() {\n  const eventData = {\n    category: \"example\",\n    action: \"button_click\",\n    label: \"submit\",\n  };\n\n  try {\n    const response = await client.post_api_t_event({ body: eventData });\n    console.log(\"Tracking event sent:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to send tracking event:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-xsrf-token)\n**Base URL:** `https://www.malt.fr`\n**Captured Auth:** 2 auth headers, 10 session cookies\n\n## About This Skill\n\nThis skill provides access to Malt Fr's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Malt Fr data without official API access\n- Automate actions on www.malt.fr (faster than browser automation)\n- Call the same endpoints the Malt Fr frontend uses\n\n## Quick Start\n\n```typescript\nimport { MaltFrClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await MaltFrClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (sec-fetch-storage-access, x-xsrf-token)\n- **Session cookies:** 10\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (21)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /cms/api/host-features/current`\n- `GET /cms/api/host-settings/current`\n- `GET /cms/api/sentry/config`\n- `GET /cms/api/supported-host/l10n/hosts`\n- `GET /cms/api/user/me`\n- `GET /pack/fr-EU`\n- `GET /profile/api/sentry/config`\n- `GET /registration/api/feature-flipping/disable-facebook-cta-in-signin`\n- `GET /registration/api/sentry/config`\n- `GET /registration/api/supported-host/l10n/hosts`\n- `GET /registration/api/user/me`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /cms/api/host-features/current`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /cms/api/host-settings/current`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /cms/api/sentry/config`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /cms/api/supported-host/l10n/hosts`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /cms/api/user/me`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pack/fr-EU`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /profile/api/sentry/config`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /registration/api/feature-flipping/disable-facebook-cta-in-signin`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /registration/api/sentry/config`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /registration/api/supported-host/l10n/hosts`\n- Status: `auth_required` | Quality: `51` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /registration/api/user/me`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

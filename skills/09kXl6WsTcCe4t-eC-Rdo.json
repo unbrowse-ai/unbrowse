@@ -1,0 +1,4116 @@
+{
+  "skill_id": "09kXl6WsTcCe4t-eC-Rdo",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:39:04.793Z",
+  "updated_at": "2026-02-23T07:39:04.793Z",
+  "name": "www.netflix.com -- Access Netflix help center resources to retrieve",
+  "intent_signature": "Access Netflix help center resources to retrieve",
+  "domain": "www.netflix.com",
+  "description": "Auto-discovered skill for: Access Netflix help center resources to retrieve",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "GK8E9w4-faKJrHHO6jAFi",
+      "method": "POST",
+      "url_template": "https://web.prod.cloud.netflix.com/graphql",
+      "headers_template": {
+        "x-netflix.request.id": "c43404a62714420f8a46df6dd2737099",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "x-netflix.context.operation-name": "MembershipStatus",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "x-netflix.request.originating.url": "https://www.netflix.com/",
+        "sec-ch-ua-mobile": "?0",
+        "x-netflix.context.app-version": "vd6517bb6",
+        "x-netflix.context.hawkins-version": "5.13.0",
+        "accept": "*/*",
+        "x-netflix.context.locales": "en-us",
+        "content-type": "application/json",
+        "x-netflix.context.ui-flavor": "akira",
+        "referer": "https://www.netflix.com/",
+        "x-netflix.request.toplevel.uuid": "d2f63e49-b8d5-4b5d-9671-e8dae55ac124",
+        "x-netflix.request.attempt": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-netflix.request.client.context": "{\"appstate\":\"foreground\"}"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "growthAccount": {
+                "type": "null",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "growthAccount"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "r0LFAp-2Cw63JObmL11kV",
+      "method": "POST",
+      "url_template": "https://analytics.tiktok.com/api/v2/pixel",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://ae.nflximg.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "text/plain;charset=UTF-8",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "tNf-HuLB9isCy5hnaVFeV",
+      "method": "GET",
+      "url_template": "https://www.netflix.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "VQy8xjEFjW3-M5GjH_lsV",
+      "method": "GET",
+      "url_template": "https://help.nflxext.com/helpcenter/OneTrust/oneTrust_production_2026-02-12/consent/{id}/{id}.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.netflix.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "CookieSPAEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "CookieSameSiteNoneEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "CookieV2CSPEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "MultiVariantTestingEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "UseV2": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "MobileSDK": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "SkipGeolocation": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "ScriptType": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "Version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "OptanonDataJSON": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "GeolocationUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "BulkDomainCheckUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "RuleSet": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "Id": {
+                  "type": "string",
+                  "inferred_from_samples": 4
+                },
+                "Name": {
+                  "type": "string",
+                  "inferred_from_samples": 4
+                },
+                "Countries": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "inferred_from_samples": 3
+                  },
+                  "inferred_from_samples": 4
+                },
+                "States": {
+                  "type": "object",
+                  "properties": {
+                    "us": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "inferred_from_samples": 11
+                      },
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "inferred_from_samples": 4
+                },
+                "LanguageSwitcherPlaceholder": {
+                  "type": "object",
+                  "properties": {
+                    "no": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "hi": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "de": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "ru": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "fi": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "pt": {
+                      "type": "string",
+                      "inferred_from_samples": 4
+                    },
+                    "hr": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "fr": {
+                      "type": "string",
+                      "inferred_from_samples": 4
+                    },
+                    "hu": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "default": {
+                      "type": "string",
+                      "inferred_from_samples": 4
+                    },
+                    "uk": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "id": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "sv": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "ko": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "zh-tw": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "ms": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "el": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "es-es": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "it": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "es": {
+                      "type": "string",
+                      "inferred_from_samples": 4
+                    },
+                    "zh": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "cs": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "ar": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "pt-pt": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "vi": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "th": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "ja": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "pl": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "fr-fr": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "ro": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "he": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "da": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "tr": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "nl": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "pt-br": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "es-mx": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "fr-ca": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "pt",
+                    "fr",
+                    "default",
+                    "es"
+                  ],
+                  "inferred_from_samples": 4
+                },
+                "BannerPushesDown": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                },
+                "Default": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                },
+                "Global": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                },
+                "Type": {
+                  "type": "string",
+                  "inferred_from_samples": 4
+                },
+                "UseGoogleVendors": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                },
+                "VariantEnabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                },
+                "TestEndTime": {
+                  "type": "null",
+                  "inferred_from_samples": 4
+                },
+                "Variants": {
+                  "type": "array",
+                  "inferred_from_samples": 4
+                },
+                "TemplateName": {
+                  "type": "string",
+                  "inferred_from_samples": 4
+                },
+                "Conditions": {
+                  "type": "array",
+                  "inferred_from_samples": 4
+                },
+                "GCEnable": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                },
+                "IsGPPEnabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                },
+                "EnableJWTAuthForKnownUsers": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                }
+              },
+              "required": [
+                "Id",
+                "Name",
+                "Countries",
+                "States",
+                "LanguageSwitcherPlaceholder",
+                "BannerPushesDown",
+                "Default",
+                "Global",
+                "Type",
+                "UseGoogleVendors",
+                "VariantEnabled",
+                "TestEndTime",
+                "Variants",
+                "TemplateName",
+                "Conditions",
+                "GCEnable",
+                "IsGPPEnabled",
+                "EnableJWTAuthForKnownUsers"
+              ],
+              "inferred_from_samples": 4
+            },
+            "inferred_from_samples": 1
+          },
+          "IabData": {
+            "type": "object",
+            "properties": {
+              "cookieVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "createdTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "updatedTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentScreen": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentLanguage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "vendorListVersion": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "maxVendorId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "encodingType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "globalVendorListUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cookieVersion",
+              "createdTime",
+              "updatedTime",
+              "cmpId",
+              "cmpVersion",
+              "consentScreen",
+              "consentLanguage",
+              "vendorListVersion",
+              "maxVendorId",
+              "encodingType",
+              "globalVendorListUrl"
+            ],
+            "inferred_from_samples": 1
+          },
+          "IabV2Data": {
+            "type": "object",
+            "properties": {
+              "cookieVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "createdTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "updatedTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentScreen": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentLanguage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "vendorListVersion": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "maxVendorId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "encodingType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "globalVendorListUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cookieVersion",
+              "createdTime",
+              "updatedTime",
+              "cmpId",
+              "cmpVersion",
+              "consentScreen",
+              "consentLanguage",
+              "vendorListVersion",
+              "maxVendorId",
+              "encodingType",
+              "globalVendorListUrl"
+            ],
+            "inferred_from_samples": 1
+          },
+          "Iab2V2Data": {
+            "type": "object",
+            "properties": {
+              "cookieVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "createdTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "updatedTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentScreen": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentLanguage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "vendorListVersion": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "maxVendorId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "encodingType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "globalVendorListUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cookieVersion",
+              "createdTime",
+              "updatedTime",
+              "cmpId",
+              "cmpVersion",
+              "consentScreen",
+              "consentLanguage",
+              "vendorListVersion",
+              "maxVendorId",
+              "encodingType",
+              "globalVendorListUrl"
+            ],
+            "inferred_from_samples": 1
+          },
+          "GoogleData": {
+            "type": "object",
+            "properties": {
+              "vendorListVersion": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "googleVendorListUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "vendorListVersion",
+              "googleVendorListUrl"
+            ],
+            "inferred_from_samples": 1
+          },
+          "ScriptDynamicLoadEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "TenantFeatures": {
+            "type": "object",
+            "properties": {
+              "CookieV2BannerFocus": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2RejectAll": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2TargetedTemplates": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GPC": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GeolocationJsonApi": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2TCF21": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2SkipCategory": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2BannerLogo": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ConsentStoreConsentStrings": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "features.cmp-amazon-consent-Signal": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2AssignTemplateRule": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "MobileAuthenticatedConsents": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2MicrosoftUET": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GCMDMA": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2RemoveSettingsIcon": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2NewConsentReceiptAPI": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GeneralVendors": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GPP": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "CookieV2BannerFocus",
+              "CookieV2RejectAll",
+              "CookieV2TargetedTemplates",
+              "CookieV2GPC",
+              "CookieV2GeolocationJsonApi",
+              "CookieV2TCF21",
+              "CookieV2SkipCategory",
+              "CookieV2BannerLogo",
+              "ConsentStoreConsentStrings",
+              "features.cmp-amazon-consent-Signal",
+              "CookieV2AssignTemplateRule",
+              "MobileAuthenticatedConsents",
+              "CookieV2MicrosoftUET",
+              "CookieV2GCMDMA",
+              "CookieV2RemoveSettingsIcon",
+              "CookieV2NewConsentReceiptAPI",
+              "CookieV2GeneralVendors",
+              "CookieV2GPP"
+            ],
+            "inferred_from_samples": 1
+          },
+          "IsSuppressBanner": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "IsSuppressPC": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "PublisherCC": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "Domain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "TenantGuid": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "EnvId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "RemoteActionsEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "GeoRuleGroupName": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "GATrackToggle": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "GATrackAssignedCategory": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "WebFormIntegrationEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "WebFormSrcUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "WebFormWorkerUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "GppData": {
+            "type": "object",
+            "properties": {
+              "cmpId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cmpId"
+            ],
+            "inferred_from_samples": 1
+          },
+          "AuthenticatedConsent": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "AuthenticatedLoggedOutConsent": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "CDNLocation": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "RootDomainConsentEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "RootDomainUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "LanguageDetectionEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "LanguageDetectionByHtml": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "DataLanguage": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "DisclosureCDNUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "SEOOptimization": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "PartitionedCookieEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "BannerRefreshAfterCallToActionEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "SubDomainEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "DomainHashValue": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "CookieSPAEnabled",
+          "CookieSameSiteNoneEnabled",
+          "CookieV2CSPEnabled",
+          "MultiVariantTestingEnabled",
+          "UseV2",
+          "MobileSDK",
+          "SkipGeolocation",
+          "ScriptType",
+          "Version",
+          "OptanonDataJSON",
+          "GeolocationUrl",
+          "BulkDomainCheckUrl",
+          "RuleSet",
+          "IabData",
+          "IabV2Data",
+          "Iab2V2Data",
+          "GoogleData",
+          "ScriptDynamicLoadEnabled",
+          "TenantFeatures",
+          "IsSuppressBanner",
+          "IsSuppressPC",
+          "PublisherCC",
+          "Domain",
+          "TenantGuid",
+          "EnvId",
+          "RemoteActionsEnabled",
+          "GeoRuleGroupName",
+          "GATrackToggle",
+          "GATrackAssignedCategory",
+          "WebFormIntegrationEnabled",
+          "WebFormSrcUrl",
+          "WebFormWorkerUrl",
+          "GppData",
+          "AuthenticatedConsent",
+          "AuthenticatedLoggedOutConsent",
+          "CDNLocation",
+          "RootDomainConsentEnabled",
+          "RootDomainUrl",
+          "LanguageDetectionEnabled",
+          "LanguageDetectionByHtml",
+          "DataLanguage",
+          "DisclosureCDNUrl",
+          "SEOOptimization",
+          "PartitionedCookieEnabled",
+          "BannerRefreshAfterCallToActionEnabled",
+          "SubDomainEnabled",
+          "DomainHashValue"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "kh2T3nQjH_ShPB74B5HPF",
+      "method": "GET",
+      "url_template": "https://geolocation.onetrust.com/cookieconsentpub/v1/geo/location",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.netflix.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "state": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "stateName": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "continent": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "country",
+          "state",
+          "stateName",
+          "continent"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "adubbN2LQulEgjsngyJHe",
+      "method": "GET",
+      "url_template": "https://help.nflxext.com/helpcenter/OneTrust/oneTrust_production_2026-02-12/consent/{id}/{id}/en.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.netflix.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "DomainData": {
+            "type": "object",
+            "properties": {
+              "pclifeSpanYr": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pclifeSpanYrs": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pclifeSpanSecs": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pclifeSpanWk": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pclifeSpanWks": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pccontinueWithoutAcceptText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pccloseButtonType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "MainText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "MainInfoText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AboutText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AboutCookiesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ConfirmText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AllowAllText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookiesUsedText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookiesDescText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AboutLink": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ActiveText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AlwaysActiveText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AlwaysInactiveText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCShowAlwaysActiveToggle": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "AlertNoticeText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AlertCloseText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AlertMoreInfoText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AlertMoreInfoTextDialog": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieSettingButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AlertAllowCookiesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CloseShouldAcceptAllCookies": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "LastReconsentDate": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "BannerTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ForceConsent": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BannerPushesDownPage": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "InactiveText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookiesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CategoriesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "IsLifespanEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "LifespanText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "VendorLevelOptOut": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "HasScriptArchive": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BannerPosition": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PreferenceCenterPosition": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PreferenceCenterConfirmText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "VendorListText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ThirdPartyCookieListText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PreferenceCenterManagePreferencesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PreferenceCenterMoreInfoScreenReader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieListTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieListDescription": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "Groups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ShowInPopup": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "ShowInPopupNonIAB": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "ShowSDKListLink": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "Order": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "OptanonGroupId": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "Parent": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "ShowSubgroup": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "ShowSubGroupDescription": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "ShowSubgroupToggle": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "AlwaysShowCategory": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "GroupDescription": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "GroupDescriptionOTT": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "GroupNameMobile": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "GroupNameOTT": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "GroupName": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "IsIabPurpose": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "GeneralVendorsIds": {
+                      "type": "array",
+                      "inferred_from_samples": 5
+                    },
+                    "FirstPartyCookies": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "Name": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "Host": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "IsSession": {
+                            "type": "boolean",
+                            "inferred_from_samples": 4
+                          },
+                          "Length": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "description": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "thirdPartyDescription": {
+                            "type": "string",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "inferred_from_samples": 4
+                              },
+                              {
+                                "type": "null",
+                                "inferred_from_samples": 4
+                              }
+                            ],
+                            "inferred_from_samples": 4
+                          },
+                          "patternKey": {
+                            "type": "null",
+                            "inferred_from_samples": 4
+                          },
+                          "thirdPartyKey": {
+                            "type": "null",
+                            "anyOf": [
+                              {
+                                "type": "null",
+                                "inferred_from_samples": 4
+                              },
+                              {
+                                "type": "string",
+                                "inferred_from_samples": 4
+                              }
+                            ],
+                            "inferred_from_samples": 4
+                          },
+                          "firstPartyKey": {
+                            "type": "null",
+                            "anyOf": [
+                              {
+                                "type": "null",
+                                "inferred_from_samples": 4
+                              },
+                              {
+                                "type": "string",
+                                "inferred_from_samples": 4
+                              }
+                            ],
+                            "inferred_from_samples": 4
+                          },
+                          "DurationType": {
+                            "type": "integer",
+                            "inferred_from_samples": 4
+                          },
+                          "category": {
+                            "type": "null",
+                            "inferred_from_samples": 4
+                          },
+                          "isThirdParty": {
+                            "type": "boolean",
+                            "inferred_from_samples": 4
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "Name",
+                          "Host",
+                          "IsSession",
+                          "Length",
+                          "description",
+                          "thirdPartyDescription",
+                          "patternKey",
+                          "thirdPartyKey",
+                          "firstPartyKey",
+                          "DurationType",
+                          "category",
+                          "isThirdParty"
+                        ],
+                        "inferred_from_samples": 4
+                      },
+                      "inferred_from_samples": 5
+                    },
+                    "Hosts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "HostName": {
+                            "type": "string",
+                            "inferred_from_samples": 2
+                          },
+                          "DisplayName": {
+                            "type": "string",
+                            "inferred_from_samples": 2
+                          },
+                          "HostId": {
+                            "type": "string",
+                            "inferred_from_samples": 2
+                          },
+                          "Description": {
+                            "type": "string",
+                            "inferred_from_samples": 2
+                          },
+                          "PrivacyPolicy": {
+                            "type": "string",
+                            "inferred_from_samples": 2
+                          },
+                          "Cookies": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "Name": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "Host": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "IsSession": {
+                                  "type": "boolean",
+                                  "inferred_from_samples": 2
+                                },
+                                "Length": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "thirdPartyDescription": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "patternKey": {
+                                  "type": "null",
+                                  "inferred_from_samples": 2
+                                },
+                                "thirdPartyKey": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "firstPartyKey": {
+                                  "type": "null",
+                                  "anyOf": [
+                                    {
+                                      "type": "null",
+                                      "inferred_from_samples": 2
+                                    },
+                                    {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    }
+                                  ],
+                                  "inferred_from_samples": 2
+                                },
+                                "DurationType": {
+                                  "type": "integer",
+                                  "inferred_from_samples": 2
+                                },
+                                "category": {
+                                  "type": "null",
+                                  "inferred_from_samples": 2
+                                },
+                                "isThirdParty": {
+                                  "type": "boolean",
+                                  "inferred_from_samples": 2
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "Name",
+                                "Host",
+                                "IsSession",
+                                "Length",
+                                "description",
+                                "thirdPartyDescription",
+                                "patternKey",
+                                "thirdPartyKey",
+                                "firstPartyKey",
+                                "DurationType",
+                                "category",
+                                "isThirdParty"
+                              ],
+                              "inferred_from_samples": 2
+                            },
+                            "inferred_from_samples": 2
+                          }
+                        },
+                        "required": [
+                          "HostName",
+                          "DisplayName",
+                          "HostId",
+                          "Description",
+                          "PrivacyPolicy",
+                          "Cookies"
+                        ],
+                        "inferred_from_samples": 2
+                      },
+                      "inferred_from_samples": 5
+                    },
+                    "PurposeId": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "CustomGroupId": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "GroupId": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "Status": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "IsDntEnabled": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "Type": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "DescriptionLegal": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "IabIllustrations": {
+                      "type": "array",
+                      "inferred_from_samples": 5
+                    },
+                    "HasLegIntOptOut": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "HasConsentOptOut": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "IsGpcEnabled": {
+                      "type": "boolean",
+                      "inferred_from_samples": 5
+                    },
+                    "VendorServices": {
+                      "type": "null",
+                      "inferred_from_samples": 5
+                    },
+                    "TrackingTech": {
+                      "type": "null",
+                      "inferred_from_samples": 5
+                    }
+                  },
+                  "required": [
+                    "ShowInPopup",
+                    "ShowInPopupNonIAB",
+                    "ShowSDKListLink",
+                    "Order",
+                    "OptanonGroupId",
+                    "Parent",
+                    "ShowSubgroup",
+                    "ShowSubGroupDescription",
+                    "ShowSubgroupToggle",
+                    "AlwaysShowCategory",
+                    "GroupDescription",
+                    "GroupDescriptionOTT",
+                    "GroupNameMobile",
+                    "GroupNameOTT",
+                    "GroupName",
+                    "IsIabPurpose",
+                    "GeneralVendorsIds",
+                    "FirstPartyCookies",
+                    "Hosts",
+                    "PurposeId",
+                    "CustomGroupId",
+                    "GroupId",
+                    "Status",
+                    "IsDntEnabled",
+                    "Type",
+                    "DescriptionLegal",
+                    "IabIllustrations",
+                    "HasLegIntOptOut",
+                    "HasConsentOptOut",
+                    "IsGpcEnabled",
+                    "VendorServices",
+                    "TrackingTech"
+                  ],
+                  "inferred_from_samples": 5
+                },
+                "inferred_from_samples": 1
+              },
+              "Language": {
+                "type": "object",
+                "properties": {
+                  "Culture": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "Culture"
+                ],
+                "inferred_from_samples": 1
+              },
+              "ShowPreferenceCenterCloseButton": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CustomJs": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "LifespanTypeText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "LifespanDurationText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CloseText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerCloseButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AddLinksToCookiepedia": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "showBannerCloseButton": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "AlertLayout": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ShowAlertNotice": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "IsConsentLoggingEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "IsIabEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "IsIabThirdPartyCookieEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ScrollCloseBanner": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "OnClickCloseBanner": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "NextPageCloseBanner": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "AcceptAllCookies": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ConsentModel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "VendorConsentModel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "Vendors": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "OverriddenVendors": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "inferred_from_samples": 1
+              },
+              "OverridenGoogleVendors": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "publisher": {
+                "type": "object",
+                "properties": {
+                  "restrictions": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "restrictions"
+                ],
+                "inferred_from_samples": 1
+              },
+              "ScrollAcceptAllCookies": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "OnClickAcceptAllCookies": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "NextPageAcceptAllCookies": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "Flat": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "FloatingFlat": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "FloatingRoundedCorner": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "FloatingRoundedIcon": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "FloatingRounded": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CenterRounded": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "Center": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "Panel": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "Popup": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "List": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "Tab": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ChoicesBanner": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "NoBanner": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BannerIABPartnersLink": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerPurposeTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerPurposeDescription": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerFeatureTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerFeatureDescription": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerInformationTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerInformationDescription": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerShowRejectAllButton": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BannerRejectAllButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterShowRejectAllButton": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCenterRejectAllButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerSettingsButtonDisplayLink": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BannerDPDTitle": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "BannerDPDDescription": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "BannerDPDDescriptionFormat": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCFirstPartyCookieListText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCViewCookiesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterBackText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorsListText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterViewPrivacyPolicyText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterClearFiltersText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterApplyFiltersText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterAllowAllConsentText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterCookiesListText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterCancelFiltersText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterEnableAccordion": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "IabType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AdvancedAnalyticsCategory": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCGrpDescType": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCGrpDescLinkPosition": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVendorFullLegalText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "LegIntSettings": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCAccordionStyle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCShowConsentLabels": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCActiveText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCInactiveText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerAdditionalDescription": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerAdditionalDescPlacement": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterSelectAllVendorsText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterFilterText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ReconsentFrequencyDays": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "UseGoogleVendors": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCIABVendorsText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCIllusText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCGoogleVendorsText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCTemplateUpgrade": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCShowPersistentCookiesHoverButton": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCenterDynamicRenderingEnable": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "GlobalRestrictionEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "GlobalRestrictions": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "inferred_from_samples": 1
+              },
+              "PCenterUseGeneralVendorsToggle": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCenterGeneralVendorsText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterAllowVendorOptout": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCenterGeneralVendorThirdPartyCookiesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GeneralVendors": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "BannerNonIABVendorListText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListLifespan": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListDisclosure": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListNonCookieUsage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListDescText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListStorageIdentifier": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListStorageType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListStoragePurposes": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListStorageDomain": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVLSDomainsUsed": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVLSUse": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListLifespanDay": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListLifespanDays": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListLifespanMonth": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListLifespanMonths": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCLifeSpanYr": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCLifeSpanYrs": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCLifeSpanSecs": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCLifeSpanWk": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCLifeSpanWks": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCookiePolicyText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BShowSaveBtn": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BSaveBtnText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieFirstPartyText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieThirdPartyText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCookiePolicyLinkScreenReader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCLogoScreenReader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BnrLogoAria": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PublisherCC": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BCloseButtonType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BContinueText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCloseButtonType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCContinueText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerFocus": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BRejectConsentType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerRelativeFontSizesToggle": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCAllowToggleLbl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GCEnable": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "GCAnalyticsStorage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GCAdStorage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GCAdUserData": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GCAdPersonalization": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GCRedactEnable": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "GCWaitTime": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "GCFunctionalityStorage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GCPersonalizationStorage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GCSecurityStorage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCGeneralVendorsPolicyText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCIABVendorLegIntClaimText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCOpensCookiesDetailsAlert": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCOpensVendorDetailsAlert": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AriaOpenPreferences": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AriaClosePreferences": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AriaPrivacy": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "AriaDescribedBy": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BCookiePolicyLinkScreenReader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BNoCursorFocus": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BShowPolicyLink": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListSearch": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterCookieListSearch": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterLegitInterestText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterLegIntColumnHeader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterConsentText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListFilterAria": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterCookieListFilterAria": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BInitialFocus": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BInitialFocusLinkAndButton": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "NewVendorsInactiveEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCenterFilterAppliedAria": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterFilterClearedAria": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListScreenReader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterCookieSearchAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorSearchAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListTitle": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListLinkText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterVendorListLinkAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "IsShowAlwaysActiveText": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCenterUserIdTitleText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterUserIdDescriptionText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterUserIdTimestampTitleText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterUserIdNotYetConsentedText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BImprintLinkScreenReader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BShowImprintLink": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCenterImprintLinkScreenReader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterImprintLinkText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterImprintLinkUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCategoryStyle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVSEnable": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCVSOptOut": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCVSCategoryView": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCVSExpandCategory": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCVSExpandGroup": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCVSListTitle": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSNameText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSParentCompanyText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSAddressText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSDefaultCategoryText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSDefaultDescriptionText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSDPOEmailText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSDPOLinkText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSPrivacyPolicyLinkText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSCookiePolicyLinkText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSOptOutLinkText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSLegalBasisText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCVSAllowAllText": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "BShowOptOutSignal": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BOptOutSignalText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCShowOptOutSignal": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCOptOutSignalText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BOptOutSignalTextAfterConsent": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCOptOutSignalTextAfterConsent": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCShowDoubleOptInSignal": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCDoubleOptInSignalText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCDoubleOptInSignalDescription": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCDoubleOptInSignalCancelText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCDoubleOptInSignalConfirmText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCHostNotFound": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVendorNotFound": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCTechNotFound": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCTrackingTechTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCTechDetailsText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCTechDetailsAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCShowTrackingTech": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCCookiesLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCLocalStorageLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCSessionStorageLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCLocalStorageDurationText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCSessionStorageDurationText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BRegionAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCRegionAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "IsGPPEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "IsGPPKnownChildApplicable": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "IsGPPDataProcessingApplicable": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "GPPPurposes": {
+                "type": "object",
+                "properties": {
+                  "SaleOptOutCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "SharingOptOutCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "PersonalDataCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildSellPICID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildProcessCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildSharePICID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "SensitivePICID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "TargetedAdvertisingOptOutCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "SensitiveSICID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "GeolocationCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "RREPInfoCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "CommunicationCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "GeneticCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "BiometricCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "HealthCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "SexualOrientationCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "RaceCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ReligionCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ImmigrationCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "PDCAboveAgeCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "PDCBelowAgeCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "UnionMembershipCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildProcessBelowAge13CID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildProcessBetweenAge13To16CID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildProcessBetweenAge16To18CID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildSellAge16To18CID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildProcessAge16To18CID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildSellAge16To17CID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "KnownChildProcessAge16To17CID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "TransgenderCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "NationalOriginCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "CrimeVictimCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ConsumerHealthCID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "SaleOptOutCID",
+                  "SharingOptOutCID",
+                  "PersonalDataCID",
+                  "KnownChildSellPICID",
+                  "KnownChildProcessCID",
+                  "KnownChildSharePICID",
+                  "SensitivePICID",
+                  "TargetedAdvertisingOptOutCID",
+                  "SensitiveSICID",
+                  "GeolocationCID",
+                  "RREPInfoCID",
+                  "CommunicationCID",
+                  "GeneticCID",
+                  "BiometricCID",
+                  "HealthCID",
+                  "SexualOrientationCID",
+                  "RaceCID",
+                  "ReligionCID",
+                  "ImmigrationCID",
+                  "PDCAboveAgeCID",
+                  "PDCBelowAgeCID",
+                  "UnionMembershipCID",
+                  "KnownChildProcessBelowAge13CID",
+                  "KnownChildProcessBetweenAge13To16CID",
+                  "KnownChildProcessBetweenAge16To18CID",
+                  "KnownChildSellAge16To18CID",
+                  "KnownChildProcessAge16To18CID",
+                  "KnownChildSellAge16To17CID",
+                  "KnownChildProcessAge16To17CID",
+                  "TransgenderCID",
+                  "NationalOriginCID",
+                  "CrimeVictimCID",
+                  "ConsumerHealthCID"
+                ],
+                "inferred_from_samples": 1
+              },
+              "IsMSPAEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "MSPAOptionMode": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "UseGPPUSNational": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCVListDataDeclarationText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVListDataRetentionText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVListStdRetentionText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVendorsCountText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVendorsCountFeatureText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVendorsCountSpcFeatureText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCVendorsCountSpcPurposeText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "IABDataCategories": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "IABGroupsPrefixData": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "UseNonStandardStacks": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "IsRequireSignatureEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "RequireSignatureCID": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCRequireSignatureFieldLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCRequireSignatureHeaderText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCRequireSignatureHeaderDesc": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCRequireSignatureConfirmBtnText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCRequireSignatureRejectBtnText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCRequireSignatureHelpText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "MCMData": {
+                "type": "object",
+                "properties": {
+                  "Enabled": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "StorageTypes": {
+                    "type": "object",
+                    "properties": {
+                      "ad_storage": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "analytics_storage": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "ad_storage",
+                      "analytics_storage"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "Enabled",
+                  "StorageTypes"
+                ],
+                "inferred_from_samples": 1
+              },
+              "ACMData": {
+                "type": "object",
+                "properties": {
+                  "Enabled": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "StorageTypes": {
+                    "type": "object",
+                    "properties": {
+                      "ad_storage": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "user_data": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "ad_storage",
+                      "user_data"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "Enabled",
+                  "StorageTypes"
+                ],
+                "inferred_from_samples": 1
+              },
+              "BannerBPOFirstPosition": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerBPOSecondPosition": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerBPOThirdPosition": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerBPOFourthPosition": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "PCBPOFirstPosition": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCBPOSecondPosition": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCBPOThirdPosition": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCookieListFiltersText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CanGenerateNotGivenReceipts": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "AmazonConsentSrcUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterApplyFiltersAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterCancelFilterAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterClearFiltersAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterToggleActiveColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterToggleInActiveColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterCookieCategoriesAriaLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GPCOptOutNoteText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "DNTOptOutNoteText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ATTOptOutNoteText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "pclifeSpanYr",
+              "pclifeSpanYrs",
+              "pclifeSpanSecs",
+              "pclifeSpanWk",
+              "pclifeSpanWks",
+              "pccontinueWithoutAcceptText",
+              "pccloseButtonType",
+              "MainText",
+              "MainInfoText",
+              "AboutText",
+              "AboutCookiesText",
+              "ConfirmText",
+              "AllowAllText",
+              "CookiesUsedText",
+              "CookiesDescText",
+              "AboutLink",
+              "ActiveText",
+              "AlwaysActiveText",
+              "AlwaysInactiveText",
+              "PCShowAlwaysActiveToggle",
+              "AlertNoticeText",
+              "AlertCloseText",
+              "AlertMoreInfoText",
+              "AlertMoreInfoTextDialog",
+              "CookieSettingButtonText",
+              "AlertAllowCookiesText",
+              "CloseShouldAcceptAllCookies",
+              "LastReconsentDate",
+              "BannerTitle",
+              "ForceConsent",
+              "BannerPushesDownPage",
+              "InactiveText",
+              "CookiesText",
+              "CategoriesText",
+              "IsLifespanEnabled",
+              "LifespanText",
+              "VendorLevelOptOut",
+              "HasScriptArchive",
+              "BannerPosition",
+              "PreferenceCenterPosition",
+              "PreferenceCenterConfirmText",
+              "VendorListText",
+              "ThirdPartyCookieListText",
+              "PreferenceCenterManagePreferencesText",
+              "PreferenceCenterMoreInfoScreenReader",
+              "CookieListTitle",
+              "CookieListDescription",
+              "Groups",
+              "Language",
+              "ShowPreferenceCenterCloseButton",
+              "CustomJs",
+              "LifespanTypeText",
+              "LifespanDurationText",
+              "CloseText",
+              "BannerCloseButtonText",
+              "AddLinksToCookiepedia",
+              "showBannerCloseButton",
+              "AlertLayout",
+              "ShowAlertNotice",
+              "IsConsentLoggingEnabled",
+              "IsIabEnabled",
+              "IsIabThirdPartyCookieEnabled",
+              "ScrollCloseBanner",
+              "OnClickCloseBanner",
+              "NextPageCloseBanner",
+              "AcceptAllCookies",
+              "ConsentModel",
+              "VendorConsentModel",
+              "Vendors",
+              "OverriddenVendors",
+              "OverridenGoogleVendors",
+              "publisher",
+              "ScrollAcceptAllCookies",
+              "OnClickAcceptAllCookies",
+              "NextPageAcceptAllCookies",
+              "Flat",
+              "FloatingFlat",
+              "FloatingRoundedCorner",
+              "FloatingRoundedIcon",
+              "FloatingRounded",
+              "CenterRounded",
+              "Center",
+              "Panel",
+              "Popup",
+              "List",
+              "Tab",
+              "ChoicesBanner",
+              "NoBanner",
+              "BannerIABPartnersLink",
+              "BannerPurposeTitle",
+              "BannerPurposeDescription",
+              "BannerFeatureTitle",
+              "BannerFeatureDescription",
+              "BannerInformationTitle",
+              "BannerInformationDescription",
+              "BannerShowRejectAllButton",
+              "BannerRejectAllButtonText",
+              "PCenterShowRejectAllButton",
+              "PCenterRejectAllButtonText",
+              "BannerSettingsButtonDisplayLink",
+              "BannerDPDTitle",
+              "BannerDPDDescription",
+              "BannerDPDDescriptionFormat",
+              "PCFirstPartyCookieListText",
+              "PCViewCookiesText",
+              "PCenterBackText",
+              "PCenterVendorsListText",
+              "PCenterViewPrivacyPolicyText",
+              "PCenterClearFiltersText",
+              "PCenterApplyFiltersText",
+              "PCenterAllowAllConsentText",
+              "PCenterCookiesListText",
+              "PCenterCancelFiltersText",
+              "PCenterEnableAccordion",
+              "IabType",
+              "AdvancedAnalyticsCategory",
+              "PCGrpDescType",
+              "PCGrpDescLinkPosition",
+              "PCVendorFullLegalText",
+              "LegIntSettings",
+              "PCAccordionStyle",
+              "PCShowConsentLabels",
+              "PCActiveText",
+              "PCInactiveText",
+              "BannerAdditionalDescription",
+              "BannerAdditionalDescPlacement",
+              "PCenterSelectAllVendorsText",
+              "PCenterFilterText",
+              "ReconsentFrequencyDays",
+              "UseGoogleVendors",
+              "PCIABVendorsText",
+              "PCIllusText",
+              "PCGoogleVendorsText",
+              "PCTemplateUpgrade",
+              "PCShowPersistentCookiesHoverButton",
+              "PCenterDynamicRenderingEnable",
+              "GlobalRestrictionEnabled",
+              "GlobalRestrictions",
+              "PCenterUseGeneralVendorsToggle",
+              "PCenterGeneralVendorsText",
+              "PCenterAllowVendorOptout",
+              "PCenterGeneralVendorThirdPartyCookiesText",
+              "GeneralVendors",
+              "BannerNonIABVendorListText",
+              "PCenterVendorListLifespan",
+              "PCenterVendorListDisclosure",
+              "PCenterVendorListNonCookieUsage",
+              "PCenterVendorListDescText",
+              "PCenterVendorListStorageIdentifier",
+              "PCenterVendorListStorageType",
+              "PCenterVendorListStoragePurposes",
+              "PCenterVendorListStorageDomain",
+              "PCVLSDomainsUsed",
+              "PCVLSUse",
+              "PCenterVendorListLifespanDay",
+              "PCenterVendorListLifespanDays",
+              "PCenterVendorListLifespanMonth",
+              "PCenterVendorListLifespanMonths",
+              "PCLifeSpanYr",
+              "PCLifeSpanYrs",
+              "PCLifeSpanSecs",
+              "PCLifeSpanWk",
+              "PCLifeSpanWks",
+              "PCCookiePolicyText",
+              "BShowSaveBtn",
+              "BSaveBtnText",
+              "CookieFirstPartyText",
+              "CookieThirdPartyText",
+              "PCCookiePolicyLinkScreenReader",
+              "PCLogoScreenReader",
+              "BnrLogoAria",
+              "PublisherCC",
+              "BCloseButtonType",
+              "BContinueText",
+              "PCCloseButtonType",
+              "PCContinueText",
+              "BannerFocus",
+              "BRejectConsentType",
+              "BannerRelativeFontSizesToggle",
+              "PCAllowToggleLbl",
+              "GCEnable",
+              "GCAnalyticsStorage",
+              "GCAdStorage",
+              "GCAdUserData",
+              "GCAdPersonalization",
+              "GCRedactEnable",
+              "GCWaitTime",
+              "GCFunctionalityStorage",
+              "GCPersonalizationStorage",
+              "GCSecurityStorage",
+              "PCGeneralVendorsPolicyText",
+              "PCIABVendorLegIntClaimText",
+              "PCOpensCookiesDetailsAlert",
+              "PCOpensVendorDetailsAlert",
+              "AriaOpenPreferences",
+              "AriaClosePreferences",
+              "AriaPrivacy",
+              "AriaDescribedBy",
+              "BCookiePolicyLinkScreenReader",
+              "BNoCursorFocus",
+              "BShowPolicyLink",
+              "PCenterVendorListSearch",
+              "PCenterCookieListSearch",
+              "PCenterLegitInterestText",
+              "PCenterLegIntColumnHeader",
+              "PCenterConsentText",
+              "PCenterVendorListFilterAria",
+              "PCenterCookieListFilterAria",
+              "BInitialFocus",
+              "BInitialFocusLinkAndButton",
+              "NewVendorsInactiveEnabled",
+              "PCenterFilterAppliedAria",
+              "PCenterFilterClearedAria",
+              "PCenterVendorListScreenReader",
+              "PCenterCookieSearchAriaLabel",
+              "PCenterVendorSearchAriaLabel",
+              "PCenterVendorListTitle",
+              "PCenterVendorListLinkText",
+              "PCenterVendorListLinkAriaLabel",
+              "IsShowAlwaysActiveText",
+              "PCenterUserIdTitleText",
+              "PCenterUserIdDescriptionText",
+              "PCenterUserIdTimestampTitleText",
+              "PCenterUserIdNotYetConsentedText",
+              "BImprintLinkScreenReader",
+              "BShowImprintLink",
+              "PCenterImprintLinkScreenReader",
+              "PCenterImprintLinkText",
+              "PCenterImprintLinkUrl",
+              "PCCategoryStyle",
+              "PCVSEnable",
+              "PCVSOptOut",
+              "PCVSCategoryView",
+              "PCVSExpandCategory",
+              "PCVSExpandGroup",
+              "PCVSListTitle",
+              "PCVSNameText",
+              "PCVSParentCompanyText",
+              "PCVSAddressText",
+              "PCVSDefaultCategoryText",
+              "PCVSDefaultDescriptionText",
+              "PCVSDPOEmailText",
+              "PCVSDPOLinkText",
+              "PCVSPrivacyPolicyLinkText",
+              "PCVSCookiePolicyLinkText",
+              "PCVSOptOutLinkText",
+              "PCVSLegalBasisText",
+              "PCVSAllowAllText",
+              "BShowOptOutSignal",
+              "BOptOutSignalText",
+              "PCShowOptOutSignal",
+              "PCOptOutSignalText",
+              "BOptOutSignalTextAfterConsent",
+              "PCOptOutSignalTextAfterConsent",
+              "PCShowDoubleOptInSignal",
+              "PCDoubleOptInSignalText",
+              "PCDoubleOptInSignalDescription",
+              "PCDoubleOptInSignalCancelText",
+              "PCDoubleOptInSignalConfirmText",
+              "PCHostNotFound",
+              "PCVendorNotFound",
+              "PCTechNotFound",
+              "PCTrackingTechTitle",
+              "PCTechDetailsText",
+              "PCTechDetailsAriaLabel",
+              "PCShowTrackingTech",
+              "PCCookiesLabel",
+              "PCLocalStorageLabel",
+              "PCSessionStorageLabel",
+              "PCLocalStorageDurationText",
+              "PCSessionStorageDurationText",
+              "BRegionAriaLabel",
+              "PCRegionAriaLabel",
+              "IsGPPEnabled",
+              "IsGPPKnownChildApplicable",
+              "IsGPPDataProcessingApplicable",
+              "GPPPurposes",
+              "IsMSPAEnabled",
+              "MSPAOptionMode",
+              "UseGPPUSNational",
+              "PCVListDataDeclarationText",
+              "PCVListDataRetentionText",
+              "PCVListStdRetentionText",
+              "PCVendorsCountText",
+              "PCVendorsCountFeatureText",
+              "PCVendorsCountSpcFeatureText",
+              "PCVendorsCountSpcPurposeText",
+              "IABDataCategories",
+              "IABGroupsPrefixData",
+              "UseNonStandardStacks",
+              "IsRequireSignatureEnabled",
+              "RequireSignatureCID",
+              "PCRequireSignatureFieldLabel",
+              "PCRequireSignatureHeaderText",
+              "PCRequireSignatureHeaderDesc",
+              "PCRequireSignatureConfirmBtnText",
+              "PCRequireSignatureRejectBtnText",
+              "PCRequireSignatureHelpText",
+              "MCMData",
+              "ACMData",
+              "BannerBPOFirstPosition",
+              "BannerBPOSecondPosition",
+              "BannerBPOThirdPosition",
+              "BannerBPOFourthPosition",
+              "PCBPOFirstPosition",
+              "PCBPOSecondPosition",
+              "PCBPOThirdPosition",
+              "PCCookieListFiltersText",
+              "CanGenerateNotGivenReceipts",
+              "AmazonConsentSrcUrl",
+              "PCenterApplyFiltersAriaLabel",
+              "PCenterCancelFilterAriaLabel",
+              "PCenterClearFiltersAriaLabel",
+              "PCenterToggleActiveColor",
+              "PCenterToggleInActiveColor",
+              "PCenterCookieCategoriesAriaLabel",
+              "GPCOptOutNoteText",
+              "DNTOptOutNoteText",
+              "ATTOptOutNoteText"
+            ],
+            "inferred_from_samples": 1
+          },
+          "CommonData": {
+            "type": "object",
+            "properties": {
+              "pcenterContinueWoAcceptLinkColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "IabThirdPartyCookieUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonHideAcceptButton": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonStyle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonStaticContentLocation": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerCustomCSS": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCustomCSS": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcTextColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcButtonColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcButtonTextColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcBackgroundColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcMenuColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcMenuHighLightColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcAccordionBackgroundColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCenterExpandToViewText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcEnableToggles": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PcLinksTextColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "TextColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ButtonColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerMPButtonColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerMPButtonTextColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ButtonTextColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BackgroundColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerLinksTextColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerAccordionBackgroundColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookiePersistentLogo": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonLogo": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BnrLogo": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OneTrustFooterLogo": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonCookieDomain": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonGroupIdPerformanceCookies": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonGroupIdFunctionalityCookies": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonGroupIdTargetingCookies": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonGroupIdSocialCookies": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ShowSubGroupCookies": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "LegacyBannerLayout": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OptanonHideCookieSettingButton": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "UseRTL": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ShowBannerAcceptButton": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ShowBannerCookieSettings": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ShowCookieList": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCShowCookieHost": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCShowCookieDuration": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCShowCookieType": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCShowCookieCategory": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "PCShowCookieDescription": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "AllowHostOptOut": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieListTitleColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieListGroupNameColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieListTableHeaderColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieListTableHeaderBackgroundColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookiesV2NewCookiePolicy": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieListPrimaryColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CookieListCustomCss": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "TTLGroupByTech": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "TTLShowTechDesc": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ConsentIntegration": {
+                "type": "object",
+                "properties": {
+                  "ConsentApi": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "RequestInformation": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "IdentifiedReceiptsAllowed": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "DefaultIdentifier": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "DefaultAnonymousIdentifier": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "EnableJWTAuthForKnownUsers": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "AnonymousConsentApi": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "CROConsentApi": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "GPCReasonID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "DNTReasonID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ATTReasonID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "ConsentApi",
+                  "RequestInformation",
+                  "IdentifiedReceiptsAllowed",
+                  "DefaultIdentifier",
+                  "DefaultAnonymousIdentifier",
+                  "EnableJWTAuthForKnownUsers",
+                  "AnonymousConsentApi",
+                  "CROConsentApi",
+                  "GPCReasonID",
+                  "DNTReasonID",
+                  "ATTReasonID"
+                ],
+                "inferred_from_samples": 1
+              },
+              "BConsentPurposesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BFeaturesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BLegitimateInterestPurposesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BSpecialFeaturesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BSpecialPurposesText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BConsentText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BLegitInterestText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "IabLegalTextUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCListName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCListHost": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCListDuration": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCListType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCListCategory": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCCListDescription": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCDialogClose": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcLegIntButtonColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PcLegIntButtonTextColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BCategoryContainerColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BCategoryStyleColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BLineBreakColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BSaveBtnColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BCategoryStyle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BAnimation": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BContinueColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCContinueColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCFooterLogoUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCFooterCookieProLogoUrl": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "BFocusBorderColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "PCFocusBorderColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "TemplateName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GeoRuleGroupName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "GeoRuleName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OTCloseBtnLogo": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OTExternalLinkLogo": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OTGuardLogo": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "OTSpriteLogo": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "BannerExternalLinksLogo": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "BannerRequireExternalLinks": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "BannerRequireExternalLinksCustomLogo": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "pcenterContinueWoAcceptLinkColor",
+              "IabThirdPartyCookieUrl",
+              "OptanonHideAcceptButton",
+              "OptanonStyle",
+              "OptanonStaticContentLocation",
+              "BannerCustomCSS",
+              "PCCustomCSS",
+              "PcTextColor",
+              "PcButtonColor",
+              "PcButtonTextColor",
+              "PcBackgroundColor",
+              "PcMenuColor",
+              "PcMenuHighLightColor",
+              "PcAccordionBackgroundColor",
+              "PCenterExpandToViewText",
+              "PcEnableToggles",
+              "PcLinksTextColor",
+              "TextColor",
+              "ButtonColor",
+              "BannerMPButtonColor",
+              "BannerMPButtonTextColor",
+              "ButtonTextColor",
+              "BackgroundColor",
+              "BannerLinksTextColor",
+              "BannerAccordionBackgroundColor",
+              "CookiePersistentLogo",
+              "OptanonLogo",
+              "BnrLogo",
+              "OneTrustFooterLogo",
+              "OptanonCookieDomain",
+              "OptanonGroupIdPerformanceCookies",
+              "OptanonGroupIdFunctionalityCookies",
+              "OptanonGroupIdTargetingCookies",
+              "OptanonGroupIdSocialCookies",
+              "ShowSubGroupCookies",
+              "LegacyBannerLayout",
+              "OptanonHideCookieSettingButton",
+              "UseRTL",
+              "ShowBannerAcceptButton",
+              "ShowBannerCookieSettings",
+              "ShowCookieList",
+              "PCShowCookieHost",
+              "PCShowCookieDuration",
+              "PCShowCookieType",
+              "PCShowCookieCategory",
+              "PCShowCookieDescription",
+              "AllowHostOptOut",
+              "CookieListTitleColor",
+              "CookieListGroupNameColor",
+              "CookieListTableHeaderColor",
+              "CookieListTableHeaderBackgroundColor",
+              "CookiesV2NewCookiePolicy",
+              "CookieListPrimaryColor",
+              "CookieListCustomCss",
+              "TTLGroupByTech",
+              "TTLShowTechDesc",
+              "ConsentIntegration",
+              "BConsentPurposesText",
+              "BFeaturesText",
+              "BLegitimateInterestPurposesText",
+              "BSpecialFeaturesText",
+              "BSpecialPurposesText",
+              "BConsentText",
+              "BLegitInterestText",
+              "IabLegalTextUrl",
+              "PCCListName",
+              "PCCListHost",
+              "PCCListDuration",
+              "PCCListType",
+              "PCCListCategory",
+              "PCCListDescription",
+              "PCDialogClose",
+              "PcLegIntButtonColor",
+              "PcLegIntButtonTextColor",
+              "BCategoryContainerColor",
+              "BCategoryStyleColor",
+              "BLineBreakColor",
+              "BSaveBtnColor",
+              "BCategoryStyle",
+              "BAnimation",
+              "BContinueColor",
+              "PCContinueColor",
+              "PCFooterLogoUrl",
+              "PCFooterCookieProLogoUrl",
+              "BFocusBorderColor",
+              "PCFocusBorderColor",
+              "TemplateName",
+              "GeoRuleGroupName",
+              "GeoRuleName",
+              "OTCloseBtnLogo",
+              "OTExternalLinkLogo",
+              "OTGuardLogo",
+              "OTSpriteLogo",
+              "BannerExternalLinksLogo",
+              "BannerRequireExternalLinks",
+              "BannerRequireExternalLinksCustomLogo"
+            ],
+            "inferred_from_samples": 1
+          },
+          "NtfyConfig": {
+            "type": "object",
+            "properties": {
+              "ShowNtfy": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "NtfyDuration": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "ShowCS": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CSType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "CSTxt": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "Sync": {
+                "type": "object",
+                "properties": {
+                  "Title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "TitleAlign": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "TitleColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "Desc": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "DescAlign": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "DescColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "BgColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "BdrColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "IconBgColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ShowClose": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "CloseAria": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ShowIcon": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "Title",
+                  "TitleAlign",
+                  "TitleColor",
+                  "Desc",
+                  "DescAlign",
+                  "DescColor",
+                  "BgColor",
+                  "BdrColor",
+                  "IconBgColor",
+                  "ShowClose",
+                  "CloseAria",
+                  "ShowIcon"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Complete": {
+                "type": "object",
+                "properties": {
+                  "Title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "TitleAlign": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "TitleColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "Desc": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "DescAlign": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "DescColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "BgColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "BdrColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "IconBgColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ShowClose": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "CloseAria": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ShowIcon": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "Title",
+                  "TitleAlign",
+                  "TitleColor",
+                  "Desc",
+                  "DescAlign",
+                  "DescColor",
+                  "BgColor",
+                  "BdrColor",
+                  "IconBgColor",
+                  "ShowClose",
+                  "CloseAria",
+                  "ShowIcon"
+                ],
+                "inferred_from_samples": 1
+              },
+              "CSButton": {
+                "type": "object",
+                "properties": {
+                  "Color": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "BgColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "BdrColor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "Align": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "Color",
+                  "BgColor",
+                  "BdrColor",
+                  "Align"
+                ],
+                "inferred_from_samples": 1
+              },
+              "CSLink": {
+                "type": "object",
+                "properties": {
+                  "Color": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "Align": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "Color",
+                  "Align"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ShowNtfy",
+              "NtfyDuration",
+              "ShowCS",
+              "CSType",
+              "CSTxt",
+              "Sync",
+              "Complete",
+              "CSButton",
+              "CSLink"
+            ],
+            "inferred_from_samples": 1
+          },
+          "OTTData": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "MobileData": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "DomainData",
+          "CommonData",
+          "NtfyConfig",
+          "OTTData",
+          "MobileData"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "qOXiyueBeAPzOksbTfFCT",
+      "method": "GET",
+      "url_template": "https://help.nflxext.com/helpcenter/OneTrust/oneTrust_production_2026-02-12/scripttemplates/{id}.1.0/assets/otFlat.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.netflix.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "html": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "css": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "name",
+          "html",
+          "css"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "sz28579Tf6P1lFnyN_Ksn",
+      "method": "GET",
+      "url_template": "https://help.nflxext.com/helpcenter/OneTrust/oneTrust_production_2026-02-12/scripttemplates/{id}.1.0/assets/v2/otPcTab.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.netflix.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "html": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "css": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "name",
+          "html",
+          "css"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "S6aFDL1JXiiOc6MG_Atx4",
+      "method": "GET",
+      "url_template": "https://www.google.com/recaptcha/enterprise/anchor",
+      "headers_template": {
+        "referer": "https://www.netflix.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "ar": "1",
+        "k": "6LdqW_EqAAAAAO87Fb_kcZfNzs0IqJRcKiJDYpUv",
+        "co": "aHR0cHM6Ly93d3cubmV0ZmxpeC5jb206NDQz",
+        "hl": "en",
+        "v": "P8cyHPrXODVy7ASorEhMUv3P",
+        "size": "invisible",
+        "anchor-ms": "20000",
+        "execute-ms": "30000",
+        "cb": "dydhryw72jre"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.netflix.com-session"
+}

@@ -1,0 +1,49 @@
+{
+  "skill_id": "305c534e-e2d8-49ae-a0b3-e483c87aa2dc",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:36:05.227Z",
+  "updated_at": "2026-02-19T06:36:06.558Z",
+  "name": "verizon",
+  "intent_signature": "Manage Verizon account identifiers, track delivery",
+  "domain": "www.verizon.com",
+  "description": "Manage Verizon account identifiers, track delivery",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (x-goog-api-key)",
+  "service_name": "verizon",
+  "endpoints": [
+    {
+      "endpoint_id": "5b40f906-b073-4d71-9d5c-89dc1312e8c6",
+      "method": "POST",
+      "url_template": "https://www.verizon.com/__endpoint/5b40f906-b073-4d71-9d5c-89dc1312e8c6",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createRestDelivery",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "8EWikfWwCSFoLck4mwSq1VkSYo2yrMG8fZyLFgNECQ15",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "1847fa831d3c5bcf57a8f5e9bd0171f957f2e9a5500cc1f428d7850bb66fa6fd"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: verizon\ndescription: Internal API for verizon\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.verizon.com\"\n  authMethod: \"API Key (x-goog-api-key)\"\n  endpointCount: 6\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Verizon API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (x-goog-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (2)\n- `GET /id` — Retrieve Verizon customer ID details.\n- `GET /internal/id-event/` — Get internal ID event information.\n\n### Data Write (3)\n- `POST /{id}/na.json` — Update a customer's North America profile.\n- `POST /rest/v1/delivery` — Schedule or update a delivery order.\n- `POST /v1/traces` — Submit network trace data for troubleshooting.\n\n### Config (1)\n- `GET /api/public/v1/init` — Get initial configuration settings.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"verizon\", executionMode: \"backend\", endpoint: \"GET /id\" }\n```\n\nHere's the Quick Start content for your Verizon API skill document:\n\n```typescript\n// Retrieve initial configuration settings.\nconst config = await client.get_api_public_v1_init();\nconsole.log(\"Configuration:\", config);\n```\n\n```typescript\n// Update a customer's North America profile.\nconst customerId = \"12345\"; // Replace with actual customer ID\nconst profileData = {\n  firstName: \"Jane\",\n  lastName: \"Doe\",\n  address: \"123 Main St\",\n};\nconst updateResult = await client.post_$id_na_json({ id: customerId, body: profileData });\nconsole.log(\"Update Result:\", updateResult);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (x-goog-api-key)\n**Base URL:** `https://www.verizon.com`\n**Captured Auth:** 1 auth headers\n\n## About This Skill\n\nThis skill provides access to Verizon's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Verizon data without official API access\n- Automate actions on www.verizon.com (faster than browser automation)\n- Call the same endpoints the Verizon frontend uses\n\n## Quick Start\n\n```typescript\nimport { VerizonClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await VerizonClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (x-goog-api-key)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (7)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/public/v1/init`\n- `GET /id`\n- `GET /internal/id-event/`\n- `POST /1862/na.json`\n- `POST /rest/v1/delivery`\n- `POST /v1/logs`\n- `POST /v1/traces`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/public/v1/init`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /id`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /internal/id-event/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /1862/na.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /rest/v1/delivery`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v1/logs`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v1/traces`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

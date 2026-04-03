@@ -1,0 +1,51 @@
+{
+  "skill_id": "87b0dab6-1560-4d19-b1eb-b425734ab3c8",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:04:22.133Z",
+  "updated_at": "2026-02-19T06:04:23.243Z",
+  "name": "yelp",
+  "intent_signature": "Search for local businesses, retrieve detailed venue",
+  "domain": "www.yelp.com",
+  "description": "Search for local businesses, retrieve detailed venue",
+  "owner_type": "marketplace",
+  "auth_type": "Custom Token (x-tracing-auth)",
+  "service_name": "yelp",
+  "endpoints": [
+    {
+      "endpoint_id": "c823bb0c-3f85-4dba-9fbe-1cafa49fc699",
+      "method": "POST",
+      "url_template": "https://www.yelp.com/__endpoint/c823bb0c-3f85-4dba-9fbe-1cafa49fc699",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createTraces",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "AcfEsyp7yAS3AWCkWhGmh2Fu5raeMZxN6GsDHuFXk1Vj",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "0e53d0c5b965042a77e74ab3b8359051c91df2c0d9ca4dac1d7a4a818fad596a"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "SEQUENCES.json",
+    "TRANSFORMS.json",
+    "CORRELATIONS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: yelp\ndescription: Internal API for yelp\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.yelp.com\"\n  authMethod: \"Custom Token (x-tracing-auth)\"\n  endpointCount: 5\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Yelp API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCustom Token (x-tracing-auth) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `POST /gql/batch` — Execute a batch of GraphQL queries.\n\n### Data Write (3)\n- `POST /{id}` — Post data associated with a specific ID.\n- `POST /com.snowplowanalytics.snowplow/tp2` — Send tracking events to Snowplow.\n- `POST /v1/traces` — Upload performance traces for analysis.\n\n### Realtime (1)\n- `POST /bunsen/api/bunsen/events/v1` — Send real-time events to Bunsen.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"yelp\", executionMode: \"backend\", endpoint: \"POST /gql/batch\" }\n```\n\nHere are a couple of quick examples to get you started using the Yelp API:\n\n```typescript\n// Example: Fetching data using a GraphQL query.\n// Assumes a pre-defined GraphQL query string.\nasync function fetchData(query: string) {\n  try {\n    const response = await client.gql_batch({ query });\n    return response.data;\n  } catch (error) {\n    console.error(\"Error fetching data:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Posting data associated with a specific ID.\nasync function postData(id: string, data: any) {\n  try {\n    const response = await client[id](data); // Accessing the method dynamically using the ID\n    return response;\n  } catch (error) {\n    console.error(\"Error posting data:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Custom Token (x-tracing-auth)\n**Base URL:** `https://www.yelp.com`\n**Captured Auth:** 2 auth headers, 16 session cookies\n\n## About This Skill\n\nThis skill provides access to Yelp's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Yelp data without official API access\n- Automate actions on www.yelp.com (faster than browser automation)\n- Call the same endpoints the Yelp frontend uses\n\n## Quick Start\n\n```typescript\nimport { YelpClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await YelpClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (x-tracing-auth, sec-fetch-storage-access)\n- **Session cookies:** 16\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (9)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /assets/{assetId}/cdn_assets/{cdn_assetId}/assets/vendor/{id}/18.3.1/esm/{id}.mjs`\n- `GET /assets/public/{id}.mjs`\n- `POST /bunsen/api/bunsen/events/v1`\n- `POST /com.snowplowanalytics.snowplow/tp2`\n- `POST /gql/batch`\n- `POST /interstitial`\n- `POST /js`\n- `POST /sit_rep`\n- `POST /v1/traces`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /assets/{assetId}/cdn_assets/{cdn_assetId}/assets/vendor/{id}/18.3.1/esm/{id}.mjs`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /assets/public/{id}.mjs`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /bunsen/api/bunsen/events/v1`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /com.snowplowanalytics.snowplow/tp2`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /gql/batch`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /interstitial`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /js`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /sit_rep`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v1/traces`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

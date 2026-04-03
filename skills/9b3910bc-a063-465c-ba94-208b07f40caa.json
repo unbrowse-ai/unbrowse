@@ -1,0 +1,49 @@
+{
+  "skill_id": "9b3910bc-a063-465c-ba94-208b07f40caa",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-17T17:30:53.533Z",
+  "updated_at": "2026-02-17T17:33:50.191Z",
+  "name": "flosenso",
+  "intent_signature": "Manage smart water level controllers and log system",
+  "domain": "www.flosenso.com",
+  "description": "Manage smart water level controllers and log system",
+  "owner_type": "marketplace",
+  "auth_type": "Authorization Header",
+  "service_name": "flosenso",
+  "endpoints": [
+    {
+      "endpoint_id": "7ed6aace-5ee3-4821-af53-f349bf7c6aeb",
+      "method": "POST",
+      "url_template": "https://www.flosenso.com/__endpoint/7ed6aace-5ee3-4821-af53-f349bf7c6aeb",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createSmartWaterLevel",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "38HAhgeWM5JZMryLW612GTbMwQTCSMKbkfkfhX7Wss7h",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "c3d925c279745cb67d7966f90f7c4a51208db072541014e27ab5d7bff8de672c"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: flosenso\ndescription: Internal API for flosenso\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.flosenso.com\"\n  authMethod: \"Authorization Header\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Flosenso API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAuthorization Header — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `POST /$rpc/{$rpcToken}/GenerateIT` — Generate an IT token for authentication.\n\n### Data Write (1)\n- `POST /smart-water-level-controller/` — Write data to a smart water level controller.\n\n### Realtime (1)\n- `POST /events` — Send real-time event data to Flosenso.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"flosenso\", executionMode: \"backend\", endpoint: \"POST /$rpc/{$rpcToken}/GenerateIT\" }\n```\n\nHere's a Quick Start to get you up and running with the Flosenso API. These examples demonstrate common tasks an AI agent might perform.\n\n```typescript\n// Generate an IT token for authentication.\nasync function generateToken(rpcToken: string) {\n  const response = await client.GenerateIT({ $rpcToken: rpcToken });\n  return response.token;\n}\n```\n\n```typescript\n// Write data to a smart water level controller.\nasync function writeWaterLevel(level: number) {\n  const data = { waterLevel: level };\n  await client.smart_water_level_controller(data);\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Authorization Header\n**Base URL:** `https://www.flosenso.com`\n**Captured Auth:** 4 auth headers\n\n## About This Skill\n\nThis skill provides access to Flosenso's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Flosenso data without official API access\n- Automate actions on www.flosenso.com (faster than browser automation)\n- Call the same endpoints the Flosenso frontend uses\n\n## Quick Start\n\n```typescript\nimport { FlosensoClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await FlosensoClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 4 (authorization, x-youtube-ad-signals, x-goog-authuser, x-goog-api-key)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (8)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /wp-content/uploads/2024/08/Animation-1724847945702.json`\n- `POST /$rpc/google.internal.waa.v1.Waa/GenerateIT`\n- `POST /events`\n- `POST /smart-water-level-controller/`\n- `POST /youtubei/v1/log_event`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /wp-content/uploads/2024/08/Animation-1724847945702.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /$rpc/google.internal.waa.v1.Waa/GenerateIT`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /events`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /smart-water-level-controller/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /youtubei/v1/log_event`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

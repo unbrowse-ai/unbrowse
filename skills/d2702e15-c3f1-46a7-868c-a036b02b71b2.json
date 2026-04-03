@@ -1,0 +1,101 @@
+{
+  "skill_id": "d2702e15-c3f1-46a7-868c-a036b02b71b2",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-14T23:02:51.963Z",
+  "updated_at": "2026-02-19T19:01:53.232Z",
+  "name": "jsonplaceholder-typicode",
+  "intent_signature": "Retrieve user profiles and manage decisions through the",
+  "domain": "jsonplaceholder.typicode.com",
+  "description": "Retrieve user profiles and manage decisions through the",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "jsonplaceholder-typicode",
+  "endpoints": [
+    {
+      "endpoint_id": "48f0bd58-0d67-4f43-ba68-b752efff982f",
+      "method": "GET",
+      "url_template": "https://jsonplaceholder.typicode.com/__endpoint/48f0bd58-0d67-4f43-ba68-b752efff982f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.05,
+      "description": "getUsers",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "211773db-bd0d-4d9d-a698-dafd1caa2bf3",
+      "method": "GET",
+      "url_template": "https://jsonplaceholder.typicode.com/__endpoint/211773db-bd0d-4d9d-a698-dafd1caa2bf3",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.05,
+      "description": "getUsersAlbums",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "25104aa6-c9e4-49d3-81b1-e19d197242d7",
+      "method": "GET",
+      "url_template": "https://jsonplaceholder.typicode.com/__endpoint/25104aa6-c9e4-49d3-81b1-e19d197242d7",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.05,
+      "description": "getUsersTodos",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "a27b4189-2d34-4b81-9610-c59251f596b1",
+      "method": "GET",
+      "url_template": "https://jsonplaceholder.typicode.com/__endpoint/a27b4189-2d34-4b81-9610-c59251f596b1",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.05,
+      "description": "getUsersPosts",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "2a801d32-c3c3-4467-b424-99da8026bd87",
+      "method": "GET",
+      "url_template": "https://jsonplaceholder.typicode.com/__endpoint/2a801d32-c3c3-4467-b424-99da8026bd87",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getPosts",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "CsvcSMmGuSFCdfp12EJ9VYF8dhG6M7WjLrRgcvcz7aYo",
+    "download_count": 0,
+    "total_versions": 3,
+    "latest_version_hash": "14c0107dfc44eefe883588db3d021389fd0d5a6132d5bdb9e9a4cb45f3594816"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: jsonplaceholder-typicode\ndescription: Internal API for jsonplaceholder-typicode\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://jsonplaceholder.typicode.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# JsonplaceholderTypicode API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (3)\n- `GET /api/v1/decision/` — Fetch paginated feed updates\n- `GET /users` — Retrieve a list of users.\n- `GET /users/1/{1Id}` — Retrieve a specific user by ID.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"jsonplaceholder-typicode\", executionMode: \"backend\", endpoint: \"GET /api/v1/decision/\" }\n```\n\nHere's a Quick Start to get you interacting with the `jsonplaceholder-typicode` API using the generated client. These examples demonstrate common read operations.\n\n**Fetching a paginated feed of decision updates:**\n\n```typescript\n// Fetch the first page of decision updates.\nasync function getFirstPage() {\n  const response = await client.get_api_v1_decision();\n  if (response.status === 200) {\n    console.log(\"Decision updates:\", response.data);\n  } else {\n    console.error(\"Error fetching updates:\", response.status, response.statusText);\n  }\n}\n\ngetFirstPage();\n```\n\n**Retrieving a specific user by ID:**\n\n```typescript\n// Retrieve user with ID 5.\nasync function getUser() {\n  const response = await client.get_users_1({ \"1Id\": \"5\" });\n  if (response.status === 200) {\n    console.log(\"User data:\", response.data);\n  } else {\n    console.error(\"Error fetching user:\", response.status, response.statusText);\n  }\n}\n\ngetUser();\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://jsonplaceholder.typicode.com`\n**Captured Auth:** 2 session cookies\n\n## About This Skill\n\nThis skill provides access to Jsonplaceholder Typicode's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Jsonplaceholder Typicode data without official API access\n- Automate actions on jsonplaceholder.typicode.com (faster than browser automation)\n- Call the same endpoints the Jsonplaceholder Typicode frontend uses\n\n## Quick Start\n\n```typescript\nimport { JsonplaceholderTypicodeClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await JsonplaceholderTypicodeClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 2\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (6)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

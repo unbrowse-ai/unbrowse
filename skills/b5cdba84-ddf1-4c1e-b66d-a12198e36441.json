@@ -1,0 +1,101 @@
+{
+  "skill_id": "b5cdba84-ddf1-4c1e-b66d-a12198e36441",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T19:25:58.720Z",
+  "updated_at": "2026-02-19T05:54:59.813Z",
+  "name": "substack",
+  "intent_signature": "Manage Substack content by",
+  "domain": "www.substack.com",
+  "description": "Manage Substack content by",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (XSRF-TOKEN)",
+  "service_name": "substack",
+  "endpoints": [
+    {
+      "endpoint_id": "5d149433-3540-473f-b7ab-5eb9c85a7676",
+      "method": "GET",
+      "url_template": "https://www.substack.com/__endpoint/5d149433-3540-473f-b7ab-5eb9c85a7676",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getMessagesUnreadCount",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "f4e4ca12-a337-4afc-ab53-520ac1295344",
+      "method": "GET",
+      "url_template": "https://www.substack.com/__endpoint/f4e4ca12-a337-4afc-ab53-520ac1295344",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.9,
+      "description": "getInbox",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "57fa1574-9703-4533-a963-63139969f7b3",
+      "method": "GET",
+      "url_template": "https://www.substack.com/__endpoint/57fa1574-9703-4533-a963-63139969f7b3",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.9,
+      "description": "getReaderFeed",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "40717b79-d408-45ab-9996-76b46a40953a",
+      "method": "GET",
+      "url_template": "https://www.substack.com/__endpoint/40717b79-d408-45ab-9996-76b46a40953a",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getSearchModules",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "8ac20e25-c76e-4111-b4cd-38a1a3794733",
+      "method": "GET",
+      "url_template": "https://www.substack.com/__endpoint/8ac20e25-c76e-4111-b4cd-38a1a3794733",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.7,
+      "description": "getVideoUploadById",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "9BQVyMLue8jhKjmCV4bvDj2vVUXbYRj2SxGyVEyhcCwm",
+    "download_count": 1,
+    "total_versions": 2,
+    "latest_version_hash": "15772c388eb5a7afde965d98e3af49d8a806828001314a303f6a8581c5698762"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: substack\ndescription: Internal API for substack\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.substack.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 9\n  apiType: \"internal\"\n  category: \"content\"\n---\n\n# Substack API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (3)\n- `GET /api/v1/inbox/top` — Get top inbox items.\n- `GET /api/v1/reader/feed` — Retrieve reader's personalized feed.\n- `GET /v2/{v2Id}` — Retrieve data using a V2 ID.\n\n### Data Write (2)\n- `POST /_/clientele/reports/performance` — Report performance metrics.\n- `POST /api/v1/firehose/batch` — Write a batch of firehose data.\n\n### Media (2)\n- `GET /api/v1/video/upload/{uploadId}/src` — Get the video source URL for upload.\n- `GET /v1/chunk/{chunkId}/{chunkId}` — Download a specific media chunk.\n\n### Core API (2)\n- `POST /` — Submit a generic core API request.\n- `POST /_/graphql` — Submit a GraphQL query.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"substack\", executionMode: \"backend\", endpoint: \"GET /api/v1/inbox/top\" }\n```\n\nHere's a Quick Start guide with examples of common usage patterns:\n\n```typescript\n// Fetching the user's personalized feed.\nasync function getPersonalizedFeed() {\n  try {\n    const feed = await client.getApiV1ReaderFeed();\n    console.log(\"Personalized Feed:\", feed);\n    return feed;\n  } catch (error) {\n    console.error(\"Error fetching feed:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Reporting performance metrics.\nasync function reportPerformance(metrics: any) {\n  try {\n    const response = await client.postClienteleReportsPerformance(metrics);\n    console.log(\"Performance report submitted:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error submitting performance report:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.substack.com`\n**Captured Auth:** 22 session cookies\n\n## About This Skill\n\nThis skill provides access to Substack's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Substack data without official API access\n- Automate actions on www.substack.com (faster than browser automation)\n- Call the same endpoints the Substack frontend uses\n\n## Quick Start\n\n```typescript\nimport { SubstackClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await SubstackClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 22\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (11)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

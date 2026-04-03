@@ -1,0 +1,71 @@
+{
+  "skill_id": "a254e5ac-49bb-4896-8bf9-6c7eb9488d61",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T23:15:25.462Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "dol-gov",
+  "intent_signature": "Access labor statistics, public",
+  "domain": "api.dol.gov",
+  "description": "Access labor statistics, public",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "dol-gov",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--",
+      "method": "GET",
+      "url_template": "https://api.dol.gov/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--boomerang-E68AF-EQ2CX-6PS4U-GPXGV-5A3RP",
+      "method": "GET",
+      "url_template": "https://api.dol.gov/boomerang/E68AF-EQ2CX-6PS4U-GPXGV-5A3RP",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--",
+      "method": "POST",
+      "url_template": "https://api.dol.gov/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "5rN9vNnypouzR835yj2oRUrSXY7TbAgD8EHcwR88PeEt",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "ba74c564de47c5fce03dfc82319dedc148515081dd2124b89defac0806a74300"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: dol-gov\ndescription: Internal API for dol-gov\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://api.dol.gov\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# DolGov API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /` — Retrieve paginated data feed updates.\n\n### Data Write (1)\n- `POST /` — Submit data to the API.\n\n### Config (1)\n- `GET /api/config.json` — Get API configuration details.\n\n## Quick Start\n\n```typescript\n// Retrieve the API configuration.\nconst config = await client.config();\nconsole.log(config);\n```\n\n```typescript\n// Retrieve the first page of data feed updates.\nconst data = await client.data_read();\nconsole.log(data);\n```\n\n```typescript\n// Submit data to the API.\nconst payload = { key: \"value\" };\nconst response = await client.data_write(payload);\nconsole.log(response);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://api.dol.gov`\n**Captured Auth:** 1 session cookies\n\n## About This Skill\n\nThis skill provides access to Dol Gov's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Dol Gov data without official API access\n- Automate actions on api.dol.gov (faster than browser automation)\n- Call the same endpoints the Dol Gov frontend uses\n\n## Quick Start\n\n```typescript\nimport { DolGovClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await DolGovClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 1\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (7)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /boomerang/E68AF-EQ2CX-6PS4U-GPXGV-5A3RP`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /boomerang/E68AF-EQ2CX-6PS4U-GPXGV-5A3RP`\n- Status: `auth_required` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

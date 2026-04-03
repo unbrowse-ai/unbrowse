@@ -518,7 +518,8 @@ async function promptAgentEmail(defaultName: string): Promise<string> {
   }
 }
 
-async function checkTosStatus(): Promise<void> {
+async function checkTosStatus(options?: { exitOnFailure?: boolean }): Promise<boolean> {
+  const exitOnFailure = options?.exitOnFailure ?? true;
   const config = loadConfig();
 
   let tosInfo: { version: string; summary: string; url: string };
@@ -527,11 +528,11 @@ async function checkTosStatus(): Promise<void> {
   } catch {
     // Offline — allow usage with whatever ToS was previously accepted.
     // Backend will enforce on next actual API call anyway.
-    return;
+    return true;
   }
 
   if (config?.tos_accepted_version === tosInfo.version) {
-    return; // Already accepted current version
+    return true; // Already accepted current version
   }
 
   // Need re-acceptance
@@ -539,7 +540,8 @@ async function checkTosStatus(): Promise<void> {
   const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
   if (!accepted) {
     console.log("You must accept the updated Terms of Service to continue using Unbrowse.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
+    return false;
   }
 
   // Call accept-tos endpoint
@@ -557,17 +559,20 @@ async function checkTosStatus(): Promise<void> {
     console.warn(`Failed to record ToS acceptance: ${(err as Error).message}`);
     // Don't block — backend will enforce on next call
   }
+  return true;
 }
 
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
-export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
+export async function ensureRegistered(options?: { promptForEmail?: boolean; exitOnFailure?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
+  const exitOnFailure = options?.exitOnFailure ?? true;
   const usableKey = await findUsableApiKey();
   if (usableKey) {
     if (usableKey.source === "config") {
       console.log("[unbrowse] Restored saved registration.");
     }
-    await checkTosStatus();
+    const accepted = await checkTosStatus({ exitOnFailure });
+    if (!accepted) return;
     try {
       const profile = await getMyProfile();
       const wallet = getLocalWalletContext();
@@ -592,7 +597,8 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
   if (!accepted) {
     console.log("You must accept the Terms of Service to use Unbrowse.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
+    return;
   }
 
   // Step 3: Register with ToS version
@@ -628,8 +634,38 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);
     console.warn("Set UNBROWSE_API_KEY manually or try again.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
   }
+}
+
+let backgroundRegistrationPromise: Promise<void> | null = null;
+
+export function startBackgroundRegistration(options?: { promptForEmail?: boolean }): Promise<void> {
+  if (LOCAL_ONLY) return Promise.resolve();
+  if (backgroundRegistrationPromise) return backgroundRegistrationPromise;
+  backgroundRegistrationPromise = ensureRegistered({
+    promptForEmail: options?.promptForEmail,
+    exitOnFailure: false,
+  })
+    .catch((err) => {
+      console.warn(`[unbrowse] Background registration failed: ${(err as Error).message}`);
+    })
+    .finally(() => {
+      backgroundRegistrationPromise = null;
+    });
+  return backgroundRegistrationPromise;
+}
+
+export async function waitForBackgroundRegistration(timeoutMs = 0): Promise<void> {
+  if (!backgroundRegistrationPromise) return;
+  if (timeoutMs <= 0) {
+    await backgroundRegistrationPromise;
+    return;
+  }
+  await Promise.race([
+    backgroundRegistrationPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 // --- Skill CRUD ---

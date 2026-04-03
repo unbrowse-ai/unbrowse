@@ -1,0 +1,220 @@
+{
+  "skill_id": "lYnHjPzFRmsAQ4tNvFmIi",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:41:46.059Z",
+  "updated_at": "2026-02-23T07:41:46.059Z",
+  "name": "pro.porch.com -- Retrieve project details and manage professional service requests",
+  "intent_signature": "Retrieve project details and manage professional service requests",
+  "domain": "pro.porch.com",
+  "description": "Auto-discovered skill for: Retrieve project details and manage professional service requests",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "JUmsuWpS1mSOOExWGTYJm",
+      "method": "GET",
+      "url_template": "https://pro.porch.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "pylXTwyu-KKVBdFsGZe3Q",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/icon",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://pro.porch.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Material Icons"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "7wkLHfmg52AH7Q2bhxYbv",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://pro.porch.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Material Symbols Outlined:opsz,wght,FILL,GRAD@24,400,0,0",
+        "icon_names": "account_circle"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "s0gnpwBWwZZ9mZsy1sPZC",
+      "method": "GET",
+      "url_template": "https://insight.adsrvr.org/track/cei",
+      "headers_template": {
+        "referer": "https://pro.porch.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "advertiser_id": "z1ok47e",
+        "cookie_sync": "1",
+        "upv": "3.0.0",
+        "upid": "jddm387",
+        "ref": "https://pro.porch.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "_XdzxeBN2x7WmM2z306kO",
+      "method": "GET",
+      "url_template": "https://match.adsrvr.org/track/cei",
+      "headers_template": {
+        "referer": "https://pro.porch.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "advertiser_id": "z1ok47e",
+        "cookie_sync": "1",
+        "upv": "3.0.0",
+        "upid": "jddm387",
+        "ref": "https://pro.porch.com",
+        "redirect": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "NH_SM3oTHH0g465WiPMga",
+      "method": "GET",
+      "url_template": "https://ib.adnxs.com/getuid",
+      "headers_template": {
+        "referer": "https://match.adsrvr.org/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "https://match.adsrvr.org/track/cmf/appnexus?ttd=1&anid=$UID": "",
+        "ttd_tdid": "580a2e4b-5af7-4fd5-abc2-527e746bb2d3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "U-ZxKt_1PLecoThV4OieA",
+      "method": "GET",
+      "url_template": "https://match.adsrvr.org/track/cmf/google",
+      "headers_template": {
+        "referer": "https://match.adsrvr.org/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "g_uuid": "",
+        "gdpr": "0",
+        "gdpr_consent": "",
+        "ttd_tdid": "580a2e4b-5af7-4fd5-abc2-527e746bb2d3",
+        "google_gid": "CAESELN_4v-EpOuoKf0LHGoGiC0",
+        "google_cver": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "-y9IYdTlcfaWji5sSMBPs",
+      "method": "GET",
+      "url_template": "https://match.adsrvr.org/track/cmf/generic",
+      "headers_template": {
+        "referer": "https://match.adsrvr.org/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "ttd_pid": "aam"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "8A0-eK-6MOu9uukKTtdmz",
+      "method": "GET",
+      "url_template": "https://ib.adnxs.com/bounce",
+      "headers_template": {
+        "referer": "https://match.adsrvr.org/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "/getuid?https%3a%2f%2fmatch.adsrvr.org%2ftrack%2fcmf%2fappnexus%3fttd%3d1%26anid%3d%24UID&ttd_tdid=580a2e4b-5af7-4fd5-abc2-527e746bb2d3": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "y4l2L_l_vjZT5LXgXRWPD",
+      "method": "GET",
+      "url_template": "https://match.adsrvr.org/track/cmf/appnexus",
+      "headers_template": {
+        "referer": "https://match.adsrvr.org/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "ttd": "1",
+        "anid": "8339536415183158782",
+        "ttd_tdid": "580a2e4b-5af7-4fd5-abc2-527e746bb2d3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "pro.porch.com-session"
+}
