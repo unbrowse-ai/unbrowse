@@ -91,6 +91,28 @@ exit 1
     expect(Number(readFileSync(counterFile, "utf8").trim())).toBe(4);
   }, 30_000);
 
+  it("derives launch mode from env flags", () => {
+    expect(kuri.resolveKuriLaunchConfig({
+      HEADLESS: "true",
+    } as NodeJS.ProcessEnv)).toEqual({
+      headless: true,
+      attachToExistingChrome: false,
+    });
+
+    expect(kuri.resolveKuriLaunchConfig({
+      KURI_HEADLESS: "1",
+      KURI_DISABLE_CDP_ATTACH: "1",
+    } as NodeJS.ProcessEnv)).toEqual({
+      headless: true,
+      attachToExistingChrome: false,
+    });
+
+    expect(kuri.resolveKuriLaunchConfig({} as NodeJS.ProcessEnv)).toEqual({
+      headless: false,
+      attachToExistingChrome: true,
+    });
+  });
+
   it("extracts plugin loaders from html datasets", () => {
     const html = `
       <div data-load-plugins="ticketing.js calendar.js"></div>
