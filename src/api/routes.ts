@@ -30,6 +30,7 @@ import { join } from "path";
 import { type BrowseSession, getOrCreateBrowseSession, isRecoverableBrowseFailure, withRecoveredBrowseSession } from "./browse-session.js";
 import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
 import { submitBrowseForm } from "./browse-submit.js";
+import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
@@ -773,6 +774,25 @@ export async function registerRoutes(app: FastifyInstance) {
       const { verifySkill } = await import("../verification/index.js");
       const results = await verifySkill(skill);
       return reply.send({ skill_id, verification: results });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // POST /v1/stale/cleanup — verify active skills, mark dead endpoints stale, drop local cache entries
+  app.post("/v1/stale/cleanup", async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      skill_id?: string;
+      domain?: string;
+      limit?: number;
+    };
+    try {
+      const result = await cleanupStaleSkills({
+        skill_id: typeof body.skill_id === "string" ? body.skill_id : undefined,
+        domain: typeof body.domain === "string" ? body.domain : undefined,
+        limit: typeof body.limit === "number" ? body.limit : undefined,
+      });
+      return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
