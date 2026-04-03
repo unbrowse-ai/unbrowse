@@ -263,13 +263,9 @@ export default async function Home() {
                 </Link>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-text-muted">
-<<<<<<< HEAD
-                                <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Docs</a>
-=======
                 <a href="#demo" className="hover:text-text-primary transition-colors">See Demo</a>
                 <span className="text-border-strong">·</span>
                 <a href={DOCS_URL} target="_blank" rel="noopener" data-exploration-id="docs" className="hover:text-text-primary transition-colors">Docs</a>
->>>>>>> origin/main
                 <span className="text-border-strong">·</span>
                 <a href={WHITEPAPER_URL} target="_blank" rel="noopener" data-exploration-id="paper" className="hover:text-text-primary transition-colors">Read Paper</a>
                 <span className="text-border-strong">·</span>
@@ -279,11 +275,7 @@ export default async function Home() {
 
               {/* Supported Agents */}
               <div className="animate-fade-up stagger-5 mt-14 sm:mt-20 pt-8 w-full flex flex-col items-center">
-<<<<<<< HEAD
-                <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-5">Works with</p>
-=======
                 <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-5">Built for agent stacks</p>
->>>>>>> origin/main
                 <div className="flex flex-wrap justify-center items-center gap-5 sm:gap-12 opacity-80 transition-opacity hover:opacity-100">
                   <span className="text-base sm:text-lg font-medium tracking-tight">Claude Code</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">Cursor</span>
@@ -384,11 +376,7 @@ export default async function Home() {
                 </p>
                 <div className="mt-auto pt-5 border-t border-border space-y-3">
                   <div className="flex items-center gap-2.5 text-sm text-text-secondary">
-<<<<<<< HEAD
-                    <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">No endpoint config needed</span>
-=======
                     <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">No endpoint mapping by hand</span>
->>>>>>> origin/main
                   </div>
                   <div className="flex items-center gap-2.5 text-sm text-text-secondary">
                     <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">Shared skill registry</span>
