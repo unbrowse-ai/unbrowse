@@ -44,9 +44,16 @@ Defaults:
 
 For internal, non-draft, labeled PRs:
 
-- pull request activity dispatches a self-hosted GitHub Actions workflow
-- failed `check_suite` events on the current PR head dispatch the workflow again
-- the workflow runs Codex on the PR branch, reviews comments/checks, can merge base into head, fix code, run tests/evals, and push repairs back to the PR branch
+- pull request activity dispatches a self-hosted `repair` workflow run
+- `check_suite` completion is classified before dispatch:
+  - external failing checks -> dispatch `repair`
+  - all external checks green on the current head -> dispatch `merge`
+  - agent-only failures or still-pending checks -> ignore
+- `merge` is agentic:
+  - Codex runs a merge-judgment pass and sets `merge_recommended=true|false`
+  - the merge only executes if the agent recommends it
+  - a final hard safety gate still checks current head SHA, external checks, review state, and merge state before calling the GitHub merge API
+- `repair` still uses Codex, but the workflow isolates `CODEX_HOME` so broken runner-local skills do not poison the run
 
 The webhook receiver no longer blindly enables auto-merge. It hands off to the agent workflow.
 

@@ -1,9 +1,13 @@
 #!/usr/bin/env bun
 
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+
+type AgentOperation = "repair" | "merge";
+type AgentOutcome = "patched" | "no_changes" | "blocked" | "merged";
+type MergeMethod = "merge" | "squash" | "rebase";
 
 type PullRequestDetails = {
   number: number;
@@ -23,6 +27,14 @@ type PullRequestDetails = {
     repo?: { full_name?: string | null } | null;
   };
   labels: Array<{ name?: string }>;
+};
+
+type PullRequestMergeView = {
+  state: "OPEN" | "CLOSED" | "MERGED";
+  isDraft: boolean;
+  reviewDecision: string | null;
+  mergeStateStatus: string | null;
+  headRefOid: string;
 };
 
 type IssueComment = {
@@ -60,7 +72,31 @@ type AgentResult = {
   evals_run: string[];
   files_touched: string[];
   residual_risks: string[];
+  merge_recommended: boolean;
   outcome: "patched" | "no_changes" | "blocked";
+};
+
+type ExecutionResult = {
+  summary: string;
+  tests_run: string[];
+  evals_run: string[];
+  files_touched: string[];
+  residual_risks: string[];
+  merge_recommended?: boolean;
+  outcome: AgentOutcome;
+};
+
+type CheckSummary = {
+  hasExternalChecks: boolean;
+  pending: string[];
+  failing: string[];
+  successful: string[];
+};
+
+type MergeReadiness = {
+  ok: boolean;
+  reason: string;
+  successfulChecks: string[];
 };
 
 type Context = {
@@ -74,9 +110,13 @@ type Context = {
   changedFiles: ChangedFile[];
   triggerSource: string;
   triggerReason: string;
+  operation: AgentOperation;
 };
 
 const MARKER = "<!-- unbrowse-pr-agent -->";
+const AGENT_CHECK_NAMES = new Set(["PR Agent", "Review And Repair PR"]);
+const SUCCESSFUL_CHECK_CONCLUSIONS = new Set(["success", "neutral", "skipped"]);
+const SAFE_MERGE_STATES = new Set(["CLEAN", "HAS_HOOKS", "UNSTABLE"]);
 
 function runText(command: string, args: string[], cwd = process.cwd()): string {
   return execFileSync(command, args, {
@@ -102,14 +142,74 @@ function parseArgs(argv: string[]) {
     i += 1;
   }
   if (!options.repo || !options.pr) {
-    throw new Error("usage: pr-agent.ts --repo owner/repo --pr 123 [--trigger-source pull_request] [--trigger-reason pull_request:synchronize]");
+    throw new Error("usage: pr-agent.ts --repo owner/repo --pr 123 [--operation repair|merge] [--trigger-source pull_request] [--trigger-reason pull_request:synchronize]");
+  }
+  const operation = (options.operation ?? "repair").trim().toLowerCase();
+  if (operation !== "repair" && operation !== "merge") {
+    throw new Error(`Unsupported operation: ${options.operation}`);
   }
   return {
     repo: options.repo,
     prNumber: Number(options.pr),
+    operation: operation as AgentOperation,
     triggerSource: options["trigger-source"] ?? "pull_request",
     triggerReason: options["trigger-reason"] ?? "manual",
   };
+}
+
+function isAgentCheckName(name: string): boolean {
+  return AGENT_CHECK_NAMES.has(name.trim());
+}
+
+export function summarizeCheckRuns(checkRuns: CheckRun[]): CheckSummary {
+  const externalChecks = checkRuns.filter((check) => check.name.trim().length > 0 && !isAgentCheckName(check.name));
+  const pending = externalChecks
+    .filter((check) => check.status !== "completed")
+    .map((check) => check.name);
+  const failing = externalChecks
+    .filter((check) => check.status === "completed" && check.conclusion != null && !SUCCESSFUL_CHECK_CONCLUSIONS.has(check.conclusion))
+    .map((check) => check.name);
+  const successful = externalChecks
+    .filter((check) => check.status === "completed" && check.conclusion != null && SUCCESSFUL_CHECK_CONCLUSIONS.has(check.conclusion))
+    .map((check) => check.name);
+
+  return {
+    hasExternalChecks: externalChecks.length > 0,
+    pending,
+    failing,
+    successful,
+  };
+}
+
+export function evaluateMergeReadiness(
+  pr: PullRequestMergeView,
+  expectedHeadSha: string,
+  checkRuns: CheckRun[],
+): MergeReadiness {
+  if (pr.state !== "OPEN") return { ok: false, reason: `pr state ${pr.state.toLowerCase()}`, successfulChecks: [] };
+  if (pr.isDraft) return { ok: false, reason: "draft pr", successfulChecks: [] };
+  if (pr.reviewDecision === "CHANGES_REQUESTED") {
+    return { ok: false, reason: "review requested changes", successfulChecks: [] };
+  }
+  if (pr.headRefOid !== expectedHeadSha) {
+    return { ok: false, reason: "head sha changed", successfulChecks: [] };
+  }
+
+  const summary = summarizeCheckRuns(checkRuns);
+  if (!summary.hasExternalChecks) return { ok: false, reason: "no external checks reported", successfulChecks: [] };
+  if (summary.pending.length > 0) {
+    return { ok: false, reason: `pending checks: ${summary.pending.join(", ")}`, successfulChecks: summary.successful };
+  }
+  if (summary.failing.length > 0) {
+    return { ok: false, reason: `failing checks: ${summary.failing.join(", ")}`, successfulChecks: summary.successful };
+  }
+
+  const mergeState = pr.mergeStateStatus ?? "UNKNOWN";
+  if (!SAFE_MERGE_STATES.has(mergeState)) {
+    return { ok: false, reason: `merge state ${mergeState.toLowerCase()}`, successfulChecks: summary.successful };
+  }
+
+  return { ok: true, reason: "external checks green", successfulChecks: summary.successful };
 }
 
 export function deriveSuggestedCommands(failingChecks: string[], changedFiles: string[]): string[] {
@@ -123,7 +223,7 @@ export function deriveSuggestedCommands(failingChecks: string[], changedFiles: s
     }
     if (check === "Unit Tests") {
       add("bun run test:issue-regressions");
-      add("bun test tests/path-params.test.ts tests/utils.test.ts");
+      add("bun test tests/path-params.test.ts tests/utils.test.ts tests/pr-agent.test.ts");
     }
     if (check === "Quality Gate") add("bun test evals/quality-gate.test.ts");
     if (check === "Backend Tests") add("bun test backend/tests/");
@@ -177,9 +277,7 @@ export function deriveSuggestedEvalCommands(changedFiles: string[]): string[] {
     file === "src/cli.ts" ||
     file === "src/router.ts",
   );
-  if (touchesRuntime) {
-    commands.add("bun run eval:codex:product-success");
-  }
+  if (touchesRuntime) commands.add("bun run eval:codex:product-success");
   return [...commands];
 }
 
@@ -209,6 +307,47 @@ function fetchCheckRuns(repo: string, headSha: string): CheckRun[] {
   return payload.check_runs ?? [];
 }
 
+function splitRepo(repo: string): [string, string] {
+  const [owner, repoName] = repo.split("/");
+  if (!owner || !repoName) throw new Error(`Invalid repo: ${repo}`);
+  return [owner, repoName];
+}
+
+function fetchPullRequestMergeView(repo: string, prNumber: number): PullRequestMergeView {
+  const [owner, repoName] = splitRepo(repo);
+  const payload = runJson<{
+    data?: {
+      repository?: {
+        pullRequest?: PullRequestMergeView | null;
+      } | null;
+    } | null;
+  }>("gh", [
+    "api",
+    "graphql",
+    "-f",
+    `owner=${owner}`,
+    "-f",
+    `name=${repoName}`,
+    "-F",
+    `number=${prNumber}`,
+    "-f",
+    `query=query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) {
+          state
+          isDraft
+          reviewDecision
+          mergeStateStatus
+          headRefOid
+        }
+      }
+    }`,
+  ]);
+  const pullRequest = payload.data?.repository?.pullRequest;
+  if (!pullRequest) throw new Error(`PR #${prNumber} not found in ${repo}`);
+  return pullRequest;
+}
+
 function buildPrompt(context: Context): string {
   const changedFiles = context.changedFiles.map((file) => file.filename);
   const latestIssueComments = context.issueComments.slice(-5).map((comment) => ({
@@ -223,30 +362,53 @@ function buildPrompt(context: Context): string {
     body: comment.body ?? "",
   }));
 
-  return [
-    `You are repairing PR #${context.pr.number} in ${context.repo}.`,
-    "",
-    "Goals:",
-    "1. Review the PR diff and comments.",
-    "2. If the PR branch is behind or conflicted with base, merge the base branch into the PR branch and resolve conflicts carefully.",
-    "3. Fix real issues you find or any failing checks relevant to this PR.",
-    "4. Run the relevant tests and evals before finishing.",
-    "5. Do not commit or push; leave the worktree ready for the wrapper script to do that.",
-    "",
-    "Hard rules:",
-    "- Keep changes minimal and reviewable.",
-    "- Do not touch unrelated files.",
-    "- Do not ignore failing tests/evals; either fix them or explicitly record the blocker.",
-    "- Prefer repository commands over made-up checks.",
-    "- If a check is already failing elsewhere in the repo unrelated to this PR, do not derail into unrelated cleanup.",
+  const lines = [
+    `You are handling PR #${context.pr.number} in ${context.repo}.`,
     "",
     `Trigger: ${context.triggerSource} / ${context.triggerReason}`,
+    `Operation: ${context.operation}`,
     `PR title: ${context.pr.title}`,
     `PR url: ${context.pr.html_url}`,
     `Base branch: ${context.pr.base.ref}`,
     `Head branch: ${context.pr.head.ref}`,
     `Head sha: ${context.pr.head.sha}`,
     `Mergeable state: ${context.pr.mergeable_state ?? "unknown"}`,
+    "",
+  ];
+
+  if (context.operation === "repair") {
+    lines.push(
+      "Goals:",
+      "1. Review the PR diff and comments.",
+      "2. If the PR branch is behind or conflicted with base, merge the base branch into the PR branch and resolve conflicts carefully.",
+      "3. Fix real issues you find or any failing checks relevant to this PR.",
+      "4. Run the relevant tests and evals before finishing.",
+      "5. Decide whether the PR should merge after your review. Set merge_recommended=true only if you believe it is ready.",
+      "6. Do not commit or push; leave the worktree ready for the wrapper script to do that.",
+      "",
+      "Hard rules:",
+      "- Keep changes minimal and reviewable.",
+      "- Do not touch unrelated files.",
+      "- Do not ignore failing tests/evals; either fix them or explicitly record the blocker.",
+      "- Prefer repository commands over made-up checks.",
+      "- If a check is already failing elsewhere in the repo unrelated to this PR, do not derail into unrelated cleanup.",
+    );
+  } else {
+    lines.push(
+      "Goals:",
+      "1. Review the PR diff, comments, and check state.",
+      "2. Decide whether this PR should merge right now.",
+      "3. Do not change files, commit, or push in merge mode.",
+      "",
+      "Hard rules:",
+      "- This is a merge judgment pass, not a repair pass.",
+      "- Set merge_recommended=true only if the PR is genuinely ready to merge now.",
+      "- If anything feels incomplete, risky, or underspecified, set merge_recommended=false and explain why.",
+      "- Do not make code edits in merge mode.",
+    );
+  }
+
+  lines.push(
     "",
     "Changed files:",
     ...changedFiles.map((file) => `- ${file}`),
@@ -267,7 +429,9 @@ function buildPrompt(context: Context): string {
     JSON.stringify(latestReviewComments, null, 2),
     "",
     "Final response must satisfy the provided JSON schema.",
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 function outputSchemaPath(dir: string): string {
@@ -275,13 +439,14 @@ function outputSchemaPath(dir: string): string {
   writeFileSync(schemaPath, JSON.stringify({
     type: "object",
     additionalProperties: false,
-    required: ["summary", "tests_run", "evals_run", "files_touched", "residual_risks", "outcome"],
+    required: ["summary", "tests_run", "evals_run", "files_touched", "residual_risks", "merge_recommended", "outcome"],
     properties: {
       summary: { type: "string" },
       tests_run: { type: "array", items: { type: "string" } },
       evals_run: { type: "array", items: { type: "string" } },
       files_touched: { type: "array", items: { type: "string" } },
       residual_risks: { type: "array", items: { type: "string" } },
+      merge_recommended: { type: "boolean" },
       outcome: { type: "string", enum: ["patched", "no_changes", "blocked"] },
     },
   }, null, 2));
@@ -289,12 +454,18 @@ function outputSchemaPath(dir: string): string {
 }
 
 function runCodex(prompt: string, workdir: string, outputPath: string, schemaPath: string): void {
+  if (!process.env.OPENAI_API_KEY?.trim()) throw new Error("Missing OPENAI_API_KEY.");
+
+  const codexHome = process.env.CODEX_HOME?.trim() || join(tmpdir(), "unbrowse-pr-agent-codex-home");
+  mkdirSync(codexHome, { recursive: true });
+
   execFileSync(
     "codex",
     [
       "-a", "never",
       "exec",
       "--dangerously-bypass-approvals-and-sandbox",
+      "--ephemeral",
       "--color", "never",
       "-C", workdir,
       "--output-schema", schemaPath,
@@ -308,6 +479,7 @@ function runCodex(prompt: string, workdir: string, outputPath: string, schemaPat
       encoding: "utf8",
       env: {
         ...process.env,
+        CODEX_HOME: codexHome,
         OPENAI_LOG: "error",
       },
     },
@@ -322,6 +494,12 @@ function hasChanges(): boolean {
   return runText("git", ["status", "--porcelain"]).trim().length > 0;
 }
 
+function mergeMethod(): MergeMethod {
+  const configured = (process.env.GITHUB_PR_BOT_MERGE_METHOD ?? "squash").trim().toLowerCase();
+  if (configured === "merge" || configured === "rebase") return configured;
+  return "squash";
+}
+
 function commitAndPush(prNumber: number, headRef: string): string {
   runText("git", ["config", "user.name", "codex-pr-agent"]);
   runText("git", ["config", "user.email", "codex-pr-agent@users.noreply.github.com"]);
@@ -329,6 +507,19 @@ function commitAndPush(prNumber: number, headRef: string): string {
   runText("git", ["commit", "-m", `fix: codex repair for pr #${prNumber}`]);
   runText("git", ["push", "origin", `HEAD:${headRef}`]);
   return currentHeadSha();
+}
+
+function mergePullRequest(repo: string, prNumber: number, headSha: string): void {
+  runText("gh", [
+    "api",
+    `repos/${repo}/pulls/${prNumber}/merge`,
+    "--method",
+    "PUT",
+    "-f",
+    `sha=${headSha}`,
+    "-f",
+    `merge_method=${mergeMethod()}`,
+  ]);
 }
 
 function upsertComment(repo: string, prNumber: number, body: string): void {
@@ -341,13 +532,15 @@ function upsertComment(repo: string, prNumber: number, body: string): void {
   runText("gh", ["api", `repos/${repo}/issues/${prNumber}/comments`, "--method", "POST", "-f", `body=${body}`]);
 }
 
-function buildComment(context: Context, result: AgentResult, pushedSha: string | null): string {
+function buildComment(context: Context, result: ExecutionResult, pushedSha: string | null): string {
   const lines = [
     MARKER,
     "## PR Agent",
     "",
     `Trigger: \`${context.triggerSource}\` / \`${context.triggerReason}\``,
+    `Operation: \`${context.operation}\``,
     `Outcome: \`${result.outcome}\``,
+    `Merge recommended: \`${result.merge_recommended === true ? "yes" : "no"}\``,
     "",
     result.summary,
   ];
@@ -368,9 +561,7 @@ function buildComment(context: Context, result: AgentResult, pushedSha: string |
     lines.push("", "Residual risks:");
     lines.push(...result.residual_risks.map((item) => `- ${item}`));
   }
-  if (pushedSha) {
-    lines.push("", `Pushed: \`${pushedSha.slice(0, 7)}\``);
-  }
+  if (pushedSha) lines.push("", `Pushed: \`${pushedSha.slice(0, 7)}\``);
   return lines.join("\n");
 }
 
@@ -382,12 +573,19 @@ function checkoutPrBranch(repo: string, pr: PullRequestDetails): void {
   runText("git", ["checkout", "-B", pr.head.ref, `origin/${pr.head.ref}`]);
 }
 
-function buildContext(repo: string, prNumber: number, triggerSource: string, triggerReason: string): Context {
+function buildContext(
+  repo: string,
+  prNumber: number,
+  operation: AgentOperation,
+  triggerSource: string,
+  triggerReason: string,
+): Context {
   const pr = fetchPullRequest(repo, prNumber);
   const issueComments = fetchIssueComments(repo, prNumber);
   const reviewComments = fetchReviewComments(repo, prNumber);
   const changedFiles = fetchChangedFiles(repo, prNumber);
   const failingChecks = fetchCheckRuns(repo, pr.head.sha)
+    .filter((check) => !isAgentCheckName(check.name))
     .filter((check) => check.conclusion != null && check.conclusion !== "success" && check.conclusion !== "skipped" && check.conclusion !== "neutral")
     .map((check) => check.name);
 
@@ -402,32 +600,105 @@ function buildContext(repo: string, prNumber: number, triggerSource: string, tri
     changedFiles,
     triggerSource,
     triggerReason,
+    operation,
+  };
+}
+
+function maybeMerge(repo: string, prNumber: number, expectedHeadSha: string): ExecutionResult | null {
+  const mergeView = fetchPullRequestMergeView(repo, prNumber);
+  const checkRuns = fetchCheckRuns(repo, expectedHeadSha);
+  const readiness = evaluateMergeReadiness(mergeView, expectedHeadSha, checkRuns);
+  if (!readiness.ok) {
+    return {
+      summary: `Deterministic merge skipped: ${readiness.reason}.`,
+      tests_run: readiness.successfulChecks,
+      evals_run: [],
+      files_touched: [],
+      residual_risks: [readiness.reason],
+      merge_recommended: false,
+      outcome: "no_changes",
+    };
+  }
+
+  mergePullRequest(repo, prNumber, expectedHeadSha);
+  return {
+    summary: `Merged PR after deterministic gate: ${readiness.reason}.`,
+    tests_run: readiness.successfulChecks,
+    evals_run: [],
+    files_touched: [],
+    residual_risks: [],
+    merge_recommended: true,
+    outcome: "merged",
   };
 }
 
 async function main(): Promise<void> {
-  const { repo, prNumber, triggerSource, triggerReason } = parseArgs(process.argv.slice(2));
-  const context = buildContext(repo, prNumber, triggerSource, triggerReason);
-  checkoutPrBranch(repo, context.pr);
+  const { repo, prNumber, operation, triggerSource, triggerReason } = parseArgs(process.argv.slice(2));
+  const context = buildContext(repo, prNumber, operation, triggerSource, triggerReason);
 
-  const tempDir = mkdtempSync(join(tmpdir(), "unbrowse-pr-agent-"));
-  const outputPath = join(tempDir, "pr-agent-output.json");
-  const schemaPath = outputSchemaPath(tempDir);
-  const prompt = buildPrompt(context);
+  try {
+    if (operation === "merge") {
+      checkoutPrBranch(repo, context.pr);
 
-  runCodex(prompt, process.cwd(), outputPath, schemaPath);
+      const tempDir = mkdtempSync(join(tmpdir(), "unbrowse-pr-agent-"));
+      const outputPath = join(tempDir, "pr-agent-output.json");
+      const schemaPath = outputSchemaPath(tempDir);
+      const prompt = buildPrompt(context);
 
-  if (!existsSync(outputPath)) {
-    throw new Error("Codex did not write an output artifact.");
+      runCodex(prompt, process.cwd(), outputPath, schemaPath);
+
+      if (!existsSync(outputPath)) throw new Error("Codex did not write an output artifact.");
+      const result = JSON.parse(readFileSync(outputPath, "utf8")) as AgentResult;
+      if (hasChanges()) throw new Error("merge operation must not modify the worktree");
+
+      let finalResult: ExecutionResult = result;
+      if (result.merge_recommended) {
+        const mergeResult = maybeMerge(repo, prNumber, context.pr.head.sha);
+        if (mergeResult) finalResult = mergeResult;
+      }
+
+      upsertComment(repo, prNumber, buildComment(context, finalResult, null));
+      return;
+    }
+
+    checkoutPrBranch(repo, context.pr);
+
+    const tempDir = mkdtempSync(join(tmpdir(), "unbrowse-pr-agent-"));
+    const outputPath = join(tempDir, "pr-agent-output.json");
+    const schemaPath = outputSchemaPath(tempDir);
+    const prompt = buildPrompt(context);
+
+    runCodex(prompt, process.cwd(), outputPath, schemaPath);
+
+    if (!existsSync(outputPath)) throw new Error("Codex did not write an output artifact.");
+    const result = JSON.parse(readFileSync(outputPath, "utf8")) as AgentResult;
+
+    let pushedSha: string | null = null;
+    let finalResult: ExecutionResult = result;
+
+    if (result.outcome === "patched" && hasChanges()) {
+      pushedSha = commitAndPush(prNumber, context.pr.head.ref);
+    }
+
+    if (!pushedSha && result.outcome !== "blocked" && result.merge_recommended) {
+      const mergeResult = maybeMerge(repo, prNumber, context.pr.head.sha);
+      if (mergeResult?.outcome === "merged") finalResult = mergeResult;
+    }
+
+    upsertComment(repo, prNumber, buildComment(context, finalResult, pushedSha));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    upsertComment(repo, prNumber, buildComment(context, {
+      summary: `PR agent blocked before completion: ${message}.`,
+      tests_run: [],
+      evals_run: [],
+      files_touched: [],
+      residual_risks: [message],
+      merge_recommended: false,
+      outcome: "blocked",
+    }, null));
+    throw error;
   }
-  const result = JSON.parse(readFileSync(outputPath, "utf8")) as AgentResult;
-
-  let pushedSha: string | null = null;
-  if (result.outcome === "patched" && hasChanges()) {
-    pushedSha = commitAndPush(prNumber, context.pr.head.ref);
-  }
-
-  upsertComment(repo, prNumber, buildComment(context, result, pushedSha));
 }
 
 if (import.meta.main) {

@@ -23,6 +23,10 @@ on:
         description: Trigger reason
         required: true
         type: string
+      operation:
+        description: Agent operation
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -72,11 +76,14 @@ jobs:
 
       - name: Run PR agent
         env:
+          CODEX_HOME: ${{ runner.temp }}/codex-home
           GH_TOKEN: ${{ github.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_PR_BOT_MERGE_METHOD: SQUASH
         run: |
           bun scripts/pr-agent.ts \
             --repo "${{ inputs.repo }}" \
             --pr "${{ inputs.pr_number }}" \
+            --operation "${{ inputs.operation }}" \
             --trigger-source "${{ inputs.trigger_source }}" \
             --trigger-reason "${{ inputs.trigger_reason }}"
