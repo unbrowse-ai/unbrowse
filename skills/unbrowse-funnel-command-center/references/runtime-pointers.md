@@ -39,13 +39,20 @@ Keep secrets and machine-local values out of `SKILL.md`.
 - `visualizers/funnel-merjs`
 - run: `cd /Users/lekt9/.codex/worktrees/81eb/unbrowse/visualizers/funnel-merjs && zig build serve`
 - desktop: `cd /Users/lekt9/.codex/worktrees/81eb/unbrowse/visualizers/funnel-merjs && zig build desktop && open zig-out/UnbrowseVisualLab.app`
+- desktop direct launch:
+  - `./zig-out/bin/unbrowse-visual-lab --session-id <id>`
+  - `./zig-out/bin/unbrowse-visual-lab --overlay <id>`
+  - `./zig-out/bin/unbrowse-visual-lab --path /json-render`
 - local snapshot route: `GET /api/snapshot`
 - create viz session from arbitrary JSON: `POST /api/viz`
+- build streamed json-render spec from arbitrary JSON: `POST /api/viz-spec`
 - fetch saved viz session envelope: `GET /api/viz?id=...`
 - render saved session: `GET /viz?id=...`
+- overlay render: `GET /viz?id=...&overlay=1`
 - json-render lab: `GET /json-render`
 - purpose: one merjs screen for the whole funnel, plus an arbitrary-json visualization lab for prompt + payload experiments
 - operator contract: `analytics payload -> POST /api/viz -> open /viz?id=...`
+- generative-ui contract: `prompt + payload -> POST /api/viz-spec -> streamed json-render patches -> Renderer`
 - snapshot shortcut payload:
   - `source=analytics_snapshot`
   - `kind=analytics_snapshot`
