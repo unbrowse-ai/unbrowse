@@ -16,6 +16,21 @@ export interface SkillManifest {
   updated_at: string;
 }
 
+export interface PopularSkillSummary {
+  skill_id: string;
+  name: string;
+  domain: string;
+  description: string;
+  version: string;
+  execution_type: "http" | "browser-capture";
+  endpoint_count: number;
+  total_executions: number;
+  successful_executions: number;
+  avg_reliability_score: number;
+  updated_at: string;
+  last_execution_at?: string;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: string;
@@ -269,6 +284,11 @@ export async function verifyAgentApiKey(apiKey: string): Promise<AgentProfile> {
 
 export async function listSkills(): Promise<SkillManifest[]> {
   const data = await api<{ skills: SkillManifest[] }>("GET", "/v1/skills");
+  return data.skills;
+}
+
+export async function listPopularSkills(limit = 8): Promise<PopularSkillSummary[]> {
+  const data = await api<{ skills: PopularSkillSummary[] }>("GET", `/v1/skills/popular?limit=${limit}`);
   return data.skills;
 }
 

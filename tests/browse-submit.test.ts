@@ -38,7 +38,7 @@ describe("browse submit", () => {
       harActive: true,
       domain: "example.com",
     };
-    const restartCalls: string[] = [];
+    const events: string[] = [];
     let evalCount = 0;
 
     const result = await submitBrowseForm(
@@ -59,7 +59,18 @@ describe("browse submit", () => {
           getPageHtml: async () => "<html><body>step-1</body></html>",
         }),
         session,
-        restartCapture: async (activeSession) => { restartCalls.push(activeSession.tabId); },
+        flushCapture: async (activeSession) => {
+          events.push(`flush:${activeSession.tabId}`);
+          return {
+            indexed: true,
+            mode: "http",
+            skill_id: "skill-1",
+            endpoint_count: 2,
+            request_count: 1,
+            background_publish_queued: true,
+          };
+        },
+        restartCapture: async (activeSession) => { events.push(`restart:${activeSession.tabId}`); },
         rehydratePlugins: async () => ({ attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] }),
       },
       { timeoutMs: 20 },
@@ -70,8 +81,70 @@ describe("browse submit", () => {
     expect(result.fallback_used).toBe(true);
     expect(result.same_origin_html_rehydrated).toBe(true);
     expect(result.url).toBe("https://example.com/review");
-    expect(restartCalls).toEqual(["tab-1"]);
+    expect(result.capture_sync).toEqual({
+      indexed: true,
+      mode: "http",
+      skill_id: "skill-1",
+      endpoint_count: 2,
+      request_count: 1,
+      background_publish_queued: true,
+    });
+    expect(events).toEqual(["flush:tab-1", "restart:tab-1"]);
     expect(session.url).toBe("https://example.com/review");
+  });
+
+  it("flushes capture before restarting on DOM submit success", async () => {
+    const session: BrowseSession = {
+      tabId: "tab-1",
+      url: "https://example.com/step-1",
+      harActive: true,
+      domain: "example.com",
+    };
+    const events: string[] = [];
+    let urlReads = 0;
+    let htmlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads === 1 ? "https://example.com/step-1" : "https://example.com/review";
+          },
+          getPageHtml: async () => {
+            htmlReads += 1;
+            return htmlReads === 1 ? "<html><body>step-1</body></html>" : "<html><body>review</body></html>";
+          },
+        }),
+        session,
+        flushCapture: async () => {
+          events.push("flush");
+          return {
+            indexed: true,
+            mode: "dom",
+            skill_id: "skill-2",
+            endpoint_count: 1,
+            request_count: 0,
+            background_publish_queued: true,
+          };
+        },
+        restartCapture: async () => { events.push("restart"); },
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20 },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("dom");
+    expect(result.capture_sync).toEqual({
+      indexed: true,
+      mode: "dom",
+      skill_id: "skill-2",
+      endpoint_count: 1,
+      request_count: 0,
+      background_publish_queued: true,
+    });
+    expect(events).toEqual(["flush", "restart"]);
   });
 
   it("retries once on recoverable submit failure and preserves updated session url", async () => {

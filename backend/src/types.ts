@@ -5,6 +5,15 @@ export interface Env {
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
   NEBIUS_API_KEY: string;
+  GITHUB_WEBHOOK_SECRET?: string;
+  GITHUB_PR_BOT_TOKEN?: string;
+  GITHUB_PR_BOT_LABEL?: string;
+  GITHUB_PR_BOT_MERGE_METHOD?: string;
+  GITHUB_WEBHOOK_ALLOWED_REPOS?: string;
+  GITHUB_PR_AGENT_WORKFLOW?: string;
+  GITHUB_PR_AGENT_WORKFLOW_REF?: string;
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
   PAYMENTS_ENABLED?: string;
@@ -433,7 +442,9 @@ export interface InstallTelemetrySummary {
 export type WebTelemetryEventName =
   | "landing_page_viewed"
   | "install_section_viewed"
+  | "first_task_section_viewed"
   | "install_command_copied"
+  | "first_task_command_copied"
   | (string & {});
 
 export interface WebTelemetryEvent {
@@ -464,14 +475,21 @@ export interface AcquisitionSummary {
     sessions: number;
     landing_views: number;
     install_section_views: number;
+    first_task_section_views: number;
     install_command_copies: number;
+    first_task_command_copies: number;
     landing_without_install_view: number;
     install_view_without_copy: number;
+    first_task_view_without_copy: number;
+    install_copy_without_first_task: number;
   };
   rates: {
     install_section_view_from_landing: number;
     install_copy_from_landing: number;
     install_copy_from_install_view: number;
+    first_task_view_from_install_copy: number;
+    first_task_copy_from_first_task_view: number;
+    first_task_copy_from_install_copy: number;
   };
   top_referrers: AcquisitionReferrerSummary[];
 }

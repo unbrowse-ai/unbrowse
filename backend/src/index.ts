@@ -18,6 +18,8 @@ import { publicDashboardRoutes, dashboardRoutes } from "./routes/dashboard.js";
 import { publicMinerRoutes } from "./routes/miners.js";
 import { blogRoutes } from "./routes/blog.js";
 import { landingRoutes } from "./routes/landing.js";
+import { webhookRoutes } from "./routes/webhooks.js";
+import { flushQueuedGithubNotifications } from "./services/github-webhooks.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -49,6 +51,7 @@ app.route("/v1", publicDashboardRoutes);
 app.route("/v1", publicMinerRoutes);
 app.route("/v1", blogRoutes);
 app.route("/v1", landingRoutes);
+app.route("/v1", webhookRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
@@ -58,4 +61,11 @@ app.route("/v1", skillRoutes);
 app.route("/v1", statsRoutes);
 app.route("/v1", dashboardRoutes);
 
-export default app;
+export { app };
+
+export default {
+  fetch: app.fetch,
+  scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
+    ctx.waitUntil(flushQueuedGithubNotifications(env));
+  },
+};

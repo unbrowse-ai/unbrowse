@@ -100,6 +100,29 @@ export interface OrchestrationTiming {
   trace_version?: string;
 }
 
+export interface AgentImpact {
+  source: string;
+  cache_hit: boolean;
+  browser_avoided: boolean;
+  baseline_total_ms?: number;
+  actual_total_ms?: number;
+  time_saved_ms?: number;
+  time_saved_pct: number;
+  tokens_saved: number;
+  tokens_saved_pct: number;
+  baseline_cost_uc?: number;
+  actual_cost_uc?: number;
+  cost_saved_uc?: number;
+}
+
+export interface AgentNextAction {
+  endpoint_id: string;
+  operation_id: string;
+  title: string;
+  why: string;
+  command: string;
+}
+
 export interface RequestOptions {
   headers?: HeadersInit;
   signal?: AbortSignal;
@@ -194,6 +217,8 @@ export interface ResolveResponse {
   skill?: SkillManifest;
   timing?: OrchestrationTiming;
   available_endpoints?: AvailableEndpoint[];
+  impact?: AgentImpact;
+  next_actions?: AgentNextAction[];
   _recovery?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -204,6 +229,8 @@ export interface ExecuteResponse {
   skill?: SkillManifest;
   timing?: OrchestrationTiming;
   source?: string;
+  impact?: AgentImpact;
+  next_actions?: AgentNextAction[];
   _recovery?: Record<string, unknown>;
   [key: string]: unknown;
 }

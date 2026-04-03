@@ -8,6 +8,9 @@ compatibility_flags = ["nodejs_compat"]
 # on the legacy PUT /workers/scripts/:name endpoint instead.
 first_party_worker = true
 
+[triggers]
+crons = ["17 */6 * * *"]
+
 [vars]
 ENVIRONMENT = "production"
 PAYMENTS_ENABLED = "true"
@@ -28,6 +31,12 @@ zone_id = "73934a4d815fde770167414fc3ead04b"
 # - DATABASE_URL
 # - EMERGENTDB_API_KEY
 # - NEBIUS_API_KEY
+# - GITHUB_WEBHOOK_SECRET
+# - GITHUB_PR_BOT_TOKEN
+# - GITHUB_PR_AGENT_WORKFLOW
+# - GITHUB_PR_AGENT_WORKFLOW_REF
+# - TELEGRAM_BOT_TOKEN
+# - TELEGRAM_CHAT_ID
 
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
