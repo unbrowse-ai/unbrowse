@@ -351,6 +351,29 @@ export interface FunnelSummary {
   hosts: FunnelHostSummary[];
 }
 
+export interface MinerBounty {
+  id: string;
+  title: string;
+  domain: string;
+  description: string;
+  reward_multiplier: number;
+  difficulty: "easy" | "medium" | "hard";
+  category: string;
+  claimed: boolean;
+}
+
+export interface MinerQuest {
+  id: string;
+  title: string;
+  description: string;
+  target_domain?: string;
+  reward_multiplier: number;
+  type: "first-indexer" | "route-count" | "domain-sprint";
+  deadline: string;
+  progress?: number;
+  goal?: number;
+}
+
 export interface InstallTelemetryEvent {
   event_id: string;
   install_id: string;
