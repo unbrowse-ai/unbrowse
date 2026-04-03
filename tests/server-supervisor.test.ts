@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { writeFileSync, mkdirSync, existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { checkServerVersion, stopServer } from "../src/runtime/local-server.js";
+import { checkServerVersion, getServerSpawnSpec, stopServer } from "../src/runtime/local-server.js";
 import { getServerPidFile } from "../src/runtime/paths.js";
 import { parseArgs } from "../src/cli.js";
 
@@ -114,5 +114,32 @@ describe("PidState restart_count tracking", () => {
     const parsed = JSON.parse(readFileSync(pidFile, "utf-8"));
     expect(parsed.restart_count).toBe(2);
     expect(parsed.version).toBe("2.6.0");
+  });
+});
+
+describe("compiled binary autostart", () => {
+  it("spawns the compiled binary in serve mode instead of running inline", () => {
+    const originalArgv1 = process.argv[1];
+    const originalExecPath = process.execPath;
+
+    Object.defineProperty(process, "execPath", {
+      value: "/tmp/unbrowse",
+      configurable: true,
+    });
+    process.argv[1] = "/tmp/unbrowse";
+
+    try {
+      const spec = getServerSpawnSpec(import.meta.url);
+      expect(spec.command).toBe("/tmp/unbrowse");
+      expect(spec.args).toEqual(["serve"]);
+      expect(spec.recordedEntrypoint).toBe("/tmp/unbrowse serve");
+      expect(spec.cwd).toBe(process.cwd());
+    } finally {
+      Object.defineProperty(process, "execPath", {
+        value: originalExecPath,
+        configurable: true,
+      });
+      process.argv[1] = originalArgv1;
+    }
   });
 });

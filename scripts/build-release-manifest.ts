@@ -19,6 +19,7 @@ const rootDir = join(scriptDir, "..");
 const distDir = join(rootDir, "dist");
 const manifestPath = join(distDir, "release-manifest.json");
 const signaturePath = join(distDir, "release-manifest.sig");
+const generatedBuildInfoPath = join(rootDir, "src", "build-info.generated.ts");
 
 function readVersion(): string {
   const raw = readFileSync(join(rootDir, "version.json"), "utf8");
@@ -47,6 +48,22 @@ function signManifest(manifestJson: string, secret: string | undefined): string 
   return createHmac("sha256", secret).update(manifestJson).digest("base64url");
 }
 
+function writeGeneratedBuildInfo(build: {
+  git_sha: string;
+  code_hash: string;
+  manifest_base64: string;
+  signature: string;
+}) {
+  const content = [
+    `export const BUILD_GIT_SHA = ${JSON.stringify(build.git_sha)};`,
+    `export const BUILD_CODE_HASH = ${JSON.stringify(build.code_hash)};`,
+    `export const BUILD_RELEASE_MANIFEST_BASE64 = ${JSON.stringify(build.manifest_base64)};`,
+    `export const BUILD_RELEASE_MANIFEST_SIGNATURE = ${JSON.stringify(build.signature)};`,
+    "",
+  ].join("\n");
+  writeFileSync(generatedBuildInfoPath, content);
+}
+
 const manifest: ReleaseManifestPayload = {
   schema_version: 1,
   release_version: readVersion(),
@@ -69,6 +86,12 @@ if (signature) {
   rmSync(signaturePath, { force: true });
   writeFileSync(signaturePath, "\n");
 }
+writeGeneratedBuildInfo({
+  git_sha: manifest.git_sha,
+  code_hash: manifest.code_hash,
+  manifest_base64: manifestBase64,
+  signature,
+});
 
 if (process.argv.includes("--shell-env")) {
   console.log(`export UNBROWSE_BUILD_GIT_SHA=${manifest.git_sha}`);

@@ -2,6 +2,12 @@ import { createHash } from "crypto";
 import { readFileSync, readdirSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import {
+  BUILD_CODE_HASH,
+  BUILD_GIT_SHA,
+  BUILD_RELEASE_MANIFEST_BASE64,
+  BUILD_RELEASE_MANIFEST_SIGNATURE,
+} from "./build-info.generated.js";
 
 // Deterministic version hash of all src/*.ts files.
 // Computed once at startup. Same code = same hash.
@@ -39,11 +45,11 @@ function computeCodeHash(): string {
 }
 
 function getGitSha(): string {
-  return process.env.UNBROWSE_BUILD_GIT_SHA?.trim() || "unknown";
+  return BUILD_GIT_SHA?.trim() || "unknown";
 }
 
 /** 12-char hex hash of all source file contents */
-export const CODE_HASH: string = process.env.UNBROWSE_BUILD_CODE_HASH?.trim() || computeCodeHash();
+export const CODE_HASH: string = BUILD_CODE_HASH?.trim() || computeCodeHash();
 
 /** Short git commit SHA */
 export const GIT_SHA: string = getGitSha();
@@ -52,5 +58,5 @@ export const GIT_SHA: string = getGitSha();
 export const TRACE_VERSION: string = `${CODE_HASH}@${GIT_SHA}`;
 
 /** Signed release attestation; embedded in compiled binaries when available. */
-export const RELEASE_MANIFEST_BASE64: string = process.env.UNBROWSE_RELEASE_MANIFEST_BASE64?.trim() || "";
-export const RELEASE_MANIFEST_SIGNATURE: string = process.env.UNBROWSE_RELEASE_MANIFEST_SIGNATURE?.trim() || "";
+export const RELEASE_MANIFEST_BASE64: string = BUILD_RELEASE_MANIFEST_BASE64?.trim() || "";
+export const RELEASE_MANIFEST_SIGNATURE: string = BUILD_RELEASE_MANIFEST_SIGNATURE?.trim() || "";

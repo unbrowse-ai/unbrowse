@@ -78,6 +78,29 @@ function isCompiledBinary(): boolean {
   return !!(process.versions.bun && !process.argv[1]?.match(/\.(ts|js|mjs)$/));
 }
 
+export function getServerSpawnSpec(metaUrl: string, entrypoint = resolveSiblingEntrypoint(metaUrl, "index")): {
+  command: string;
+  args: string[];
+  cwd: string;
+  recordedEntrypoint: string;
+} {
+  if (isCompiledBinary()) {
+    return {
+      command: process.execPath,
+      args: ["serve"],
+      cwd: process.cwd(),
+      recordedEntrypoint: `${process.execPath} serve`,
+    };
+  }
+
+  return {
+    command: process.execPath,
+    args: runtimeArgsForEntrypoint(metaUrl, entrypoint),
+    cwd: getPackageRoot(metaUrl),
+    recordedEntrypoint: entrypoint,
+  };
+}
+
 const MAX_RESTART_ATTEMPTS = 3;
 const RESTART_BACKOFF_MS = 2_000;
 
@@ -92,12 +115,12 @@ function spawnServer(
   restartCount = 0,
 ): PidState {
   const entrypoint = resolveSiblingEntrypoint(metaUrl, "index");
-  const packageRoot = getPackageRoot(metaUrl);
+  const spawnSpec = getServerSpawnSpec(metaUrl, entrypoint);
   const logFile = getServerAutostartLogFile();
   ensureDir(path.dirname(logFile));
   const logFd = openSync(logFile, "a");
-  const child = spawn(process.execPath, runtimeArgsForEntrypoint(metaUrl, entrypoint), {
-    cwd: packageRoot,
+  const child = spawn(spawnSpec.command, spawnSpec.args, {
+    cwd: spawnSpec.cwd,
     detached: true,
     stdio: ["ignore", logFd, logFd],
     env: {
@@ -114,7 +137,7 @@ function spawnServer(
     pid: child.pid!,
     base_url: baseUrl,
     started_at: new Date().toISOString(),
-    entrypoint,
+    entrypoint: spawnSpec.recordedEntrypoint,
     version: getVersion(metaUrl),
     restart_count: restartCount,
   };
@@ -154,16 +177,6 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
 
   if (noAutoStart) {
     throw new Error("Server not running and auto-start disabled (--no-auto-start).");
-  }
-
-  // Single-binary mode: start server inline instead of spawning a child
-  if (isCompiledBinary()) {
-    const { startUnbrowseServer, installServerExitCleanup } = await import("../server.js");
-    installServerExitCleanup(pidFile);
-    const server = await startUnbrowseServer({ pidFile, scheduleVerification: true });
-    console.log(`[unbrowse] server started inline on http://${server.host}:${server.port}`);
-    await supervisor.start();
-    return;
   }
 
   // Spawn with supervisor retry
