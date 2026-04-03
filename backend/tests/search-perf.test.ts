@@ -10,6 +10,8 @@
 import { describe, it, expect } from "bun:test";
 
 const API_URL = "https://beta-api.unbrowse.ai";
+const LIVE_BACKEND_TEST_RUN = process.env.BACKEND_LIVE_TEST_RUN === "1";
+const liveDescribe = LIVE_BACKEND_TEST_RUN ? describe : describe.skip;
 
 // Latency budgets (ms) — if a search exceeds these, something is wrong.
 // These are generous (5x normal) to avoid flaky tests, but will catch
@@ -38,7 +40,7 @@ function expectSearchStatus(status: number, data: unknown): void {
   }
 }
 
-describe("Backend Search Latency", () => {
+liveDescribe("Backend Search Latency", () => {
   it("health check responds within budget", async () => {
     const t0 = performance.now();
     const res = await fetch(`${API_URL}/health`);
