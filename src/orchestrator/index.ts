@@ -2914,9 +2914,13 @@ export async function resolveAndExecute(
       try {
         const routesModule = await import("../api/routes.js");
         if (typeof routesModule.registerBrowseSession === "function") {
-          routesModule.registerBrowseSession(tabId, context.url, domain);
+          const browseSession = routesModule.registerBrowseSession(tabId, context.url, domain);
+          if (browseSession?.sessionId) {
+            (firstPassResult as Record<string, unknown>).browse_session_id = browseSession.sessionId;
+          }
         }
       } catch { /* routes module may not expose this yet */ }
+      const browseSessionId = (firstPassResult as Record<string, unknown>).browse_session_id as string | undefined;
       const fpNow = new Date().toISOString();
       const trace: ExecutionTrace = {
         trace_id: nanoid(),
@@ -2929,15 +2933,17 @@ export async function resolveAndExecute(
       return {
         result: {
           status: "browse_session_open",
+          ...(browseSessionId ? { session_id: browseSessionId } : {}),
           tab_id: tabId,
           url: context.url,
           domain,
-          next_step: "unbrowse snap",
+          next_step: browseSessionId ? `unbrowse snap --session ${browseSessionId} --filter interactive` : "unbrowse snap",
           commands: [
-            "unbrowse snap --filter interactive",
-            "unbrowse click <ref>",
-            "unbrowse fill <ref> <value>",
-            "unbrowse close",
+            browseSessionId ? `unbrowse snap --session ${browseSessionId} --filter interactive` : "unbrowse snap --filter interactive",
+            browseSessionId ? `unbrowse click --session ${browseSessionId} <ref>` : "unbrowse click <ref>",
+            browseSessionId ? `unbrowse fill --session ${browseSessionId} <ref> <value>` : "unbrowse fill <ref> <value>",
+            browseSessionId ? `unbrowse submit --session ${browseSessionId}` : "unbrowse submit",
+            browseSessionId ? `unbrowse close --session ${browseSessionId}` : "unbrowse close",
           ],
         },
         trace,
@@ -3271,9 +3277,13 @@ export async function resolveAndExecute(
       try {
         const routesModule = await import("../api/routes.js");
         if (typeof routesModule.registerBrowseSession === "function") {
-          routesModule.registerBrowseSession(tabId, context.url, domain);
+          const browseSession = routesModule.registerBrowseSession(tabId, context.url, domain);
+          if (browseSession?.sessionId) {
+            (firstPassResult as Record<string, unknown>).browse_session_id = browseSession.sessionId;
+          }
         }
       } catch { /* routes module may not expose this yet */ }
+      const browseSessionId = (firstPassResult as Record<string, unknown>).browse_session_id as string | undefined;
 
       const fpNow = new Date().toISOString();
       const trace: ExecutionTrace = {
@@ -3288,19 +3298,20 @@ export async function resolveAndExecute(
       return {
         result: {
           status: "browse_session_open",
+          ...(browseSessionId ? { session_id: browseSessionId } : {}),
           tab_id: tabId,
           url: context.url,
           domain,
-          message: `No cached API for this intent. Browser session open with auth on ${domain}. Use unbrowse snap/click/fill to achieve your intent. All traffic is being passively captured and indexed — run unbrowse close when done.`,
-          next_step: "unbrowse snap --filter interactive",
+          message: `No cached API for this intent. Browser session open with auth on ${domain}. Use session-scoped browse commands to achieve your intent. All traffic is being passively captured and indexed — run unbrowse close when done.`,
+          next_step: browseSessionId ? `unbrowse snap --session ${browseSessionId} --filter interactive` : "unbrowse snap --filter interactive",
           commands: [
-            "unbrowse snap --filter interactive",
-            "unbrowse click <ref>",
-            "unbrowse fill <ref> <value>",
-            "unbrowse press Enter",
-            "unbrowse scroll",
-            "unbrowse text",
-            "unbrowse close",
+            browseSessionId ? `unbrowse snap --session ${browseSessionId} --filter interactive` : "unbrowse snap --filter interactive",
+            browseSessionId ? `unbrowse click --session ${browseSessionId} <ref>` : "unbrowse click <ref>",
+            browseSessionId ? `unbrowse fill --session ${browseSessionId} <ref> <value>` : "unbrowse fill <ref> <value>",
+            browseSessionId ? `unbrowse press --session ${browseSessionId} Enter` : "unbrowse press Enter",
+            browseSessionId ? `unbrowse scroll --session ${browseSessionId}` : "unbrowse scroll",
+            browseSessionId ? `unbrowse text --session ${browseSessionId}` : "unbrowse text",
+            browseSessionId ? `unbrowse close --session ${browseSessionId}` : "unbrowse close",
           ],
         },
         trace,

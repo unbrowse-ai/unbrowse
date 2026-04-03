@@ -27,7 +27,16 @@ import { mergeAgentReview } from "../indexer/index.js";
 import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
-import { type BrowseSession, getOrCreateBrowseSession, isRecoverableBrowseFailure, withRecoveredBrowseSession } from "./browse-session.js";
+import {
+  BrowseSessionError,
+  createRegisteredBrowseSession,
+  getOrCreateNavigateBrowseSession,
+  isRecoverableBrowseFailure,
+  type BrowseSession,
+  withSerializedRecoveredBrowseSession,
+  withSerializedStrictBrowseSession,
+  removeBrowseSession,
+} from "./browse-session.js";
 import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
 import { submitBrowseForm } from "./browse-submit.js";
 
@@ -195,8 +204,8 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
 const browseSessions = new Map<string, BrowseSession>();
 
 /** Register a browse session from the orchestrator (Phase 4 handoff) */
-export function registerBrowseSession(tabId: string, url: string, domain: string): void {
-  browseSessions.set("default", { tabId, url, harActive: true, domain });
+export function registerBrowseSession(tabId: string, url: string, domain: string): BrowseSession {
+  return createRegisteredBrowseSession(browseSessions, { tabId, url, harActive: true, domain });
 }
 
 // ── /v1/stats cache ──────────────────────────────────────────────────
@@ -867,6 +876,21 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // browseSessions is module-level (shared with orchestrator via registerBrowseSession)
 
+  function requestedSessionId(req: { body?: unknown; query?: unknown }): string | undefined {
+    const body = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : null;
+    if (typeof body?.session_id === "string" && body.session_id.trim()) return body.session_id;
+    const query = req.query && typeof req.query === "object" ? req.query as Record<string, unknown> : null;
+    if (typeof query?.session_id === "string" && query.session_id.trim()) return query.session_id;
+    return undefined;
+  }
+
+  function sendBrowseSessionError(reply: { code: (statusCode: number) => { send: (body: unknown) => unknown } }, error: unknown): unknown {
+    if (error instanceof BrowseSessionError) {
+      return reply.code(error.statusCode).send({ error: error.code });
+    }
+    throw error;
+  }
+
   /** Extract registrable domain for auth profile naming */
   function profileName(url: string): string {
     try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "unknown"; }
@@ -974,66 +998,70 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/browse/go", async (req, reply) => {
     const { url } = req.body as { url: string };
     if (!url) return reply.code(400).send({ error: "url required" });
-    const { session, result } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => {
-        const newDomain = profileName(url);
+    try {
+      const sessionId = requestedSessionId(req);
+      const targetSession = await getOrCreateNavigateBrowseSession(
+        browseSessions,
+        kuri,
+        injectInterceptor,
+        sessionId,
+      );
+      const { session, result } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        targetSession.sessionId,
+        async (session) => {
+          const newDomain = profileName(url);
 
-        // Flush prior HAR entries before navigating
-        if (session.harActive && session.url !== "about:blank") {
-          try {
-            const { entries } = await kuri.harStop(session.tabId);
-            passiveIndexHar(entries, session.url);
-          } catch { /* non-fatal */ }
-          session.harActive = false;
-        }
+          if (session.harActive && session.url !== "about:blank") {
+            try {
+              const { entries } = await kuri.harStop(session.tabId);
+              passiveIndexHar(entries, session.url);
+            } catch { /* non-fatal */ }
+            session.harActive = false;
+          }
 
-        // Auto-save auth profile for the old domain before leaving
-        if (session.domain && session.domain !== newDomain) {
-          await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
-        }
+          if (session.domain && session.domain !== newDomain) {
+            await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+          }
 
-        // Inject cookies: try Kuri auth profile first, fall back to Chrome SQLite extraction
-        let cookiesInjected = 0;
-        if (newDomain && newDomain !== session.domain) {
-          await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
-
-          // Also inject cookies from the user's real Chrome/Firefox browser
-          try {
-            const { cookies: browserCookies } = extractBrowserCookies(newDomain);
-            if (browserCookies.length > 0) {
-              for (const c of browserCookies) {
-                await kuri.setCookie(session.tabId, c).catch(() => {});
+          let cookiesInjected = 0;
+          if (newDomain && newDomain !== session.domain) {
+            await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
+            try {
+              const { cookies: browserCookies } = extractBrowserCookies(newDomain);
+              if (browserCookies.length > 0) {
+                for (const c of browserCookies) {
+                  await kuri.setCookie(session.tabId, c).catch(() => {});
+                }
+                cookiesInjected = browserCookies.length;
               }
-              cookiesInjected = browserCookies.length;
-            }
-          } catch { /* non-fatal */ }
-        }
+            } catch { /* non-fatal */ }
+          }
 
-        // Start capture BEFORE navigation so all initial API calls are recorded
-        await restartBrowseCapture(session);
+          await restartBrowseCapture(session);
 
-        await kuri.navigate(session.tabId, url);
-        const finalUrl = await kuri.getCurrentUrl(session.tabId).catch(() => url);
-        session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
-        session.domain = profileName(session.url);
+          await kuri.navigate(session.tabId, url);
+          const finalUrl = await kuri.getCurrentUrl(session.tabId).catch(() => url);
+          session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
+          session.domain = profileName(session.url);
+          await injectInterceptor(session.tabId);
 
-        await injectInterceptor(session.tabId);
+          return { cookiesInjected };
+        },
+      );
 
-        return { cookiesInjected };
-      },
-      (result) => isRecoverableBrowseFailure(result),
-    );
-
-    return reply.send({
-      ok: true,
-      url: session.url,
-      tab_id: session.tabId,
-      auth_profile: session.domain,
-      ...(result.cookiesInjected > 0 ? { cookies_injected: result.cookiesInjected } : {}),
-    });
+      return reply.send({
+        ok: true,
+        session_id: session.sessionId,
+        url: session.url,
+        tab_id: session.tabId,
+        auth_profile: session.domain,
+        ...(result.cookiesInjected > 0 ? { cookies_injected: result.cookiesInjected } : {}),
+      });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/submit — submit active form, fall back to same-origin fetch+rehydrate
@@ -1052,247 +1080,373 @@ export async function registerRoutes(app: FastifyInstance) {
       timeout_ms?: number;
     }) ?? {};
 
-    const { session, result, recovered } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => submitBrowseForm(
-        {
-          client: kuri,
-          session,
-          flushCapture: async (session) => await flushBrowseCapture(session, { queueBackgroundPublish: true }),
-          restartCapture: restartBrowseCapture,
-          rehydratePlugins: kuri.bestEffortRehydratePlugins,
-        },
-        {
-          formSelector,
-          submitSelector,
-          waitFor,
-          sameOriginFetchFallback,
-          timeoutMs,
-        },
-      ),
-      (result) => !result.ok && result.recoverable === true,
-    );
+    try {
+      const { session, result } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => submitBrowseForm(
+          {
+            client: kuri,
+            session,
+            flushCapture: async (session) => await flushBrowseCapture(session, { queueBackgroundPublish: true }),
+            restartCapture: restartBrowseCapture,
+            rehydratePlugins: kuri.bestEffortRehydratePlugins,
+          },
+          {
+            formSelector,
+            submitSelector,
+            waitFor,
+            sameOriginFetchFallback,
+            timeoutMs,
+          },
+        ),
+        (result) => !result.ok && result.recoverable === true,
+      );
 
-    session.url = result.url || await kuri.getCurrentUrl(session.tabId).catch(() => session.url);
-    session.domain = profileName(session.url);
+      session.url = result.url || await kuri.getCurrentUrl(session.tabId).catch(() => session.url);
+      session.domain = profileName(session.url);
 
-    const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
-    const nextStep = result.ok
-      ? (result.capture_sync?.background_publish_queued
-          ? "Background publish queued for this step. Continue the flow, then run `unbrowse close` when you're done to save auth and finalize any remaining capture."
-          : "If more UI steps remain, continue the flow. Run `unbrowse close` when you're done to save auth and finalize capture.")
-      : "Inspect the page state with `unbrowse snap --filter interactive`, then retry submit with selectors or a wait hint if needed.";
-    return reply.code(statusCode).send({
-      ...result,
-      next_step: nextStep,
-      recovered,
-      tab_id: session.tabId,
-      url: session.url,
-    });
+      const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
+      const sessionHint = `--session ${session.sessionId}`;
+      const nextStep = result.ok
+        ? (result.capture_sync?.background_publish_queued
+            ? `Background publish queued for this step. Continue the flow, then run \`unbrowse close ${sessionHint}\` when you're done to save auth and finalize any remaining capture.`
+            : `If more UI steps remain, continue the flow. Run \`unbrowse close ${sessionHint}\` when you're done to save auth and finalize capture.`)
+        : `Inspect the page state with \`unbrowse snap ${sessionHint} --filter interactive\`, then retry submit with selectors or a wait hint if needed.`;
+      return reply.code(statusCode).send({
+        ...result,
+        session_id: session.sessionId,
+        next_step: nextStep,
+        recovered: false,
+        tab_id: session.tabId,
+        url: session.url,
+      });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/snap — a11y snapshot
   app.post("/v1/browse/snap", async (req, reply) => {
-    const { filter } = (req.body as { filter?: string }) ?? {};
-    const { session, result: snapshot } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.snapshot(session.tabId, filter),
-      (snapshot) => typeof snapshot !== "string" || snapshot.trim().length === 0,
-    );
-    return reply.send({ snapshot, tab_id: session.tabId });
+    const { filter } = (req.body as { filter?: string; session_id?: string }) ?? {};
+    try {
+      const { session, result: snapshot } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        kuri,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => kuri.snapshot(session.tabId, filter),
+        (snapshot) => typeof snapshot !== "string" || snapshot.trim().length === 0,
+      );
+      return reply.send({ snapshot, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/click — click by ref
   app.post("/v1/browse/click", async (req, reply) => {
-    const { ref } = req.body as { ref: string };
+    const { ref } = req.body as { ref: string; session_id?: string };
     if (!ref) return reply.code(400).send({ error: "ref required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.click(session.tabId, ref);
-      return true;
-    });
-    return reply.send({ ok: true });
+    try {
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          await kuri.click(session.tabId, ref);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/fill — fill input by ref
   app.post("/v1/browse/fill", async (req, reply) => {
-    const { ref, value } = req.body as { ref: string; value: string };
+    const { ref, value } = req.body as { ref: string; value: string; session_id?: string };
     if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.fill(session.tabId, ref, value);
-      return true;
-    });
-    return reply.send({ ok: true });
+    try {
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          await kuri.fill(session.tabId, ref, value);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/type — keyboard type
   app.post("/v1/browse/type", async (req, reply) => {
-    const { text } = req.body as { text: string };
+    const { text } = req.body as { text: string; session_id?: string };
     if (!text) return reply.code(400).send({ error: "text required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.keyboardType(session.tabId, text);
-      return true;
-    });
-    return reply.send({ ok: true });
+    try {
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          await kuri.keyboardType(session.tabId, text);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/press — press key
   app.post("/v1/browse/press", async (req, reply) => {
-    const { key } = req.body as { key: string };
+    const { key } = req.body as { key: string; session_id?: string };
     if (!key) return reply.code(400).send({ error: "key required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.press(session.tabId, key);
-      return true;
-    });
-    return reply.send({ ok: true });
+    try {
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          await kuri.press(session.tabId, key);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/select — select option by ref
   app.post("/v1/browse/select", async (req, reply) => {
-    const { ref, value } = req.body as { ref: string; value: string };
+    const { ref, value } = req.body as { ref: string; value: string; session_id?: string };
     if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.select(session.tabId, ref, value);
-      return true;
-    });
-    return reply.send({ ok: true });
+    try {
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          await kuri.select(session.tabId, ref, value);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/scroll — scroll
   app.post("/v1/browse/scroll", async (req, reply) => {
-    const { direction, amount } = (req.body as { direction?: string; amount?: number }) ?? {};
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.scroll(session.tabId, (direction as any) ?? "down", amount);
-      return true;
-    });
-    return reply.send({ ok: true });
+    const { direction, amount } = (req.body as { direction?: string; amount?: number; session_id?: string }) ?? {};
+    try {
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          await kuri.scroll(session.tabId, (direction as any) ?? "down", amount);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // GET /v1/browse/screenshot — capture screenshot
-  app.get("/v1/browse/screenshot", async (_req, reply) => {
-    const { session, result: data } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.screenshot(session.tabId),
-      (data) => typeof data !== "string" || data.trim().length === 0,
-    );
-    return reply.send({ screenshot: data, tab_id: session.tabId });
+  app.get("/v1/browse/screenshot", async (req, reply) => {
+    try {
+      const { session, result: data } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        kuri,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => kuri.screenshot(session.tabId),
+        (data) => typeof data !== "string" || data.trim().length === 0,
+      );
+      return reply.send({ screenshot: data, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // GET /v1/browse/text — page text
-  app.get("/v1/browse/text", async (_req, reply) => {
-    const { result: text } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.getText(session.tabId),
-      (text) => typeof text !== "string",
-    );
-    return reply.send({ text });
+  app.get("/v1/browse/text", async (req, reply) => {
+    try {
+      const { session, result: text } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        kuri,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => kuri.getText(session.tabId),
+        (text) => typeof text !== "string",
+      );
+      return reply.send({ text, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // GET /v1/browse/markdown — page as markdown
-  app.get("/v1/browse/markdown", async (_req, reply) => {
-    const { result: markdown } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.getMarkdown(session.tabId),
-      (markdown) => typeof markdown !== "string",
-    );
-    return reply.send({ markdown });
+  app.get("/v1/browse/markdown", async (req, reply) => {
+    try {
+      const { session, result: markdown } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        kuri,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => kuri.getMarkdown(session.tabId),
+        (markdown) => typeof markdown !== "string",
+      );
+      return reply.send({ markdown, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // GET /v1/browse/cookies — page cookies
-  app.get("/v1/browse/cookies", async (_req, reply) => {
-    const { result: cookies } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.getCookies(session.tabId),
-    );
-    return reply.send({ cookies });
+  app.get("/v1/browse/cookies", async (req, reply) => {
+    try {
+      const { session, result: cookies } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        kuri,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => kuri.getCookies(session.tabId),
+      );
+      return reply.send({ cookies, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/eval — evaluate JS
   app.post("/v1/browse/eval", async (req, reply) => {
-    const { expression } = req.body as { expression: string };
+    const { expression } = req.body as { expression: string; session_id?: string };
     if (!expression) return reply.code(400).send({ error: "expression required" });
-    const { result } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.evaluate(session.tabId, expression),
-      (result) => isRecoverableBrowseFailure(result),
-    );
-    return reply.send({ result });
+    try {
+      const { session, result } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => kuri.evaluate(session.tabId, expression),
+        (result) => isRecoverableBrowseFailure(result),
+      );
+      return reply.send({ result, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/back — navigate back
-  app.post("/v1/browse/back", async (_req, reply) => {
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.goBack(session.tabId);
-      return true;
-    });
-    return reply.send({ ok: true });
+  app.post("/v1/browse/back", async (req, reply) => {
+    try {
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          await kuri.goBack(session.tabId);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/forward — navigate forward
-  app.post("/v1/browse/forward", async (_req, reply) => {
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.goForward(session.tabId);
-      return true;
-    });
-    return reply.send({ ok: true });
+  app.post("/v1/browse/forward", async (req, reply) => {
+    try {
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          await kuri.goForward(session.tabId);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/sync — flush captured traffic into local skill cache without closing tab
-  app.post("/v1/browse/sync", async (_req, reply) => {
-    const session = browseSessions.get("default");
-    if (!session) return reply.send({ ok: false, error: "no active session" });
-    const syncResult = await flushBrowseCapture(session);
+  app.post("/v1/browse/sync", async (req, reply) => {
+    try {
+      const { session, result: syncResult } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          const syncResult = await flushBrowseCapture(session);
+          await restartBrowseCapture(session);
+          return syncResult;
+        },
+      );
 
-    await restartBrowseCapture(session);
-
-    return reply.send({
-      ok: true,
-      tab_id: session.tabId,
-      indexed: syncResult.indexed,
-      mode: syncResult.mode,
-      domain: syncResult.domain,
-      skill_id: syncResult.skill_id,
-      endpoint_count: syncResult.endpoint_count,
-      endpoints: syncResult.endpoints,
-      request_count: syncResult.request_count,
-    });
+      return reply.send({
+        ok: true,
+        session_id: session.sessionId,
+        tab_id: session.tabId,
+        indexed: syncResult.indexed,
+        mode: syncResult.mode,
+        domain: syncResult.domain,
+        skill_id: syncResult.skill_id,
+        endpoint_count: syncResult.endpoint_count,
+        endpoints: syncResult.endpoints,
+        request_count: syncResult.request_count,
+      });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/close — close session, flush HAR, index, save auth
-  app.post("/v1/browse/close", async (_req, reply) => {
-    const session = browseSessions.get("default");
-    if (!session) return reply.send({ ok: true, message: "no active session" });
+  app.post("/v1/browse/close", async (req, reply) => {
+    try {
+      const { session, result: syncResult } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        kuri,
+        requestedSessionId(req),
+        async (session) => {
+          if (session.domain) {
+            await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+          }
 
-    // Save auth profile for the current domain before closing
-    if (session.domain) {
-      await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+          const syncResult = await flushBrowseCapture(session, { queueBackgroundPublish: true });
+          await kuri.closeTab(session.tabId).catch(() => {});
+          removeBrowseSession(browseSessions, session.sessionId);
+          return syncResult;
+        },
+      );
+      return reply.send({
+        ok: true,
+        session_id: session.sessionId,
+        indexed: syncResult.indexed,
+        mode: syncResult.mode,
+        endpoint_count: syncResult.endpoint_count,
+        request_count: syncResult.request_count,
+        background_publish_queued: syncResult.background_publish_queued,
+        auth_saved: session.domain || null,
+      });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
     }
-
-    const syncResult = await flushBrowseCapture(session, { queueBackgroundPublish: true });
-    await kuri.closeTab(session.tabId).catch(() => {});
-    browseSessions.delete("default");
-    return reply.send({
-      ok: true,
-      indexed: syncResult.indexed,
-      mode: syncResult.mode,
-      endpoint_count: syncResult.endpoint_count,
-      request_count: syncResult.request_count,
-      background_publish_queued: syncResult.background_publish_queued,
-      auth_saved: session.domain || null,
-    });
   });
 }
 

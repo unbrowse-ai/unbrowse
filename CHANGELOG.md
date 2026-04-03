@@ -20,6 +20,7 @@
 
 ### Bug Fixes
 
+* **browse/sessions**: isolate browse state behind per-session `session_id`s, serialize same-session browse actions, require explicit session selection when multiple sessions are live, and stop first-pass/capture flows from reusing Kuri's implicit default tab under parallel load
 * **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
 * **frontend/homepage**: sharpen homepage positioning around AI agent builders, clarify the browser-automation replacement story, and reduce copy clutter across the hero, install, and registry sections
 * **frontend/copy**: normalize the public role name to `contributor` across leaderboard and economics pages while keeping mining as the campaign verb
