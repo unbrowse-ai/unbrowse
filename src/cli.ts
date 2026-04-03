@@ -8,7 +8,6 @@
  */
 
 import { config as loadEnv } from "dotenv";
-import { spawn } from "node:child_process";
 import {
   detectTelemetryHostType,
   ensureCliInstallTracked,
@@ -19,11 +18,10 @@ import {
 } from "./client/index.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
 import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
-import { isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
+import { isMainModule } from "./runtime/paths.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
-import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -157,66 +155,16 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   };
   if ("result" in obj) out.result = obj.result;
   if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
-  if (obj.impact) out.impact = obj.impact;
-  if (obj.next_actions) out.next_actions = obj.next_actions;
-  if (obj.next_step) out.next_step = obj.next_step;
   if (obj.source) out.source = obj.source;
   if (obj.skill) out.skill = obj.skill;
+  if (obj.error) out.error = obj.error;
+  if (obj.message) out.message = obj.message;
   return out;
-}
-
-function formatSavedDuration(ms: number): string {
-  if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
-  if (ms >= 10_000) return `${Math.round(ms / 1000)}s`;
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${ms}ms`;
-}
-
-function emitImpactSummary(result: Record<string, unknown>): void {
-  const impact = result.impact as Record<string, unknown> | undefined;
-  if (!impact) return;
-
-  const timeSavedMs = typeof impact.time_saved_ms === "number" ? impact.time_saved_ms : 0;
-  const tokensSaved = typeof impact.tokens_saved === "number" ? impact.tokens_saved : 0;
-  const timeSavedPct = typeof impact.time_saved_pct === "number" ? impact.time_saved_pct : 0;
-  const tokensSavedPct = typeof impact.tokens_saved_pct === "number" ? impact.tokens_saved_pct : 0;
-  const browserAvoided = impact.browser_avoided === true;
-  if (timeSavedMs <= 0 && tokensSaved <= 0 && !browserAvoided) return;
-
-  const parts: string[] = [];
-  if (timeSavedMs > 0) parts.push(`${formatSavedDuration(timeSavedMs)} saved (${timeSavedPct}% faster)`);
-  if (tokensSaved > 0) parts.push(`${tokensSaved.toLocaleString("en-US")} tokens saved (${tokensSavedPct}% less context)`);
-  if (browserAvoided) parts.push("browser avoided");
-  info(parts.join(" • "));
-}
-
-function emitNextActionSummary(result: Record<string, unknown>): void {
-  const nextActions = Array.isArray(result.next_actions)
-    ? result.next_actions as Array<Record<string, unknown>>
-    : [];
-  if (nextActions.length === 0) return;
-  info("Likely next actions:");
-  for (const action of nextActions.slice(0, 3)) {
-    const command = typeof action.command === "string" ? action.command : "";
-    const title = typeof action.title === "string" ? action.title : (action.endpoint_id as string | undefined) ?? "next step";
-    const why = typeof action.why === "string" ? action.why : "";
-    info(`  ${command || title}${why ? `  # ${why}` : ""}`);
-  }
 }
 
 
 async function cmdHealth(flags: Record<string, string | boolean>): Promise<void> {
   output(await api("GET", "/health"), !!flags.pretty);
-}
-
-function telemetryDomainFromInput(domain?: string, url?: string): string | null {
-  if (domain?.trim()) return domain.trim().replace(/^www\./, "");
-  if (!url?.trim()) return null;
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
 }
 
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
@@ -234,9 +182,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     hostType,
     properties: {
       command: "resolve",
-      intent,
-      domain: telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined),
-      url: typeof flags.url === "string" ? flags.url : null,
       has_url: typeof flags.url === "string",
       has_domain: typeof flags.domain === "string",
       auto_execute: !!flags.execute,
@@ -265,21 +210,11 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       body.params = { ...(body.params as Record<string, unknown> ?? {}), ...extraParams };
     }
     if (flags["dry-run"]) body.dry_run = true;
-    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     if (flags["force-capture"]) body.force_capture = true;
     body.projection = { raw: true };
 
     function execBody(endpointId: string): Record<string, unknown> {
-      return {
-        params: { endpoint_id: endpointId, ...extraParams },
-        intent,
-        projection: { raw: true },
-        ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
-      };
-    }
-
-    function endpointNeedsThirdPartyTermsConfirmation(endpoint: Record<string, unknown>): boolean {
-      return endpoint.requires_third_party_terms_confirmation === true;
+      return { params: { endpoint_id: endpointId, ...extraParams }, intent, projection: { raw: true } };
     }
 
     function resolveSkillId(): string | undefined {
@@ -364,15 +299,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       const skillId = resolveSkillId();
       if (skillId && endpoints.length > 0) {
         const bestEndpoint = endpoints[0];
-        if (endpointNeedsThirdPartyTermsConfirmation(bestEndpoint) && !flags["confirm-third-party-terms"]) {
-          info(
-            `Auto-execute skipped: ${bestEndpoint.description ?? bestEndpoint.endpoint_id} requires explicit third-party terms confirmation`
-            + (typeof bestEndpoint.third_party_terms_policy_domain === "string" ? ` for ${bestEndpoint.third_party_terms_policy_domain}` : "")
-            + ". Re-run with --confirm-third-party-terms only after the user explicitly confirms.",
-          );
-          output(result, !!flags.pretty);
-          return;
-        }
         info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
         result = await withPendingNotice(
           api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
@@ -412,9 +338,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
         hostType,
         properties: {
           command: "resolve",
-          intent,
-          domain: telemetryDomainFromInput(domain, url),
-          url: url ?? null,
           source: result.source,
           auto_execute: autoExecute,
           explicit_endpoint: explicitEndpointId ?? null,
@@ -423,8 +346,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     }
 
     result = slimTrace(result);
-    emitImpactSummary(result);
-    emitNextActionSummary(result);
 
     const skill = result.skill as Record<string, unknown> | undefined;
     const trace = result.trace as Record<string, unknown> | undefined;
@@ -440,9 +361,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       hostType,
       properties: {
         command: "resolve",
-        intent,
-        domain: telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined),
-        url: typeof flags.url === "string" ? flags.url : null,
         failure_stage: "resolve",
         failure_reason: message,
       },
@@ -553,9 +471,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     hostType,
     properties: {
       command: "execute",
-      intent: typeof flags.intent === "string" ? flags.intent : null,
-      domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
-      url: typeof flags.url === "string" ? flags.url : null,
       skill_id: skillId,
       endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
     },
@@ -576,7 +491,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     if (flags.intent) body.intent = flags.intent;
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     body.projection = { raw: true };
 
     let result = await withPendingNotice(
@@ -590,9 +504,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
         hostType,
         properties: {
           command: "execute",
-          intent: typeof flags.intent === "string" ? flags.intent : null,
-          domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
-          url: typeof flags.url === "string" ? flags.url : null,
           skill_id: skillId,
           endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
         },
@@ -601,8 +512,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
 
     // Strip metadata bloat
     result = slimTrace(result);
-    emitImpactSummary(result);
-    emitNextActionSummary(result);
 
     const pathFlag = flags.path as string | undefined;
     const extractFlag = flags.extract as string | undefined;
@@ -613,12 +522,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     // --schema: show response structure without data
     if (schemaFlag && !rawFlag) {
       const data = result.result;
-      output({
-        trace: result.trace,
-        schema: schemaOf(data),
-        ...(result.impact ? { impact: result.impact } : {}),
-        ...(result.next_actions ? { next_actions: result.next_actions } : {}),
-      }, !!flags.pretty);
+      output({ trace: result.trace, schema: schemaOf(data) }, !!flags.pretty);
       return;
     }
 
@@ -636,13 +540,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       const limited = limitFlag ? extracted.slice(0, limitFlag) : extracted;
 
       const trace = result.trace as Record<string, unknown> | undefined;
-      const out: Record<string, unknown> = {
-        trace: result.trace,
-        data: limited,
-        count: limited.length,
-        ...(result.impact ? { impact: result.impact } : {}),
-        ...(result.next_actions ? { next_actions: result.next_actions } : {}),
-      };
+      const out: Record<string, unknown> = { trace: result.trace, data: limited, count: limited.length };
 
       // Prompt agent to review when this is likely a first-time execute
       if (trace?.skill_id && trace?.endpoint_id && limited.length > 0) {
@@ -660,8 +558,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
         const schema = schemaOf(result.result);
         output({
           trace: result.trace,
-          ...(result.impact ? { impact: result.impact } : {}),
-          ...(result.next_actions ? { next_actions: result.next_actions } : {}),
           extraction_hints: {
             message: "Response is large. Use --path/--extract/--limit to filter, or --schema to see structure, or --raw for full response.",
             schema_tree: schema,
@@ -680,9 +576,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       hostType,
       properties: {
         command: "execute",
-        intent: typeof flags.intent === "string" ? flags.intent : null,
-        domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
-        url: typeof flags.url === "string" ? flags.url : null,
         skill_id: skillId,
         failure_stage: "execute",
         failure_reason: message,
@@ -757,53 +650,7 @@ async function cmdSearch(flags: Record<string, string | boolean>): Promise<void>
   const path = domain ? "/v1/search/domain" : "/v1/search";
   const body: Record<string, unknown> = { intent, k: Number(flags.k) || 5 };
   if (domain) body.domain = domain;
-  const hostType = detectTelemetryHostType();
-  await ensureCliInstallTracked(hostType);
-  await recordFunnelTelemetryEvent("cli_invoked", {
-    source: "cli",
-    hostType,
-    properties: { command: "search" },
-  });
-  await recordFunnelTelemetryEvent("search_started", {
-    source: "cli",
-    hostType,
-    properties: {
-      command: "search",
-      intent,
-      domain: domain ?? null,
-      k: body.k,
-    },
-  });
-  try {
-    const result = await api("POST", path, body) as Record<string, unknown>;
-    const results = Array.isArray(result.results) ? result.results : [];
-    await recordFunnelTelemetryEvent("search_completed", {
-      source: "cli",
-      hostType,
-      properties: {
-        command: "search",
-        intent,
-        domain: domain ?? null,
-        k: body.k,
-        result_count: results.length,
-      },
-    });
-    output(result, !!flags.pretty);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await recordFunnelTelemetryEvent("search_failed", {
-      source: "cli",
-      hostType,
-      properties: {
-        command: "search",
-        intent,
-        domain: domain ?? null,
-        failure_stage: "search",
-        failure_reason: message,
-      },
-    });
-    throw error;
-  }
+  output(await api("POST", path, body), !!flags.pretty);
 }
 
 async function cmdSessions(flags: Record<string, string | boolean>): Promise<void> {
@@ -843,11 +690,6 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 
   if (report.opencode.action === "installed" || report.opencode.action === "updated") {
     info(`Open Code command installed at ${report.opencode.command_file}`);
-  }
-  for (const hook of report.update_hints) {
-    if (hook.action === "installed" || hook.action === "updated") {
-      info(`${hook.host} update hint hook ${hook.action} at ${hook.config_file}`);
-    }
   }
 
   await recordInstallTelemetryEvent("setup", {
@@ -917,9 +759,7 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 export const CLI_REFERENCE = {
   commands: [
     { name: "health", usage: "", desc: "Server health check" },
-    { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
-    { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent → search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
@@ -931,7 +771,7 @@ export const CLI_REFERENCE = {
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
     { name: "go", usage: '<url>', desc: "Open a live Kuri browser tab for capture-first workflows" },
-    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows" },
+    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows" },
     { name: "snap", usage: "[--filter interactive]", desc: "A11y snapshot with @eN refs" },
     { name: "click", usage: "<ref>", desc: "Click element by ref (e.g. e5)" },
     { name: "fill", usage: "<ref> <value>", desc: "Fill input by ref" },
@@ -968,7 +808,6 @@ export const CLI_REFERENCE = {
   ],
   examples: [
     "unbrowse setup",
-    "unbrowse mcp",
     'unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute',
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
     'unbrowse go "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html"',
@@ -1023,8 +862,8 @@ function printHelp(): void {
     "  1. go -> open the live tab you want to work in",
     "  2. snap -> inspect refs and confirm the page state",
     "  3. click/fill/eval -> set real page state",
-    "  4. submit -> prefer DOM submit; auto-flush current capture; fall back to same-origin rehydrate",
-    "  5. sync -> flush any additional captured routes after a successful step",
+    "  4. submit -> prefer DOM submit; auto-falls back to same-origin rehydrate",
+    "  5. sync -> flush captured routes after a successful step",
     "  6. close -> finish capture + indexing",
   );
 
@@ -1068,59 +907,22 @@ function cmdStop(flags: Record<string, string | boolean>): void {
 }
 
 async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void> {
-  const hintOnly = !!flags["hint-only"];
-  if (!hintOnly) info("Checking for updates...");
-
+  info("Checking for updates...");
+  const { execSync } = await import("node:child_process");
   try {
-    const result = await checkForUpdates(import.meta.url, { force: !hintOnly });
-    if (!result.latest) {
-      if (!hintOnly) info("Could not check for updates right now.");
+    const result = execSync("npm view unbrowse version", { encoding: "utf-8", timeout: 10_000 }).trim();
+    const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
+    const installed = versionInfo?.installed ?? "unknown";
+    if (result === installed) {
+      info(`Already at latest version: ${installed}`);
       return;
     }
-
-    if (!result.has_update) {
-      if (!hintOnly) info(`Already at latest version: ${result.installed}`);
-      return;
-    }
-
-    info(`Update available: ${result.installed} -> ${result.latest}`);
-    info(`Run: ${result.command}`);
-    if (!hintOnly) {
-      info("Tip: `unbrowse setup` now installs session-start update hints for Codex and Claude when those hosts are present.");
-    }
-    recordUpdateHint(result.latest);
+    info(`Update available: ${installed} -> ${result}`);
+    info("Run: npm install -g unbrowse@latest");
+    info("Then: unbrowse restart");
   } catch (err) {
-    if (!hintOnly) info(`Could not check for updates: ${(err as Error).message}`);
+    info(`Could not check for updates: ${(err as Error).message}`);
   }
-}
-
-async function cmdMcp(flags: Record<string, string | boolean>): Promise<void> {
-  const entrypoint = resolveSiblingEntrypoint(import.meta.url, "mcp");
-  const child = spawn(
-    process.execPath,
-    [...runtimeArgsForEntrypoint(import.meta.url, entrypoint), ...(flags["no-auto-start"] ? ["--no-auto-start"] : [])],
-    {
-      cwd: process.cwd(),
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        MCP_SERVER_MODE: "1",
-      },
-    },
-  );
-
-  const code = await new Promise<number>((resolve, reject) => {
-    child.once("error", reject);
-    child.once("exit", (exitCode, signal) => {
-      if (signal) {
-        process.kill(process.pid, signal);
-        return;
-      }
-      resolve(exitCode ?? 1);
-    });
-  });
-
-  if (code !== 0) process.exit(code);
 }
 
 // ---------------------------------------------------------------------------
@@ -1450,7 +1252,6 @@ async function main(): Promise<void> {
   }
 
   // Server lifecycle commands (don't need ensureLocalServer)
-  if (command === "mcp") return cmdMcp(flags);
   if (command === "status") return cmdStatus(flags);
   if (command === "stop") { cmdStop(flags); return; }
   if (command === "restart") return cmdRestart(flags);
@@ -1459,7 +1260,7 @@ async function main(): Promise<void> {
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
-    "health", "mcp", "setup", "resolve", "execute", "exec",
+    "health", "setup", "resolve", "execute", "exec",
     "feedback", "fb", "review", "publish", "login", "skills", "skill", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
@@ -1490,7 +1291,6 @@ async function main(): Promise<void> {
 
   switch (command) {
     case "health": return cmdHealth(flags);
-    case "mcp": return cmdMcp(flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "execute": case "exec": return cmdExecute(flags);

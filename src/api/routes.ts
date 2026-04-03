@@ -13,18 +13,17 @@ import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
-import { TRACE_VERSION, CODE_HASH, GIT_SHA, PACKAGE_VERSION } from "../version.js";
+import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, waitForBackgroundRegistration, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
 import { mergeAgentReview } from "../indexer/index.js";
-import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { type BrowseSession, getOrCreateBrowseSession, isRecoverableBrowseFailure, withRecoveredBrowseSession } from "./browse-session.js";
@@ -36,15 +35,15 @@ const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbro
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 
 type AnalyticsSessionResult = {
-  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct">;
-  timing?: Pick<OrchestrationTiming, "source" | "time_saved_ms" | "time_saved_pct" | "cost_saved_uc" | "tokens_saved" | "tokens_saved_pct">;
+  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version">;
+  timing?: Pick<OrchestrationTiming, "source">;
   source?: OrchestratorResult["source"];
 };
 
 export function buildAnalyticsSessionPayload(
   result: AnalyticsSessionResult,
   opts: {
-    browser_mode?: AnalyticsSessionPayload["browser_mode"];
+    browser_mode: AnalyticsSessionPayload["browser_mode"];
     discovery_queries: number;
     cached_skill_calls?: number;
     fresh_index_calls?: number;
@@ -52,11 +51,6 @@ export function buildAnalyticsSessionPayload(
 ): AnalyticsSessionPayload {
   const source = result.timing?.source ?? result.source;
   const apiCalls = result.trace.endpoint_id ? 1 : 0;
-  const browserMode = opts.browser_mode ?? (
-    source === "live-capture" || source === "first-pass" || source === "browser-action"
-      ? "default"
-      : "replaced"
-  );
   const cachedSkillCalls = opts.cached_skill_calls ?? (
     apiCalls > 0 && source !== "live-capture" && source !== "first-pass" ? 1 : 0
   );
@@ -73,14 +67,7 @@ export function buildAnalyticsSessionPayload(
     discovery_queries: opts.discovery_queries,
     cached_skill_calls: cachedSkillCalls,
     fresh_index_calls: freshIndexCalls,
-    browser_mode: browserMode,
-    success: result.trace.success ?? true,
-    source,
-    time_saved_ms: result.timing?.time_saved_ms,
-    time_saved_pct: result.timing?.time_saved_pct,
-    tokens_saved: result.trace.tokens_saved ?? result.timing?.tokens_saved,
-    tokens_saved_pct: result.trace.tokens_saved_pct ?? result.timing?.tokens_saved_pct,
-    cost_saved_uc: result.timing?.cost_saved_uc,
+    browser_mode: opts.browser_mode ?? "unknown",
   };
 }
 
@@ -328,7 +315,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.addHook("onRequest", async (req, reply) => {
     if (req.url === "/health" || req.url === "/v1/stats") return;
 
-    const key = getApiKey();
+    let key = getApiKey();
+    if (!key) {
+      await waitForBackgroundRegistration(15_000);
+      key = getApiKey();
+    }
     if (!key) {
       return reply.code(401).send({
         error: "api_key_required",
@@ -341,26 +332,21 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, dry_run, force_capture } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
-      confirm_third_party_terms?: boolean;
       dry_run?: boolean;
       force_capture?: boolean;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, client_scope: clientScope });
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture, client_scope: clientScope });
 
       // Surface timing breakdown
-      const res = attachAgentOutcomeHints({ ...result } as Record<string, unknown>, {
-        skill: result.skill,
-        endpointId: result.trace.endpoint_id,
-        timing: result.timing,
-      });
+      const res = result as unknown as Record<string, unknown>;
       if (result.timing) {
         res.timing = result.timing;
       }
@@ -373,10 +359,11 @@ export async function registerRoutes(app: FastifyInstance) {
       }
 
       await recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
+        browser_mode: "replaced",
         discovery_queries: 1,
       })).catch(() => {});
 
-      return reply.send(res);
+      return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
@@ -577,11 +564,10 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url } = req.body as {
+    const { params, projection, confirm_unsafe, dry_run, intent, context_url } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
-      confirm_third_party_terms?: boolean;
       dry_run?: boolean;
       intent?: string;
       context_url?: string;
@@ -607,7 +593,7 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
     };
     try {
-      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
+      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
       if (execResult.trace.endpoint_id) {
         recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace, skill).catch(() => {});
@@ -641,29 +627,23 @@ export async function registerRoutes(app: FastifyInstance) {
             { ...execParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
-            { confirm_unsafe, confirm_third_party_terms, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
+            { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
           );
           saveTrace(freshResult.trace);
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
             recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace, skill).catch(() => {});
           }
           await recordAnalyticsSession(buildAnalyticsSessionPayload(freshResult, {
+            browser_mode: "manual",
             discovery_queries: 1,
           })).catch(() => {});
-          const recovered = attachAgentOutcomeHints({
+          return reply.send({
             ...freshResult,
             _recovery: {
               reason: "stale_endpoint_404",
               original_skill_id: skill_id,
               message: "Original endpoint returned 404. Auto-recovered with fresh capture.",
             },
-          } as Record<string, unknown>, {
-            skill: freshResult.skill ?? skill,
-            endpointId: freshResult.trace.endpoint_id,
-            timing: freshResult.timing,
-          });
-          return reply.send({
-            ...recovered,
           });
         } catch {
           // Recovery failed — return original 404 with guidance
@@ -671,14 +651,13 @@ export async function registerRoutes(app: FastifyInstance) {
       }
 
       await recordAnalyticsSession(buildAnalyticsSessionPayload(execResult, {
+        browser_mode: "manual",
         discovery_queries: 0,
+        cached_skill_calls: execResult.trace.endpoint_id ? 1 : 0,
+        fresh_index_calls: 0,
       })).catch(() => {});
 
-      const response = attachAgentOutcomeHints({ ...execResult } as Record<string, unknown>, {
-        skill,
-        endpointId: execResult.trace.endpoint_id,
-      });
-      return reply.send(response);
+      return reply.send(execResult);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
@@ -824,13 +803,7 @@ export async function registerRoutes(app: FastifyInstance) {
   });
 
   // GET /health
-  app.get("/health", async (_req, reply) => reply.send({
-    status: "ok",
-    trace_version: TRACE_VERSION,
-    code_hash: CODE_HASH,
-    git_sha: GIT_SHA,
-    package_version: PACKAGE_VERSION,
-  }));
+  app.get("/health", async (_req, reply) => reply.send({ status: "ok", trace_version: TRACE_VERSION, code_hash: CODE_HASH, git_sha: GIT_SHA }));
 
   // GET /v1/sessions/:domain — read local trace/debug files instead of proxying to backend
   app.get("/v1/sessions/:domain", async (req, reply) => {
@@ -886,96 +859,6 @@ export async function registerRoutes(app: FastifyInstance) {
     await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
     session.harActive = true;
     await injectInterceptor(session.tabId).catch(() => {});
-  }
-
-  async function flushBrowseCapture(
-    session: BrowseSession,
-    options: { queueBackgroundPublish?: boolean } = {},
-  ): Promise<{
-    indexed: boolean;
-    mode: "http" | "dom" | "none";
-    domain: string;
-    skill_id: string | null;
-    endpoint_count: number;
-    endpoints: Array<{
-      endpoint_id: string;
-      method: string;
-      url_template: string;
-      description?: string;
-      trigger_url?: string;
-      action_kind?: string;
-      resource_kind?: string;
-    }>;
-    request_count: number;
-    background_publish_queued: boolean;
-  }> {
-    let intercepted: RawRequest[] = [];
-    try {
-      const raw = await collectInterceptedRequests(session.tabId);
-      intercepted = raw.map((request) => ({
-        url: request.url,
-        method: request.method,
-        request_headers: request.request_headers ?? {},
-        request_body: request.request_body,
-        response_status: request.response_status,
-        response_headers: request.response_headers ?? {},
-        response_body: request.response_body,
-        timestamp: request.timestamp,
-      }));
-    } catch { /* non-fatal */ }
-
-    let harEntries: KuriHarEntry[] = [];
-    if (session.harActive) {
-      try {
-        const { entries } = await kuri.harStop(session.tabId);
-        harEntries = entries;
-      } catch { /* non-fatal */ }
-    }
-    session.harActive = false;
-
-    const allRequests = mergeBrowseRequests(intercepted, harEntries, session.url);
-    const syncResult = await cacheBrowseRequests({
-      sessionUrl: session.url,
-      sessionDomain: session.domain,
-      requests: allRequests,
-      getPageHtml: () => kuri.getPageHtml(session.tabId),
-    });
-
-    let backgroundPublishQueued = false;
-    if (options.queueBackgroundPublish) {
-      if (allRequests.length > 0) {
-        passiveIndexFromRequests(allRequests, session.url);
-        backgroundPublishQueued = true;
-      } else if (syncResult.skill) {
-        queueBackgroundIndex({
-          skill: { ...syncResult.skill },
-          domain: syncResult.domain,
-          intent: syncResult.skill.intent_signature || `browse ${syncResult.domain}`,
-          contextUrl: session.url,
-          cacheKey: `browse-submit:${syncResult.domain}:${Date.now()}`,
-        });
-        backgroundPublishQueued = true;
-      }
-    }
-
-    return {
-      indexed: syncResult.indexed,
-      mode: syncResult.mode,
-      domain: syncResult.domain,
-      skill_id: syncResult.skill?.skill_id ?? null,
-      endpoint_count: syncResult.skill?.endpoints.length ?? 0,
-      endpoints: (syncResult.skill?.endpoints ?? []).map((endpoint) => ({
-        endpoint_id: endpoint.endpoint_id,
-        method: endpoint.method,
-        url_template: endpoint.url_template,
-        description: endpoint.description,
-        trigger_url: endpoint.trigger_url,
-        action_kind: endpoint.semantic?.action_kind,
-        resource_kind: endpoint.semantic?.resource_kind,
-      })),
-      request_count: allRequests.length,
-      background_publish_queued: backgroundPublishQueued,
-    };
   }
 
   // POST /v1/browse/go — navigate to URL
@@ -1068,7 +951,6 @@ export async function registerRoutes(app: FastifyInstance) {
         {
           client: kuri,
           session,
-          flushCapture: async (session) => await flushBrowseCapture(session, { queueBackgroundPublish: true }),
           restartCapture: restartBrowseCapture,
           rehydratePlugins: kuri.bestEffortRehydratePlugins,
         },
@@ -1087,14 +969,8 @@ export async function registerRoutes(app: FastifyInstance) {
     session.domain = profileName(session.url);
 
     const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
-    const nextStep = result.ok
-      ? (result.capture_sync?.background_publish_queued
-          ? "Background publish queued for this step. Continue the flow, then run `unbrowse close` when you're done to save auth and finalize any remaining capture."
-          : "If more UI steps remain, continue the flow. Run `unbrowse close` when you're done to save auth and finalize capture.")
-      : "Inspect the page state with `unbrowse snap --filter interactive`, then retry submit with selectors or a wait hint if needed.";
     return reply.code(statusCode).send({
       ...result,
-      next_step: nextStep,
       recovered,
       tab_id: session.tabId,
       url: session.url,
@@ -1262,9 +1138,44 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/browse/sync", async (_req, reply) => {
     const session = browseSessions.get("default");
     if (!session) return reply.send({ ok: false, error: "no active session" });
-    const syncResult = await flushBrowseCapture(session);
 
-    await restartBrowseCapture(session);
+    let intercepted: RawRequest[] = [];
+    try {
+      const raw = await collectInterceptedRequests(session.tabId);
+      intercepted = raw.map((request) => ({
+        url: request.url,
+        method: request.method,
+        request_headers: request.request_headers ?? {},
+        request_body: request.request_body,
+        response_status: request.response_status,
+        response_headers: request.response_headers ?? {},
+        response_body: request.response_body,
+        timestamp: request.timestamp,
+      }));
+    } catch { /* non-fatal */ }
+
+    let harEntries: KuriHarEntry[] = [];
+    if (session.harActive) {
+      try {
+        const { entries } = await kuri.harStop(session.tabId);
+        harEntries = entries;
+      } catch { /* non-fatal */ }
+    }
+    session.harActive = false;
+
+    const allRequests = mergeBrowseRequests(intercepted, harEntries, session.url);
+    const syncResult = await cacheBrowseRequests({
+      sessionUrl: session.url,
+      sessionDomain: session.domain,
+      requests: allRequests,
+      getPageHtml: () => kuri.getPageHtml(session.tabId),
+    });
+
+    await kuri.networkEnable(session.tabId).catch(() => {});
+    await kuri.harStart(session.tabId).catch(() => {});
+    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    session.harActive = true;
+    await injectInterceptor(session.tabId).catch(() => {});
 
     return reply.send({
       ok: true,
@@ -1272,10 +1183,17 @@ export async function registerRoutes(app: FastifyInstance) {
       indexed: syncResult.indexed,
       mode: syncResult.mode,
       domain: syncResult.domain,
-      skill_id: syncResult.skill_id,
-      endpoint_count: syncResult.endpoint_count,
-      endpoints: syncResult.endpoints,
-      request_count: syncResult.request_count,
+      skill_id: syncResult.skill?.skill_id ?? null,
+      endpoint_count: syncResult.skill?.endpoints.length ?? 0,
+      endpoints: (syncResult.skill?.endpoints ?? []).map((endpoint) => ({
+        endpoint_id: endpoint.endpoint_id,
+        method: endpoint.method,
+        url_template: endpoint.url_template,
+        description: endpoint.description,
+        trigger_url: endpoint.trigger_url,
+        action_kind: endpoint.semantic?.action_kind,
+        resource_kind: endpoint.semantic?.resource_kind,
+      })),
     });
   });
 
@@ -1289,16 +1207,48 @@ export async function registerRoutes(app: FastifyInstance) {
       await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
     }
 
-    const syncResult = await flushBrowseCapture(session, { queueBackgroundPublish: true });
+    // Collect intercepted fetch/XHR requests (has response bodies HAR misses)
+    let intercepted: RawRequest[] = [];
+    try {
+      const raw = await collectInterceptedRequests(session.tabId);
+      intercepted = raw.map(r => ({
+        url: r.url,
+        method: r.method,
+        request_headers: r.request_headers ?? {},
+        request_body: r.request_body,
+        response_status: r.response_status,
+        response_headers: r.response_headers ?? {},
+        response_body: r.response_body,
+        timestamp: r.timestamp,
+      }));
+    } catch { /* non-fatal */ }
+
+    // Also collect HAR entries
+    let harEntries: KuriHarEntry[] = [];
+    if (session.harActive) {
+      try {
+        const { entries } = await kuri.harStop(session.tabId);
+        harEntries = entries;
+      } catch { /* non-fatal */ }
+    }
+
+    const allRequests = mergeBrowseRequests(intercepted, harEntries, session.url);
+    const syncResult = await cacheBrowseRequests({
+      sessionUrl: session.url,
+      sessionDomain: session.domain,
+      requests: allRequests,
+      getPageHtml: () => kuri.getPageHtml(session.tabId),
+    });
+
+    // Run full async enrichment pipeline (agent augmentation, graph, marketplace publish)
+    passiveIndexFromRequests(allRequests, session.url);
     await kuri.closeTab(session.tabId).catch(() => {});
     browseSessions.delete("default");
     return reply.send({
       ok: true,
       indexed: syncResult.indexed,
       mode: syncResult.mode,
-      endpoint_count: syncResult.endpoint_count,
-      request_count: syncResult.request_count,
-      background_publish_queued: syncResult.background_publish_queued,
+      endpoint_count: syncResult.skill?.endpoints.length ?? 0,
       auth_saved: session.domain || null,
     });
   });
