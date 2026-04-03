@@ -251,6 +251,9 @@ fi
 if [[ -n "$AGENT_EMAIL" ]]; then
   export UNBROWSE_AGENT_EMAIL="$AGENT_EMAIL"
 fi
+export UNBROWSE_SETUP_METHOD="repo-clone"
+export UNBROWSE_SETUP_HOST="$TARGET_HOST"
+export UNBROWSE_SETUP_ROOT="$ROOT_DIR"
 
 log "running first-time bootstrap (ToS, registration, wallet detection; Crossmint lobster.cash recommended)"
 "$SHIM_PATH" "${CLI_ARGS[@]}"

@@ -81,6 +81,14 @@ npx skills add unbrowse-ai/unbrowse
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
 
+Check the exact command for your install with:
+
+```bash
+unbrowse upgrade
+```
+
+Codex and Claude installs now also get a session-start update hint during `unbrowse setup`, so newer releases are surfaced in the host before the CLI drifts too far behind.
+
 If you installed from a repo clone:
 
 ```bash
