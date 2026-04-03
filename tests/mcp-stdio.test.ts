@@ -209,8 +209,17 @@ function seedWorkflowPublishArtifact(dir: string): void {
               description: "Observed page destination after successful traversal.",
             },
           ],
+          payment_requirement: {
+            status: "x402_required",
+            price_usd: "0.001",
+            currency: "USDC",
+            wallet_required: true,
+            provider_hint: "lobster.cash-compatible x402 wallet",
+            confirmation_field: "payment_verified",
+            reason: "Published replay for skill-checkout/checkout-submit is priced through the marketplace payment lane.",
+          },
         },
-        usage_notes: ["params: item_id:string, selectedDate:string", "replay: explicit only; traversal stays browser-native"],
+        usage_notes: ["params: item_id:string, selectedDate:string", "payment: x402 0.001 USDC", "replay: explicit only; traversal stays browser-native"],
       },
     ],
     docs: {
@@ -312,6 +321,7 @@ describe("MCP stdio", () => {
       expect(contract.result.contents[0].mimeType).toBe("application/json");
       expect(contract.result.contents[0].text).toContain("\"endpoint_id\": \"checkout-submit\"");
       expect(contract.result.contents[0].text).toContain("\"dependency_bindings\"");
+      expect(contract.result.contents[0].text).toContain("\"payment_requirement\"");
 
       child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 6, method: "prompts/list", params: {} })}\n`);
       const prompts = await nextMessage(rl, child);
@@ -327,6 +337,7 @@ describe("MCP stdio", () => {
       const prompt = await nextMessage(rl, child);
       expect(prompt.result.messages[0].content.text).toContain("workflow_contract://skill-checkout/checkout-submit");
       expect(prompt.result.messages[0].content.text).toContain("workflow_dag://skill-checkout/checkout-submit");
+      expect(prompt.result.messages[0].content.text).toContain("inspect payment_requirement before explicit replay");
     } finally {
       rl.close();
       child.stdin.end();

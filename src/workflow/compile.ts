@@ -12,6 +12,7 @@ import type {
   WorkflowDomOptionHint,
   WorkflowMetaHint,
   WorkflowNextStateSpec,
+  WorkflowPaymentRequirementSpec,
   WorkflowParameterConstraint,
   WorkflowParameterSourceHint,
   WorkflowParameterSpec,
@@ -595,6 +596,40 @@ function buildNextStateSpecs(
   return nextState;
 }
 
+function buildPaymentRequirement(
+  skill: SkillManifest,
+  endpoint: EndpointDescriptor,
+): WorkflowPaymentRequirementSpec {
+  const priceUsd = typeof skill.base_price_usd === "number" && skill.base_price_usd > 0
+    ? String(skill.base_price_usd)
+    : undefined;
+  if (priceUsd) {
+    return {
+      status: "x402_required",
+      price_usd: priceUsd,
+      currency: "USDC",
+      wallet_required: true,
+      provider_hint: "lobster.cash-compatible x402 wallet",
+      confirmation_field: "payment_verified",
+      reason: `Published replay for ${skill.skill_id}/${endpoint.endpoint_id} is priced through the marketplace payment lane.`,
+    };
+  }
+  if (skill.owner_compensation_opt_in) {
+    return {
+      status: "x402_optional",
+      wallet_required: false,
+      provider_hint: "lobster.cash-compatible x402 wallet",
+      confirmation_field: "payment_verified",
+      reason: `This skill owner has opted into compensation, so marketplace x402 pricing may apply when this replay is published.`,
+    };
+  }
+  return {
+    status: "free",
+    wallet_required: false,
+    reason: "No x402 payment requirement was recorded for this replay contract at publish time.",
+  };
+}
+
 function buildReplayContract(
   skill: SkillManifest,
   endpoint: EndpointDescriptor,
@@ -627,6 +662,7 @@ function buildReplayContract(
     parameter_specs: buildParameterSpecs(endpoint, matchedRequests, htmlHints, tokenBindings),
     prerequisite_specs: buildPrerequisiteSpecs(skill, endpoint, htmlHints, tokenBindings, actionSequence),
     next_state: buildNextStateSpecs(endpoint, finalUrl),
+    payment_requirement: buildPaymentRequirement(skill, endpoint),
   };
 }
 

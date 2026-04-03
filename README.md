@@ -27,7 +27,7 @@ Core MCP tools:
 Published-workflow MCP resources/prompts:
 
 - `workflow_publish://<skill>` — exported workflow artifact summary for one published skill
-- `workflow_contract://<skill>/<endpoint>` — sanitized replay contract: params, enums, prerequisites, provenance hints, and next-state checks
+- `workflow_contract://<skill>/<endpoint>` — sanitized replay contract: params, enums, prerequisites, x402/payment requirements, provenance hints, and next-state checks
 - `workflow_dag://<skill>/<endpoint>` — dependency walk view for one published workflow edge
 - `plan_workflow_execution` — prompt scaffold that tells the model to inspect the contract + DAG before choosing traversal vs explicit replay
 
@@ -208,7 +208,7 @@ For published workflow contracts, treat the resolve/execute pair as the router/m
 - `unbrowse_resolve` finds candidate published contracts
 - `unbrowse_execute` runs one explicit replay contract
 - `unbrowse_skill` / `unbrowse_skills` let you inspect the published surface
-- MCP resources let hosts inspect the same surface before tool calls:
+- MCP resources let hosts inspect the same surface before tool calls, including x402/payment requirements:
   - `workflow_contract://<skill>/<endpoint>`
   - `workflow_dag://<skill>/<endpoint>`
   - prompt `plan_workflow_execution`

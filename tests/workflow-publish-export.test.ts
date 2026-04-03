@@ -25,6 +25,8 @@ function makeSkill(): SkillManifest {
     domain: "example.com",
     description: "workflow export skill",
     owner_type: "agent",
+    base_price_usd: 0.001,
+    owner_compensation_opt_in: true,
     endpoints: [
       {
         endpoint_id: "checkout-submit",
@@ -159,6 +161,15 @@ function makeWorkflowArtifact(): WorkflowArtifact {
               description: "Observed page destination after successful traversal.",
             },
           ],
+          payment_requirement: {
+            status: "x402_required",
+            price_usd: "0.001",
+            currency: "USDC",
+            wallet_required: true,
+            provider_hint: "lobster.cash-compatible x402 wallet",
+            confirmation_field: "payment_verified",
+            reason: "Published replay for skill-export/checkout-submit is priced through the marketplace payment lane.",
+          },
         },
       },
     ],
@@ -188,6 +199,16 @@ describe("workflow publish export", () => {
     expect(artifact.recipes[0]?.token_bindings[0]?.candidates[0]?.source_name).toBe("csrftoken");
     expect(artifact.recipes[0]?.replay_contract.parameter_specs[0]?.name).toBe("item_id");
     expect(artifact.recipes[0]?.replay_contract.dependency_bindings).toEqual(["item_id", "x-csrf-token"]);
+    expect(artifact.recipes[0]?.replay_contract.payment_requirement).toEqual({
+      status: "x402_required",
+      price_usd: "0.001",
+      currency: "USDC",
+      wallet_required: true,
+      provider_hint: "lobster.cash-compatible x402 wallet",
+      confirmation_field: "payment_verified",
+      reason: "Published replay for skill-export/checkout-submit is priced through the marketplace payment lane.",
+    });
+    expect(artifact.recipes[0]?.usage_notes.some((note) => note.includes("payment: x402 0.001 USDC"))).toBe(true);
     expect(artifact.recipes[0]?.usage_notes.some((note) => note.includes("replay: explicit only"))).toBe(true);
     expect(JSON.stringify(artifact)).not.toContain("super-secret-token");
   });

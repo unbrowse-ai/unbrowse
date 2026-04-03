@@ -665,6 +665,16 @@ export interface WorkflowNextStateSpec {
   description?: string;
 }
 
+export interface WorkflowPaymentRequirementSpec {
+  status: "free" | "x402_optional" | "x402_required";
+  price_usd?: string;
+  currency?: string;
+  wallet_required: boolean;
+  provider_hint?: string;
+  confirmation_field?: "payment_verified";
+  reason?: string;
+}
+
 export interface WorkflowReplayContract {
   explicit_replay_only: boolean;
   exposure_stage: "publish";
@@ -673,6 +683,7 @@ export interface WorkflowReplayContract {
   parameter_specs: WorkflowParameterSpec[];
   prerequisite_specs: WorkflowPrerequisiteSpec[];
   next_state: WorkflowNextStateSpec[];
+  payment_requirement: WorkflowPaymentRequirementSpec;
 }
 
 export interface WorkflowEvidence {
