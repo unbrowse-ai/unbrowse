@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
-import { publishSkill, getSkill, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
+import { publishSkill, getSkill, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
 import { listPopularSkills } from "../services/popularity.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { addSkillDiscovered, getAgent, updateAgentWallet } from "../services/agents.js";
@@ -20,6 +20,19 @@ publicSkillRoutes.use("/skills", rateLimit({ limit: 60, window: 60, prefix: "ski
 
 // GET /v1/skills -- list all
 publicSkillRoutes.get("/skills", async (c) => {
+  const view = c.req.query("view");
+  if (view === "card") {
+    const limitRaw = c.req.query("limit");
+    const limit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
+    const includeDeprecated = c.req.query("include_deprecated") === "1";
+    const skills = await listSkillCards(c.env, {
+      limit: Number.isFinite(limit) && (limit as number) > 0 ? limit : undefined,
+      includeDeprecated,
+    });
+    c.header("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
+    return c.json({ skills });
+  }
+
   const skills = await listSkills(c.env);
   return c.json({ skills });
 });

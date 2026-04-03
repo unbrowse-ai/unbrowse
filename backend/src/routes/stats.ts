@@ -11,64 +11,67 @@ import { getAgentFeeLedger, getFeesSummary } from "../services/fees.js";
 import { recordAttribution, getIndexerLedger, getAttributionSummary } from "../services/attribution.js";
 import { getSkill } from "../services/marketplace.js";
 import { updateContributorDelta } from "../services/splits.js";
+import { getOrSetHttpCache } from "../services/http-cache.js";
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
 
 // GET /v1/stats/summary — aggregated counts for the landing page
 publicStatsRoutes.get("/stats/summary", async (c) => {
-  // Both lists served from index — 2 HTTP calls total instead of 150+
-  const [skillEntries, statEntries] = await Promise.all([
-    skillsKV(c.env).listWithValues("skill:"),
-    statsKV(c.env).listWithValues("stats:"),
-  ]);
+  const payload = await getOrSetHttpCache(c.env, "stats:summary", 60, async () => {
+    const [skillEntries, statEntries] = await Promise.all([
+      skillsKV(c.env).listWithValues("skill:"),
+      statsKV(c.env).listWithValues("stats:"),
+    ]);
 
-  let skillCount = 0;
-  let endpointCount = 0;
-  const domainSet = new Set<string>();
-  for (const { value } of skillEntries) {
-    try {
-      const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string; lifecycle?: string };
-      if (s.lifecycle === "deprecated" || s.lifecycle === "disabled") continue;
-      skillCount++;
-      endpointCount += s.endpoints?.length ?? 0;
-      if (s.domain) domainSet.add(s.domain);
-    } catch { /* skip malformed */ }
-  }
+    let skillCount = 0;
+    let endpointCount = 0;
+    const domainSet = new Set<string>();
+    for (const { value } of skillEntries) {
+      try {
+        const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string; lifecycle?: string };
+        if (s.lifecycle === "deprecated" || s.lifecycle === "disabled") continue;
+        skillCount++;
+        endpointCount += s.endpoints?.length ?? 0;
+        if (s.domain) domainSet.add(s.domain);
+      } catch {}
+    }
 
-  let totalExecutions = 0;
-  for (const { value } of statEntries) {
-    try {
-      const s = JSON.parse(value) as { total_executions?: number };
-      totalExecutions += s.total_executions ?? 0;
-    } catch { /* skip malformed */ }
-  }
+    let totalExecutions = 0;
+    for (const { value } of statEntries) {
+      try {
+        const s = JSON.parse(value) as { total_executions?: number };
+        totalExecutions += s.total_executions ?? 0;
+      } catch {}
+    }
 
-  const agentCount = await countAgents(c.env);
+    const agentCount = await countAgents(c.env);
+    const perfStats = await getPerf(c.env);
 
-  const perfStats = await getPerf(c.env);
-
-  c.header("Cache-Control", "public, max-age=60");
-  c.header("Access-Control-Allow-Origin", "*");
-  return c.json({
-    skills: skillCount,
-    endpoints: endpointCount,
-    domains: domainSet.size,
-    executions: totalExecutions,
-    agents: agentCount,
-    perf: {
-      total_resolves: perfStats.total_resolves,
-      marketplace_hit_rate: perfStats.total_resolves > 0
-        ? Math.round((perfStats.marketplace_hits + perfStats.cache_hits) / perfStats.total_resolves * 100)
-        : 0,
-      avg_resolve_ms: Math.round(perfStats.avg_total_ms),
-      avg_marketplace_ms: Math.round(perfStats.avg_marketplace_ms),
-      avg_cache_ms: Math.round(perfStats.avg_cache_ms),
-      p95_ms: Math.round(perfStats.p95_total_ms),
-      total_tokens_saved: perfStats.total_tokens_saved,
-      avg_time_saved_pct: Math.round(perfStats.avg_time_saved_pct),
-      avg_tokens_saved_pct: Math.round(perfStats.avg_tokens_saved_pct),
-    },
+    return {
+      skills: skillCount,
+      endpoints: endpointCount,
+      domains: domainSet.size,
+      executions: totalExecutions,
+      agents: agentCount,
+      perf: {
+        total_resolves: perfStats.total_resolves,
+        marketplace_hit_rate: perfStats.total_resolves > 0
+          ? Math.round((perfStats.marketplace_hits + perfStats.cache_hits) / perfStats.total_resolves * 100)
+          : 0,
+        avg_resolve_ms: Math.round(perfStats.avg_total_ms),
+        avg_marketplace_ms: Math.round(perfStats.avg_marketplace_ms),
+        avg_cache_ms: Math.round(perfStats.avg_cache_ms),
+        p95_ms: Math.round(perfStats.p95_total_ms),
+        total_tokens_saved: perfStats.total_tokens_saved,
+        avg_time_saved_pct: Math.round(perfStats.avg_time_saved_pct),
+        avg_tokens_saved_pct: Math.round(perfStats.avg_tokens_saved_pct),
+      },
+    };
   });
+
+  c.header("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=300");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(payload);
 });
 
 // GET /v1/stats/perf — aggregated orchestration performance
