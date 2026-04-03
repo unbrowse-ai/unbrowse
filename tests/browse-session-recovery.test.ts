@@ -6,6 +6,7 @@ import {
   getOrCreateBrowseSession,
   isBrowseSessionLive,
   isRecoverableBrowseFailure,
+  resetBrowseSession,
   resolveRequestedBrowseSession,
   type BrowseSession,
   type BrowseSessionClient,
@@ -82,9 +83,15 @@ describe("browse session recovery", () => {
     expect(sessions.get(session.sessionId)?.tabId).toBe("fresh-tab");
   });
 
-  it("adopts an existing same-domain tab before falling back to about:blank", async () => {
+  it("adopts an existing same-path tab before falling back to a fresh tab", async () => {
     const sessions = new Map<string, BrowseSession>();
-    sessions.set("sess-1", { sessionId: "sess-1", tabId: "dead-tab", url: "https://www.mandai.com/old", harActive: true, domain: "mandai.com" });
+    sessions.set("sess-1", {
+      sessionId: "sess-1",
+      tabId: "dead-tab",
+      url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=old",
+      harActive: true,
+      domain: "mandai.com",
+    });
 
     const injected: string[] = [];
     const session = await getOrCreateBrowseSession(
@@ -93,9 +100,9 @@ describe("browse session recovery", () => {
         closeTab: async () => {},
         discoverTabs: async () => [
           { id: "other-tab", url: "https://example.com" },
-          { id: "mandai-live", url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html" },
+          { id: "mandai-live", url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=live" },
         ],
-        getCurrentUrl: async (tabId) => tabId === "mandai-live" ? "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html" : "",
+        getCurrentUrl: async (tabId) => tabId === "mandai-live" ? "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=live" : "",
         newTab: async () => "fresh-tab",
       }),
       async (tabId) => { injected.push(tabId); },
@@ -117,6 +124,7 @@ describe("browse session recovery", () => {
         closeTab: async () => {},
         discoverTabs: async () => [
           { id: "other-tab", url: "https://example.com" },
+          { id: "mandai-parks", url: "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html" },
           { id: "idle-tab", url: "chrome://newtab/" },
           { id: "blank-tab", url: "about:blank" },
         ],
@@ -126,6 +134,37 @@ describe("browse session recovery", () => {
       async (tabId) => { injected.push(tabId); },
     );
 
+    expect(session.tabId).toBe("fresh-tab");
+    expect(injected).toEqual(["fresh-tab"]);
+  });
+
+  it("does not recover an explicit session onto an unrelated same-domain tab", async () => {
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", {
+        sessionId: "sess-1",
+        tabId: "dead-tab",
+        url: "https://www.mandai.com/en/ticketing/admission-and-rides/add-ons-selection.html",
+        harActive: true,
+        domain: "mandai.com",
+      }],
+    ]);
+
+    const injected: string[] = [];
+    const session = await resetBrowseSession(
+      sessions,
+      makeClient({
+        closeTab: async () => {},
+        discoverTabs: async () => [
+          { id: "parks-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html" },
+        ],
+        getCurrentUrl: async (tabId) => tabId === "fresh-tab" ? "about:blank" : "",
+        newTab: async () => "fresh-tab",
+      }),
+      async (tabId) => { injected.push(tabId); },
+      "sess-1",
+    );
+
+    expect(session.sessionId).toBe("sess-1");
     expect(session.tabId).toBe("fresh-tab");
     expect(injected).toEqual(["fresh-tab"]);
   });
