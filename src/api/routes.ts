@@ -1295,7 +1295,8 @@ export async function registerRoutes(app: FastifyInstance) {
           return true;
         },
       );
-      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+      await isBrowseSessionLive(session, browseClient).catch(() => false);
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId, url: session.url });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
     }
