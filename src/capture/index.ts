@@ -68,6 +68,12 @@ async function resetTab(tabId: string): Promise<void> {
   } catch { /* best-effort */ }
 }
 
+async function openFreshCaptureTab(): Promise<string> {
+  const tabId = await kuri.newTab("about:blank");
+  if (!tabId) throw new Error("Failed to create a fresh browser tab");
+  return tabId;
+}
+
 type CaptureNavigationPage = {
   goto(url: string, options: { waitUntil: "domcontentloaded"; timeout: number }): Promise<unknown>;
 };
@@ -824,16 +830,12 @@ export async function captureSession(
   await kuri.start();
   await kuri.discoverTabs(); // Sync Chrome tabs into Kuri's registry
 
-  // Get a tab for this capture
   let tabId: string;
   try {
-    tabId = await kuri.getDefaultTab();
-  } catch {
-    // If no tabs available, try creating one
-    tabId = await kuri.newTab("about:blank");
-    if (!tabId) {
-      tabId = await kuri.getDefaultTab();
-    }
+    tabId = await openFreshCaptureTab();
+  } catch (error) {
+    releaseTabSlot("no-tab");
+    throw error;
   }
   activeTabRegistry.add(tabId);
 
@@ -1138,10 +1140,10 @@ export async function executeInBrowser(
 
   let tabId: string;
   try {
-    tabId = await kuri.newTab("about:blank");
-    if (!tabId) tabId = await kuri.getDefaultTab();
-  } catch {
-    tabId = await kuri.getDefaultTab();
+    tabId = await openFreshCaptureTab();
+  } catch (error) {
+    releaseTabSlot("no-tab");
+    throw error;
   }
   activeTabRegistry.add(tabId);
 
@@ -1185,10 +1187,10 @@ export async function triggerAndIntercept(
 
   let tabId: string;
   try {
-    tabId = await kuri.newTab("about:blank");
-    if (!tabId) tabId = await kuri.getDefaultTab();
-  } catch {
-    tabId = await kuri.getDefaultTab();
+    tabId = await openFreshCaptureTab();
+  } catch (error) {
+    releaseTabSlot("no-tab");
+    throw error;
   }
   activeTabRegistry.add(tabId);
 
@@ -1367,10 +1369,10 @@ export async function executeActionSequence(
 
   let tabId: string;
   try {
-    tabId = await kuri.newTab("about:blank");
-    if (!tabId) tabId = await kuri.getDefaultTab();
-  } catch {
-    tabId = await kuri.getDefaultTab();
+    tabId = await openFreshCaptureTab();
+  } catch (error) {
+    releaseTabSlot("no-tab");
+    throw error;
   }
   activeTabRegistry.add(tabId);
 

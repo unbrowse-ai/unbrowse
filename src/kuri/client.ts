@@ -1067,8 +1067,16 @@ export async function select(tabId: string, ref: string, value: string): Promise
   return result;
 }
 
-/** Scroll the page (no ref needed, pass any ref value). */
-export async function scroll(tabId: string): Promise<unknown> {
+/**
+ * Scroll the page.
+ * Direction/amount are accepted for caller compatibility; current Kuri HTTP
+ * action only exposes generic page scroll.
+ */
+export async function scroll(
+  tabId: string,
+  _direction: "up" | "down" | "left" | "right" = "down",
+  _amount?: number,
+): Promise<unknown> {
   return kuriGet("/action", { tab_id: tabId, action: "scroll", ref: "_" });
 }
 

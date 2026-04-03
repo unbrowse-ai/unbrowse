@@ -64,13 +64,26 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
 // ---------------------------------------------------------------------------
 
 async function api(method: string, path: string, body?: unknown): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  let target = `${BASE_URL}${path}`;
+  let requestBody = body;
+  if (method === "GET" && body && typeof body === "object") {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        params.set(key, String(value));
+      }
+    }
+    const query = params.toString();
+    if (query) target += `${target.includes("?") ? "&" : "?"}${query}`;
+    requestBody = undefined;
+  }
+  const res = await fetch(target, {
     method,
     headers: {
-      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(requestBody ? { "Content-Type": "application/json" } : {}),
       "x-unbrowse-client-id": CLI_CLIENT_ID,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: requestBody ? JSON.stringify(requestBody) : undefined,
   });
   if (!res.ok && res.headers.get("content-type")?.includes("json")) {
     return res.json();
@@ -393,12 +406,24 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       info(`Preferred flow: snap -> click/fill/eval -> submit -> sync -> close.`);
       info(`Use these commands to get your data:`);
       const commands = resultObj.commands as string[] ?? [
-        "unbrowse snap --filter interactive",
-        "unbrowse click <ref>",
-        "unbrowse fill <ref> <value>",
-        "unbrowse submit --wait-for \"/next-step\"",
-        "unbrowse sync",
-        "unbrowse close",
+        resultObj.session_id
+          ? `unbrowse snap --session ${resultObj.session_id} --filter interactive`
+          : "unbrowse snap --filter interactive",
+        resultObj.session_id
+          ? `unbrowse click --session ${resultObj.session_id} <ref>`
+          : "unbrowse click <ref>",
+        resultObj.session_id
+          ? `unbrowse fill --session ${resultObj.session_id} <ref> <value>`
+          : "unbrowse fill <ref> <value>",
+        resultObj.session_id
+          ? `unbrowse submit --session ${resultObj.session_id} --wait-for \"/next-step\"`
+          : "unbrowse submit --wait-for \"/next-step\"",
+        resultObj.session_id
+          ? `unbrowse sync --session ${resultObj.session_id}`
+          : "unbrowse sync",
+        resultObj.session_id
+          ? `unbrowse close --session ${resultObj.session_id}`
+          : "unbrowse close",
       ];
       for (const cmd of commands) info(`  ${cmd}`);
       info(`For JS-heavy forms: prefer real date/time clicks first, inspect hidden inputs with eval when needed, then submit.`);
@@ -947,24 +972,24 @@ export const CLI_REFERENCE = {
     { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills and evict stale cached endpoints" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
-    { name: "go", usage: '<url>', desc: "Open a live Kuri browser tab for capture-first workflows" },
-    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows" },
-    { name: "snap", usage: "[--filter interactive]", desc: "A11y snapshot with @eN refs" },
-    { name: "click", usage: "<ref>", desc: "Click element by ref (e.g. e5)" },
-    { name: "fill", usage: "<ref> <value>", desc: "Fill input by ref" },
+    { name: "go", usage: '<url> [--session id]', desc: "Open a live Kuri browser tab for capture-first workflows" },
+    { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows" },
+    { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs" },
+    { name: "click", usage: "[--session id] <ref>", desc: "Click element by ref (e.g. e5)" },
+    { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by ref" },
     { name: "type", usage: "<text>", desc: "Type text with key events" },
     { name: "press", usage: "<key>", desc: "Press key (Enter, Tab, Escape)" },
     { name: "select", usage: "<ref> <value>", desc: "Select option by ref" },
     { name: "scroll", usage: "[up|down|left|right]", desc: "Scroll the page" },
-    { name: "screenshot", usage: "", desc: "Capture screenshot (base64 PNG)" },
-    { name: "text", usage: "", desc: "Get page text content" },
-    { name: "markdown", usage: "", desc: "Get page as Markdown" },
-    { name: "cookies", usage: "", desc: "Get page cookies" },
-    { name: "eval", usage: "<expression>", desc: "Evaluate JavaScript" },
-    { name: "back", usage: "", desc: "Navigate back" },
-    { name: "forward", usage: "", desc: "Navigate forward" },
-    { name: "sync", usage: "", desc: "Flush the current step's captured traffic into route cache without closing tab" },
-    { name: "close", usage: "", desc: "Close browse session, flush + index traffic" },
+    { name: "screenshot", usage: "[--session id]", desc: "Capture screenshot (base64 PNG)" },
+    { name: "text", usage: "[--session id]", desc: "Get page text content" },
+    { name: "markdown", usage: "[--session id]", desc: "Get page as Markdown" },
+    { name: "cookies", usage: "[--session id]", desc: "Get page cookies" },
+    { name: "eval", usage: "[--session id] <expression>", desc: "Evaluate JavaScript" },
+    { name: "back", usage: "[--session id]", desc: "Navigate back" },
+    { name: "forward", usage: "[--session id]", desc: "Navigate forward" },
+    { name: "sync", usage: "[--session id]", desc: "Flush the current step's captured traffic into route cache without closing tab" },
+    { name: "close", usage: "[--session id]", desc: "Close browse session, flush + index traffic" },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -1289,11 +1314,15 @@ async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<stri
 async function cmdGo(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const url = args[0] ?? flags.url as string;
   if (!url) die("Usage: unbrowse go <url>");
-  output(await api("POST", "/v1/browse/go", { url }), !!flags.pretty);
+  output(await api("POST", "/v1/browse/go", {
+    url,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), !!flags.pretty);
 }
 
 async function cmdSubmit(flags: Record<string, string | boolean>): Promise<void> {
   const body: Record<string, unknown> = {};
+  if (typeof flags.session === "string") body.session_id = flags.session;
   if (typeof flags["form-selector"] === "string") body.form_selector = flags["form-selector"];
   if (typeof flags["submit-selector"] === "string") body.submit_selector = flags["submit-selector"];
   if (typeof flags["wait-for"] === "string") body.wait_for = flags["wait-for"];
@@ -1306,7 +1335,10 @@ async function cmdSubmit(flags: Record<string, string | boolean>): Promise<void>
 
 async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
   const filter = flags.filter as string | undefined;
-  const result = await api("POST", "/v1/browse/snap", { filter }) as { snapshot?: string };
+  const result = await api("POST", "/v1/browse/snap", {
+    ...(filter ? { filter } : {}),
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }) as { snapshot?: string };
   if (result.snapshot && !flags.pretty) {
     console.log(result.snapshot);
   } else {
@@ -1314,49 +1346,69 @@ async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
   }
 }
 
-async function cmdClick(args: string[]): Promise<void> {
+async function cmdClick(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const ref = args[0];
   if (!ref) die("Usage: unbrowse click <ref>");
-  output(await api("POST", "/v1/browse/click", { ref }), false);
+  output(await api("POST", "/v1/browse/click", {
+    ref,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
 }
 
-async function cmdFill(args: string[]): Promise<void> {
+async function cmdFill(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const ref = args[0];
   const value = args.slice(1).join(" ");
   if (!ref || !value) die("Usage: unbrowse fill <ref> <value>");
-  output(await api("POST", "/v1/browse/fill", { ref, value }), false);
+  output(await api("POST", "/v1/browse/fill", {
+    ref,
+    value,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
 }
 
-async function cmdType(args: string[]): Promise<void> {
+async function cmdType(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const text = args.join(" ");
   if (!text) die("Usage: unbrowse type <text>");
-  output(await api("POST", "/v1/browse/type", { text }), false);
+  output(await api("POST", "/v1/browse/type", {
+    text,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
 }
 
-async function cmdPress(args: string[]): Promise<void> {
+async function cmdPress(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const key = args[0];
   if (!key) die("Usage: unbrowse press <key>");
-  output(await api("POST", "/v1/browse/press", { key }), false);
+  output(await api("POST", "/v1/browse/press", {
+    key,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
 }
 
-async function cmdSelect(args: string[]): Promise<void> {
+async function cmdSelect(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const ref = args[0];
   const value = args.slice(1).join(" ");
   if (!ref || !value) die("Usage: unbrowse select <ref> <value>");
-  output(await api("POST", "/v1/browse/select", { ref, value }), false);
+  output(await api("POST", "/v1/browse/select", {
+    ref,
+    value,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
 }
 
-async function cmdScroll(args: string[]): Promise<void> {
+async function cmdScroll(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const direction = args[0] ?? "down";
-  output(await api("POST", "/v1/browse/scroll", { direction }), false);
+  output(await api("POST", "/v1/browse/scroll", {
+    direction,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
 }
 
 async function cmdScreenshot(flags: Record<string, string | boolean>): Promise<void> {
-  output(await api("GET", "/v1/browse/screenshot"), !!flags.pretty);
+  output(await api("GET", "/v1/browse/screenshot", typeof flags.session === "string" ? { session_id: flags.session } : undefined), !!flags.pretty);
 }
 
 async function cmdText(flags: Record<string, string | boolean>): Promise<void> {
-  const result = await api("GET", "/v1/browse/text") as { text?: string };
+  const result = await api("GET", "/v1/browse/text", typeof flags.session === "string" ? { session_id: flags.session } : undefined) as { text?: string };
   if (result.text && !flags.pretty) {
     console.log(result.text);
   } else {
@@ -1365,7 +1417,7 @@ async function cmdText(flags: Record<string, string | boolean>): Promise<void> {
 }
 
 async function cmdMarkdown(flags: Record<string, string | boolean>): Promise<void> {
-  const result = await api("GET", "/v1/browse/markdown") as { markdown?: string };
+  const result = await api("GET", "/v1/browse/markdown", typeof flags.session === "string" ? { session_id: flags.session } : undefined) as { markdown?: string };
   if (result.markdown && !flags.pretty) {
     console.log(result.markdown);
   } else {
@@ -1374,29 +1426,32 @@ async function cmdMarkdown(flags: Record<string, string | boolean>): Promise<voi
 }
 
 async function cmdCookies(flags: Record<string, string | boolean>): Promise<void> {
-  output(await api("GET", "/v1/browse/cookies"), !!flags.pretty);
+  output(await api("GET", "/v1/browse/cookies", typeof flags.session === "string" ? { session_id: flags.session } : undefined), !!flags.pretty);
 }
 
 async function cmdEval(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const expression = args.join(" ");
   if (!expression) die("Usage: unbrowse eval <expression>");
-  output(await api("POST", "/v1/browse/eval", { expression }), !!flags.pretty);
+  output(await api("POST", "/v1/browse/eval", {
+    expression,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), !!flags.pretty);
 }
 
-async function cmdBack(): Promise<void> {
-  output(await api("POST", "/v1/browse/back"), false);
+async function cmdBack(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/back", typeof flags.session === "string" ? { session_id: flags.session } : undefined), false);
 }
 
-async function cmdForward(): Promise<void> {
-  output(await api("POST", "/v1/browse/forward"), false);
+async function cmdForward(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/forward", typeof flags.session === "string" ? { session_id: flags.session } : undefined), false);
 }
 
 async function cmdSync(flags: Record<string, string | boolean>): Promise<void> {
-  output(await api("POST", "/v1/browse/sync"), !!flags.pretty);
+  output(await api("POST", "/v1/browse/sync", typeof flags.session === "string" ? { session_id: flags.session } : undefined), !!flags.pretty);
 }
 
-async function cmdClose(): Promise<void> {
-  output(await api("POST", "/v1/browse/close"), false);
+async function cmdClose(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/close", typeof flags.session === "string" ? { session_id: flags.session } : undefined), false);
 }
 
 async function cmdConnectChrome(): Promise<void> {
@@ -1524,21 +1579,21 @@ async function main(): Promise<void> {
     case "go": return cmdGo(args, flags);
     case "submit": return cmdSubmit(flags);
     case "snap": return cmdSnap(flags);
-    case "click": return cmdClick(args);
-    case "fill": return cmdFill(args);
-    case "type": return cmdType(args);
-    case "press": return cmdPress(args);
-    case "select": return cmdSelect(args);
-    case "scroll": return cmdScroll(args);
+    case "click": return cmdClick(args, flags);
+    case "fill": return cmdFill(args, flags);
+    case "type": return cmdType(args, flags);
+    case "press": return cmdPress(args, flags);
+    case "select": return cmdSelect(args, flags);
+    case "scroll": return cmdScroll(args, flags);
     case "screenshot": return cmdScreenshot(flags);
     case "text": return cmdText(flags);
     case "markdown": return cmdMarkdown(flags);
     case "cookies": return cmdCookies(flags);
     case "eval": return cmdEval(args, flags);
-    case "back": return cmdBack();
-    case "forward": return cmdForward();
+    case "back": return cmdBack(flags);
+    case "forward": return cmdForward(flags);
     case "sync": return cmdSync(flags);
-    case "close": return cmdClose();
+    case "close": return cmdClose(flags);
     case "connect-chrome": return cmdConnectChrome();
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
