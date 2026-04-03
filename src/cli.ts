@@ -113,6 +113,7 @@ function isResolveSuccessResult(result: Record<string, unknown>): boolean {
   if (resultObj?.status === "browse_session_open") return false;
   return !!result.result || Array.isArray(result.available_endpoints);
 }
+
 async function withPendingNotice<T>(promise: Promise<T>, message: string, delayMs = 3_000): Promise<T> {
   let done = false;
   const timer = setTimeout(() => {
