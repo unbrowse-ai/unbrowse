@@ -1,5 +1,6 @@
 import type { BrowseSession } from "./browse-session.js";
 import { isRecoverableBrowseFailure } from "./browse-session.js";
+import { MONTH_INDEX } from "./browse-submit-prereqs.js";
 
 export interface BrowseSubmitOptions {
   formSelector?: string;
@@ -113,7 +114,9 @@ export function hasMeaningfulPageChange(beforeHtml: string, afterHtml: string): 
 }
 
 function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
+  const monthIndex = JSON.stringify(MONTH_INDEX);
   return `(function() {
+    var MONTH_INDEX = ${monthIndex};
     function findForm(selector) {
       if (selector) return document.querySelector(selector);
       var active = document.activeElement;
@@ -130,6 +133,99 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
       if (active && form.contains(active) && /^(submit|image)$/i.test(active.getAttribute("type") || "")) return active;
       return form.querySelector('button[type="submit"], input[type="submit"], input[type="image"], button:not([type])');
     }
+    function isDisabled(node) {
+      if (!node) return false;
+      if (node.disabled) return true;
+      if (typeof node.getAttribute === "function") {
+        var ariaDisabled = node.getAttribute("aria-disabled");
+        if (ariaDisabled && ariaDisabled.toLowerCase() === "true") return true;
+      }
+      return !!(node.classList && node.classList.contains("disabled"));
+    }
+    function textValue(node) {
+      if (!node) return "";
+      if (typeof node.value === "string" && node.value.trim()) return node.value.trim();
+      return (node.textContent || "").trim();
+    }
+    function pushUnique(list, value) {
+      if (!value) return;
+      if (!list.includes(value)) list.push(value);
+    }
+    function inferIsoDate() {
+      var existing = document.querySelector("[data-input-date], input[name='selectedDate']");
+      var existingValue = textValue(existing);
+      if (/^\\d{4}-\\d{2}-\\d{2}$/.test(existingValue)) return existingValue;
+
+      var dayNode = document.querySelector(
+        ".day.active, .day.current, .calendar-day.active, .calendar-day.selected, .calendar-day.current, [data-day].active, [data-day].current, [data-day].selected, [data-date].active, [data-date].selected, [aria-selected='true'][data-day], [aria-selected='true'][data-date], .ui-state-active"
+      );
+      var dayValue = dayNode
+        ? (dayNode.getAttribute("data-day") || dayNode.getAttribute("data-date") || dayNode.getAttribute("data-value") || textValue(dayNode))
+        : "";
+      var dayMatch = dayValue.match(/\\b(\\d{1,2})\\b/);
+      if (!dayMatch) return null;
+
+      var monthNode = document.querySelector(
+        "[data-calendar-title], .ui-datepicker-title, .calendar-month-year, .month-year, .datepicker-switch, .calendar-header .title"
+      );
+      var monthLabel = monthNode
+        ? (monthNode.getAttribute("data-calendar-title") || monthNode.getAttribute("data-current-month") || textValue(monthNode))
+        : "";
+      var yearMatch = monthLabel.match(/\\b(\\d{4})\\b/);
+      var tokens = monthLabel
+        .toLowerCase()
+        .replace(/[^a-z0-9\\s]+/g, " ")
+        .split(/\\s+/)
+        .map(function(token) { return token.trim(); })
+        .filter(Boolean);
+      var monthValue = null;
+      for (var i = 0; i < tokens.length; i++) {
+        var token = tokens[i];
+        monthValue = MONTH_INDEX[token] || MONTH_INDEX[token.slice(0, 3)];
+        if (monthValue) break;
+      }
+      if (!monthValue || !yearMatch) return null;
+
+      return yearMatch[1] + "-" + monthValue + "-" + String(dayMatch[1]).padStart(2, "0");
+    }
+    function dispatchValue(node, value) {
+      if (!node) return;
+      if ("value" in node) {
+        node.value = value;
+      } else {
+        node.textContent = value;
+      }
+      try {
+        node.dispatchEvent(new Event("input", { bubbles: true }));
+        node.dispatchEvent(new Event("change", { bubbles: true }));
+      } catch {}
+    }
+    function prepareSubmitState(submitter, selector) {
+      var prereqState = { patched: [], missing: [] };
+      var isoDate = inferIsoDate();
+      if (isoDate) {
+        Array.from(document.querySelectorAll("[data-input-date], input[name='selectedDate'], [data-summary-date], input[name='summaryDate']")).forEach(function(node) {
+          var before = textValue(node);
+          if (before !== isoDate) {
+            dispatchValue(node, isoDate);
+            pushUnique(prereqState.patched, node.matches ? node.matches("[data-input-date]") ? "[data-input-date]" : node.matches("input[name='selectedDate']") ? "input[name='selectedDate']" : node.matches("[data-summary-date]") ? "[data-summary-date]" : "input[name='summaryDate']" : "date_target");
+          }
+        });
+      } else {
+        var emptyDateInput = document.querySelector("[data-input-date], input[name='selectedDate']");
+        if (emptyDateInput && !textValue(emptyDateInput)) {
+          pushUnique(prereqState.missing, "selectedDate");
+        }
+      }
+
+      if (!submitter) {
+        pushUnique(prereqState.missing, selector || "submitter");
+      } else if (isDisabled(submitter)) {
+        pushUnique(prereqState.missing, selector || "[data-submit-next]:not(.disabled)");
+      }
+
+      return prereqState;
+    }
 
     var form = findForm(${JSON.stringify(options.formSelector ?? "")});
     if (!form) {
@@ -137,6 +233,8 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
     }
 
     var submitter = findSubmitter(form, ${JSON.stringify(options.submitSelector ?? "")});
+    var prereqState = prepareSubmitState(submitter, ${JSON.stringify(options.submitSelector ?? null)});
+    submitter = findSubmitter(form, ${JSON.stringify(options.submitSelector ?? "")});
     var meta = {
       ok: true,
       form_action: form.getAttribute("action") || "",
@@ -144,7 +242,12 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
       submitter: submitter ? (submitter.getAttribute("name") || submitter.id || submitter.textContent || submitter.tagName || "").trim() : null,
       submit_selector_used: ${JSON.stringify(options.submitSelector ?? null)},
       form_selector_used: ${JSON.stringify(options.formSelector ?? null)},
+      prereq_state: prereqState,
     };
+
+    if (prereqState.missing.length > 0) {
+      return JSON.stringify({ ...meta, ok: false, reason: "prereq_state_incomplete" });
+    }
 
     if (submitter && typeof submitter.click === "function") {
       submitter.click();
@@ -431,6 +534,20 @@ export async function submitBrowseForm(
       same_origin_html_rehydrated: false,
       recoverable: false,
       reason: "form_not_found",
+      submit_meta: submitMeta,
+    };
+  }
+
+  if (!submitMeta?.ok && submitMeta?.reason === "prereq_state_incomplete") {
+    return {
+      ok: false,
+      url: beforeUrl || session.url,
+      mode: "noop",
+      fallback_used: false,
+      same_origin_html_rehydrated: false,
+      recoverable: false,
+      reason: "prereq_state_incomplete",
+      wait_for: options.waitFor,
       submit_meta: submitMeta,
     };
   }
