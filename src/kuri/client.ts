@@ -549,6 +549,32 @@ async function waitForTabRegistration(tabId: string, timeoutMs = 2_000): Promise
   }
 }
 
+async function createTabViaChromeCdp(url = "about:blank"): Promise<string> {
+  if (!kuriCdpPort) return "";
+  try {
+    const res = await fetch(`http://127.0.0.1:${kuriCdpPort}/json/new?${url}`, {
+      method: "PUT",
+      signal: AbortSignal.timeout(5000),
+    });
+    const target = await res.json() as { id?: string; targetId?: string };
+    return target?.id ?? target?.targetId ?? "";
+  } catch (err) {
+    log("kuri", `Chrome tab creation failed: ${err instanceof Error ? err.message : err}`);
+    return "";
+  }
+}
+
+async function findReusableIdleTab(): Promise<string> {
+  await ensureTabsDiscovered();
+  try {
+    const tabs = (await kuriGet("/tabs")) as Array<{ id?: string; url?: string }>;
+    const candidate = tabs.find((tab) => /^(about:blank|chrome:\/\/newtab\/?)$/i.test(tab?.url ?? ""));
+    return candidate?.id ?? "";
+  } catch {
+    return "";
+  }
+}
+
 /** Navigate tab to URL. */
 export async function navigate(tabId: string, url: string): Promise<void> {
   await kuriGet("/navigate", { tab_id: tabId, url });
@@ -771,8 +797,15 @@ export async function closeTab(tabId: string): Promise<void> {
 export async function newTab(url?: string): Promise<string> {
   const params: Record<string, string> = {};
   if (url) params.url = url;
-  const result = (await kuriGet("/tab/new", params)) as { tab_id?: string };
-  const tabId = result?.tab_id ?? "";
+  let tabId = "";
+  try {
+    const result = (await kuriGet("/tab/new", params)) as { tab_id?: string; id?: string; targetId?: string };
+    tabId = result?.tab_id ?? result?.id ?? result?.targetId ?? "";
+  } catch {
+    tabId = "";
+  }
+  if (!tabId) tabId = await findReusableIdleTab();
+  if (!tabId) tabId = await createTabViaChromeCdp(url ?? "about:blank");
   if (tabId) {
     await waitForTabRegistration(tabId).catch(() => {});
   }

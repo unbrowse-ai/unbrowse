@@ -39,6 +39,7 @@ export interface BrowseSubmitResult {
 
 const DEFAULT_SUBMIT_TIMEOUT_MS = 8_000;
 const SUBMIT_POLL_INTERVAL_MS = 250;
+const SUBMIT_SETTLE_WINDOW_MS = 1_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -289,6 +290,27 @@ function parseJsonString(value: unknown): Record<string, unknown> | null {
   }
 }
 
+async function settleSubmitDestination(
+  client: BrowseSubmitClient,
+  tabId: string,
+  url: string,
+  html: string,
+): Promise<{ url: string; html: string }> {
+  let settledUrl = url;
+  let settledHtml = html;
+  const deadline = Date.now() + SUBMIT_SETTLE_WINDOW_MS;
+
+  while (Date.now() < deadline) {
+    await sleep(Math.min(SUBMIT_POLL_INTERVAL_MS, Math.max(50, deadline - Date.now())));
+    const nextUrl = await client.getCurrentUrl(tabId).catch(() => "");
+    const nextHtml = await client.getPageHtml(tabId).catch(() => "");
+    if (nextUrl && !nextUrl.startsWith("about:blank")) settledUrl = nextUrl;
+    if (nextHtml) settledHtml = nextHtml;
+  }
+
+  return { url: settledUrl, html: settledHtml };
+}
+
 async function waitForSubmitOutcome(
   client: BrowseSubmitClient,
   tabId: string,
@@ -306,7 +328,7 @@ async function waitForSubmitOutcome(
       if (waitResult?.status === "found" || waitResult?.status === "ready") {
         const url = await client.getCurrentUrl(tabId).catch(() => beforeUrl);
         const html = await client.getPageHtml(tabId).catch(() => beforeHtml);
-        return { ok: true, url, html };
+        return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
       }
     } catch {
       // fall through to polling
@@ -318,13 +340,13 @@ async function waitForSubmitOutcome(
     const html = await client.getPageHtml(tabId).catch(() => "");
 
     if (waitFor && isUrlWaitHint(waitFor) && url.includes(waitFor)) {
-      return { ok: true, url, html };
+      return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
     }
     if (url && url !== beforeUrl && !url.startsWith("about:blank")) {
-      return { ok: true, url, html };
+      return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
     }
     if (hasMeaningfulPageChange(beforeHtml, html)) {
-      return { ok: true, url: url || beforeUrl, html };
+      return { ok: true, ...await settleSubmitDestination(client, tabId, url || beforeUrl, html) };
     }
 
     await sleep(SUBMIT_POLL_INTERVAL_MS);

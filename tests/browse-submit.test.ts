@@ -123,4 +123,38 @@ describe("browse submit", () => {
     expect(result.mode).toBe("same_origin_fetch");
     expect(session.url).toBe("https://example.com/review");
   });
+
+  it("keeps the settled destination after redirect chains", async () => {
+    const session: BrowseSession = {
+      tabId: "tab-1",
+      url: "https://example.com/step-1",
+      harActive: true,
+      domain: "example.com",
+    };
+
+    let urlReads = 0;
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => JSON.stringify({ ok: true, submit_kind: "requestSubmit" }),
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            if (urlReads === 1) return "https://example.com/step-1";
+            if (urlReads === 2) return "https://example.com/review";
+            return "https://auth.example.com/login";
+          },
+          getPageHtml: async () => "<html><body>redirected</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => ({ attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] }),
+      },
+      { timeoutMs: 40 },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("dom");
+    expect(result.url).toBe("https://auth.example.com/login");
+    expect(session.url).toBe("https://auth.example.com/login");
+  });
 });

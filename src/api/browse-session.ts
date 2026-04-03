@@ -50,6 +50,7 @@ async function createBrowseSession(
 ): Promise<BrowseSession> {
   await client.start().catch(() => {});
   const tabId = await client.newTab();
+  if (!tabId) throw new Error("Failed to create browser tab");
   await client.harStart(tabId).catch(() => {});
   await injectInterceptor(tabId);
   const session: BrowseSession = { tabId, url: "about:blank", harActive: true, domain: "" };
@@ -75,12 +76,11 @@ async function adoptExistingBrowseTab(
   try {
     const tabs = await client.discoverTabs();
     const normalizedPreferred = preferredDomain?.replace(/^www\./, "") ?? "";
-    const candidate =
-      tabs.find((tab) => {
-        const domain = extractDomain(tab.url);
-        return !!domain && !!normalizedPreferred && domain === normalizedPreferred;
-      }) ??
-      tabs.find((tab) => /^https?:\/\//.test(tab.url ?? ""));
+    if (!normalizedPreferred) return null;
+    const candidate = tabs.find((tab) => {
+      const domain = extractDomain(tab.url);
+      return !!domain && domain === normalizedPreferred;
+    });
 
     if (!candidate?.id) return null;
     await client.harStart(candidate.id).catch(() => {});
