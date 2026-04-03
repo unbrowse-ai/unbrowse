@@ -4,10 +4,10 @@
 
 ## Getting Started
 
-- [Quick Start](https://www.unbrowse.ai/skill.md): Install with `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse && cd ~/unbrowse && ./setup --host off`, resolve your first intent, and get structured data back in seconds
+- [Quick Start](https://www.unbrowse.ai/skill.md): Install with `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse && cd ~/unbrowse && ./setup --host off`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
 - [MCP Install](https://www.unbrowse.ai/mcp.json): For generic MCP hosts, run `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse && cd ~/unbrowse && ./setup --host mcp`, then import the generated config or use this template
 - [Public Docs](https://docs.unbrowse.ai): Public explainer and whitepaper companion docs
-- [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with `npm install -g unbrowse`
+- [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with `npm install -g unbrowse` and run `unbrowse setup`
 - [OpenClaw Plugin](https://www.npmjs.com/package/unbrowse-openclaw): Install OpenClaw browser replacement with `npx unbrowse-openclaw install --restart` (older OpenClaw builds may ask once to trust the plugin)
 - [Discord Community](https://discord.gg/VWugEeFNsG): Support, release updates, and discussion
 
@@ -53,7 +53,7 @@
 - x402 micropayments via Solana and Base USDC -- capture and indexing are free, agents pay only for shared graph lookups
 - Seven-layer cache resolution: in-memory, route cache, domain skill cache, local snapshots, marketplace search, first-pass browser, live capture
 - Drop-in Playwright replacement: `import { Browser } from "unbrowse"` -- `page.goto()` resolves from skill cache first
-- Agents earn by mining routes: browse sites, Unbrowse learns APIs, earn when other agents install discovered routes
+- Agents earn by mining routes: browse sites, Unbrowse learns APIs, set up Crossmint lobster.cash, earn when other agents install discovered routes
 
 ## Optional
 

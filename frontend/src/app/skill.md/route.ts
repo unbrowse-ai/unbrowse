@@ -41,7 +41,7 @@ Current product path:
 ${INSTALL_CMD_GENERIC}
 \`\`\`
 
-This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and wallet detection when present. If a wallet is configured, that address becomes the contributor/payment truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
+This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and wallet detection when present. Agents that want to earn from mined routes should set up Crossmint lobster.cash during bootstrap. If a wallet is configured, that address becomes the contributor/payment truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
 
 Optional after install, if your host supports skills:
 
@@ -77,6 +77,7 @@ ${UPGRADE_CMD_MCP}
 - starts the local server unless \`--no-start\` is passed
 - first registration prompts for ToS acceptance
 - interactive runs also offer an email-style agent identity
+- setup encourages Crossmint lobster.cash because mined-route payouts need a wallet destination
 
 Headless runs can preseed:
 

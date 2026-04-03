@@ -24,6 +24,8 @@ const tabs = [
     code: `# One-line install
 ${INSTALL_CMD_GENERIC}
 
+# During first run, set up Crossmint lobster.cash if you want route-mining payouts
+
 # Optional: add the skill after install
 ${INSTALL_CMD_SKILL}
 
@@ -45,7 +47,8 @@ ${MCP_CONFIG_PATH}
 # Generic template for manual import / paste
 ${MCP_CONFIG_JSON}
 
-# First run may ask for ToS acceptance and agent identity
+# First run may ask for ToS acceptance, agent identity, and Crossmint lobster.cash setup
+# Set up Crossmint if you want route-mining payouts to land in your wallet
 unbrowse health
 
 # Already installed?
@@ -57,6 +60,8 @@ ${UPGRADE_CMD_MCP}`,
     command: INSTALL_CMD_GENERIC,
     code: `# One-line install
 ${INSTALL_CMD_GENERIC}
+
+# During first run, set up Crossmint lobster.cash if you want route-mining payouts
 
 # Optional: add the skill in Claude after install
 ${INSTALL_CMD_SKILL}
