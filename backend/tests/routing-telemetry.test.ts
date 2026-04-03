@@ -213,6 +213,16 @@ describe("routing telemetry routes", () => {
       total_api_calls: number;
       outcomes: Array<{ outcome: string; count: number }>;
       sources: Array<{ source: string; count: number }>;
+      source_performance: Array<{
+        source: string;
+        step_count: number;
+        success_count: number;
+        success_rate: number;
+        avg_latency_ms: number;
+        median_latency_ms: number;
+      }>;
+      top_intents: Array<{ intent: string; sessions: number; steps: number }>;
+      top_domains: Array<{ domain: string; sessions: number; steps: number }>;
     };
     expect(body.sessions).toBe(1);
     expect(body.long_running_sessions).toBe(1);
@@ -222,6 +232,16 @@ describe("routing telemetry routes", () => {
     expect(body.total_api_calls).toBe(1);
     expect(body.outcomes[0]).toEqual({ outcome: "success", count: 1 });
     expect(body.sources).toEqual([{ source: "marketplace", count: 2 }]);
+    expect(body.source_performance).toEqual([{
+      source: "marketplace",
+      step_count: 1,
+      success_count: 1,
+      success_rate: 1,
+      avg_latency_ms: 120,
+      median_latency_ms: 120,
+    }]);
+    expect(body.top_intents).toEqual([{ intent: "search widgets", sessions: 1, steps: 1 }]);
+    expect(body.top_domains).toEqual([{ domain: "example.com", sessions: 1, steps: 1 }]);
   });
 
   it("rejects blocked payloads", async () => {

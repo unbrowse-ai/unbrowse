@@ -359,6 +359,24 @@ export interface RoutingTelemetrySummary {
   total_api_calls: number;
   outcomes: Array<{ outcome: RoutingSessionOutcome; count: number }>;
   sources: Array<{ source: RoutingTelemetrySource; count: number }>;
+  source_performance: Array<{
+    source: RoutingTelemetrySource;
+    step_count: number;
+    success_count: number;
+    success_rate: number;
+    avg_latency_ms: number;
+    median_latency_ms: number;
+  }>;
+  top_intents: Array<{
+    intent: string;
+    sessions: number;
+    steps: number;
+  }>;
+  top_domains: Array<{
+    domain: string;
+    sessions: number;
+    steps: number;
+  }>;
 }
 
 export interface ValidationResult {

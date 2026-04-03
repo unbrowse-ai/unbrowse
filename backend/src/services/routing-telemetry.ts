@@ -21,6 +21,14 @@ function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) return round((sorted[mid - 1]! + sorted[mid]!) / 2);
+  return round(sorted[mid]!);
+}
+
 function containsBlockedData(value: unknown): boolean {
   if (value == null) return false;
   if (typeof value === "string") {
@@ -111,6 +119,12 @@ export async function getRoutingTelemetrySummary(
   >();
   const sourceCounts = new Map<RoutingTelemetrySource, number>();
   const outcomeCounts = new Map<RoutingSessionOutcome, number>();
+  const sourcePerformance = new Map<
+    RoutingTelemetrySource,
+    { stepCount: number; successCount: number; latencies: number[] }
+  >();
+  const intentStats = new Map<string, { sessions: Set<string>; steps: number }>();
+  const domainStats = new Map<string, { sessions: Set<string>; steps: number }>();
   const completedSessions = new Set<string>();
   let totalApiCallsFromCompletion = 0;
   let candidateEvents = 0;
@@ -127,10 +141,26 @@ export async function getRoutingTelemetrySummary(
       session.total_candidates += event.candidate_count;
       sourceCounts.set(event.source, (sourceCounts.get(event.source) ?? 0) + 1);
     }
+    const intentBucket = intentStats.get(event.top_level_intent) ?? { sessions: new Set<string>(), steps: 0 };
+    intentBucket.sessions.add(event.session_id);
     if (event.event_type === "routing_step_executed") {
       session.total_steps += 1;
       session.total_api_calls += (event.success || event.status_code != null) ? 1 : 0;
       sourceCounts.set(event.source, (sourceCounts.get(event.source) ?? 0) + 1);
+      intentBucket.steps += 1;
+      const perf = sourcePerformance.get(event.source) ?? { stepCount: 0, successCount: 0, latencies: [] };
+      perf.stepCount += 1;
+      if (event.success) perf.successCount += 1;
+      if (typeof event.execution_latency_ms === "number" && Number.isFinite(event.execution_latency_ms)) {
+        perf.latencies.push(event.execution_latency_ms);
+      }
+      sourcePerformance.set(event.source, perf);
+      for (const domain of event.normalized_domains) {
+        const bucket = domainStats.get(domain) ?? { sessions: new Set<string>(), steps: 0 };
+        bucket.sessions.add(event.session_id);
+        bucket.steps += 1;
+        domainStats.set(domain, bucket);
+      }
     }
     if (event.event_type === "routing_session_completed") {
       session.completed_outcome = event.final_outcome;
@@ -138,6 +168,14 @@ export async function getRoutingTelemetrySummary(
       completedSessions.add(event.session_id);
       totalApiCallsFromCompletion += event.total_api_calls;
       outcomeCounts.set(event.final_outcome, (outcomeCounts.get(event.final_outcome) ?? 0) + 1);
+    }
+    intentStats.set(event.top_level_intent, intentBucket);
+    if (event.event_type === "routing_session_started") {
+      for (const domain of event.normalized_domains) {
+        const bucket = domainStats.get(domain) ?? { sessions: new Set<string>(), steps: 0 };
+        bucket.sessions.add(event.session_id);
+        domainStats.set(domain, bucket);
+      }
     }
     sessions.set(event.session_id, session);
   }
@@ -167,5 +205,31 @@ export async function getRoutingTelemetrySummary(
     sources: [...sourceCounts.entries()]
       .map(([source, count]) => ({ source, count }))
       .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source)),
+    source_performance: [...sourcePerformance.entries()]
+      .map(([source, stats]) => ({
+        source,
+        step_count: stats.stepCount,
+        success_count: stats.successCount,
+        success_rate: stats.stepCount > 0 ? round(stats.successCount / stats.stepCount) : 0,
+        avg_latency_ms: stats.latencies.length > 0 ? round(stats.latencies.reduce((sum, value) => sum + value, 0) / stats.latencies.length) : 0,
+        median_latency_ms: median(stats.latencies),
+      }))
+      .sort((a, b) => a.avg_latency_ms - b.avg_latency_ms || b.step_count - a.step_count || a.source.localeCompare(b.source)),
+    top_intents: [...intentStats.entries()]
+      .map(([intent, stats]) => ({
+        intent,
+        sessions: stats.sessions.size,
+        steps: stats.steps,
+      }))
+      .sort((a, b) => b.steps - a.steps || b.sessions - a.sessions || a.intent.localeCompare(b.intent))
+      .slice(0, 10),
+    top_domains: [...domainStats.entries()]
+      .map(([domain, stats]) => ({
+        domain,
+        sessions: stats.sessions.size,
+        steps: stats.steps,
+      }))
+      .sort((a, b) => b.steps - a.steps || b.sessions - a.sessions || a.domain.localeCompare(b.domain))
+      .slice(0, 10),
   };
 }
