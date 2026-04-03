@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
+
+### Bug Fixes
+
+* publish release assets to public repo ([f69e97a](https://github.com/unbrowse-ai/unbrowse-dev/commit/f69e97a01a3ce3f18014bb1bc684ac65d4c5a7e5))
+
+## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
+
+### Bug Fixes
+
+* publish release assets to public repo ([f69e97a](https://github.com/unbrowse-ai/unbrowse-dev/commit/f69e97a01a3ce3f18014bb1bc684ac65d4c5a7e5))
+
 ## [2.12.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-04-03)
 
 ### Features
