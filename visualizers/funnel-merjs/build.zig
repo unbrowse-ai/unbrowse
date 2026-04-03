@@ -3,6 +3,7 @@ const std = @import("std");
 const SharedModules = struct {
     snapshot_data: *std.Build.Module,
     viz_store: *std.Build.Module,
+    viz_spec: *std.Build.Module,
 };
 
 pub fn build(b: *std.Build) void {
@@ -105,10 +106,12 @@ fn createSharedModules(b: *std.Build, mer_mod: *std.Build.Module) SharedModules 
     snapshot_data.addImport("mer", mer_mod);
 
     const viz_store = b.createModule(.{ .root_source_file = b.path("src/viz_store.zig") });
+    const viz_spec = b.createModule(.{ .root_source_file = b.path("src/viz_spec.zig") });
 
     return .{
         .snapshot_data = snapshot_data,
         .viz_store = viz_store,
+        .viz_spec = viz_spec,
     };
 }
 
@@ -126,6 +129,7 @@ fn addRoutesModule(b: *std.Build, mod: *std.Build.Module, mer_mod: *std.Build.Mo
 fn addSharedModules(mod: *std.Build.Module, shared: SharedModules) void {
     mod.addImport("snapshot_data", shared.snapshot_data);
     mod.addImport("viz_store", shared.viz_store);
+    mod.addImport("viz_spec", shared.viz_spec);
 }
 
 fn addDirModules(b: *std.Build, mod: *std.Build.Module, mer_mod: *std.Build.Module, shared: SharedModules, dir: []const u8) void {

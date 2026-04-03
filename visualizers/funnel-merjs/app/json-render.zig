@@ -26,15 +26,29 @@ const page_html =
     \\</section>
     \\<div id="json-render-root"></div>
     \\<script type="module">
-    \\import React from "/api/esm?path=react%4019.2.3%2Fes2022%2Freact.mjs";
-    \\import { createRoot } from "/api/esm?path=react-dom%4019.2.3%2Fes2022%2Fclient.mjs";
-    \\import { z } from "/api/esm?path=zod%404.3.6%2Fes2022%2Fzod.mjs";
-    \\import { defineCatalog } from "/api/esm?path=%40json-render%2Fcore%400.16.0%2Fes2022%2Fcore.mjs";
-    \\import { schema } from "/api/esm?path=%40json-render%2Freact%400.16.0%2Fes2022%2Fschema.mjs";
-    \\import { Renderer, StateProvider, VisibilityProvider, ValidationProvider, defineRegistry } from "/api/esm?path=%40json-render%2Freact%400.16.0%2Fes2022%2Freact.mjs";
-    \\
-    \\const e = React.createElement;
     \\const statusEl = document.getElementById("lab-status");
+    \\const reportBootError = (prefix, err) => {
+    \\  const message = err?.stack || err?.message || String(err);
+    \\  console.error(prefix, err);
+    \\  statusEl.textContent = `${prefix} → ${message}`;
+    \\};
+    \\window.addEventListener("error", (event) => reportBootError("window error", event.error || event.message));
+    \\window.addEventListener("unhandledrejection", (event) => reportBootError("promise rejected", event.reason));
+    \\
+    \\(async () => {
+    \\  try {
+    \\    statusEl.textContent = "loading runtime modules…";
+    \\    const ReactModule = await import("https://cdn.jsdelivr.net/npm/react@19.2.4/+esm");
+    \\    const ReactDomModule = await import("https://cdn.jsdelivr.net/npm/react-dom@19.2.4/client/+esm");
+    \\    const zodModule = await import("https://cdn.jsdelivr.net/npm/zod@4.3.6/+esm");
+    \\    const coreModule = await import("https://cdn.jsdelivr.net/npm/@json-render/core@0.16.0/+esm");
+    \\    const reactRenderModule = await import("https://cdn.jsdelivr.net/npm/@json-render/react@0.16.0/+esm");
+    \\    const React = ReactModule.default ?? ReactModule;
+    \\    const { createRoot } = ReactDomModule;
+    \\    const { z } = zodModule;
+    \\    const { defineCatalog, createSpecStreamCompiler } = coreModule;
+    \\    const { schema, Renderer, StateProvider, VisibilityProvider, ValidationProvider, ActionProvider, defineRegistry } = reactRenderModule;
+    \\    const e = React.createElement;
     \\
     \\const ROW = z.object({
     \\  label: z.string(),
@@ -94,6 +108,14 @@ const page_html =
     \\        items: z.array(LANE_ITEM),
     \\      }),
     \\      description: "Bar lane for ordered quantitative items.",
+    \\    },
+    \\    FunnelChart: {
+    \\      props: z.object({
+    \\        title: z.string(),
+    \\        note: z.string(),
+    \\        items: z.array(LANE_ITEM),
+    \\      }),
+    \\      description: "Tapered funnel chart for ordered conversion stages.",
     \\    },
     \\    DataTable: {
     \\      props: z.object({
@@ -188,6 +210,42 @@ const page_html =
     \\        ))
     \\      );
     \\    },
+    \\    FunnelChart: ({ props }) => e(
+    \\      "div",
+    \\      { className: "jr-funnel-chart" },
+    \\      e("div", { className: "jr-lane-head" },
+    \\        e("div", { className: "jr-lane-title" }, props.title),
+    \\        e("div", { className: "jr-lane-note" }, props.note)
+    \\      ),
+    \\      e("div", { className: "jr-funnel-stack" },
+    \\        props.items.map((item, index) => {
+    \\          const max = Math.max(1, ...props.items.map((row) => Number(row.value || 0)));
+    \\          const current = Number(item.value || 0);
+    \\          const next = Number(props.items[index + 1]?.value ?? current * 0.68);
+    \\          const topWidth = Math.max(34, Math.round((current / max) * 100));
+    \\          const bottomWidth = Math.max(24, Math.round((next / max) * 100));
+    \\          const glow = Math.max(0.28, current / max);
+    \\          return e(
+    \\            "div",
+    \\            { className: "jr-funnel-row", key: `${item.label}-${index}` },
+    \\            e("div", { className: "jr-lane-meta" },
+    \\              e("span", null, item.label),
+    \\              e("span", { className: "mono" }, `${current.toLocaleString()}${item.rate != null ? ` · ${Math.round(item.rate * 100)}%` : ""}`)
+    \\            ),
+    \\            e("div", { className: "jr-funnel-stage-shell" },
+    \\              e("div", {
+    \\                className: "jr-funnel-stage",
+    \\                style: {
+    \\                  "--top": `${topWidth}%`,
+    \\                  "--bottom": `${bottomWidth}%`,
+    \\                  "--glow": glow,
+    \\                },
+    \\              })
+    \\            )
+    \\          );
+    \\        })
+    \\      )
+    \\    ),
     \\    DataTable: ({ props }) => e(
     \\      "div",
     \\      { className: "jr-table-wrap" },
@@ -353,76 +411,6 @@ const page_html =
     \\  return JSON.parse(decodeBase64Url(state));
     \\}
     \\
-    \\function buildSpec(prompt, payload, sourceLabel) {
-    \\  const focus = String(prompt || "").toLowerCase();
-    \\  const sections = collectSections(payload).sort((a, b) => scoreSection(b, focus) - scoreSection(a, focus));
-    \\  const metrics = primitiveRowsFromObject(payload, "", 12);
-    \\  const elements = {};
-    \\  let id = 0;
-    \\  const add = (type, props, children = []) => {
-    \\    const key = `el-${++id}`;
-    \\    elements[key] = { type, props, children };
-    \\    return key;
-    \\  };
-    \\
-    \\  const rootChildren = [];
-    \\  rootChildren.push(add("PromptDeck", { prompt: prompt || "show me what matters in this data", source: sourceLabel }));
-    \\  if (metrics.length) {
-    \\    rootChildren.push(add("MetricGrid", { items: metrics.slice(0, 8) }));
-    \\  }
-    \\
-    \\  const grid = add("Stack", { gap: "lg", columns: 2 }, []);
-    \\  rootChildren.push(grid);
-    \\  const left = add("Stack", { gap: "md" }, []);
-    \\  const right = add("Stack", { gap: "md" }, []);
-    \\  elements[grid].children = [left, right];
-    \\
-    \\  const columns = [left, right];
-    \\  let col = 0;
-    \\
-    \\  for (const section of sections.slice(0, 10)) {
-    \\    const laneKind = section.kind === "array" ? classifyArray(section.data) : null;
-    \\    let bodyKey = null;
-    \\    let tone = "default";
-    \\    if (section.kind === "array" && (laneKind === "lane" || laneKind === "numbers")) {
-    \\      tone = /funnel|retention|cohort|conversion|stage/i.test(section.title) ? "accent" : "default";
-    \\      bodyKey = add("FunnelLane", {
-    \\        title: section.title,
-    \\        note: laneKind === "numbers" ? "numeric sequence" : "derived from structured rows",
-    \\        items: laneItemsFromArray(section.title, section.data),
-    \\      });
-    \\    } else if (section.kind === "array" && laneKind === "table") {
-    \\      bodyKey = add("DataTable", {
-    \\        title: section.title,
-    \\        rows: tableRowsFromArray(section.data),
-    \\      });
-    \\    } else if (section.kind === "object") {
-    \\      const rows = primitiveRowsFromObject(section.data, "", 8);
-    \\      if (rows.length) {
-    \\        bodyKey = add("MetricGrid", { items: rows });
-    \\      } else {
-    \\        bodyKey = add("JsonPreview", { content: JSON.stringify(section.data, null, 2).slice(0, 1200) });
-    \\      }
-    \\    } else if (section.kind === "array" && laneKind === "strings") {
-    \\      bodyKey = add("Text", { content: section.data.slice(0, 8).join(" | "), tone: "muted" });
-    \\    } else {
-    \\      bodyKey = add("JsonPreview", { content: JSON.stringify(section.data, null, 2).slice(0, 1200) });
-    \\    }
-    \\    const card = add("Card", { title: section.title, eyebrow: section.kind, tone }, bodyKey ? [bodyKey] : []);
-    \\    elements[columns[col]].children.push(card);
-    \\    col = (col + 1) % columns.length;
-    \\  }
-    \\
-    \\  if (!sections.length) {
-    \\    elements[left].children.push(add("Card", { title: "No renderable sections", eyebrow: "empty", tone: "warn" }, [
-    \\      add("Text", { content: "Paste a JSON object or array to generate a visualization.", tone: "muted" }),
-    \\    ]));
-    \\  }
-    \\
-    \\  const root = add("Stack", { gap: "lg" }, rootChildren);
-    \\  return { root, elements };
-    \\}
-    \\
     \\const DEMO_FUNNEL = {
     \\  stages: [
     \\    { stage: "Landing", value: 1420, rate: 1 },
@@ -469,15 +457,82 @@ const page_html =
     \\  const fileInputRef = React.useRef(null);
     \\  const [prompt, setPrompt] = React.useState("show the whole funnel");
     \\  const [dataText, setDataText] = React.useState(JSON.stringify(DEMO_FUNNEL, null, 2));
-    \\  const [spec, setSpec] = React.useState(buildSpec("show the whole funnel", DEMO_FUNNEL, "demo_funnel"));
+    \\  const [spec, setSpec] = React.useState(null);
     \\  const [sourceLabel, setSourceLabel] = React.useState("demo_funnel");
     \\  const [error, setError] = React.useState("");
+    \\  const [isStreaming, setIsStreaming] = React.useState(false);
+    \\
+    \\  async function requestSpec(nextPrompt, payload, nextSource) {
+    \\    setIsStreaming(true);
+    \\    statusEl.textContent = `streaming spec → ${nextSource}`;
+    \\    try {
+    \\      const response = await fetch("/api/viz-spec", {
+    \\        method: "POST",
+    \\        headers: { "Content-Type": "application/json" },
+    \\        body: JSON.stringify({
+    \\          prompt: nextPrompt,
+    \\          source: nextSource,
+    \\          payload,
+    \\        }),
+    \\      });
+    \\      if (!response.ok || !response.body) {
+    \\        throw new Error(`spec route failed (${response.status})`);
+    \\      }
+    \\      const compiler = createSpecStreamCompiler();
+    \\      const reader = response.body.getReader();
+    \\      const decoder = new TextDecoder();
+    \\      let latest = null;
+    \\      while (true) {
+    \\        const { done, value } = await reader.read();
+    \\        if (done) break;
+    \\        const chunk = decoder.decode(value, { stream: true });
+    \\        const result = compiler.push(chunk);
+    \\        latest = result.result;
+    \\        setSpec(structuredClone(result.result));
+    \\      }
+    \\      const tail = decoder.decode();
+    \\      if (tail) {
+    \\        const result = compiler.push(tail);
+    \\        latest = result.result;
+    \\      }
+    \\      if (latest) setSpec(structuredClone(latest));
+    \\      setError("");
+    \\      statusEl.textContent = `rendered → ${nextSource}`;
+    \\    } catch (err) {
+    \\      const message = err?.message || String(err);
+    \\      setError(message);
+    \\      statusEl.textContent = `spec failed → ${message}`;
+    \\    } finally {
+    \\      setIsStreaming(false);
+    \\    }
+    \\  }
     \\
     \\  React.useEffect(() => {
     \\    try {
+    \\      const query = new URLSearchParams(window.location.search);
+    \\      const sessionId = query.get("session_id");
+    \\      if (sessionId) {
+    \\        fetch(`/api/viz?id=${encodeURIComponent(sessionId)}`)
+    \\          .then((response) => response.json())
+    \\          .then((envelope) => {
+    \\            const nextPrompt = envelope.prompt || "show me what matters in this data";
+    \\            const nextText = JSON.stringify(envelope.payload || {}, null, 2);
+    \\            setPrompt(nextPrompt);
+    \\            setDataText(nextText);
+    \\            setSourceLabel(envelope.source || `session:${sessionId}`);
+    \\            requestSpec(nextPrompt, envelope.payload || {}, envelope.source || `session:${sessionId}`);
+    \\          })
+    \\          .catch((err) => {
+    \\            const message = err?.message || String(err);
+    \\            setError(message);
+    \\            statusEl.textContent = `session load failed → ${message}`;
+    \\          });
+    \\        return;
+    \\      }
+    \\
     \\      const boot = decodeHashState();
     \\      if (!boot || !boot.payload) {
-    \\        statusEl.textContent = "ready → paste json, load file, or grab live snapshot";
+    \\        requestSpec("show the whole funnel", DEMO_FUNNEL, "demo_funnel");
     \\        return;
     \\      }
     \\      const nextPrompt = typeof boot.prompt === "string" && boot.prompt.trim() ? boot.prompt : "show me what matters in this data";
@@ -485,9 +540,7 @@ const page_html =
     \\      setPrompt(nextPrompt);
     \\      setDataText(nextText);
     \\      setSourceLabel("shared_state");
-    \\      setSpec(buildSpec(nextPrompt, boot.payload, "shared_state"));
-    \\      setError("");
-    \\      statusEl.textContent = "loaded → shared state";
+    \\      requestSpec(nextPrompt, boot.payload, "shared_state");
     \\    } catch (err) {
     \\      const message = err?.message || String(err);
     \\      setError(message);
@@ -503,8 +556,7 @@ const page_html =
     \\      const nextText = JSON.stringify(data, null, 2);
     \\      setDataText(nextText);
     \\      setSourceLabel("live_snapshot");
-    \\      setSpec(buildSpec(prompt, data, "live_snapshot"));
-    \\      setError("");
+    \\      await requestSpec(prompt, data, "live_snapshot");
     \\      statusEl.textContent = data.configured?.has_api_key
     \\        ? `live snapshot loaded → ${data.configured.backend_url}`
     \\        : `snapshot degraded → ${data.configured?.backend_url || "backend missing"}`;
@@ -518,11 +570,9 @@ const page_html =
     \\  function renderPayload(nextPrompt, parsed, nextSource) {
     \\    const pretty = JSON.stringify(parsed, null, 2);
     \\    setDataText(pretty);
-    \\    setSpec(buildSpec(nextPrompt, parsed, nextSource));
     \\    setPrompt(nextPrompt);
     \\    setSourceLabel(nextSource);
-    \\    setError("");
-    \\    statusEl.textContent = `rendered → ${nextSource}`;
+    \\    requestSpec(nextPrompt, parsed, nextSource);
     \\  }
     \\
     \\  function applyData(nextPrompt = prompt, nextText = dataText, nextSource = sourceLabel) {
@@ -645,6 +695,7 @@ const page_html =
     \\      e(
     \\        "div",
     \\        { className: "jr-rendered" },
+    \\        isStreaming ? e("div", { className: "jr-helper mono" }, "streaming patches…") : null,
     \\        e(
     \\          StateProvider,
     \\          { initialState: {} },
@@ -652,9 +703,13 @@ const page_html =
     \\            VisibilityProvider,
     \\            null,
     \\            e(
-    \\              ValidationProvider,
-    \\              { customFunctions: {} },
-    \\              e(Renderer, { spec, registry })
+    \\              ActionProvider,
+    \\              { handlers: {} },
+    \\              e(
+    \\                ValidationProvider,
+    \\                { customFunctions: {} },
+    \\                spec ? e(Renderer, { spec, registry }) : e("div", { className: "jr-helper mono" }, "waiting for spec…")
+    \\              )
     \\            )
     \\          )
     \\        )
@@ -664,7 +719,11 @@ const page_html =
     \\  );
     \\}
     \\
-    \\createRoot(document.getElementById("json-render-root")).render(e(App));
+    \\    createRoot(document.getElementById("json-render-root")).render(e(App));
+    \\  } catch (err) {
+    \\    reportBootError("boot failed", err);
+    \\  }
+    \\})();
     \\</script>
 ;
 
@@ -717,6 +776,18 @@ const page_css =
     \\.jr-metric-card { border:1px solid rgba(255,255,255,0.06); border-radius:18px; padding:14px; background: rgba(255,255,255,0.02); }
     \\.jr-metric-value { font-size: 1.35rem; letter-spacing: -0.05em; }
     \\.jr-funnel-lane { display:grid; gap:12px; }
+    \\.jr-funnel-chart { display:grid; gap:12px; }
+    \\.jr-funnel-stack { display:grid; gap:10px; }
+    \\.jr-funnel-row { display:grid; gap:8px; }
+    \\.jr-funnel-stage-shell { display:flex; justify-content:center; padding:0 8px; }
+    \\.jr-funnel-stage {
+    \\  width: var(--top);
+    \\  height: 52px;
+    \\  clip-path: polygon(calc((100% - var(--top)) / 2) 0%, calc(100% - ((100% - var(--top)) / 2)) 0%, calc(100% - ((100% - var(--bottom)) / 2)) 100%, calc((100% - var(--bottom)) / 2) 100%);
+    \\  background: linear-gradient(135deg, rgba(255,240,220,0.82), rgba(255,138,61,0.92) 42%, rgba(114,41,7,0.98));
+    \\  box-shadow: 0 0 0 1px rgba(255,255,255,0.07) inset, 0 18px 36px rgba(0,0,0,0.28), 0 0 44px rgba(255,138,61, calc(var(--glow) * 0.46));
+    \\  border-radius: 14px;
+    \\}
     \\.jr-lane-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
     \\.jr-lane-title, .jr-table-title { font-size: 1rem; }
     \\.jr-lane-row, .jr-table-row { border-top:1px solid rgba(255,255,255,0.06); padding-top:10px; }
