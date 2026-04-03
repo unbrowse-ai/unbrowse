@@ -10,6 +10,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "frontend",
 	"main": ".open-next/worker.js",
+	"preview_urls": true,
 	"compatibility_date": "2025-12-01",
 	"compatibility_flags": [
 		"nodejs_compat",
