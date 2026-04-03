@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
-    "prepack": "bun ../../scripts/sync-skill-md.ts --check && node scripts/prepare-pack.mjs",
+    "prepack": "bun ../../scripts/sync-skill-md.ts --check && node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs",
     "prepublishOnly": "node scripts/assert-release-flow.mjs",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts"

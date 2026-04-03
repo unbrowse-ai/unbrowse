@@ -94,6 +94,8 @@ jobs:
         with:
           bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
+      - run: bun run check:kuri-vendor
+        name: Check baked Kuri vendor state
       - run: bun scripts/sync-skill-md.ts --check
         name: Check SKILL.md sync
       - run: bun run check:skill-docs
