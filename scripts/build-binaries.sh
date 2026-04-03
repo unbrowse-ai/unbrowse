@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # Build platform-specific single binaries with kuri embedded.
-# Output: dist/unbrowse-{platform}-{arch}
+# Output:
+#   dist/unbrowse-{platform}-{arch}
+#   dist/unbrowse-vX.Y.Z-{platform}-{arch}.tar.gz
 #
 # Usage:
 #   ./scripts/build-binaries.sh          # build for current platform
@@ -11,12 +13,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
+VERSION_TAG="${UNBROWSE_RELEASE_TAG:-v$(grep -m1 '"version"' "$ROOT_DIR/package.json" | sed -E 's/.*"version": "([^"]+)".*/\1/')}"
 
 mkdir -p "$DIST_DIR"
 
 build_target() {
   local target="$1" # e.g. darwin-arm64
   local outfile="$DIST_DIR/unbrowse-$target"
+  local archive="$DIST_DIR/unbrowse-$VERSION_TAG-$target.tar.gz"
+  local tmpdir
 
   echo "[build] $target -> $outfile"
   bun build "$ROOT_DIR/src/single-binary.ts" \
@@ -26,6 +31,12 @@ build_target() {
 
   local size=$(ls -lh "$outfile" | awk '{print $5}')
   echo "[build] $target done ($size)"
+
+  tmpdir="$(mktemp -d)"
+  cp "$outfile" "$tmpdir/unbrowse"
+  tar -czf "$archive" -C "$tmpdir" unbrowse
+  rm -rf "$tmpdir"
+  echo "[build] packaged $archive"
 }
 
 if [ "${1:-}" = "--all" ]; then
