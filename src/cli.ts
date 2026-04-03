@@ -158,6 +158,7 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
   if (obj.impact) out.impact = obj.impact;
   if (obj.next_actions) out.next_actions = obj.next_actions;
+  if (obj.next_step) out.next_step = obj.next_step;
   if (obj.source) out.source = obj.source;
   if (obj.skill) out.skill = obj.skill;
   return out;
@@ -903,7 +904,7 @@ export const CLI_REFERENCE = {
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
     { name: "go", usage: '<url>', desc: "Open a live Kuri browser tab for capture-first workflows" },
-    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows" },
+    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows" },
     { name: "snap", usage: "[--filter interactive]", desc: "A11y snapshot with @eN refs" },
     { name: "click", usage: "<ref>", desc: "Click element by ref (e.g. e5)" },
     { name: "fill", usage: "<ref> <value>", desc: "Fill input by ref" },
@@ -995,8 +996,8 @@ function printHelp(): void {
     "  1. go -> open the live tab you want to work in",
     "  2. snap -> inspect refs and confirm the page state",
     "  3. click/fill/eval -> set real page state",
-    "  4. submit -> prefer DOM submit; auto-falls back to same-origin rehydrate",
-    "  5. sync -> flush captured routes after a successful step",
+    "  4. submit -> prefer DOM submit; auto-flush current capture; fall back to same-origin rehydrate",
+    "  5. sync -> flush any additional captured routes after a successful step",
     "  6. close -> finish capture + indexing",
   );
 
