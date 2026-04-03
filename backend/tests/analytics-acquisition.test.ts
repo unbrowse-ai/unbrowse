@@ -87,6 +87,22 @@ describe("acquisition analytics", () => {
         created_at: isoHoursAgo(1),
       },
       {
+        visitor_id: "visitor-1",
+        session_id: "session-1",
+        name: "first_task_section_viewed",
+        path: "/",
+        referrer: "https://x.com/getFoundry",
+        created_at: isoHoursAgo(1),
+      },
+      {
+        visitor_id: "visitor-1",
+        session_id: "session-1",
+        name: "first_task_command_copied",
+        path: "/",
+        referrer: "https://x.com/getFoundry",
+        created_at: isoHoursAgo(1),
+      },
+      {
         visitor_id: "visitor-2",
         session_id: "session-2",
         name: "landing_page_viewed",
@@ -110,6 +126,14 @@ describe("acquisition analytics", () => {
         referrer: "https://www.google.com/search?q=unbrowse",
         created_at: isoHoursAgo(4),
       },
+      {
+        visitor_id: "visitor-3",
+        session_id: "session-3",
+        name: "first_task_section_viewed",
+        path: "/",
+        referrer: "https://www.google.com/search?q=unbrowse",
+        created_at: isoHoursAgo(3),
+      },
     ];
 
     for (const event of events) {
@@ -131,14 +155,21 @@ describe("acquisition analytics", () => {
         sessions: number;
         landing_views: number;
         install_section_views: number;
+        first_task_section_views: number;
         install_command_copies: number;
+        first_task_command_copies: number;
         landing_without_install_view: number;
         install_view_without_copy: number;
+        first_task_view_without_copy: number;
+        install_copy_without_first_task: number;
       };
       rates: {
         install_section_view_from_landing: number;
         install_copy_from_landing: number;
         install_copy_from_install_view: number;
+        first_task_view_from_install_copy: number;
+        first_task_copy_from_first_task_view: number;
+        first_task_copy_from_install_copy: number;
       };
       top_referrers: Array<{ referrer: string; sessions: number }>;
     };
@@ -147,12 +178,19 @@ describe("acquisition analytics", () => {
     expect(body.totals.sessions).toBe(3);
     expect(body.totals.landing_views).toBe(3);
     expect(body.totals.install_section_views).toBe(2);
+    expect(body.totals.first_task_section_views).toBe(2);
     expect(body.totals.install_command_copies).toBe(1);
+    expect(body.totals.first_task_command_copies).toBe(1);
     expect(body.totals.landing_without_install_view).toBe(1);
     expect(body.totals.install_view_without_copy).toBe(1);
+    expect(body.totals.first_task_view_without_copy).toBe(1);
+    expect(body.totals.install_copy_without_first_task).toBe(0);
     expect(body.rates.install_section_view_from_landing).toBe(0.67);
     expect(body.rates.install_copy_from_landing).toBe(0.33);
     expect(body.rates.install_copy_from_install_view).toBe(0.5);
+    expect(body.rates.first_task_view_from_install_copy).toBe(1);
+    expect(body.rates.first_task_copy_from_first_task_view).toBe(0.5);
+    expect(body.rates.first_task_copy_from_install_copy).toBe(1);
     expect(body.top_referrers).toEqual([
       { referrer: "direct", sessions: 1 },
       { referrer: "www.google.com", sessions: 1 },

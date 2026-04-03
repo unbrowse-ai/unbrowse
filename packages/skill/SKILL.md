@@ -410,6 +410,12 @@ Always `--dry-run` first, ask user before `--confirm-unsafe`:
 unbrowse execute --skill {id} --endpoint {id} --dry-run
 unbrowse execute --skill {id} --endpoint {id} --confirm-unsafe
 ```
+
+Policy-sensitive site mutations can require an extra user-confirmed opt-in:
+
+```bash
+unbrowse execute --skill {id} --endpoint {id} --confirm-unsafe --confirm-third-party-terms
+```
 ## Browser API (Kuri-powered)
 
 Kuri is the primary browser. Unbrowse accelerates it — `goto()` checks the skill cache first and returns structured API data in <200ms when a cached route exists. Every other method proxies directly to Kuri's CDP-based HTTP API.

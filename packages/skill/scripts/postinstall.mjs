@@ -4,11 +4,12 @@
  * postinstall — download the platform-specific compiled binary.
  *
  * The npm package is a thin wrapper. The real binary is a bun-compiled
- * single binary with kuri embedded. This script downloads it from
- * GitHub releases on `npm install`.
+ * single binary with kuri embedded. This mirrors Kuri's npm install flow:
+ * fetch the matching GitHub release tarball, extract `unbrowse`, wire it
+ * into `bin/`, and fall back to source mode if the release asset is missing.
  */
 
-import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
@@ -18,9 +19,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
 const binDir = join(packageRoot, "bin");
 const binaryPath = join(binDir, "unbrowse");
+const wrapperPath = join(binDir, "unbrowse-wrapper.mjs");
+const launcherPath = join(binDir, "unbrowse.js");
+
+function ensureExecutable(filePath) {
+  if (!existsSync(filePath)) return;
+  try {
+    chmodSync(filePath, 0o755);
+  } catch {
+    // Leave best-effort permission repair to the wrapper diagnostics.
+  }
+}
+
+ensureExecutable(wrapperPath);
+ensureExecutable(launcherPath);
 
 // Skip if binary already exists (re-install)
 if (existsSync(binaryPath)) {
+  ensureExecutable(binaryPath);
   process.exit(0);
 }
 
@@ -35,12 +51,10 @@ if (!SUPPORTED.includes(target)) {
 }
 
 // Read version from package.json
-const pkg = JSON.parse(
-  (await import("node:fs")).readFileSync(join(packageRoot, "package.json"), "utf-8")
-);
+const pkg = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf-8"));
 const version = pkg.version;
 const repo = "unbrowse-ai/unbrowse";
-const assetName = `unbrowse-${target}`;
+const assetName = `unbrowse-v${version}-${target}.tar.gz`;
 const url = `https://github.com/${repo}/releases/download/v${version}/${assetName}`;
 
 console.log(`[unbrowse] Downloading binary for ${target} (v${version})...`);
@@ -71,11 +85,21 @@ function download(url, dest) {
 }
 
 try {
-  await download(url, binaryPath);
+  const tmpArchive = join(binDir, `${assetName}.${process.pid}.tmp`);
+  await download(url, tmpArchive);
+  execFileSync("tar", ["-xzf", tmpArchive, "-C", binDir, "unbrowse"]);
+  chmodSync(binaryPath, 0o755);
+  unlinkSync(tmpArchive);
+  if (process.platform === "darwin") {
+    try {
+      execFileSync("xattr", ["-d", "com.apple.quarantine", binaryPath]);
+    } catch {}
+  }
   console.log(`[unbrowse] Binary installed: ${binaryPath}`);
 } catch (err) {
   console.warn(`[unbrowse] Binary download failed: ${err.message}`);
   console.warn(`[unbrowse] Falling back to source mode (requires bun or node+tsx).`);
   // Clean up partial download
   try { unlinkSync(binaryPath); } catch {}
+  try { unlinkSync(join(binDir, `${assetName}.${process.pid}.tmp`)); } catch {}
 }

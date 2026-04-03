@@ -23,6 +23,7 @@ import { isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
+import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -154,6 +155,11 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
         }
       : undefined,
   };
+  if (typeof obj.error === "string") out.error = obj.error;
+  if (typeof obj.message === "string") out.message = obj.message;
+  if (typeof obj.hint === "string") out.hint = obj.hint;
+  if (typeof obj.login_url === "string") out.login_url = obj.login_url;
+  if (typeof obj.provider === "string") out.provider = obj.provider;
   if ("result" in obj) out.result = obj.result;
   if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
   if (obj.impact) out.impact = obj.impact;
@@ -264,11 +270,21 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       body.params = { ...(body.params as Record<string, unknown> ?? {}), ...extraParams };
     }
     if (flags["dry-run"]) body.dry_run = true;
+    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     if (flags["force-capture"]) body.force_capture = true;
     body.projection = { raw: true };
 
     function execBody(endpointId: string): Record<string, unknown> {
-      return { params: { endpoint_id: endpointId, ...extraParams }, intent, projection: { raw: true } };
+      return {
+        params: { endpoint_id: endpointId, ...extraParams },
+        intent,
+        projection: { raw: true },
+        ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
+      };
+    }
+
+    function endpointNeedsThirdPartyTermsConfirmation(endpoint: Record<string, unknown>): boolean {
+      return endpoint.requires_third_party_terms_confirmation === true;
     }
 
     function resolveSkillId(): string | undefined {
@@ -353,6 +369,15 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       const skillId = resolveSkillId();
       if (skillId && endpoints.length > 0) {
         const bestEndpoint = endpoints[0];
+        if (endpointNeedsThirdPartyTermsConfirmation(bestEndpoint) && !flags["confirm-third-party-terms"]) {
+          info(
+            `Auto-execute skipped: ${bestEndpoint.description ?? bestEndpoint.endpoint_id} requires explicit third-party terms confirmation`
+            + (typeof bestEndpoint.third_party_terms_policy_domain === "string" ? ` for ${bestEndpoint.third_party_terms_policy_domain}` : "")
+            + ". Re-run with --confirm-third-party-terms only after the user explicitly confirms.",
+          );
+          output(result, !!flags.pretty);
+          return;
+        }
         info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
         result = await withPendingNotice(
           api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
@@ -556,6 +581,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     if (flags.intent) body.intent = flags.intent;
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
+    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     body.projection = { raw: true };
 
     let result = await withPendingNotice(
@@ -729,6 +755,17 @@ async function cmdSkill(args: string[], flags: Record<string, string | boolean>)
   output(await api("GET", `/v1/skills/${id}`), !!flags.pretty);
 }
 
+async function cmdCleanupStale(flags: Record<string, string | boolean>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (typeof flags.skill === "string") body.skill_id = flags.skill;
+  if (typeof flags.domain === "string") body.domain = flags.domain;
+  if (typeof flags.limit === "string") body.limit = Number(flags.limit);
+  output(
+    await withPendingNotice(api("POST", "/v1/stale/cleanup", body), "Cleaning stale endpoints..."),
+    !!flags.pretty,
+  );
+}
+
 async function cmdSearch(flags: Record<string, string | boolean>): Promise<void> {
   const intent = flags.intent as string;
   if (!intent) die("--intent is required");
@@ -823,6 +860,11 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
   if (report.opencode.action === "installed" || report.opencode.action === "updated") {
     info(`Open Code command installed at ${report.opencode.command_file}`);
   }
+  for (const hook of report.update_hints) {
+    if (hook.action === "installed" || hook.action === "updated") {
+      info(`${hook.host} update hint hook ${hook.action} at ${hook.config_file}`);
+    }
+  }
 
   await recordInstallTelemetryEvent("setup", {
     hostType,
@@ -893,6 +935,7 @@ export const CLI_REFERENCE = {
     { name: "health", usage: "", desc: "Server health check" },
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
+    { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent → search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
@@ -901,6 +944,7 @@ export const CLI_REFERENCE = {
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
+    { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills and evict stale cached endpoints" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
     { name: "go", usage: '<url>', desc: "Open a live Kuri browser tab for capture-first workflows" },
@@ -1041,21 +1085,29 @@ function cmdStop(flags: Record<string, string | boolean>): void {
 }
 
 async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void> {
-  info("Checking for updates...");
-  const { execSync } = await import("node:child_process");
+  const hintOnly = !!flags["hint-only"];
+  if (!hintOnly) info("Checking for updates...");
+
   try {
-    const result = execSync("npm view unbrowse version", { encoding: "utf-8", timeout: 10_000 }).trim();
-    const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
-    const installed = versionInfo?.installed ?? "unknown";
-    if (result === installed) {
-      info(`Already at latest version: ${installed}`);
+    const result = await checkForUpdates(import.meta.url, { force: !hintOnly });
+    if (!result.latest) {
+      if (!hintOnly) info("Could not check for updates right now.");
       return;
     }
-    info(`Update available: ${installed} -> ${result}`);
-    info("Run: npm install -g unbrowse@latest");
-    info("Then: unbrowse restart");
+
+    if (!result.has_update) {
+      if (!hintOnly) info(`Already at latest version: ${result.installed}`);
+      return;
+    }
+
+    info(`Update available: ${result.installed} -> ${result.latest}`);
+    info(`Run: ${result.command}`);
+    if (!hintOnly) {
+      info("Tip: `unbrowse setup` now installs session-start update hints for Codex and Claude when those hosts are present.");
+    }
+    recordUpdateHint(result.latest);
   } catch (err) {
-    info(`Could not check for updates: ${(err as Error).message}`);
+    if (!hintOnly) info(`Could not check for updates: ${(err as Error).message}`);
   }
 }
 
@@ -1425,7 +1477,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "review", "publish", "login", "skills", "skill", "search", "sessions",
+    "feedback", "fb", "review", "publish", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
@@ -1465,6 +1517,7 @@ async function main(): Promise<void> {
     case "login": return cmdLogin(flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
+    case "cleanup-stale": return cmdCleanupStale(flags);
     case "search": return cmdSearch(flags);
     case "sessions": return cmdSessions(flags);
     // Browse commands — Kuri browser actions with passive indexing

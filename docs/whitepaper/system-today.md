@@ -42,7 +42,7 @@ Passive discovery from real use is real and implemented:
 - successful live captures can be published back to the marketplace
 - local cache is seeded immediately even if remote indexing lags
 
-This means the product already behaves like a shared memory layer for web capabilities, even though the economic layer in the paper is not yet shipped.
+This means the product already behaves like a shared memory layer for web capabilities, even though the broader paper-era economic layer is not yet shipped in full.
 
 ## Marketplace and Search
 
@@ -63,6 +63,16 @@ The current composite score in the orchestrator follows the paper’s broad shap
 - 30% reliability
 - 15% freshness
 - 15% verification
+
+## Payments and Payouts That Ship
+
+The current product already ships a narrower payment path than the full paper economy:
+
+- paid marketplace search and paid skill access can return x402 / HTTP 402 payment requirements
+- the worker can enable or bypass those gates with `PAYMENTS_ENABLED`
+- Solana and Base USDC payment terms are advertised, with staging versus mainnet mode controlled by `X402_NETWORK_MODE`
+- wallet-linked creator identity, transaction history surfaces, and current payout routing exist
+- wallet signing, broadcast, and final transaction execution stay delegated to the external wallet / facilitator layer
 
 ## Auth and Local-First Security
 
@@ -85,7 +95,7 @@ The codebase already supports:
 - OpenClaw plugin path
 - major host wiring flows surfaced in the frontend and installer
 
-The paper’s broader “coverage layer for agents” thesis is therefore directionally true today, even though some protocol and monetization claims remain forward-looking.
+The paper’s broader “coverage layer for agents” thesis is therefore directionally true today, even though the richer protocol and monetization claims remain forward-looking.
 
 ## Quality, Drift, and Verification
 

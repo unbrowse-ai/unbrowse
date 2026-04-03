@@ -66,6 +66,14 @@ describe("orchestrator search x402 propagation", () => {
   });
 
   it("falls back to a local canonical replay skill for structured detail pages", async () => {
+    const snapshotDir = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
+    const backupDir = join(tmpdir(), `unbrowse-skill-snapshots-${Date.now()}-detail`);
+    const hadSnapshots = existsSync(snapshotDir);
+    domainSkillCache.clear();
+    if (hadSnapshots) {
+      mkdirSync(backupDir, { recursive: true });
+      renameSync(snapshotDir, backupDir);
+    }
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       if (url.includes("/v1/search/resolve")) {
@@ -84,18 +92,23 @@ describe("orchestrator search x402 propagation", () => {
       throw new Error(`unexpected fetch: ${url}`);
     }) as typeof globalThis.fetch;
 
-    const out = await resolveAndExecute(
-      "get package info",
-      {},
-      { url: "https://pypi.org/project/openai/" },
-    );
+    try {
+      const out = await resolveAndExecute(
+        "get package info",
+        {},
+        { url: "https://pypi.org/project/openai/" },
+      );
 
-    expect(out.source).toBe("marketplace");
-    expect((out.result as Record<string, unknown>).error).toBeUndefined();
-    expect((out.result as Record<string, unknown>).skill_id).toContain("canonical-");
-    const endpoints = (out.result as Record<string, any>).available_endpoints as Array<Record<string, any>>;
-    expect(Array.isArray(endpoints)).toBe(true);
-    expect(endpoints[0]?.url).toContain("https://pypi.org/pypi/");
-    expect(endpoints[0]?.trigger_url).toBe("https://pypi.org/project/openai/");
+      expect(out.source).toBe("marketplace");
+      expect((out.result as Record<string, unknown>).error).toBeUndefined();
+      expect((out.result as Record<string, unknown>).skill_id).toContain("canonical-");
+      const endpoints = (out.result as Record<string, any>).available_endpoints as Array<Record<string, any>>;
+      expect(Array.isArray(endpoints)).toBe(true);
+      expect(endpoints[0]?.url).toContain("https://pypi.org/pypi/");
+      expect(endpoints[0]?.trigger_url).toBe("https://pypi.org/project/openai/");
+    } finally {
+      rmSync(snapshotDir, { recursive: true, force: true });
+      if (hadSnapshots) renameSync(backupDir, snapshotDir);
+    }
   });
 });

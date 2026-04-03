@@ -15,6 +15,8 @@ const env: Env = {
   NEBIUS_API_KEY: "nebius",
   GITHUB_WEBHOOK_SECRET: "test-secret",
   GITHUB_PR_BOT_TOKEN: "gh-token",
+  GITHUB_PR_AGENT_WORKFLOW: "pr-agent.yml",
+  GITHUB_PR_AGENT_WORKFLOW_REF: "main",
   TELEGRAM_BOT_TOKEN: "tg-token",
   TELEGRAM_CHAT_ID: "1234",
   STATS_KV: {} as KVNamespace,
@@ -33,7 +35,11 @@ function createSignature(secret: string, payload: string): Promise<string> {
     .then((signature) => `sha256=${Array.from(new Uint8Array(signature)).map((value) => value.toString(16).padStart(2, "0")).join("")}`);
 }
 
-function createMockFetch(store: Map<string, string>) {
+type MockState = {
+  dispatches: Array<Record<string, unknown>>;
+};
+
+function createMockFetch(store: Map<string, string>, state: MockState) {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url);
 
@@ -58,60 +64,87 @@ function createMockFetch(store: Map<string, string>) {
     if (url.hostname === "api.github.com") {
       if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/pulls/42" && (!init?.method || init.method === "GET")) {
         return Response.json({
-          node_id: "PR_kwDOtest",
           number: 42,
           title: "Test PR",
           html_url: "https://github.com/unbrowse-ai/unbrowse-dev/pull/42",
           state: "open",
           draft: false,
-          mergeable_state: "dirty",
           labels: [{ name: "codex:auto-maintain" }],
           head: {
             sha: "abc123",
+            ref: "feature/test-pr",
             repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
           base: {
+            ref: "main",
             repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
-          auto_merge: null,
         });
       }
       if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/pulls/43" && (!init?.method || init.method === "GET")) {
         return Response.json({
-          node_id: "PR_kwDOclean",
           number: 43,
           title: "Clean PR",
           html_url: "https://github.com/unbrowse-ai/unbrowse-dev/pull/43",
           state: "open",
           draft: false,
-          mergeable_state: "clean",
           labels: [{ name: "codex:auto-maintain" }],
           head: {
             sha: "def456",
+            ref: "feature/clean-pr",
             repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
           base: {
+            ref: "main",
             repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
-          auto_merge: null,
         });
       }
-      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/issues/42/comments" && (!init?.method || init.method === "GET")) {
-        return Response.json([]);
-      }
-      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/issues/42/comments" && init?.method === "POST") {
-        return Response.json({ ok: true });
-      }
-      if (url.pathname === "/graphql" && init?.method === "POST") {
+      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/pulls/44" && (!init?.method || init.method === "GET")) {
         return Response.json({
-          data: {
-            enablePullRequestAutoMerge: {
-              pullRequest: {
-                number: 43,
-              },
-            },
+          number: 44,
+          title: "Agent Check Failed",
+          html_url: "https://github.com/unbrowse-ai/unbrowse-dev/pull/44",
+          state: "open",
+          draft: false,
+          labels: [{ name: "codex:auto-maintain" }],
+          head: {
+            sha: "ghi789",
+            ref: "feature/agent-fail",
+            repo: { full_name: "unbrowse-ai/unbrowse-dev" },
+          },
+          base: {
+            ref: "main",
+            repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
         });
+      }
+      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/commits/def456/check-runs" && (!init?.method || init.method === "GET")) {
+        return Response.json({
+          check_runs: [
+            { name: "Unit Tests", status: "completed", conclusion: "success" },
+            { name: "Quality Gate", status: "completed", conclusion: "success" },
+          ],
+        });
+      }
+      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/commits/abc123/check-runs" && (!init?.method || init.method === "GET")) {
+        return Response.json({
+          check_runs: [
+            { name: "Unit Tests", status: "completed", conclusion: "failure" },
+            { name: "Quality Gate", status: "completed", conclusion: "success" },
+          ],
+        });
+      }
+      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/commits/ghi789/check-runs" && (!init?.method || init.method === "GET")) {
+        return Response.json({
+          check_runs: [
+            { name: "Review And Repair PR", status: "completed", conclusion: "failure" },
+          ],
+        });
+      }
+      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/actions/workflows/pr-agent.yml/dispatches" && init?.method === "POST") {
+        state.dispatches.push(JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>);
+        return new Response(null, { status: 204 });
       }
     }
 
@@ -125,10 +158,12 @@ function createMockFetch(store: Map<string, string>) {
 
 describe("github webhook automation", () => {
   const store = new Map<string, string>();
+  const state: MockState = { dispatches: [] };
   const originalFetch = globalThis.fetch;
 
   beforeEach(async () => {
-    globalThis.fetch = createMockFetch(store) as typeof fetch;
+    state.dispatches = [];
+    globalThis.fetch = createMockFetch(store, state) as typeof fetch;
     store.clear();
     await statsKV(env).resetSplitIndex();
   });
@@ -167,7 +202,7 @@ describe("github webhook automation", () => {
     expect(await response.json()).toMatchObject({ kind: "ping" });
   });
 
-  it("queues conflict notifications for dirty PRs", async () => {
+  it("dispatches repair for managed pull_request events", async () => {
     const body = JSON.stringify({
       action: "synchronize",
       repository: { full_name: "unbrowse-ai/unbrowse-dev" },
@@ -195,20 +230,20 @@ describe("github webhook automation", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(await response.json()).toMatchObject({ kind: "needs-human" });
-
-    const queued = await statsKV(env).listWithValues("gh-notify:");
-    expect(queued).toHaveLength(1);
+    expect(await response.json()).toMatchObject({ kind: "dispatched" });
+    expect(state.dispatches).toHaveLength(1);
+    expect(state.dispatches[0]?.inputs).toMatchObject({ operation: "repair", pr_number: "42" });
   });
 
-  it("enables auto-merge for clean managed PRs", async () => {
+  it("dispatches repair for failed external checks on the current PR head", async () => {
     const body = JSON.stringify({
-      action: "labeled",
+      action: "completed",
       repository: { full_name: "unbrowse-ai/unbrowse-dev" },
-      pull_request: {
-        number: 43,
-        title: "Clean PR",
-        html_url: "https://github.com/unbrowse-ai/unbrowse-dev/pull/43",
+      check_suite: {
+        status: "completed",
+        conclusion: "failure",
+        head_sha: "abc123",
+        pull_requests: [{ number: 42 }],
       },
     });
     const signature = await createSignature(env.GITHUB_WEBHOOK_SECRET!, body);
@@ -218,8 +253,8 @@ describe("github webhook automation", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-GitHub-Event": "pull_request",
-          "X-GitHub-Delivery": "delivery-clean",
+          "X-GitHub-Event": "check_suite",
+          "X-GitHub-Delivery": "delivery-check-suite-failure",
           "X-Hub-Signature-256": signature,
         },
         body,
@@ -229,7 +264,76 @@ describe("github webhook automation", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(await response.json()).toMatchObject({ kind: "enabled-auto-merge" });
+    expect(await response.json()).toMatchObject({ kind: "dispatched" });
+    expect(state.dispatches).toHaveLength(1);
+    expect(state.dispatches[0]?.inputs).toMatchObject({ operation: "repair", pr_number: "42" });
+  });
+
+  it("dispatches merge when external checks turn fully green", async () => {
+    const body = JSON.stringify({
+      action: "completed",
+      repository: { full_name: "unbrowse-ai/unbrowse-dev" },
+      check_suite: {
+        status: "completed",
+        conclusion: "success",
+        head_sha: "def456",
+        pull_requests: [{ number: 43 }],
+      },
+    });
+    const signature = await createSignature(env.GITHUB_WEBHOOK_SECRET!, body);
+
+    const response = await app.fetch(
+      new Request("http://local.test/v1/webhooks/github", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-GitHub-Event": "check_suite",
+          "X-GitHub-Delivery": "delivery-check-suite-success",
+          "X-Hub-Signature-256": signature,
+        },
+        body,
+      }),
+      env,
+      { waitUntil: () => {} } as ExecutionContext,
+    );
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ kind: "dispatched" });
+    expect(state.dispatches).toHaveLength(1);
+    expect(state.dispatches[0]?.inputs).toMatchObject({ operation: "merge", pr_number: "43" });
+  });
+
+  it("ignores agent-only failing checks so the bot does not self-loop", async () => {
+    const body = JSON.stringify({
+      action: "completed",
+      repository: { full_name: "unbrowse-ai/unbrowse-dev" },
+      check_suite: {
+        status: "completed",
+        conclusion: "failure",
+        head_sha: "ghi789",
+        pull_requests: [{ number: 44 }],
+      },
+    });
+    const signature = await createSignature(env.GITHUB_WEBHOOK_SECRET!, body);
+
+    const response = await app.fetch(
+      new Request("http://local.test/v1/webhooks/github", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-GitHub-Event": "check_suite",
+          "X-GitHub-Delivery": "delivery-agent-self-fail",
+          "X-Hub-Signature-256": signature,
+        },
+        body,
+      }),
+      env,
+      { waitUntil: () => {} } as ExecutionContext,
+    );
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ kind: "ignored" });
+    expect(state.dispatches).toHaveLength(0);
   });
 
   it("flushes queued digest notifications to Telegram", async () => {
@@ -241,8 +345,8 @@ describe("github webhook automation", () => {
         pr_number: 42,
         title: "Test PR",
         url: "https://github.com/unbrowse-ai/unbrowse-dev/pull/42",
-        status: "needs-human",
-        note: "merge conflict detected",
+        status: "failed",
+        note: "dispatch failed",
         queued_at: "2026-04-03T01:00:00.000Z",
       }),
     );

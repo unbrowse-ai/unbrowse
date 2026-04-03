@@ -2,7 +2,7 @@
 
 This package installs the `unbrowse` CLI.
 
-Turn any website into a reusable API interface for agents. Unbrowse captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
+Unbrowse is a local Model Context Protocol (MCP) server and CLI that turns any website into a reusable API interface for agents. It captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
 
 One agent learns a site once. Every later agent gets the fast path.
 
@@ -10,7 +10,43 @@ Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows f
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
+## MCP server
+
+Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the MCP server entrypoint.
+
+- Protocol: JSON-RPC 2.0 MCP over stdio
+- Handshake: `initialize`, `notifications/initialized`, `ping`
+- Capability surface today: `tools/list` and `tools/call`
+- Current MCP shape: tools only. No `resources/*` or `prompts/*` methods yet.
+- Runtime model: the MCP server fronts the local Unbrowse runtime on `http://localhost:6969`; hosts talk standard MCP, and Unbrowse uses the local HTTP runtime behind the scenes.
+
+Core MCP tools:
+
+- Discovery: `unbrowse_health`, `unbrowse_search`, `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_feedback`
+- Auth/cache: `unbrowse_login`, `unbrowse_skills`, `unbrowse_skill`, `unbrowse_sessions`
+- Browser capture: `unbrowse_go`, `unbrowse_snap`, `unbrowse_click`, `unbrowse_fill`, `unbrowse_type`, `unbrowse_press`, `unbrowse_select`, `unbrowse_scroll`, `unbrowse_submit`, `unbrowse_screenshot`, `unbrowse_text`, `unbrowse_markdown`, `unbrowse_cookies`, `unbrowse_eval`, `unbrowse_sync`, `unbrowse_close`
+
+Typical MCP host config:
+
+```json
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "npx",
+      "args": ["-y", "unbrowse", "mcp"]
+    }
+  }
+}
+```
+
 ## Quick start
+
+```bash
+# One-line install from the latest GitHub release
+curl -fsSL https://unbrowse.ai/install.sh | sh
+```
+
+That installer now follows the Kuri pattern: detect platform, download the matching release tarball, install `unbrowse` into `~/.local/bin`, then run `unbrowse setup`.
 
 ```bash
 # Deterministic setup from a repo clone
@@ -52,6 +88,14 @@ npx skills add unbrowse-ai/unbrowse
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
 
+Check the exact command for your install with:
+
+```bash
+unbrowse upgrade
+```
+
+Codex and Claude installs now also get a session-start update hint during `unbrowse setup`, so newer releases are surfaced in the host before the CLI drifts too far behind.
+
 If you installed from a repo clone:
 
 ```bash
@@ -76,8 +120,8 @@ npx skills add unbrowse-ai/unbrowse
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
-Canonical docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
+Every CLI command auto-starts the local runtime on `http://localhost:6969` by default, and `unbrowse mcp` uses that same runtime behind the MCP stdio surface. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Public companion docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
@@ -100,6 +144,8 @@ unbrowse login --url "https://calendar.google.com"
 unbrowse skills
 unbrowse search --intent "get stock prices"
 ```
+
+For most MCP hosts, the standard flow is `unbrowse_resolve` first, then `unbrowse_execute`. For JS-heavy or first-time capture workflows, use the browser tool chain: `unbrowse_go -> unbrowse_snap -> action tools -> unbrowse_submit/unbrowse_sync -> unbrowse_close`.
 
 ## Demo notes
 
@@ -181,6 +227,7 @@ Non-GET endpoints (POST, PUT, DELETE) require explicit confirmation:
 
 - `dry_run: true` — preview what would execute without side effects
 - `confirm_unsafe: true` — explicit user consent to proceed
+- `confirm_third_party_terms: true` — extra explicit confirmation for policy-sensitive domains/actions such as X write endpoints
 
 GET endpoints auto-execute. Mutations never fire without opt-in.
 

@@ -188,6 +188,15 @@ export function paymentsEnabled(env: Pick<Env, "PAYMENTS_ENABLED">): boolean {
   return !["0", "false", "off", "disabled", "no"].includes(raw);
 }
 
+export function searchPaymentsEnabled(
+  env: Pick<Env, "PAYMENTS_ENABLED" | "X402_SEARCH_ENABLED">,
+): boolean {
+  if (!paymentsEnabled(env)) return false;
+  const raw = env.X402_SEARCH_ENABLED?.trim().toLowerCase();
+  if (!raw) return true;
+  return !["0", "false", "off", "disabled", "no"].includes(raw);
+}
+
 export function x402UseTestnet(
   env: Pick<Env, "ENVIRONMENT" | "X402_NETWORK_MODE">,
 ): boolean {

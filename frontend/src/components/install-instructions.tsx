@@ -14,7 +14,7 @@ import {
   UPGRADE_CMD_GENERIC,
   UPGRADE_CMD_MCP,
 } from "@/lib/install-command";
-import { trackWebEvent } from "@/lib/web-telemetry";
+import { getTokenizedInstallCommand, trackWebEvent } from "@/lib/web-telemetry";
 
 const tabs = [
   {
@@ -119,15 +119,24 @@ unbrowse health --pretty`,
   },
 ] as const;
 
-export function InstallInstructions() {
+interface Props {
+  experimentId?: string;
+  variantId?: string;
+}
+
+export function InstallInstructions({ experimentId, variantId }: Props) {
   const [active, setActive] = useState<string>("cli");
   const [copied, setCopied] = useState(false);
 
   const tab = tabs.find((t) => t.id === active) ?? tabs[0];
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(tab.command);
-    trackWebEvent("install_command_copied", { tab_id: tab.id });
+    const tokenized = await getTokenizedInstallCommand(tab.command, experimentId, variantId);
+    await navigator.clipboard.writeText(tokenized.command);
+    trackWebEvent("install_command_copied", {
+      tab_id: tab.id,
+      tokenized: tokenized.tokenized,
+    }, { experimentId, variantId });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

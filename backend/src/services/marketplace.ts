@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import type { Env, SkillManifest, EndpointDescriptor } from "../types.js";
+import type { Env, SkillListItem, SkillManifest, EndpointDescriptor } from "../types.js";
 import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex } from "./discovery.js";
 import { generateDescriptions } from "./descriptions.js";
 import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
@@ -16,6 +16,8 @@ function domainKey(domain: string): string {
 function intentKey(domain: string, intent: string): string {
   return `intent-idx:${domain}:${hashIntent(intent)}`;
 }
+
+const SKILL_LIST_CARD_CACHE_KEY = "cache:skills:list:card:v1";
 
 function hashIntent(s: string): string {
   let h = 0;
@@ -34,6 +36,67 @@ export async function listSkills(env: Env): Promise<SkillManifest[]> {
       return [skill];
     } catch { return []; }
   });
+}
+
+function toSkillListItem(skill: SkillManifest): SkillListItem {
+  const endpoints = skill.endpoints.slice(0, 4).map((endpoint) => ({
+    endpoint_id: endpoint.endpoint_id,
+    method: endpoint.method,
+    verification_status: endpoint.verification_status,
+    reliability_score: endpoint.reliability_score,
+  }));
+  const endpointCount = skill.endpoints.length;
+  const avgReliabilityScore = endpointCount > 0
+    ? skill.endpoints.reduce((sum, endpoint) => sum + endpoint.reliability_score, 0) / endpointCount
+    : 0;
+
+  return {
+    skill_id: skill.skill_id,
+    version: skill.version,
+    name: skill.name,
+    intent_signature: skill.intent_signature,
+    domain: skill.domain,
+    subdomain: skill.subdomain,
+    description: skill.description,
+    owner_type: skill.owner_type,
+    execution_type: skill.execution_type,
+    lifecycle: skill.lifecycle,
+    created_at: skill.created_at,
+    updated_at: skill.updated_at,
+    endpoint_count: endpointCount,
+    avg_reliability_score: avgReliabilityScore,
+    endpoints,
+  };
+}
+
+async function invalidateSkillListCaches(env: Env): Promise<void> {
+  await skillsKV(env).delete(SKILL_LIST_CARD_CACHE_KEY).catch(() => {});
+}
+
+export async function listSkillCards(
+  env: Env,
+  opts: { limit?: number; includeDeprecated?: boolean } = {},
+): Promise<SkillListItem[]> {
+  const kv = skillsKV(env);
+  const cached = await kv.get(SKILL_LIST_CARD_CACHE_KEY) as string | null;
+  if (cached) {
+    const parsed = JSON.parse(cached) as SkillListItem[];
+    const filtered = opts.includeDeprecated
+      ? parsed
+      : parsed.filter((skill) => skill.lifecycle !== "deprecated" && skill.lifecycle !== "disabled");
+    return opts.limit != null ? filtered.slice(0, opts.limit) : filtered;
+  }
+
+  const list = (await listSkills(env))
+    .map(toSkillListItem)
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+  await kv.put(SKILL_LIST_CARD_CACHE_KEY, JSON.stringify(list), { expirationTtl: 300 }).catch(() => {});
+
+  const filtered = opts.includeDeprecated
+    ? list
+    : list.filter((skill) => skill.lifecycle !== "deprecated" && skill.lifecycle !== "disabled");
+  return opts.limit != null ? filtered.slice(0, opts.limit) : filtered;
 }
 
 export async function getSkill(env: Env, skillId: string): Promise<SkillManifest | null> {
@@ -177,6 +240,8 @@ export async function publishSkill(
     console.error(`[upsertEdges] failed for ${skill.skill_id}:`, (err as Error).message);
   }
 
+  await invalidateSkillListCaches(env);
+
   return { ...skill, index_status };
 }
 
@@ -187,6 +252,7 @@ export async function deprecateSkill(env: Env, skillId: string): Promise<SkillMa
   skill.updated_at = new Date().toISOString();
   await skillsKV(env).put(kvKey(skillId), JSON.stringify(skill));
   await removeSkillFromIndex(env, skillId, skill.domain).catch(() => {});
+  await invalidateSkillListCaches(env);
   return skill;
 }
 
@@ -205,6 +271,7 @@ export async function updateEndpointScore(
   if (status) endpoint.verification_status = status;
   skill.updated_at = new Date().toISOString();
   await skillsKV(env).put(kvKey(skillId), JSON.stringify(skill));
+  await invalidateSkillListCaches(env);
 
   if (status === "disabled" || status === "failed") {
     const allDead = skill.endpoints.every(
@@ -230,6 +297,7 @@ export async function updateEndpointSchema(
   endpoint.response_schema = schema;
   skill.updated_at = new Date().toISOString();
   await skillsKV(env).put(kvKey(skillId), JSON.stringify(skill));
+  await invalidateSkillListCaches(env);
 }
 
 export async function getEndpointSchema(
