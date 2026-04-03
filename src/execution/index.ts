@@ -1899,9 +1899,14 @@ export async function executeEndpoint(
     }
   }
 
+  const hasAuthContext =
+    cookies.length > 0 ||
+    Object.keys(authHeaders).length > 0 ||
+    !!skill.auth_profile_ref ||
+    endpoint.semantic?.auth_required === true;
 
   // robots.txt compliance gate — block disallowed paths before any network call.
-  if (!options?.skip_robots_check) {
+  if (!options?.skip_robots_check && !hasAuthContext) {
     const allowed = await isAllowedByRobots(url);
     if (!allowed) {
       const traceId = nanoid();
