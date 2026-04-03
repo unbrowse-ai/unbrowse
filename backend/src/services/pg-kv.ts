@@ -53,9 +53,22 @@ export class PgKV {
   }
 
   async putBatch(pairs: Array<{ key: string; value: string }>, opts?: { expirationTtl?: number }): Promise<void> {
-    for (const pair of pairs) {
-      await this.put(pair.key, pair.value, opts);
-    }
+    if (pairs.length === 0) return;
+    const sql = await this.sql();
+    const expiresAt = opts?.expirationTtl
+      ? new Date(Date.now() + opts.expirationTtl * 1000).toISOString()
+      : null;
+    await sql.transaction(
+      pairs.map((pair) => sql`
+        INSERT INTO app_kv (namespace, key, value, expires_at)
+        VALUES (${this.namespace}, ${pair.key}, ${pair.value}, ${expiresAt})
+        ON CONFLICT (namespace, key)
+        DO UPDATE SET
+          value = EXCLUDED.value,
+          expires_at = EXCLUDED.expires_at,
+          updated_at = NOW()
+      `),
+    );
   }
 
   async delete(key: string): Promise<void> {

@@ -99,7 +99,7 @@ export async function publishSkill(
     }
   }
 
-  // putBatch: N parallel sets + 1 idx load + 1 idx save (vs 2 separate puts = 2 loads + 2 saves)
+  // putBatch keeps related KV writes coalesced on both storage backends.
   const kv = skillsKV(env);
   await kv.putBatch([
     { key: kvKey(skill.skill_id), value: JSON.stringify(skill) },
