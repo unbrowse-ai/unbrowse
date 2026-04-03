@@ -8,6 +8,7 @@
 
 ### Bug Fixes
 
+* **frontend/install**: simplify the landing-page install path around one clear command, reduce CTA clutter, trim install tabs, and make the copy action grab the primary command instead of the full block
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
 * clean checked-in merge markers, restore the curl install script, and add a repo blog-publish helper so the stale frontend-history branch can be absorbed without dragging its generated junk forward
 
@@ -113,7 +114,6 @@
 * **browse/submit**: add `POST /v1/browse/submit` plus `unbrowse submit`, with generic DOM submit first, same-origin HTML rehydrate fallback, best-effort `data-load-plugins` / `WRS.require` recovery, and capture restart so JS-heavy multi-step checkouts can advance without site-specific JS indexing
 * **github/ci**: remove stale `main` base-branch assumptions from workflows and PR helper scripts so repo automation targets `rach/restart-base` only
 * **ci/backend**: restore the shared telemetry type exports used by analytics routes, make the x402 gate Worker-safe without Node `Buffer`, mark the live graph-edge test truly opt-in again, and stop npm `prepack` from deleting tracked Kuri binaries before CI package validation
-* **openclaw plugin**: restore the repo `ensure-submodules` helper, add the missing `print-trusted-install` CLI path for the OpenClaw Unbrowse plugin, ship a one-shot installer plus published `npx unbrowse-openclaw install` package entrypoint, point frontend/install docs at the npm plugin flow, and clean up the plugin install/allowlist docs so the Unbrowse-first browser replacement flow is actually usable
 * **docs/skill sync**: restore the full public `docs/whitepaper/` set from git history, make `scripts/sync-skill.sh` copy the monorepo `docs/` directory into the public skill repo so long-form docs stop disappearing on downstream syncs, and keep public entrypoints free of internal-only framing
 * **docs/messaging**: align the public README and skill entrypoints around the buyer-facing category line "drop-in browser for agents" while keeping the explanation grounded in route learning, reuse, and browser fallback
 * **docs/messaging**: sharpen the public category line to a drop-in replacement for OpenClaw / `agent-browser` browser flows, with explicit ~30x faster / ~90% cheaper framing for the API-native path and stronger "browser work becomes a reusable asset" language

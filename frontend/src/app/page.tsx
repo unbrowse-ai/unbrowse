@@ -14,8 +14,8 @@ import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? `For CLI-first hosts, start with ${INSTALL_CMD_GENERIC}. That clone-and-setup path is deterministic and does not depend on npm release assets being healthy. It also handles the real first-run flow: ToS acceptance, agent registration plus API-key caching, and wallet detection when present. Pairing a wallet is how you turn browsing into earnings: that address is synced onto your profile, used for contributor payouts when your routes earn, and used for paid-route spending. Unbrowse supports wallet providers such as lobster.cash for x402-gated routes. Upgrade with ${UPGRADE_CMD_GENERIC}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths.`
-  : `Start with ${INSTALL_CMD_GENERIC} for the CLI host path. It handles ToS, registration, and wallet detection. Pair a wallet if you want contributor payouts to land at your address. Unbrowse supports wallet providers such as lobster.cash for x402-gated routes. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
+  ? `Run ${INSTALL_CMD_GENERIC} for the deterministic CLI path. That is the one-command install. OpenClaw uses the published browser-replacement plugin with npx unbrowse-openclaw install --restart. On older OpenClaw builds you may be asked once to trust the plugin. Upgrade with ${UPGRADE_CMD_GENERIC} && unbrowse setup.`
+  : `Run ${INSTALL_CMD_GENERIC} for the CLI host path. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
 const DOCS_URL = "https://docs.unbrowse.ai";
 
 const faqJsonLd = {
@@ -182,11 +182,11 @@ export default function Home() {
                     <div>
                       <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">Install First</p>
                       <h2 className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-text-primary">
-                        Install Unbrowse and start using it.
+                        One command. Start in 30 seconds.
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      One command install. OpenClaw plugin path includes the local Unbrowse runtime automatically.
+                      Run the command below. OpenClaw has its own tab.
                     </p>
                   </div>
                 </div>
@@ -215,9 +215,7 @@ export default function Home() {
                 </Link>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-text-muted">
-                <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Join Discord</a>
-                <span className="text-border-strong">·</span>
-                <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Docs</a>
+                                <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Docs</a>
                 <span className="text-border-strong">·</span>
                 <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Read Paper</a>
                 <span className="text-border-strong">·</span>
@@ -227,7 +225,7 @@ export default function Home() {
 
               {/* Supported Agents */}
               <div className="animate-fade-up stagger-5 mt-14 sm:mt-20 pt-8 w-full flex flex-col items-center">
-                <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-5">Works seamlessly with</p>
+                <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-5">Works with</p>
                 <div className="flex flex-wrap justify-center items-center gap-5 sm:gap-12 opacity-80 transition-opacity hover:opacity-100">
                   <span className="text-base sm:text-lg font-medium tracking-tight">Claude Code</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">Cursor</span>
@@ -325,7 +323,7 @@ export default function Home() {
                 </p>
                 <div className="mt-auto pt-5 border-t border-border space-y-3">
                   <div className="flex items-center gap-2.5 text-sm text-text-secondary">
-                    <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">Zero config needed</span>
+                    <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">No endpoint config needed</span>
                   </div>
                   <div className="flex items-center gap-2.5 text-sm text-text-secondary">
                     <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">Shared skill registry</span>
