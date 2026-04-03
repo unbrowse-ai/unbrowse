@@ -295,4 +295,32 @@ exit 1
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("keeps long evaluate expressions in the query string for brokers that only read URL params", async () => {
+    const originalFetch = globalThis.fetch;
+    const longExpression = "x".repeat(2101);
+    let seenUrl = "";
+    let seenMethod = "";
+
+    globalThis.fetch = (async (input, init) => {
+      seenUrl = String(input);
+      seenMethod = String(init?.method ?? "GET");
+      return new Response(JSON.stringify({
+        result: {
+          result: {
+            type: "string",
+            value: "ok",
+          },
+        },
+      }));
+    }) as typeof fetch;
+
+    try {
+      await expect(kuri.evaluate("tab-1", longExpression)).resolves.toBe("ok");
+      expect(seenMethod).toBe("POST");
+      expect(new URL(seenUrl).searchParams.get("expression")).toBe(longExpression);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
