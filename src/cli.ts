@@ -154,6 +154,11 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
         }
       : undefined,
   };
+  if (typeof obj.error === "string") out.error = obj.error;
+  if (typeof obj.message === "string") out.message = obj.message;
+  if (typeof obj.hint === "string") out.hint = obj.hint;
+  if (typeof obj.login_url === "string") out.login_url = obj.login_url;
+  if (typeof obj.provider === "string") out.provider = obj.provider;
   if ("result" in obj) out.result = obj.result;
   if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
   if (obj.impact) out.impact = obj.impact;

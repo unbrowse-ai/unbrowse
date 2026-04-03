@@ -3,7 +3,15 @@ import { join } from "path";
 import { homedir, hostname } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
-import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
+import type {
+  AgentSkillChunkView,
+  EndpointStats,
+  ExecutionTrace,
+  OrchestrationTiming,
+  RoutingTelemetryEvent,
+  SkillManifest,
+  ValidationResult,
+} from "../types/index.js";
 import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
@@ -999,6 +1007,11 @@ export async function recordExecution(
 export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): Promise<void> {
   if (LOCAL_ONLY) return;
   await api("POST", "/v1/analytics/sessions", payload);
+}
+
+export async function recordRoutingTelemetry(events: RoutingTelemetryEvent[]): Promise<void> {
+  if (LOCAL_ONLY || events.length === 0) return;
+  await postTelemetry("/v1/telemetry/routing", { events });
 }
 
 /** Record a payment transaction for a paid skill execution. Fire-and-forget. */

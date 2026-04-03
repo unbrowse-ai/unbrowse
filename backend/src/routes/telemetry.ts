@@ -1,14 +1,22 @@
 import { Hono } from "hono";
-import type { Env, FunnelEventName, FunnelEventSource, WebTelemetryEventName } from "../types.js";
+import type {
+  Env,
+  FunnelEventName,
+  FunnelEventSource,
+  RoutingTelemetryEvent,
+  WebTelemetryEventName,
+} from "../types.js";
 import { optionalAuth } from "../middleware/auth.js";
 import { recordFunnelEvent } from "../services/funnel.js";
 import { recordInstallTelemetry } from "../services/install-telemetry.js";
 import { recordWebTelemetry } from "../services/acquisition.js";
+import { recordRoutingTelemetryBatch } from "../services/routing-telemetry.js";
 
 export const telemetryRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
 telemetryRoutes.use("/telemetry/events", optionalAuth);
 telemetryRoutes.use("/telemetry/install", optionalAuth);
+telemetryRoutes.use("/telemetry/routing", optionalAuth);
 
 telemetryRoutes.post("/telemetry/events", async (c) => {
   const body = await c.req.json<{
@@ -104,4 +112,23 @@ telemetryRoutes.post("/telemetry/web", async (c) => {
   c.header("Cache-Control", "no-store");
   c.header("Access-Control-Allow-Origin", "*");
   return c.json({ ok: true, event_id: stored.event_id });
+});
+
+telemetryRoutes.post("/telemetry/routing", async (c) => {
+  const body = await c.req.json<{ events?: RoutingTelemetryEvent[] }>().catch(() => null);
+  const events = body?.events;
+  if (!events || !Array.isArray(events) || events.length === 0) {
+    return c.json({ error: "events array is required" }, 400);
+  }
+  if (events.length > 200) {
+    return c.json({ error: "max 200 events per batch" }, 400);
+  }
+  try {
+    const result = await recordRoutingTelemetryBatch(c.env, events);
+    c.header("Cache-Control", "no-store");
+    c.header("Access-Control-Allow-Origin", "*");
+    return c.json({ ok: true, ...result });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
 });

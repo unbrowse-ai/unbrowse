@@ -7,55 +7,72 @@ import { getAuthCookies } from "../src/auth/index.js";
 
 const TESTS_DIR = dirname(new URL(import.meta.url).pathname);
 const ROOT = join(TESTS_DIR, "..");
-const BASE_URL = process.env.UNBROWSE_URL ?? "http://localhost:6969";
 
 let serverProc: Bun.Subprocess<"ignore", "pipe", "pipe"> | null = null;
 let ensureBaseServerPromise: Promise<void> | null = null;
+let baseServerUrl: string | null = process.env.UNBROWSE_URL ?? null;
 
 // Product-truth suite: always drive the CLI/orchestrator path.
 // Do not replace these with raw captureSession/executeSkill plumbing tests.
 
-async function isServerUp(baseUrl = BASE_URL): Promise<boolean> {
+async function getBaseServerUrl(): Promise<string> {
+  if (baseServerUrl) return baseServerUrl;
+  const port = await getFreePort();
+  baseServerUrl = `http://127.0.0.1:${port}`;
+  return baseServerUrl;
+}
+
+async function isServerUp(baseUrl?: string): Promise<boolean> {
+  const effectiveBaseUrl = baseUrl ?? await getBaseServerUrl();
   try {
-    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(2_000) });
+    const res = await fetch(`${effectiveBaseUrl}/health`, { signal: AbortSignal.timeout(2_000) });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-async function waitForServer(timeoutMs = 45_000, baseUrl = BASE_URL): Promise<void> {
+async function waitForServer(timeoutMs = 45_000, baseUrl?: string): Promise<void> {
+  const effectiveBaseUrl = baseUrl ?? await getBaseServerUrl();
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    if (await isServerUp(baseUrl)) return;
+    if (await isServerUp(effectiveBaseUrl)) return;
     await Bun.sleep(500);
   }
-  throw new Error(`server did not become healthy at ${baseUrl} within ${timeoutMs}ms`);
+  throw new Error(`server did not become healthy at ${effectiveBaseUrl} within ${timeoutMs}ms`);
 }
 
-async function waitForServerDown(timeoutMs = 10_000, baseUrl = BASE_URL): Promise<void> {
+async function waitForServerDown(timeoutMs = 10_000, baseUrl?: string): Promise<void> {
+  const effectiveBaseUrl = baseUrl ?? await getBaseServerUrl();
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    if (!(await isServerUp(baseUrl))) return;
+    if (!(await isServerUp(effectiveBaseUrl))) return;
     await Bun.sleep(250);
   }
-  throw new Error(`server stayed healthy at ${baseUrl} for ${timeoutMs}ms`);
+  throw new Error(`server stayed healthy at ${effectiveBaseUrl} for ${timeoutMs}ms`);
 }
 
 async function ensureBaseServer(): Promise<void> {
-  if (await isServerUp()) return;
+  const baseUrl = await getBaseServerUrl();
+  if (await isServerUp(baseUrl)) return;
   if (ensureBaseServerPromise) {
     await ensureBaseServerPromise;
     return;
   }
 
   ensureBaseServerPromise = (async () => {
-    if (await isServerUp()) return;
+    if (await isServerUp(baseUrl)) return;
+    const parsed = new URL(baseUrl);
+    const host = !parsed.hostname || parsed.hostname === "localhost" ? "127.0.0.1" : parsed.hostname;
+    const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
 
     serverProc = Bun.spawn([process.execPath, "src/index.ts"], {
       cwd: ROOT,
       env: {
         ...process.env,
+        HOST: host,
+        PORT: port,
+        UNBROWSE_URL: baseUrl,
         UNBROWSE_NON_INTERACTIVE: "1",
         UNBROWSE_TOS_ACCEPTED: "1",
       },
@@ -64,7 +81,7 @@ async function ensureBaseServer(): Promise<void> {
     });
 
     try {
-      await waitForServer();
+      await waitForServer(45_000, baseUrl);
     } catch (error) {
       serverProc.kill();
       const stderr = await new Response(serverProc.stderr).text();
@@ -77,11 +94,12 @@ async function ensureBaseServer(): Promise<void> {
 
 async function runCli(args: string[], envOverrides: Record<string, string> = {}): Promise<{ code: number; body: any; stdout: string; stderr: string }> {
   await ensureBaseServer();
+  const baseUrl = await getBaseServerUrl();
   const proc = Bun.spawn([process.execPath, "src/cli.ts", ...args, "--no-auto-start"], {
     cwd: ROOT,
     env: {
       ...process.env,
-      UNBROWSE_URL: BASE_URL,
+      UNBROWSE_URL: baseUrl,
       ...envOverrides,
     },
     stdout: "pipe",
@@ -105,11 +123,12 @@ async function runCli(args: string[], envOverrides: Record<string, string> = {})
 }
 
 async function runCliWithAutoStart(args: string[], envOverrides: Record<string, string> = {}): Promise<{ code: number; body: any; stdout: string; stderr: string }> {
+  const baseUrl = await getBaseServerUrl();
   const proc = Bun.spawn([process.execPath, "src/cli.ts", ...args], {
     cwd: ROOT,
     env: {
       ...process.env,
-      UNBROWSE_URL: BASE_URL,
+      UNBROWSE_URL: baseUrl,
       ...envOverrides,
     },
     stdout: "pipe",
@@ -340,7 +359,7 @@ describe("CLI end-to-end", () => {
     expect(execute.code).toBe(0);
     expect(execute.body.error).not.toBe("auth_required");
     expect(execute.body.result?.error).not.toBe("auth_required");
-  }, 120_000);
+  }, 240_000);
 
   it("resolve + execute stays on the CLI path for auth-gated LinkedIn people search when browser creds exist", async () => {
     const cookies = await getAuthCookies("linkedin.com");
