@@ -15,6 +15,7 @@
 * **setup/wallets**: encourage Crossmint `lobster.cash` during new-install bootstrap, surface it in setup status/docs, and point walletless installs at `npx @crossmint/lobster-cli setup`
 * **landing/api**: add a landing-copy variant API with publish/list/resolve/summary routes, plus a `landing:publish` helper script, so homepage copy can be updated over API and measured by ICP/variant instead of staying hardcoded
 * **analytics/acquisition**: add section-depth checkpoints and ICP-path click tracking on the homepage, plus filtered acquisition summaries by `variant_id` / `icp` / `experiment_id` so landing copy resonance can be compared before tightening the funnel
+* **skills/acquisition**: add a repo-local `unbrowse-acquisition-operator` skill that owns the `traffic -> ICP -> variant -> activation` loop, routes to existing funnel/positioning/ads/measurement skills, and keeps X research/ads scoped under one measurable acquisition experiment
 
 ### Tests
 
