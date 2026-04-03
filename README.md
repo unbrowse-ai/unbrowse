@@ -14,8 +14,8 @@ Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the
 
 - Protocol: JSON-RPC 2.0 MCP over stdio
 - Handshake: `initialize`, `notifications/initialized`, `ping`
-- Capability surface today: `tools/list` and `tools/call`
-- Current MCP shape: tools only. No `resources/*` or `prompts/*` methods yet.
+- Capability surface today: `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, and `prompts/get`
+- Current MCP shape: tool actuation plus read-only workflow contract/DAG resources and one planning prompt for published workflow execution.
 - Runtime model: the MCP server fronts the local Unbrowse runtime on `http://localhost:6969`; hosts talk standard MCP, and Unbrowse uses the local HTTP runtime behind the scenes.
 
 Core MCP tools:
@@ -23,6 +23,13 @@ Core MCP tools:
 - Discovery: `unbrowse_health`, `unbrowse_search`, `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_feedback`
 - Auth/cache: `unbrowse_login`, `unbrowse_skills`, `unbrowse_skill`, `unbrowse_sessions`
 - Browser capture: `unbrowse_go`, `unbrowse_snap`, `unbrowse_click`, `unbrowse_fill`, `unbrowse_type`, `unbrowse_press`, `unbrowse_select`, `unbrowse_scroll`, `unbrowse_submit`, `unbrowse_screenshot`, `unbrowse_text`, `unbrowse_markdown`, `unbrowse_cookies`, `unbrowse_eval`, `unbrowse_sync`, `unbrowse_close`
+
+Published-workflow MCP resources/prompts:
+
+- `workflow_publish://<skill>` — exported workflow artifact summary for one published skill
+- `workflow_contract://<skill>/<endpoint>` — sanitized replay contract: params, enums, prerequisites, provenance hints, and next-state checks
+- `workflow_dag://<skill>/<endpoint>` — dependency walk view for one published workflow edge
+- `plan_workflow_execution` — prompt scaffold that tells the model to inspect the contract + DAG before choosing traversal vs explicit replay
 
 Typical MCP host config:
 
@@ -201,6 +208,10 @@ For published workflow contracts, treat the resolve/execute pair as the router/m
 - `unbrowse_resolve` finds candidate published contracts
 - `unbrowse_execute` runs one explicit replay contract
 - `unbrowse_skill` / `unbrowse_skills` let you inspect the published surface
+- MCP resources let hosts inspect the same surface before tool calls:
+  - `workflow_contract://<skill>/<endpoint>`
+  - `workflow_dag://<skill>/<endpoint>`
+  - prompt `plan_workflow_execution`
 
 ## Dependency walk for multi-step UIs
 

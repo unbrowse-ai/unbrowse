@@ -202,6 +202,12 @@ This resolve/execute pair is the router/meta surface for published contracts:
 - `execute` runs one explicit replay contract
 - `skill` / `skills` let you inspect the published contract inventory
 
+On the MCP surface, agents can also inspect published contract state before choosing tools:
+
+- resource `workflow_contract://<skill>/<endpoint>`
+- resource `workflow_dag://<skill>/<endpoint>`
+- prompt `plan_workflow_execution`
+
 ### 5. Review, feedback, publish
 
 After a successful execute or validated traversal:

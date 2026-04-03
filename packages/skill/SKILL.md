@@ -196,6 +196,18 @@ unbrowse execute \
 
 Use `--path`, `--extract`, and `--limit` instead of shell post-processing. Execute is explicit replay, not ad-hoc traversal.
 
+This resolve/execute pair is the router/meta surface for published contracts:
+
+- `resolve` searches the published contract graph
+- `execute` runs one explicit replay contract
+- `skill` / `skills` let you inspect the published contract inventory
+
+On the MCP surface, agents can also inspect published contract state before choosing tools:
+
+- resource `workflow_contract://<skill>/<endpoint>`
+- resource `workflow_dag://<skill>/<endpoint>`
+- prompt `plan_workflow_execution`
+
 ### 5. Feedback, review, publish
 
 After a successful execute or validated traversal:
