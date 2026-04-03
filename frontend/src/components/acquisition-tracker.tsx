@@ -7,24 +7,29 @@ export function AcquisitionTracker() {
   useEffect(() => {
     trackWebEvent("landing_page_viewed");
 
-    const target = document.getElementById("install");
-    if (!target || typeof IntersectionObserver === "undefined") return;
+    if (typeof IntersectionObserver === "undefined") return;
 
-    let tracked = false;
+    const tracked = new Set<string>();
     const observer = new IntersectionObserver((entries) => {
-      if (tracked) return;
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        tracked = true;
-        trackWebEvent("install_section_viewed", {
-          section_id: "install",
-        });
-        observer.disconnect();
-        break;
+        const sectionId = entry.target.getAttribute("id");
+        if (!sectionId || tracked.has(sectionId)) continue;
+        tracked.add(sectionId);
+        if (sectionId === "install") {
+          trackWebEvent("install_section_viewed", { section_id: sectionId });
+        }
+        if (sectionId === "first-task") {
+          trackWebEvent("first_task_section_viewed", { section_id: sectionId });
+        }
       }
     }, { threshold: 0.4 });
 
-    observer.observe(target);
+    for (const sectionId of ["install", "first-task"]) {
+      const target = document.getElementById(sectionId);
+      if (target) observer.observe(target);
+    }
+
     return () => observer.disconnect();
   }, []);
 
