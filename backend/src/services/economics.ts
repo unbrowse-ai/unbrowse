@@ -1,9 +1,12 @@
 import type { AgentProfile, Env } from "../types.js";
 import { getIndexerLedger } from "./attribution.js";
+import type { IndexerAttributionLedger } from "./attribution.js";
 import { getAgentFeeLedger } from "./fees.js";
 import { getAgentPerfLedger } from "./perf.js";
+import type { AgentPerfLedger } from "./perf.js";
 import { statsKV } from "./kv.js";
 import { getConsumerTransactions, getCreatorTransactions, type Transaction } from "./transactions.js";
+import type { CreatorLedger } from "./transactions.js";
 
 export interface DashboardTransaction {
   transaction_id: string;
@@ -74,6 +77,13 @@ export interface LeaderboardEntry {
   };
 }
 
+interface LeaderboardState {
+  profiles: AgentProfile[];
+  creatorLedgers: Map<string, CreatorLedger>;
+  attributionLedgers: Map<string, IndexerAttributionLedger>;
+  perfLedgers: Map<string, AgentPerfLedger>;
+}
+
 function round6(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
 }
@@ -104,6 +114,39 @@ async function loadProfiles(env: Env): Promise<AgentProfile[]> {
     .filter((entry): entry is AgentProfile => !!entry);
 }
 
+function parseValueMap<T>(entries: Array<{ name: string; value: string }>, parse: (raw: string) => T): Map<string, T> {
+  const map = new Map<string, T>();
+  for (const entry of entries) {
+    try {
+      map.set(entry.name, parse(entry.value));
+    } catch {
+      continue;
+    }
+  }
+  return map;
+}
+
+async function loadLeaderboardState(env: Env): Promise<LeaderboardState> {
+  const kv = statsKV(env);
+  const [profilesRaw, creatorRaw, attributionRaw, perfRaw] = await Promise.all([
+    kv.listWithValues("agent:"),
+    kv.listWithValues("tx:creator:"),
+    kv.listWithValues("attribution:indexer:"),
+    kv.listWithValues("perf:agent:"),
+  ]);
+
+  return {
+    profiles: profilesRaw
+      .map((entry) => {
+        try { return JSON.parse(entry.value) as AgentProfile; } catch { return null; }
+      })
+      .filter((entry): entry is AgentProfile => !!entry),
+    creatorLedgers: parseValueMap(creatorRaw, (raw) => JSON.parse(raw) as CreatorLedger),
+    attributionLedgers: parseValueMap(attributionRaw, (raw) => JSON.parse(raw) as IndexerAttributionLedger),
+    perfLedgers: parseValueMap(perfRaw, (raw) => JSON.parse(raw) as AgentPerfLedger),
+  };
+}
+
 function normalizeDashboardTransaction(
   tx: Transaction,
   direction: "spent" | "earned",
@@ -125,16 +168,11 @@ function normalizeDashboardTransaction(
   };
 }
 
-async function buildAgentEntry(env: Env, profile: AgentProfile): Promise<LeaderboardEntry | null> {
-  const [creator, attribution, perf] = await Promise.all([
-    getCreatorTransactions(env, profile.agent_id),
-    getIndexerLedger(env, profile.agent_id),
-    getAgentPerfLedger(env, profile.agent_id),
-  ]);
-
-  const creatorEarnedUsd = creator.ledger?.total_earned_usd ?? 0;
-  const attributionEarnedUsd = attribution?.total_credited_usd ?? 0;
+function buildAgentEntry(profile: AgentProfile, state: LeaderboardState): LeaderboardEntry | null {
+  const creatorEarnedUsd = state.creatorLedgers.get(`tx:creator:${profile.agent_id}`)?.total_earned_usd ?? 0;
+  const attributionEarnedUsd = state.attributionLedgers.get(`attribution:indexer:${profile.agent_id}`)?.total_credited_usd ?? 0;
   const totalEarnedUsd = round6(creatorEarnedUsd + attributionEarnedUsd);
+  const perf = state.perfLedgers.get(`perf:agent:${profile.agent_id}`);
   const timeSavedMs = perf?.time_saved_events ? perf.total_time_saved_ms : null;
   const costSavedUc = perf?.cost_saved_events ? perf.total_cost_saved_uc : null;
 
@@ -163,10 +201,8 @@ async function buildAgentEntry(env: Env, profile: AgentProfile): Promise<Leaderb
   };
 }
 
-export async function buildLeaderboard(env: Env, limit = 50): Promise<LeaderboardEntry[]> {
-  const profiles = await loadProfiles(env);
-  const rawEntries = (await Promise.all(profiles.map((profile) => buildAgentEntry(env, profile))))
-    .filter((entry): entry is LeaderboardEntry => !!entry);
+function scoreLeaderboardEntries(rawEntries: LeaderboardEntry[], limit: number): LeaderboardEntry[] {
+  if (rawEntries.length === 0) return [];
 
   const maxEarned = Math.max(0, ...rawEntries.map((entry) => entry.total_earned_usd));
   const maxExecutions = Math.max(0, ...rawEntries.map((entry) => entry.executions));
@@ -196,9 +232,17 @@ export async function buildLeaderboard(env: Env, limit = 50): Promise<Leaderboar
     .slice(0, limit);
 }
 
+export async function buildLeaderboard(env: Env, limit = 50): Promise<LeaderboardEntry[]> {
+  const state = await loadLeaderboardState(env);
+  const rawEntries = state.profiles
+    .map((profile) => buildAgentEntry(profile, state))
+    .filter((entry): entry is LeaderboardEntry => !!entry);
+  return scoreLeaderboardEntries(rawEntries, limit);
+}
+
 export async function buildDashboard(env: Env, agentId: string): Promise<DashboardPayload | null> {
-  const profiles = await loadProfiles(env);
-  const profile = profiles.find((candidate) => candidate.agent_id === agentId) ?? null;
+  const leaderboardState = await loadLeaderboardState(env);
+  const profile = leaderboardState.profiles.find((candidate) => candidate.agent_id === agentId) ?? null;
   if (!profile) return null;
 
   const [consumer, creator, feeLedger, attribution, perf, leaderboard] = await Promise.all([
@@ -207,7 +251,12 @@ export async function buildDashboard(env: Env, agentId: string): Promise<Dashboa
     getAgentFeeLedger(env, agentId),
     getIndexerLedger(env, agentId),
     getAgentPerfLedger(env, agentId),
-    buildLeaderboard(env, 200),
+    Promise.resolve(scoreLeaderboardEntries(
+      leaderboardState.profiles
+        .map((candidate) => buildAgentEntry(candidate, leaderboardState))
+        .filter((entry): entry is LeaderboardEntry => !!entry),
+      200,
+    )),
   ]);
 
   const graphFeesUc = feeLedger?.total_charged_uc ?? 0;

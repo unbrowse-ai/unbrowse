@@ -5,59 +5,138 @@ import { Copy, Check } from "lucide-react";
 import {
   INSTALL_CMD_CLAUDE,
   INSTALL_CMD_GENERIC,
+  INSTALL_CMD_NPM,
+  INSTALL_CMD_SKILL,
+  INSTALL_CMD_MCP,
+  MCP_CONFIG_JSON,
+  MCP_CONFIG_PATH,
   UPGRADE_CMD_CLAUDE,
   UPGRADE_CMD_GENERIC,
+  UPGRADE_CMD_MCP,
 } from "@/lib/install-command";
-import { trackWebEvent } from "@/lib/web-telemetry";
+import { getTokenizedInstallCommand, trackWebEvent } from "@/lib/web-telemetry";
 
 const tabs = [
   {
     id: "cli",
-    label: "CLI / Cursor / Codex",
+    label: "Cursor / Codex / CLI",
     command: INSTALL_CMD_GENERIC,
-    code: `${INSTALL_CMD_GENERIC}
+    code: `# One-line install
+${INSTALL_CMD_GENERIC}
 
-# First run may ask for ToS acceptance and agent identity
+# During first run, set up Crossmint lobster.cash if you want route-mining payouts
+
+# Optional: add the skill after install
+${INSTALL_CMD_SKILL}
+
+# Verify
+unbrowse health --pretty
+
+# Upgrade after releases
+${UPGRADE_CMD_GENERIC}`,
+  },
+  {
+    id: "mcp",
+    label: "Any MCP Client",
+    command: INSTALL_CMD_MCP,
+    code: `${INSTALL_CMD_MCP}
+
+# Installer writes the absolute-path config here
+${MCP_CONFIG_PATH}
+
+# Generic template for manual import / paste
+${MCP_CONFIG_JSON}
+
+# First run may ask for ToS acceptance, agent identity, and Crossmint lobster.cash setup
+# Set up Crossmint if you want route-mining payouts to land in your wallet
 unbrowse health
 
 # Already installed?
-${UPGRADE_CMD_GENERIC}`,
+${UPGRADE_CMD_MCP}`,
   },
   {
     id: "claude",
     label: "Claude Code",
-    command: INSTALL_CMD_CLAUDE,
-    code: `${INSTALL_CMD_CLAUDE}
+    command: INSTALL_CMD_GENERIC,
+    code: `# One-line install
+${INSTALL_CMD_GENERIC}
 
-# First run may ask for ToS acceptance and agent identity
-unbrowse health
+# During first run, set up Crossmint lobster.cash if you want route-mining payouts
 
-# Already installed?
+# Optional: add the skill in Claude after install
+${INSTALL_CMD_SKILL}
+
+# Verify
+unbrowse health --pretty
+
+# Upgrade after releases
+${UPGRADE_CMD_GENERIC}
+
+# Repo fallback if you want a local checkout
+${INSTALL_CMD_CLAUDE}
 ${UPGRADE_CMD_CLAUDE}`,
   },
   {
     id: "openclaw",
     label: "OpenClaw",
     command: "npx unbrowse-openclaw install --restart",
-    code: `npx unbrowse-openclaw install --restart
+    code: `# Install the published browser-replacement plugin
+npx unbrowse-openclaw install --restart
+
+# The package pulls in the local Unbrowse runtime automatically
 
 # Pulls in the local Unbrowse runtime automatically
 # Older OpenClaw builds may ask once to trust the plugin
 
-# Already installed?
-unbrowse-openclaw install --restart`,
+# Or install globally for repeat use
+npm install -g unbrowse-openclaw
+unbrowse-openclaw install --restart
+
+# Fallback routing instead of hard browser blocking
+unbrowse-openclaw install --mode fallback --restart
+
+# Use a named OpenClaw profile
+unbrowse-openclaw install --profile work --restart`,
+  },
+  {
+    id: "cursor",
+    label: "Cursor",
+    command: INSTALL_CMD_GENERIC,
+    code: `# One-line install
+${INSTALL_CMD_GENERIC}
+
+# Optional: add the skill in Cursor after install
+${INSTALL_CMD_SKILL}
+
+# npm-only fallback
+${INSTALL_CMD_NPM}
+
+# Upgrade after releases
+${UPGRADE_CMD_GENERIC}
+
+# Check the install
+unbrowse health --pretty`,
   },
 ] as const;
 
-export function InstallInstructions() {
+interface Props {
+  experimentId?: string;
+  variantId?: string;
+}
+
+export function InstallInstructions({ experimentId, variantId }: Props) {
   const [active, setActive] = useState<string>("cli");
   const [copied, setCopied] = useState(false);
 
   const tab = tabs.find((t) => t.id === active) ?? tabs[0];
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(tab.command);
-    trackWebEvent("install_command_copied", { tab_id: tab.id });
+    const tokenized = await getTokenizedInstallCommand(tab.command, experimentId, variantId);
+    await navigator.clipboard.writeText(tokenized.command);
+    trackWebEvent("install_command_copied", {
+      tab_id: tab.id,
+      tokenized: tokenized.tokenized,
+    }, { experimentId, variantId });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

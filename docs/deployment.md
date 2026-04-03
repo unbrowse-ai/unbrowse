@@ -11,6 +11,14 @@ Current production deploy split:
 - marketplace API origin: `https://beta-api.unbrowse.ai`
 - web origin: `https://www.unbrowse.ai` and `https://unbrowse.ai`
 
+Webhook/runtime extras:
+
+- `POST /v1/webhooks/github` is the public GitHub webhook receiver for opt-in PR maintenance
+- it dispatches the self-hosted `pr-agent.yml` workflow instead of blindly auto-merging PRs
+- backend cron trigger runs every 6 hours UTC and flushes queued Telegram PR digests
+- required webhook/notification secrets are documented below
+- setup steps live in [docs/github-webhook-pr-bot.md](/Users/lekt9/.codex/worktrees/3c82/unbrowse/docs/github-webhook-pr-bot.md)
+
 ## Canonical release path
 
 Use the repo-root release flow:
@@ -33,14 +41,23 @@ Detailed release choreography lives in [docs/RELEASING.md](/Users/lekt9/.codex/w
 
 ## Release workflow behavior
 
-`.github/workflows/release.yml` is the canonical release workflow. It runs on `main` pushes and on `v*` tag pushes.
+`.github/workflows/deploy.yml` handles `main` pushes.
+`.github/workflows/release.yml` handles `v*` tag pushes.
 
-Current jobs:
+Main deploy workflow:
+
+1. deploy backend with `cd backend && bun run deploy:ci`
+2. deploy frontend with `cd frontend && bun run deploy`
+3. sync the standalone skill repo
+
+Tag release workflow:
 
 1. publish CLI from `packages/skill/` to npm
-2. deploy backend with `cd backend && bun run deploy:ci`
-3. deploy frontend with `cd frontend && bun run deploy`
-4. sync the standalone skill repo
+2. upload GitHub release assets
+3. deploy backend with `cd backend && bun run deploy:ci`
+4. deploy frontend with `cd frontend && bun run deploy`
+5. sync the standalone skill repo
+6. create or update the downstream skill-repo release
 
 ## PR preview pipeline
 
@@ -57,7 +74,7 @@ Current behavior:
 - internal PRs: build the frontend with `NEXT_PUBLIC_API_URL=$PREVIEW_API_URL`, upload a new Worker version, and post both the stable alias URL and commit-specific preview URL back to the PR
 - fork PRs: skip preview deploy entirely so Cloudflare secrets are never exposed to forked code, and post a skip note via the target-context comment job
 - manual retry: use the `Preview` workflow's `workflow_dispatch` path with a PR number
-Reruns are expected to be safe. The workflow is meant to complete cleanly when npm already has the version, and keep npm publish, frontend deploy, backend deploy, and skill sync aligned instead of partially failing on a replay.
+Reruns are expected to be safe. The tag workflow is meant to complete cleanly when npm already has the version, and keep npm publish, frontend deploy, backend deploy, and skill sync aligned instead of partially failing on a replay.
 
 ## Manual local deploy commands
 
@@ -111,6 +128,10 @@ Backend runtime secrets are documented in [backend/wrangler.toml](/Users/lekt9/.
 - `UNKEY_ROOT_KEY`
 - `EMERGENTDB_API_KEY`
 - `NEBIUS_API_KEY`
+- `GITHUB_WEBHOOK_SECRET`
+- `GITHUB_PR_BOT_TOKEN`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
 
 ## Runtime config sources of truth
 

@@ -21,6 +21,13 @@ export interface AnalyticsSessionSummary {
   cached_skill_calls?: number;
   fresh_index_calls?: number;
   browser_mode?: BrowserMode;
+  success?: boolean;
+  source?: string;
+  time_saved_ms?: number;
+  time_saved_pct?: number;
+  tokens_saved?: number;
+  tokens_saved_pct?: number;
+  cost_saved_uc?: number;
 }
 
 interface StoredSessionSummary extends AnalyticsSessionSummary {
@@ -255,6 +262,13 @@ export async function recordSessionSummary(
     cached_skill_calls: Math.max(0, session.cached_skill_calls ?? 0),
     fresh_index_calls: Math.max(0, session.fresh_index_calls ?? 0),
     browser_mode: session.browser_mode ?? "unknown",
+    success: session.success ?? true,
+    source: session.source ?? "unknown",
+    time_saved_ms: Math.max(0, session.time_saved_ms ?? 0),
+    time_saved_pct: Math.max(0, session.time_saved_pct ?? 0),
+    tokens_saved: Math.max(0, session.tokens_saved ?? 0),
+    tokens_saved_pct: Math.max(0, session.tokens_saved_pct ?? 0),
+    cost_saved_uc: Math.max(0, session.cost_saved_uc ?? 0),
   };
   await statsKV(env).put(`${SESSION_PREFIX}${session.session_id}`, JSON.stringify(normalized));
 }
@@ -396,18 +410,21 @@ export async function getOptimizationFunnel(env: Env, days = 30): Promise<Optimi
 
   const activated = cohortProfiles.filter((profile) => {
     const agentSessions = sessionsByAgent.get(profile.agent_id) ?? [];
-    return profile.total_executions > 0 || agentSessions.length > 0;
+    const successfulSessions = agentSessions.filter((session) => session.success !== false);
+    return profile.total_executions > 0 || successfulSessions.length > 0;
   });
   const aha = activated.filter((profile) => {
-    const agentSessions = sessionsByAgent.get(profile.agent_id) ?? [];
+    const agentSessions = (sessionsByAgent.get(profile.agent_id) ?? []).filter((session) => session.success !== false);
     return agentSessions.some((session) =>
       session.api_calls >= 1 ||
       (session.cached_skill_calls ?? 0) >= 1 ||
-      (session.fresh_index_calls ?? 0) >= 1,
+      (session.fresh_index_calls ?? 0) >= 1 ||
+      (session.time_saved_ms ?? 0) > 0 ||
+      (session.tokens_saved ?? 0) > 0,
     );
   });
   const repeat = aha.filter((profile) => {
-    const agentSessions = sessionsByAgent.get(profile.agent_id) ?? [];
+    const agentSessions = (sessionsByAgent.get(profile.agent_id) ?? []).filter((session) => session.success !== false);
     return agentSessions.length >= 2 || normalizeActivityDates(profile.activity_dates).length >= 2;
   });
 

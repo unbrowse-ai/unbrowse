@@ -156,6 +156,7 @@ Shipped product:
 - local-first auth handling
 - MCP host integration
 - reliability, verification, and drift-aware route health
+- x402 / HTTP 402 payment lane with wallet-linked payout identity and current payout routing
 - canonical product eval gates in the repo
 
 This is enough to support the current claim that Unbrowse is building a reusable web capability layer for agents.
@@ -190,7 +191,7 @@ In other words:
 
 - first prove capability
 - then prove reuse
-- then price the network
+- then broaden pricing, attribution, and trust economics
 
 That sequencing is healthier than pretending the economic layer already exists.
 

@@ -76,7 +76,16 @@ git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git 
 cd ~/unbrowse && ./setup --host off
 ```
 
-This installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and starts the local server.
+This installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and starts the local server. During bootstrap, set up Crossmint lobster.cash if you want mined-route payouts to land in your wallet.
+
+### Generic MCP host install
+
+```
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+This writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template is published at `https://www.unbrowse.ai/mcp.json`.
 
 ### Global install for daily use
 
@@ -96,9 +105,10 @@ The package pulls in the local Unbrowse runtime automatically. Older OpenClaw bu
 ### Upgrading
 
 ```
-npm install -g unbrowse@latest
-unbrowse setup
+unbrowse upgrade
 ```
+
+Codex and Claude installs also get a session-start update hint during `unbrowse setup`.
 
 ### Environment variables
 
@@ -265,6 +275,8 @@ Capture, indexing, and reverse-engineering are free. Agents pay only when using 
 Tier 1 is one-time: pay once, execute locally forever with no further marketplace payments. Tier 2 only applies to sites whose owners have opted in to per-execution pricing. Tier 3 covers the cost of maintaining the shared index and serving vector search.
 
 Payment uses the x402 protocol. Paid skills return HTTP 402 with payment requirements. Supported chains: Solana (USDC) and Base (USDC) via the Corbits facilitator. Wallet operations are delegated to lobster.cash. Creator payout wallets are synced from agent registration/runtime wallet state. Current payout policy is single-recipient: the majority contributor wallet wins, with first-contributor winning ties. That winner wallet must already be Solana mainnet USDC-ready or settlement can fail. Publish-time Cascade provisioning still accepts either a pre-made `UNBROWSE_CASCADE_SPLIT_ADDRESS`/`UNBROWSE_CASCADE_SPLIT_CONFIG` override or the signer/RPC env needed to call `@cascade-fyi/splits-sdk`.
+
+For new installs, treat Crossmint lobster.cash setup as part of earning setup, not an optional extra. Without a configured wallet, the agent can still index routes but payout flow cannot land earnings to the contributor.
 
 Worker payment gating is controlled by `PAYMENTS_ENABLED`; when false, search and skill x402 gates are bypassed and no search fees are recorded.
 

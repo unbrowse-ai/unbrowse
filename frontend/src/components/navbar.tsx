@@ -30,7 +30,7 @@ export function Navbar() {
           <NavLink href="/blog">Blog</NavLink>
           <NavLink href="/papers">Papers</NavLink>
           <NavLink href="/search">Registry</NavLink>
-          <NavLink href="/miners">Miners</NavLink>
+          <NavLink href="/miners">Contributors</NavLink>
           <NavLink href="/dashboard">Dashboard</NavLink>
           <a
             href="https://discord.gg/VWugEeFNsG"
@@ -123,7 +123,7 @@ export function Navbar() {
             <MobileNavLink href="/blog" onClick={() => setMobileOpen(false)}>Blog</MobileNavLink>
             <MobileNavLink href="/papers" onClick={() => setMobileOpen(false)}>Papers</MobileNavLink>
             <MobileNavLink href="/search" onClick={() => setMobileOpen(false)}>Registry</MobileNavLink>
-            <MobileNavLink href="/miners" onClick={() => setMobileOpen(false)}>Miners</MobileNavLink>
+            <MobileNavLink href="/miners" onClick={() => setMobileOpen(false)}>Contributors</MobileNavLink>
             <MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</MobileNavLink>
             <a
               href="https://discord.gg/VWugEeFNsG"

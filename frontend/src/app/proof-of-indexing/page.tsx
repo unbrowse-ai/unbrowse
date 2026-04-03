@@ -118,7 +118,7 @@ const sections: { title: string; body: string[] }[] = [
     body: [
       "This is the part that makes proof of indexing fundamentally different from proof of work or proof of stake. There is no mining rig. There is no staking lockup. There is no specialized operation to run.",
       "You install Unbrowse. You browse the web. Routes get indexed. You earn when agents use them. That is it.",
-      "Every resolve command an agent runs also contributes to the index. If the agent encounters a site that is not yet covered, it falls back to a browser session, captures the traffic, indexes the routes, and publishes them. The agent itself becomes a miner. The line between using the network and building the network does not exist.",
+      "Every resolve command an agent runs also contributes to the index. If the agent encounters a site that is not yet covered, it falls back to a browser session, captures the traffic, indexes the routes, and publishes them. The agent itself becomes a contributor. The line between using the network and building the network does not exist.",
       "This is what makes the system self-sustaining. Usage is contribution. Contribution drives usage. There is no separation between the people who build the infrastructure and the people who benefit from it.",
     ],
   },
@@ -341,7 +341,7 @@ export default function ProofOfIndexingPage() {
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
             <span className="text-text-secondary/60 select-none">$ </span>
-            <span className="text-orange-600">npm install -g unbrowse</span>
+            <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <a

@@ -50,6 +50,15 @@ git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git 
 cd ~/.codex/skills/unbrowse && ./setup --host codex
 ```
 
+For generic MCP hosts:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+That writes a ready-to-import config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template also lives at `https://www.unbrowse.ai/mcp.json`.
+
 Headless bootstrap:
 
 ```bash
@@ -57,6 +66,14 @@ cd ~/unbrowse && ./setup --host off --accept-tos --agent-email you@example.com -
 ```
 
 `./setup` is the single front door. It installs the local shim, then runs the real first-use path: ToS, agent registration/API key caching, and optional wallet detection.
+
+When users ask about upgrades, prefer:
+
+```bash
+unbrowse upgrade
+```
+
+That checks the latest npm release and prints the right upgrade command for the current install. Codex and Claude setups also register a session-start update hint during `unbrowse setup`.
 
 If a wallet is configured, that wallet address becomes the contributor truth: Unbrowse syncs it onto your agent profile, uses it as the destination for contributor payouts, and uses it for paid-route spending proof.
 
@@ -174,7 +191,9 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | Command | Usage | Description |
 |---------|-------|-------------|
 | `health` |  | Server health check |
+| `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
+| `upgrade` |  | Check latest release and print the right upgrade command |
 | `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
@@ -186,7 +205,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url>` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows |
+| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows |
 | `snap` | `[--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `<ref>` | Click element by ref (e.g. e5) |
 | `fill` | `<ref> <value>` | Fill input by ref |
@@ -336,8 +355,8 @@ unbrowse skill {id}                                # Get skill details
 unbrowse search --intent "..." --domain "..."      # Search marketplace
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse go "https://example.com/form"             # Open a live capture tab
-unbrowse submit --wait-for "/next-step"            # Submit current form with recovery
-unbrowse sync                                      # Flush current step into route cache
+unbrowse submit --wait-for "/next-step"            # Submit current form with recovery and auto-queue publish for that step
+unbrowse sync                                      # Flush any extra captured routes into the route cache
 unbrowse health                                    # Server health check
 ```
 
