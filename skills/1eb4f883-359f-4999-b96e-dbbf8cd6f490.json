@@ -1,0 +1,62 @@
+{
+  "skill_id": "1eb4f883-359f-4999-b96e-dbbf8cd6f490",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-17T16:29:49.076Z",
+  "updated_at": "2026-02-17T16:34:27.995Z",
+  "name": "accounts-shopify",
+  "intent_signature": "Manage Shopify account authentication and identity",
+  "domain": "accounts.shopify.com",
+  "description": "Manage Shopify account authentication and identity",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (bugsnag-api-key)",
+  "service_name": "accounts-shopify",
+  "endpoints": [
+    {
+      "endpoint_id": "66e4cefe-710d-4a42-9b4e-a9dca64eba00",
+      "method": "POST",
+      "url_template": "https://accounts.shopify.com/__endpoint/66e4cefe-710d-4a42-9b4e-a9dca64eba00",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createShopifyAccount",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "0b3c9327-aca8-4c4a-8bd2-ee553bb702ab",
+      "method": "POST",
+      "url_template": "https://accounts.shopify.com/__endpoint/0b3c9327-aca8-4c4a-8bd2-ee553bb702ab",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createWellKnownConfig",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "D79W7Cf5Bs7Z4cxnu4vjCbRN9seLogbfyZV8J5EPLYMx",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "7697ee1646fc7731e229cc8217980e959f8d44b829b7e9e07514015c659a6775"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: accounts-shopify\ndescription: Internal API for accounts-shopify\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://accounts.shopify.com\"\n  authMethod: \"API Key (bugsnag-api-key)\"\n  endpointCount: 2\n  apiType: \"internal\"\n  category: \"ecommerce\"\n---\n\n# AccountsShopify API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (bugsnag-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Config (1)\n- `POST /.well-known/dux` — Configure DUX settings for the Shopify account.\n\n### Core API (1)\n- `POST /` — Access core account management functionalities.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"accounts-shopify\", executionMode: \"backend\", endpoint: \"POST /.well-known/dux\" }\n```\n\n```typescript\n// Configure DUX settings for a Shopify account.\nconst duxConfig = {\n  theme: \"dark\",\n  notificationsEnabled: true,\n};\n\nconst duxResponse = await client.well_known.dux(duxConfig);\nconsole.log(\"DUX Configuration Response:\", duxResponse);\n```\n\n```typescript\n// Create a new Shopify account.\nconst accountData = {\n  name: \"My New Shopify Store\",\n  email: \"owner@example.com\",\n  plan: \"basic\",\n};\n\nconst createResponse = await client.core_api(accountData);\nconsole.log(\"Account Creation Response:\", createResponse);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (bugsnag-api-key)\n**Base URL:** `https://accounts.shopify.com`\n**Captured Auth:** 1 auth headers\n\n## About This Skill\n\nThis skill provides access to Accounts Shopify's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Accounts Shopify data without official API access\n- Automate actions on accounts.shopify.com (faster than browser automation)\n- Call the same endpoints the Accounts Shopify frontend uses\n\n## Quick Start\n\n```typescript\nimport { AccountsShopifyClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await AccountsShopifyClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (bugsnag-api-key)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (4)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `POST /`\n- `POST /.well-known/dux`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `POST /`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /.well-known/dux`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -1,0 +1,153 @@
+{
+  "skill_id": "907a0ef8-d795-490f-a0e4-3cab960561d8",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-21T04:02:07.941Z",
+  "updated_at": "2026-02-21T04:02:13.206Z",
+  "name": "business-nextdoor",
+  "intent_signature": "Manage Nextdoor business accounts by",
+  "domain": "business.nextdoor.com",
+  "description": "Manage Nextdoor business accounts by",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (ndp_session_id)",
+  "service_name": "business-nextdoor",
+  "endpoints": [
+    {
+      "endpoint_id": "1d103e7d-cd6e-4d8a-8c4e-2588172a3e35",
+      "method": "GET",
+      "url_template": "https://business.nextdoor.com/__endpoint/1d103e7d-cd6e-4d8a-8c4e-2588172a3e35",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getToolsMenuPermission",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "43dc587f-797c-4837-9fce-c9b485fb2ef2",
+      "method": "GET",
+      "url_template": "https://business.nextdoor.com/__endpoint/43dc587f-797c-4837-9fce-c9b485fb2ef2",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getCtasJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "64a31183-923a-4243-a648-c1599441329f",
+      "method": "GET",
+      "url_template": "https://business.nextdoor.com/__endpoint/64a31183-923a-4243-a648-c1599441329f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getLocation",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "6d159401-aaee-4b75-892c-75e307d3c844",
+      "method": "GET",
+      "url_template": "https://business.nextdoor.com/__endpoint/6d159401-aaee-4b75-892c-75e307d3c844",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getCollect",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "2bf3147e-0e63-478d-a343-47871c030376",
+      "method": "GET",
+      "url_template": "https://business.nextdoor.com/__endpoint/2bf3147e-0e63-478d-a343-47871c030376",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getT296379UcbConfig",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "c6367a96-810d-48d8-83d5-c19c19b652a6",
+      "method": "GET",
+      "url_template": "https://business.nextdoor.com/__endpoint/c6367a96-810d-48d8-83d5-c19c19b652a6",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getPixel",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "2b1e4c20-7fd0-4b7b-98c1-b226b076227c",
+      "method": "POST",
+      "url_template": "https://business.nextdoor.com/__endpoint/2b1e4c20-7fd0-4b7b-98c1-b226b076227c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createOpen",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "1564343a-4c8f-4a95-ac66-c3ae03d4a52d",
+      "method": "GET",
+      "url_template": "https://business.nextdoor.com/__endpoint/1564343a-4c8f-4a95-ac66-c3ae03d4a52d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getConversionsSettings",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "ee63d138-3fbd-42a2-9622-b2bde5a3aac2",
+      "method": "POST",
+      "url_template": "https://business.nextdoor.com/__endpoint/ee63d138-3fbd-42a2-9622-b2bde5a3aac2",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createPageview",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "CXwshJhYAErqjCxqiZMbKRnUcVckjs2mxkyFMGpp7nWi",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "1a2c33ace629a1532552bbc85f883938b6db403ddf4196102f5748a3d19447e3"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: business-nextdoor\ndescription: Internal API for business-nextdoor\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://business.nextdoor.com\"\n  authMethod: \"Cookie-based (ndp_session_id)\"\n  endpointCount: 5\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# BusinessNextdoor API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCookie-based (ndp_session_id) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /content-tools-menu/api/v1/tools-menu/has-permission-json` — Check if agent has permission to access content tools.\n\n### Data Read (2)\n- `GET /ctas/v2/public/cs/cta-json` — Retrieve call-to-action (CTA) configuration.\n- `GET /v2/cf-location` — Get location details for a specific business.\n\n### Data Write (1)\n- `POST /v1/{v1Id}` — Update data associated with a specific ID.\n\n### Config (1)\n- `GET /v2/api/conversions/settings` — Retrieve conversion tracking settings.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"business-nextdoor\", executionMode: \"backend\", endpoint: \"GET /ctas/v2/public/cs/cta-json\" }\n```\n\nHere are a few examples to get you started with the `business-nextdoor` API:\n\n```typescript\n// Check if an agent has permission to access content tools.\nasync function checkContentToolsPermission() {\n  const permission = await client.get_content_tools_menu_api_v1_tools_menu_has_permission_json();\n  if (permission.hasPermission) {\n    console.log(\"Agent has permission to access content tools.\");\n  } else {\n    console.log(\"Agent does not have permission to access content tools.\");\n  }\n  return permission.hasPermission;\n}\n```\n\n```typescript\n// Retrieve location details for a specific business.\nasync function getLocationDetails() {\n  const locationDetails = await client.get_v2_cf_location();\n  console.log(\"Location Details:\", locationDetails);\n  return locationDetails;\n}\n```\n\n```typescript\n// Update data associated with a specific ID.\nasync function updateData(v1Id: string, data: any) {\n  try {\n    const response = await client.post_v1_$v1Id({ v1Id: v1Id, requestBody: data });\n    console.log(\"Data updated successfully:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error updating data:\", error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Cookie-based (ndp_session_id)\n**Base URL:** `https://business.nextdoor.com`\n**Captured Auth:** 1 auth headers, 29 session cookies\n\n## About This Skill\n\nThis skill provides access to Business Nextdoor's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Business Nextdoor data without official API access\n- Automate actions on business.nextdoor.com (faster than browser automation)\n- Call the same endpoints the Business Nextdoor frontend uses\n\n## Quick Start\n\n```typescript\nimport { BusinessNextdoorClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await BusinessNextdoorClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 29\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (9)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /content-tools-menu/api/v1/tools-menu/has-permission-json`\n- `GET /ctas/v2/public/cs/cta-json`\n- `GET /g/collect`\n- `GET /pixel`\n- `GET /pixels/t2_96379ucb/config`\n- `GET /v2/api/conversions/settings`\n- `GET /v2/cf-location`\n- `POST /v1/open`\n- `POST /v1/pageview`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /content-tools-menu/api/v1/tools-menu/has-permission-json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /ctas/v2/public/cs/cta-json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /g/collect`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pixel`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pixels/t2_96379ucb/config`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v2/api/conversions/settings`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v2/cf-location`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v1/open`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v1/pageview`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -1,0 +1,99 @@
+{
+  "skill_id": "K6LF6PmiDnLChGMXyoggS",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:45:26.194Z",
+  "updated_at": "2026-02-23T07:45:26.194Z",
+  "name": "www.gome.com.cn -- Browse and purchase consumer electronics, home appliances",
+  "intent_signature": "Browse and purchase consumer electronics, home appliances",
+  "domain": "www.gome.com.cn",
+  "description": "Auto-discovered skill for: Browse and purchase consumer electronics, home appliances",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "gyYYNubBB3KCJILQUnZDO",
+      "method": "GET",
+      "url_template": "https://cart.gome.com.cn/home/api/cart/getCartItemCount",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.gome.com.cn/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "callback": "jQuery17106346540543904059_1771832715760",
+        "_": "1771832715771"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "VJCjzbXDprAT4XroLo-hQ",
+      "method": "GET",
+      "url_template": "https://www.gome.com.cn/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "7PRy7UWFkbWA3i3uKQ3U9",
+      "method": "GET",
+      "url_template": "https://ss.gome.com.cn/item/v1/cookie/atgregion/flag/public/ipWrite",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.gome.com.cn/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "callback": "ipWrite",
+        "_": "1771832715763"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "e3UIHIquOg_DgSPP1nY8f",
+      "method": "GET",
+      "url_template": "https://ep.gome.com.cn/",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.gome.com.cn/"
+      },
+      "query": {
+        "type": "f"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "gkdfy7KERNDb65dpMPGq6",
+      "method": "GET",
+      "url_template": "https://www.gome.com.cnhttps://www.gome.com.cn/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.gome.com.cn-session"
+}

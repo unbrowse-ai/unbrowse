@@ -1,0 +1,405 @@
+{
+  "skill_id": "QlyG8X72HxO1hBIgeff_I",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:47:04.880Z",
+  "updated_at": "2026-02-23T07:47:04.880Z",
+  "name": "www.occ.gov -- Manage time-tracking and attendance records",
+  "intent_signature": "Manage time-tracking and attendance records",
+  "domain": "www.occ.gov",
+  "description": "Auto-discovered skill for: Manage time-tracking and attendance records",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "OkNvRGPFSqOf1NMyrAaJc",
+      "method": "GET",
+      "url_template": "https://www.occ.gov/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "oNEgkU8Wb1lAwzX4oCUws",
+      "method": "GET",
+      "url_template": "https://script.crazyegg.com/pages/data-scripts/{id}/{id}/site/www.occ.gov.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.occ.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "t": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "dkey": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "updated_at": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "site_data_url_template": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "site_sampling_url_template": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "status_data_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "hud": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "script_url": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "core_api_auth_key": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "launch_origins": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "inferred_from_samples": 2
+                },
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "host",
+              "script_url",
+              "core_api_auth_key",
+              "launch_origins"
+            ],
+            "inferred_from_samples": 1
+          },
+          "survey_preview_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "survey_launch_origins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "inferred_from_samples": 1
+          },
+          "addon_preview_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "addon_launch_origins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "inferred_from_samples": 1
+          },
+          "ce_app_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "flow_preview_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "clock_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "common_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "status": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "counters_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "data_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "sampling_data_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "tracking_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "trackingpagestate_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "thirdparty_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "sites": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "segments": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "global_ip_block_list": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "is_using_ip_blocking": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "snapshots": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "v6_tracking_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "v6_secure_tracking_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "transformations_script_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "page_views_limit_reached": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "v11_tracking_dest": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "features": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "dnt": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "auto_identity": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "addons": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "tracking_key": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "explicit_agent": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "use_secure_cookies": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "public_tracking_api": {
+            "type": "object",
+            "properties": {
+              "endpoint": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "endpoint"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "uid",
+          "dkey",
+          "updated_at",
+          "version",
+          "site_data_url_template",
+          "site_sampling_url_template",
+          "status_data_url",
+          "hud",
+          "survey_preview_dest",
+          "survey_launch_origins",
+          "addon_preview_dest",
+          "addon_launch_origins",
+          "ce_app_url",
+          "flow_preview_url",
+          "clock_url",
+          "common_script_url",
+          "status",
+          "counters_dest",
+          "data_url",
+          "sampling_data_url",
+          "tracking_script_url",
+          "trackingpagestate_script_url",
+          "thirdparty_script_url",
+          "sites",
+          "segments",
+          "global_ip_block_list",
+          "is_using_ip_blocking",
+          "snapshots",
+          "v6_tracking_dest",
+          "v6_secure_tracking_dest",
+          "transformations_script_url",
+          "page_views_limit_reached",
+          "v11_tracking_dest",
+          "features",
+          "dnt",
+          "auto_identity",
+          "addons",
+          "tracking_key",
+          "explicit_agent",
+          "use_secure_cookies",
+          "public_tracking_api"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "fGgDOBks7SXSsYB6eGYXA",
+      "method": "GET",
+      "url_template": "https://50215.global.siteimproveanalytics.io/image.aspx",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.occ.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "url": "https://www.occ.gov/",
+        "title": "Office of the Comptroller of the Currency (OCC)",
+        "res": "1280x720",
+        "accountid": "50215",
+        "rt": "1870",
+        "prev": "b479d7f0-c80b-8f71-3f09-8f016e967238",
+        "luid": "ffa1f030-5bbc-0cf1-b0aa-2773386e8239",
+        "rnd": "69163"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "mipR7FniEsxDwbFZr7uot",
+      "method": "GET",
+      "url_template": "https://script.crazyegg.com/pages/data-scripts/{id}/{id}/sampling/www.occ.gov.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.occ.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "t": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "sites_sampling": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "version",
+          "sites_sampling"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "ajmzcJhITalWO5--difm1",
+      "method": "GET",
+      "url_template": "https://clients1.google.com/generate_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.occ.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "k7DuXcig49_FmDRlox9Bn",
+      "method": "GET",
+      "url_template": "https://ep1.adtrafficquality.google/getconfig/sodar",
+      "headers_template": {
+        "referer": "https://www.occ.gov/"
+      },
+      "query": {
+        "sv": "200",
+        "tid": "afs",
+        "tv": "1234567890",
+        "st": "env",
+        "sjk": "EGwKn3xkRv dH1kR8oiGpw==",
+        "sde": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.occ.gov-session"
+}

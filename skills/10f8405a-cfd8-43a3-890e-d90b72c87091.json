@@ -1,0 +1,49 @@
+{
+  "skill_id": "10f8405a-cfd8-43a3-890e-d90b72c87091",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T23:07:49.394Z",
+  "updated_at": "2026-02-19T23:07:50.575Z",
+  "name": "featured",
+  "intent_signature": "Manage expert contributions and track media opportunities on",
+  "domain": "featured.com",
+  "description": "Manage expert contributions and track media opportunities on",
+  "owner_type": "marketplace",
+  "auth_type": "Authorization Header",
+  "service_name": "featured",
+  "endpoints": [
+    {
+      "endpoint_id": "5544163d-1c94-4715-b6a3-94a53729c66b",
+      "method": "POST",
+      "url_template": "https://featured.com/__endpoint/5544163d-1c94-4715-b6a3-94a53729c66b",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createMonitoringData",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "FhLuTxvT7wRYN5renX4AoFwK2miXzehCxy4fNE8224XG",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "e166353a1f4612a527a383ba69688d42a6036795688b96494ad8af475577decb"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: featured\ndescription: Internal API for featured\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://featured.com\"\n  authMethod: \"Authorization Header\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Featured API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAuthorization Header — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Write (1)\n- `POST /monitoring` — Send monitoring data to track system health and performance\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"featured\", executionMode: \"backend\", endpoint: \"POST /monitoring\" }\n```\n\nHere are a few examples to get you started with the `featured` API.\n\n**Sending monitoring data:**\n\n```typescript\n// Example: Sending basic CPU and memory usage data.\nconst monitoringData = {\n  cpuUsage: 75,\n  memoryUsage: 60,\n  timestamp: new Date().toISOString()\n};\n\nawait client.monitoring(monitoringData);\nconsole.log(\"Monitoring data sent successfully.\");\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Authorization Header\n**Base URL:** `https://featured.com`\n**Captured Auth:** 5 auth headers\n\n## About This Skill\n\nThis skill provides access to Featured's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Featured data without official API access\n- Automate actions on featured.com (faster than browser automation)\n- Call the same endpoints the Featured frontend uses\n\n## Quick Start\n\n```typescript\nimport { FeaturedClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await FeaturedClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 5 (x-zcsrf-token, authorization, x-zm-session, x-signature, x-mcs-appkey)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (1)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `POST /monitoring`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `POST /monitoring`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

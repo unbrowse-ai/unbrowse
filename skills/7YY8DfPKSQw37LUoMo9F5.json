@@ -1,0 +1,53 @@
+{
+  "skill_id": "7YY8DfPKSQw37LUoMo9F5",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:42:39.743Z",
+  "updated_at": "2026-02-23T07:42:39.743Z",
+  "name": "www.brownbook.net -- Search the Brownbook global business directory",
+  "intent_signature": "Search the Brownbook global business directory",
+  "domain": "www.brownbook.net",
+  "description": "Auto-discovered skill for: Search the Brownbook global business directory",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "U-KOCcp4-mMG7zHtOdX9d",
+      "method": "GET",
+      "url_template": "https://www.brownbook.net/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "Sau_4bsIV--4ZlXFYaZQL",
+      "method": "GET",
+      "url_template": "https://www.brownbook.net/_next/image",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.brownbook.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "url": "/_next/static/media/google-maps-bb-cc.887a3dc6.png",
+        "w": "96",
+        "q": "75"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.brownbook.net-session"
+}

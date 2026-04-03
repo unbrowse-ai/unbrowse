@@ -1,0 +1,162 @@
+{
+  "skill_id": "a4ae2282-a6d2-4ee6-b921-240579093215",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T17:34:03.530Z",
+  "updated_at": "2026-02-18T22:39:29.501Z",
+  "name": "tinder",
+  "intent_signature": "Interact with Tinder to manage user profiles,",
+  "domain": "tinder.com",
+  "description": "Interact with Tinder to manage user profiles,",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (app-session-id)",
+  "service_name": "tinder",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--en-GB-about-index.txt",
+      "method": "GET",
+      "url_template": "https://tinder.com/en-GB/about/index.txt",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--en-GB-download-index.txt",
+      "method": "GET",
+      "url_template": "https://tinder.com/en-GB/download/index.txt",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--en-GB-feature-gold-index.txt",
+      "method": "GET",
+      "url_template": "https://tinder.com/en-GB/feature/gold/index.txt",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--en-GB-feature-platinum-index.txt",
+      "method": "GET",
+      "url_template": "https://tinder.com/en-GB/feature/platinum/index.txt",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--en-GB-feature-plus",
+      "method": "GET",
+      "url_template": "https://tinder.com/en-GB/feature/plus",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--en-GB-feature-plus-index.txt",
+      "method": "GET",
+      "url_template": "https://tinder.com/en-GB/feature/plus/index.txt",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--en-GB-feature-swipe-index.txt",
+      "method": "GET",
+      "url_template": "https://tinder.com/en-GB/feature/swipe/index.txt",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--healthcheck-auth",
+      "method": "GET",
+      "url_template": "https://tinder.com/healthcheck/auth",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--ws-generate",
+      "method": "GET",
+      "url_template": "https://tinder.com/ws/generate",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--updates",
+      "method": "POST",
+      "url_template": "https://tinder.com/updates",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "BXfVvL4oowVxo367Z37MetBx37RvCGn6UznHr9F9x9Vf",
+    "download_count": 2,
+    "total_versions": 1,
+    "latest_version_hash": "e04ba6fc450105922e135d66f969de3088afe365960017aca8df5c83b43db9f0"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: tinder\ndescription: Internal API for tinder\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://tinder.com\"\n  authMethod: \"Session Token (app-session-id)\"\n  endpointCount: 11\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Tinder API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (app-session-id) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /healthcheck/auth` — Check authentication status.\n\n### Data Read (3)\n- `GET /v1/duos` — Retrieve list of duos (potential matches).\n- `GET /v2/{v2Id}` — Retrieve data by ID.\n- `GET /v2/fast-match/teaser` — Get fast match teaser information.\n\n### Data Write (3)\n- `POST /updates` — Submit updates.\n- `POST /v2/buckets` — Store data in a bucket.\n- `POST /v2/consents/geo` — Submit geo consent data.\n\n### Media (1)\n- `GET /en-GB/{en-GBId}/index.txt` — Retrieve media file.\n\n### Realtime (1)\n- `GET /ws/generate` — Generate a websocket connection.\n\n### Config (2)\n- `GET /en-GB/feature/{featureId}/index.txt` — Get feature configuration.\n- `GET /en-GB/feature/plus` — Get Tinder Plus feature configuration.\n\n## Quick Start\n\nHere are some quick examples to get you started with the Tinder API:\n\n```typescript\n// Retrieve a list of potential matches (duos).\nasync function getPotentialMatches() {\n  try {\n    const duos = await client.get_v1_duos();\n    console.log(\"Potential matches:\", duos);\n    return duos;\n  } catch (error) {\n    console.error(\"Failed to retrieve duos:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Submit an update to the server.\nasync function submitUpdate(updateData: any) {\n  try {\n    const response = await client.post_updates(updateData);\n    console.log(\"Update submitted:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to submit update:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (app-session-id)\n**Base URL:** `https://tinder.com`\n**Captured Auth:** 4 auth headers, 2 session cookies\n\n## About This Skill\n\nThis skill provides access to Tinder's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Tinder data without official API access\n- Automate actions on tinder.com (faster than browser automation)\n- Call the same endpoints the Tinder frontend uses\n\n## Quick Start\n\n```typescript\nimport { TinderClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await TinderClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 4 (app-session-id, app-session-time-elapsed, user-session-id, user-session-time-elapsed)\n- **Session cookies:** 2\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (87)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /en-GB/about/index.txt`\n- `GET /en-GB/download/index.txt`\n- `GET /en-GB/feature/gold/index.txt`\n- `GET /en-GB/feature/platinum/index.txt`\n- `GET /en-GB/feature/plus`\n- `GET /en-GB/feature/plus/index.txt`\n- `GET /en-GB/feature/swipe/index.txt`\n- `GET /healthcheck/auth`\n- `GET /v1/duos`\n- `GET /v2/fast-match/teaser`\n- `GET /v2/matches`\n- `GET /v2/profile`\n- `GET /ws/generate`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /en-GB/about/index.txt`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /en-GB/download/index.txt`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /en-GB/feature/gold/index.txt`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /en-GB/feature/platinum/index.txt`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /en-GB/feature/plus`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /en-GB/feature/plus/index.txt`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /en-GB/feature/swipe/index.txt`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /healthcheck/auth`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v1/duos`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v2/fast-match/teaser`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v2/matches`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v2/profile`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /ws/generate`\n- Status: `verified` | Quality: `70` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

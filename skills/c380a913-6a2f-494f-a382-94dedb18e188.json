@@ -1,0 +1,71 @@
+{
+  "skill_id": "c380a913-6a2f-494f-a382-94dedb18e188",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-14T11:19:08.622Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "blog-cloudflare",
+  "intent_signature": "Retrieve general information from the Cloud",
+  "domain": "blog.cloudflare.com",
+  "description": "Retrieve general information from the Cloud",
+  "owner_type": "marketplace",
+  "auth_type": "Custom Token (x-submit-token)",
+  "service_name": "blog-cloudflare",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--beacon.min.js-vcd15cbe7772f49c399c6a5babf22c1241717689176015",
+      "method": "GET",
+      "url_template": "https://blog.cloudflare.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--static-z-t",
+      "method": "POST",
+      "url_template": "https://blog.cloudflare.com/static/z/t",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--wa-",
+      "method": "POST",
+      "url_template": "https://blog.cloudflare.com/wa/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "AjCTpm2UFXYGBVY9aUKw7KJAR4ueypBt5RUkbcN2L7pZ",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "47ae848e3c10f291885ce2b1731fd9791da4b27d5105ce5920b6564cb3197f8b"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: blog-cloudflare\ndescription: Internal API for blog-cloudflare\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://blog.cloudflare.com\"\n  authMethod: \"Custom Token (x-submit-token)\"\n  endpointCount: 4\n  apiType: \"internal\"\n  category: \"storage\"\n---\n\n# BlogCloudflare API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCustom Token (x-submit-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (2)\n- `GET /api/info` — Get general blog information.\n- `GET /public/vendor/onetrust/consent/{consentId}/{consentId}/en.json` — Read OneTrust consent configuration.\n\n### Data Write (1)\n- `POST /static/z/t` — Write tracking data.\n\n### Core API (1)\n- `POST /wa/` — Interact with core blog API.\n\n## Quick Start\n\nHere's a Quick Start to get you interacting with the blog-cloudflare API:\n\n```typescript\n// Get general blog information.\nasync function getBlogInfo() {\n  const info = await client.getApiInfo();\n  console.log(info);\n  return info;\n}\n```\n\n```typescript\n// Post to the core blog API (example: submitting a comment).\nasync function submitComment(postId: string, author: string, comment: string) {\n  const response = await client.postWa({\n    action: \"submitComment\",\n    postId: postId,\n    author: author,\n    comment: comment,\n  });\n  console.log(response);\n  return response;\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Custom Token (x-submit-token)\n**Base URL:** `https://blog.cloudflare.com`\n**Captured Auth:** 2 auth headers, 7 session cookies\n\n## About This Skill\n\nThis skill provides access to Blog Cloudflare's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Blog Cloudflare data without official API access\n- Automate actions on blog.cloudflare.com (faster than browser automation)\n- Call the same endpoints the Blog Cloudflare frontend uses\n\n## Quick Start\n\n```typescript\nimport { BlogCloudflareClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await BlogCloudflareClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (access-control-allow-origin, x-submit-token)\n- **Session cookies:** 7\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (8)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/info`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/info`\n- Status: `failed` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

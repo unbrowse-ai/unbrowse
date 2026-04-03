@@ -1,0 +1,153 @@
+{
+  "skill_id": "664d5c0b-460e-4813-8589-398d9b924737",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T19:17:11.195Z",
+  "updated_at": "2026-02-22T21:50:24.238Z",
+  "name": "youtube",
+  "intent_signature": "Search for video and audio content,",
+  "domain": "www.youtube.com",
+  "description": "Search for video and audio content,",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (x-goog-api-key)",
+  "service_name": "youtube",
+  "endpoints": [
+    {
+      "endpoint_id": "ade6c666-1fcc-452d-b13d-4650f3edcd24",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/ade6c666-1fcc-452d-b13d-4650f3edcd24",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.03,
+      "description": "getAudioOpen",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "1921effe-69ba-4161-99db-53d9760d9c05",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/1921effe-69ba-4161-99db-53d9760d9c05",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.04,
+      "description": "getGenerate",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "e117bf15-630b-432b-a970-292216b0a096",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/e117bf15-630b-432b-a970-292216b0a096",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.03,
+      "description": "getBr1RsAgkmywGc9Ewpi9F40EzNhovKuAlo4Qv0DaById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "7e92c645-48cf-4c0a-a94a-3387d7f204d2",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/7e92c645-48cf-4c0a-a94a-3387d7f204d2",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.03,
+      "description": "getRsAgkmywFnnpaJdijqpAesWafqbjboj2OoKaMkevlarBaseById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "5c40c434-9ce9-4e88-9d50-5c95ffd81abc",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/5c40c434-9ce9-4e88-9d50-5c95ffd81abc",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.03,
+      "description": "getAudioFailure",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "920a1f8a-c437-4030-a331-5e505a4bd9a9",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/920a1f8a-c437-4030-a331-5e505a4bd9a9",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.03,
+      "description": "getAudioInput",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "da34a926-0368-466f-8395-cbddacba5152",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/da34a926-0368-466f-8395-cbddacba5152",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.03,
+      "description": "getAudioSuccess",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "a306366f-7745-4493-aa78-696a740dc52b",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/a306366f-7745-4493-aa78-696a740dc52b",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getBr1MkevlarBaseById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "490ced11-5ab9-4d77-a101-b452c737789a",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/__endpoint/490ced11-5ab9-4d77-a101-b452c737789a",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getBr1RsAgkmywH5WsFdEoYqnDdqiY3ZrxVb614TlwById",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "9BQVyMLue8jhKjmCV4bvDj2vVUXbYRj2SxGyVEyhcCwm",
+    "download_count": 1,
+    "total_versions": 8,
+    "latest_version_hash": "acaeb7a8f88aec36003ef658a24d3d5512463e8b259cb5262aa5f7c6afb4017c"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: youtube\ndescription: Internal API for youtube\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.youtube.com\"\n  authMethod: \"API Key (x-goog-api-key)\"\n  endpointCount: 13\n  apiType: \"internal\"\n  category: \"video\"\n---\n\n# Youtube API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (x-goog-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (3)\n- `GET /s/_/ytmainappweb/_/js/{jToken}/am=aaaaqaaaaam/d=1/br=1/{br=1Token}/m=root_chunk,base_chunk,main_chunk` — Fetch initial Javascript chunks for authentication flow.\n- `GET /s/_/ytmainappweb/_/js/{jToken}/am=aaaaqaaaaam/d=1/exm=base_chunk,main_chunk,root_chunk/ed=1/br=1/{br=1Token}/m=x0iwkb` — Fetch additional Javascript chunks for authentication flow.\n- `GET /s/_/ytmainappweb/_/ss/{ssToken}/am=aaaaqiaaqam/d=0/br=1/{br=1Token}` — Fetch shared settings for authentication flow.\n\n### Data Read (4)\n- `GET /{id}` — Retrieve video or channel details by ID.\n- `GET /pagead/interaction` — Report ad interaction events.\n- `GET /pcs/activeview` — Report active view events.\n- `POST /youtubei/v1/account/get_setting_values` — Retrieve account settings.\n\n### Data Write (2)\n- `POST /api/stats/{statId}` — Report statistical data.\n- `POST /youtubei/v1/notification_registration/set_registration` — Register or update push notification settings.\n\n### Search (1)\n- `GET /s/search/audio/{id}` — Search for audio content by ID.\n\n### Media (1)\n- `POST /videoplayback` — Request video playback data.\n\n### Core API (2)\n- `POST /api/jnn/v1/generateit` — Generate an IT token (likely for video playback).\n- `POST /youtubei/v1/{v1Id}` — Execute a core YouTube API function.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"youtube\", executionMode: \"backend\", endpoint: \"GET /{id}\" }\n```\n\n```typescript\n// Example: Fetching video details by ID\nasync function getVideoDetails(videoId: string) {\n  try {\n    const videoData = await client.get({ id: videoId });\n    console.log(\"Video Title:\", videoData.title);\n    return videoData;\n  } catch (error) {\n    console.error(\"Error fetching video details:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Reporting statistical data\nasync function reportStats(statId: string, data: any) {\n  try {\n    await client.post_api_stats({ statId: statId, body: data });\n    console.log(\"Stats reported successfully.\");\n  } catch (error) {\n    console.error(\"Error reporting stats:\", error);\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (x-goog-api-key)\n**Base URL:** `https://www.youtube.com`\n**Captured Auth:** 3 auth headers, 6 session cookies\n\n## About This Skill\n\nThis skill provides access to Youtube's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Youtube data without official API access\n- Automate actions on www.youtube.com (faster than browser automation)\n- Call the same endpoints the Youtube frontend uses\n\n## Quick Start\n\n```typescript\nimport { YoutubeClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await YoutubeClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (sec-fetch-storage-access, x-goog-api-key, x-youtube-ad-signals)\n- **Session cookies:** 6\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (18)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

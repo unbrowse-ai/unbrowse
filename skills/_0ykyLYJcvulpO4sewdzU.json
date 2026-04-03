@@ -1,0 +1,99 @@
+{
+  "skill_id": "_0ykyLYJcvulpO4sewdzU",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:41:45.883Z",
+  "updated_at": "2026-02-23T07:41:45.883Z",
+  "name": "api.football-data.org -- Football Data API skill for OpenClaw. Capabilities: get standings, get competitions. Service: api.football-data.org. Auth: Unknown (may need login).",
+  "intent_signature": "Football Data API skill for OpenClaw. Capabilities: get standings, get competitions. Service: api.football-data.org. Auth: Unknown (may need login).",
+  "domain": "api.football-data.org",
+  "description": "Auto-discovered skill for: Football Data API skill for OpenClaw. Capabilities: get standings, get competitions. Service: api.football-data.org. Auth: Unknown (may need login).",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "9e7zQkF9vA7EUEpITmaPM",
+      "method": "GET",
+      "url_template": "https://api.football-data.org/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "LuZlJyk3bqbQny-WjsrGD",
+      "method": "GET",
+      "url_template": "https://www.football-data.org/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "NjWWm1fFIQgWGLQOLmIUk",
+      "method": "GET",
+      "url_template": "https://www.football-data.org/stomp/info",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.football-data.org/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "t": "1771832500306"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "entropy": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "origins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "cookie_needed": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "websocket": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "entropy",
+          "origins",
+          "cookie_needed",
+          "websocket"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "api.football-data.org-session"
+}

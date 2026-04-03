@@ -1,0 +1,127 @@
+{
+  "skill_id": "e362deef-61fa-49ea-a3cb-bb477cb85c5c",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T19:16:41.345Z",
+  "updated_at": "2026-02-20T13:58:57.607Z",
+  "name": "airbnb",
+  "intent_signature": "Retrieve Airbnb host estimates, market data,",
+  "domain": "www.airbnb.com",
+  "description": "Retrieve Airbnb host estimates, market data,",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (x-airbnb-api-key)",
+  "service_name": "airbnb",
+  "endpoints": [
+    {
+      "endpoint_id": "859858df-d187-44ee-8b4d-16db09d6fbca",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com/__endpoint/859858df-d187-44ee-8b4d-16db09d6fbca",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getConsentForUserQueryById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "88ebe133-fbe6-464e-994c-8d8acda3f75d",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com/__endpoint/88ebe133-fbe6-464e-994c-8d8acda3f75d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getConsentFlagsQueryById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "ae8230c5-6832-4cc9-af25-a6d201675f34",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com/__endpoint/ae8230c5-6832-4cc9-af25-a6d201675f34",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getHost",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "470f2a25-15ea-44ae-99c1-7480923503d5",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com/__endpoint/470f2a25-15ea-44ae-99c1-7480923503d5",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getHostEstimateDataById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "2ee4c7e3-1213-463d-88f4-0eaea7018deb",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com/__endpoint/2ee4c7e3-1213-463d-88f4-0eaea7018deb",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getMapViewportInfoQueryById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "8524b770-c19d-408e-adb7-222549d76562",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com/__endpoint/8524b770-c19d-408e-adb7-222549d76562",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getNaviServerAnnouncementsQueryById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "d009dedb-1d9e-4e76-80b3-684bb45fe6ac",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com/__endpoint/d009dedb-1d9e-4e76-80b3-684bb45fe6ac",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getHeaderById",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "9BQVyMLue8jhKjmCV4bvDj2vVUXbYRj2SxGyVEyhcCwm",
+    "download_count": 7,
+    "total_versions": 2,
+    "latest_version_hash": "ba9fb7c20a362c613182a6792bccdd618794d07dc548f8a07c4e815542cfe0a2"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: airbnb\ndescription: Internal API for airbnb\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.airbnb.com\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 16\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Airbnb API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /{token}/{__challenge_h78irkx3kpqxsccexxshbnwrulbId}/{d8c14d4960caId}/inputs` — Complete an authentication flow challenge using a token.\n\n### Data Read (6)\n- `GET /{id}` — Retrieve details for a specific listing or resource by its ID.\n- `GET /{id}/sodar` — Get SODAR data associated with an ID.\n- `GET /api/v2/user_markets` — Get a list of user markets.\n- `GET /cn/hook/haschinesephonenumber` — Check if a user has a Chinese phone number.\n- `GET /page/v0/chunk-metadata` — Retrieve chunk metadata for a page.\n- `GET /v1/sink` — Retrieve data from a sink.\n\n### Data Write (1)\n- `GET /pagead/conversion/{conversionId}` — Record a conversion event.\n\n### Search (1)\n- `GET /api/v3/autosuggestionsquery/{autosuggestionsqueryHash}` — Get autosuggestions for search queries.\n\n### Media (2)\n- `GET /pictures/{pictureId}/airbnbplatformassets-weeklymonthlydiscount/original/{originalId}.json` — Download a picture with discount information.\n- `GET /videos/{videoId}/webm/{webmId}` — Download a specific webm video file.\n\n### Config (4)\n- `GET /api/v3/getconsentforuserquery/{getconsentforuserqueryHash}` — Retrieve user consent configuration.\n- `GET /api/v3/header/{headerHash}` — Fetch header configuration data.\n- `GET /api/v3/naviserverannouncementsquery/{naviserverannouncementsqueryHash}` — Get navigation server announcements.\n- `GET /api/v3/promotionsbyplacementsquery/{promotionsbyplacementsqueryHash}` — Retrieve promotions based on placement.\n\n### Core API (1)\n- `GET /action/{actionId}` — Execute a specific action.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"airbnb\", executionMode: \"backend\", endpoint: \"GET /{id}\" }\n```\n\nHere's a Quick Start guide to using the Airbnb API:\n\n```typescript\n// Retrieve details for a specific listing (replace '12345' with a valid listing ID)\nasync function getListingDetails(listingId: string) {\n  try {\n    const listing = await client.get({ id: listingId });\n    console.log(\"Listing details:\", listing);\n    return listing;\n  } catch (error) {\n    console.error(\"Error fetching listing details:\", error);\n    return null;\n  }\n}\n\ngetListingDetails('12345');\n```\n\n```typescript\n// Get autosuggestions for a search query (replace 'autosuggestionsqueryHash' with the actual hash and 'query' with the search term)\nasync function getAutosuggestions(query: string, autosuggestionsqueryHash: string) {\n  try {\n    const autosuggestions = await client.api_v3_autosuggestionsquery({ autosuggestionsqueryHash: autosuggestionsqueryHash, query: query });\n    console.log(\"Autosuggestions:\", autosuggestions);\n    return autosuggestions;\n  } catch (error) {\n    console.error(\"Error fetching autosuggestions:\", error);\n    return null;\n  }\n}\n\ngetAutosuggestions(\"beach house\", \"some_autosuggestionsqueryHash\");\n```\n\n```typescript\n// Record a conversion event (replace 'conversionId' with the actual conversion ID)\nasync function recordConversion(conversionId: string) {\n  try {\n    const response = await client.pagead_conversion({ conversionId: conversionId });\n    console.log(\"Conversion recorded:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error recording conversion:\", error);\n    return null;\n  }\n}\n\nrecordConversion(\"some_conversionId\");\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://www.airbnb.com`\n**Captured Auth:** 8 auth headers, 73 session cookies\n\n## About This Skill\n\nThis skill provides access to Airbnb's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Airbnb data without official API access\n- Automate actions on www.airbnb.com (faster than browser automation)\n- Call the same endpoints the Airbnb frontend uses\n\n## Quick Start\n\n```typescript\nimport { AirbnbClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await AirbnbClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 8 (sec-fetch-storage-access, x-airbnb-api-key, x-csrf-token, x-csrf-without-token, x-booking-session-id, x-booking-csrf-token, x-booking-csrf, authorization)\n- **Session cookies:** 73\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (25)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

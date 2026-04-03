@@ -1,0 +1,153 @@
+{
+  "skill_id": "5ea17ec1-63a4-4e81-9c3c-636bd1182d59",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T16:35:23.326Z",
+  "updated_at": "2026-02-22T08:44:43.880Z",
+  "name": "fiverr",
+  "intent_signature": "Manage user activities and retrieve personalized content recommendations on Fiverr. Ingest event data and configure site intercepts to monitor platform engagement and track service analytics.",
+  "domain": "www.fiverr.com",
+  "description": "Manage user activities and retrieve personalized content recommendations on Fiverr. Ingest event data and configure site intercepts to monitor platform engagement and track service analytics.",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (x-braze-api-key)",
+  "service_name": "fiverr",
+  "endpoints": [
+    {
+      "endpoint_id": "7e65d080-f5d0-43bf-b6fb-55d5d267f07b",
+      "method": "GET",
+      "url_template": "https://www.fiverr.com/__endpoint/7e65d080-f5d0-43bf-b6fb-55d5d267f07b",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.55,
+      "description": "getGenericAssetById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "8b294961-070c-4cf5-a2cf-f7adb4b20542",
+      "method": "GET",
+      "url_template": "https://www.fiverr.com/__endpoint/8b294961-070c-4cf5-a2cf-f7adb4b20542",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.55,
+      "description": "getAction",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "938bbe40-020a-4ec5-ae6f-0af7f223dd4a",
+      "method": "GET",
+      "url_template": "https://www.fiverr.com/__endpoint/938bbe40-020a-4ec5-ae6f-0af7f223dd4a",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.55,
+      "description": "getEndpoint",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "2479c8bc-c8a6-4fd1-9bb2-23d02d5507eb",
+      "method": "GET",
+      "url_template": "https://www.fiverr.com/__endpoint/2479c8bc-c8a6-4fd1-9bb2-23d02d5507eb",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.55,
+      "description": "getTimelineJsonp",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "27bb7e09-4c25-4814-9d4d-a26a723b7ee1",
+      "method": "GET",
+      "url_template": "https://www.fiverr.com/__endpoint/27bb7e09-4c25-4814-9d4d-a26a723b7ee1",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.55,
+      "description": "getCountOnetrustLoaded",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "b5069566-ca33-4661-bf38-a1cfa588123c",
+      "method": "GET",
+      "url_template": "https://www.fiverr.com/__endpoint/b5069566-ca33-4661-bf38-a1cfa588123c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.55,
+      "description": "getConfigById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "f3f9989c-4952-49d1-bf48-6da841c814c7",
+      "method": "GET",
+      "url_template": "https://www.fiverr.com/__endpoint/f3f9989c-4952-49d1-bf48-6da841c814c7",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.55,
+      "description": "getAssetDesktopHeaderNewVersionById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "c7859918-3223-448b-9f63-88159fa868fb",
+      "method": "GET",
+      "url_template": "https://www.fiverr.com/__endpoint/c7859918-3223-448b-9f63-88159fa868fb",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.55,
+      "description": "getAssetVibeCodingMarketingBannerLoopById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "d7737f76-df38-4242-84c2-4076bf930157",
+      "method": "POST",
+      "url_template": "https://www.fiverr.com/__endpoint/d7737f76-df38-4242-84c2-4076bf930157",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createWriteInterceptEngineTargeting",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "8JjqbWL8BuFS5Mm5KLZPCzesvV3a4Wsv3hkfRvCZZ41u",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "150238b0d2dfce1c4d7c164db285074f1b1cd44284bd3f1cb1ebb506f37468e1"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: fiverr\ndescription: Internal API for fiverr\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.fiverr.com\"\n  authMethod: \"API Key (x-braze-api-key)\"\n  endpointCount: 20\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Fiverr API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (x-braze-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n- `GET /api/a11y-data/v0/page/{pageToken}/DESKTOP/WIDGET_ON/status` — Check accessibility status for a page widget.\n- `GET /video/upload/{uploadId}/v1/video-attachments/generic_asset/asset/{assetToken}/{assetToken}` — Get video attachment details using asset tokens.\n\n### Data Read (5)\n- `GET /action/0` — Retrieve data from the /action/0 endpoint.\n- `GET /chv` — Retrieve data from the /chv endpoint.\n- `GET /timeline/v2/jsonp/1` — Retrieve timeline data in JSONP format.\n- `GET /v3/gtm_stats/count/onetrust.loaded/1` — Get the count of 'onetrust.loaded' events.\n- `GET /widgetapp/{widgetappDate}/locales/en-US.json` — Retrieve locale-specific data for a widget application.\n\n### Data Write (11)\n- `POST /{id}` — Update data associated with a specific ID.\n- `POST /actionp/0` — Submit data to the /actionp/0 endpoint.\n- `POST /api/v1/activities` — Record a user activity event.\n- `POST /api/v1/PXK3bezZfO/d/p` — Submit data to a specific endpoint.\n- `POST /api/v1/tunings/4kGZ0fioo4` — Submit tuning data for a specific configuration.\n- `POST /api/v3/data/` — Submit data to the /api/v3/data/ endpoint.\n- `POST /bianka/api/v1/activity` — Record an activity event via Bianka API.\n- `POST /recommendations/personalized_content` — Request personalized content recommendations.\n- `POST /v1/ingest` — Ingest data into the system.\n- `POST /v3/relay` — Relay data through the /v3/relay endpoint.\n- `POST /WRSiteInterceptEngine/Targeting.php` — Submit targeting data for website interception.\n\n### Media (1)\n- `POST /assets/js/bundle` — Upload a Javascript bundle.\n\n### Config (1)\n- `GET /v1/config/{configHash}` — Retrieve a specific configuration based on its hash.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"fiverr\", executionMode: \"backend\", endpoint: \"GET /action/0\" }\n```\n\nHere are a few examples demonstrating how to interact with the Fiverr API using a hypothetical TypeScript client:\n\n```typescript\n// Example: Retrieving configuration data by hash.\nasync function getConfig(configHash: string): Promise<any> {\n  try {\n    const configData = await client.getConfig(configHash);\n    return configData;\n  } catch (error) {\n    console.error(\"Error fetching config:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Recording a user activity event.\nasync function recordActivity(activityData: any): Promise<any> {\n  try {\n    const response = await client.api_v1_activities(activityData);\n    return response;\n  } catch (error) {\n    console.error(\"Error recording activity:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Requesting personalized content recommendations.\nasync function getRecommendations(requestData: any): Promise<any> {\n  try {\n    const recommendations = await client.recommendations_personalized_content(requestData);\n    return recommendations;\n  } catch (error) {\n    console.error(\"Error fetching recommendations:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (x-braze-api-key)\n**Base URL:** `https://www.fiverr.com`\n**Captured Auth:** 2 auth headers, 19 session cookies\n\n## About This Skill\n\nThis skill provides access to Fiverr's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Fiverr data without official API access\n- Automate actions on www.fiverr.com (faster than browser automation)\n- Call the same endpoints the Fiverr frontend uses\n\n## Quick Start\n\n```typescript\nimport { FiverrClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await FiverrClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (sec-fetch-storage-access, x-braze-api-key)\n- **Session cookies:** 19\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (57)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

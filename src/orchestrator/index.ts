@@ -4162,7 +4162,127 @@ export function generateLocalDescription(ep: import("../types/index.js").Endpoin
   }
   const keysStr = keys.slice(0, 8).join(", ");
   const core = words || "endpoint";
-  return keysStr ? `Returns ${core} data. fields: ${keysStr}` : `Returns ${core} data`;
+  const base = keysStr ? `Returns ${core} data. fields: ${keysStr}` : `Returns ${core} data`;
+  const constraints = extractHeuristicConstraints(ep);
+  return constraints.length > 0 ? `${base}. constraints: ${constraints.join("; ")}` : base;
+}
+
+function extractHeuristicConstraints(
+  ep: import("../types/index.js").EndpointDescriptor,
+): string[] {
+  const snippets: string[] = [];
+  const push = (value: string | undefined): void => {
+    if (!value) return;
+    const text = value.replace(/\s+/g, " ").trim();
+    if (!text) return;
+    snippets.push(text);
+  };
+
+  push(decodeURIComponentSafe(ep.url_template));
+  push(stringifyForHeuristics(ep.query));
+  push(stringifyForHeuristics(ep.path_params));
+  push(stringifyForHeuristics(ep.body_params));
+  push(stringifyForHeuristics(ep.body));
+  push(ep.semantic?.description_in);
+  push(ep.semantic?.description_out);
+  push(ep.semantic?.response_summary);
+  collectHeuristicStrings(ep.semantic?.example_request, snippets);
+  collectHeuristicStrings(ep.semantic?.example_response_compact, snippets);
+  collectSchemaDescriptions(ep.response_schema, snippets);
+
+  const haystack = snippets.join(" ").toLowerCase();
+  if (!haystack) return [];
+
+  const constraints: string[] = [];
+  const add = (hint: string): void => {
+    if (!constraints.includes(hint)) constraints.push(hint);
+  };
+
+  if (
+    /\bonly applicable to non-residents?(?: of singapore)?\b|\bnon-residents? of singapore\b|\badult \(non-resident\)\b/.test(
+      haystack,
+    )
+  ) {
+    add("non-resident only");
+  } else if (
+    /\blocal residents? exclusive\b|\bsingapore residents? exclusive\b|\badult \(resident\)\b|\bresident rate\b|\bresident pricing\b/.test(
+      haystack,
+    )
+  ) {
+    add("resident pricing");
+  }
+
+  if (/\bwildpass\b/.test(haystack)) add("WildPass pricing");
+
+  const validityMatch = haystack.match(/\bvalid for(?: up to)? (\d+)[-\s]?days?\b/) ??
+    haystack.match(/\b(\d+)[-\s]?day(?:\b|s\b)/);
+  if (validityMatch?.[1]) add(`valid for ${validityMatch[1]} days`);
+
+  if (/\bone[-\s]?time access\b|\bone[-\s]?entry\b/.test(haystack)) add("one-time entry");
+
+  const parks = [
+    ["night safari", "Night Safari"],
+    ["bird paradise", "Bird Paradise"],
+    ["river wonders", "River Wonders"],
+    ["singapore zoo", "Singapore Zoo"],
+    ["rainforest wild asia", "Rainforest Wild ASIA"],
+  ].filter(([token]) => haystack.includes(token)).map(([, label]) => label);
+  if (parks.length >= 2 && parks.length <= 3) add(`includes ${parks.join(" + ")}`);
+
+  return constraints;
+}
+
+function collectHeuristicStrings(value: unknown, out: string[], depth = 0): void {
+  if (value == null || depth > 4 || out.length >= 32) return;
+  if (typeof value === "string") {
+    const text = value.replace(/\s+/g, " ").trim();
+    if (text) out.push(text);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value.slice(0, 8)) collectHeuristicStrings(item, out, depth + 1);
+    return;
+  }
+  if (typeof value === "object") {
+    for (const entry of Object.values(value as Record<string, unknown>).slice(0, 12)) {
+      collectHeuristicStrings(entry, out, depth + 1);
+    }
+  }
+}
+
+function collectSchemaDescriptions(
+  schema: import("../types/index.js").ResponseSchema | undefined,
+  out: string[],
+  depth = 0,
+): void {
+  if (!schema || depth > 4 || out.length >= 32) return;
+  if (schema.description) out.push(schema.description);
+  if (schema.properties) {
+    for (const child of Object.values(schema.properties).slice(0, 12)) {
+      collectSchemaDescriptions(child, out, depth + 1);
+    }
+  }
+  if (schema.items) collectSchemaDescriptions(schema.items, out, depth + 1);
+  if (schema.anyOf) {
+    for (const child of schema.anyOf.slice(0, 6)) collectSchemaDescriptions(child, out, depth + 1);
+  }
+}
+
+function stringifyForHeuristics(value: unknown): string {
+  if (value == null) return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function decodeURIComponentSafe(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function extractSkillId(metadata: Record<string, unknown>): string | null {

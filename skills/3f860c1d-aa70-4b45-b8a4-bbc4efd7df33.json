@@ -1,0 +1,49 @@
+{
+  "skill_id": "3f860c1d-aa70-4b45-b8a4-bbc4efd7df33",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-22T22:03:55.115Z",
+  "updated_at": "2026-02-22T22:03:56.176Z",
+  "name": "tasksboard",
+  "intent_signature": "Manage TasksBoard project installations,",
+  "domain": "tasksboard.com",
+  "description": "Manage TasksBoard project installations,",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (x-goog-api-key)",
+  "service_name": "tasksboard",
+  "endpoints": [
+    {
+      "endpoint_id": "9056dd0e-524f-4bec-9b42-6bb175e889cd",
+      "method": "POST",
+      "url_template": "https://tasksboard.com/__endpoint/9056dd0e-524f-4bec-9b42-6bb175e889cd",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "installTasksboardProject",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "78ZTC5GPoPnAS1gm6cJ51GTqLujfWiLzakHRW9VRKyjQ",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "b7dfa241035559127d0370f97093884e76ddea3781cd62ba87d72341bdf8038b"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: tasksboard\ndescription: Internal API for tasksboard\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://tasksboard.com\"\n  authMethod: \"API Key (x-goog-api-key)\"\n  endpointCount: 7\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Tasksboard API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (x-goog-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (2)\n- `GET /locales/en/{id}.json` — Retrieve a specific locale file.\n- `GET /manifest.webmanifest` — Retrieve the web application manifest.\n\n### Data Write (1)\n- `POST /v1/projects/tasksboard-main/installations` — Install tasksboard project for an agent.\n\n### Media (1)\n- `POST /getcaptcha/{getcaptchaId}` — Retrieve a CAPTCHA image.\n\n### Config (2)\n- `GET /{id}/projects/-/apps/1:938219596206:web:d148e136fcb08f873e803f/webconfig` — Get web configuration for a specific app.\n- `POST /checksiteconfig` — Check the site configuration.\n\n### Core API (1)\n- `POST /agent/{agentId}/chat/init` — Initialize a chat session for an agent.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"tasksboard\", executionMode: \"backend\", endpoint: \"GET /locales/en/{id}.json\" }\n```\n\nHere's the Quick Start section for your reverse-engineered API skill document:\n\n```\n### Quick Start\n\nHere are a few examples of how to use the `tasksboard` API with the `client` object.\n\n**Example 1: Retrieve and display a web application manifest.**\n\n```typescript\nasync function getWebAppManifest() {\n  try {\n    const manifest = await client.get_manifest_webmanifest();\n    console.log(\"Web App Manifest:\", JSON.stringify(manifest, null, 2));\n  } catch (error) {\n    console.error(\"Failed to retrieve manifest:\", error);\n  }\n}\n\ngetWebAppManifest();\n```\n\n**Example 2: Install a tasksboard project for an agent.**\n\n```typescript\nasync function installTasksboardProject() {\n  try {\n    const response = await client.post_v1_projects_tasksboard_main_installations();\n    console.log(\"Tasksboard installation response:\", response);\n  } catch (error) {\n    console.error(\"Failed to install tasksboard:\", error);\n  }\n}\n\ninstallTasksboardProject();\n```\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (x-goog-api-key)\n**Base URL:** `https://tasksboard.com`\n**Captured Auth:** 2 auth headers, 5 session cookies\n\n## About This Skill\n\nThis skill provides access to Tasksboard's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Tasksboard data without official API access\n- Automate actions on tasksboard.com (faster than browser automation)\n- Call the same endpoints the Tasksboard frontend uses\n\n## Quick Start\n\n```typescript\nimport { TasksboardClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await TasksboardClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (sec-fetch-storage-access, x-goog-api-key)\n- **Session cookies:** 5\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (9)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /{id}/projects/-/apps/1:938219596206:web:d148e136fcb08f873e803f/webconfig`\n- `GET /beacon.min.js/{beacon.min.jId}`\n- `GET /locales/en/{id}.json`\n- `GET /manifest.webmanifest`\n- `POST /agent/{agentId}/chat/init`\n- `POST /api/crash/tracksession`\n- `POST /checksiteconfig`\n- `POST /getcaptcha/{getcaptchaId}`\n- `POST /v1/projects/tasksboard-main/installations`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /{id}/projects/-/apps/1:938219596206:web:d148e136fcb08f873e803f/webconfig`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /beacon.min.js/{beacon.min.jId}`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /locales/en/{id}.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /manifest.webmanifest`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /agent/{agentId}/chat/init`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /api/crash/tracksession`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /checksiteconfig`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /getcaptcha/{getcaptchaId}`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v1/projects/tasksboard-main/installations`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

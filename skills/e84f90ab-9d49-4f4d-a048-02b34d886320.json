@@ -1,0 +1,61 @@
+{
+  "skill_id": "e84f90ab-9d49-4f4d-a048-02b34d886320",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T10:16:05.336Z",
+  "updated_at": "2026-02-20T10:16:07.010Z",
+  "name": "serff",
+  "intent_signature": "SERFF). Access system-",
+  "domain": "www.serff.com",
+  "description": "SERFF). Access system-",
+  "owner_type": "marketplace",
+  "auth_type": "Bearer Token",
+  "service_name": "serff",
+  "endpoints": [
+    {
+      "endpoint_id": "6a0b88c3-74d6-47a4-ba92-6425baf10d02",
+      "method": "GET",
+      "url_template": "https://www.serff.com/__endpoint/6a0b88c3-74d6-47a4-ba92-6425baf10d02",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getSerffProjectDetails",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "0ec6f07b-4adf-44d0-9089-21ec6f1ff546",
+      "method": "GET",
+      "url_template": "https://www.serff.com/__endpoint/0ec6f07b-4adf-44d0-9089-21ec6f1ff546",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEnterpriseNotifications",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "2DcerCZkJgvjJ44a6HtQkij4gYXGMYR2fwA3wfyHaKHp",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "bbedbce152391e6342b1a0123613bf1615902e9b02c3e8e96ec050a0f55cfdb9"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: serff\ndescription: Internal API for serff\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.serff.com\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 2\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Serff API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (2)\n- `GET /public/common-ui/enterprise/v1/data/notifications.json` — Retrieve notifications related to your enterprise.\n- `GET /public/common-ui/project-details.json` — Get project details for a specific SERFF filing.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"serff\", executionMode: \"backend\", endpoint: \"GET /public/common-ui/enterprise/v1/data/notifications.json\" }\n```\n\nHere's how to quickly get started using the `serff` API:\n\n```typescript\n// Retrieve notifications for your enterprise.\nasync function getNotifications() {\n  try {\n    const notifications = await client.get_public_common_ui_enterprise_v1_data_notifications_json();\n    console.log(\"Notifications:\", notifications);\n    return notifications;\n  } catch (error) {\n    console.error(\"Error fetching notifications:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Get project details for a specific SERFF filing.\nasync function getProjectDetails() {\n  try {\n    const projectDetails = await client.get_public_common_ui_project_details_json();\n    console.log(\"Project Details:\", projectDetails);\n    return projectDetails;\n  } catch (error) {\n    console.error(\"Error fetching project details:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://www.serff.com`\n**Captured Auth:** 3 auth headers\n\n## About This Skill\n\nThis skill provides access to Serff's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Serff data without official API access\n- Automate actions on www.serff.com (faster than browser automation)\n- Call the same endpoints the Serff frontend uses\n\n## Quick Start\n\n```typescript\nimport { SerffClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await SerffClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (authorization, x-goog-api-key, session-id)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (2)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /public/common-ui/enterprise/v1/data/notifications.json`\n- `GET /public/common-ui/project-details.json`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /public/common-ui/enterprise/v1/data/notifications.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /public/common-ui/project-details.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

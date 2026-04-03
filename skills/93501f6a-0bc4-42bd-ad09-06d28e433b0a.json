@@ -1,0 +1,45 @@
+{
+  "skill_id": "93501f6a-0bc4-42bd-ad09-06d28e433b0a",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-14T03:58:28.485Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "forum-chronofhorse",
+  "intent_signature": "Navigate the Chronicle of the Horse forums",
+  "domain": "forum.chronofhorse.com",
+  "description": "Navigate the Chronicle of the Horse forums",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (x-csrf-token)",
+  "service_name": "forum-chronofhorse",
+  "endpoints": [
+    {
+      "endpoint_id": "POST--message-bus-95c07092a5394a00875afde181f51f2b-poll",
+      "method": "POST",
+      "url_template": "https://forum.chronofhorse.com/message-bus/95c07092a5394a00875afde181f51f2b/poll",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "542tEyjgcD1BVXf66fCXYgcPTSL3NiZHH9oaPdhvzZJ7",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "2ba9da417a8a803381400f7b33c34c9ec6375a5b477f3f97ff62e647f062e6da"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: forum-chronofhorse\ndescription: Internal API for forum-chronofhorse\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://forum.chronofhorse.com\"\n  authMethod: \"Session Token (x-csrf-token)\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# ForumChronofhorse API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-csrf-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /wp-json/wp/v2/getAllMenus` — Fetch all available menus for navigation.\n\n## Quick Start\n\n```typescript\n// Fetch all available menus.\nasync function getAllMenus() {\n  const menus = await client.getAllMenus();\n  console.log(\"Available Menus:\", menus);\n  return menus;\n}\n```\n\n```typescript\n// Example of handling potential errors when fetching menus.\nasync function getMenusSafely() {\n  try {\n    const menus = await client.getAllMenus();\n    if (menus && menus.length > 0) {\n      console.log(\"First menu item:\", menus[0]);\n      return menus[0];\n    } else {\n      console.log(\"No menus found.\");\n      return null;\n    }\n  } catch (error) {\n    console.error(\"Failed to fetch menus:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-csrf-token)\n**Base URL:** `https://forum.chronofhorse.com`\n**Captured Auth:** 1 auth headers\n\n## About This Skill\n\nThis skill provides access to Forum Chronofhorse's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Forum Chronofhorse data without official API access\n- Automate actions on forum.chronofhorse.com (faster than browser automation)\n- Call the same endpoints the Forum Chronofhorse frontend uses\n\n## Quick Start\n\n```typescript\nimport { ForumChronofhorseClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await ForumChronofhorseClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (x-csrf-token)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (2)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /wp-json/wp/v2/getAllMenus`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /wp-json/wp/v2/getAllMenus`\n- Status: `failed` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

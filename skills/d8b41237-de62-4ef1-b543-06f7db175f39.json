@@ -1,0 +1,162 @@
+{
+  "skill_id": "d8b41237-de62-4ef1-b543-06f7db175f39",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-15T04:58:38.509Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "goldcircle-co-za",
+  "intent_signature": "Retrieve betting types, horse racing",
+  "domain": "www.goldcircle.co.za",
+  "description": "Retrieve betting types, horse racing",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "goldcircle-co-za",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--ads-ga-audiences",
+      "method": "GET",
+      "url_template": "https://www.goldcircle.co.za/ads/ga-audiences",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--live-or-upcoming-sports",
+      "method": "GET",
+      "url_template": "https://www.goldcircle.co.za/live-or-upcoming/sports",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--pagead-1p-user-list-942620906-",
+      "method": "GET",
+      "url_template": "https://www.goldcircle.co.za/pagead/1p-user-list/942620906/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--sync-data-uid-124a303aef-d6cbff33-26f4-49e9-b19f-730efb6767d9",
+      "method": "GET",
+      "url_template": "https://www.goldcircle.co.za/sync/data/uid/124a303aef/d6cbff33-26f4-49e9-b19f-730efb6767d9",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--sync-data-uid-508a5e2dd5-AAAfB07TIqUAAAFcsmRXrg",
+      "method": "GET",
+      "url_template": "https://www.goldcircle.co.za/sync/data/uid/508a5e2dd5/AAAfB07TIqUAAAFcsmRXrg",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--track-pxl-",
+      "method": "GET",
+      "url_template": "https://www.goldcircle.co.za/track/pxl/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--wejs",
+      "method": "GET",
+      "url_template": "https://www.goldcircle.co.za/wejs",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--Hollywoodbets-dcs-tagController-tagData-5e5309a42928",
+      "method": "POST",
+      "url_template": "https://www.goldcircle.co.za/Hollywoodbets/dcs/tagController/tagData/5e5309a42928",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--ipv6-enrich_ipv6",
+      "method": "POST",
+      "url_template": "https://www.goldcircle.co.za/ipv6/enrich_ipv6",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--track-realtimeconversion",
+      "method": "POST",
+      "url_template": "https://www.goldcircle.co.za/track/realtimeconversion",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "75oHZuXFU1PbrYL2Rp1T83BomgqUsambRrt7RqHT3FXG",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "ccdc12a76dff13919769104a6c68485e5213821ab6c0a698a09fff423a39af75"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: goldcircle-co-za\ndescription: Internal API for goldcircle-co-za\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.goldcircle.co.za\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 14\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# GoldcircleCoZa API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (9)\n- `GET /ads/ga-audiences` — Retrieve Google Analytics audience data for ads.\n- `GET /api/betting/bettypes` — Get available bet types.\n- `GET /api/Page/{PageId}` — Get content for a specific page by ID.\n- `GET /api/Popular/8` — Retrieve popular events for a specific category.\n- `GET /api/sports/8/countries` — Get countries for a specific sport.\n- `GET /api/tournaments/horseracing/{horseracingId}` — Get tournament data for horseracing by ID.\n- `GET /api/v1/{v1Id}` — Retrieve data for a specific item by ID (v1).\n- `GET /live-or-upcoming/sports` — Get a list of live or upcoming sports events.\n- `GET /pagead/1p-user-list/{1p-user-listId}/` — Retrieve a 1P user list by ID.\n\n### Data Write (2)\n- `POST /Hollywoodbets/dcs/tagController/tagData/{tagDataHash}` — Submit tag data to Hollywoodbets DCS.\n- `POST /push/api/{apiId}` — Send push notifications.\n\n### Realtime (1)\n- `GET /api/events/eps/sports` — Get real-time event data for sports.\n\n### Config (1)\n- `GET /api/Settings` — Retrieve application settings.\n\n### Core API (1)\n- `GET /wejs` — Fetch core we.js framework data.\n\n## Quick Start\n\nHere are some quick examples to get you started interacting with the goldcircle-co-za API:\n\n```typescript\n// Retrieve application settings.  Useful for initial configuration.\nasync function getAppSettings() {\n  try {\n    const settings = await client.getSettings();\n    console.log(\"Application Settings:\", settings);\n    return settings;\n  } catch (error) {\n    console.error(\"Failed to retrieve application settings:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Submit tag data to Hollywoodbets DCS.  Important for data integration.\nasync function submitTagData(tagDataHash: string, data: any) {\n  try {\n    const response = await client.tagController.tagData({tagDataHash: tagDataHash, data: data});\n    console.log(\"Tag Data Submission Response:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to submit tag data:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.goldcircle.co.za`\n**Captured Auth:** 1 auth headers, 54 session cookies\n\n## About This Skill\n\nThis skill provides access to Goldcircle Co Za's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Goldcircle Co Za data without official API access\n- Automate actions on www.goldcircle.co.za (faster than browser automation)\n- Call the same endpoints the Goldcircle Co Za frontend uses\n\n## Quick Start\n\n```typescript\nimport { GoldcircleCoZaClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await GoldcircleCoZaClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 54\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (28)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/betting/bettypes`\n- `GET /api/events/eps/sports`\n- `GET /api/Page/menu`\n- `GET /api/Page/Render`\n- `GET /api/Popular/8`\n- `GET /api/Settings`\n- `GET /api/sports/8/countries`\n- `GET /api/tournaments/horseracing/eventsandresults`\n- `GET /api/tournaments/horseracing/specialtournaments`\n- `GET /api/v1/carousel-promotions`\n- `GET /api/v1/custom-landing-pages`\n- `GET /api/v1/platforms-sports-progressives`\n- `GET /api/v1/popups`\n- `GET /api/v1/seo-fragments`\n- `GET /api/v1/thumbnail-tags`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/betting/bettypes`\n- Status: `failed` | Quality: `17` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/events/eps/sports`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/Page/menu`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/Page/Render`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/Popular/8`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/Settings`\n- Status: `failed` | Quality: `17` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/sports/8/countries`\n- Status: `failed` | Quality: `18` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/tournaments/horseracing/eventsandresults`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/tournaments/horseracing/specialtournaments`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/carousel-promotions`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/custom-landing-pages`\n- Status: `failed` | Quality: `17` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/platforms-sports-progressives`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/popups`\n- Status: `failed` | Quality: `17` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/seo-fragments`\n- Status: `failed` | Quality: `17` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/thumbnail-tags`\n- Status: `failed` | Quality: `16` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

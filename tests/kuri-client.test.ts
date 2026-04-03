@@ -180,6 +180,55 @@ exit 1
     await expect(kuri.newTab("about:blank")).resolves.toBe("cdp-tab");
   });
 
+  it("returns the same broker client for the same port and distinct clients for different ports", () => {
+    const first = kuri.getKuriClient(7811);
+    const second = kuri.getKuriClient(7811);
+    const third = kuri.getKuriClient(7812);
+
+    expect(first).toBe(second);
+    expect(first).not.toBe(third);
+    expect(first.getPort()).toBe(7811);
+    expect(third.getPort()).toBe(7812);
+  });
+
+  it("drops a cached broker client after stop so the next lookup gets a fresh state object", async () => {
+    const first = kuri.getKuriClient(7813);
+    await first.stop();
+    const second = kuri.getKuriClient(7813);
+
+    expect(second).not.toBe(first);
+    expect(second.getPort()).toBe(7813);
+  });
+
+  it("runs independent start loops for different broker ports", async () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-multiport-"));
+    tmpDirs.push(tmpDir);
+    const fakeBin = path.join(tmpDir, "kuri");
+    writeFileSync(fakeBin, `#!/bin/sh
+counter_file="${tmpDir}/counter-$PORT.txt"
+[ -f "$counter_file" ] || echo "0" > "$counter_file"
+count="$(cat "$counter_file")"
+count=$((count + 1))
+echo "$count" > "$counter_file"
+exit 1
+`);
+    chmodSync(fakeBin, 0o755);
+    process.env.KURI_BIN = fakeBin;
+
+    const basePort = 43000 + (process.pid % 1000);
+    const clientA = kuri.getKuriClient(basePort);
+    const clientB = kuri.getKuriClient(basePort + 1);
+    const results = await Promise.allSettled([
+      clientA.start(),
+      clientB.start(),
+    ]);
+
+    expect(results.every((result) => result.status === "rejected")).toBe(true);
+    expect(Number(readFileSync(path.join(tmpDir, `counter-${basePort}.txt`), "utf8").trim())).toBe(4);
+    expect(Number(readFileSync(path.join(tmpDir, `counter-${basePort + 1}.txt`), "utf8").trim())).toBe(4);
+
+    await Promise.allSettled([clientA.stop(), clientB.stop()]);
+  }, 30_000);
   it("derives launch mode from env flags", () => {
     expect(kuri.resolveKuriLaunchConfig({
       HEADLESS: "true",
@@ -200,6 +249,26 @@ exit 1
       headless: false,
       attachToExistingChrome: true,
     });
+  });
+
+  it("reuses a surviving managed Chrome even when ambient CDP attach is disabled", () => {
+    expect(kuri.shouldReuseManagedChrome(
+      { headless: true, attachToExistingChrome: false },
+      { cdpPort: 9224, managedChrome: true },
+      true,
+    )).toBe(true);
+
+    expect(kuri.shouldReuseManagedChrome(
+      { headless: true, attachToExistingChrome: false },
+      { cdpPort: 9224, managedChrome: false },
+      true,
+    )).toBe(false);
+
+    expect(kuri.shouldReuseManagedChrome(
+      { headless: false, attachToExistingChrome: true },
+      { cdpPort: 9224, managedChrome: true },
+      true,
+    )).toBe(false);
   });
 
   it("extracts plugin loaders from html datasets", () => {
@@ -242,6 +311,23 @@ exit 1
     }
   });
 
+  it("accepts Kuri tab ids returned as id", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/tab/new")) return new Response(JSON.stringify({ id: "tab-from-id" }));
+      if (url.includes("/discover")) return new Response(JSON.stringify({ ok: true }));
+      if (url.includes("/tabs")) return new Response(JSON.stringify([{ id: "tab-from-id", url: "about:blank" }]));
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      await expect(kuri.newTab("about:blank")).resolves.toBe("tab-from-id");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("uses the discovered CDP port for secure cookie lookup instead of hardcoded 9222", async () => {
     const originalFetch = globalThis.fetch;
     const seenUrls: string[] = [];
@@ -269,9 +355,59 @@ exit 1
       });
     } finally {
       globalThis.fetch = originalFetch;
+      kuri.setCdpPortForTests(null);
     }
 
     expect(seenUrls[0]).toBe("http://127.0.0.1:9333/json");
     expect(seenUrls).toContain(`http://127.0.0.1:${kuri.getPort()}/cookies?tab_id=tab-1&name=li_at&value=secret&domain=.linkedin.com`);
+  });
+
+  it("reuses an idle tab before opening a raw CDP fallback tab", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/tab/new")) return new Response(JSON.stringify({ error: "Target.createTarget failed" }));
+      if (url.includes("/discover")) return new Response(JSON.stringify({ error: "Cannot connect to Chrome" }));
+      if (url.includes("/tabs")) return new Response(JSON.stringify([{ id: "idle-tab", url: "chrome://newtab/" }]));
+      if (url.includes("/json/new?")) {
+        if (init?.method !== "PUT") throw new Error("expected PUT");
+        throw new Error("should not create a raw CDP tab when an idle tab exists");
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      await expect(kuri.newTab("about:blank")).resolves.toBe("idle-tab");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("keeps long evaluate expressions in the query string for brokers that only read URL params", async () => {
+    const originalFetch = globalThis.fetch;
+    const longExpression = "x".repeat(2101);
+    let seenUrl = "";
+    let seenMethod = "";
+
+    globalThis.fetch = (async (input, init) => {
+      seenUrl = String(input);
+      seenMethod = String(init?.method ?? "GET");
+      return new Response(JSON.stringify({
+        result: {
+          result: {
+            type: "string",
+            value: "ok",
+          },
+        },
+      }));
+    }) as typeof fetch;
+
+    try {
+      await expect(kuri.evaluate("tab-1", longExpression)).resolves.toBe("ok");
+      expect(seenMethod).toBe("POST");
+      expect(new URL(seenUrl).searchParams.get("expression")).toBe(longExpression);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

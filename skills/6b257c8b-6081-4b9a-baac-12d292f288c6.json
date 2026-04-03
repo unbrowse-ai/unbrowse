@@ -1,0 +1,97 @@
+{
+  "skill_id": "6b257c8b-6081-4b9a-baac-12d292f288c6",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-15T13:30:02.329Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "variant",
+  "intent_signature": "Interact with Variant to manage projects,",
+  "domain": "variant.com",
+  "description": "Interact with Variant to manage projects,",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "variant",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--rate-limit-generations",
+      "method": "GET",
+      "url_template": "https://variant.com/rate-limit/generations",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--",
+      "method": "POST",
+      "url_template": "https://variant.com/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--community",
+      "method": "POST",
+      "url_template": "https://variant.com/community",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--projects",
+      "method": "POST",
+      "url_template": "https://variant.com/projects",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--usage",
+      "method": "POST",
+      "url_template": "https://variant.com/usage",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "CBBLLwbCkHPzxBitvDMrMURcgG3gEM9duoQPMtzkPw3g",
+    "download_count": 0,
+    "total_versions": 7,
+    "latest_version_hash": "b5905677b88c2b7d36f2b4ae6d44d088c86df1767a271c85b20195afb3dcbcdb"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: variant\ndescription: Internal API for variant\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://variant.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 7\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Variant API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (5)\n- `GET /api/community/popular` — Get a list of popular community items.\n- `GET /api/projects/chats` — List available chat projects.\n- `GET /homepage-widgets/manifest.json` — Retrieve the manifest for homepage widgets.\n- `GET /rate-limit/generations` — Get the current rate limit for generations.\n- `POST /{id}` — Update an existing variant with new data.\n\n### Data Write (1)\n- `POST /api/chat/artifacts-preview` — Create a preview of chat artifacts.\n\n### Core API (1)\n- `GET /api/version` — Check the current version of the Variant API.\n\n## Quick Start\n\nHere are a few examples to get you started with the Variant API.\n\nCheck the API version:\n\n```typescript\n// Check the API version\nasync function getApiVersion() {\n  const version = await client.getApiVersion();\n  console.log(`Variant API Version: ${version}`);\n  return version;\n}\n```\n\nCreate a preview of chat artifacts:\n\n```typescript\n// Create a preview of chat artifacts\nasync function createChatArtifactsPreview(data: any) {\n  try {\n    const preview = await client.postApiChatArtifactsPreview(data);\n    console.log(\"Chat Artifacts Preview created:\", preview);\n    return preview;\n  } catch (error) {\n    console.error(\"Error creating chat artifacts preview:\", error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://variant.com`\n**Captured Auth:** none captured\n\n## About This Skill\n\nThis skill provides access to Variant's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Variant data without official API access\n- Automate actions on variant.com (faster than browser automation)\n- Call the same endpoints the Variant frontend uses\n\n## Quick Start\n\n```typescript\nimport { VariantClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await VariantClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (16)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/collections`\n- `GET /api/community/popular`\n- `GET /api/projects/chats`\n- `GET /api/version`\n- `GET /rate-limit/generations`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/collections`\n- Status: `auth_required` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/community/popular`\n- Status: `auth_required` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/projects/chats`\n- Status: `auth_required` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/version`\n- Status: `verified` | Quality: `1` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /rate-limit/generations`\n- Status: `auth_required` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -1,0 +1,33 @@
+{
+  "skill_id": "xjx4nD4SDYUNTMp31g8qy",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:48:30.860Z",
+  "updated_at": "2026-02-23T07:48:30.860Z",
+  "name": "ph.vapi.ai -- Manage Vapi authentication, retrieve survey data",
+  "intent_signature": "Manage Vapi authentication, retrieve survey data",
+  "domain": "ph.vapi.ai",
+  "description": "Auto-discovered skill for: Manage Vapi authentication, retrieve survey data",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "OvN_VRzcIL93tJZdhh0P6",
+      "method": "GET",
+      "url_template": "https://ph.vapi.ai/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "ph.vapi.ai-session"
+}

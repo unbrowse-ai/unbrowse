@@ -7,6 +7,8 @@ export interface BrowseSession {
   url: string;
   harActive: boolean;
   domain: string;
+  brokerPort?: number;
+  client?: BrowseSessionClient;
 }
 
 export interface BrowseTabRef {
@@ -21,6 +23,7 @@ export interface BrowseSessionClient {
   closeTab(tabId: string): Promise<void>;
   discoverTabs(): Promise<BrowseTabRef[]>;
   getCurrentUrl(tabId: string): Promise<string>;
+  getPort?(): number;
 }
 
 export type BrowseSessionErrorCode =
@@ -50,7 +53,12 @@ const RECOVERABLE_BROWSE_FAILURES = [
   "execution context was destroyed",
   "cannot find context with specified id",
   "no such target",
+  "socket connection was closed unexpectedly",
+  "econnreset",
 ];
+
+const LIVE_CHECK_RETRIES = 8;
+const LIVE_CHECK_RETRY_DELAY_MS = 250;
 
 const sessionQueues = new Map<string, Promise<void>>();
 
@@ -91,8 +99,44 @@ function extractDomain(url: string | undefined): string {
   }
 }
 
+function normalizeBrowseUrl(url: string | undefined): URL | null {
+  if (!url) return null;
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeBrowsePathname(pathname: string): string {
+  if (!pathname) return "/";
+  return pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname;
+}
+
+function matchesPreferredBrowseTab(tabUrl: string | undefined, preferredUrl: string | undefined): boolean {
+  const candidate = normalizeBrowseUrl(tabUrl);
+  const preferred = normalizeBrowseUrl(preferredUrl);
+  if (!candidate || !preferred) return false;
+  if (candidate.hostname.replace(/^www\./, "") !== preferred.hostname.replace(/^www\./, "")) return false;
+  return normalizeBrowsePathname(candidate.pathname) === normalizeBrowsePathname(preferred.pathname);
+}
+
 function cleanupSessionQueue(sessionId: string): void {
   sessionQueues.delete(sessionId);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hasKnownBrowseUrl(value: string | undefined): boolean {
+  return typeof value === "string" && value.length > 0;
+}
+
+function resolveSessionClient(session: BrowseSession | undefined, fallback: BrowseSessionClient): BrowseSessionClient {
+  const fallbackPort = fallback.getPort?.();
+  if (session?.brokerPort !== undefined && fallbackPort === session.brokerPort) return fallback;
+  return session?.client ?? fallback;
 }
 
 export function createRegisteredBrowseSession(
@@ -103,6 +147,8 @@ export function createRegisteredBrowseSession(
     url: string;
     domain: string;
     harActive?: boolean;
+    brokerPort?: number;
+    client?: BrowseSessionClient;
   },
 ): BrowseSession {
   const existing = [...sessions.values()].find((session) => session.tabId === input.tabId);
@@ -110,6 +156,8 @@ export function createRegisteredBrowseSession(
     existing.url = input.url;
     existing.domain = input.domain;
     existing.harActive = input.harActive ?? existing.harActive;
+    existing.brokerPort = input.brokerPort ?? existing.brokerPort;
+    existing.client = input.client ?? existing.client;
     return existing;
   }
 
@@ -120,6 +168,8 @@ export function createRegisteredBrowseSession(
     url: input.url,
     domain: input.domain,
     harActive: input.harActive ?? true,
+    brokerPort: input.brokerPort,
+    client: input.client,
   };
   sessions.set(sessionId, session);
   return session;
@@ -152,9 +202,9 @@ async function createBrowseSession(
   injectInterceptor: (tabId: string) => Promise<unknown>,
   sessionId?: string,
 ): Promise<BrowseSession> {
-  await client.start().catch(() => {});
+  await client.start();
   const tabId = await client.newTab();
-  if (!tabId) throw new Error("failed to create browse tab");
+  if (!tabId) throw new Error("Failed to create browser tab");
   await client.harStart(tabId).catch(() => {});
   await injectInterceptor(tabId);
   return createRegisteredBrowseSession(sessions, {
@@ -163,6 +213,8 @@ async function createBrowseSession(
     url: "about:blank",
     domain: "",
     harActive: true,
+    brokerPort: client.getPort?.(),
+    client,
   });
 }
 
@@ -170,20 +222,18 @@ async function adoptExistingBrowseTab(
   sessions: Map<string, BrowseSession>,
   client: BrowseSessionClient,
   injectInterceptor: (tabId: string) => Promise<unknown>,
-  preferredDomain?: string,
+  preferredUrl?: string,
   sessionId?: string,
 ): Promise<BrowseSession | null> {
   try {
+    await client.start();
     const tabs = await client.discoverTabs();
-    const normalizedPreferred = preferredDomain?.replace(/^www\./, "") ?? "";
+    if (!preferredUrl) return null;
     const reservedTabs = ownedTabIds(sessions, sessionId);
-    const candidate =
-      tabs.find((tab) => {
-        if (!tab.id || reservedTabs.has(tab.id)) return false;
-        const domain = extractDomain(tab.url);
-        return !!domain && !!normalizedPreferred && domain === normalizedPreferred;
-      }) ??
-      tabs.find((tab) => tab.id && !reservedTabs.has(tab.id) && /^https?:\/\//.test(tab.url ?? ""));
+    const candidate = tabs.find((tab) => {
+      if (!tab.id || reservedTabs.has(tab.id)) return false;
+      return matchesPreferredBrowseTab(tab.url, preferredUrl);
+    });
 
     if (!candidate?.id) return null;
     await client.harStart(candidate.id).catch(() => {});
@@ -194,10 +244,39 @@ async function adoptExistingBrowseTab(
       url: candidate.url ?? "about:blank",
       domain: extractDomain(candidate.url),
       harActive: true,
+      brokerPort: client.getPort?.(),
+      client,
     });
   } catch {
     return null;
   }
+}
+
+export async function rebindBrowseSessionToMatchingTab(
+  sessions: Map<string, BrowseSession>,
+  client: BrowseSessionClient,
+  injectInterceptor: (tabId: string) => Promise<unknown>,
+  sessionId: string,
+  preferredUrl?: string,
+): Promise<BrowseSession | null> {
+  const existing = sessions.get(sessionId);
+  if (!existing) return null;
+  const rebound = await adoptExistingBrowseTab(
+    sessions,
+    resolveSessionClient(existing, client),
+    injectInterceptor,
+    preferredUrl ?? existing.url,
+    sessionId,
+  );
+  if (!rebound) return null;
+  existing.tabId = rebound.tabId;
+  existing.url = rebound.url;
+  existing.domain = rebound.domain;
+  existing.harActive = rebound.harActive;
+  existing.brokerPort = rebound.brokerPort;
+  existing.client = rebound.client;
+  sessions.set(sessionId, existing);
+  return existing;
 }
 
 async function dropBrowseSession(
@@ -206,7 +285,7 @@ async function dropBrowseSession(
   session: BrowseSession | undefined,
 ): Promise<void> {
   if (!session) return;
-  await client.closeTab(session.tabId).catch(() => {});
+  await resolveSessionClient(session, client).closeTab(session.tabId).catch(() => {});
   removeBrowseSession(sessions, session.sessionId);
 }
 
@@ -215,15 +294,55 @@ export async function isBrowseSessionLive(
   client: BrowseSessionClient,
 ): Promise<boolean> {
   if (!session.tabId) return false;
+  const sessionClient = resolveSessionClient(session, client);
+  let tabSeen = false;
+  let lastKnownUrl = session.url;
 
   try {
-    const tabs = await client.discoverTabs();
-    if (!tabs.some((tab) => tab.id === session.tabId)) return false;
-    const currentUrl = await client.getCurrentUrl(session.tabId);
-    return typeof currentUrl === "string" && currentUrl.length > 0;
-  } catch {
-    return false;
+    await sessionClient.start();
+  } catch (error) {
+    if (isRecoverableBrowseFailure(error)) return false;
+    throw error;
   }
+
+  for (let attempt = 0; attempt < LIVE_CHECK_RETRIES; attempt += 1) {
+    try {
+      const tabs = await sessionClient.discoverTabs();
+      const liveTab = tabs.find((tab) => tab.id === session.tabId)
+        ?? tabs.find((tab) => matchesPreferredBrowseTab(tab.url, lastKnownUrl));
+      if (!liveTab) {
+        if (attempt < LIVE_CHECK_RETRIES - 1) {
+          await sleep(LIVE_CHECK_RETRY_DELAY_MS);
+          continue;
+        }
+        return false;
+      }
+      if (liveTab.id !== session.tabId) {
+        session.tabId = liveTab.id;
+        session.url = liveTab.url ?? session.url;
+        session.domain = extractDomain(session.url);
+        session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
+        session.client = sessionClient;
+      }
+      tabSeen = true;
+      if (hasKnownBrowseUrl(liveTab.url)) lastKnownUrl = liveTab.url!;
+
+      try {
+        const currentUrl = await sessionClient.getCurrentUrl(session.tabId);
+        if (hasKnownBrowseUrl(currentUrl)) return true;
+      } catch (error) {
+        if (!isRecoverableBrowseFailure(error)) return false;
+      }
+
+      if (hasKnownBrowseUrl(lastKnownUrl)) return true;
+    } catch (error) {
+      if (!isRecoverableBrowseFailure(error)) return false;
+    }
+
+    if (attempt < LIVE_CHECK_RETRIES - 1) await sleep(LIVE_CHECK_RETRY_DELAY_MS);
+  }
+
+  return tabSeen && hasKnownBrowseUrl(lastKnownUrl);
 }
 
 async function listLiveBrowseSessions(
@@ -267,16 +386,18 @@ export async function getOrCreateBrowseSession(
   client: BrowseSessionClient,
   injectInterceptor: (tabId: string) => Promise<unknown>,
 ): Promise<BrowseSession> {
+  await client.start();
   const existingSessions = [...sessions.values()];
   if (existingSessions.length === 1) {
     const existing = existingSessions[0];
     if (await isBrowseSessionLive(existing, client)) return existing;
-    const preferredDomain = existing.domain || extractDomain(existing.url);
+    const preferredUrl = existing.url;
     const targetSessionId = existing.sessionId;
-    await dropBrowseSession(sessions, client, existing);
-    const adopted = await adoptExistingBrowseTab(sessions, client, injectInterceptor, preferredDomain, targetSessionId);
+    const existingClient = resolveSessionClient(existing, client);
+    await dropBrowseSession(sessions, existingClient, existing);
+    const adopted = await adoptExistingBrowseTab(sessions, existingClient, injectInterceptor, preferredUrl, targetSessionId);
     if (adopted) return adopted;
-    return createBrowseSession(sessions, client, injectInterceptor, targetSessionId);
+    return createBrowseSession(sessions, existingClient, injectInterceptor, targetSessionId);
   }
 
   const live = await listLiveBrowseSessions(sessions, client);
@@ -285,9 +406,9 @@ export async function getOrCreateBrowseSession(
 
   const existing = existingSessions[0];
   const targetSessionId = existing?.sessionId;
-  const preferredDomain = existing?.domain || extractDomain(existing?.url);
+  const preferredUrl = existing?.url;
   if (existing) await dropBrowseSession(sessions, client, existing);
-  const adopted = await adoptExistingBrowseTab(sessions, client, injectInterceptor, preferredDomain, targetSessionId);
+  const adopted = await adoptExistingBrowseTab(sessions, client, injectInterceptor, preferredUrl, targetSessionId);
   if (adopted) return adopted;
   return createBrowseSession(sessions, client, injectInterceptor, targetSessionId);
 }
@@ -298,15 +419,17 @@ export async function resetBrowseSession(
   injectInterceptor: (tabId: string) => Promise<unknown>,
   sessionId?: string,
 ): Promise<BrowseSession> {
+  await client.start();
   const existing = sessionId
     ? sessions.get(sessionId)
     : [...sessions.values()][0];
   const targetSessionId = sessionId ?? existing?.sessionId;
-  const preferredDomain = existing?.domain || extractDomain(existing?.url);
-  await dropBrowseSession(sessions, client, existing);
-  const adopted = await adoptExistingBrowseTab(sessions, client, injectInterceptor, preferredDomain, targetSessionId);
+  const preferredUrl = existing?.url;
+  const existingClient = resolveSessionClient(existing, client);
+  await dropBrowseSession(sessions, existingClient, existing);
+  const adopted = await adoptExistingBrowseTab(sessions, existingClient, injectInterceptor, preferredUrl, targetSessionId);
   if (adopted) return adopted;
-  return createBrowseSession(sessions, client, injectInterceptor, targetSessionId);
+  return createBrowseSession(sessions, existingClient, injectInterceptor, targetSessionId);
 }
 
 async function withSessionQueue<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
@@ -361,6 +484,7 @@ export async function withSerializedRecoveredBrowseSession<T>(
   return withSessionQueue(resolved.sessionId, async () => {
     let session = sessions.get(resolved.sessionId);
     if (!session) throw new BrowseSessionError("session_expired");
+    const sessionClient = resolveSessionClient(session, client);
 
     try {
       const result = await run(session);
@@ -371,7 +495,7 @@ export async function withSerializedRecoveredBrowseSession<T>(
       if (!isRecoverableBrowseFailure(error)) throw error;
     }
 
-    session = await resetBrowseSession(sessions, client, injectInterceptor, resolved.sessionId);
+    session = await resetBrowseSession(sessions, sessionClient, injectInterceptor, resolved.sessionId);
     const result = await run(session);
     return { session, result, recovered: true };
   });
@@ -398,15 +522,21 @@ export async function withSerializedStrictBrowseSession<T>(
     try {
       const result = await run(session);
       if (shouldExpire?.(result)) {
-        removeBrowseSession(sessions, resolved.sessionId);
-        throw new BrowseSessionError("session_expired");
+        const stillLive = await isBrowseSessionLive(session, client);
+        if (!stillLive) {
+          removeBrowseSession(sessions, resolved.sessionId);
+          throw new BrowseSessionError("session_expired");
+        }
       }
       return { session, result, recovered: false };
     } catch (error) {
       if (error instanceof BrowseSessionError) throw error;
       if (isRecoverableBrowseFailure(error)) {
-        removeBrowseSession(sessions, resolved.sessionId);
-        throw new BrowseSessionError("session_expired");
+        const stillLive = await isBrowseSessionLive(session, client);
+        if (!stillLive) {
+          removeBrowseSession(sessions, resolved.sessionId);
+          throw new BrowseSessionError("session_expired");
+        }
       }
       throw error;
     }

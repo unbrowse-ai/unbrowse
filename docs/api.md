@@ -129,6 +129,15 @@ Useful post-processing flags supported by the current CLI:
 
 `POST /v1/auth/steal` is the lower-level cookie import path for browser/Electron stores. Use it when you need custom cookie DB or user-data-dir input instead of the normal interactive login flow.
 
+## Browse-session dependency contract
+
+For multi-step browser flows, downstream pages depend on upstream state. Treat `POST /v1/browse/submit` as the boundary that proves the dependency edge.
+
+- Call `go`, `snap`, action tools, then `submit` for the real page transition.
+- After `submit`, trust the returned `url`, `session_id`, and transition metadata. Do not guess deep links if the session has not actually unlocked them yet.
+- `sync` after important transitions so the route graph records the working request chain and future resolve/execute calls can inherit it.
+- If the server later returns `abandonedCart`, `session_expired`, or the wrong product/audience variant, restart from the last known good upstream step instead of forcing a downstream page.
+
 ## Mutations
 
 Unsafe endpoint execution must be explicit.

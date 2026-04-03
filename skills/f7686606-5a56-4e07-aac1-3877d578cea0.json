@@ -1,0 +1,62 @@
+{
+  "skill_id": "f7686606-5a56-4e07-aac1-3877d578cea0",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-22T06:37:17.554Z",
+  "updated_at": "2026-02-22T06:37:39.826Z",
+  "name": "app-hubspot",
+  "intent_signature": "Manage HubSpot portal configurations, track frontend performance",
+  "domain": "api.hubspot.com",
+  "description": "Manage HubSpot portal configurations, track frontend performance",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (x-hubspot-csrf-hubspotapi)",
+  "service_name": "app-hubspot",
+  "endpoints": [
+    {
+      "endpoint_id": "037207b8-0ded-45c3-844a-49a69058bff0",
+      "method": "POST",
+      "url_template": "https://api.hubspot.com/__endpoint/037207b8-0ded-45c3-844a-49a69058bff0",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createIpList",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "23f1b440-61f7-470e-8143-718a3491646f",
+      "method": "POST",
+      "url_template": "https://api.hubspot.com/__endpoint/23f1b440-61f7-470e-8143-718a3491646f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createRhumbData",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "GHr3iVZemAqW1eRY3bbGWLCfxuBjXv9YxT3KamWyEc6t",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "cfde9a40c68eca73c4f673e620a6ad825d4ca83b69d73f0743b6abc100d0c274"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: app-hubspot\ndescription: Internal API for app-hubspot\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://api.hubspot.com\"\n  authMethod: \"Session Token (x-hubspot-csrf-hubspotapi)\"\n  endpointCount: 9\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# AppHubspot API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-hubspot-csrf-hubspotapi) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /hublytics/session-replay/v1/config` — Get session replay configuration.\n\n### Data Read (3)\n- `GET /home/v2/api/{apiId}` — Read data for a specific API ID.\n- `GET /ip-lookup` — Lookup IP information.\n- `GET /v2/cf-location` — Get location information from Cloudflare.\n\n### Data Write (5)\n- `POST /api/cartographer/v1/rhumb` — Submit rhumb data.\n- `POST /cartographer/v1/ipl` — Submit IP list data.\n- `POST /frontend/observability/page-tracking/store/` — Store page tracking data.\n- `POST /metrics/v1/frontend/custom/send` — Send custom frontend metrics.\n- `POST /v2/activity/view` — Record an activity view.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"app-hubspot\", executionMode: \"backend\", endpoint: \"GET /home/v2/api/{apiId}\" }\n```\n\nHere are a few examples to get you started with the `app-hubspot` API.\n\n```typescript\n// Example: Retrieving session replay configuration.\n// This is often the first step to configure the agent.\nasync function getSessionReplayConfig() {\n  try {\n    const config = await client.getHublyticsSessionReplayV1Config();\n    console.log(\"Session Replay Configuration:\", config);\n    return config;\n  } catch (error) {\n    console.error(\"Error fetching session replay config:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Sending custom frontend metrics.\n// Useful for tracking specific AI agent performance metrics.\nasync function sendCustomMetric(metricName: string, metricValue: number) {\n  try {\n    const response = await client.postMetricsV1FrontendCustomSend({\n      metricName: metricName,\n      metricValue: metricValue,\n    });\n    console.log(\"Custom metric sent:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error sending custom metric:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-hubspot-csrf-hubspotapi)\n**Base URL:** `https://api.hubspot.com`\n**Captured Auth:** 1 auth headers, 2 session cookies\n\n## About This Skill\n\nThis skill provides access to App Hubspot's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access App Hubspot data without official API access\n- Automate actions on api.hubspot.com (faster than browser automation)\n- Call the same endpoints the App Hubspot frontend uses\n\n## Quick Start\n\n```typescript\nimport { AppHubspotClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await AppHubspotClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (x-hubspot-csrf-hubspotapi)\n- **Session cookies:** 2\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (12)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /firealarm/v4/alarm/LoginUI`\n- `GET /home/v2/api/no-intended-portal`\n- `GET /home/v2/api/portal`\n- `GET /hublytics/session-replay/v1/config`\n- `GET /ip-lookup`\n- `GET /v2/cf-location`\n- `POST /api/cartographer/v1/rhumb`\n- `POST /api/usage-logging/v1/log/hublytics-multi/no-auth`\n- `POST /cartographer/v1/ipl`\n- `POST /frontend/observability/page-tracking/store/`\n- `POST /metrics/v1/frontend/custom/send`\n- `POST /v2/activity/view`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /firealarm/v4/alarm/LoginUI`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /home/v2/api/no-intended-portal`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /home/v2/api/portal`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /hublytics/session-replay/v1/config`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /ip-lookup`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v2/cf-location`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /api/cartographer/v1/rhumb`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /api/usage-logging/v1/log/hublytics-multi/no-auth`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /cartographer/v1/ipl`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /frontend/observability/page-tracking/store/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /metrics/v1/frontend/custom/send`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v2/activity/view`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

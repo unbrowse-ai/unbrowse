@@ -1,0 +1,75 @@
+{
+  "skill_id": "nJ1JlZ7txXWMUL0AhDlud",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T08:01:31.840Z",
+  "updated_at": "2026-02-23T08:01:31.840Z",
+  "name": "www.stocktwits.com -- Retrieve real-time market quotes",
+  "intent_signature": "Retrieve real-time market quotes",
+  "domain": "www.stocktwits.com",
+  "description": "Auto-discovered skill for: Retrieve real-time market quotes",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "XcWibq_KXe2jwDlYEc0SU",
+      "method": "GET",
+      "url_template": "https://www.stocktwits.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "4ZzwqjsA_2T3GgEPzcSf-",
+      "method": "GET",
+      "url_template": "https://stocktwits.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ZOX7YUgOGt8DkYgEr8qoj",
+      "method": "GET",
+      "url_template": "https://stocktwits.comhttps://stocktwits.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "IfCQInIvEdt_chOMcW91i",
+      "method": "GET",
+      "url_template": "https://challenges.cloudflare.comhttps://challenges.cloudflare.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.stocktwits.com-session"
+}

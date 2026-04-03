@@ -1,0 +1,109 @@
+{
+  "skill_id": "_RH5U-EDQEjfeTczOH1Z6",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:54:13.149Z",
+  "updated_at": "2026-02-23T07:54:13.149Z",
+  "name": "www.amazon.com -- Interact with Amazon services to manage Prime memberships",
+  "intent_signature": "Interact with Amazon services to manage Prime memberships",
+  "domain": "www.amazon.com",
+  "description": "Auto-discovered skill for: Interact with Amazon services to manage Prime memberships",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "c9rFMl8x53-PtGLN468Yz",
+      "method": "GET",
+      "url_template": "https://www.amazon.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "IIYJ2d_22Vnzklv3r_DUS",
+      "method": "GET",
+      "url_template": "https://1c5c1ecf7303.eb59107c.us-west-1.token.awswaf.com/1c5c1ecf7303/d6a7a58005ec/04c5ab18cd2d/inputs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.amazon.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "client": "browser"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "hmac": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "region": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "input",
+              "hmac",
+              "region"
+            ],
+            "inferred_from_samples": 1
+          },
+          "challenge_type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "difficulty": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "challenge",
+          "challenge_type",
+          "difficulty"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "zQcQePoxLnXvY5RmThdV_",
+      "method": "GET",
+      "url_template": "https://fls-na.amazon.com/1/oc-csi/1/OP/requestId=WKZB0G2MTXP6YD8JV5D3&js=1",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.amazon.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.amazon.com-session"
+}

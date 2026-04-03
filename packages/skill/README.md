@@ -147,6 +147,17 @@ unbrowse search --intent "get stock prices"
 
 For most MCP hosts, the standard flow is `unbrowse_resolve` first, then `unbrowse_execute`. For JS-heavy or first-time capture workflows, use the browser tool chain: `unbrowse_go -> unbrowse_snap -> action tools -> unbrowse_submit/unbrowse_sync -> unbrowse_close`.
 
+## Dependency walk for multi-step UIs
+
+Treat each successful browser submit as a dependency boundary.
+
+- Do not jump straight to guessed downstream URLs like `/date-selection.html` or `/payment.html` unless the current session already reached them through the real page flow.
+- Use `unbrowse_submit` for the actual transition, then trust the returned `url`, `session_id`, and any next-step hints over your own assumptions.
+- `unbrowse_sync` after a good transition so the route graph records which request chain unlocked the next page.
+- If a page later returns `abandonedCart`, `session_expired`, or a wrong audience/product variant, restart from the last known good upstream step and walk forward again.
+
+The dependency graph is not just API-to-API. On JS-heavy checkout flows it also captures browser-state prerequisites: selected product, resident/non-resident audience, date, slot, auth, and cart state. Future agents should reason from those prerequisites before calling deeper steps.
+
 ## Demo notes
 
 - First-time capture/indexing on a site can take 20-80 seconds. That is the slow path; repeats should be much faster.

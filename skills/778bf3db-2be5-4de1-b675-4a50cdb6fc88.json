@@ -1,0 +1,114 @@
+{
+  "skill_id": "778bf3db-2be5-4de1-b675-4a50cdb6fc88",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:12:35.120Z",
+  "updated_at": "2026-02-19T06:19:18.287Z",
+  "name": "ilga-gov",
+  "intent_signature": "Retrieve current and historical Illinois General Assembly data",
+  "domain": "www.ilga.gov",
+  "description": "Retrieve current and historical Illinois General Assembly data",
+  "owner_type": "marketplace",
+  "auth_type": "Custom Token (x-goog-authuser)",
+  "service_name": "ilga-gov",
+  "endpoints": [
+    {
+      "endpoint_id": "7509c81e-de8d-42c7-b7d4-3f0505a490ca",
+      "method": "GET",
+      "url_template": "https://www.ilga.gov/__endpoint/7509c81e-de8d-42c7-b7d4-3f0505a490ca",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getCurrentGeneralAssembly",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "8a4d56cb-30bd-4c36-a342-708b84eacd63",
+      "method": "GET",
+      "url_template": "https://www.ilga.gov/__endpoint/8a4d56cb-30bd-4c36-a342-708b84eacd63",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "searchLegislation",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "d3d0a959-6663-4dd7-a166-a73e0f1c3eac",
+      "method": "GET",
+      "url_template": "https://www.ilga.gov/__endpoint/d3d0a959-6663-4dd7-a166-a73e0f1c3eac",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getGeneralAssemblies",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "4fc57130-498a-4a1d-a216-4423d0087641",
+      "method": "GET",
+      "url_template": "https://www.ilga.gov/__endpoint/4fc57130-498a-4a1d-a216-4423d0087641",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getIlgaConfig",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "b82ee674-b897-4bb0-96a3-fd55377fd2b3",
+      "method": "GET",
+      "url_template": "https://www.ilga.gov/__endpoint/b82ee674-b897-4bb0-96a3-fd55377fd2b3",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getGeneralAssemblyByGaId",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "1753fe3a-77d2-4861-bc3f-b12ff9501f71",
+      "method": "POST",
+      "url_template": "https://www.ilga.gov/__endpoint/1753fe3a-77d2-4861-bc3f-b12ff9501f71",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createElement",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "8EWikfWwCSFoLck4mwSq1VkSYo2yrMG8fZyLFgNECQ15",
+    "download_count": 0,
+    "total_versions": 4,
+    "latest_version_hash": "9fe768650d6e0b69ab7c63922f8992ef8e587cc29c2ae5c48c67ad40c29b53d8"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: ilga-gov\ndescription: Internal API for ilga-gov\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.ilga.gov\"\n  authMethod: \"Custom Token (x-goog-authuser)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# IlgaGov API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCustom Token (x-goog-authuser) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /API/Legislation/{LegislationId}` — Get detailed information about a specific piece of legislation.\n\n### Search (1)\n- `GET /API/Search/Terms` — Search for legislation using keywords or phrases.\n\n### Config (1)\n- `GET /config/ilga.gov/config.json` — Retrieve configuration settings for the ilga.gov website.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"ilga-gov\", executionMode: \"backend\", endpoint: \"GET /API/Legislation/{LegislationId}\" }\n```\n\nHere are a few examples to get you started:\n\n```typescript\n// Retrieve configuration settings for the ilga.gov website.\nconst config = await client.config();\nconsole.log(config);\n```\n\n```typescript\n// Get detailed information about a specific piece of legislation (e.g., LegislationId = 'HB0001').\nconst legislation = await client.dataRead({ LegislationId: 'HB0001' });\nconsole.log(legislation);\n```\n\n```typescript\n// Search for legislation using keywords (e.g., searching for \"climate change\").\nconst searchResults = await client.search({ Terms: 'climate change' });\nconsole.log(searchResults);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Custom Token (x-goog-authuser)\n**Base URL:** `https://www.ilga.gov`\n**Captured Auth:** 1 auth headers\n\n## About This Skill\n\nThis skill provides access to Ilga Gov's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Ilga Gov data without official API access\n- Automate actions on www.ilga.gov (faster than browser automation)\n- Call the same endpoints the Ilga Gov frontend uses\n\n## Quick Start\n\n```typescript\nimport { IlgaGovClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await IlgaGovClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (x-goog-authuser)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (10)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /API/Legislation/GetCurrentGeneralAssembly`\n- `GET /API/Legislation/GetGeneralAssemblies`\n- `GET /API/Legislation/GetGeneralAssemblyByGaId`\n- `GET /API/Search/Terms`\n- `GET /config/ilga.gov/config.json`\n- `POST /element/log`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /API/Legislation/GetCurrentGeneralAssembly`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /API/Legislation/GetGeneralAssemblies`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /API/Legislation/GetGeneralAssemblyByGaId`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /API/Search/Terms`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /config/ilga.gov/config.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /element/log`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

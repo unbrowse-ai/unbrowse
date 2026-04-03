@@ -1,0 +1,286 @@
+{
+  "skill_id": "iyx_uaMW5e9O9hZdhSKVT",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:38:53.288Z",
+  "updated_at": "2026-02-23T07:38:53.288Z",
+  "name": "www.georgia.gov -- Retrieve official Georgia state government resources, including",
+  "intent_signature": "Retrieve official Georgia state government resources, including",
+  "domain": "www.georgia.gov",
+  "description": "Auto-discovered skill for: Retrieve official Georgia state government resources, including",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "urzOkxdT_4FGu02TZ79-I",
+      "method": "GET",
+      "url_template": "https://trunk.georgia.gov/api/v1/node/emergency",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://georgia.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "filter[status][value]": "1",
+        "sort": "-changed"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "jsonapi": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "meta": {
+                "type": "object",
+                "properties": {
+                  "links": {
+                    "type": "object",
+                    "properties": {
+                      "self": {
+                        "type": "object",
+                        "properties": {
+                          "href": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "href"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "self"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "links"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "version",
+              "meta"
+            ],
+            "inferred_from_samples": 1
+          },
+          "data": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "self": {
+                "type": "object",
+                "properties": {
+                  "href": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "href"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "self"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "jsonapi",
+          "data",
+          "links"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "v7UAjMNVYTH6A0YcZNsAG",
+      "method": "GET",
+      "url_template": "https://www.georgia.gov/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "arqx99e8DAJ1EELG2uO5V",
+      "method": "GET",
+      "url_template": "https://georgia.gov/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "iZZ0_rz51p9XA_TjAUeMA",
+      "method": "GET",
+      "url_template": "https://bot.ivy.ai/bot/script/category/aymOKpReDYg950G6eNMdWX8bZ4J1kzrj",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://georgia.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "JOpuZOBEptOePKb_j42ln",
+      "method": "GET",
+      "url_template": "https://georgia.gov/media/oembed",
+      "headers_template": {
+        "referer": "https://georgia.gov/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "url": "https://youtu.be/e6pixdZD_dI?si=CjoPGSr-7KepysNU",
+        "max_width": "640",
+        "max_height": "360",
+        "hash": "OqOEeoZPwS5938du9c9K2iXGQvJVPj0NZtt04iyts0Q"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "mhejVP2kE17erddv9k_WQ",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/embed/e6pixdZD_dI",
+      "headers_template": {
+        "referer": "https://georgia.gov/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "rel": "0",
+        "feature": "oembed"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ZXsCV2EUs3n03g5U_plpk",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://georgia.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Nunito Sans:300,400,700,900",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "uer6jfGcY_jShE1UhnGSF",
+      "method": "GET",
+      "url_template": "https://637444.global.siteimproveanalytics.io/image.aspx",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://georgia.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "url": "https://georgia.gov/",
+        "title": "Georgia.gov",
+        "res": "1280x720",
+        "accountid": "637444",
+        "rt": "1742",
+        "prev": "2a657a58-c26c-9af3-78b5-0e43cb4bc6c2",
+        "luid": "0be4ec1f-5561-e84a-f2ba-def35ca2178a",
+        "rnd": "35427"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ynMd1JsDV7AGt41ANN2Xk",
+      "method": "GET",
+      "url_template": "https://yt3.ggpht.com/4kiKn8KiQrkFxDh9I_64TxOyWoT_lIPDPcZywhR8ZgK8WLUx-xyv-vJLN3V7gU6LzY4PlEvDP60=s68-c-k-c0x00ffffff-no-rj",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "IZpayq4jmcj63cLj0YC5m",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/generate_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.youtube.com/embed/e6pixdZD_dI?rel=0&feature=oembed",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "haOf0A": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.georgia.gov-session"
+}

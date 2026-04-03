@@ -1,0 +1,816 @@
+{
+  "skill_id": "k4mQ0FpKqagdhp7REhV0A",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:41:19.800Z",
+  "updated_at": "2026-02-23T07:41:19.800Z",
+  "name": "kick.com -- Access live streaming data, channel profiles,",
+  "intent_signature": "Access live streaming data, channel profiles,",
+  "domain": "kick.com",
+  "description": "Auto-discovered skill for: Access live streaming data, channel profiles,",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "Bh1XP5CtpVpQtO7ImcGfW",
+      "method": "GET",
+      "url_template": "https://web.kick.com/api/v1/livestreams/featured",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "language": "en"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "livestreams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "inferred_from_samples": 14
+                    },
+                    "title": {
+                      "type": "string",
+                      "inferred_from_samples": 14
+                    },
+                    "viewer_count": {
+                      "type": "integer",
+                      "inferred_from_samples": 14
+                    },
+                    "thumbnail": {
+                      "type": "object",
+                      "properties": {
+                        "src": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        },
+                        "srcset": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        }
+                      },
+                      "required": [
+                        "src",
+                        "srcset"
+                      ],
+                      "inferred_from_samples": 14
+                    },
+                    "start_time": {
+                      "type": "string",
+                      "inferred_from_samples": 14
+                    },
+                    "channel": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "inferred_from_samples": 14
+                        },
+                        "slug": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        },
+                        "profile_pic": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        },
+                        "username": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "slug",
+                        "profile_pic",
+                        "username"
+                      ],
+                      "inferred_from_samples": 14
+                    },
+                    "category": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "inferred_from_samples": 14
+                        },
+                        "name": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        },
+                        "slug": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "slug"
+                      ],
+                      "inferred_from_samples": 14
+                    },
+                    "language": {
+                      "type": "string",
+                      "inferred_from_samples": 14
+                    },
+                    "is_mature": {
+                      "type": "boolean",
+                      "inferred_from_samples": 14
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "inferred_from_samples": 9
+                      },
+                      "inferred_from_samples": 14
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "viewer_count",
+                    "thumbnail",
+                    "start_time",
+                    "channel",
+                    "category",
+                    "language",
+                    "is_mature",
+                    "tags"
+                  ],
+                  "inferred_from_samples": 14
+                },
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "livestreams"
+            ],
+            "inferred_from_samples": 1
+          },
+          "message": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "data",
+          "message"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "4CINcv8a-WWMz5bX0wE4P",
+      "method": "GET",
+      "url_template": "https://kick.com/api/v1/categories/top",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "inferred_from_samples": 13
+            },
+            "category_id": {
+              "type": "integer",
+              "inferred_from_samples": 13
+            },
+            "name": {
+              "type": "string",
+              "inferred_from_samples": 13
+            },
+            "slug": {
+              "type": "string",
+              "inferred_from_samples": 13
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "inferred_from_samples": 13
+              },
+              "inferred_from_samples": 13
+            },
+            "description": {
+              "type": "null",
+              "anyOf": [
+                {
+                  "type": "null",
+                  "inferred_from_samples": 13
+                },
+                {
+                  "type": "string",
+                  "inferred_from_samples": 13
+                }
+              ],
+              "inferred_from_samples": 13
+            },
+            "deleted_at": {
+              "type": "null",
+              "inferred_from_samples": 13
+            },
+            "is_mature": {
+              "type": "boolean",
+              "inferred_from_samples": 13
+            },
+            "is_promoted": {
+              "type": "boolean",
+              "inferred_from_samples": 13
+            },
+            "viewers": {
+              "type": "integer",
+              "inferred_from_samples": 13
+            },
+            "is_fallback": {
+              "type": "boolean",
+              "inferred_from_samples": 13
+            },
+            "banner": {
+              "type": "object",
+              "properties": {
+                "src": {
+                  "type": "string",
+                  "inferred_from_samples": 13
+                },
+                "srcset": {
+                  "type": "string",
+                  "inferred_from_samples": 13
+                }
+              },
+              "required": [
+                "src",
+                "srcset"
+              ],
+              "inferred_from_samples": 13
+            },
+            "category": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "inferred_from_samples": 13
+                },
+                "name": {
+                  "type": "string",
+                  "inferred_from_samples": 13
+                },
+                "slug": {
+                  "type": "string",
+                  "inferred_from_samples": 13
+                },
+                "icon": {
+                  "type": "string",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "inferred_from_samples": 13
+                    },
+                    {
+                      "type": "null",
+                      "inferred_from_samples": 13
+                    }
+                  ],
+                  "inferred_from_samples": 13
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "slug",
+                "icon"
+              ],
+              "inferred_from_samples": 13
+            }
+          },
+          "required": [
+            "id",
+            "category_id",
+            "name",
+            "slug",
+            "tags",
+            "description",
+            "deleted_at",
+            "is_mature",
+            "is_promoted",
+            "viewers",
+            "is_fallback",
+            "banner",
+            "category"
+          ],
+          "inferred_from_samples": 13
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "_kBsMtJVaF2-htF23hNdl",
+      "method": "GET",
+      "url_template": "https://web.kick.com/api/v1/livestreams",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "limit": "14",
+        "sort": "featured_home",
+        "language": "en",
+        "category_id": "15"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "livestreams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "inferred_from_samples": 14
+                    },
+                    "title": {
+                      "type": "string",
+                      "inferred_from_samples": 14
+                    },
+                    "viewer_count": {
+                      "type": "integer",
+                      "inferred_from_samples": 14
+                    },
+                    "thumbnail": {
+                      "type": "object",
+                      "properties": {
+                        "src": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        },
+                        "srcset": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        }
+                      },
+                      "required": [
+                        "src",
+                        "srcset"
+                      ],
+                      "inferred_from_samples": 14
+                    },
+                    "start_time": {
+                      "type": "string",
+                      "inferred_from_samples": 14
+                    },
+                    "channel": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "inferred_from_samples": 14
+                        },
+                        "slug": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        },
+                        "profile_pic": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        },
+                        "username": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "slug",
+                        "profile_pic",
+                        "username"
+                      ],
+                      "inferred_from_samples": 14
+                    },
+                    "category": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "inferred_from_samples": 14
+                        },
+                        "name": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        },
+                        "slug": {
+                          "type": "string",
+                          "inferred_from_samples": 14
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "slug"
+                      ],
+                      "inferred_from_samples": 14
+                    },
+                    "language": {
+                      "type": "string",
+                      "inferred_from_samples": 14
+                    },
+                    "is_mature": {
+                      "type": "boolean",
+                      "inferred_from_samples": 14
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "inferred_from_samples": 12
+                      },
+                      "inferred_from_samples": 14
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "viewer_count",
+                    "thumbnail",
+                    "start_time",
+                    "channel",
+                    "category",
+                    "language",
+                    "is_mature",
+                    "tags"
+                  ],
+                  "inferred_from_samples": 14
+                },
+                "inferred_from_samples": 1
+              },
+              "pagination": {
+                "type": "object",
+                "properties": {
+                  "next_cursor": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "next_cursor"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "livestreams",
+              "pagination"
+            ],
+            "inferred_from_samples": 1
+          },
+          "message": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "data",
+          "message"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "Fby-qfIKCpUqp0B89lx_U",
+      "method": "GET",
+      "url_template": "https://kick.com/api/v2/channels/gemelojmc/playback-url",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "jDezHKD-meZ_KLY-rugwC",
+      "method": "GET",
+      "url_template": "https://kick.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "4Zf6qhtB1x3JOZtJjaGbo",
+      "method": "GET",
+      "url_template": "https://kick.com/UcggFnr2hNhLCwLf/VrE4HiZ9PsvdwUFc",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "version": "3",
+        "loaderVersion": "3.12.1"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "iX0HuqEC-jblhlYCpxjuE",
+      "method": "GET",
+      "url_template": "https://pagead2.googlesyndication.com/pagead/managed/dict/m202602190101/gpt",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "_AuSXvHEmnUmgDKNigIRN",
+      "method": "GET",
+      "url_template": "https://kick.com/{id}/{id}/mfc",
+      "headers_template": {
+        "x-kpsdk-v": "j-1.2.205",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-kpsdk-h": "01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "oXMJBweofYZceeBfVUO2V",
+      "method": "GET",
+      "url_template": "https://kick.com/ivs/1.45.0/amazon-ivs-wasmworker.min.wasm",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://kick.com/ivs/1.45.0/amazon-ivs-wasmworker.min.js"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "jYFVqmrYFEHxPc3kDpoX-",
+      "method": "GET",
+      "url_template": "https://kick.com/{id}/{id}/fp",
+      "headers_template": {
+        "referer": "https://kick.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "x-kpsdk-v": "j-1.2.205"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "2CKd9ME2vDuYiRSieYbJH",
+      "method": "GET",
+      "url_template": "https://kick.com/UcggFnr2hNhLCwLf/ylHrE6EhtV2cmcV8/PT9n/uDUl/qX5MT/A",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "q": "f2qP7OeHMVMOTS9H4vgE"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "qrIgpwcMzYQd_TAQ6gFwu",
+      "method": "GET",
+      "url_template": "https://pagead2.googlesyndication.com/pagead/gen_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://d5cb632ec01e9683b43e43d741513c0a.safeframe.googlesyndication.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "id": "av-js",
+        "type": "fle-fetch-start2"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "RekA8rf0gbBaIfUqMEhqg",
+      "method": "GET",
+      "url_template": "https://ep1.adtrafficquality.google/getconfig/sodar",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "sv": "200",
+        "tid": "gpt",
+        "tv": "m202602190101",
+        "st": "env",
+        "sjk": "1469447147256890"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "sodar_query_id": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "injector_basename": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "bg_hash_basename": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "bg_binary": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "rc_enable": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "bg_snapshot_delay_ms": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "is_gen_204": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "sodar_query_id",
+          "injector_basename",
+          "bg_hash_basename",
+          "bg_binary",
+          "rc_enable",
+          "bg_snapshot_delay_ms",
+          "is_gen_204"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "z3aJjIH2SftKTC7yZ2XrT",
+      "method": "GET",
+      "url_template": "https://websockets.kick.com/viewer/v1/token",
+      "headers_template": {
+        "x-request-id": "1771832473838.l1VzOn",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://kick.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "token"
+            ],
+            "inferred_from_samples": 1
+          },
+          "message": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "data",
+          "message"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "L6WivKstcZ9rFKo9fYsEW",
+      "method": "GET",
+      "url_template": "https://ep2.adtrafficquality.google/generate_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://ep2.adtrafficquality.google/sodar/sodar2/237/runner.html",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "nmyA9g": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "kick.com-session"
+}

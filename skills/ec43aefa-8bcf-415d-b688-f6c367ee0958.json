@@ -1,0 +1,123 @@
+{
+  "skill_id": "ec43aefa-8bcf-415d-b688-f6c367ee0958",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T16:38:59.297Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "hiring-cafe",
+  "intent_signature": "Search and filter job listings on hiring.cafe to discover relevant career opportunities across various locations. Retrieve total job counts and country-specific data to streamline employment searches and market analysis.",
+  "domain": "hiring.cafe",
+  "description": "Search and filter job listings on hiring.cafe to discover relevant career opportunities across various locations. Retrieve total job counts and country-specific data to streamline employment searches and market analysis.",
+  "owner_type": "marketplace",
+  "auth_type": "Custom Token (x-vercel-challenge-token)",
+  "service_name": "hiring-cafe",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--",
+      "method": "GET",
+      "url_template": "https://hiring.cafe/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--_next-static-{staticToken}-{staticToken}",
+      "method": "GET",
+      "url_template": "https://hiring.cafe/_next/static/{staticToken}/{staticToken}",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--.well-known-vercel-security-static-challenge.v2.wasm",
+      "method": "GET",
+      "url_template": "https://hiring.cafe/.well-known/vercel/security/static/challenge.v2.wasm",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--{id}",
+      "method": "GET",
+      "url_template": "https://hiring.cafe/{id}",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--search",
+      "method": "GET",
+      "url_template": "https://hiring.cafe/search",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--_vercel-insights-view",
+      "method": "POST",
+      "url_template": "https://hiring.cafe/_vercel/insights/view",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--.well-known-vercel-security-request-challenge",
+      "method": "POST",
+      "url_template": "https://hiring.cafe/.well-known/vercel/security/request-challenge",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "4SPps3XLGzdb17Qx2NCobkLNisKBprCbrmnzpLtY53oy",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "34c40c3b1dceee686bc2146984cc8f22b885ad37e84028b0ed74adc04d62e3ed"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: hiring-cafe\ndescription: Internal API for hiring-cafe\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://hiring.cafe\"\n  authMethod: \"Custom Token (x-vercel-challenge-token)\"\n  endpointCount: 7\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# HiringCafe API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCustom Token (x-vercel-challenge-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n- `GET /_next/static/{staticToken}/{staticToken}` — Fetch static assets for authentication flow.\n- `POST /.well-known/vercel/security/request-challenge` — Request a security challenge for authentication.\n\n### Data Read (1)\n- `GET /{id}` — Retrieve details for a specific job posting.\n\n### Data Write (1)\n- `POST /_vercel/insights/view` — Report view events for analytics.\n\n### Search (1)\n- `GET /api/search-jobs/get-total-count` — Get the total count of jobs matching a search.\n\n### Config (1)\n- `GET /.well-known/vercel/security/static/challenge.v2.wasm` — Retrieve security challenge WASM module.\n\n### Core API (1)\n- `GET /api/{apiId}` — Access core API functionality (unspecified).\n\n## Quick Start\n\nHere are a few examples to get you started interacting with the Hiring Cafe API:\n\n```typescript\n// Retrieve details for a specific job posting.\nasync function getJobDetails(jobId: string) {\n  try {\n    const job = await client.getJob(jobId);\n    console.log(`Job Title: ${job.title}`); // Assuming the response has a 'title' field.\n    return job;\n  } catch (error) {\n    console.error(\"Failed to retrieve job details:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Get the total count of jobs matching a search.\nasync function getTotalJobCount() {\n  try {\n    const count = await client.getApiSearchJobsGetTotalCount();\n    console.log(`Total job count: ${count}`);\n    return count;\n  } catch (error) {\n    console.error(\"Failed to retrieve total job count:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCustom Token (x-vercel-challenge-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (3)\n\n\n### Data Read (2)\n\n\n### Data Write (1)\n\n\n### Search (1)\n\n\n## Quick Start\n\nHere are a couple of quick examples to get you started using the `hiring-cafe` API:\n\n```typescript\n// Retrieving data for a specific job by ID.\nasync function getJobDetails(jobId: string) {\n  try {\n    const job = await client.getById(jobId);\n    console.log(`Job Title: ${job.title}`);\n    return job;\n  } catch (error) {\n    console.error(\"Failed to retrieve job details:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Sending view insights data to Vercel.\nasync function sendViewInsight(url: string) {\n  try {\n    const response = await client.post_vercel_insights_view({ url });\n    console.log(\"View insight sent:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to send view insight:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Custom Token (x-vercel-challenge-token)\n**Base URL:** `https://hiring.cafe`\n**Captured Auth:** 1 auth headers, 1 session cookies\n\n## About This Skill\n\nThis skill provides access to Hiring Cafe's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Hiring Cafe data without official API access\n- Automate actions on hiring.cafe (faster than browser automation)\n- Call the same endpoints the Hiring Cafe frontend uses\n\n## Quick Start\n\n```typescript\nimport { HiringCafeClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await HiringCafeClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (x-vercel-challenge-token)\n- **Session cookies:** 1\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (15)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /.well-known/vercel/security/static/challenge.v2.wasm`\n- `GET /api/{apiId}`\n- `GET /api/getCountry`\n- `GET /api/search-jobs`\n- `GET /api/search-jobs/get-total-count`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /.well-known/vercel/security/static/challenge.v2.wasm`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/{apiId}`\n- Status: `failed` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/getCountry`\n- Status: `failed` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/search-jobs`\n- Status: `failed` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/search-jobs/get-total-count`\n- Status: `failed` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}
