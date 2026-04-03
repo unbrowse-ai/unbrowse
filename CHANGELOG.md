@@ -33,6 +33,7 @@
 
 ### Bug Fixes
 
+* **packaged/runtime**: make packaged local servers report a stable `package_version` + `code_hash` by hashing bundled `runtime-src` sources when `dist/` has no `.ts` files, stamp the pid file with the same version metadata, add an opt-out for real-browser cookie import during `browse/go`, and make browse-session recovery fail fast when the Kuri broker cannot restart instead of collapsing into opaque `fetch failed` errors, with coverage for the packaged-health contract plus duplicate-export install regression so staging-pointed CLI runs stop self-restarting into `about:blank` or inheriting stale browser carts
 * **cli/cache**: add a `cleanup-stale` sweep that re-verifies active skills, evicts stale local cache entries, and now rotates through periodic server-side batches so dead marketplace endpoints stop getting replayed
 * **kuri/tests**: stop the Kuri live e2e suite from hijacking a visible Chrome session by honoring headless launch flags and running the fixture-browser tests in headless managed mode
 * **github/pr-agent**: split webhook dispatch into `repair` vs `merge` operations, ignore agent-self-failure loops, isolate runner `CODEX_HOME`, and let Codex make the merge recommendation before a final non-vibes safety gate executes the merge

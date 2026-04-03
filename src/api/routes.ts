@@ -13,7 +13,7 @@ import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
-import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
+import { TRACE_VERSION, CODE_HASH, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
@@ -30,6 +30,7 @@ import { type BrowseSession, getOrCreateBrowseSession, isRecoverableBrowseFailur
 import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
 import { submitBrowseForm } from "./browse-submit.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
+import { shouldImportBrowserCookies } from "../runtime/browser-auth.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
@@ -837,7 +838,13 @@ export async function registerRoutes(app: FastifyInstance) {
   });
 
   // GET /health
-  app.get("/health", async (_req, reply) => reply.send({ status: "ok", trace_version: TRACE_VERSION, code_hash: CODE_HASH, git_sha: GIT_SHA }));
+  app.get("/health", async (_req, reply) => reply.send({
+    status: "ok",
+    package_version: PACKAGE_VERSION,
+    trace_version: TRACE_VERSION,
+    code_hash: CODE_HASH,
+    git_sha: GIT_SHA,
+  }));
 
   // GET /v1/sessions/:domain — read local trace/debug files instead of proxying to backend
   app.get("/v1/sessions/:domain", async (req, reply) => {
@@ -926,15 +933,17 @@ export async function registerRoutes(app: FastifyInstance) {
           await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
 
           // Also inject cookies from the user's real Chrome/Firefox browser
-          try {
-            const { cookies: browserCookies } = extractBrowserCookies(newDomain);
-            if (browserCookies.length > 0) {
-              for (const c of browserCookies) {
-                await kuri.setCookie(session.tabId, c).catch(() => {});
+          if (shouldImportBrowserCookies()) {
+            try {
+              const { cookies: browserCookies } = extractBrowserCookies(newDomain);
+              if (browserCookies.length > 0) {
+                for (const c of browserCookies) {
+                  await kuri.setCookie(session.tabId, c).catch(() => {});
+                }
+                cookiesInjected = browserCookies.length;
               }
-              cookiesInjected = browserCookies.length;
-            }
-          } catch { /* non-fatal */ }
+            } catch { /* non-fatal */ }
+          }
         }
 
         // Start capture BEFORE navigation so all initial API calls are recorded

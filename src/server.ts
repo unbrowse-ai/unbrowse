@@ -10,6 +10,7 @@ import { startBackgroundRegistration } from "./client/index.js";
 import { shutdownAllBrowsers } from "./capture/index.js";
 import * as kuri from "./kuri/client.js";
 import { schedulePeriodicStaleCleanup } from "./stale-cleanup-runner.js";
+import { CODE_HASH, PACKAGE_VERSION } from "./version.js";
 
 type StartServerOptions = {
   host?: string;
@@ -34,6 +35,8 @@ function updatePidFile(pidFile?: string, host = "127.0.0.1", port = 6969): void 
       pid: process.pid,
       base_url: `http://${host}:${port}`,
       started_at: new Date().toISOString(),
+      version: PACKAGE_VERSION,
+      code_hash: CODE_HASH,
     }, null, 2));
   } catch {
     // ignore pid-file failures

@@ -109,6 +109,19 @@ describe("browse session recovery", () => {
     expect(injected).toEqual(["fresh-tab"]);
   });
 
+  it("surfaces broker start failures instead of swallowing them", async () => {
+    const sessions = new Map<string, BrowseSession>();
+    const error = new Error("Kuri failed to start");
+
+    await expect(getOrCreateBrowseSession(
+      sessions,
+      makeClient({
+        start: async () => { throw error; },
+      }),
+      async () => {},
+    )).rejects.toThrow("Kuri failed to start");
+  });
+
   it("retries once after a recoverable CDP failure result", async () => {
     const sessions = new Map<string, BrowseSession>();
     const created: string[] = [];

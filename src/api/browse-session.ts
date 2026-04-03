@@ -48,7 +48,7 @@ async function createBrowseSession(
   client: BrowseSessionClient,
   injectInterceptor: (tabId: string) => Promise<unknown>,
 ): Promise<BrowseSession> {
-  await client.start().catch(() => {});
+  await client.start();
   const tabId = await client.newTab();
   if (!tabId) throw new Error("Failed to create browser tab");
   await client.harStart(tabId).catch(() => {});
@@ -131,6 +131,7 @@ export async function resetBrowseSession(
   client: BrowseSessionClient,
   injectInterceptor: (tabId: string) => Promise<unknown>,
 ): Promise<BrowseSession> {
+  await client.start();
   const existing = sessions.get("default");
   const preferredDomain = existing?.domain || extractDomain(existing?.url);
   await dropBrowseSession(sessions, client, existing);
@@ -144,6 +145,7 @@ export async function getOrCreateBrowseSession(
   client: BrowseSessionClient,
   injectInterceptor: (tabId: string) => Promise<unknown>,
 ): Promise<BrowseSession> {
+  await client.start();
   const existing = sessions.get("default");
   if (existing && await isBrowseSessionLive(existing, client)) return existing;
   const preferredDomain = existing?.domain || extractDomain(existing?.url);

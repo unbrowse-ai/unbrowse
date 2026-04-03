@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { readFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, readdirSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -22,20 +22,58 @@ function collectTsFiles(dir: string): string[] {
   return results;
 }
 
+function hashFiles(srcDir: string, files: string[]): string {
+  const hash = createHash("sha256");
+  for (const file of files) {
+    hash.update(file.slice(srcDir.length));
+    hash.update(readFileSync(file, "utf-8"));
+  }
+  return hash.digest("hex").slice(0, 12);
+}
+
+export function resolveCodeHashSourceDir(moduleDir: string): string | null {
+  const candidates = [
+    moduleDir,
+    join(moduleDir, "runtime-src"),
+    join(moduleDir, "..", "runtime-src"),
+    join(moduleDir, "src"),
+    join(moduleDir, "..", "src"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (!existsSync(candidate)) continue;
+      const files = collectTsFiles(candidate);
+      if (files.length > 0) return candidate;
+    } catch {
+      // ignore candidate
+    }
+  }
+
+  return null;
+}
+
+export function computeCodeHashForDir(srcDir: string): string {
+  const files = collectTsFiles(srcDir).sort();
+  if (files.length === 0) throw new Error(`No TypeScript sources found in ${srcDir}`);
+  return hashFiles(srcDir, files);
+}
+
 function computeCodeHash(): string {
   try {
-    const srcDir = join(MODULE_DIR, ".");
-    const files = collectTsFiles(srcDir).sort();
-    const hash = createHash("sha256");
-    for (const file of files) {
-      hash.update(file.slice(srcDir.length));
-      hash.update(readFileSync(file, "utf-8"));
-    }
-    return hash.digest("hex").slice(0, 12);
+    const srcDir = resolveCodeHashSourceDir(MODULE_DIR);
+    if (srcDir) return computeCodeHashForDir(srcDir);
   } catch {
-    // Compiled binary: filesystem not available, use a static hash
-    return "compiled";
+    // fall through
   }
+
+  const pkgVersion = getPackageVersion();
+  if (pkgVersion !== "unknown") {
+    return createHash("sha256").update(`package:${pkgVersion}`).digest("hex").slice(0, 12);
+  }
+
+  // Compiled binary: filesystem not available, use a static hash
+  return "compiled";
 }
 
 function getGitSha(): string {
