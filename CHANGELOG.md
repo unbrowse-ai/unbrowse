@@ -53,6 +53,7 @@
 
 * **ci/tests**: isolate CLI end-to-end runs on a per-suite local-server port and clear backend KV index caches in popularity tests so self-hosted runners stop leaking state across jobs
 * **ci/backend-tests**: keep live beta-api backend smoke suites opt-in so required CI stops failing on external network and deployment flakiness
+* **ci/package-cli**: run the packaged CLI smoke on a per-run port and pre-accept ToS in non-interactive mode so self-hosted runners stop talking to stale local servers
 * **policy/execute**: add per-endpoint third-party-terms policy flags for sensitive domains like X, block autonomous mutation execution until callers pass explicit `confirm_third_party_terms`, and surface the policy requirement through resolve/CLI/MCP/SDK
 * **legal/terms**: clarify that users bear responsibility for third-party website and API terms, disclaim liability for third-party ToS violations to the maximum extent permitted by law, expand indemnity coverage for third-party claims, and fix the company name in ToS copy
 * **backend/payments**: split discovery from paid manifest access with `X402_SEARCH_ENABLED`, so `/v1/search*` can stay free while paid `/v1/skills/:id` detail remains x402-gated

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { publicSkillRoutes } from "../src/routes/skills.js";
+import { clearKVCacheForTests } from "../src/services/kv.js";
 import type { EndpointStats, Env, SkillManifest } from "../src/types.js";
 
 const BASE_ENV: Env = {
@@ -71,6 +72,7 @@ describe("popular skill route", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
+    clearKVCacheForTests();
     const alpha = skillFixture("alpha");
     const beta = skillFixture("beta");
     const deprecated = skillFixture("legacy", "deprecated");
@@ -107,6 +109,7 @@ describe("popular skill route", () => {
   });
 
   afterEach(() => {
+    clearKVCacheForTests();
     globalThis.fetch = originalFetch;
   });
 
