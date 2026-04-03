@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+* **ci/frontend**: add GitHub Actions PR previews for the Cloudflare/OpenNext frontend with stable `pr-<number>` preview aliases, sticky PR comments, and staging-API wiring via `PREVIEW_API_URL`
+
 ### Bug Fixes
 
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
