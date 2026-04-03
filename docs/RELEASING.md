@@ -17,6 +17,7 @@ Unbrowse releases are driven locally, then finished by GitHub Actions.
 Do not bump or publish only from `packages/skill/`.
 
 - `packages/skill` can still build/package locally, but direct `npm publish` there is now guarded and fails with instructions.
+- packaged installs must use the baked `vendor/kuri/*` binaries; release/pack now fail closed if the vendored Kuri manifest, hashes, or tracked `justrach/kuri` `adding-extensions` source SHA drift out of sync.
 - explicit local CLI publish path lives at repo root:
   - `bun run pack:cli`
   - `bun run publish:cli`
@@ -61,6 +62,7 @@ Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync 
 `test.yml` now runs on `main` pull requests and pushes, and verifies:
 
 - `SKILL.md` is in sync with `src/cli.ts`
+- baked Kuri vendor state matches the tracked `submodules/kuri` source
 - `packages/skill` passes `npm pack --dry-run`
 - the CLI/orchestrator path still passes `tests/cli-e2e.test.ts`
 

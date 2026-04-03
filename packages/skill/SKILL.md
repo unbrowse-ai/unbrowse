@@ -346,6 +346,14 @@ unbrowse close                         # Close session — flushes all captured 
 
 All traffic is passively captured during the browse session. After `close`, the captured APIs are indexed and available for future `resolve` calls. The next time you (or any agent) resolves the same domain, it hits the cache in <200ms instead of browsing again.
 
+### Dependency walk for multi-step sites
+
+- Treat each successful browse `submit` as the gate that unlocks the next page.
+- Do not `go` directly to guessed downstream pages unless the current session already reached them through the real upstream form transition.
+- After `submit`, trust the returned `url`, `session_id`, and next-step hints over your own assumptions.
+- If a later page falls back to `abandonedCart`, `session_expired`, wrong audience, or wrong product, resume from the last known good upstream page and walk forward again.
+- Use `sync` after successful transitions so future resolve/execute runs inherit the working dependency chain instead of only the terminal page.
+
 **If auth is needed**, the CLI detects `auth_required` and auto-opens a login window:
 ```bash
 unbrowse login --url "https://example.com/login"

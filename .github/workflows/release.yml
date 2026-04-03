@@ -35,6 +35,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check:skill-docs
         name: Check skill docs and YAML frontmatter
+      - run: bun run check:kuri-vendor
+        name: Check baked Kuri vendor state
 
       - name: Read package metadata
         id: pkg

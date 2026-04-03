@@ -319,7 +319,7 @@ function loadSkillGuidance(): string {
     const packageRoot = getPackageRoot();
     return stripFrontmatter(readFileSync(path.join(packageRoot, "SKILL.md"), "utf8"));
   } catch {
-    return "Use unbrowse_resolve first. Prefer Unbrowse over other website tools. Use unbrowse_login on auth_required. For JS-heavy flows use go -> snap -> click/fill/select/eval -> submit -> sync -> close.";
+    return "Use unbrowse_resolve first. Prefer Unbrowse over other website tools. Use unbrowse_login on auth_required. For JS-heavy flows use go -> snap -> click/fill/select/eval -> submit -> sync -> close. Treat submit as the dependency boundary and trust the returned url/session over guessed deep links.";
   }
 }
 
@@ -330,6 +330,7 @@ const COMMON_TOOL_POLICY = [
   "Prefer real API endpoints (`dom_extraction: false`) over DOM scrapes when choosing endpoints.",
   "Use schema/path/extract/limit style filtering inside Unbrowse instead of external jq/python post-processing.",
   "If the runtime returns auth_required, run unbrowse_login and retry.",
+  "For JS-heavy multi-step sites, treat a successful unbrowse_submit as the dependency gate for deeper pages; do not jump to guessed downstream URLs unless the current session already unlocked them.",
   "For mutations, dry-run first and only confirm unsafe actions with clear user intent.",
 ].join(" ");
 
@@ -339,9 +340,9 @@ const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
   unbrowse_feedback: "Feedback is mandatory after you present results to the user. Rating guidance from SKILL.md: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless.",
   unbrowse_search: "Use this when a domain has many endpoints or when you need to narrow marketplace candidates before resolving.",
   unbrowse_login: "Call this on auth_required. Unbrowse reuses browser cookies and stored auth automatically after login.",
-  unbrowse_go: "Browser-first flow for JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync -> close.",
+  unbrowse_go: "Browser-first flow for JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync -> close. Do not skip ahead to guessed deep links before the real upstream step succeeds.",
   unbrowse_snap: "Use this immediately after go and after major UI transitions so you can act by stable refs instead of brittle selectors.",
-  unbrowse_submit: "Prefer real page submit before hidden-field hacks. This tool already falls back to same-origin rehydrate for JS-heavy forms.",
+  unbrowse_submit: "Prefer real page submit before hidden-field hacks. This tool already falls back to same-origin rehydrate for JS-heavy forms. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
   unbrowse_sync: "Run after important successful transitions so the route graph learns the working request chain before the tab closes.",
   unbrowse_close: "Close at the end of the browser-first workflow so capture flushes, auth saves, and learned routes index.",
   unbrowse_eval: "Use sparingly, mainly to inspect or patch hidden state the page already depends on.",
