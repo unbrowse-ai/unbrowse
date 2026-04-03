@@ -15,6 +15,10 @@ import {
   UPGRADE_CMD_MCP,
 } from "@/lib/install-command";
 import { trackWebEvent } from "@/lib/web-telemetry";
+import {
+  decorateInstallCommandWithAttribution,
+  getInstallAttributionFromDocument,
+} from "@/lib/acquisition/install-attribution";
 
 const tabs = [
   {
@@ -126,8 +130,12 @@ export function InstallInstructions() {
   const tab = tabs.find((t) => t.id === active) ?? tabs[0];
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(tab.command);
-    trackWebEvent("install_command_copied", { tab_id: tab.id });
+    const attribution = getInstallAttributionFromDocument();
+    await navigator.clipboard.writeText(decorateInstallCommandWithAttribution(tab.command, attribution));
+    trackWebEvent("install_command_copied", {
+      tab_id: tab.id,
+      install_attribution_attached: Boolean(attribution),
+    });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
