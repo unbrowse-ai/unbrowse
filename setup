@@ -145,11 +145,43 @@ MCP_CONFIG_PATH="$MCP_CONFIG_DIR/unbrowse.json"
 
 pick_shim_dir() {
   local dir
+  local -a path_parts preferred_dirs
+
+  if [[ -n "${UNBROWSE_BIN_DIR:-}" ]]; then
+    printf '%s\n' "$UNBROWSE_BIN_DIR"
+    return
+  fi
+
+  preferred_dirs=("$HOME/.local/bin" "$HOME/bin")
+
+  is_ephemeral_bin_dir() {
+    case "$1" in
+      /tmp/*|/private/tmp/*|/var/folders/*|"$HOME/.codex/tmp/"*|"$HOME/Library/Caches/"*)
+        return 0
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  }
+
   IFS=':' read -r -a path_parts <<< "${PATH:-}"
+  for dir in "${preferred_dirs[@]}"; do
+    [[ -d "$dir" ]] || continue
+    [[ -w "$dir" ]] || continue
+    case ":${PATH:-}:" in
+      *":$dir:"*)
+        printf '%s\n' "$dir"
+        return
+        ;;
+    esac
+  done
+
   for dir in "${path_parts[@]}"; do
     [[ -n "$dir" ]] || continue
     [[ -d "$dir" ]] || continue
     [[ -w "$dir" ]] || continue
+    is_ephemeral_bin_dir "$dir" && continue
     case "$dir" in
       "$HOME"/*)
         printf '%s\n' "$dir"
@@ -158,7 +190,14 @@ pick_shim_dir() {
     esac
   done
 
-  printf '%s\n' "${UNBROWSE_BIN_DIR:-$HOME/.local/bin}"
+  for dir in "${preferred_dirs[@]}"; do
+    [[ -d "$dir" ]] || continue
+    [[ -w "$dir" ]] || continue
+    printf '%s\n' "$dir"
+    return
+  done
+
+  printf '%s\n' "$HOME/.local/bin"
 }
 
 SHIM_DIR="$(pick_shim_dir)"
