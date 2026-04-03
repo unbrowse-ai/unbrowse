@@ -880,6 +880,96 @@ export async function registerRoutes(app: FastifyInstance) {
     await injectInterceptor(session.tabId).catch(() => {});
   }
 
+  async function flushBrowseCapture(
+    session: BrowseSession,
+    options: { queueBackgroundPublish?: boolean } = {},
+  ): Promise<{
+    indexed: boolean;
+    mode: "http" | "dom" | "none";
+    domain: string;
+    skill_id: string | null;
+    endpoint_count: number;
+    endpoints: Array<{
+      endpoint_id: string;
+      method: string;
+      url_template: string;
+      description?: string;
+      trigger_url?: string;
+      action_kind?: string;
+      resource_kind?: string;
+    }>;
+    request_count: number;
+    background_publish_queued: boolean;
+  }> {
+    let intercepted: RawRequest[] = [];
+    try {
+      const raw = await collectInterceptedRequests(session.tabId);
+      intercepted = raw.map((request) => ({
+        url: request.url,
+        method: request.method,
+        request_headers: request.request_headers ?? {},
+        request_body: request.request_body,
+        response_status: request.response_status,
+        response_headers: request.response_headers ?? {},
+        response_body: request.response_body,
+        timestamp: request.timestamp,
+      }));
+    } catch { /* non-fatal */ }
+
+    let harEntries: KuriHarEntry[] = [];
+    if (session.harActive) {
+      try {
+        const { entries } = await kuri.harStop(session.tabId);
+        harEntries = entries;
+      } catch { /* non-fatal */ }
+    }
+    session.harActive = false;
+
+    const allRequests = mergeBrowseRequests(intercepted, harEntries, session.url);
+    const syncResult = await cacheBrowseRequests({
+      sessionUrl: session.url,
+      sessionDomain: session.domain,
+      requests: allRequests,
+      getPageHtml: () => kuri.getPageHtml(session.tabId),
+    });
+
+    let backgroundPublishQueued = false;
+    if (options.queueBackgroundPublish) {
+      if (allRequests.length > 0) {
+        passiveIndexFromRequests(allRequests, session.url);
+        backgroundPublishQueued = true;
+      } else if (syncResult.skill) {
+        queueBackgroundIndex({
+          skill: { ...syncResult.skill },
+          domain: syncResult.domain,
+          intent: syncResult.skill.intent_signature || `browse ${syncResult.domain}`,
+          contextUrl: session.url,
+          cacheKey: `browse-submit:${syncResult.domain}:${Date.now()}`,
+        });
+        backgroundPublishQueued = true;
+      }
+    }
+
+    return {
+      indexed: syncResult.indexed,
+      mode: syncResult.mode,
+      domain: syncResult.domain,
+      skill_id: syncResult.skill?.skill_id ?? null,
+      endpoint_count: syncResult.skill?.endpoints.length ?? 0,
+      endpoints: (syncResult.skill?.endpoints ?? []).map((endpoint) => ({
+        endpoint_id: endpoint.endpoint_id,
+        method: endpoint.method,
+        url_template: endpoint.url_template,
+        description: endpoint.description,
+        trigger_url: endpoint.trigger_url,
+        action_kind: endpoint.semantic?.action_kind,
+        resource_kind: endpoint.semantic?.resource_kind,
+      })),
+      request_count: allRequests.length,
+      background_publish_queued: backgroundPublishQueued,
+    };
+  }
+
   // POST /v1/browse/go — navigate to URL
   app.post("/v1/browse/go", async (req, reply) => {
     const { url } = req.body as { url: string };
@@ -970,6 +1060,7 @@ export async function registerRoutes(app: FastifyInstance) {
         {
           client: kuri,
           session,
+          flushCapture: async (session) => await flushBrowseCapture(session, { queueBackgroundPublish: true }),
           restartCapture: restartBrowseCapture,
           rehydratePlugins: kuri.bestEffortRehydratePlugins,
         },
@@ -988,8 +1079,14 @@ export async function registerRoutes(app: FastifyInstance) {
     session.domain = profileName(session.url);
 
     const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
+    const nextStep = result.ok
+      ? (result.capture_sync?.background_publish_queued
+          ? "Background publish queued for this step. Continue the flow, then run `unbrowse close` when you're done to save auth and finalize any remaining capture."
+          : "If more UI steps remain, continue the flow. Run `unbrowse close` when you're done to save auth and finalize capture.")
+      : "Inspect the page state with `unbrowse snap --filter interactive`, then retry submit with selectors or a wait hint if needed.";
     return reply.code(statusCode).send({
       ...result,
+      next_step: nextStep,
       recovered,
       tab_id: session.tabId,
       url: session.url,
@@ -1157,44 +1254,9 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/browse/sync", async (_req, reply) => {
     const session = browseSessions.get("default");
     if (!session) return reply.send({ ok: false, error: "no active session" });
+    const syncResult = await flushBrowseCapture(session);
 
-    let intercepted: RawRequest[] = [];
-    try {
-      const raw = await collectInterceptedRequests(session.tabId);
-      intercepted = raw.map((request) => ({
-        url: request.url,
-        method: request.method,
-        request_headers: request.request_headers ?? {},
-        request_body: request.request_body,
-        response_status: request.response_status,
-        response_headers: request.response_headers ?? {},
-        response_body: request.response_body,
-        timestamp: request.timestamp,
-      }));
-    } catch { /* non-fatal */ }
-
-    let harEntries: KuriHarEntry[] = [];
-    if (session.harActive) {
-      try {
-        const { entries } = await kuri.harStop(session.tabId);
-        harEntries = entries;
-      } catch { /* non-fatal */ }
-    }
-    session.harActive = false;
-
-    const allRequests = mergeBrowseRequests(intercepted, harEntries, session.url);
-    const syncResult = await cacheBrowseRequests({
-      sessionUrl: session.url,
-      sessionDomain: session.domain,
-      requests: allRequests,
-      getPageHtml: () => kuri.getPageHtml(session.tabId),
-    });
-
-    await kuri.networkEnable(session.tabId).catch(() => {});
-    await kuri.harStart(session.tabId).catch(() => {});
-    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
-    session.harActive = true;
-    await injectInterceptor(session.tabId).catch(() => {});
+    await restartBrowseCapture(session);
 
     return reply.send({
       ok: true,
@@ -1202,17 +1264,10 @@ export async function registerRoutes(app: FastifyInstance) {
       indexed: syncResult.indexed,
       mode: syncResult.mode,
       domain: syncResult.domain,
-      skill_id: syncResult.skill?.skill_id ?? null,
-      endpoint_count: syncResult.skill?.endpoints.length ?? 0,
-      endpoints: (syncResult.skill?.endpoints ?? []).map((endpoint) => ({
-        endpoint_id: endpoint.endpoint_id,
-        method: endpoint.method,
-        url_template: endpoint.url_template,
-        description: endpoint.description,
-        trigger_url: endpoint.trigger_url,
-        action_kind: endpoint.semantic?.action_kind,
-        resource_kind: endpoint.semantic?.resource_kind,
-      })),
+      skill_id: syncResult.skill_id,
+      endpoint_count: syncResult.endpoint_count,
+      endpoints: syncResult.endpoints,
+      request_count: syncResult.request_count,
     });
   });
 
@@ -1226,48 +1281,16 @@ export async function registerRoutes(app: FastifyInstance) {
       await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
     }
 
-    // Collect intercepted fetch/XHR requests (has response bodies HAR misses)
-    let intercepted: RawRequest[] = [];
-    try {
-      const raw = await collectInterceptedRequests(session.tabId);
-      intercepted = raw.map(r => ({
-        url: r.url,
-        method: r.method,
-        request_headers: r.request_headers ?? {},
-        request_body: r.request_body,
-        response_status: r.response_status,
-        response_headers: r.response_headers ?? {},
-        response_body: r.response_body,
-        timestamp: r.timestamp,
-      }));
-    } catch { /* non-fatal */ }
-
-    // Also collect HAR entries
-    let harEntries: KuriHarEntry[] = [];
-    if (session.harActive) {
-      try {
-        const { entries } = await kuri.harStop(session.tabId);
-        harEntries = entries;
-      } catch { /* non-fatal */ }
-    }
-
-    const allRequests = mergeBrowseRequests(intercepted, harEntries, session.url);
-    const syncResult = await cacheBrowseRequests({
-      sessionUrl: session.url,
-      sessionDomain: session.domain,
-      requests: allRequests,
-      getPageHtml: () => kuri.getPageHtml(session.tabId),
-    });
-
-    // Run full async enrichment pipeline (agent augmentation, graph, marketplace publish)
-    passiveIndexFromRequests(allRequests, session.url);
+    const syncResult = await flushBrowseCapture(session, { queueBackgroundPublish: true });
     await kuri.closeTab(session.tabId).catch(() => {});
     browseSessions.delete("default");
     return reply.send({
       ok: true,
       indexed: syncResult.indexed,
       mode: syncResult.mode,
-      endpoint_count: syncResult.skill?.endpoints.length ?? 0,
+      endpoint_count: syncResult.endpoint_count,
+      request_count: syncResult.request_count,
+      background_publish_queued: syncResult.background_publish_queued,
       auth_saved: session.domain || null,
     });
   });
