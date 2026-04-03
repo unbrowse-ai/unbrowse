@@ -43,6 +43,22 @@ describe("browse session recovery", () => {
     expect(live).toBe(true);
   });
 
+  it("keeps a session live across transient post-navigation URL read failures", async () => {
+    const session: BrowseSession = { sessionId: "sess-1", tabId: "tab-1", url: "https://example.com/review", harActive: true, domain: "example.com" };
+    let reads = 0;
+
+    const live = await isBrowseSessionLive(session, makeClient({
+      discoverTabs: async () => [{ id: "tab-1", url: "https://example.com/review" }],
+      getCurrentUrl: async () => {
+        reads += 1;
+        if (reads === 1) throw { error: "Execution context was destroyed" };
+        return "https://example.com/review";
+      },
+    }));
+
+    expect(live).toBe(true);
+  });
+
   it("drops dead stored tabs before creating a fresh browse session", async () => {
     const sessions = new Map<string, BrowseSession>();
     sessions.set("sess-1", { sessionId: "sess-1", tabId: "dead-tab", url: "https://example.com", harActive: true, domain: "example.com" });
@@ -269,6 +285,56 @@ describe("browse session recovery", () => {
       "sess-1",
       async () => true,
     )).rejects.toMatchObject({ code: "session_expired" satisfies BrowseSessionError["code"] });
+  });
+
+  it("does not expire a strict session when a recoverable result arrives but the tab is still live", async () => {
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", { sessionId: "sess-1", tabId: "tab-1", url: "https://example.com/review", harActive: true, domain: "example.com" }],
+    ]);
+    let currentUrlReads = 0;
+
+    const outcome = await withSerializedStrictBrowseSession(
+      sessions,
+      makeClient({
+        discoverTabs: async () => [{ id: "tab-1", url: "https://example.com/review" }],
+        getCurrentUrl: async () => {
+          currentUrlReads += 1;
+          if (currentUrlReads === 2) throw { error: "Execution context was destroyed" };
+          return "https://example.com/review";
+        },
+      }),
+      "sess-1",
+      async () => ({ error: "Execution context was destroyed" }),
+      (result) => isRecoverableBrowseFailure(result),
+    );
+
+    expect(outcome.result).toEqual({ error: "Execution context was destroyed" });
+    expect(sessions.has("sess-1")).toBe(true);
+  });
+
+  it("does not drop a strict session on a recoverable throw if the tab is still live", async () => {
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", { sessionId: "sess-1", tabId: "tab-1", url: "https://example.com/review", harActive: true, domain: "example.com" }],
+    ]);
+    let currentUrlReads = 0;
+
+    await expect(withSerializedStrictBrowseSession(
+      sessions,
+      makeClient({
+        discoverTabs: async () => [{ id: "tab-1", url: "https://example.com/review" }],
+        getCurrentUrl: async () => {
+          currentUrlReads += 1;
+          if (currentUrlReads === 2) throw { error: "Execution context was destroyed" };
+          return "https://example.com/review";
+        },
+      }),
+      "sess-1",
+      async () => {
+        throw { error: "Execution context was destroyed" };
+      },
+    )).rejects.toEqual({ error: "Execution context was destroyed" });
+
+    expect(sessions.has("sess-1")).toBe(true);
   });
 
   it("can recover a read-only session without changing its session id", async () => {

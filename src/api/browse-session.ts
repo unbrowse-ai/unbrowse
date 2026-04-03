@@ -55,6 +55,9 @@ const RECOVERABLE_BROWSE_FAILURES = [
   "no such target",
 ];
 
+const LIVE_CHECK_RETRIES = 4;
+const LIVE_CHECK_RETRY_DELAY_MS = 150;
+
 const sessionQueues = new Map<string, Promise<void>>();
 
 function browseSessionErrorStatus(code: BrowseSessionErrorCode): number {
@@ -96,6 +99,14 @@ function extractDomain(url: string | undefined): string {
 
 function cleanupSessionQueue(sessionId: string): void {
   sessionQueues.delete(sessionId);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hasKnownBrowseUrl(value: string | undefined): boolean {
+  return typeof value === "string" && value.length > 0;
 }
 
 function resolveSessionClient(session: BrowseSession | undefined, fallback: BrowseSessionClient): BrowseSessionClient {
@@ -232,15 +243,33 @@ export async function isBrowseSessionLive(
 ): Promise<boolean> {
   if (!session.tabId) return false;
   const sessionClient = resolveSessionClient(session, client);
+  let tabSeen = false;
+  let lastKnownUrl = session.url;
 
-  try {
-    const tabs = await sessionClient.discoverTabs();
-    if (!tabs.some((tab) => tab.id === session.tabId)) return false;
-    const currentUrl = await sessionClient.getCurrentUrl(session.tabId);
-    return typeof currentUrl === "string" && currentUrl.length > 0;
-  } catch {
-    return false;
+  for (let attempt = 0; attempt < LIVE_CHECK_RETRIES; attempt += 1) {
+    try {
+      const tabs = await sessionClient.discoverTabs();
+      const liveTab = tabs.find((tab) => tab.id === session.tabId);
+      if (!liveTab) return false;
+      tabSeen = true;
+      if (hasKnownBrowseUrl(liveTab.url)) lastKnownUrl = liveTab.url!;
+
+      try {
+        const currentUrl = await sessionClient.getCurrentUrl(session.tabId);
+        if (hasKnownBrowseUrl(currentUrl)) return true;
+      } catch (error) {
+        if (!isRecoverableBrowseFailure(error)) return false;
+      }
+
+      if (hasKnownBrowseUrl(lastKnownUrl)) return true;
+    } catch (error) {
+      if (!isRecoverableBrowseFailure(error)) return false;
+    }
+
+    if (attempt < LIVE_CHECK_RETRIES - 1) await sleep(LIVE_CHECK_RETRY_DELAY_MS);
   }
+
+  return tabSeen && hasKnownBrowseUrl(lastKnownUrl);
 }
 
 async function listLiveBrowseSessions(
@@ -420,15 +449,21 @@ export async function withSerializedStrictBrowseSession<T>(
     try {
       const result = await run(session);
       if (shouldExpire?.(result)) {
-        removeBrowseSession(sessions, resolved.sessionId);
-        throw new BrowseSessionError("session_expired");
+        const stillLive = await isBrowseSessionLive(session, client);
+        if (!stillLive) {
+          removeBrowseSession(sessions, resolved.sessionId);
+          throw new BrowseSessionError("session_expired");
+        }
       }
       return { session, result, recovered: false };
     } catch (error) {
       if (error instanceof BrowseSessionError) throw error;
       if (isRecoverableBrowseFailure(error)) {
-        removeBrowseSession(sessions, resolved.sessionId);
-        throw new BrowseSessionError("session_expired");
+        const stillLive = await isBrowseSessionLive(session, client);
+        if (!stillLive) {
+          removeBrowseSession(sessions, resolved.sessionId);
+          throw new BrowseSessionError("session_expired");
+        }
       }
       throw error;
     }
