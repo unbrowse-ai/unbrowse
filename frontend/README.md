@@ -4,7 +4,7 @@ Marketing site, docs entrypoints, blog, public wallet dashboard, and leaderboard
 
 ## Read first
 
-- canonical docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
+- public companion docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
 - frontend worker config: [wrangler.jsonc](/Users/lekt9/.codex/worktrees/c99f/unbrowse/frontend/wrangler.jsonc)
 - default API origin: [frontend/.env.production](/Users/lekt9/.codex/worktrees/c99f/unbrowse/frontend/.env.production)
 

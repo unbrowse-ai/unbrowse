@@ -66,7 +66,7 @@ Unbrowse returns structured JSON that typically uses 200 to 400 tokens. That mea
 
 This creates a flywheel: more users means more routes discovered, which means more cache hits, which means faster agents, which means more users. The most popular sites — the ones your agent visits most often — are the ones with the best coverage.
 
-And with x402 micropayments, your agent can earn credits when other agents use routes it discovered. Your browsing session on a niche site becomes passive income every time another agent hits those routes.`,
+And with x402 micropayments, your agent can earn USDC when other agents use routes it discovered. Your browsing session on a niche site becomes passive income every time another agent hits those routes.`,
   },
 ];
 

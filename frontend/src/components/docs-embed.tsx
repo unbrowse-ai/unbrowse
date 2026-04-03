@@ -8,7 +8,7 @@ export function DocsEmbed() {
   const [open, setOpen] = useState(false);
 
   return (
-    <GitBookProvider siteURL="https://getfoundry.gitbook.io/unbrowse">
+    <GitBookProvider siteURL="https://docs.unbrowse.ai">
       {/* Floating toggle button */}
       <button
         onClick={() => setOpen((v) => !v)}

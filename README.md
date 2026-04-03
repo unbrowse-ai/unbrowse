@@ -4,7 +4,7 @@ Turn any website into a reusable API interface for agents. Unbrowse captures net
 
 One agent learns a site once. Every later agent gets the fast path.
 
-Unbrowse is a drop-in browser for agents: same browser-shaped job in the stack, but with route learning, reuse, and browser fallback built in.
+Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
@@ -16,9 +16,11 @@ git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git 
 cd ~/unbrowse && ./setup --host off
 ```
 
-`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and runs `unbrowse setup` without depending on npm release assets. That first-run path includes ToS acceptance, agent registration + API-key caching, and lobster.cash wallet detection when present.
+`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and runs `unbrowse setup` without depending on npm release assets. That first-run path includes ToS acceptance, agent registration + API-key caching, and wallet detection when present.
 
 If a wallet is configured, that wallet address becomes the contributor truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
+
+Unbrowse supports wallet providers such as `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
 
 Headless/CI-friendly bootstrap:
 
@@ -37,6 +39,23 @@ If your agent host uses skills:
 
 ```bash
 npx skills add unbrowse-ai/unbrowse
+```
+
+If you want to call the canonical local API from app code instead of shelling out to the CLI:
+
+```bash
+npm install @unbrowse/sdk
+```
+
+```ts
+import { Unbrowse } from "@unbrowse/sdk";
+
+const unbrowse = new Unbrowse();
+
+const result = await unbrowse.resolve({
+  intent: "list tomorrow's events",
+  url: "https://calendar.google.com",
+});
 ```
 
 ## Upgrading
@@ -59,7 +78,7 @@ npx skills add unbrowse-ai/unbrowse
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
-Canonical docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
+Public companion docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
 
 Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. Interactive setup prompts for ToS acceptance and optionally an email-style agent identity. Headless runs can preseed `UNBROWSE_NON_INTERACTIVE=1`, `UNBROWSE_TOS_ACCEPTED=1`, and `UNBROWSE_AGENT_EMAIL=...`.
 
@@ -77,17 +96,28 @@ This pulls the tracked Kuri source into `submodules/kuri` from [justrach/kuri](h
 
 ## Docs
 
-Long-form docs live under [`docs/`](./docs/), including the restored whitepaper companion set:
+Long-form docs live under [`docs/`](./docs/). Public repo entrypoints:
+
+- [`docs/guides/quickstart.md`](./docs/guides/quickstart.md) - canonical install, setup, and headless bootstrap path
+- [`docs/api.md`](./docs/api.md) - route-level behavior and API contracts
+- [`docs/deployment.md`](./docs/deployment.md) - deploy topology and release workflow behavior
+- [`docs/RELEASING.md`](./docs/RELEASING.md) - release checklist and rerun-safe CI notes
+
+Whitepaper companion set:
 
 - [`docs/whitepaper/README.md`](./docs/whitepaper/README.md) - public companion index
 - [`docs/whitepaper/for-technical-readers.md`](./docs/whitepaper/for-technical-readers.md) - architecture, eval truth, and product boundary
 - [`docs/whitepaper/for-investors.md`](./docs/whitepaper/for-investors.md) - market and business framing
+- [`docs/api.md`](./docs/api.md) - REST and TypeScript SDK surface
+- [`docs/guides/quickstart.md`](./docs/guides/quickstart.md) - setup + first resolve
 
 ## What setup does
 
-- Checks local prerequisites for the npm/npx flow.
+- Checks the local runtime/package-manager environment for the repo bootstrap or packaged CLI path.
+- Prebuilds the packaged CLI runtime and installs the stable `unbrowse` shim for the repo bootstrap path.
 - Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
 - Registers the Open Code `/unbrowse` command when Open Code is present.
+- Runs the first-use flow: ToS, agent registration/API-key caching, and wallet detection.
 - Starts the local Unbrowse server unless `--no-start` is passed.
 
 ## Common commands

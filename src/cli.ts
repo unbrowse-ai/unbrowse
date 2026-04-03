@@ -8,7 +8,14 @@
  */
 
 import { config as loadEnv } from "dotenv";
-import { ensureRegistered, getApiKey } from "./client/index.js";
+import {
+  detectTelemetryHostType,
+  ensureCliInstallTracked,
+  ensureRegistered,
+  getApiKey,
+  recordFunnelTelemetryEvent,
+  recordInstallTelemetryEvent,
+} from "./client/index.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
 import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
 import { isMainModule } from "./runtime/paths.js";
@@ -100,6 +107,12 @@ function hasIndexingFallback(result: Record<string, unknown>): boolean {
   return (result.result as Record<string, unknown> | undefined)?.indexing_fallback_available === true;
 }
 
+function isResolveSuccessResult(result: Record<string, unknown>): boolean {
+  const resultObj = result.result as Record<string, unknown> | undefined;
+  if (resolveResultError(result)) return false;
+  if (resultObj?.status === "browse_session_open") return false;
+  return !!result.result || Array.isArray(result.available_endpoints);
+}
 async function withPendingNotice<T>(promise: Promise<T>, message: string, delayMs = 3_000): Promise<T> {
   let done = false;
   const timer = setTimeout(() => {
@@ -154,159 +167,203 @@ async function cmdHealth(flags: Record<string, string | boolean>): Promise<void>
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = flags.intent as string;
   if (!intent) die("--intent is required");
+  const hostType = detectTelemetryHostType();
+  await ensureCliInstallTracked(hostType);
+  await recordFunnelTelemetryEvent("cli_invoked", {
+    source: "cli",
+    hostType,
+    properties: { command: "resolve" },
+  });
+  await recordFunnelTelemetryEvent("resolve_started", {
+    source: "cli",
+    hostType,
+    properties: {
+      command: "resolve",
+      has_url: typeof flags.url === "string",
+      has_domain: typeof flags.domain === "string",
+      auto_execute: !!flags.execute,
+    },
+  });
 
-  const body: Record<string, unknown> = { intent };
-  const url = flags.url as string | undefined;
-  const domain = flags.domain as string | undefined;
-  const explicitEndpointId = flags["endpoint-id"] as string | undefined;
-  const autoExecute = !!flags.execute;
-  const extraParams = flags.params ? JSON.parse(flags.params as string) : {};
+  try {
+    const body: Record<string, unknown> = { intent };
+    const url = flags.url as string | undefined;
+    const domain = flags.domain as string | undefined;
+    const explicitEndpointId = flags["endpoint-id"] as string | undefined;
+    const autoExecute = !!flags.execute;
+    const extraParams = flags.params ? JSON.parse(flags.params as string) : {};
 
-  if (url) {
-    body.params = { url };
-    body.context = { url };
-  }
-  if (domain) {
-    body.context = { ...(body.context as Record<string, unknown> ?? {}), domain };
-  }
-  if (explicitEndpointId) {
-    body.params = { ...(body.params as Record<string, unknown> ?? {}), endpoint_id: explicitEndpointId };
-  }
-  if (flags.params) {
-    body.params = { ...(body.params as Record<string, unknown> ?? {}), ...extraParams };
-  }
-  if (flags["dry-run"]) body.dry_run = true;
-  if (flags["force-capture"]) body.force_capture = true;
-  body.projection = { raw: true };
+    if (url) {
+      body.params = { url };
+      body.context = { url };
+    }
+    if (domain) {
+      body.context = { ...(body.context as Record<string, unknown> ?? {}), domain };
+    }
+    if (explicitEndpointId) {
+      body.params = { ...(body.params as Record<string, unknown> ?? {}), endpoint_id: explicitEndpointId };
+    }
+    if (flags.params) {
+      body.params = { ...(body.params as Record<string, unknown> ?? {}), ...extraParams };
+    }
+    if (flags["dry-run"]) body.dry_run = true;
+    if (flags["force-capture"]) body.force_capture = true;
+    body.projection = { raw: true };
 
-  function execBody(endpointId: string): Record<string, unknown> {
-    return { params: { endpoint_id: endpointId, ...extraParams }, intent, projection: { raw: true } };
-  }
-
-  function resolveSkillId(): string | undefined {
-    return (result.skill as Record<string, unknown>)?.skill_id as string
-      ?? (result as Record<string, unknown>).skill_id as string;
-  }
-
-  const startedAt = Date.now();
-  async function resolveOnce(message = "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back."): Promise<Record<string, unknown>> {
-    return withPendingNotice(
-      api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
-      message,
-    );
-  }
-
-  let result = await resolveOnce();
-  let attemptedForceCapture = !!body.force_capture;
-  let attemptedCookieImport = false;
-  let attemptedInteractiveLogin = false;
-
-  while (true) {
-    const resultError = resolveResultError(result);
-    if (resultError === "payment_required" && hasIndexingFallback(result) && url && !attemptedForceCapture) {
-      attemptedForceCapture = true;
-      body.force_capture = true;
-      info("Marketplace search is paid here. Falling back to free live capture on the exact URL...");
-      result = await resolveOnce("Running free live capture...");
-      continue;
+    function execBody(endpointId: string): Record<string, unknown> {
+      return { params: { endpoint_id: endpointId, ...extraParams }, intent, projection: { raw: true } };
     }
 
-    if (resultError === "auth_required") {
-      const loginUrl = resolveLoginUrl(result, url);
-      if (!loginUrl) break;
+    function resolveSkillId(): string | undefined {
+      return (result.skill as Record<string, unknown>)?.skill_id as string
+        ?? (result as Record<string, unknown>).skill_id as string;
+    }
 
-      if (!attemptedCookieImport) {
-        attemptedCookieImport = true;
-        info("Site requires authentication. Trying browser cookie import first...");
-        const stealResult = await api("POST", "/v1/auth/steal", { url: loginUrl }) as Record<string, unknown>;
-        const cookiesStored = typeof stealResult.cookies_stored === "number"
-          ? stealResult.cookies_stored
-          : Number(stealResult.cookies_stored ?? 0);
-        if (stealResult.success === true && cookiesStored > 0) {
-          info(`Imported ${cookiesStored} browser cookies. Retrying...`);
-          result = await resolveOnce("Retrying after browser cookie import...");
+    const startedAt = Date.now();
+    async function resolveOnce(message = "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back."): Promise<Record<string, unknown>> {
+      return withPendingNotice(
+        api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+        message,
+      );
+    }
+
+    let result = await resolveOnce();
+    let attemptedForceCapture = !!body.force_capture;
+    let attemptedCookieImport = false;
+    let attemptedInteractiveLogin = false;
+
+    while (true) {
+      const resultError = resolveResultError(result);
+      if (resultError === "payment_required" && hasIndexingFallback(result) && url && !attemptedForceCapture) {
+        attemptedForceCapture = true;
+        body.force_capture = true;
+        info("Marketplace search is paid here. Falling back to free live capture on the exact URL...");
+        result = await resolveOnce("Running free live capture...");
+        continue;
+      }
+
+      if (resultError === "auth_required") {
+        const loginUrl = resolveLoginUrl(result, url);
+        if (!loginUrl) break;
+
+        if (!attemptedCookieImport) {
+          attemptedCookieImport = true;
+          info("Site requires authentication. Trying browser cookie import first...");
+          const stealResult = await api("POST", "/v1/auth/steal", { url: loginUrl }) as Record<string, unknown>;
+          const cookiesStored = typeof stealResult.cookies_stored === "number"
+            ? stealResult.cookies_stored
+            : Number(stealResult.cookies_stored ?? 0);
+          if (stealResult.success === true && cookiesStored > 0) {
+            info(`Imported ${cookiesStored} browser cookies. Retrying...`);
+            result = await resolveOnce("Retrying after browser cookie import...");
+            continue;
+          }
+        }
+
+        if (!attemptedInteractiveLogin) {
+          attemptedInteractiveLogin = true;
+          info("Site requires authentication. Opening browser for login...");
+          const loginResult = await api("POST", "/v1/auth/login", { url: loginUrl }) as Record<string, unknown>;
+          if (loginResult.error || loginResult.success === false) {
+            const message = typeof loginResult.error === "string"
+              ? loginResult.error
+              : "interactive login did not produce a reusable session";
+            throw new Error(`Login failed: ${message}. Run: unbrowse login --url "${loginUrl}"`);
+          }
+          info("Login complete. Retrying...");
+          result = await resolveOnce("Retrying after login...");
           continue;
         }
       }
 
-      if (!attemptedInteractiveLogin) {
-        attemptedInteractiveLogin = true;
-        info("Site requires authentication. Opening browser for login...");
-        const loginResult = await api("POST", "/v1/auth/login", { url: loginUrl }) as Record<string, unknown>;
-        if (loginResult.error || loginResult.success === false) {
-          const message = typeof loginResult.error === "string"
-            ? loginResult.error
-            : "interactive login did not produce a reusable session";
-          die(`Login failed: ${message}. Run: unbrowse login --url "${loginUrl}"`);
-        }
-        info("Login complete. Retrying...");
-        result = await resolveOnce("Retrying after login...");
-        continue;
+      break;
+    }
+
+    // When agent explicitly picked an endpoint but resolve deferred, execute it directly
+    if (explicitEndpointId && result.available_endpoints) {
+      const skillId = resolveSkillId();
+      if (skillId) {
+        result = await withPendingNotice(
+          api("POST", `/v1/skills/${skillId}/execute`, execBody(explicitEndpointId)) as Promise<Record<string, unknown>>,
+          "Executing selected endpoint...",
+        );
       }
     }
 
-    break;
-  }
-
-  // When agent explicitly picked an endpoint but resolve deferred, execute it directly
-  if (explicitEndpointId && result.available_endpoints) {
-    const skillId = resolveSkillId();
-    if (skillId) {
-      result = await withPendingNotice(
-        api("POST", `/v1/skills/${skillId}/execute`, execBody(explicitEndpointId)) as Promise<Record<string, unknown>>,
-        "Executing selected endpoint...",
-      );
+    // --execute: auto-pick best endpoint and return data in one step
+    if (autoExecute && result.available_endpoints && !result.result) {
+      const endpoints = result.available_endpoints as Array<Record<string, unknown>>;
+      const skillId = resolveSkillId();
+      if (skillId && endpoints.length > 0) {
+        const bestEndpoint = endpoints[0];
+        info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
+        result = await withPendingNotice(
+          api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
+          "Executing best endpoint...",
+        );
+      }
     }
-  }
 
-  // --execute: auto-pick best endpoint and return data in one step
-  if (autoExecute && result.available_endpoints && !result.result) {
-    const endpoints = result.available_endpoints as Array<Record<string, unknown>>;
-    const skillId = resolveSkillId();
-    if (skillId && endpoints.length > 0) {
-      const bestEndpoint = endpoints[0];
-      info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
-      result = await withPendingNotice(
-        api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
-        "Executing best endpoint...",
-      );
+    // Browse session handoff
+    const resultObj = result.result as Record<string, unknown> | undefined;
+    if (resultObj?.status === "browse_session_open") {
+      info(`No cached API. Browser session open on ${resultObj.domain ?? resultObj.url}.`);
+      info(`Preferred flow: snap -> click/fill/eval -> submit -> sync -> close.`);
+      info(`Use these commands to get your data:`);
+      const commands = resultObj.commands as string[] ?? [
+        "unbrowse snap --filter interactive",
+        "unbrowse click <ref>",
+        "unbrowse fill <ref> <value>",
+        "unbrowse submit --wait-for \"/next-step\"",
+        "unbrowse sync",
+        "unbrowse close",
+      ];
+      for (const cmd of commands) info(`  ${cmd}`);
+      info(`For JS-heavy forms: prefer real date/time clicks first, inspect hidden inputs with eval when needed, then submit.`);
+      info(`All traffic is being passively captured. Run "unbrowse close" when done.`);
+      output(slimTrace(result), !!flags.pretty);
+      return;
     }
+
+    if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
+      info("Live capture finished. Future runs against this site should be much faster.");
+    }
+
+    if (isResolveSuccessResult(result)) {
+      await recordFunnelTelemetryEvent("resolve_completed", {
+        source: "cli",
+        hostType,
+        properties: {
+          command: "resolve",
+          source: result.source,
+          auto_execute: autoExecute,
+          explicit_endpoint: explicitEndpointId ?? null,
+        },
+      });
+    }
+
+    result = slimTrace(result);
+
+    const skill = result.skill as Record<string, unknown> | undefined;
+    const trace = result.trace as Record<string, unknown> | undefined;
+    if (skill?.skill_id && trace) {
+      (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
+    }
+
+    output(result, !!flags.pretty);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordFunnelTelemetryEvent("resolve_failed", {
+      source: "cli",
+      hostType,
+      properties: {
+        command: "resolve",
+        failure_stage: "resolve",
+        failure_reason: message,
+      },
+    });
+    throw error;
   }
-
-  // Browse session handoff
-  const resultObj = result.result as Record<string, unknown> | undefined;
-  if (resultObj?.status === "browse_session_open") {
-    info(`No cached API. Browser session open on ${resultObj.domain ?? resultObj.url}.`);
-    info(`Preferred flow: snap -> click/fill/eval -> submit -> sync -> close.`);
-    info(`Use these commands to get your data:`);
-    const commands = resultObj.commands as string[] ?? [
-      "unbrowse snap --filter interactive",
-      "unbrowse click <ref>",
-      "unbrowse fill <ref> <value>",
-      "unbrowse submit --wait-for \"/next-step\"",
-      "unbrowse sync",
-      "unbrowse close",
-    ];
-    for (const cmd of commands) info(`  ${cmd}`);
-    info(`For JS-heavy forms: prefer real date/time clicks first, inspect hidden inputs with eval when needed, then submit.`);
-    info(`All traffic is being passively captured. Run "unbrowse close" when done.`);
-    output(slimTrace(result), !!flags.pretty);
-    return;
-  }
-
-  if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
-    info("Live capture finished. Future runs against this site should be much faster.");
-  }
-
-  result = slimTrace(result);
-
-  const skill = result.skill as Record<string, unknown> | undefined;
-  const trace = result.trace as Record<string, unknown> | undefined;
-  if (skill?.skill_id && trace) {
-    (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
-  }
-
-  output(result, !!flags.pretty);
 }
 
 // ---------------------------------------------------------------------------
@@ -399,87 +456,130 @@ function schemaOf(value: unknown, depth = 4): unknown {
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
   const skillId = flags.skill as string;
   if (!skillId) die("--skill is required");
+  const hostType = detectTelemetryHostType();
+  await ensureCliInstallTracked(hostType);
+  await recordFunnelTelemetryEvent("cli_invoked", {
+    source: "cli",
+    hostType,
+    properties: { command: "execute" },
+  });
+  await recordFunnelTelemetryEvent("resolve_started", {
+    source: "cli",
+    hostType,
+    properties: {
+      command: "execute",
+      skill_id: skillId,
+      endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
+    },
+  });
 
-  const body: Record<string, unknown> = { params: {} };
-  if (flags.endpoint) {
-    (body.params as Record<string, unknown>).endpoint_id = flags.endpoint;
-  }
-  if (flags.params) {
-    body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
-  }
-  if (flags.url) {
-    body.context_url = flags.url;
-    (body.params as Record<string, unknown>).url = flags.url;
-  }
-  if (flags.intent) body.intent = flags.intent;
-  if (flags["dry-run"]) body.dry_run = true;
-  if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  body.projection = { raw: true };
+  try {
+    const body: Record<string, unknown> = { params: {} };
+    if (flags.endpoint) {
+      (body.params as Record<string, unknown>).endpoint_id = flags.endpoint;
+    }
+    if (flags.params) {
+      body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
+    }
+    if (flags.url) {
+      body.context_url = flags.url;
+      (body.params as Record<string, unknown>).url = flags.url;
+    }
+    if (flags.intent) body.intent = flags.intent;
+    if (flags["dry-run"]) body.dry_run = true;
+    if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
+    body.projection = { raw: true };
 
-  let result = await withPendingNotice(
-    api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
-    "Still working. This endpoint may require browser replay or first-time auth/capture setup.",
-  );
+    let result = await withPendingNotice(
+      api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
+      "Still working. This endpoint may require browser replay or first-time auth/capture setup.",
+    );
 
-  // Strip metadata bloat
-  result = slimTrace(result);
-
-  const pathFlag = flags.path as string | undefined;
-  const extractFlag = flags.extract as string | undefined;
-  const limitFlag = flags.limit ? Number(flags.limit) : undefined;
-  const schemaFlag = !!flags.schema;
-  const rawFlag = !!flags.raw;
-
-  // --schema: show response structure without data
-  if (schemaFlag && !rawFlag) {
-    const data = result.result;
-    output({ trace: result.trace, schema: schemaOf(data) }, !!flags.pretty);
-    return;
-  }
-
-  // Apply --path, --extract, --limit when not --raw
-  if (!rawFlag && (pathFlag || extractFlag || limitFlag)) {
-    let data = pathFlag ? drillPath(result.result, pathFlag) : result.result;
-
-    // Ensure array for extract/limit
-    const items = Array.isArray(data) ? data : data != null ? [data] : [];
-
-    // Apply --extract
-    const extracted = extractFlag ? applyExtract(items, extractFlag) : items;
-
-    // Apply --limit
-    const limited = limitFlag ? extracted.slice(0, limitFlag) : extracted;
-
-    const trace = result.trace as Record<string, unknown> | undefined;
-    const out: Record<string, unknown> = { trace: result.trace, data: limited, count: limited.length };
-
-    // Prompt agent to review when this is likely a first-time execute
-    if (trace?.skill_id && trace?.endpoint_id && limited.length > 0) {
-      out._review_hint = `After presenting results, improve this endpoint's description: unbrowse review --skill ${trace.skill_id} --endpoints '[{"endpoint_id":"${trace.endpoint_id}","description":"DESCRIBE WHAT THIS RETURNS","action_kind":"ACTION","resource_kind":"RESOURCE"}]'`;
+    if (isResolveSuccessResult(result)) {
+      await recordFunnelTelemetryEvent("resolve_completed", {
+        source: "cli",
+        hostType,
+        properties: {
+          command: "execute",
+          skill_id: skillId,
+          endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
+        },
+      });
     }
 
-    output(out, !!flags.pretty);
-    return;
-  }
+    // Strip metadata bloat
+    result = slimTrace(result);
 
-  // Auto-wrap large responses with extraction_hints when no flags given
-  if (!rawFlag && !pathFlag && !extractFlag && !schemaFlag) {
-    const raw = JSON.stringify(result.result);
-    if (raw && raw.length > 2048) {
-      const schema = schemaOf(result.result);
-      output({
-        trace: result.trace,
-        extraction_hints: {
-          message: "Response is large. Use --path/--extract/--limit to filter, or --schema to see structure, or --raw for full response.",
-          schema_tree: schema,
-          response_bytes: raw.length,
-        },
-      }, !!flags.pretty);
+    const pathFlag = flags.path as string | undefined;
+    const extractFlag = flags.extract as string | undefined;
+    const limitFlag = flags.limit ? Number(flags.limit) : undefined;
+    const schemaFlag = !!flags.schema;
+    const rawFlag = !!flags.raw;
+
+    // --schema: show response structure without data
+    if (schemaFlag && !rawFlag) {
+      const data = result.result;
+      output({ trace: result.trace, schema: schemaOf(data) }, !!flags.pretty);
       return;
     }
-  }
 
-  output(result, !!flags.pretty);
+    // Apply --path, --extract, --limit when not --raw
+    if (!rawFlag && (pathFlag || extractFlag || limitFlag)) {
+      const data = pathFlag ? drillPath(result.result, pathFlag) : result.result;
+
+      // Ensure array for extract/limit
+      const items = Array.isArray(data) ? data : data != null ? [data] : [];
+
+      // Apply --extract
+      const extracted = extractFlag ? applyExtract(items, extractFlag) : items;
+
+      // Apply --limit
+      const limited = limitFlag ? extracted.slice(0, limitFlag) : extracted;
+
+      const trace = result.trace as Record<string, unknown> | undefined;
+      const out: Record<string, unknown> = { trace: result.trace, data: limited, count: limited.length };
+
+      // Prompt agent to review when this is likely a first-time execute
+      if (trace?.skill_id && trace?.endpoint_id && limited.length > 0) {
+        out._review_hint = `After presenting results, improve this endpoint's description: unbrowse review --skill ${trace.skill_id} --endpoints '[{"endpoint_id":"${trace.endpoint_id}","description":"DESCRIBE WHAT THIS RETURNS","action_kind":"ACTION","resource_kind":"RESOURCE"}]'`;
+      }
+
+      output(out, !!flags.pretty);
+      return;
+    }
+
+    // Auto-wrap large responses with extraction_hints when no flags given
+    if (!rawFlag && !pathFlag && !extractFlag && !schemaFlag) {
+      const raw = JSON.stringify(result.result);
+      if (raw && raw.length > 2048) {
+        const schema = schemaOf(result.result);
+        output({
+          trace: result.trace,
+          extraction_hints: {
+            message: "Response is large. Use --path/--extract/--limit to filter, or --schema to see structure, or --raw for full response.",
+            schema_tree: schema,
+            response_bytes: raw.length,
+          },
+        }, !!flags.pretty);
+        return;
+      }
+    }
+
+    output(result, !!flags.pretty);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordFunnelTelemetryEvent("resolve_failed", {
+      source: "cli",
+      hostType,
+      properties: {
+        command: "execute",
+        skill_id: skillId,
+        failure_stage: "execute",
+        failure_reason: message,
+      },
+    });
+    throw error;
+  }
 }
 
 async function cmdFeedback(flags: Record<string, string | boolean>): Promise<void> {
@@ -558,6 +658,13 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
 }
 
 async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> {
+  const hostType = detectTelemetryHostType();
+  await ensureCliInstallTracked(hostType);
+  await recordFunnelTelemetryEvent("cli_invoked", {
+    source: "setup",
+    hostType,
+    properties: { command: "setup" },
+  });
   info("Running setup checks");
   const report = await runSetup({
     cwd: process.cwd(),
@@ -582,6 +689,26 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     info(`Open Code command installed at ${report.opencode.command_file}`);
   }
 
+  await recordInstallTelemetryEvent("setup", {
+    hostType,
+    status: report.browser_engine.action === "failed" ? "failed" : "installed",
+    properties: {
+      browser_engine_action: report.browser_engine.action,
+      opencode_action: report.opencode.action,
+      no_start: !!flags["no-start"],
+      skip_browser: !!flags["skip-browser"],
+    },
+  });
+  await recordFunnelTelemetryEvent("setup_completed", {
+    source: "setup",
+    hostType,
+    properties: {
+      browser_engine_action: report.browser_engine.action,
+      opencode_action: report.opencode.action,
+      no_start: !!flags["no-start"],
+    },
+  });
+
   if (flags["no-start"]) {
     report.server = { started: false, skipped: true, base_url: BASE_URL };
     output(report, true);
@@ -596,8 +723,23 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
   try {
     await ensureLocalServer(BASE_URL, false, import.meta.url);
     report.server = { started: true, base_url: BASE_URL };
+    await recordFunnelTelemetryEvent("server_autostart_succeeded", {
+      source: "setup",
+      hostType,
+      properties: {
+        base_url: BASE_URL,
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    await recordFunnelTelemetryEvent("server_autostart_failed", {
+      source: "setup",
+      hostType,
+      properties: {
+        failure_stage: "server_autostart",
+        failure_reason: message,
+      },
+    });
     report.server = { started: false, error: message, base_url: BASE_URL };
     output(report, true);
     process.exit(1);

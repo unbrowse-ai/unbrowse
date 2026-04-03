@@ -15,7 +15,7 @@ import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
-import { computeTimingEconomics } from "./timing-economics.js";
+import { DEFAULT_CAPTURE_TOKENS, computeTimingEconomics } from "./timing-economics.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { checkWalletConfigured } from "../payments/wallet.js";
 import type {

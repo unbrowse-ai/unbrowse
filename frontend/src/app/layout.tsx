@@ -3,6 +3,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
 import { DocsEmbed } from "@/components/docs-embed";
+import versionInfo from "../../../version.json";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -125,7 +126,7 @@ export default function RootLayout({
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "Cross-platform (macOS, Linux, Windows)",
-              softwareVersion: "1.1.2",
+              softwareVersion: versionInfo.version,
               downloadUrl: "https://www.npmjs.com/package/unbrowse",
               codeRepository: "https://github.com/unbrowse-ai/unbrowse",
               isAccessibleForFree: true,
