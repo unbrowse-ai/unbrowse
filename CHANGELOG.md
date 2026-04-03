@@ -89,6 +89,7 @@
 * **package/runtime**: remove a duplicate `recordAnalyticsSession` export so packaged local-server autostart no longer crashes under the Node/tsx runtime path, make Kuri re-probe health instead of trusting stale in-memory ready state after port `7700` dies, fall back to raw Chrome CDP tab creation when Kuri’s `/tab/new` path flakes, retry capture on fresh Kuri tabs after mid-run transport loss instead of bailing out as generic `fetch failed`, and stop browse-session handoff from reusing first-pass tabs after Kuri has already dropped them
 * **browse/indexing**: stop `unbrowse submit` from queueing intermediate background publishes, coalesce later same-domain index jobs instead of dropping them, and keep final publish on `unbrowse close` so richer end-of-flow captures win
 * **auth/linkedin**: restore keychain/browser-cookie fallback for explicit login flows before interactive auth, prefer live browser-cookie import before saved auth-profile restore during browse navigation, use the discovered CDP port for secure cookie injection, tighten interactive-login success detection around real auth cookies like LinkedIn `li_at`, and skip periodic cold verification for auth-gated endpoints
+* **frontend/miners**: remove the fake bounty/quest game layer from the contributors page, replace it with honest demand targets, and add a coverage-globe view driven by real graph stats
 * **frontend/perf**: stop homepage and search from fetching the full 30MB+ skill registry payload, add a compact cacheable skill-card list for registry surfaces, and enable sane revalidation for blog API fetches
 * **frontend/cache**: move landing-copy selection off the homepage request path, serve the active growth variant from cached backend config, hard-cache popular/card registry APIs, short-TTL cache search responses in Worker edge + KV, and make `/` plus `/search` ship as static revalidated HTML instead of `no-store` server renders
 * **ci/frontend**: make Cloudflare frontend CI deploys ship via direct Wrangler deploy after the OpenNext build, so `main` and release deploys no longer die on the pre-populate R2 incremental-cache upload step
@@ -118,8 +119,6 @@
 * **cli/install**: bake global-install diagnostics into the npm wrapper, add a real `unbrowse --version`, repair wrapper/launcher execute bits during postinstall, and fail loudly when a stale local server on `:6969` is serving a different package version than the installed CLI
 * **linkedin/replay**: keep unrelated infrastructure path prefixes like LinkedIn `litms` literal during capture, and bypass robots gating for authenticated session-backed execution so captured private feed endpoints can replay through the user session
 * **cli/install**: remove the duplicate `recordAnalyticsSession` export that broke fresh npm-installed runtime startup under Node/tsx, and cover the packaged client build path with a regression test
-
-### Bug Fixes
 
 * **cli/package**: restore the baked-Kuri npm package layout, keep the release-asset installer plus source fallback in sync, and re-ship the packaged launcher/runtime files so local tarball installs and npm publish smoke pass again
 * **frontend/staging**: remove a duplicated homepage section wrapper that broke the Next.js build, and add the missing staging `images` + `NEXT_INC_CACHE_R2_BUCKET` bindings so `frontend-staging` deploys cleanly
