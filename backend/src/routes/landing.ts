@@ -1,7 +1,8 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
 import {
+  getActiveLandingHomepageVariant,
   assignLandingHomepageVariant,
   encodeLandingHomepageAssignmentCookie,
   getLandingHomepageAnalyticsSummary,
@@ -9,8 +10,33 @@ import {
   mintLandingHomepageToken,
   saveLandingHomepageExperimentConfig,
 } from "../services/landing-experiments.js";
+import { getOrSetHttpCache } from "../services/http-cache.js";
+import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
+
+function schedule(c: Context, task: Promise<unknown>): void {
+  try {
+    (c as Context & { executionCtx: ExecutionContext }).executionCtx.waitUntil(task);
+  } catch {
+    void task;
+  }
+}
 
 export const landingRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
+
+landingRoutes.get("/landing/homepage/active", async (c) => {
+  const cacheKey = "landing:homepage:active:v1";
+  const ttlSeconds = 300;
+  const edgeCached = await getEdgeCacheJson<Awaited<ReturnType<typeof getActiveLandingHomepageVariant>>>(cacheKey);
+  if (edgeCached) {
+    c.header("Cache-Control", buildCacheControl(ttlSeconds));
+    return c.json(edgeCached);
+  }
+
+  const payload = await getOrSetHttpCache(c.env, cacheKey, ttlSeconds, async () => getActiveLandingHomepageVariant(c.env));
+  c.header("Cache-Control", buildCacheControl(ttlSeconds));
+  schedule(c, putEdgeCacheJson(cacheKey, payload, ttlSeconds));
+  return c.json(payload);
+});
 
 landingRoutes.post("/landing/homepage/assign", async (c) => {
   const body = await c.req.json<{

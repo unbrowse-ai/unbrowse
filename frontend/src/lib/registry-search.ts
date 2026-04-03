@@ -1,4 +1,6 @@
-import type { SkillManifest } from "@/lib/api";
+import type { SkillListItem, SkillManifest } from "@/lib/api";
+
+type RegistrySkill = Pick<SkillManifest, "skill_id" | "lifecycle"> | Pick<SkillListItem, "skill_id" | "lifecycle">;
 
 export function parseSearchMetadata(metadata?: Record<string, unknown>): Record<string, string> {
   try {
@@ -11,15 +13,15 @@ export function parseSearchMetadata(metadata?: Record<string, unknown>): Record<
 
 export function findRegistrySkill(
   metadata: Record<string, unknown> | undefined,
-  allSkills: SkillManifest[],
-): SkillManifest | undefined {
+  allSkills: RegistrySkill[],
+): RegistrySkill | undefined {
   const skillId = parseSearchMetadata(metadata).skill_id;
   return skillId ? allSkills.find((skill) => skill.skill_id === skillId) : undefined;
 }
 
 export function getRegistrySkillHref(
   metadata: Record<string, unknown> | undefined,
-  allSkills: SkillManifest[],
+  allSkills: RegistrySkill[],
 ): string | null {
   const skill = findRegistrySkill(metadata, allSkills);
   return skill ? `/skills/${skill.skill_id}` : null;

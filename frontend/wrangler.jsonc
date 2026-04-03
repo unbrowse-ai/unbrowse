@@ -33,18 +33,24 @@
 			"service": "frontend"
 		}
 	],
-	"env": {
-		"staging": {
-			"workers_dev": true,
-			"routes": [],
+		"env": {
+			"staging": {
+				"workers_dev": true,
+				"routes": [],
 			"services": [
 				{
 					"binding": "WORKER_SELF_REFERENCE",
 					"service": "frontend-staging"
 				}
-			]
-		}
-	},
+				]
+			}
+		},
+		"r2_buckets": [
+			{
+				"binding": "NEXT_INC_CACHE_R2_BUCKET",
+				"bucket_name": "unbrowse-frontend-cache"
+			}
+		],
 	"observability": {
 		"enabled": true
 	},

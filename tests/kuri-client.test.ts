@@ -13,6 +13,7 @@ afterEach(async () => {
   else process.env.KURI_BIN = originalKuriBin;
   if (originalPackageRoot === undefined) delete process.env.UNBROWSE_PACKAGE_ROOT;
   else process.env.UNBROWSE_PACKAGE_ROOT = originalPackageRoot;
+  kuri.setCdpPortForTests(null);
   while (tmpDirs.length > 0) {
     const dir = tmpDirs.pop();
     if (dir && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
@@ -238,6 +239,40 @@ exit 1
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it("uses the discovered CDP port for secure cookie lookup instead of hardcoded 9222", async () => {
+    const originalFetch = globalThis.fetch;
+    const seenUrls: string[] = [];
+    kuri.setCdpPortForTests(9333);
+
+    globalThis.fetch = (async (input) => {
+      const url = String(input);
+      seenUrls.push(url);
+      if (url === "http://127.0.0.1:9333/json") {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url.startsWith(`http://127.0.0.1:${kuri.getPort()}/cookies?`)) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      await kuri.setCookie("tab-1", {
+        name: "li_at",
+        value: "secret",
+        domain: ".linkedin.com",
+        secure: true,
+        httpOnly: true,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+      kuri.setCdpPortForTests(null);
+    }
+
+    expect(seenUrls[0]).toBe("http://127.0.0.1:9333/json");
+    expect(seenUrls).toContain(`http://127.0.0.1:${kuri.getPort()}/cookies?tab_id=tab-1&name=li_at&value=secret&domain=.linkedin.com`);
   });
 
   it("reuses an idle tab before opening a raw CDP fallback tab", async () => {

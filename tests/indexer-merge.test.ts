@@ -208,3 +208,71 @@ describe("domain snapshot accumulation", () => {
     expect(merged!.skill_id).toBe("skill-example");
   });
 });
+
+describe("background index queue", () => {
+  test("queueBackgroundIndex coalesces newer work for the same domain", async () => {
+    const {
+      queueBackgroundIndex,
+      resetIndexQueueForTests,
+      setBackgroundIndexProcessorForTests,
+    } = await import("../src/indexer/index.js");
+
+    resetIndexQueueForTests();
+
+    const processed: string[] = [];
+    let started = 0;
+    let releaseFirst: (() => void) | null = null;
+    const secondRunDone = new Promise<void>((resolve) => {
+      setBackgroundIndexProcessorForTests(async (job) => {
+        processed.push(`${job.cacheKey}:${job.skill.endpoints.length}`);
+        started += 1;
+        if (started === 1) {
+          await new Promise<void>((release) => {
+            releaseFirst = release;
+          });
+          return;
+        }
+        resolve();
+      });
+    });
+
+    queueBackgroundIndex({
+      skill: makeSkill("example.com", [
+        makeEndpoint({ endpoint_id: "list", url_template: "https://api.example.com/items" }),
+      ], { skill_id: "skill-example" }),
+      domain: "example.com",
+      intent: "browse example.com",
+      cacheKey: "job-1",
+    });
+
+    await Promise.resolve();
+
+    queueBackgroundIndex({
+      skill: makeSkill("example.com", [
+        makeEndpoint({ endpoint_id: "detail", url_template: "https://api.example.com/items/{id}" }),
+      ], { skill_id: "skill-example" }),
+      domain: "example.com",
+      intent: "browse example.com",
+      cacheKey: "job-2",
+    });
+
+    queueBackgroundIndex({
+      skill: makeSkill("example.com", [
+        makeEndpoint({ endpoint_id: "search", url_template: "https://api.example.com/search?q={query}" }),
+      ], { skill_id: "skill-example" }),
+      domain: "example.com",
+      intent: "browse example.com",
+      cacheKey: "job-3",
+    });
+
+    releaseFirst?.();
+    await secondRunDone;
+
+    expect(processed).toEqual([
+      "job-1:1",
+      "job-3:2",
+    ]);
+
+    resetIndexQueueForTests();
+  });
+});

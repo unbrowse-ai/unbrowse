@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { SkillManifest } from "@/lib/api";
+import type { SkillListItem, SkillManifest } from "@/lib/api";
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "text-emerald-600 bg-emerald-50 border-emerald-200",
@@ -16,10 +16,15 @@ const STATUS_DOTS: Record<string, string> = {
   pending: "bg-blue-400 animate-pulse",
 };
 
-export function SkillCard({ skill }: { skill: SkillManifest }) {
-  const avgScore = skill.endpoints.length > 0
-    ? skill.endpoints.reduce((s, e) => s + e.reliability_score, 0) / skill.endpoints.length
-    : 0;
+type SkillCardData = SkillManifest | SkillListItem;
+
+export function SkillCard({ skill }: { skill: SkillCardData }) {
+  const endpointCount = "endpoint_count" in skill ? skill.endpoint_count : skill.endpoints.length;
+  const avgScore = "avg_reliability_score" in skill
+    ? skill.avg_reliability_score
+    : skill.endpoints.length > 0
+      ? skill.endpoints.reduce((s, e) => s + e.reliability_score, 0) / skill.endpoints.length
+      : 0;
 
     return (
       <Link
@@ -63,8 +68,8 @@ export function SkillCard({ skill }: { skill: SkillManifest }) {
             {ep.method}
           </span>
         ))}
-        {skill.endpoints.length > 4 && (
-          <span className="text-[10px] font-mono text-text-muted px-1">+{skill.endpoints.length - 4}</span>
+        {endpointCount > 4 && (
+          <span className="text-[10px] font-mono text-text-muted px-1">+{endpointCount - 4}</span>
         )}
       </div>
 
