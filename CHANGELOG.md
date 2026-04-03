@@ -57,6 +57,7 @@
 
 ### Bug Fixes
 
+* **frontend/miners**: remove the fake bounty/quest game layer from the contributors page, replace it with honest demand targets, and add a coverage-globe view driven by real graph stats
 * **frontend/perf**: stop homepage and search from fetching the full 30MB+ skill registry payload, add a compact cacheable skill-card list for registry surfaces, and enable sane revalidation for blog API fetches
 * **frontend/cache**: move landing-copy selection off the homepage request path, serve the active growth variant from cached backend config, hard-cache popular/card registry APIs, short-TTL cache search responses in Worker edge + KV, and make `/` plus `/search` ship as static revalidated HTML instead of `no-store` server renders
 * **ci/frontend**: make Cloudflare frontend CI deploys ship via direct Wrangler deploy after the OpenNext build, so `main` and release deploys no longer die on the pre-populate R2 incremental-cache upload step
