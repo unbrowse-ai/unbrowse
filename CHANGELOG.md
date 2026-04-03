@@ -13,6 +13,8 @@
 * **cli/analytics**: surface machine-readable per-run impact (`time_saved`, `tokens_saved`, `browser_avoided`) plus likely next actions in resolve/execute responses, and persist richer session telemetry so the canonical funnel can reason over success and savings instead of only coarse counters
 * **frontend/miners**: replace the hardcoded miners bounty board and weekly quests with demand-driven backend data aggregated from recent CLI search/resolve telemetry, so the board now tracks what agents are actually asking for
 * **setup/wallets**: encourage Crossmint `lobster.cash` during new-install bootstrap, surface it in setup status/docs, and point walletless installs at `npx @crossmint/lobster-cli setup`
+* **landing/api**: add a landing-copy variant API with publish/list/resolve/summary routes, plus a `landing:publish` helper script, so homepage copy can be updated over API and measured by ICP/variant instead of staying hardcoded
+* **analytics/acquisition**: add section-depth checkpoints and ICP-path click tracking on the homepage, plus filtered acquisition summaries by `variant_id` / `icp` / `experiment_id` so landing copy resonance can be compared before tightening the funnel
 
 ### Tests
 
@@ -22,6 +24,7 @@
 
 * **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
 * **frontend/homepage**: sharpen homepage positioning around AI agent builders, clarify the browser-automation replacement story, and reduce copy clutter across the hero, install, and registry sections
+* **frontend/homepage**: add explicit ICP paths for agent builders, OpenClaw users, and MCP hosts so each buyer can pattern-match to the right value prop and install path faster
 * **frontend/copy**: normalize the public role name to `contributor` across leaderboard and economics pages while keeping mining as the campaign verb
 * fix packaged MCP autostart by removing a duplicate `recordAnalyticsSession` export that broke the packaged local-server bootstrap path behind the installer-generated MCP command
 * **frontend/install**: simplify the landing-page install path around one clear command, reduce CTA clutter, trim install tabs, and make the copy action grab the primary command instead of the full block

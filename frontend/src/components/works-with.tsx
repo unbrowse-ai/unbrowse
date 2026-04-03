@@ -12,7 +12,7 @@ export function WorksWith() {
   ];
 
   return (
-      <section className="py-16 sm:py-20 border-b border-border bg-surface-sunken">
+      <section id="works-with" className="py-16 sm:py-20 border-b border-border bg-surface-sunken">
        <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <p className="text-center text-xs font-mono text-text-muted uppercase tracking-widest mb-10 font-medium">
           Works with your stack

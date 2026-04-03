@@ -45,6 +45,7 @@
     "preset:show": "bun scripts/profile.ts show",
     "preset:clear": "bun scripts/profile.ts clear",
     "blog:publish": "bun scripts/publish-blog.ts",
+    "landing:publish": "bun scripts/publish-landing-variant.ts",
     "check:skill-docs": "bun test tests/skill-docs-sync.test.ts",
     "sync:skill-md": "bun scripts/sync-skill-md.ts",
     "check:skill-md": "bun scripts/sync-skill-md.ts --check",

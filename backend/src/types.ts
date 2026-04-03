@@ -1,5 +1,6 @@
 export interface Env {
   API_KEY: string;
+  LANDING_PUBLISH_KEY?: string;
   UNKEY_ROOT_KEY: string;
   UNKEY_API_ID: string;
   DATABASE_URL?: string;
@@ -449,10 +450,28 @@ export interface AcquisitionReferrerSummary {
   sessions: number;
 }
 
+export interface AcquisitionSectionSummary {
+  section_id: string;
+  sessions: number;
+  share_of_landing: number;
+  install_copy_rate_after_view: number;
+}
+
+export interface AcquisitionClickSummary {
+  target_id: string;
+  sessions: number;
+  click_through_rate_from_landing: number;
+}
+
 export interface AcquisitionSummary {
   generated_at: string;
   window_days: number;
   events: number;
+  filters?: {
+    variant_id?: string;
+    icp?: string;
+    experiment_id?: string;
+  };
   totals: {
     visitors: number;
     sessions: number;
@@ -468,4 +487,55 @@ export interface AcquisitionSummary {
     install_copy_from_install_view: number;
   };
   top_referrers: AcquisitionReferrerSummary[];
+  sections: AcquisitionSectionSummary[];
+  icp_paths: AcquisitionClickSummary[];
+}
+
+export type LandingVariantStatus = "draft" | "active" | "archived";
+
+export interface LandingVariantContent {
+  hero_eyebrow?: string;
+  hero_title?: string;
+  hero_highlight?: string;
+  hero_body?: string;
+  hero_supporting?: string;
+  trust_items?: string[];
+  definition_title?: string;
+  definition_body?: string;
+  install_summary?: string;
+}
+
+export interface LandingVariant {
+  variant_id: string;
+  slug: string;
+  name: string;
+  icp: string;
+  experiment_id: string;
+  status: LandingVariantStatus;
+  weight: number;
+  content: LandingVariantContent;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LandingVariantSummaryItem {
+  variant_id: string;
+  slug: string;
+  name: string;
+  icp: string;
+  experiment_id: string;
+  status: LandingVariantStatus;
+  weight: number;
+  landing_views: number;
+  install_section_views: number;
+  install_command_copies: number;
+  install_section_view_rate: number;
+  install_command_copy_rate: number;
+}
+
+export interface LandingVariantSummary {
+  generated_at: string;
+  window_days: number;
+  variants: LandingVariantSummaryItem[];
 }

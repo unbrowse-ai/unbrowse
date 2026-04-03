@@ -1,4 +1,11 @@
-import type { AcquisitionReferrerSummary, AcquisitionSummary, Env, WebTelemetryEvent } from "../types.js";
+import type {
+  AcquisitionClickSummary,
+  AcquisitionReferrerSummary,
+  AcquisitionSectionSummary,
+  AcquisitionSummary,
+  Env,
+  WebTelemetryEvent,
+} from "../types.js";
 import { statsKV } from "./kv.js";
 
 const WEB_EVENT_PREFIX = "web-event:";
@@ -10,6 +17,14 @@ type SessionState = {
   landing_viewed: boolean;
   install_section_viewed: boolean;
   install_command_copied: boolean;
+  sections_viewed: Set<string>;
+  icp_paths_clicked: Set<string>;
+};
+
+type AcquisitionFilter = {
+  variant_id?: string;
+  icp?: string;
+  experiment_id?: string;
 };
 
 function clampDays(days: number | undefined, fallback = 30): number {
@@ -83,6 +98,8 @@ export async function getAcquisitionSummary(env: Env, days = 30): Promise<Acquis
       landing_viewed: false,
       install_section_viewed: false,
       install_command_copied: false,
+      sections_viewed: new Set<string>(),
+      icp_paths_clicked: new Set<string>(),
     };
     state.referrer = state.referrer === "direct" ? normalizeReferrer(event.referrer) : state.referrer;
     switch (event.name) {
@@ -98,7 +115,18 @@ export async function getAcquisitionSummary(env: Env, days = 30): Promise<Acquis
         state.install_command_copied = true;
         installCommandCopies++;
         break;
+      case "landing_section_viewed": {
+        const sectionId = typeof event.properties?.section_id === "string" ? event.properties.section_id.trim() : "";
+        if (sectionId) state.sections_viewed.add(sectionId);
+        break;
+      }
+      case "icp_path_clicked": {
+        const targetId = typeof event.properties?.target_id === "string" ? event.properties.target_id.trim() : "";
+        if (targetId) state.icp_paths_clicked.add(targetId);
+        break;
+      }
     }
+    if (state.install_section_viewed) state.sections_viewed.add("install");
     sessions.set(key, state);
   }
 
@@ -127,6 +155,9 @@ export async function getAcquisitionSummary(env: Env, days = 30): Promise<Acquis
     .sort((a, b) => b.sessions - a.sessions || a.referrer.localeCompare(b.referrer))
     .slice(0, 10);
 
+  const sections = summarizeSections(sessions, landingSessions);
+  const icpPaths = summarizeClickTargets(sessions, landingSessions);
+
   return {
     generated_at: new Date().toISOString(),
     window_days: windowDays,
@@ -146,5 +177,162 @@ export async function getAcquisitionSummary(env: Env, days = 30): Promise<Acquis
       install_copy_from_install_view: rate(copySessions, installViewSessions),
     },
     top_referrers: topReferrers,
+    sections,
+    icp_paths: icpPaths,
+  };
+}
+
+function matchesFilter(event: WebTelemetryEvent, filters?: AcquisitionFilter): boolean {
+  if (!filters) return true;
+  const props = event.properties ?? {};
+  if (filters.variant_id) {
+    const variantId = typeof props.variant_id === "string" ? props.variant_id : undefined;
+    if (variantId !== filters.variant_id) return false;
+  }
+  if (filters.icp) {
+    const icp = typeof props.icp === "string" ? props.icp : undefined;
+    if (icp !== filters.icp) return false;
+  }
+  if (filters.experiment_id) {
+    const experimentId = typeof props.experiment_id === "string" ? props.experiment_id : undefined;
+    if (experimentId !== filters.experiment_id) return false;
+  }
+  return true;
+}
+
+function summarizeSections(sessions: Map<string, SessionState>, landingSessions: number): AcquisitionSectionSummary[] {
+  const counts = new Map<string, { sessions: number; copies: number }>();
+  for (const state of sessions.values()) {
+    for (const sectionId of state.sections_viewed) {
+      const bucket = counts.get(sectionId) ?? { sessions: 0, copies: 0 };
+      bucket.sessions += 1;
+      if (state.install_command_copied) bucket.copies += 1;
+      counts.set(sectionId, bucket);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([section_id, bucket]) => ({
+      section_id,
+      sessions: bucket.sessions,
+      share_of_landing: rate(bucket.sessions, landingSessions),
+      install_copy_rate_after_view: rate(bucket.copies, bucket.sessions),
+    }))
+    .sort((a, b) => b.sessions - a.sessions || a.section_id.localeCompare(b.section_id));
+}
+
+function summarizeClickTargets(sessions: Map<string, SessionState>, landingSessions: number): AcquisitionClickSummary[] {
+  const counts = new Map<string, number>();
+  for (const state of sessions.values()) {
+    for (const targetId of state.icp_paths_clicked) {
+      counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([target_id, sessions]) => ({
+      target_id,
+      sessions,
+      click_through_rate_from_landing: rate(sessions, landingSessions),
+    }))
+    .sort((a, b) => b.sessions - a.sessions || a.target_id.localeCompare(b.target_id));
+}
+
+export async function getFilteredAcquisitionSummary(
+  env: Env,
+  args: { days?: number; filters?: AcquisitionFilter } = {},
+): Promise<AcquisitionSummary> {
+  const windowDays = clampDays(args.days);
+  const events = (await loadWebEvents(env, windowDays)).filter((event) => matchesFilter(event, args.filters));
+  const visitors = new Set<string>();
+  const sessions = new Map<string, SessionState>();
+  const referrers = new Map<string, Set<string>>();
+  let landingViews = 0;
+  let installSectionViews = 0;
+  let installCommandCopies = 0;
+
+  for (const event of events) {
+    visitors.add(event.visitor_id);
+    const key = `${event.visitor_id}:${event.session_id}`;
+    const state = sessions.get(key) ?? {
+      visitor_id: event.visitor_id,
+      session_id: event.session_id,
+      referrer: normalizeReferrer(event.referrer),
+      landing_viewed: false,
+      install_section_viewed: false,
+      install_command_copied: false,
+      sections_viewed: new Set<string>(),
+      icp_paths_clicked: new Set<string>(),
+    };
+    state.referrer = state.referrer === "direct" ? normalizeReferrer(event.referrer) : state.referrer;
+    switch (event.name) {
+      case "landing_page_viewed":
+        state.landing_viewed = true;
+        landingViews++;
+        break;
+      case "install_section_viewed":
+        state.install_section_viewed = true;
+        installSectionViews++;
+        break;
+      case "install_command_copied":
+        state.install_command_copied = true;
+        installCommandCopies++;
+        break;
+      case "landing_section_viewed": {
+        const sectionId = typeof event.properties?.section_id === "string" ? event.properties.section_id.trim() : "";
+        if (sectionId) state.sections_viewed.add(sectionId);
+        break;
+      }
+      case "icp_path_clicked": {
+        const targetId = typeof event.properties?.target_id === "string" ? event.properties.target_id.trim() : "";
+        if (targetId) state.icp_paths_clicked.add(targetId);
+        break;
+      }
+    }
+    if (state.install_section_viewed) state.sections_viewed.add("install");
+    sessions.set(key, state);
+  }
+
+  let landingWithoutInstallView = 0;
+  let installViewWithoutCopy = 0;
+  let landingSessions = 0;
+  let installViewSessions = 0;
+  let copySessions = 0;
+  for (const state of sessions.values()) {
+    if (state.landing_viewed) landingSessions++;
+    if (state.install_section_viewed) installViewSessions++;
+    if (state.install_command_copied) copySessions++;
+    if (state.landing_viewed && !state.install_section_viewed) landingWithoutInstallView++;
+    if (state.install_section_viewed && !state.install_command_copied) installViewWithoutCopy++;
+    const bucket = referrers.get(state.referrer) ?? new Set<string>();
+    bucket.add(state.session_id);
+    referrers.set(state.referrer, bucket);
+  }
+
+  const topReferrers: AcquisitionReferrerSummary[] = Array.from(referrers.entries())
+    .map(([referrer, sessionIds]) => ({ referrer, sessions: sessionIds.size }))
+    .sort((a, b) => b.sessions - a.sessions || a.referrer.localeCompare(b.referrer))
+    .slice(0, 10);
+
+  return {
+    generated_at: new Date().toISOString(),
+    window_days: windowDays,
+    events: events.length,
+    filters: args.filters,
+    totals: {
+      visitors: visitors.size,
+      sessions: sessions.size,
+      landing_views: landingViews,
+      install_section_views: installSectionViews,
+      install_command_copies: installCommandCopies,
+      landing_without_install_view: landingWithoutInstallView,
+      install_view_without_copy: installViewWithoutCopy,
+    },
+    rates: {
+      install_section_view_from_landing: rate(installViewSessions, landingSessions),
+      install_copy_from_landing: rate(copySessions, landingSessions),
+      install_copy_from_install_view: rate(copySessions, installViewSessions),
+    },
+    top_referrers: topReferrers,
+    sections: summarizeSections(sessions, landingSessions),
+    icp_paths: summarizeClickTargets(sessions, landingSessions),
   };
 }
