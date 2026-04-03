@@ -8,7 +8,7 @@
  * GitHub releases on `npm install`.
  */
 
-import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
@@ -18,9 +18,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
 const binDir = join(packageRoot, "bin");
 const binaryPath = join(binDir, "unbrowse");
+const wrapperPath = join(binDir, "unbrowse-wrapper.mjs");
+const launcherPath = join(binDir, "unbrowse.js");
+
+function ensureExecutable(filePath) {
+  if (!existsSync(filePath)) return;
+  try {
+    chmodSync(filePath, 0o755);
+  } catch {
+    // Leave best-effort permission repair to the wrapper diagnostics.
+  }
+}
+
+ensureExecutable(wrapperPath);
+ensureExecutable(launcherPath);
 
 // Skip if binary already exists (re-install)
 if (existsSync(binaryPath)) {
+  ensureExecutable(binaryPath);
   process.exit(0);
 }
 
@@ -35,9 +50,7 @@ if (!SUPPORTED.includes(target)) {
 }
 
 // Read version from package.json
-const pkg = JSON.parse(
-  (await import("node:fs")).readFileSync(join(packageRoot, "package.json"), "utf-8")
-);
+const pkg = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf-8"));
 const version = pkg.version;
 const repo = "unbrowse-ai/unbrowse";
 const assetName = `unbrowse-${target}`;

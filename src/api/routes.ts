@@ -13,7 +13,7 @@ import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
-import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
+import { TRACE_VERSION, CODE_HASH, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
@@ -822,7 +822,13 @@ export async function registerRoutes(app: FastifyInstance) {
   });
 
   // GET /health
-  app.get("/health", async (_req, reply) => reply.send({ status: "ok", trace_version: TRACE_VERSION, code_hash: CODE_HASH, git_sha: GIT_SHA }));
+  app.get("/health", async (_req, reply) => reply.send({
+    status: "ok",
+    trace_version: TRACE_VERSION,
+    code_hash: CODE_HASH,
+    git_sha: GIT_SHA,
+    package_version: PACKAGE_VERSION,
+  }));
 
   // GET /v1/sessions/:domain — read local trace/debug files instead of proxying to backend
   app.get("/v1/sessions/:domain", async (req, reply) => {

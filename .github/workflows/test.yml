@@ -101,6 +101,8 @@ jobs:
       - run: npm pack --dry-run
         name: Validate npm package
         working-directory: packages/skill
+      - run: bash scripts/smoke-packaged-cli.sh
+        name: Smoke packaged global install
 
   cli-e2e:
     name: CLI E2E
