@@ -1,5 +1,6 @@
 import { listSkills } from "./marketplace/index.js";
 import { verifySkill } from "./verification/index.js";
+import { selectVerificationCandidates } from "./verification/candidates.js";
 import type { SkillManifest } from "./types/index.js";
 import {
   applyVerificationResults,
@@ -11,6 +12,7 @@ import { pruneLocalCacheEntriesForSkill } from "./orchestrator/index.js";
 const VERIFY_TIMEOUT_MS = Math.max(5_000, Number(process.env.UNBROWSE_STALE_VERIFY_TIMEOUT_MS ?? 15_000));
 const CLEANUP_INTERVAL_MS = Math.max(30 * 60 * 1000, Number(process.env.UNBROWSE_STALE_CLEANUP_INTERVAL_MS ?? 6 * 60 * 60 * 1000));
 const CLEANUP_BATCH_SIZE = Math.max(1, Number(process.env.UNBROWSE_STALE_CLEANUP_BATCH_SIZE ?? 25));
+const CLEANUP_VERIFY_ENDPOINT_LIMIT = Math.max(1, Number(process.env.UNBROWSE_STALE_VERIFY_ENDPOINT_LIMIT ?? 2));
 
 export type SkillCleanupSummary = {
   skill_id: string;
@@ -73,8 +75,12 @@ export async function cleanupStaleSkills(options?: {
 
     if (skill.lifecycle === "active" && skill.endpoints.some((endpoint) => endpoint.method === "GET")) {
       try {
+        const endpoints = selectVerificationCandidates(skill, {
+          staleOnly: true,
+          limit: CLEANUP_VERIFY_ENDPOINT_LIMIT,
+        });
         const verification = await Promise.race([
-          verifySkill(skill),
+          verifySkill(skill, { endpoints }),
           new Promise<never>((_, reject) => {
             setTimeout(() => reject(new Error(`verification timed out after ${VERIFY_TIMEOUT_MS}ms`)), VERIFY_TIMEOUT_MS);
           }),
