@@ -1,26 +1,56 @@
 import { describe, expect, it } from "bun:test";
-import { deriveSuggestedCommands, deriveSuggestedEvalCommands } from "../scripts/pr-agent.ts";
+import { evaluateMergeReadiness, summarizeCheckRuns } from "../scripts/pr-agent";
 
-describe("pr-agent helpers", () => {
-  it("maps failing checks to concrete repo commands", () => {
-    expect(deriveSuggestedCommands(["Repo Sanity", "Typecheck Backend"], ["backend/src/index.ts"])).toEqual([
-      "bun run check:skill-md",
-      "bun run check:skill-docs",
-      "cd backend && ./node_modules/.bin/tsc --noEmit",
-      "bun test backend/tests/",
+describe("pr-agent merge gating", () => {
+  it("summarizes only external checks", () => {
+    const summary = summarizeCheckRuns([
+      { name: "Review And Repair PR", status: "completed", conclusion: "failure" },
+      { name: "Unit Tests", status: "completed", conclusion: "success" },
+      { name: "CLI E2E", status: "in_progress", conclusion: null },
+      { name: "Quality Gate", status: "completed", conclusion: "failure" },
     ]);
+
+    expect(summary.hasExternalChecks).toBe(true);
+    expect(summary.pending).toEqual(["CLI E2E"]);
+    expect(summary.failing).toEqual(["Quality Gate"]);
+    expect(summary.successful).toEqual(["Unit Tests"]);
   });
 
-  it("adds cli/runtime verification from changed files", () => {
-    const commands = deriveSuggestedCommands([], ["src/cli.ts", "src/execution/index.ts"]);
-    expect(commands).toContain("bun run test:issue-regressions");
-    expect(commands).toContain("bun run cli -- setup --no-start");
-    expect(commands).toContain("bun test tests/cli-e2e.test.ts");
+  it("blocks merge when requested changes or pending checks remain", () => {
+    const readiness = evaluateMergeReadiness(
+      {
+        state: "OPEN",
+        isDraft: false,
+        reviewDecision: "CHANGES_REQUESTED",
+        mergeStateStatus: "BLOCKED",
+        headRefOid: "abc123",
+      },
+      "abc123",
+      [{ name: "Unit Tests", status: "in_progress", conclusion: null }],
+    );
+
+    expect(readiness.ok).toBe(false);
+    expect(readiness.reason).toContain("review requested changes");
   });
 
-  it("suggests product evals for runtime changes", () => {
-    expect(deriveSuggestedEvalCommands(["src/orchestrator/index.ts"])).toEqual([
-      "bun run eval:codex:product-success",
-    ]);
+  it("allows merge only when non-agent checks are green and merge state is safe", () => {
+    const readiness = evaluateMergeReadiness(
+      {
+        state: "OPEN",
+        isDraft: false,
+        reviewDecision: "APPROVED",
+        mergeStateStatus: "CLEAN",
+        headRefOid: "abc123",
+      },
+      "abc123",
+      [
+        { name: "Review And Repair PR", status: "completed", conclusion: "success" },
+        { name: "Unit Tests", status: "completed", conclusion: "success" },
+        { name: "CLI E2E", status: "completed", conclusion: "success" },
+      ],
+    );
+
+    expect(readiness.ok).toBe(true);
+    expect(readiness.successfulChecks).toEqual(["Unit Tests", "CLI E2E"]);
   });
 });
