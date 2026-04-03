@@ -56,6 +56,7 @@
 
 ### Bug Fixes
 
+* **package/runtime**: remove a duplicate `recordAnalyticsSession` export so packaged local-server autostart no longer crashes under the Node/tsx runtime path, make Kuri re-probe health instead of trusting stale in-memory ready state after port `7700` dies, fall back to raw Chrome CDP tab creation when Kuri’s `/tab/new` path flakes, retry capture on fresh Kuri tabs after mid-run transport loss instead of bailing out as generic `fetch failed`, and stop browse-session handoff from reusing first-pass tabs after Kuri has already dropped them
 * **cli/cache**: add a `cleanup-stale` sweep that re-verifies active skills, evicts stale local cache entries, and now rotates through periodic server-side batches so dead marketplace endpoints stop getting replayed
 * **browse/sessions**: isolate browse state behind per-session `session_id`s, serialize same-session browse actions, require explicit session selection when multiple sessions are live, and stop first-pass/capture flows from reusing Kuri's implicit default tab under parallel load
 * **kuri/tests**: stop the Kuri live e2e suite from hijacking a visible Chrome session by honoring headless launch flags and running the fixture-browser tests in headless managed mode

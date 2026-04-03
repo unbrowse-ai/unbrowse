@@ -306,7 +306,12 @@ function kuriUrl(path: string, params?: Record<string, string>): string {
   return `${base}?${parts.join("&")}`;
 }
 
-async function kuriGet(path: string, params?: Record<string, string>): Promise<unknown> {
+function shouldRetryKuriTransportError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /fetch failed|econnrefused|connection refused|socket hang up|other side closed|transport closed/i.test(message);
+}
+
+async function kuriGet(path: string, params?: Record<string, string>, retryOnTransportFailure = true): Promise<unknown> {
   const url = kuriUrl(path, params);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), KURI_REQUEST_TIMEOUT_MS);
@@ -314,12 +319,20 @@ async function kuriGet(path: string, params?: Record<string, string>): Promise<u
     const res = await fetch(url, { signal: controller.signal });
     const text = await res.text();
     try { return JSON.parse(text); } catch { return text; }
+  } catch (error) {
+    if (retryOnTransportFailure && path !== "/health" && shouldRetryKuriTransportError(error)) {
+      log("kuri", `transport failed for ${path}; restarting Kuri and retrying once`);
+      await stop();
+      await start(kuriPort);
+      return await kuriGet(path, params, false);
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function kuriPost(path: string, params: Record<string, string>, body: unknown): Promise<unknown> {
+async function kuriPost(path: string, params: Record<string, string>, body: unknown, retryOnTransportFailure = true): Promise<unknown> {
   const url = kuriUrl(path, params);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), KURI_REQUEST_TIMEOUT_MS);
@@ -332,6 +345,14 @@ async function kuriPost(path: string, params: Record<string, string>, body: unkn
     });
     const text = await res.text();
     try { return JSON.parse(text); } catch { return text; }
+  } catch (error) {
+    if (retryOnTransportFailure && path !== "/health" && shouldRetryKuriTransportError(error)) {
+      log("kuri", `transport failed for ${path}; restarting Kuri and retrying once`);
+      await stop();
+      await start(kuriPort);
+      return await kuriPost(path, params, body, false);
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -359,12 +380,19 @@ async function waitForChildExit(child: ChildProcess | null | undefined, timeoutM
  * Idempotent — returns immediately if already running.
  */
 export async function start(port?: number): Promise<void> {
-  if (kuriReady) return;
+  const requestedPort = port ?? Number(process.env.KURI_PORT || KURI_DEFAULT_PORT);
+  if (kuriReady) {
+    const activePort = kuriPort || requestedPort;
+    if (await isKuriHealthyOnPort(activePort)) return;
+    log("kuri", `cached ready state stale on port ${activePort}; restarting`);
+    kuriReady = false;
+    kuriProcess = null;
+    kuriStartPromise = null;
+  }
   if (kuriStartPromise) return kuriStartPromise;
 
   const startPromise = (async () => {
     const launchConfig = resolveKuriLaunchConfig();
-    const requestedPort = port ?? Number(process.env.KURI_PORT || KURI_DEFAULT_PORT);
     kuriPort = await resolveKuriPort(requestedPort);
     if (kuriPort !== requestedPort) {
       log("kuri", `preferred port ${requestedPort} is occupied but unhealthy; falling back to ${kuriPort}`);
@@ -431,11 +459,12 @@ export async function start(port?: number): Promise<void> {
         }
       });
 
-      kuriProcess.on("exit", (code) => {
+      kuriProcess.on("exit", (code, signal) => {
         if (!kuriReady) exitedBeforeReady = true;
-        log("kuri", `process exited with code ${code}`);
+        log("kuri", `process exited with code ${code} signal ${signal ?? "none"}`);
         kuriReady = false;
         kuriProcess = null;
+        kuriStartPromise = null;
       });
 
       // Wait for health endpoint; break early if process died
@@ -524,25 +553,8 @@ export async function getDefaultTab(): Promise<string> {
     if (Array.isArray(tabs) && tabs.length > 0) return tabs[0].id;
   } catch { /* no tabs registered */ }
 
-  // Create a new tab via Chrome CDP and re-discover
-  if (kuriCdpPort) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${kuriCdpPort}/json/new?about:blank`, {
-        method: "PUT",
-        signal: AbortSignal.timeout(5000),
-      });
-      const target = (await res.json()) as { id: string };
-      if (target?.id) {
-        log("kuri", `created new Chrome tab: ${target.id}`);
-        // Re-discover to register it with Kuri
-        await new Promise((r) => setTimeout(r, 300));
-        await ensureTabsDiscovered();
-        return target.id;
-      }
-    } catch (err) {
-      log("kuri", `Chrome tab creation failed: ${err instanceof Error ? err.message : err}`);
-    }
-  }
+  const cdpTabId = await createChromeTabViaCdp("about:blank");
+  if (cdpTabId) return cdpTabId;
 
   throw new Error("No tabs available and failed to create one");
 }
@@ -571,6 +583,26 @@ async function waitForTabRegistration(tabId: string, timeoutMs = 2_000): Promise
       // keep polling until timeout
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+async function createChromeTabViaCdp(url = "about:blank"): Promise<string> {
+  if (!kuriCdpPort) return "";
+  try {
+    const res = await fetch(`http://127.0.0.1:${kuriCdpPort}/json/new?${url}`, {
+      method: "PUT",
+      signal: AbortSignal.timeout(5_000),
+    });
+    const target = (await res.json()) as { id?: string };
+    if (!target?.id) return "";
+    log("kuri", `created new Chrome tab: ${target.id}`);
+    await new Promise((r) => setTimeout(r, 300));
+    await ensureTabsDiscovered().catch(() => {});
+    await waitForTabRegistration(target.id).catch(() => {});
+    return target.id;
+  } catch (err) {
+    log("kuri", `Chrome tab creation failed: ${err instanceof Error ? err.message : err}`);
+    return "";
   }
 }
 
@@ -796,12 +828,33 @@ export async function closeTab(tabId: string): Promise<void> {
 export async function newTab(url?: string): Promise<string> {
   const params: Record<string, string> = {};
   if (url) params.url = url;
-  const result = (await kuriGet("/tab/new", params)) as { tab_id?: string };
-  const tabId = result?.tab_id ?? "";
+  const createViaKuri = async (): Promise<{ tab_id?: string; error?: string; message?: string }> =>
+    (await kuriGet("/tab/new", params)) as { tab_id?: string; error?: string; message?: string };
+
+  let result = await createViaKuri();
+  let tabId = result?.tab_id ?? "";
   if (tabId) {
     await waitForTabRegistration(tabId).catch(() => {});
+    return tabId;
   }
-  return tabId;
+
+  const cdpTabId = await createChromeTabViaCdp(url ?? "about:blank");
+  if (cdpTabId) return cdpTabId;
+
+  const restartPort = kuriPort;
+  const errorMessage = getKuriErrorMessage(result) ?? "unknown tab creation failure";
+  log("kuri", `tab creation failed via /tab/new (${errorMessage}); restarting Kuri once`);
+  await stop();
+  await start(restartPort);
+
+  result = await createViaKuri();
+  tabId = result?.tab_id ?? "";
+  if (tabId) {
+    await waitForTabRegistration(tabId).catch(() => {});
+    return tabId;
+  }
+
+  return await createChromeTabViaCdp(url ?? "about:blank");
 }
 
 /** Get current page URL via evaluate. */

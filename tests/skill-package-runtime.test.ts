@@ -5,6 +5,7 @@ import path from "node:path";
 const ROOT = path.resolve(import.meta.dir, "..");
 const SKILL_PACKAGE_JSON = path.join(ROOT, "packages", "skill", "package.json");
 const SKILL_WRAPPER = path.join(ROOT, "packages", "skill", "bin", "unbrowse-wrapper.mjs");
+const CLIENT_SRC = path.join(ROOT, "src", "client", "index.ts");
 
 describe("standalone skill package runtime", () => {
   it("ships the payment/runtime dependencies required by the packaged CLI", () => {
@@ -32,5 +33,12 @@ describe("standalone skill package runtime", () => {
     expect(wrapper).toContain("Fallback runtime is missing required packages");
     expect(wrapper).toContain("npm uninstall -g unbrowse && npm install -g unbrowse@latest");
     expect(wrapper).toContain('process.argv.includes("--version")');
+  });
+
+  it("does not ship duplicate analytics session exports that break packaged tsx runtime", () => {
+    const clientSrc = readFileSync(CLIENT_SRC, "utf8");
+    const matches = clientSrc.match(/export async function recordAnalyticsSession\s*\(/g) ?? [];
+
+    expect(matches).toHaveLength(1);
   });
 });
