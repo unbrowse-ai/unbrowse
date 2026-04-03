@@ -10,6 +10,7 @@ import {
 import { getAcquisitionSummary } from "../services/acquisition.js";
 import { getFunnelSummary } from "../services/funnel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
+import { getLandingHomepageAnalyticsSummary } from "../services/landing-experiments.js";
 import {
   getGrowthMetrics,
   getNetworkHealthMetrics,
@@ -200,6 +201,13 @@ analyticsRoutes.get("/analytics/install", async (c) => {
 analyticsRoutes.get("/analytics/install-funnel", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
   const summary = await getFunnelSummary(c.env, days);
+  setAnalyticsHeaders(c);
+  return c.json(summary);
+});
+
+analyticsRoutes.get("/analytics/landing-funnel", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 180);
+  const summary = await getLandingHomepageAnalyticsSummary(c.env, days);
   setAnalyticsHeaders(c);
   return c.json(summary);
 });

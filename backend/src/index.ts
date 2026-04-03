@@ -17,6 +17,7 @@ import { attributionRoutes } from "./routes/attribution.js";
 import { publicDashboardRoutes, dashboardRoutes } from "./routes/dashboard.js";
 import { publicMinerRoutes } from "./routes/miners.js";
 import { blogRoutes } from "./routes/blog.js";
+import { landingRoutes } from "./routes/landing.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -47,6 +48,7 @@ app.route("/v1", attributionRoutes);
 app.route("/v1", publicDashboardRoutes);
 app.route("/v1", publicMinerRoutes);
 app.route("/v1", blogRoutes);
+app.route("/v1", landingRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
