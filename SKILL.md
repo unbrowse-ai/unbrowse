@@ -21,7 +21,7 @@ Use this mental model:
 
 - **Traversal**: browser-native. `go`, `snap`, `click`, `fill`, `select`, `eval`, `submit`, `close`. No hidden API replay while clicking around.
 - **Publish/index**: passive evidence gets compiled later into a workflow DAG, typed params, restrictions, enums, token/header hints, and replay contracts.
-- **Replay/execute**: explicit only. Use published contracts when you want a non-browser call.
+- **Replay/execute**: explicit only. Use indexed/published contracts when you want a non-browser call.
 
 The clean category line is: Unbrowse is the agent-facing browser tool; Kuri is the primitive engine underneath.
 
@@ -135,6 +135,7 @@ unbrowse fill e5 "hello world"
 unbrowse submit --wait-for "/next-page.html"
 # only when you explicitly want browser-side prereq help:
 unbrowse submit --assist-site-state --wait-for "/next-page.html"
+unbrowse sync
 unbrowse close
 ```
 
@@ -160,13 +161,27 @@ Use one `session_id` through the whole flow. `snap` gives the live refs. `submit
   - returned `url`
 - Do not guess downstream URLs when the page already tells you the next step.
 - If a step stalls, inspect with `snap`, `eval`, and hidden-field probes before retrying.
-- Use `close` when done so captured evidence can flush and index.
+- Use `sync` for explicit mid-flow checkpoints.
+- Use `close` for the final checkpoint so auth saves and the background `index -> publish` pipeline is queued.
 
-### 3. Publish/index after traversal
+### 3. Checkpoint, index, publish
 
-Traversal is discovery. Publish is compilation.
+Traversal is discovery. Checkpoints drive compilation.
 
-At publish time, Unbrowse links:
+- `sync` -> checkpoint current capture, keep tab open, queue background `index -> publish`
+- `close` -> checkpoint current capture, queue background `index -> publish`, save auth, close tab
+- `index` -> recompute local DAG/contracts/export only
+- `publish` -> rerun local index, then explicitly remote-share/re-publish
+- `settings` -> inspect/update local auto-publish policy, blacklist, and prompt-list domains
+
+Workflow lifecycle:
+
+- `captured`
+- `indexed`
+- `published`
+- `blocked-validation`
+
+At index/publish time, Unbrowse links:
 
 - DOM prerequisites
 - hidden fields
@@ -177,7 +192,7 @@ At publish time, Unbrowse links:
 
 That output becomes the machine-readable replay contract exposed to later agents.
 
-### 4. Resolve and execute published routes
+### 4. Resolve and execute indexed/published routes
 
 When a route is already known, use the explicit resolve/execute path.
 
@@ -196,17 +211,27 @@ unbrowse execute \
 
 Resolve finds candidate endpoints. Execute is explicit replay, not ad-hoc traversal.
 
-This resolve/execute pair is the router/meta surface for published contracts:
+This resolve/execute pair is the router/meta surface for indexed/published contracts:
 
-- `resolve` searches the published contract graph
+- `resolve` searches the indexed/published contract graph
 - `execute` runs one explicit replay contract
-- `skill` / `skills` let you inspect the published contract inventory
+- `skill` / `skills` let you inspect the indexed/published contract inventory
 
-On the MCP surface, agents can also inspect published contract state before choosing tools:
+On the MCP surface, agents can also inspect indexed/published contract state before choosing tools:
 
 - resource `workflow_contract://<skill>/<endpoint>` (typed params, restrictions, x402/payment requirements)
 - resource `workflow_dag://<skill>/<endpoint>`
 - prompt `plan_workflow_execution`
+
+If the user does not want automatic ownership claims on captured domains, configure it locally:
+
+```bash
+unbrowse settings --auto-publish off
+unbrowse settings --publish-blacklist "linkedin.com,x.com"
+unbrowse settings --publish-promptlist "github.com"
+```
+
+Those rules only affect automatic publish after `sync` / `close`. Local `index` still works. Explicit `publish` remains available with `--confirm-publish` on guarded domains.
 
 ### 5. Review, feedback, publish
 
@@ -274,7 +299,9 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
-| `publish` | `--skill ID [--endpoints '[...]']` | Describe + publish skill to marketplace; compile linked replay contracts from passive capture evidence |
+| `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state only |
+| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, then publish/share from cached skill state; without endpoints returns review metadata first |
+| `settings` | `[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]` | Show or update local capture/publish policy settings |
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
@@ -297,8 +324,8 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `eval` | `[--session id] <expression>` | Evaluate JavaScript |
 | `back` | `[--session id]` | Navigate back |
 | `forward` | `[--session id]` | Navigate forward |
-| `sync` | `[--session id]` | Flush the current step's captured traffic into route cache without closing tab |
-| `close` | `[--session id]` | Close browse session, flush + index traffic |
+| `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish |
+| `close` | `[--session id]` | Checkpoint capture, queue background index + publish, then close browse session |
 
 ### Global flags
 
@@ -374,10 +401,10 @@ unbrowse eval 'document.querySelector("input[name=selectedDate]").value'
 unbrowse submit --wait-for "/time-selection.html"
 unbrowse submit --assist-site-state --wait-for "/time-selection.html"
 
-# 5. persist the captured step without closing the tab
+# 5. checkpoint the captured step without closing the tab
 unbrowse sync
 
-# 6. finish capture when the flow is done
+# 6. final checkpoint + close when the flow is done
 unbrowse close
 ```
 
@@ -388,7 +415,7 @@ Preferred order:
 - `eval` only when you need to inspect or set hidden state the page already depends on
 - `submit` for the real form transition
 - `sync` after a successful step that revealed useful network traffic
-- `close` once the run is complete
+- `close` once the run is complete and you want the final checkpoint + auth save
 
 ### Dependency-walk rule for multi-step sites
 
@@ -396,14 +423,14 @@ Preferred order:
 - Do not `go` directly to guessed downstream pages unless the current session already reached them through the real upstream form transition.
 - After `submit`, trust the returned `url`, `session_id`, and next-step hints. Those are the dependency edges you just proved.
 - If a later page falls back to `abandonedCart`, `session_expired`, wrong audience, or wrong product, resume from the last known good upstream page and walk forward again.
-- Use `sync` after successful transitions so future resolve/execute runs inherit the working dependency chain instead of only the terminal page.
+- Use `sync` after successful transitions so the checkpointed capture queues the background `index -> publish` pipeline and future resolve/execute runs inherit the working dependency chain instead of only the terminal page.
 
 ### JS-heavy forms: what worked best
 
 - Prefer real page clicks for date and time pickers before trying to patch hidden fields.
 - If the UI is flaky, inspect hidden inputs, cookies, or selected values with `eval`, then submit the real form.
 - Use `submit` instead of hand-rolled fetches first. Regular traversal stays browser-native; only opt into same-origin fetch fallback when you are explicitly debugging replay or recovery behavior.
-- Use `sync` after important transitions so the route graph learns the working request chain before the tab is closed.
+- Use `sync` after important transitions so the checkpointed capture queues the background `index -> publish` pipeline before the tab is closed.
 - Do not switch to external browser tools or raw HTTP unless the user explicitly authorizes fallback.
 
 ### Domain skills have many endpoints — use search or description matching
@@ -443,7 +470,8 @@ unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse go "https://example.com/form"             # Open a live capture tab
 unbrowse submit --wait-for "/next-step"            # Thin browser-native submit
 unbrowse submit --assist-site-state --wait-for "/next-step"  # Explicit site-state assist for JS-heavy steps
-unbrowse sync                                      # Flush any extra captured routes into the route cache
+unbrowse sync                                      # Checkpoint current capture and queue index + publish
+unbrowse index --skill {id}                        # Recompute local DAG/contracts/export only
 unbrowse health                                    # Server health check
 ```
 

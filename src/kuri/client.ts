@@ -336,6 +336,18 @@ async function isChromeCdpAvailable(port: number): Promise<boolean> {
   }
 }
 
+async function listRegisteredTabs(state: BrokerState): Promise<KuriTab[]> {
+  try {
+    const tabs = (await kuriGet(state, "/tabs")) as Array<{ id?: string; url?: string; title?: string }>;
+    if (!Array.isArray(tabs)) return [];
+    return tabs
+      .filter((tab): tab is { id: string; url?: string; title?: string } => typeof tab?.id === "string")
+      .map((tab) => ({ id: tab.id, url: tab.url ?? "", title: tab.title }));
+  } catch {
+    return [];
+  }
+}
+
 async function waitForChromeCdpReady(
   state: Pick<BrokerState, "cdpPort">,
   timeoutMs = KURI_CDP_READY_TIMEOUT_MS,
@@ -450,9 +462,97 @@ async function ensureUserChromeRunning(state: BrokerState): Promise<void> {
       await new Promise(r => setTimeout(r, 300));
     }
     log("kuri", "user Chrome launched but CDP not responding — Kuri will launch managed Chrome");
+    state.cdpPort = null;
   } catch (err) {
     log("kuri", `failed to launch user Chrome: ${err instanceof Error ? err.message : err}`);
+    state.cdpPort = null;
   }
+}
+
+async function terminateBrokerOnPort(port: number): Promise<void> {
+  try {
+    const output = execFileSync("lsof", ["-tiTCP:" + String(port), "-sTCP:LISTEN"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const pids = output
+      .split(/\r?\n/)
+      .map((line) => Number(line.trim()))
+      .filter((pid) => Number.isInteger(pid) && pid > 0);
+    for (const pid of pids) {
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {
+        // best effort only
+      }
+    }
+    if (pids.length > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  } catch {
+    // lsof missing or no listener — best effort only
+  }
+}
+
+type HealthyBrokerReuseDeps = {
+  isHealthyPort?: (port: number) => Promise<boolean>;
+  isChromeCdpAvailable?: (port: number) => Promise<boolean>;
+  discoverCdpPort?: (state: BrokerState) => Promise<void>;
+  ensureUserChromeRunning?: (state: BrokerState) => Promise<void>;
+  ensureTabsDiscovered?: (state: BrokerState) => Promise<void>;
+  listTabs?: (state: BrokerState) => Promise<KuriTab[]>;
+  terminateBrokerOnPort?: (port: number) => Promise<void>;
+};
+
+export async function reuseHealthyBrokerIfPossible(
+  state: BrokerState,
+  launchConfig: KuriLaunchConfig,
+  deps: HealthyBrokerReuseDeps = {},
+): Promise<boolean> {
+  const isHealthyPort = deps.isHealthyPort ?? isKuriHealthyOnPort;
+  if (!await isHealthyPort(state.port)) return false;
+
+  log("kuri", `already running on port ${state.port}`);
+  state.ready = true;
+  const cdpAvailable = deps.isChromeCdpAvailable ?? isChromeCdpAvailable;
+
+  const discover = deps.discoverCdpPort ?? discoverCdpPort;
+  await discover(state);
+
+  if (!state.cdpPort && launchConfig.attachToExistingChrome) {
+    const ensureChrome = deps.ensureUserChromeRunning ?? ensureUserChromeRunning;
+    await ensureChrome(state);
+  }
+
+  if (typeof state.cdpPort === "number" && !await cdpAvailable(state.cdpPort)) {
+    state.cdpPort = null;
+  }
+
+  const syncTabs = deps.ensureTabsDiscovered ?? ensureTabsDiscovered;
+  await syncTabs(state).catch(() => {});
+
+  const tabs = await (deps.listTabs ?? listRegisteredTabs)(state).catch(() => []);
+  if (state.cdpPort) {
+    return true;
+  }
+
+  if (tabs.length > 0) {
+    log("kuri", `healthy broker on port ${state.port} has stale registered tabs but no CDP; recycling startup path`);
+  } else {
+    log("kuri", `healthy broker on port ${state.port} has no CDP or tabs; recycling startup path`);
+  }
+  state.ready = false;
+
+  if (state.process) {
+    state.process.kill("SIGTERM");
+    await waitForChildExit(state.process);
+    state.process = null;
+  } else {
+    const terminate = deps.terminateBrokerOnPort ?? terminateBrokerOnPort;
+    await terminate(state.port);
+  }
+
+  return false;
 }
 
 function kuriUrl(state: BrokerState, path: string, params?: Record<string, string>): string {
@@ -538,14 +638,8 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
       log("kuri", `preferred port ${requestedPort} is occupied but unhealthy; falling back to ${state.port}`);
     }
 
-    // Check if kuri is already running on this port
-    if (await isKuriHealthyOnPort(state.port)) {
-      log("kuri", `already running on port ${state.port}`);
-      state.ready = true;
-      await discoverCdpPort(state);
-      await ensureTabsDiscovered(state);
-      return;
-    }
+    // Reuse only when the broker is healthy and either CDP or tabs are still reachable.
+    if (await reuseHealthyBrokerIfPossible(state, launchConfig)) return;
 
     const binary = findKuriBinary();
     log("kuri", `starting: ${binary} on port ${state.port}`);

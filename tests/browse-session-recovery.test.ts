@@ -676,4 +676,56 @@ describe("browse session recovery", () => {
     expect(result).toEqual({ ok: true });
     expect(sessions.get("sess-1")?.tabId).toBe("fresh-tab");
   });
+
+  it("can recover a read-only session when the first read comes back empty", async () => {
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", { sessionId: "sess-1", tabId: "dead-tab", url: "https://example.com", harActive: true, domain: "example.com" }],
+    ]);
+
+    const { session, result, recovered } = await withSerializedRecoveredBrowseSession(
+      sessions,
+      makeClient({
+        newTab: async () => "fresh-tab",
+        closeTab: async () => {},
+        discoverTabs: async () => [{ id: "fresh-tab", url: "https://example.com/fresh" }],
+        getCurrentUrl: async () => "https://example.com/fresh",
+      }),
+      async () => {},
+      "sess-1",
+      async (activeSession) => activeSession.tabId === "dead-tab" ? "" : "fresh text",
+      (value) => typeof value !== "string" || value.trim().length === 0,
+    );
+
+    expect(recovered).toBe(true);
+    expect(session.sessionId).toBe("sess-1");
+    expect(result).toBe("fresh text");
+    expect(sessions.get("sess-1")?.tabId).toBe("fresh-tab");
+  });
+
+  it("can recover a serialized session after a recoverable throw without changing its session id", async () => {
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", { sessionId: "sess-1", tabId: "dead-tab", url: "https://example.com", harActive: true, domain: "example.com" }],
+    ]);
+
+    const { session, result, recovered } = await withSerializedRecoveredBrowseSession(
+      sessions,
+      makeClient({
+        newTab: async () => "fresh-tab",
+        closeTab: async () => {},
+        discoverTabs: async () => [{ id: "fresh-tab", url: "https://example.com/fresh" }],
+        getCurrentUrl: async () => "https://example.com/fresh",
+      }),
+      async () => {},
+      "sess-1",
+      async (activeSession) => {
+        if (activeSession.tabId === "dead-tab") throw { error: "CDP command failed" };
+        return { ok: true };
+      },
+    );
+
+    expect(recovered).toBe(true);
+    expect(session.sessionId).toBe("sess-1");
+    expect(result).toEqual({ ok: true });
+    expect(sessions.get("sess-1")?.tabId).toBe("fresh-tab");
+  });
 });

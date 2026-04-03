@@ -3,7 +3,7 @@ import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
 import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, injectInterceptor, type RawRequest } from "../capture/index.js";
-import { queueBackgroundIndex } from "../indexer/index.js";
+import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
@@ -23,12 +23,10 @@ import {
   loadAuthProfileBestEffort,
   saveAuthProfileBestEffort,
 } from "../auth/index.js";
-import { publishSkill } from "../marketplace/index.js";
 import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
-import { mergeAgentReview } from "../indexer/index.js";
 import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
@@ -48,6 +46,12 @@ import {
 import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
 import { isUrlWaitHint, resolveSubmitWaitHint, submitBrowseForm } from "./browse-submit.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
+import {
+  decideCheckpointPublish,
+  decideExplicitPublish,
+  getCapturePipelineSettings,
+  updateCapturePipelineSettings,
+} from "../settings.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
@@ -105,9 +109,12 @@ export function buildAnalyticsSessionPayload(
 }
 
 
-/** Process HAR entries into routes and queue for background indexing */
-/** Full passive indexing pipeline — same enrichment as explicit capture */
-function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void {
+/** Process HAR entries into routes and queue local index, with remote share opt-in only. */
+function passiveIndexFromRequests(
+  requests: RawRequest[],
+  pageUrl: string,
+  options: { publishAfterIndex?: boolean } = {},
+): void {
   if (requests.length === 0) return;
 
   let domain: string;
@@ -196,9 +203,16 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
         persistDomainCache();
       }
 
-      // 9. Queue background index (graph building, validation, marketplace publish)
+      // 9. Queue local index, and only remote-share when the caller explicitly asked for it.
       const cacheKey = `passive:${domain}:${Date.now()}`;
-      queueBackgroundIndex({ skill, domain, intent, contextUrl: pageUrl, cacheKey });
+      queueBackgroundIndex({
+        skill,
+        domain,
+        intent,
+        contextUrl: pageUrl,
+        cacheKey,
+        publishAfterIndex: options.publishAfterIndex === true,
+      });
 
       console.error(`[passive-index] ${domain}: ${enrichedEndpoints.length} endpoints indexed from ${requests.length} requests`);
     } catch (err) {
@@ -208,8 +222,12 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
 }
 
 /** Convenience wrapper: convert HAR entries and run passive indexing */
-function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
-  passiveIndexFromRequests(harEntriesToRawRequests(entries), pageUrl);
+function passiveIndexHar(
+  entries: KuriHarEntry[],
+  pageUrl: string,
+  options: { publishAfterIndex?: boolean } = {},
+): void {
+  passiveIndexFromRequests(harEntriesToRawRequests(entries), pageUrl, options);
 }
 // ── Browse session state (module-level so orchestrator can register sessions) ──
 const browseSessions = new Map<string, BrowseSession>();
@@ -238,6 +256,37 @@ function selectBrowseBrokerClient(requestedSessionId?: string): kuri.KuriClient 
   }
   const [selectedPort] = [...loads.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0] ?? [BROWSE_BROKER_BASE_PORT, 0];
   return kuri.getKuriClient(selectedPort);
+}
+
+async function loadSkillForMutation(skillId: string, clientScope?: string): Promise<SkillManifest | null> {
+  let skill = getRecentLocalSkill(skillId, clientScope);
+  if (!skill) {
+    for (const [, entry] of domainSkillCache) {
+      if (entry.skillId === skillId && entry.localSkillPath) {
+        try { skill = JSON.parse(require("fs").readFileSync(entry.localSkillPath, "utf-8")); } catch {}
+        break;
+      }
+    }
+  }
+  if (!skill) skill = await getSkill(skillId, clientScope);
+  return skill;
+}
+
+function buildSkillIndexJob(skill: SkillManifest, clientScope?: string): {
+  skill: SkillManifest;
+  domain: string;
+  intent: string;
+  clientScope?: string;
+  cacheKey: string;
+} {
+  const intent = skill.intent_signature || `browse ${skill.domain}`;
+  return {
+    skill,
+    domain: skill.domain,
+    intent,
+    clientScope,
+    cacheKey: buildResolveCacheKey(skill.domain, intent, undefined),
+  };
 }
 
 /** Register a browse session from the orchestrator (Phase 4 handoff) */
@@ -378,9 +427,63 @@ export async function registerRoutes(app: FastifyInstance) {
       ? req.headers["x-unbrowse-client-id"].trim()
       : req.id;
 
+  function checkpointPublishCommand(skillId: string | null, confirmPublish = false): string {
+    return skillId
+      ? `unbrowse publish --skill ${skillId}${confirmPublish ? " --confirm-publish" : ""}`
+      : `unbrowse publish --skill <skill_id>${confirmPublish ? " --confirm-publish" : ""}`;
+  }
+
+  function buildCheckpointNextStep(
+    action: "sync" | "close",
+    result: {
+      skill_id: string | null;
+      pipeline: {
+        index_queued: boolean;
+        publish_queued: boolean;
+      };
+      publish_policy: {
+        mode: "auto" | "disabled" | "blacklisted" | "prompt";
+        reason: string;
+        matched_domain?: string;
+      };
+    },
+    sessionId?: string,
+  ): string {
+    const sessionHint = sessionId ? ` --session ${sessionId}` : "";
+    const publishCommand = checkpointPublishCommand(
+      result.skill_id,
+      result.publish_policy.mode === "blacklisted" || result.publish_policy.mode === "prompt",
+    );
+
+    if (!result.pipeline.index_queued) {
+      return action === "sync"
+        ? `Checkpoint recorded, but no new capture was available to index. Continue browsing, then run \`unbrowse close${sessionHint}\` for the final checkpoint.`
+        : "Final checkpoint recorded, but no new capture was available to index or publish.";
+    }
+
+    if (result.publish_policy.mode === "auto") {
+      return action === "sync"
+        ? `Checkpoint saved. Background index + publish queued. Continue browsing, then run \`unbrowse close${sessionHint}\` for the final checkpoint.`
+        : "Final checkpoint saved. Background index + publish queued. Inspect the indexed contract or wait for publish to complete.";
+    }
+
+    const base = result.publish_policy.mode === "disabled"
+      ? "Checkpoint saved. Local index queued, but auto-publish is disabled in settings."
+      : `Checkpoint saved. Local index queued, but auto-publish did not run: ${result.publish_policy.reason}`;
+
+    const suffix = result.skill_id
+      ? ` Review the indexed contract, then run \`${publishCommand}\` only if you own this index.`
+      : "";
+
+    if (action === "sync") {
+      return `${base} Continue browsing, then run \`unbrowse close${sessionHint}\` when done.${suffix}`;
+    }
+    return `${base}${suffix}`;
+  }
+
   // Auth gate: block all routes except /health when no API key is configured
   app.addHook("onRequest", async (req, reply) => {
-    if (req.url === "/health" || req.url === "/v1/stats") return;
+    if (req.url === "/health" || req.url === "/v1/stats" || req.url.startsWith("/v1/settings")) return;
 
     const key = getApiKey();
     if (!key) {
@@ -390,6 +493,44 @@ export async function registerRoutes(app: FastifyInstance) {
         docs_url: "https://unbrowse.ai",
       });
     }
+  });
+
+  app.get("/v1/settings", async (_req, reply) => {
+    return reply.send({
+      capture_pipeline: getCapturePipelineSettings(),
+    });
+  });
+
+  app.post("/v1/settings", async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      auto_publish_checkpoints?: boolean;
+      publish_domain_blacklist?: string[];
+      publish_domain_promptlist?: string[];
+      clear_publish_domain_blacklist?: boolean;
+      clear_publish_domain_promptlist?: boolean;
+    };
+
+    const settings = updateCapturePipelineSettings({
+      auto_publish_checkpoints: typeof body.auto_publish_checkpoints === "boolean"
+        ? body.auto_publish_checkpoints
+        : undefined,
+      publish_domain_blacklist: Array.isArray(body.publish_domain_blacklist)
+        ? body.publish_domain_blacklist
+        : undefined,
+      publish_domain_promptlist: Array.isArray(body.publish_domain_promptlist)
+        ? body.publish_domain_promptlist
+        : undefined,
+      clear_publish_domain_blacklist: body.clear_publish_domain_blacklist === true,
+      clear_publish_domain_promptlist: body.clear_publish_domain_promptlist === true,
+    });
+
+    return reply.send({
+      ok: true,
+      capture_pipeline: settings,
+      next_step: settings.auto_publish_checkpoints
+        ? "Auto-publish after sync/close is enabled unless a domain rule blocks it."
+        : "Auto-publish after sync/close is disabled. Use index for local recompute and publish only when you explicitly want remote share.",
+    });
   });
 
   // POST /v1/intent/resolve
@@ -471,113 +612,98 @@ export async function registerRoutes(app: FastifyInstance) {
     };
     if (!reviews?.length) return reply.code(400).send({ error: "endpoints[] required" });
 
-    let skill = getRecentLocalSkill(skill_id, clientScope);
-    if (!skill) {
-      for (const [, entry] of domainSkillCache) {
-        if (entry.skillId === skill_id && entry.localSkillPath) {
-          try { skill = JSON.parse(require("fs").readFileSync(entry.localSkillPath, "utf-8")); } catch {}
-          break;
-        }
-      }
-    }
-    if (!skill) skill = await getSkill(skill_id, clientScope);
+    let skill = await loadSkillForMutation(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
 
     const updated = mergeAgentReview(skill.endpoints, reviews);
     skill.endpoints = updated;
     skill.updated_at = new Date().toISOString();
 
-    // Update local caches so the next resolve sees reviewed metadata immediately
-    try { cachePublishedSkill(skill); } catch { /* best-effort */ }
-    const domain = skill.domain;
-    if (domain) {
-      const revCacheKey = buildResolveCacheKey(domain, skill.intent_signature ?? `browse ${domain}`, undefined);
-      const revScopedKey = scopedCacheKey(clientScope, revCacheKey);
-      writeSkillSnapshot(revScopedKey, skill);
-      const revDomainKey = getDomainReuseKey(domain);
-      if (revDomainKey) {
-        domainSkillCache.set(revDomainKey, {
-          skillId: skill.skill_id,
-          localSkillPath: snapshotPathForCacheKey(revScopedKey),
-          ts: Date.now(),
-        });
-        persistDomainCache();
-      }
-    }
+    const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
+    return reply.send({
+      ok: true,
+      skill_id: indexed.skill.skill_id,
+      endpoints_updated: reviews.length,
+      indexed: true,
+      publish_status: "indexed",
+      endpoint_count: indexed.skill.endpoints.length,
+    });
+  });
 
-    // Also publish to marketplace so all agents benefit — then re-cache
-    // locally since publishSkill merges backend fields that may overwrite
-    try { await publishSkill(skill); } catch {}
-    try { cachePublishedSkill(skill); } catch {}
-    return reply.send({ ok: true, endpoints_updated: reviews.length });
+  // POST /v1/skills/:skill_id/index — local-only graph/export recompute from cached state
+  app.post("/v1/skills/:skill_id/index", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const { skill_id } = req.params as { skill_id: string };
+    const skill = await loadSkillForMutation(skill_id, clientScope);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
+    return reply.send({
+      ok: true,
+      skill_id: indexed.skill.skill_id,
+      indexed: true,
+      publish_status: "indexed",
+      endpoint_count: indexed.skill.endpoints.length,
+      domain: indexed.domain,
+      next_step: `Local contracts re-indexed. Review them, then run ${checkpointPublishCommand(indexed.skill.skill_id)} when you explicitly want remote share.`,
+    });
   });
 
   // POST /v1/skills/:skill_id/publish — two-phase agent-driven publish
-  // Phase 1 (no endpoints body): return endpoints needing descriptions
-  // Phase 2 (with endpoints): merge descriptions, update caches, publish to marketplace
+  // Phase 1 (no endpoints body): re-index locally, then return endpoints needing descriptions
+  // Phase 2 (with endpoints): merge descriptions, re-index locally, then publish remotely
   app.post("/v1/skills/:skill_id/publish", async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { endpoints: reviews } = (req.body as {
+    const { endpoints: reviews, confirm_publish } = (req.body as {
       endpoints?: Array<{
         endpoint_id: string;
         description?: string;
         action_kind?: string;
         resource_kind?: string;
       }>;
+      confirm_publish?: boolean;
     }) ?? {};
 
-    // Load skill from local caches → marketplace
-    let skill = getRecentLocalSkill(skill_id, clientScope);
-    if (!skill) {
-      for (const [, entry] of domainSkillCache) {
-        if (entry.skillId === skill_id && entry.localSkillPath) {
-          try { skill = JSON.parse(require("fs").readFileSync(entry.localSkillPath, "utf-8")); } catch {}
-          break;
-        }
-      }
-    }
-    if (!skill) skill = await getSkill(skill_id, clientScope);
+    let skill = await loadSkillForMutation(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
 
-    // Phase 2: merge descriptions + publish
     if (reviews?.length) {
+      const publishDecision = decideExplicitPublish(skill.domain, confirm_publish === true);
+      if (!publishDecision.allowed) {
+        return reply.code(409).send({
+          error: "publish_confirmation_required",
+          domain: skill.domain,
+          publish_policy: {
+            mode: publishDecision.mode,
+            reason: publishDecision.reason,
+            matched_domain: publishDecision.matchedDomain,
+          },
+          next_step: `Re-run ${checkpointPublishCommand(skill.skill_id, true)} only if you own this index.`,
+        });
+      }
       const updated = mergeAgentReview(skill.endpoints, reviews);
       skill.endpoints = updated;
       skill.updated_at = new Date().toISOString();
-
-      // Update local caches
-      try { cachePublishedSkill(skill); } catch {}
-      const domain = skill.domain;
-      if (domain) {
-        const ck = buildResolveCacheKey(domain, skill.intent_signature ?? `browse ${domain}`, undefined);
-        const sk = scopedCacheKey(clientScope, ck);
-        writeSkillSnapshot(sk, skill);
-        const dk = getDomainReuseKey(domain);
-        if (dk) {
-          domainSkillCache.set(dk, {
-            skillId: skill.skill_id,
-            localSkillPath: snapshotPathForCacheKey(sk),
-            ts: Date.now(),
-          });
-          persistDomainCache();
-        }
-      }
-
-      // Publish to marketplace — then re-cache locally since publishSkill
-      // merges backend fields that may overwrite our updated endpoints
-      try { await publishSkill(skill); } catch {}
-      try { cachePublishedSkill(skill); } catch {}
+      const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
+      const publishResult = await publishIndexedSkill(indexed);
       return reply.send({
         ok: true,
         skill_id: skill.skill_id,
         endpoints_updated: reviews.length,
-        published: true,
+        indexed: true,
+        published: publishResult.published,
+        publish_status: publishResult.publishStatus,
+        ...(publishResult.publishedAt ? { published_at: publishResult.publishedAt } : {}),
+        ...(publishResult.validationErrors ? { validation_errors: publishResult.validationErrors } : {}),
+        next_step: publishResult.publishStatus === "published"
+          ? "Remote share completed. Re-run resolve/skill inspection to use the published contract."
+          : `Remote share did not complete. Inspect validation_errors, adjust the contract locally, then retry ${checkpointPublishCommand(skill.skill_id, true)}.`,
       });
     }
 
-    // Phase 1: return endpoints needing descriptions
-    const ranked = rankEndpoints(skill.endpoints, skill.intent_signature, skill.domain);
+    const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
+    const ranked = rankEndpoints(indexed.skill.endpoints, indexed.skill.intent_signature, indexed.skill.domain);
     const endpoints_to_describe = ranked.map((r) => ({
       endpoint_id: r.endpoint.endpoint_id,
       method: r.endpoint.method,
@@ -601,12 +727,16 @@ export async function registerRoutes(app: FastifyInstance) {
     }));
 
     return reply.send({
-      skill_id: skill.skill_id,
-      domain: skill.domain,
-      endpoint_count: skill.endpoints.length,
+      skill_id: indexed.skill.skill_id,
+      domain: indexed.skill.domain,
+      indexed: true,
+      publish_status: "indexed",
+      endpoint_count: indexed.skill.endpoints.length,
       endpoints_to_describe,
+      next_step:
+        `Fill each endpoint's description with what it returns plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
       _next_step:
-        `Fill each endpoint's description with what it returns plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
+        `Fill each endpoint's description with what it returns plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
     });
   });
   // POST /v1/skills/:skill_id/chunk — dynamic subgraph load for the current intent/bindings
@@ -1023,7 +1153,7 @@ export async function registerRoutes(app: FastifyInstance) {
   }
   async function flushBrowseCapture(
     session: BrowseSession,
-    options: { queueBackgroundPublish?: boolean } = {},
+    options: { queueIndex?: boolean; queuePublish?: boolean } = {},
   ): Promise<{
     indexed: boolean;
     mode: "http" | "dom" | "none";
@@ -1040,6 +1170,15 @@ export async function registerRoutes(app: FastifyInstance) {
       resource_kind?: string;
     }>;
     request_count: number;
+    pipeline: {
+      index_queued: boolean;
+      publish_queued: boolean;
+    };
+    publish_policy: {
+      mode: "auto" | "disabled" | "blacklisted" | "prompt";
+      reason: string;
+      matched_domain?: string;
+    };
     background_publish_queued: boolean;
   }> {
     let intercepted: RawRequest[] = [];
@@ -1074,20 +1213,33 @@ export async function registerRoutes(app: FastifyInstance) {
       getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
     });
 
-    let backgroundPublishQueued = false;
-    if (options.queueBackgroundPublish) {
-      if (allRequests.length > 0) {
-        passiveIndexFromRequests(allRequests, session.url);
-        backgroundPublishQueued = true;
-      } else if (syncResult.skill) {
+    let indexQueued = false;
+    let publishQueued = false;
+    const publishDecision = options.queuePublish
+      ? decideCheckpointPublish(syncResult.domain)
+      : {
+          publishQueued: false,
+          mode: "disabled" as const,
+          reason: "Remote publish not requested for this checkpoint.",
+        };
+    if (options.queueIndex) {
+      if (syncResult.skill) {
         queueBackgroundIndex({
           skill: { ...syncResult.skill },
           domain: syncResult.domain,
           intent: syncResult.skill.intent_signature || `browse ${syncResult.domain}`,
           contextUrl: session.url,
           cacheKey: `browse-submit:${syncResult.domain}:${Date.now()}`,
+          publishAfterIndex: publishDecision.publishQueued,
         });
-        backgroundPublishQueued = true;
+        indexQueued = true;
+        publishQueued = publishDecision.publishQueued;
+      } else if (allRequests.length > 0) {
+        passiveIndexFromRequests(allRequests, session.url, {
+          publishAfterIndex: publishDecision.publishQueued,
+        });
+        indexQueued = true;
+        publishQueued = publishDecision.publishQueued;
       }
     }
     return {
@@ -1106,7 +1258,16 @@ export async function registerRoutes(app: FastifyInstance) {
         resource_kind: endpoint.semantic?.resource_kind,
       })),
       request_count: allRequests.length,
-      background_publish_queued: backgroundPublishQueued,
+      pipeline: {
+        index_queued: indexQueued,
+        publish_queued: publishQueued,
+      },
+      publish_policy: {
+        mode: publishDecision.mode,
+        reason: publishDecision.reason,
+        ...(publishDecision.matchedDomain ? { matched_domain: publishDecision.matchedDomain } : {}),
+      },
+      background_publish_queued: publishQueued,
     };
   }
 
@@ -1123,9 +1284,10 @@ export async function registerRoutes(app: FastifyInstance) {
         injectInterceptor,
         sessionId,
       );
-      const { session, result } = await withSerializedStrictBrowseSession(
+      const { session, result } = await withSerializedRecoveredBrowseSession(
         browseSessions,
         browseClient,
+        injectInterceptor,
         targetSession.sessionId,
         async (session) => {
           const broker = brokerForSession(session);
@@ -1134,7 +1296,7 @@ export async function registerRoutes(app: FastifyInstance) {
           if (session.harActive && session.url !== "about:blank") {
             try {
               const { entries } = await broker.harStop(session.tabId);
-              passiveIndexHar(entries, session.url);
+            passiveIndexHar(entries, session.url, { publishAfterIndex: false });
             } catch { /* non-fatal */ }
             session.harActive = false;
           }
@@ -1156,6 +1318,8 @@ export async function registerRoutes(app: FastifyInstance) {
           session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
           session.domain = profileName(session.url);
           await injectInterceptor(session.tabId);
+          const stillLive = await isBrowseSessionLive(session, browseClient).catch(() => false);
+          if (!stillLive) throw { error: "CDP command failed" };
 
           return { cookiesInjected };
         },
@@ -1202,7 +1366,7 @@ export async function registerRoutes(app: FastifyInstance) {
           {
             client: brokerForSession(session),
             session,
-            flushCapture: async (session) => await flushBrowseCapture(session, { queueBackgroundPublish: true }),
+            flushCapture: async (session) => await flushBrowseCapture(session),
             restartCapture: restartBrowseCapture,
             rehydratePlugins: (tabId) => brokerForSession(session).bestEffortRehydratePlugins(tabId),
           },
@@ -1247,9 +1411,7 @@ export async function registerRoutes(app: FastifyInstance) {
       const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
       const sessionHint = `--session ${activeSession.sessionId}`;
       const nextStep = result.ok
-        ? (result.capture_sync?.background_publish_queued
-            ? `Background publish queued for this step. Continue the flow, then run \`unbrowse close ${sessionHint}\` when you're done to save auth and finalize any remaining capture.`
-            : `If more UI steps remain, continue the flow. Run \`unbrowse close ${sessionHint}\` when you're done to save auth and finalize capture.`)
+        ? `If more UI steps remain, continue the flow. Run \`unbrowse sync ${sessionHint}\` after meaningful transitions, then \`unbrowse close ${sessionHint}\` when you're done to checkpoint the final capture, save auth, and queue the background pipeline.`
         : `Inspect the page state with \`unbrowse snap ${sessionHint} --filter interactive\`, then retry submit with selectors or a wait hint if needed.`;
       return reply.code(statusCode).send({
         ...result,
@@ -1437,7 +1599,7 @@ export async function registerRoutes(app: FastifyInstance) {
         injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).getText(session.tabId),
-        (text) => typeof text !== "string",
+        (text) => typeof text !== "string" || text.trim().length === 0,
       );
       return reply.send({ text, session_id: session.sessionId, tab_id: session.tabId });
     } catch (error) {
@@ -1455,7 +1617,7 @@ export async function registerRoutes(app: FastifyInstance) {
         injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).getMarkdown(session.tabId),
-        (markdown) => typeof markdown !== "string",
+        (markdown) => typeof markdown !== "string" || markdown.trim().length === 0,
       );
       return reply.send({ markdown, session_id: session.sessionId, tab_id: session.tabId });
     } catch (error) {
@@ -1486,9 +1648,10 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!expression) return reply.code(400).send({ error: "expression required" });
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result } = await withSerializedStrictBrowseSession(
+      const { session, result } = await withSerializedRecoveredBrowseSession(
         browseSessions,
         browseClient,
+        injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).evaluate(session.tabId, expression),
         (result) => isRecoverableBrowseFailure(result),
@@ -1537,7 +1700,7 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /v1/browse/sync — flush captured traffic into local skill cache without closing tab
+  // POST /v1/browse/sync — checkpoint capture, keep the tab open, queue index+publish
   app.post("/v1/browse/sync", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
@@ -1546,7 +1709,7 @@ export async function registerRoutes(app: FastifyInstance) {
         browseClient,
         requestedSessionId(req),
         async (session) => {
-          const syncResult = await flushBrowseCapture(session);
+          const syncResult = await flushBrowseCapture(session, { queueIndex: true, queuePublish: true });
           await restartBrowseCapture(session);
           return syncResult;
         },
@@ -1554,6 +1717,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
       return reply.send({
         ok: true,
+        checkpointed: true,
         session_id: session.sessionId,
         tab_id: session.tabId,
         indexed: syncResult.indexed,
@@ -1563,13 +1727,17 @@ export async function registerRoutes(app: FastifyInstance) {
         endpoint_count: syncResult.endpoint_count,
         endpoints: syncResult.endpoints,
         request_count: syncResult.request_count,
+        pipeline: syncResult.pipeline,
+        publish_policy: syncResult.publish_policy,
+        background_publish_queued: syncResult.background_publish_queued,
+        next_step: buildCheckpointNextStep("sync", syncResult, session.sessionId),
       });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
     }
   });
 
-  // POST /v1/browse/close — close session, flush HAR, index, save auth
+  // POST /v1/browse/close — checkpoint capture, queue index+publish, save auth, close tab
   app.post("/v1/browse/close", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
@@ -1582,7 +1750,7 @@ export async function registerRoutes(app: FastifyInstance) {
           if (session.domain) {
             await saveAuthProfileBestEffort(session.tabId, session.domain, "browse_close");
           }
-          const syncResult = await flushBrowseCapture(session, { queueBackgroundPublish: true });
+          const syncResult = await flushBrowseCapture(session, { queueIndex: true, queuePublish: true });
           await broker.closeTab(session.tabId).catch(() => {});
           removeBrowseSession(browseSessions, session.sessionId);
           return syncResult;
@@ -1590,13 +1758,17 @@ export async function registerRoutes(app: FastifyInstance) {
       );
       return reply.send({
         ok: true,
+        checkpointed: true,
         session_id: session.sessionId,
         indexed: syncResult.indexed,
         mode: syncResult.mode,
         endpoint_count: syncResult.endpoint_count,
         request_count: syncResult.request_count,
+        pipeline: syncResult.pipeline,
+        publish_policy: syncResult.publish_policy,
         background_publish_queued: syncResult.background_publish_queued,
         auth_saved: session.domain || null,
+        next_step: buildCheckpointNextStep("close", syncResult, session.sessionId),
       });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
