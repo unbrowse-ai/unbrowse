@@ -203,10 +203,10 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url>` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows |
-| `snap` | `[--filter interactive]` | A11y snapshot with @eN refs |
-| `click` | `<ref>` | Click element by ref (e.g. e5) |
-| `fill` | `<ref> <value>` | Fill input by ref |
+| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows |
+| `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
+| `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
+| `fill` | `[--session id] <ref> <value>` | Fill input by ref |
 | `type` | `<text>` | Type text with key events |
 | `press` | `<key>` | Press key (Enter, Tab, Escape) |
 | `select` | `<ref> <value>` | Select option by ref |
