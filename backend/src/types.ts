@@ -5,6 +5,13 @@ export interface Env {
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
   NEBIUS_API_KEY: string;
+  GITHUB_WEBHOOK_SECRET?: string;
+  GITHUB_PR_BOT_TOKEN?: string;
+  GITHUB_PR_BOT_LABEL?: string;
+  GITHUB_PR_BOT_MERGE_METHOD?: string;
+  GITHUB_WEBHOOK_ALLOWED_REPOS?: string;
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
   PAYMENTS_ENABLED?: string;
