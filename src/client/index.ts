@@ -13,6 +13,7 @@ import type {
   ValidationResult,
 } from "../types/index.js";
 import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
+import { getWalletContext } from "../payments/wallet.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
 import { detectHostEnvironment } from "../runtime/browser-host.js";
@@ -92,8 +93,6 @@ interface InstallTelemetryState {
   install_id: string;
   first_seen_at: string;
   cli_first_seen_reported_at?: string;
-  landing_token?: string;
-  landing_token_seen_at?: string;
 }
 
 type TelemetryHostType = "cli" | "codex" | "openclaw" | "mcp" | "native" | "unknown";
@@ -151,18 +150,10 @@ function createInstallTelemetryState(): InstallTelemetryState {
 
 function getOrCreateInstallTelemetryState(): InstallTelemetryState {
   const existing = loadInstallTelemetryState();
-  const state = existing?.install_id ? existing : createInstallTelemetryState();
-  const landingToken = process.env.UNBROWSE_LANDING_TOKEN?.trim();
-  if (landingToken && state.landing_token !== landingToken) {
-    state.landing_token = landingToken;
-    state.landing_token_seen_at = new Date().toISOString();
-    saveInstallTelemetryState(state);
-    return state;
-  }
-  if (!existing?.install_id) {
-    saveInstallTelemetryState(state);
-  }
-  return state;
+  if (existing?.install_id) return existing;
+  const created = createInstallTelemetryState();
+  saveInstallTelemetryState(created);
+  return created;
 }
 
 export function getInstallId(): string {
@@ -212,7 +203,6 @@ export async function ensureCliInstallTracked(hostType = detectTelemetryHostType
   const createdAt = new Date().toISOString();
   const ok = await postTelemetry("/v1/telemetry/install", {
     install_id: state.install_id,
-    landing_token: state.landing_token,
     source: "cli-first-seen",
     host_type: hostType,
     skill: "unbrowse",
@@ -243,7 +233,6 @@ export async function recordInstallTelemetryEvent(
   const createdAt = options?.createdAt ?? new Date().toISOString();
   await postTelemetry("/v1/telemetry/install", {
     install_id: getInstallId(),
-    landing_token: getOrCreateInstallTelemetryState().landing_token,
     source,
     host_type: options?.hostType ?? detectTelemetryHostType(),
     skill: options?.skill ?? "unbrowse",
@@ -268,7 +257,6 @@ export async function recordFunnelTelemetryEvent(
   await postTelemetry("/v1/telemetry/events", {
     install_id: getInstallId(),
     session_id: options?.sessionId,
-    landing_token: getOrCreateInstallTelemetryState().landing_token,
     name,
     source: options?.source ?? "cli",
     host_type: options?.hostType ?? detectTelemetryHostType(),
@@ -297,20 +285,7 @@ export function resolveAgentName(preferredEmail: string | undefined, fallbackNam
 }
 
 export function getLocalWalletContext(): { wallet_address?: string; wallet_provider?: string } {
-  const lobsterWallet = process.env.LOBSTER_WALLET_ADDRESS?.trim();
-  if (lobsterWallet) {
-    return { wallet_address: lobsterWallet, wallet_provider: "lobster.cash" };
-  }
-
-  const genericWallet = process.env.AGENT_WALLET_ADDRESS?.trim();
-  if (genericWallet) {
-    return {
-      wallet_address: genericWallet,
-      wallet_provider: process.env.AGENT_WALLET_PROVIDER?.trim() || undefined,
-    };
-  }
-
-  return {};
+  return getWalletContext();
 }
 
 export function getApiKey(): string {
@@ -1016,13 +991,6 @@ export interface AnalyticsSessionPayload {
   cached_skill_calls?: number;
   fresh_index_calls?: number;
   browser_mode?: "default" | "replaced" | "manual" | "unknown";
-  success?: boolean;
-  source?: string;
-  time_saved_ms?: number;
-  time_saved_pct?: number;
-  tokens_saved?: number;
-  tokens_saved_pct?: number;
-  cost_saved_uc?: number;
 }
 
 /**
@@ -1135,6 +1103,23 @@ export async function recordOrchestrationPerf(timing: OrchestrationTiming): Prom
   }
   const phaseTotals = Object.fromEntries(attributeLifecycle(events));
   await api("POST", "/v1/stats/perf", { ...timing, phase_totals_ms: phaseTotals });
+}
+
+// --- Analytics Sessions ---
+
+export async function recordAnalyticsSession(session: {
+  session_id: string;
+  started_at: string;
+  completed_at?: string;
+  trace_version?: string;
+  api_calls: number;
+  discovery_queries?: number;
+  cached_skill_calls?: number;
+  fresh_index_calls?: number;
+  browser_mode?: "default" | "replaced" | "manual" | "unknown";
+}): Promise<void> {
+  if (LOCAL_ONLY) return;
+  await api("POST", "/v1/analytics/sessions", session);
 }
 
 // --- Validation ---

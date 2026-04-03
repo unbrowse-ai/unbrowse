@@ -191,9 +191,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | Command | Usage | Description |
 |---------|-------|-------------|
 | `health` |  | Server health check |
-| `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
-| `upgrade` |  | Check latest release and print the right upgrade command |
 | `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
@@ -202,10 +200,11 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
+| `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url>` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows |
+| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows |
 | `snap` | `[--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `<ref>` | Click element by ref (e.g. e5) |
 | `fill` | `<ref> <value>` | Fill input by ref |

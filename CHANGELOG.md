@@ -1,30 +1,5 @@
 # Changelog
 
-## [2.12.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.0...v2.12.1) (2026-04-03)
-
-### Features
-
-* detect install-specific upgrade and repair commands during setup so global npm installs get the right guidance
-* smoke-test the packaged global CLI in CI and tag releases before publish
-
-### Bug Fixes
-
-* harden the npm wrapper so stale fallback installs fail with a precise reinstall command instead of silent runtime crashes
-* return the installed version from `unbrowse --version`
-* repair packaged wrapper execute bits during postinstall and fail fast on stale local-server version mismatches
-
-
-## [2.12.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.11.0...v2.12.0) (2026-04-03)
-
-### Bug Fixes
-
-* auto-queue browse submit publish and document public repo ([9905005](https://github.com/unbrowse-ai/unbrowse-dev/commit/9905005afa86402ac75d521381e6ca2eec1ab184))
-* preserve backend kv binding during CI release deploys ([#282](https://github.com/unbrowse-ai/unbrowse-dev/issues/282)) ([47e0c72](https://github.com/unbrowse-ai/unbrowse-dev/commit/47e0c7223a24f68e84f8ebec4b4892acb635f217))
-* restore skills.sh discovery gate ([#285](https://github.com/unbrowse-ai/unbrowse-dev/issues/285)) ([e5299f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5299f480ec2b19ca85981f6706d0edf155aaed2))
-* ship standalone repo setup and main-base docs ([#281](https://github.com/unbrowse-ai/unbrowse-dev/issues/281)) ([2c66398](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c663989fd7b31aa3a87b5fed29b71c22c088f8e))
-* simplify install setup path ([#294](https://github.com/unbrowse-ai/unbrowse-dev/issues/294)) ([98d97d3](https://github.com/unbrowse-ai/unbrowse-dev/commit/98d97d30beaa737511f02926e5c43f3f648600b5))
-* simplify install setup path ([#295](https://github.com/unbrowse-ai/unbrowse-dev/issues/295)) ([a4c7fa9](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4c7fa94d90a412042eda4184fd66c83705aa676))
-
 ## Unreleased
 
 ### Features
@@ -39,6 +14,8 @@
 * add root `glama.json` metadata so Glama can discover and attribute the Unbrowse MCP server to `@lekt9`
 * add a root `smithery.yaml` registry manifest so Smithery can classify and install Unbrowse as a stdio MCP server
 * **ci/frontend**: add GitHub Actions PR previews for the Cloudflare/OpenNext frontend with stable `pr-<number>` preview aliases, sticky PR comments, and staging-API wiring via `PREVIEW_API_URL`
+* **skills**: add a history-skill miner that reads local Codex chat archives, generates first-principles workflow skills, and keeps `AGENTS.md` synced with the emitted skill inventory
+* **skills**: add a Cloudflare-relayed `p2p-skill-share` flow that exports the mined skill bundle, writes a fetch manifest, and serves it over quick or named tunnel modes
 * **cli/analytics**: surface machine-readable per-run impact (`time_saved`, `tokens_saved`, `browser_avoided`) plus likely next actions in resolve/execute responses, and persist richer session telemetry so the canonical funnel can reason over success and savings instead of only coarse counters
 * **routing telemetry**: add a sanitized `POST /v1/telemetry/routing` ingest path, shared routing event types, orchestrator-side session/step/candidate/outcome emission, and a derived `/v1/analytics/routing` summary for future long-running agent router training
 * **routing analytics**: enrich `/v1/analytics/routing` with source-level speed/success stats plus top intents/domains so we can see what agents use most and which routing paths are actually fastest
@@ -84,6 +61,7 @@
 * **cli/tests**: stop local server bootstrap from blocking `/health` on remote auto-registration, make API routes wait briefly for background registration instead of failing fast, isolate snapshot-heavy e2e fixtures from the user’s real `~/.unbrowse` cache, and skip wallet bootstrap in the packaged setup smoke
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
 * clean checked-in merge markers, restore the curl install script, and add a repo blog-publish helper so the stale frontend-history branch can be absorbed without dragging its generated junk forward
+* **wallet/setup**: detect paired lobster.cash agents from local `~/.lobster/agents.json` state so `setup --no-start` and payout sync reuse an existing local wallet instead of re-entering interactive wallet setup
 * **backend/storage**: make Neon-backed worker KV writes transactional, clear poisoned init-cache entries after transient Neon bootstrap failures, and add regression coverage for both paths
 * split `main` deploys from tag releases so ordinary `main` pushes stop surfacing a no-op npm publish path when the current CLI version is already on npm
 * simplify the homepage install story around `curl -fsSL https://unbrowse.ai/install.sh | bash`, add `npx skills add unbrowse-ai/unbrowse` as the skills-host shortcut, and demote repo-clone setup to fallback copy
