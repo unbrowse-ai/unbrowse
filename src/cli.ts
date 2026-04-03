@@ -8,6 +8,7 @@
  */
 
 import { config as loadEnv } from "dotenv";
+import { spawn } from "node:child_process";
 import {
   detectTelemetryHostType,
   ensureCliInstallTracked,
@@ -18,7 +19,7 @@ import {
 } from "./client/index.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
 import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
-import { isMainModule } from "./runtime/paths.js";
+import { isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
@@ -757,6 +758,7 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 export const CLI_REFERENCE = {
   commands: [
     { name: "health", usage: "", desc: "Server health check" },
+    { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent → search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
@@ -806,6 +808,7 @@ export const CLI_REFERENCE = {
   ],
   examples: [
     "unbrowse setup",
+    "unbrowse mcp",
     'unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute',
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
     'unbrowse go "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html"',
@@ -921,6 +924,35 @@ async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void
   } catch (err) {
     info(`Could not check for updates: ${(err as Error).message}`);
   }
+}
+
+async function cmdMcp(flags: Record<string, string | boolean>): Promise<void> {
+  const entrypoint = resolveSiblingEntrypoint(import.meta.url, "mcp");
+  const child = spawn(
+    process.execPath,
+    [...runtimeArgsForEntrypoint(import.meta.url, entrypoint), ...(flags["no-auto-start"] ? ["--no-auto-start"] : [])],
+    {
+      cwd: process.cwd(),
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        MCP_SERVER_MODE: "1",
+      },
+    },
+  );
+
+  const code = await new Promise<number>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (exitCode, signal) => {
+      if (signal) {
+        process.kill(process.pid, signal);
+        return;
+      }
+      resolve(exitCode ?? 1);
+    });
+  });
+
+  if (code !== 0) process.exit(code);
 }
 
 // ---------------------------------------------------------------------------
@@ -1250,6 +1282,7 @@ async function main(): Promise<void> {
   }
 
   // Server lifecycle commands (don't need ensureLocalServer)
+  if (command === "mcp") return cmdMcp(flags);
   if (command === "status") return cmdStatus(flags);
   if (command === "stop") { cmdStop(flags); return; }
   if (command === "restart") return cmdRestart(flags);
@@ -1258,7 +1291,7 @@ async function main(): Promise<void> {
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
-    "health", "setup", "resolve", "execute", "exec",
+    "health", "mcp", "setup", "resolve", "execute", "exec",
     "feedback", "fb", "review", "publish", "login", "skills", "skill", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
@@ -1289,6 +1322,7 @@ async function main(): Promise<void> {
 
   switch (command) {
     case "health": return cmdHealth(flags);
+    case "mcp": return cmdMcp(flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "execute": case "exec": return cmdExecute(flags);

@@ -8,14 +8,14 @@ import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { HeroCTA } from "@/components/hero-cta";
-import { INSTALL_CMD_GENERIC, UPGRADE_CMD_GENERIC } from "@/lib/install-command";
+import { INSTALL_CMD_GENERIC, INSTALL_CMD_MCP, MCP_CONFIG_PATH, UPGRADE_CMD_GENERIC, UPGRADE_CMD_MCP } from "@/lib/install-command";
 import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? `Run ${INSTALL_CMD_GENERIC} for the deterministic CLI path. That is the one-command install. OpenClaw uses the published browser-replacement plugin with npx unbrowse-openclaw install --restart. On older OpenClaw builds you may be asked once to trust the plugin. Upgrade with ${UPGRADE_CMD_GENERIC} && unbrowse setup.`
-  : `Run ${INSTALL_CMD_GENERIC} for the CLI host path. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
+  ? `For CLI-first hosts, start with ${INSTALL_CMD_GENERIC}. For generic MCP hosts, run ${INSTALL_CMD_MCP}; that writes a ready-to-import config to ${MCP_CONFIG_PATH} and the generic template lives at https://www.unbrowse.ai/mcp.json. Both clone-and-setup paths are deterministic and do not depend on npm release assets being healthy. They also handle the real first-run flow: ToS acceptance, agent registration plus API-key caching, and lobster.cash wallet detection when present. Pairing a wallet is how you turn browsing into earnings: that address is synced onto your profile, used for contributor payouts when your routes earn, and used for paid-route spending. Upgrade CLI installs with ${UPGRADE_CMD_GENERIC} and MCP installs with ${UPGRADE_CMD_MCP}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, OpenClaw, and generic MCP hosts all have direct wiring paths.`
+  : `Start with ${INSTALL_CMD_GENERIC} for the CLI host path or ${INSTALL_CMD_MCP} for generic MCP hosts. Both handle ToS, registration, and wallet detection. Pair a wallet if you want contributor payouts to land at your address. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
 const DOCS_URL = "https://docs.unbrowse.ai";
 
 const faqJsonLd = {
@@ -112,7 +112,9 @@ export default function Home() {
             Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
           <p>Setup: {INSTALL_CMD_GENERIC}</p>
+          <p>MCP setup: {INSTALL_CMD_MCP}</p>
           <p>Upgrade existing installs: {UPGRADE_CMD_GENERIC}</p>
+          <p>MCP config template: https://www.unbrowse.ai/mcp.json</p>
           <p>For OpenClaw: npx unbrowse-openclaw install --restart</p>
           <p>The package pulls in the local Unbrowse runtime automatically.</p>
           <p>Older OpenClaw builds may ask once to trust the plugin.</p>
@@ -186,7 +188,7 @@ export default function Home() {
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      Run the command below. OpenClaw has its own tab.
+                      Run the command below. MCP and OpenClaw have dedicated tabs when you need them.
                     </p>
                   </div>
                 </div>
@@ -217,6 +219,8 @@ export default function Home() {
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-text-muted">
                                 <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Docs</a>
                 <span className="text-border-strong">·</span>
+                <a href="/mcp.json" className="hover:text-text-primary transition-colors">MCP Config</a>
+                <span className="text-border-strong">·</span>
                 <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Read Paper</a>
                 <span className="text-border-strong">·</span>
                 <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">GitHub</a>
@@ -230,7 +234,7 @@ export default function Home() {
                   <span className="text-base sm:text-lg font-medium tracking-tight">Claude Code</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">Cursor</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">OpenClaw</span>
-                  <span className="text-base sm:text-lg font-medium tracking-tight flex items-center gap-1.5">Any Skill <Zap className="w-4 h-4" /></span>
+                  <span className="text-base sm:text-lg font-medium tracking-tight flex items-center gap-1.5">Any MCP Host <Zap className="w-4 h-4" /></span>
                 </div>
               </div>
 
@@ -413,6 +417,8 @@ export default function Home() {
               <code className="ml-2 text-orange-700 font-medium">unbrowse health</code>
               and upgrade in place with
               <code className="ml-2 text-orange-700 font-medium">{UPGRADE_CMD_GENERIC}</code>
+              or
+              <code className="ml-2 text-orange-700 font-medium">{UPGRADE_CMD_MCP}</code>
               after each release.
             </div>
 
@@ -476,7 +482,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_GENERIC}</code> for the deterministic CLI path. If Unbrowse is already installed from a repo clone, upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{UPGRADE_CMD_GENERIC}</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_GENERIC}</code> for the deterministic CLI path, or <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_MCP}</code> for generic MCP hosts. The MCP path writes a ready config to <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{MCP_CONFIG_PATH}</code>, and a generic template is available at <a href="/mcp.json" className="underline hover:text-text-primary">/mcp.json</a>. If Unbrowse is already installed from a repo clone, upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{UPGRADE_CMD_GENERIC}</code> or <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{UPGRADE_CMD_MCP}</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>

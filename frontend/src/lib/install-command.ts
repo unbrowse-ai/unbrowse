@@ -6,6 +6,23 @@ export const INSTALL_CMD_GENERIC =
 export const UPGRADE_CMD_GENERIC =
   "cd ~/unbrowse && git pull --ff-only && ./setup --host off";
 
+export const INSTALL_CMD_MCP =
+  `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/unbrowse && cd ~/unbrowse && ./setup --host mcp`;
+
+export const UPGRADE_CMD_MCP =
+  "cd ~/unbrowse && git pull --ff-only && ./setup --host mcp";
+
+export const MCP_CONFIG_PATH = "~/.config/unbrowse/mcp/unbrowse.json";
+
+export const MCP_CONFIG_JSON = JSON.stringify({
+  mcpServers: {
+    unbrowse: {
+      command: "unbrowse",
+      args: ["mcp"],
+    },
+  },
+}, null, 2);
+
 export const INSTALL_CMD_CODEX =
   `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/.codex/skills/unbrowse && cd ~/.codex/skills/unbrowse && ./setup --host codex`;
 

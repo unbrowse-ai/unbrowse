@@ -50,6 +50,15 @@ git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git 
 cd ~/.codex/skills/unbrowse && ./setup --host codex
 ```
 
+For generic MCP hosts:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+That writes a ready-to-import config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template also lives at `https://www.unbrowse.ai/mcp.json`.
+
 Headless bootstrap:
 
 ```bash
@@ -174,6 +183,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | Command | Usage | Description |
 |---------|-------|-------------|
 | `health` |  | Server health check |
+| `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
 | `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |

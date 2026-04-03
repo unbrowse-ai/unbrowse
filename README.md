@@ -35,6 +35,15 @@ git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git 
 cd ~/.codex/skills/unbrowse && ./setup --host codex
 ```
 
+For generic MCP hosts:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+That writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template is also published at [`/mcp.json`](https://www.unbrowse.ai/mcp.json).
+
 If your agent host uses skills:
 
 ```bash
@@ -68,6 +77,14 @@ If you installed from a repo clone:
 cd ~/unbrowse
 git pull --ff-only
 ./setup --host off
+```
+
+If you installed for a generic MCP host:
+
+```bash
+cd ~/unbrowse
+git pull --ff-only
+./setup --host mcp
 ```
 
 If your agent host uses skills, rerun its skill install/update command too:
@@ -124,6 +141,7 @@ Whitepaper companion set:
 
 ```bash
 unbrowse health
+unbrowse mcp
 unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
 unbrowse login --url "https://calendar.google.com"
 unbrowse skills

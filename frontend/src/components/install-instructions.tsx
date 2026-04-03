@@ -5,8 +5,12 @@ import { Copy, Check } from "lucide-react";
 import {
   INSTALL_CMD_CLAUDE,
   INSTALL_CMD_GENERIC,
+  INSTALL_CMD_MCP,
+  MCP_CONFIG_JSON,
+  MCP_CONFIG_PATH,
   UPGRADE_CMD_CLAUDE,
   UPGRADE_CMD_GENERIC,
+  UPGRADE_CMD_MCP,
 } from "@/lib/install-command";
 import { trackWebEvent } from "@/lib/web-telemetry";
 
@@ -22,6 +26,24 @@ unbrowse health
 
 # Already installed?
 ${UPGRADE_CMD_GENERIC}`,
+  },
+  {
+    id: "mcp",
+    label: "Any MCP Client",
+    command: INSTALL_CMD_MCP,
+    code: `${INSTALL_CMD_MCP}
+
+# Installer writes the absolute-path config here
+${MCP_CONFIG_PATH}
+
+# Generic template for manual import / paste
+${MCP_CONFIG_JSON}
+
+# First run may ask for ToS acceptance and agent identity
+unbrowse health
+
+# Already installed?
+${UPGRADE_CMD_MCP}`,
   },
   {
     id: "claude",

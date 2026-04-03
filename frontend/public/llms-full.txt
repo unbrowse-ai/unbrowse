@@ -78,6 +78,15 @@ cd ~/unbrowse && ./setup --host off
 
 This installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and starts the local server.
 
+### Generic MCP host install
+
+```
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+This writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template is published at `https://www.unbrowse.ai/mcp.json`.
+
 ### Global install for daily use
 
 ```
