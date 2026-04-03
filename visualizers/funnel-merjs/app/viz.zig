@@ -11,6 +11,7 @@ pub const meta: mer.Meta = .{
 pub fn render(req: mer.Request) mer.Response {
     const id = req.queryParam("id") orelse return mer.badRequest("missing id");
     const raw = store.readSession(req.allocator, id) catch return mer.notFound();
+    const overlay = req.queryParam("overlay") != null;
 
     const encoded_len = std.base64.standard.Encoder.calcSize(raw.len);
     const encoded = req.allocator.alloc(u8, encoded_len) catch return mer.internalError("alloc failed");
@@ -20,6 +21,7 @@ pub fn render(req: mer.Request) mer.Response {
     defer html.deinit(req.allocator);
     const writer = html.writer(req.allocator);
 
+    if (overlay) writer.writeAll(overlay_head) catch return mer.internalError("alloc failed");
     writer.writeAll(page_head) catch return mer.internalError("alloc failed");
     writer.writeAll(id) catch return mer.internalError("alloc failed");
     writer.writeAll(page_mid) catch return mer.internalError("alloc failed");
@@ -31,6 +33,20 @@ pub fn render(req: mer.Request) mer.Response {
     const body = html.toOwnedSlice(req.allocator) catch return mer.internalError("alloc failed");
     return mer.html(body);
 }
+
+const overlay_head =
+    \\<style>
+    \\html, body { background: transparent !important; }
+    \\.shell { max-width: none !important; padding: 0 !important; }
+    \\.masthead { display: none !important; }
+    \\.frame { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+    \\.frame-inner { padding: 0 !important; }
+    \\.viz-hero { display: none !important; }
+    \\.session-pill { background: rgba(9, 7, 7, 0.54) !important; backdrop-filter: blur(24px); }
+    \\.prompt-card, .viz-card { background: rgba(13, 10, 10, 0.58) !important; backdrop-filter: blur(28px); border-color: rgba(255,255,255,0.1) !important; }
+    \\.viz-root { padding: 14px; }
+    \\</style>
+;
 
 const page_head =
     \\<section class="viz-hero">
@@ -168,6 +184,35 @@ const page_tail_suffix =
     \\    </div>`).join("")}</div>`;
     \\}
     \\
+    \\function funnelChart(title, items, note) {
+    \\  const max = Math.max(1, ...items.map((item) => Number(item.value || 0)));
+    \\  return `<div class="funnel-card">
+    \\    <div class="funnel-head">
+    \\      <div class="lane-title">${title}</div>
+    \\      <div class="lane-note">${note}</div>
+    \\    </div>
+    \\    <div class="funnel-stack">
+    \\      ${items.map((item, index) => {
+    \\        const current = Number(item.value || 0);
+    \\        const next = Number(items[index + 1]?.value ?? current * 0.68);
+    \\        const topWidth = Math.max(34, Math.round((current / max) * 100));
+    \\        const bottomWidth = Math.max(24, Math.round((next / max) * 100));
+    \\        const glow = Math.max(0.28, current / max);
+    \\        return `
+    \\          <div class="funnel-row">
+    \\            <div class="funnel-labels">
+    \\              <span>${item.label}</span>
+    \\              <span class="mono">${current.toLocaleString()}${item.rate != null ? ` · ${Math.round(item.rate * 100)}%` : ""}</span>
+    \\            </div>
+    \\            <div class="funnel-stage-shell">
+    \\              <div class="funnel-stage" style="--top:${topWidth}%; --bottom:${bottomWidth}%; --glow:${glow};"></div>
+    \\            </div>
+    \\          </div>`;
+    \\      }).join("")}
+    \\    </div>
+    \\  </div>`;
+    \\}
+    \\
     \\function lane(title, items, note) {
     \\  const max = Math.max(1, ...items.map((item) => Number(item.value || 0)));
     \\  return `<div class="lane">
@@ -199,11 +244,23 @@ const page_tail_suffix =
     \\  </section>`;
     \\}
     \\
+    \\function looksLikeFunnel(items, title) {
+    \\  if (!items.length) return false;
+    \\  const lower = String(title || "").toLowerCase();
+    \\  if (/funnel|drop|stage|activation|retention|install|success|conversion/.test(lower)) return true;
+    \\  const descending = items.every((item, index) => index === 0 || Number(item.value || 0) <= Number(items[index - 1].value || 0));
+    \\  return descending && items.length >= 3;
+    \\}
+    \\
     \\function renderSession(envelope) {
     \\  const payload = envelope.payload || {};
     \\  const prompt = envelope.prompt || "show me what matters";
     \\  const sections = collectSections(payload).sort((a, b) => scoreSection(b, prompt) - scoreSection(a, prompt)).slice(0, 12);
     \\  const metrics = primitiveRowsFromObject(payload, "", 8);
+    \\  const funnelCandidate = sections
+    \\    .filter((section) => section.kind === "array")
+    \\    .map((section) => ({ section, items: laneItemsFromArray(section.title, section.data) }))
+    \\    .find((entry) => looksLikeFunnel(entry.items, entry.section.title));
     \\  const left = [];
     \\  const right = [];
     \\  let col = 0;
@@ -212,7 +269,11 @@ const page_tail_suffix =
     \\    if (section.kind === "array") {
     \\      const arrayKind = classifyArray(section.data);
     \\      if (arrayKind === "lane" || arrayKind === "numbers") {
-    \\        target.push(card(section.title, "array", lane(section.title, laneItemsFromArray(section.title, section.data), arrayKind === "numbers" ? "numeric sequence" : "derived from structured rows"), /funnel|retention|campaign|stage/i.test(section.title) ? "accent" : "default"));
+    \\        const items = laneItemsFromArray(section.title, section.data);
+    \\        const body = looksLikeFunnel(items, section.title)
+    \\          ? funnelChart(section.title, items, arrayKind === "numbers" ? "numeric sequence" : "derived from structured rows")
+    \\          : lane(section.title, items, arrayKind === "numbers" ? "numeric sequence" : "derived from structured rows");
+    \\        target.push(card(section.title, "array", body, /funnel|retention|campaign|stage/i.test(section.title) ? "accent" : "default"));
     \\      } else if (arrayKind === "table") {
     \\        target.push(card(section.title, "array", table(section.title, tableRowsFromArray(section.data))));
     \\      } else if (arrayKind === "strings") {
@@ -236,6 +297,11 @@ const page_tail_suffix =
     \\      <div class="prompt-body">${prompt}</div>
     \\      ${metrics.length ? metricGrid(metrics) : ""}
     \\    </section>
+    \\    ${funnelCandidate ? `<section class="viz-card tone-accent funnel-hero">
+    \\      <div class="viz-eyebrow mono">funnel focus</div>
+    \\      <h2 class="viz-card-title">${funnelCandidate.section.title}</h2>
+    \\      ${funnelChart(funnelCandidate.section.title, funnelCandidate.items, "auto-selected from the payload")}
+    \\    </section>` : ""}
     \\    <section class="viz-columns">
     \\      <div class="viz-col">${left.join("")}</div>
     \\      <div class="viz-col">${right.join("")}</div>
@@ -263,6 +329,25 @@ const page_css =
     \\.viz-eyebrow, .metric-label { color: var(--accent); text-transform: uppercase; letter-spacing: 0.16em; font-size: 10px; }
     \\.viz-text { margin:0; line-height:1.55; color: var(--muted); }
     \\.viz-pre { margin:0; overflow:auto; border:1px dashed rgba(255,255,255,0.12); border-radius:18px; padding:14px; background: rgba(255,255,255,0.02); font-size:11px; }
+    \\.funnel-hero { overflow:hidden; }
+    \\.funnel-card { display:grid; gap:14px; }
+    \\.funnel-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+    \\.funnel-stack { display:grid; gap:10px; }
+    \\.funnel-row { display:grid; gap:8px; }
+    \\.funnel-labels { display:flex; justify-content:space-between; gap:14px; font-size:0.96rem; }
+    \\.funnel-stage-shell { display:flex; justify-content:center; padding: 0 8px; }
+    \\.funnel-stage {
+    \\  width: var(--top);
+    \\  height: 54px;
+    \\  clip-path: polygon(calc((100% - var(--top)) / 2) 0%, calc(100% - ((100% - var(--top)) / 2)) 0%, calc(100% - ((100% - var(--bottom)) / 2)) 100%, calc((100% - var(--bottom)) / 2) 100%);
+    \\  background:
+    \\    linear-gradient(135deg, rgba(255,240,220,0.82), rgba(255,138,61,0.92) 42%, rgba(114,41,7,0.98));
+    \\  box-shadow:
+    \\    0 0 0 1px rgba(255,255,255,0.07) inset,
+    \\    0 18px 36px rgba(0,0,0,0.28),
+    \\    0 0 44px rgba(255,138,61, calc(var(--glow) * 0.46));
+    \\  border-radius: 14px;
+    \\}
     \\.metric-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:12px; }
     \\.metric-card { border:1px solid rgba(255,255,255,0.06); border-radius:18px; padding:14px; background: rgba(255,255,255,0.02); min-height: 104px; }
     \\.metric-value { font-size: 1.35rem; letter-spacing: -0.05em; }

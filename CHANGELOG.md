@@ -61,7 +61,7 @@
 * **analytics/campaign-feedback**: carry attribution from landing copy into copied install commands, persist it through CLI install/funnel/session telemetry, track content-page views, and add `/v1/analytics/campaigns` so X posts, articles, ads, landing variants, installs, and first-success can be compared in one loop
 * **skills/foundry**: add a repo-local `x-campaign-feedback-operator` skill plus a Foundry preset and fabricated bundle artifacts so the X/articles/ads/landing feedback loop can be installed, routed, and shared as one operator bundle
 * **skills/foundry**: add a repo-local `unbrowse-funnel-command-center` skill plus a Foundry preset and fabricated bundle artifacts so the full funnel can route from traffic and landing leaks through activation, retention, monetization, and referral under one operator entrypoint
-* **visualizers/merjs**: add a standalone `visualizers/funnel-merjs` app plus a local `/api/snapshot` proxy, session-backed `POST /api/viz` -> `/viz?id=...` flow for arbitrary analytics payloads, and native `zig build desktop` app bundle so the full funnel can be inspected in one merjs screen instead of stitched together manually from multiple analytics endpoints
+* **visualizers/merjs**: add a standalone `visualizers/funnel-merjs` app plus a local `/api/snapshot` proxy, session-backed `POST /api/viz` -> `/viz?id=...` flow for arbitrary analytics payloads, and a native desktop wrapper that can target any route or open a transparent always-on-top `--overlay <session-id>` view instead of relying on a plain browser tab
 * **visualizers/json-render**: expand the merjs `/json-render` route into an arbitrary-data visualization lab with file import, shareable hash-state URLs, and prompt-driven spec generation, so funnel snapshots or any other analytics JSON can be explored inside the same merjs shell and desktop wrapper
 
 ### Tests
@@ -1442,6 +1442,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - docs: add canonical `test:e2e:truth` and `test:claims` lanes so user-visible behavior has an explicit live/e2e gate separate from unit coverage
 - fix: planner now treats captured query/path/example defaults as satisfiable bindings, so replayable APIs stop losing readiness to page artifacts on warm resolve
 - fix: semantic ranking now demotes linkedin sharebox/mailbox ui payloads for people/company intents and boosts real search/detail surfaces
+- feat: merjs visual lab now boots a real standalone `@json-render/react` surface from `/api/viz-spec`, so arbitrary prompt + payload sessions stream into spec-driven analytics UI inside the native desktop shell
 - fix: semantic intent scoring now distrusts mislabeled ui-scaffold endpoints, so generated sharebox/mailbox/notification skills stop stealing people/company search intents
 - fix: scoped warm-result cache now reuses recently validated results on the same route/intent, preventing slow recapture on immediate retrieve
 - pre-commit now runs DAG/replay regressions plus strict real-world `agent-phases` smoke instead of `evals/perf.ts`.
