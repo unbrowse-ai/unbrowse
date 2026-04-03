@@ -51,6 +51,25 @@ export type SkillLifecycle = "active" | "deprecated" | "disabled";
 export type OwnerType = "agent" | "marketplace" | "user";
 export type Idempotency = "safe" | "unsafe";
 export type VerificationStatus = "verified" | "unverified" | "failed" | "pending" | "disabled";
+export type GraphVisibility = "shadow" | "public";
+
+export interface SkillSubmissionProvenance {
+  submitted_at: string;
+  submitter_agent_id?: string;
+  client_trace_version?: string;
+  client_code_hash?: string;
+  client_git_sha?: string;
+  transport?: string;
+}
+
+export interface SkillTrustMetadata {
+  graph_visibility: GraphVisibility;
+  promotion_reason: string;
+  submission_count: number;
+  unique_submitters: number;
+  verified_ratio: number;
+  last_submission_at: string;
+}
 
 export interface AuthProfile {
   oauth_type?: string;
@@ -119,6 +138,7 @@ export interface EndpointDescriptor {
   signature?: string;
   response_schema?: ResponseSchema;
   trigger_url?: string;
+  graph_visibility?: GraphVisibility;
 }
 
 export interface DiscoveryCost {
@@ -170,6 +190,10 @@ export interface SkillManifest {
    * If unset, the platform default base price applies.
    */
   base_price_usd?: number;
+  /** Server-owned submission provenance for staged promotion and abuse analysis. */
+  provenance_events?: SkillSubmissionProvenance[];
+  /** Server-owned graph trust state. */
+  trust?: SkillTrustMetadata;
 }
 
 export interface SkillContributor {

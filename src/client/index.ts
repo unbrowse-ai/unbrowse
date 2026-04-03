@@ -4,6 +4,7 @@ import { homedir, hostname } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
 import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
+import { CODE_HASH, GIT_SHA, TRACE_VERSION } from "../version.js";
 import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
@@ -405,6 +406,9 @@ async function apiRequest<T = unknown>(
         // Bun + Cloudflare Brotli bug: chunked br responses hang for ~40s.
         // Force identity encoding to avoid the issue.
         "Accept-Encoding": "gzip, deflate",
+        "X-Unbrowse-Trace-Version": TRACE_VERSION,
+        "X-Unbrowse-Code-Hash": CODE_HASH,
+        "X-Unbrowse-Git-Sha": GIT_SHA,
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,

@@ -8,19 +8,31 @@
  * GitHub releases on `npm install`.
  */
 
-import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, chmodSync, copyFileSync, createWriteStream, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
 import https from "node:https";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
 const binDir = join(packageRoot, "bin");
 const binaryPath = join(binDir, "unbrowse");
+const localBinaryPath = process.env.UNBROWSE_INSTALL_BINARY_PATH;
 
 // Skip if binary already exists (re-install)
 if (existsSync(binaryPath)) {
+  process.exit(0);
+}
+
+if (localBinaryPath) {
+  if (!existsSync(localBinaryPath)) {
+    console.warn(`[unbrowse] Local binary override not found: ${localBinaryPath}`);
+    process.exit(1);
+  }
+  mkdirSync(binDir, { recursive: true });
+  copyFileSync(localBinaryPath, binaryPath);
+  chmodSync(binaryPath, 0o755);
+  console.log(`[unbrowse] Installed local binary override: ${binaryPath}`);
   process.exit(0);
 }
 
@@ -30,7 +42,8 @@ const target = `${platform}-${arch}`;
 
 const SUPPORTED = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"];
 if (!SUPPORTED.includes(target)) {
-  console.warn(`[unbrowse] No prebuilt binary for ${target}. Falling back to source mode.`);
+  console.warn(`[unbrowse] No prebuilt binary for ${target}.`);
+  console.warn("[unbrowse] This package ships only the native binary wrapper.");
   process.exit(0);
 }
 
@@ -75,7 +88,7 @@ try {
   console.log(`[unbrowse] Binary installed: ${binaryPath}`);
 } catch (err) {
   console.warn(`[unbrowse] Binary download failed: ${err.message}`);
-  console.warn(`[unbrowse] Falling back to source mode (requires bun or node+tsx).`);
+  console.warn("[unbrowse] Install failed: native binary unavailable for this version/target.");
   // Clean up partial download
   try { unlinkSync(binaryPath); } catch {}
 }

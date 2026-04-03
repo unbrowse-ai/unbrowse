@@ -21,6 +21,7 @@ build_target() {
   echo "[build] $target -> $outfile"
   bun build "$ROOT_DIR/src/single-binary.ts" \
     --compile \
+    --minify \
     --target="bun-$target" \
     --outfile "$outfile" 2>&1
 

@@ -204,7 +204,7 @@ Endpoints are connected in a dependency graph with typed edges: parent/child (li
 
 ### 6. Marketplace and payments
 
-Every learned skill is published to the shared marketplace. Skills captured by agent A are discoverable by agent B on a different machine via semantic vector search. Errors agents encounter automatically file GitHub issues with full repro context (intent, URL, endpoint ID, error, kuri version).
+Every learned skill is published to the shared marketplace. New unverified submissions now land in a shadow state first: persisted, attributable, and readable by ID, but not indexed into the shared graph until they are verified or corroborated by a second submitter. Skills captured by agent A are then discoverable by agent B on a different machine via semantic vector search. Errors agents encounter automatically file GitHub issues with full repro context (intent, URL, endpoint ID, error, kuri version).
 
 Skill creators can set a price per execution. Agents with funded wallets pay for paid skills; free skills remain free. Creator payout wallets are synced from agent registration/runtime wallet state. Today paid skills route to a single payout wallet: the current majority contributor, with first-contributor winning ties. That winner wallet must be Solana mainnet USDC-ready (have a USDC token account) or Corbits settlement will fail even if the x402 proof is otherwise valid.
 

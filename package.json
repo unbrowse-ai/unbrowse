@@ -57,7 +57,7 @@
     "publish:cli": "UNBROWSE_ALLOW_SKILL_PUBLISH=1 node packages/skill/scripts/assert-release-flow.mjs --check-npm && npm_config_unbrowse_allow_skill_publish=true npm publish --workspace packages/skill",
     "release:announce": "bun scripts/release-announce.ts",
     "cli": "bun src/cli.ts",
-    "build:single": "bun build src/single-binary.ts --compile --outfile dist/unbrowse",
+    "build:single": "bun build src/single-binary.ts --compile --minify --outfile dist/unbrowse",
     "release": "release-it"
   },
   "dependencies": {

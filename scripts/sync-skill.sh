@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync packages/skill/ into the unbrowse-skill repo (unbrowse-ai/unbrowse)
+# Sync only packages/skill/SKILL.md into the standalone skill repo
 # AND install/update the Claude Code local skill.
 #
 # Usage: bash scripts/sync-skill.sh [commit message]
@@ -9,9 +9,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MONO_ROOT="$(dirname "$SCRIPT_DIR")"
 SKILL_PKG="$MONO_ROOT/packages/skill"
-DOCS_DIR="$MONO_ROOT/docs"
+SKILL_MD="$SKILL_PKG/SKILL.md"
 TARGET_REPO="${UNBROWSE_SKILL_REPO:-$HOME/Projects/unbrowse-skill}"
-KURI_SUBMODULE="$MONO_ROOT/submodules/kuri"
 
 # --------------------------------------------------------------------------
 # 1. Install / update Claude + Codex local skill links
@@ -30,12 +29,8 @@ echo "=== Syncing CLI_REFERENCE into SKILL.md ==="
 bun "$SCRIPT_DIR/sync-skill-md.ts"
 echo ""
 
-echo "=== Verifying packaged Kuri runtime ==="
-bash "$SCRIPT_DIR/check-packaged-kuri.sh"
-echo ""
-
 # --------------------------------------------------------------------------
-# 2. Sync to external skill repo (for publishing)
+# 2. Sync SKILL.md to external skill repo (for publishing)
 # --------------------------------------------------------------------------
 
 if [ ! -d "$TARGET_REPO/.git" ]; then
@@ -44,36 +39,8 @@ if [ ! -d "$TARGET_REPO/.git" ]; then
   exit 0
 fi
 
-echo "=== Syncing $SKILL_PKG -> $TARGET_REPO ==="
-
-# Sync all files except .git, resolving symlinks (-L follows symlinks)
-rsync -avL --delete \
-  --exclude '.git' \
-  --exclude 'node_modules' \
-  --exclude '.env' \
-  --exclude 'traces' \
-  "$SKILL_PKG/" "$TARGET_REPO/"
-
-# Keep the standalone skill repo's docs tree in sync with the monorepo root docs.
-if [ -d "$DOCS_DIR" ]; then
-  rsync -av --delete \
-    --exclude '.git' \
-    "$DOCS_DIR/" "$TARGET_REPO/docs/"
-fi
-
-if [ -d "$KURI_SUBMODULE" ]; then
-  mkdir -p "$TARGET_REPO/vendor"
-  rsync -av --delete \
-    --exclude '.git' \
-    --exclude '.zig-cache' \
-    --exclude 'zig-out' \
-    "$KURI_SUBMODULE/" "$TARGET_REPO/vendor/kuri-src/"
-fi
-
-# Also copy root-level .env.example if it exists
-if [ -f "$MONO_ROOT/.env.example" ]; then
-  cp "$MONO_ROOT/.env.example" "$TARGET_REPO/.env.example"
-fi
+echo "=== Syncing $SKILL_MD -> $TARGET_REPO/SKILL.md ==="
+cp "$SKILL_MD" "$TARGET_REPO/SKILL.md"
 
 echo ""
 echo "Sync complete. Files in $TARGET_REPO:"
