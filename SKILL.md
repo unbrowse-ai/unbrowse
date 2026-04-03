@@ -202,6 +202,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
+| `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url>` | Open a live Kuri browser tab for capture-first workflows |
