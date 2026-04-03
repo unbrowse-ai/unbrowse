@@ -31,6 +31,7 @@ bun run deploy
 
 - `preview` runs the OpenNext Cloudflare preview path
 - `deploy` builds with OpenNext and deploys the worker/assets to Cloudflare
+- `deploy:ci` builds with OpenNext and deploys via Wrangler without pre-populating the R2 incremental cache
 
 ## API wiring
 

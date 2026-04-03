@@ -5,6 +5,7 @@ import path from "node:path";
 const ROOT = path.resolve(import.meta.dir, "..");
 const SKILL_PACKAGE_JSON = path.join(ROOT, "packages", "skill", "package.json");
 const SKILL_WRAPPER = path.join(ROOT, "packages", "skill", "bin", "unbrowse-wrapper.mjs");
+const SKILL_POSTINSTALL = path.join(ROOT, "packages", "skill", "scripts", "postinstall.mjs");
 
 describe("standalone skill package runtime", () => {
   it("ships the payment/runtime dependencies required by the packaged CLI", () => {
@@ -21,7 +22,24 @@ describe("standalone skill package runtime", () => {
     const wrapper = readFileSync(SKILL_WRAPPER, "utf8");
 
     expect(wrapper).toContain('const launcherPath = join(__dirname, "unbrowse.js");');
-    expect(wrapper).toContain("spawn(process.execPath, [launcherPath, ...process.argv.slice(2)]");
+    expect(wrapper).toContain("spawnEntrypoint(process.execPath, [launcherPath, ...process.argv.slice(2)])");
     expect(wrapper).not.toContain('spawn("bun"');
+  });
+
+  it("downloads the packaged binary from versioned GitHub release tarballs", () => {
+    const postinstall = readFileSync(SKILL_POSTINSTALL, "utf8");
+
+    expect(postinstall).toContain('const assetName = `unbrowse-v${version}-${target}.tar.gz`;');
+    expect(postinstall).toContain('execFileSync("tar", ["-xzf", tmpArchive, "-C", binDir, "unbrowse"]);');
+    expect(postinstall).toContain('execFileSync("xattr", ["-d", "com.apple.quarantine", binaryPath]);');
+  });
+
+  it("hardens fallback installs with explicit repair diagnostics", () => {
+    const wrapper = readFileSync(SKILL_WRAPPER, "utf8");
+
+    expect(wrapper).toContain("KNOWN_BAD_FALLBACK_VERSIONS");
+    expect(wrapper).toContain("Fallback runtime is missing required packages");
+    expect(wrapper).toContain("npm uninstall -g unbrowse && npm install -g unbrowse@latest");
+    expect(wrapper).toContain('process.argv.includes("--version")');
   });
 });

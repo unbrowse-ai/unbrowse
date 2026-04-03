@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Constellation } from "@/components/constellation";
+import type { ReactNode } from "react";
 import { ChatDemo } from "@/components/chat-demo";
 import { AcquisitionTracker } from "@/components/acquisition-tracker";
 import { InstallInstructions } from "@/components/install-instructions";
@@ -8,7 +8,10 @@ import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { HeroCTA } from "@/components/hero-cta";
+import { getHomepageLandingAssignment, type LandingVariantCopy } from "@/lib/landing-experiment";
+import { FirstTaskPath } from "@/components/first-task-path";
 import {
+  FIRST_TASK_CMD,
   INSTALL_CMD_GENERIC,
   INSTALL_CMD_MCP,
   INSTALL_CMD_SKILL,
@@ -18,12 +21,22 @@ import {
 } from "@/lib/install-command";
 import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
+export const revalidate = 300;
+
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
   ? `Start with ${INSTALL_CMD_GENERIC}. That script installs the CLI, runs setup, and finishes the real first-run flow: ToS acceptance, agent registration plus API-key caching, and wallet detection when present. Set up Crossmint lobster.cash during bootstrap if you want to earn from mined routes: that wallet is synced onto your profile, used for contributor payouts when your routes earn, and used for paid-route spending. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL} for slash-command or host discovery. For generic MCP hosts, run ${INSTALL_CMD_MCP}; that writes a ready-to-import config to ${MCP_CONFIG_PATH}, and the generic template lives at https://www.unbrowse.ai/mcp.json. Upgrade CLI installs with ${UPGRADE_CMD_GENERIC} and MCP installs with ${UPGRADE_CMD_MCP}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Older OpenClaw builds may ask once to trust the plugin.`
   : `Start with ${INSTALL_CMD_GENERIC}. Set up Crossmint lobster.cash during install if you want contributor payouts to land in your wallet. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL}. Generic MCP hosts can use ${INSTALL_CMD_MCP}. Upgrade with ${UPGRADE_CMD_GENERIC} or ${UPGRADE_CMD_MCP}. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
 const DOCS_URL = "https://docs.unbrowse.ai";
+
+const TRUST_BAR_ITEMS: Record<LandingVariantCopy["trust_bar_order"][number], ReactNode> = {
+  benchmarks: <span>94 domains benchmarked</span>,
+  speed: <span>3.6x faster than Playwright on average</span>,
+  paper: <a href={WHITEPAPER_URL} target="_blank" rel="noopener" data-exploration-id="paper" className="hover:text-text-primary transition-colors">Peer-reviewed on arXiv with NUS</a>,
+  github: <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" data-exploration-id="github" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><Github className="w-3.5 h-3.5" /> 611+ GitHub stars</a>,
+  npm: <span>5.4K npm downloads</span>,
+};
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -104,10 +117,16 @@ const faqJsonLd = {
   ],
 };
 
-export default function Home() {
+export default async function Home() {
+  const landing = await getHomepageLandingAssignment();
+  const trustBarItems = landing.content.trust_bar_order.map((item) => TRUST_BAR_ITEMS[item]);
+
   return (
     <div className="relative selection:bg-orange-500/30 overflow-x-hidden">
-      <AcquisitionTracker />
+      <AcquisitionTracker
+        experimentId={landing.assignment.experiment_id}
+        variantId={landing.assignment.variant_id}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
@@ -151,45 +170,38 @@ export default function Home() {
               <Github className="w-4 h-4" />
               <span>100% Free & Open Source</span>
               <span className="h-3 w-px bg-orange-500/20 mx-1" />
-              <span className="flex items-center gap-1">611+ stars on GitHub <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" /></span>
+              <span className="flex items-center gap-1">612+ stars on GitHub <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" /></span>
             </a>
             
                          <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
-                           A drop-in replacement
+                           {landing.content.hero_headline}
                            <br className="hidden sm:block" />
-                           <span className="text-orange-500">for browser automation.</span>
+                           <span className="text-orange-500">{landing.content.hero_emphasis}</span>
                          </h1>
 
                           <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-                            Built for agent stacks that are tired of repeating the same browser workflow on every run.
-                            Unbrowse learns the request path behind the page, so repeat tasks run faster, cheaper, and with less breakage than driving the DOM every time.
+                            {landing.content.hero_subheadline}
                           </p>
 
             <p className="animate-fade-up stagger-2 mt-4 max-w-3xl text-sm sm:text-base text-text-muted leading-relaxed">
-              Same websites. Same permissions. Same browser fallback when needed.
+              {landing.content.hero_support_line}
             </p>
 
             {/* ═══ Trust Bar ═══ */}
             <div className="animate-fade-up stagger-2 mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs sm:text-sm text-text-muted font-medium">
-              <span>94 domains benchmarked</span>
-              <span className="hidden sm:inline text-border-strong">|</span>
-              <span>3.6x faster than Playwright on average</span>
-              <span className="hidden sm:inline text-border-strong">|</span>
-              <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Peer-reviewed on arXiv with NUS</a>
-              <span className="hidden sm:inline text-border-strong">|</span>
-              <span className="flex items-center gap-1.5"><Github className="w-3.5 h-3.5" /> 611+ GitHub stars</span>
-              <span className="hidden sm:inline text-border-strong">|</span>
-              <span>5.4K npm downloads</span>
+              {trustBarItems.map((item, index) => (
+                <div key={landing.content.trust_bar_order[index]} className="contents">
+                  {index > 0 ? <span className="hidden sm:inline text-border-strong">|</span> : null}
+                  {item}
+                </div>
+              ))}
             </div>
 
             {/* ═══ What is Unbrowse — Definition Block (moved above install) ═══ */}
             <div className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-3xl text-center">
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4 text-text-primary">The browser slot stays. The execution path changes.</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4 text-text-primary">{landing.content.definition_heading}</h2>
               <p className="text-text-secondary text-base sm:text-lg leading-relaxed">
-                Unbrowse is a drop-in replacement for browser automation in agent stacks.
-                On the first pass it can use a real browser to capture the site&apos;s request flow.
-                On later runs it reuses that learned route as a skill.
-                The browser stays available for auth and hard cases, but repeated browser work becomes reusable infrastructure instead of repeated cost.
+                {landing.content.definition_body}
               </p>
             </div>
 
@@ -198,18 +210,21 @@ export default function Home() {
                 <div className="border-b border-border bg-surface-raised px-5 py-4 sm:px-6 sm:py-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">Install First</p>
+                      <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">{landing.content.install_eyebrow}</p>
                       <h2 className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-text-primary">
                         Install once. Use it on the next task.
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      Local runtime first. Host shortcuts second. MCP and OpenClaw have dedicated tabs when you need them.
+                      {landing.content.install_body}
                     </p>
                   </div>
                 </div>
                 <div className="p-4 sm:p-6">
-                  <InstallInstructions />
+                  <InstallInstructions
+                    experimentId={landing.assignment.experiment_id}
+                    variantId={landing.assignment.variant_id}
+                  />
                 </div>
                 <div className="border-t border-border bg-orange-50 px-5 py-4 sm:px-6 text-sm leading-relaxed text-orange-900">
                   <span className="font-medium">Want payouts?</span>
@@ -226,32 +241,37 @@ export default function Home() {
             <div className="animate-fade-up stagger-4 flex flex-col items-center gap-6 mt-10 w-full">
               <div className="text-center">
                 <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-600">
-                  Replace The Browser
+                  {landing.content.install_eyebrow}
                 </p>
                 <p className="mt-2 text-sm sm:text-base text-text-secondary">
-                  Install the runtime, then replace repeated browser automation with learned routes your agent can reuse.
+                  {landing.content.install_body}
                 </p>
               </div>
-              <HeroCTA />
+              <HeroCTA
+                experimentId={landing.assignment.experiment_id}
+                variantId={landing.assignment.variant_id}
+                primaryLabel={landing.content.hero_cta_label}
+              />
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                 <Link
-                  href="#demo"
+                  href="#first-task"
+                  data-exploration-id="first-task"
                   className="flex items-center justify-center gap-2 px-6 py-3.5
                              bg-surface border-2 border-orange-500/20 text-text-primary font-medium rounded-lg text-base w-full sm:w-auto
                              hover:border-orange-500/40 hover:bg-orange-50/50
                              active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  See Demo
+                  Run First Task
                 </Link>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-text-muted">
-                                <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Docs</a>
+                <a href="#demo" className="hover:text-text-primary transition-colors">See Demo</a>
                 <span className="text-border-strong">·</span>
-                <a href="/mcp.json" className="hover:text-text-primary transition-colors">MCP Config</a>
+                <a href={DOCS_URL} target="_blank" rel="noopener" data-exploration-id="docs" className="hover:text-text-primary transition-colors">Docs</a>
                 <span className="text-border-strong">·</span>
-                <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Read Paper</a>
+                <a href={WHITEPAPER_URL} target="_blank" rel="noopener" data-exploration-id="paper" className="hover:text-text-primary transition-colors">Read Paper</a>
                 <span className="text-border-strong">·</span>
-                <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">GitHub</a>
+                <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" data-exploration-id="github" className="hover:text-text-primary transition-colors">GitHub</a>
               </div>
             </div>
 
@@ -427,40 +447,37 @@ export default function Home() {
         </div>
       </section>
 
-       {/* ═══ Post-Install ═══ */}
-       <section className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
+       {/* ═══ First Task ═══ */}
+       <section id="first-task" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
          <div className="relative max-w-4xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-500/20 text-orange-600 text-xs font-mono font-medium uppercase tracking-widest mb-6">
                 <Activity className="w-3.5 h-3.5" />
-                After Install
+                Activation
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-6 text-text-primary">
-                Verify, explore, and <span className="text-orange-500">view contributors.</span>
+                Install, then get <span className="text-orange-500">one real success.</span>
               </h2>
-                <p className="text-text-secondary text-lg max-w-xl mx-auto leading-relaxed">
-                  Once the CLI is installed, verify the local server, open the wallet dashboard, and jump into the docs and community.
+                <p className="text-text-secondary text-lg max-w-2xl mx-auto leading-relaxed">
+                  Do the install, confirm the local runtime, then run one canonical resolve before you touch optional host wiring or contributor dashboards.
                 </p>
             </div>
 
           <div className="space-y-8">
-            <div className="rounded-2xl border border-border bg-surface px-5 py-4 text-sm leading-relaxed text-text-secondary">
-              Verify the install with
-              <code className="ml-2 text-orange-700 font-medium">unbrowse health</code>
-              and upgrade in place with
-              <code className="ml-2 text-orange-700 font-medium">{UPGRADE_CMD_GENERIC}</code>
-              or
-              <code className="ml-2 text-orange-700 font-medium">{UPGRADE_CMD_MCP}</code>
-              after each release.
+            <div className="rounded-2xl border border-orange-500/15 bg-orange-50/70 px-5 py-4 text-sm leading-relaxed text-orange-900">
+              Canonical quickstart command:
+              <code className="ml-2 break-all font-medium text-orange-700">{FIRST_TASK_CMD}</code>
             </div>
+
+            <FirstTaskPath />
 
             <div className="rounded-2xl border border-border bg-surface px-6 py-6 sm:px-8">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-500">Public contributor view</p>
-                  <h3 className="mt-2 text-2xl font-semibold text-text-primary">Open any contributor by wallet.</h3>
+                  <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-500">Then go deeper</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-text-primary">Verify upgrades, explore docs, or inspect contributor economics.</h3>
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">
-                    Paste a wallet to see earnings, spending, savings, time saved, and leaderboard rank. No login flow on the website.
+                    After the first successful resolve, use the docs for host-specific setup, upgrade in place with <code className="text-orange-700 font-medium">{UPGRADE_CMD_GENERIC}</code> or <code className="text-orange-700 font-medium">{UPGRADE_CMD_MCP}</code>, and open the public dashboard when you care about route economics.
                   </p>
                 </div>
                 <Link
@@ -473,13 +490,13 @@ export default function Home() {
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-text-secondary font-mono pt-8">
-              <a href={DOCS_URL} target="_blank" rel="noopener" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> Docs</a>
+              <a href={DOCS_URL} target="_blank" rel="noopener" data-exploration-id="docs" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> Docs</a>
               <span className="hidden sm:block text-border-strong">•</span>
               <a href="/skill.md" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> Agent contract</a>
               <span className="hidden sm:block text-border-strong">•</span>
               <a href="/llms.txt" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> llms.txt</a>
               <span className="hidden sm:block text-border-strong">•</span>
-              <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><Github className="w-4 h-4"/> GitHub</a>
+              <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" data-exploration-id="github" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><Github className="w-4 h-4"/> GitHub</a>
               <span className="hidden sm:block text-border-strong">•</span>
               <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> Discord</a>
             </div>
@@ -545,10 +562,11 @@ export default function Home() {
                <span className="text-sm text-text-secondary leading-relaxed">Technical deep-dives, launch notes, and the thinking behind Unbrowse.</span>
                <span className="text-sm font-medium text-orange-600 flex items-center gap-1">Read posts <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" /></span>
              </Link>
-             <Link
-               href="/compare/playwright"
-               className="group flex flex-col items-center gap-3 p-6 rounded-2xl border border-border bg-surface hover:border-orange-500/30 transition-colors"
-             >
+            <Link
+              href="/compare/playwright"
+              data-exploration-id="compare_playwright"
+              className="group flex flex-col items-center gap-3 p-6 rounded-2xl border border-border bg-surface hover:border-orange-500/30 transition-colors"
+            >
                <span className="text-lg font-semibold text-text-primary group-hover:text-orange-600 transition-colors">Unbrowse vs Playwright</span>
                <span className="text-sm text-text-secondary leading-relaxed">Side-by-side benchmark: speed, cost, reliability across 94 domains.</span>
                <span className="text-sm font-medium text-orange-600 flex items-center gap-1">See comparison <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" /></span>

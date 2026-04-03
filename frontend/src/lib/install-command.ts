@@ -4,6 +4,9 @@ export const INSTALL_SCRIPT_URL = "https://unbrowse.ai/install.sh";
 export const INSTALL_CMD_GENERIC = `curl -fsSL ${INSTALL_SCRIPT_URL} | bash`;
 export const INSTALL_CMD_SKILL = "npx skills add unbrowse-ai/unbrowse";
 export const INSTALL_CMD_NPM = "npm install -g unbrowse && unbrowse setup";
+export const VERIFY_CMD = "unbrowse health --pretty";
+export const FIRST_TASK_CMD =
+  'unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty';
 
 export const UPGRADE_CMD_GENERIC = INSTALL_CMD_GENERIC;
 

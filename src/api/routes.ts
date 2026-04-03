@@ -12,7 +12,7 @@ import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
-import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
+import { TRACE_VERSION, CODE_HASH, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
@@ -35,13 +35,14 @@ import { join } from "path";
 import { type BrowseSession, getOrCreateBrowseSession, isRecoverableBrowseFailure, withRecoveredBrowseSession } from "./browse-session.js";
 import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
 import { submitBrowseForm } from "./browse-submit.js";
+import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 
 type AnalyticsSessionResult = {
-  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct">;
+  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct" | "api_call_count">;
   timing?: Pick<OrchestrationTiming, "source" | "time_saved_ms" | "time_saved_pct" | "cost_saved_uc" | "tokens_saved" | "tokens_saved_pct">;
   source?: OrchestratorResult["source"];
 };
@@ -56,7 +57,7 @@ export function buildAnalyticsSessionPayload(
   },
 ): AnalyticsSessionPayload {
   const source = result.timing?.source ?? result.source;
-  const apiCalls = result.trace.endpoint_id ? 1 : 0;
+  const apiCalls = result.trace.api_call_count ?? (result.trace.endpoint_id ? 1 : 0);
   const browserMode = opts.browser_mode ?? (
     source === "live-capture" || source === "first-pass" || source === "browser-action"
       ? "default"
@@ -346,18 +347,19 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const { intent, params, context, projection, confirm_unsafe, dry_run, force_capture } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
+      confirm_third_party_terms?: boolean;
       dry_run?: boolean;
       force_capture?: boolean;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture, client_scope: clientScope });
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, client_scope: clientScope });
 
       // Surface timing breakdown
       const res = attachAgentOutcomeHints({ ...result } as Record<string, unknown>, {
@@ -581,10 +583,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, dry_run, intent, context_url } = req.body as {
+    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
+      confirm_third_party_terms?: boolean;
       dry_run?: boolean;
       intent?: string;
       context_url?: string;
@@ -610,7 +613,7 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
     };
     try {
-      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
+      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
       if (execResult.trace.endpoint_id) {
         recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace, skill).catch(() => {});
@@ -644,7 +647,7 @@ export async function registerRoutes(app: FastifyInstance) {
             { ...execParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
-            { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
+            { confirm_unsafe, confirm_third_party_terms, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
           );
           saveTrace(freshResult.trace);
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
@@ -814,6 +817,25 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // POST /v1/stale/cleanup — verify active skills, mark dead endpoints stale, drop local cache entries
+  app.post("/v1/stale/cleanup", async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      skill_id?: string;
+      domain?: string;
+      limit?: number;
+    };
+    try {
+      const result = await cleanupStaleSkills({
+        skill_id: typeof body.skill_id === "string" ? body.skill_id : undefined,
+        domain: typeof body.domain === "string" ? body.domain : undefined,
+        limit: typeof body.limit === "number" ? body.limit : undefined,
+      });
+      return reply.send(result);
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
   // POST /v1/feedback — submit execution feedback with optional diagnostics
   app.post("/v1/feedback", async (req, reply) => {
     const { skill_id, target_id, endpoint_id, rating, outcome, diagnostics } = req.body as {
@@ -858,7 +880,13 @@ export async function registerRoutes(app: FastifyInstance) {
   });
 
   // GET /health
-  app.get("/health", async (_req, reply) => reply.send({ status: "ok", trace_version: TRACE_VERSION, code_hash: CODE_HASH, git_sha: GIT_SHA }));
+  app.get("/health", async (_req, reply) => reply.send({
+    status: "ok",
+    trace_version: TRACE_VERSION,
+    code_hash: CODE_HASH,
+    git_sha: GIT_SHA,
+    package_version: PACKAGE_VERSION,
+  }));
 
   // GET /v1/sessions/:domain — read local trace/debug files instead of proxying to backend
   app.get("/v1/sessions/:domain", async (req, reply) => {

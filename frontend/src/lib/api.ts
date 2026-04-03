@@ -16,6 +16,21 @@ export interface SkillManifest {
   updated_at: string;
 }
 
+export interface PopularSkillSummary {
+  skill_id: string;
+  name: string;
+  domain: string;
+  description: string;
+  version: string;
+  execution_type: "http" | "browser-capture";
+  endpoint_count: number;
+  total_executions: number;
+  successful_executions: number;
+  avg_reliability_score: number;
+  updated_at: string;
+  last_execution_at?: string;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: string;
@@ -24,6 +39,31 @@ export interface EndpointDescriptor {
   verification_status: "verified" | "unverified" | "failed" | "pending";
   reliability_score: number;
   response_schema?: unknown;
+}
+
+export interface SkillListEndpointPreview {
+  endpoint_id: string;
+  method: string;
+  verification_status: "verified" | "unverified" | "failed" | "pending" | "disabled";
+  reliability_score: number;
+}
+
+export interface SkillListItem {
+  skill_id: string;
+  version: string;
+  name: string;
+  intent_signature: string;
+  domain: string;
+  subdomain?: string;
+  description: string;
+  owner_type: "agent" | "marketplace" | "user";
+  execution_type: "http" | "browser-capture";
+  lifecycle: "active" | "deprecated" | "disabled";
+  created_at: string;
+  updated_at: string;
+  endpoint_count: number;
+  avg_reliability_score: number;
+  endpoints: SkillListEndpointPreview[];
 }
 
 export interface SearchResult {
@@ -92,6 +132,56 @@ export interface EngagementMetrics {
   dau_wau_ratio: number;
   dau_mau_ratio: number;
   daily_trend: Array<{ date: string; active: number }>;
+}
+
+export interface LandingVariantAnalytics {
+  variant_id: string;
+  label: string;
+  status: "shadow" | "canary" | "active" | "disabled";
+  source: "human" | "auto_generated";
+  angle_family: "browser-replacement" | "speed-proof" | "reliability" | "learn-once-reuse-later";
+  weight: number;
+  rationale?: string;
+  canary_started_at?: string;
+  disabled_reason?: string;
+  generated_at?: string;
+  landing_visitors: number;
+  landing_sessions: number;
+  hero_views: number;
+  install_section_views: number;
+  install_command_copies: number;
+  install_started: number;
+  setup_completed: number;
+  registrations: number;
+  first_resolve_started: number;
+  first_resolve_succeeded: number;
+  bounce_sessions: number;
+  no_exploration_sessions: number;
+  avg_exploration_depth: number;
+  max_scroll_bucket_reached: number;
+  rates: {
+    install_copy_from_landing: number;
+    install_started_from_landing: number;
+    setup_completed_from_landing: number;
+    first_resolve_succeeded_from_landing: number;
+    first_resolve_succeeded_from_install_started: number;
+  };
+  top_referrers: Array<{ referrer: string; sessions: number }>;
+  top_campaigns: Array<{ campaign: string; sessions: number }>;
+}
+
+export interface LandingFunnelAnalytics {
+  generated_at: string;
+  window_days: number;
+  experiment_id: string;
+  control_variant_id: string;
+  winner_variant_id?: string;
+  winner_angle_family?: LandingVariantAnalytics["angle_family"];
+  live_weights: Array<{ variant_id: string; status: LandingVariantAnalytics["status"]; weight: number }>;
+  shadow_queue: Array<{ variant_id: string; label: string; source: LandingVariantAnalytics["source"]; rationale?: string }>;
+  canaries: Array<{ variant_id: string; label: string; started_at?: string }>;
+  optimizer_runs: Array<{ ran_at: string; winner_variant_id?: string; winner_angle_family?: LandingVariantAnalytics["angle_family"]; notes?: string }>;
+  variants: LandingVariantAnalytics[];
 }
 
 export interface CurrentTos {
@@ -219,6 +309,33 @@ export async function verifyAgentApiKey(apiKey: string): Promise<AgentProfile> {
 
 export async function listSkills(): Promise<SkillManifest[]> {
   const data = await api<{ skills: SkillManifest[] }>("GET", "/v1/skills");
+  return data.skills;
+}
+
+export async function listSkillCards(opts?: {
+  limit?: number;
+  includeDeprecated?: boolean;
+  revalidate?: number;
+}): Promise<SkillListItem[]> {
+  const params = new URLSearchParams({ view: "card" });
+  if (opts?.limit != null) params.set("limit", String(opts.limit));
+  if (opts?.includeDeprecated) params.set("include_deprecated", "1");
+  const data = await request<{ skills: SkillListItem[] }>(
+    "GET",
+    `/v1/skills?${params.toString()}`,
+    undefined,
+    { revalidate: opts?.revalidate ?? 300 },
+  );
+  return data.skills;
+}
+
+export async function listPopularSkills(limit = 8, opts?: { revalidate?: number }): Promise<PopularSkillSummary[]> {
+  const data = await request<{ skills: PopularSkillSummary[] }>(
+    "GET",
+    `/v1/skills/popular?limit=${limit}`,
+    undefined,
+    { revalidate: opts?.revalidate ?? 300 },
+  );
   return data.skills;
 }
 

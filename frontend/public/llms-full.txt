@@ -105,9 +105,10 @@ The package pulls in the local Unbrowse runtime automatically. Older OpenClaw bu
 ### Upgrading
 
 ```
-npm install -g unbrowse@latest
-unbrowse setup
+unbrowse upgrade
 ```
+
+Codex and Claude installs also get a session-start update hint during `unbrowse setup`.
 
 ### Environment variables
 
