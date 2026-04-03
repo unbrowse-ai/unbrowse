@@ -12,9 +12,34 @@ permissions:
   contents: read
 
 jobs:
+  upload-release-assets:
+    name: Upload CLI Release Assets
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: bash scripts/build-binaries.sh --all
+      - name: Create or update GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/unbrowse-* --clobber
+          else
+            gh release create "$TAG" dist/unbrowse-* --title "$TAG" --notes "Release ${TAG}"
+          fi
+
   publish-cli:
     name: Publish CLI (npm)
     runs-on: self-hosted
+    needs: upload-release-assets
     outputs:
       package_name: ${{ steps.pkg.outputs.name }}
       package_version: ${{ steps.pkg.outputs.version }}
@@ -124,30 +149,6 @@ jobs:
           fi
           echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
 
-  upload-release-assets:
-    name: Upload CLI Release Assets
-    runs-on: self-hosted
-    needs: publish-cli
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash scripts/ensure-submodules.sh submodules/kuri
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
-      - run: bun install --frozen-lockfile
-      - run: bash scripts/build-binaries.sh --all
-      - name: Create or update GitHub release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/unbrowse-* --clobber
-          else
-            gh release create "$TAG" dist/unbrowse-* --title "$TAG" --notes "Release ${TAG}"
           fi
 
   deploy-backend:

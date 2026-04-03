@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Thin wrapper — execs the compiled binary if available,
- * falls back to the package-managed Node launcher if not.
+ * Thin wrapper — execs the compiled binary only.
  */
 
 import { existsSync } from "node:fs";
@@ -24,16 +23,7 @@ if (existsSync(binaryPath)) {
     process.exit(code ?? 1);
   });
 } else {
-  // Fallback: delegate to the stable package launcher so
-  // npm installs and npx use the same dependency resolution path.
-  const launcherPath = join(__dirname, "unbrowse.js");
-  const child = spawn(process.execPath, [launcherPath, ...process.argv.slice(2)], {
-    stdio: "inherit",
-    cwd: process.cwd(),
-    env: process.env,
-  });
-  child.on("exit", (code, signal) => {
-    if (signal) { process.kill(process.pid, signal); return; }
-    process.exit(code ?? 1);
-  });
+  console.error("[unbrowse] Native CLI binary is missing.");
+  console.error("[unbrowse] Reinstall the package or verify the release asset exists for this platform.");
+  process.exit(1);
 }
