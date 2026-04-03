@@ -33,6 +33,7 @@ describe("browse session recovery", () => {
     expect(extractBrowseFailureMessage({ result: { error: "CDP command failed" } })).toBe("CDP command failed");
     expect(isRecoverableBrowseFailure({ error: "Transport closed by peer" })).toBe(true);
     expect(isRecoverableBrowseFailure({ result: { message: "No such target" } })).toBe(true);
+    expect(isRecoverableBrowseFailure({ message: "The socket connection was closed unexpectedly", code: "ECONNRESET" })).toBe(true);
     expect(isRecoverableBrowseFailure({ ok: true })).toBe(false);
   });
 
