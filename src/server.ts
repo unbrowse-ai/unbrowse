@@ -9,6 +9,7 @@ import { schedulePeriodicVerification } from "./verification/index.js";
 import { ensureRegistered } from "./client/index.js";
 import { shutdownAllBrowsers } from "./capture/index.js";
 import * as kuri from "./kuri/client.js";
+import { schedulePeriodicStaleCleanup } from "./stale-cleanup-runner.js";
 
 type StartServerOptions = {
   host?: string;
@@ -73,6 +74,7 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   await app.listen({ port, host });
   if (options.scheduleVerification ?? true) {
     schedulePeriodicVerification();
+    schedulePeriodicStaleCleanup();
   }
 
   return {

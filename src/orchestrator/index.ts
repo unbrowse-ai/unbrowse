@@ -42,6 +42,7 @@ import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from 
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { resolveAuthPrerequisites, deriveAuthDependencies } from "../auth/runtime.js";
+import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 import {
   buildRoutingCandidateSnapshots,
   buildRoutingContextBuckets,
@@ -50,6 +51,7 @@ import {
   hashRoutingState,
   sanitizeRoutingEventBatch,
 } from "../routing-telemetry.js";
+import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const LIVE_CAPTURE_TIMEOUT_MS = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS ?? "120000");
@@ -1009,6 +1011,18 @@ export function isRouteCacheEntryStale(
   // Treat as stale when reliability has dropped below the auto-deprecation floor
   if (typeof endpoint.reliability_score === "number" && endpoint.reliability_score < 0.2) return true;
   return false;
+}
+
+export function pruneLocalCacheEntriesForSkill(skill: SkillManifest): LocalCacheCleanupSummary {
+  const summary = pruneLocalCacheStateForSkill(skill, {
+    capturedDomainCache,
+    skillRouteCache,
+    routeResultCache,
+    domainSkillCache,
+  });
+  if (summary.route_cache_entries_removed > 0) persistRouteCache();
+  if (summary.domain_cache_entries_removed > 0) persistDomainCache();
+  return summary;
 }
 
 function computeCompositeScore(embeddingScore: number, skill: SkillManifest): number {
