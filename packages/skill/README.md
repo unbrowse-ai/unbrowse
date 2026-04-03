@@ -34,6 +34,7 @@ unbrowse setup
 ```
 
 The npm package is binary-first: install downloads the prebuilt Bun-compiled CLI for your platform. It does not ship the TypeScript runtime or JS fallback launcher.
+On supported platforms, install now fails fast if the matching GitHub release asset is missing or unreachable.
 
 For generic MCP hosts:
 

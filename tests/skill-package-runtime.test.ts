@@ -7,21 +7,29 @@ const SKILL_PACKAGE_JSON = path.join(ROOT, "packages", "skill", "package.json");
 const SKILL_WRAPPER = path.join(ROOT, "packages", "skill", "bin", "unbrowse-wrapper.mjs");
 
 describe("standalone skill package runtime", () => {
-  it("ships the payment/runtime dependencies required by the packaged CLI", () => {
+  it("ships the binary-only installer scripts required by the packaged CLI", () => {
     const manifest = JSON.parse(readFileSync(SKILL_PACKAGE_JSON, "utf8")) as {
-      dependencies?: Record<string, string>;
+      files?: string[];
+      scripts?: Record<string, string>;
     };
 
-    expect(manifest.dependencies?.bs58).toBeDefined();
-    expect(manifest.dependencies?.["@cascade-fyi/splits-sdk"]).toBeDefined();
-    expect(manifest.dependencies?.["@solana/kit"]).toBeDefined();
+    expect(manifest.files).toContain("bin/unbrowse-wrapper.mjs");
+    expect(manifest.files).toContain("scripts/postinstall.mjs");
+    expect(manifest.files).toContain("scripts/release-assets.mjs");
+    expect(manifest.files).toContain("scripts/verify-release-assets.mjs");
+    expect(manifest.files).not.toContain("runtime-src");
+    expect(manifest.files).not.toContain("dist");
+    expect(manifest.scripts?.postinstall).toBe("node scripts/postinstall.mjs");
+    expect(manifest.scripts?.prepublishOnly).toContain("node scripts/verify-release-assets.mjs");
   });
 
-  it("delegates wrapper fallback through the node launcher", () => {
+  it("hard-fails when the native binary is missing", () => {
     const wrapper = readFileSync(SKILL_WRAPPER, "utf8");
 
-    expect(wrapper).toContain('const launcherPath = join(__dirname, "unbrowse.js");');
-    expect(wrapper).toContain("spawn(process.execPath, [launcherPath, ...process.argv.slice(2)]");
+    expect(wrapper).toContain('const binaryPath = join(__dirname, "unbrowse");');
+    expect(wrapper).toContain("spawn(binaryPath, process.argv.slice(2)");
+    expect(wrapper).toContain("Native CLI binary is missing.");
+    expect(wrapper).not.toContain("unbrowse.js");
     expect(wrapper).not.toContain('spawn("bun"');
   });
 });
