@@ -54,6 +54,7 @@
 
 ### Bug Fixes
 
+* **frontend/perf**: stop homepage and search from fetching the full 30MB+ skill registry payload, add a compact cacheable skill-card list for registry surfaces, and enable sane revalidation for blog API fetches
 * **cli/cache**: add a `cleanup-stale` sweep that re-verifies active skills, evicts stale local cache entries, and now rotates through periodic server-side batches so dead marketplace endpoints stop getting replayed
 * **kuri/tests**: stop the Kuri live e2e suite from hijacking a visible Chrome session by honoring headless launch flags and running the fixture-browser tests in headless managed mode
 * **github/pr-agent**: split webhook dispatch into `repair` vs `merge` operations, ignore agent-self-failure loops, isolate runner `CODEX_HOME`, and let Codex make the merge recommendation before a final non-vibes safety gate executes the merge

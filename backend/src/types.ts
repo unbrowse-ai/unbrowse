@@ -175,6 +175,31 @@ export interface SkillManifest {
   base_price_usd?: number;
 }
 
+export interface SkillListEndpointPreview {
+  endpoint_id: string;
+  method: EndpointDescriptor["method"];
+  verification_status: VerificationStatus;
+  reliability_score: number;
+}
+
+export interface SkillListItem {
+  skill_id: string;
+  version: string;
+  name: string;
+  intent_signature: string;
+  domain: string;
+  subdomain?: string;
+  description: string;
+  owner_type: OwnerType;
+  execution_type: "http" | "browser-capture";
+  lifecycle: SkillLifecycle;
+  created_at: string;
+  updated_at: string;
+  endpoint_count: number;
+  avg_reliability_score: number;
+  endpoints: SkillListEndpointPreview[];
+}
+
 export interface SkillContributor {
   /** Agent ID of the contributor */
   agent_id: string;

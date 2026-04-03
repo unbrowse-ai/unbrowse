@@ -4,6 +4,7 @@ import { registerAgent, getAgent, listAgents, acceptTos, updateAgentWallet } fro
 import { bearerAuthNoTos } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
+import { getOrSetHttpCache } from "../services/http-cache.js";
 
 // Public agent routes — no auth required
 export const publicAgentRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
@@ -13,6 +14,7 @@ publicAgentRoutes.use("/agents/register", rateLimit({ limit: 10, window: 300, pr
 
 // GET /v1/tos/current — public, returns current ToS version info
 publicAgentRoutes.get("/tos/current", (c) => {
+  c.header("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=600");
   return c.json({
     version: CURRENT_TOS_VERSION,
     summary: TOS_SUMMARY,
@@ -129,15 +131,22 @@ publicAgentRoutes.get("/agents/me", bearerAuthNoTos, async (c) => {
 // GET /v1/agents — list recent agents (public profiles)
 publicAgentRoutes.get("/agents", async (c) => {
   const limit = Math.min(Number(c.req.query("limit") ?? 20), 50);
-  const agents = await listAgents(c.env, limit);
+  const { agents } = await getOrSetHttpCache(c.env, `agents:list:${limit}`, 30, async () => ({
+    agents: await listAgents(c.env, limit),
+  }));
+  c.header("Cache-Control", "public, max-age=30, s-maxage=30, stale-while-revalidate=120");
   return c.json({ agents });
 });
 
 // GET /v1/agents/:id — public agent profile
 publicAgentRoutes.get("/agents/:id", async (c) => {
-  const profile = await getAgent(c.env, c.req.param("id"));
-  if (!profile) {
-    return c.json({ error: "Agent not found" }, 404);
-  }
-  return c.json(profile);
+  const id = c.req.param("id");
+  const payload = await getOrSetHttpCache(c.env, `agents:profile:${id}`, 30, async () => {
+    const profile = await getAgent(c.env, id);
+    if (!profile) return { error: "Agent not found" as const };
+    return { profile };
+  });
+  if ("error" in payload) return c.json({ error: payload.error }, 404);
+  c.header("Cache-Control", "public, max-age=30, s-maxage=30, stale-while-revalidate=120");
+  return c.json(payload.profile);
 });
