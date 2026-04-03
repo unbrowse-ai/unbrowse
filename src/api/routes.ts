@@ -32,14 +32,16 @@ import {
   createRegisteredBrowseSession,
   extractBrowseFailureMessage,
   getOrCreateNavigateBrowseSession,
+  isBrowseSessionLive,
   isRecoverableBrowseFailure,
+  rebindBrowseSessionToMatchingTab,
   type BrowseSession,
   withSerializedRecoveredBrowseSession,
   withSerializedStrictBrowseSession,
   removeBrowseSession,
 } from "./browse-session.js";
 import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
-import { submitBrowseForm } from "./browse-submit.js";
+import { isUrlWaitHint, resolveSubmitWaitHint, submitBrowseForm } from "./browse-submit.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
 import { shouldImportBrowserCookies } from "../runtime/browser-auth.js";
 
@@ -213,6 +215,7 @@ function browseBrokerPorts(): number[] {
 }
 
 function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
+  if (session?.client) return session.client as kuri.KuriClient;
   if (session?.brokerPort !== undefined) return kuri.getKuriClient(session.brokerPort);
   return kuri.getKuriClient();
 }
@@ -220,6 +223,7 @@ function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
 function selectBrowseBrokerClient(requestedSessionId?: string): kuri.KuriClient {
   if (requestedSessionId) {
     const existing = browseSessions.get(requestedSessionId);
+    if (existing?.client) return existing.client as kuri.KuriClient;
     if (existing) return brokerForSession(existing);
   }
 
@@ -971,6 +975,11 @@ export async function registerRoutes(app: FastifyInstance) {
 
   async function restartBrowseCapture(session: BrowseSession): Promise<void> {
     const broker = brokerForSession(session);
+    const load = await broker.waitForLoad(session.tabId, 2_000).catch(() => null);
+    if (load && load.status === "timeout") {
+      session.harActive = false;
+      return;
+    }
     await broker.networkEnable(session.tabId).catch(() => {});
     await broker.harStart(session.tabId).catch(() => {});
     await broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
@@ -1181,11 +1190,34 @@ export async function registerRoutes(app: FastifyInstance) {
         (result) => !result.ok && result.recoverable === true,
       );
 
-      session.url = result.url || await brokerForSession(session).getCurrentUrl(session.tabId).catch(() => session.url);
-      session.domain = profileName(session.url);
+      let activeSession = session;
+      const hintedDestination = result.wait_for && isUrlWaitHint(result.wait_for)
+        ? resolveSubmitWaitHint(activeSession.url || "about:blank", result.wait_for)
+        : null;
+      const rawResultUrl = typeof result.url === "string" ? result.url : "";
+      activeSession.url = rawResultUrl || await brokerForSession(activeSession).getCurrentUrl(activeSession.tabId).catch(() => activeSession.url);
+      if (result.ok && hintedDestination && (!rawResultUrl || !rawResultUrl.includes(result.wait_for ?? ""))) {
+        activeSession.url = hintedDestination;
+      }
+      activeSession.domain = profileName(activeSession.url);
+      const stillLive = await isBrowseSessionLive(activeSession, browseClient).catch(() => false);
+      if (!stillLive && activeSession.url) {
+        const rebound = await rebindBrowseSessionToMatchingTab(
+          browseSessions,
+          browseClient,
+          injectInterceptor,
+          activeSession.sessionId,
+          hintedDestination ?? activeSession.url,
+        );
+        if (rebound) {
+          activeSession = rebound;
+          if (hintedDestination) activeSession.url = hintedDestination;
+          activeSession.domain = profileName(activeSession.url);
+        }
+      }
 
       const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
-      const sessionHint = `--session ${session.sessionId}`;
+      const sessionHint = `--session ${activeSession.sessionId}`;
       const nextStep = result.ok
         ? (result.capture_sync?.background_publish_queued
             ? `Background publish queued for this step. Continue the flow, then run \`unbrowse close ${sessionHint}\` when you're done to save auth and finalize any remaining capture.`
@@ -1193,11 +1225,11 @@ export async function registerRoutes(app: FastifyInstance) {
         : `Inspect the page state with \`unbrowse snap ${sessionHint} --filter interactive\`, then retry submit with selectors or a wait hint if needed.`;
       return reply.code(statusCode).send({
         ...result,
-        session_id: session.sessionId,
+        session_id: activeSession.sessionId,
         next_step: nextStep,
         recovered: false,
-        tab_id: session.tabId,
-        url: session.url,
+        tab_id: activeSession.tabId,
+        url: activeSession.url,
       });
     } catch (error) {
       return sendBrowseSessionError(reply, error);

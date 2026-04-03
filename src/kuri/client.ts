@@ -21,6 +21,9 @@ const KURI_REQUEST_TIMEOUT_MS = 30_000;
 const KURI_SPAWN_RETRIES = 3;
 const KURI_SPAWN_RETRY_DELAY_MS = 1_000;
 const KURI_PORT_SEARCH_LIMIT = 10;
+const KURI_CDP_READY_TIMEOUT_MS = 5_000;
+const KURI_CDP_POLL_INTERVAL_MS = 200;
+const KURI_TAB_CREATE_RETRIES = 5;
 
 export interface KuriTab {
   id: string;
@@ -91,6 +94,7 @@ type BrokerState = {
   process: ChildProcess | null;
   port: number;
   cdpPort: number | null;
+  managedChrome: boolean;
   ready: boolean;
   startPromise: Promise<void> | null;
   requestedPort: number;
@@ -176,6 +180,7 @@ function createBrokerState(port = KURI_DEFAULT_PORT): BrokerState {
     process: null,
     port,
     cdpPort: null,
+    managedChrome: false,
     ready: false,
     startPromise: null,
     requestedPort: port,
@@ -192,6 +197,11 @@ function brokerCacheKey(port?: number): string {
 function rememberBrokerClient(client: KuriClient, state: BrokerState): void {
   brokerClients.set(brokerCacheKey(state.requestedPort), client);
   brokerClients.set(brokerCacheKey(state.port), client);
+}
+
+function forgetBrokerClient(state: BrokerState): void {
+  brokerClients.delete(brokerCacheKey(state.requestedPort));
+  brokerClients.delete(brokerCacheKey(state.port));
 }
 
 function envFlag(value: string | undefined): boolean {
@@ -304,6 +314,41 @@ async function isKuriHealthyOnPort(port: number): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function isChromeCdpAvailable(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: AbortSignal.timeout(1000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForChromeCdpReady(
+  state: Pick<BrokerState, "cdpPort">,
+  timeoutMs = KURI_CDP_READY_TIMEOUT_MS,
+): Promise<boolean> {
+  if (typeof state.cdpPort !== "number") return false;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await isChromeCdpAvailable(state.cdpPort)) return true;
+    await new Promise((resolve) => setTimeout(resolve, KURI_CDP_POLL_INTERVAL_MS));
+  }
+  return false;
+}
+
+export function shouldReuseManagedChrome(
+  launchConfig: KuriLaunchConfig,
+  state: Pick<BrokerState, "cdpPort" | "managedChrome">,
+  managedChromeAvailable: boolean,
+): boolean {
+  return !launchConfig.attachToExistingChrome
+    && state.managedChrome === true
+    && typeof state.cdpPort === "number"
+    && managedChromeAvailable;
 }
 
 async function isTcpPortOpen(port: number, timeoutMs = 400): Promise<boolean> {
@@ -493,11 +538,21 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
       throw new Error(`Kuri binary not found at ${binary}`);
     }
 
+    const reusableManagedChrome = shouldReuseManagedChrome(
+      launchConfig,
+      state,
+      typeof state.cdpPort === "number" && await isChromeCdpAvailable(state.cdpPort),
+    );
+
     if (launchConfig.attachToExistingChrome) {
       // Discover existing Chrome CDP if available
       await discoverCdpPort(state);
+      state.managedChrome = false;
+    } else if (reusableManagedChrome) {
+      log("kuri", `reconnecting to surviving managed Chrome on port ${state.cdpPort}`);
     } else {
       state.cdpPort = null;
+      state.managedChrome = false;
     }
 
     const env: Record<string, string> = {
@@ -506,9 +561,11 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
       HOST: "127.0.0.1",
       HEADLESS: launchConfig.headless ? "true" : "false",
     };
-    if (state.cdpPort && launchConfig.attachToExistingChrome) {
+    if (state.cdpPort && (launchConfig.attachToExistingChrome || reusableManagedChrome)) {
       env.CDP_URL = `ws://127.0.0.1:${state.cdpPort}`;
-      log("kuri", `connecting to existing Chrome on port ${state.cdpPort}`);
+      log("kuri", reusableManagedChrome
+        ? `connecting to surviving managed Chrome on port ${state.cdpPort}`
+        : `connecting to existing Chrome on port ${state.cdpPort}`);
     } else if (launchConfig.headless) {
       log("kuri", "starting in headless mode with managed Chrome");
     } else {
@@ -527,6 +584,8 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
         env,
         stdio: ["ignore", "pipe", "pipe"],
       });
+      const childPid = state.process.pid;
+      log("kuri", `spawned pid ${childPid ?? "unknown"} on broker port ${state.port}`);
 
       // Parse CDP port from stderr output
       state.process.stderr?.on("data", (chunk: Buffer) => {
@@ -537,13 +596,20 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
           state.cdpPort = parseInt(cdpMatch[1], 10);
           log("kuri", `discovered CDP port: ${state.cdpPort}`);
         }
+        if (/launched Chrome \(pid=\d+\) on CDP port/i.test(line) || /launching managed Chrome instance/i.test(line)) {
+          state.managedChrome = true;
+        }
       });
 
-      state.process.on("exit", (code) => {
+      state.process.on("exit", (code, signal) => {
         if (!state.ready) exitedBeforeReady = true;
-        log("kuri", `process exited with code ${code}`);
+        log(
+          "kuri",
+          `process exited pid=${childPid ?? "unknown"} code=${code === null ? "null" : code} signal=${signal ?? "none"} broker_port=${state.port} cdp_port=${state.cdpPort ?? "unknown"}`,
+        );
         state.ready = false;
         state.process = null;
+        forgetBrokerClient(state);
       });
 
       // Wait for health endpoint; break early if process died
@@ -559,6 +625,7 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
             log("kuri", `ready on port ${state.port}`);
             await new Promise((r) => setTimeout(r, 300));
             if (!state.cdpPort) await discoverCdpPort(state);
+            await waitForChromeCdpReady(state).catch(() => false);
             // Auto-discover tabs so they're registered for immediate use
             await ensureTabsDiscovered(state);
             return;
@@ -604,7 +671,9 @@ async function stopOn(state: BrokerState): Promise<void> {
   }
   state.ready = false;
   state.cdpPort = null;
+  state.managedChrome = false;
   state.startPromise = null;
+  forgetBrokerClient(state);
 }
 
 /** List discovered Chrome tabs. */
@@ -675,6 +744,7 @@ export async function getDefaultTab(state: BrokerState = defaultBrokerState): Pr
 /** Trigger Kuri's /discover to sync Chrome tabs into Kuri's registry. */
 async function ensureTabsDiscovered(state: BrokerState): Promise<void> {
   try {
+    if (state.cdpPort) await waitForChromeCdpReady(state).catch(() => false);
     // Pass CDP URL as query param so /discover works even if Kuri was started without CDP_URL env
     const params: Record<string, string> = {};
     if (state.cdpPort) params.cdp_url = `ws://127.0.0.1:${state.cdpPort}`;
@@ -700,17 +770,25 @@ async function waitForTabRegistration(state: BrokerState, tabId: string, timeout
 
 async function createTabViaChromeCdp(url = "about:blank", state: BrokerState = defaultBrokerState): Promise<string> {
   if (!state.cdpPort) return "";
-  try {
-    const res = await fetch(`http://127.0.0.1:${state.cdpPort}/json/new?${url}`, {
-      method: "PUT",
-      signal: AbortSignal.timeout(5000),
-    });
-    const target = await res.json() as { id?: string; targetId?: string };
-    return target?.id ?? target?.targetId ?? "";
-  } catch (err) {
-    log("kuri", `Chrome tab creation failed: ${err instanceof Error ? err.message : err}`);
-    return "";
+  for (let attempt = 0; attempt < KURI_TAB_CREATE_RETRIES; attempt += 1) {
+    await waitForChromeCdpReady(state).catch(() => false);
+    try {
+      const res = await fetch(`http://127.0.0.1:${state.cdpPort}/json/new?${url}`, {
+        method: "PUT",
+        signal: AbortSignal.timeout(5000),
+      });
+      const target = await res.json() as { id?: string; targetId?: string };
+      const tabId = target?.id ?? target?.targetId ?? "";
+      if (tabId) return tabId;
+    } catch (err) {
+      if (attempt === KURI_TAB_CREATE_RETRIES - 1) {
+        log("kuri", `Chrome tab creation failed: ${err instanceof Error ? err.message : err}`);
+        return "";
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, KURI_CDP_POLL_INTERVAL_MS));
   }
+  return "";
 }
 
 async function findReusableIdleTab(state: BrokerState = defaultBrokerState): Promise<string> {
@@ -945,6 +1023,7 @@ export async function closeTab(tabId: string, state: BrokerState = defaultBroker
 
 /** Create a new tab. */
 export async function newTab(url?: string, state: BrokerState = defaultBrokerState): Promise<string> {
+  if (state.cdpPort) await waitForChromeCdpReady(state).catch(() => false);
   const params: Record<string, string> = {};
   if (url) params.url = url;
   let tabId = "";

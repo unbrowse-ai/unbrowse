@@ -65,6 +65,40 @@ export function isUrlWaitHint(value?: string): boolean {
   return /^https?:\/\//i.test(value) || value.startsWith("/");
 }
 
+export function resolveSubmitWaitHint(baseUrl: string, value?: string): string | null {
+  if (!isUrlWaitHint(value)) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      return new URL(trimmed).href;
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const base = new URL(baseUrl);
+    const rootResolved = new URL(trimmed, base.origin);
+    const rootRelativePath = rootResolved.pathname.replace(/^\/+/, "");
+    const isFilenameHint = rootRelativePath.length > 0
+      && !rootRelativePath.includes("/")
+      && /\.[a-z0-9]+$/i.test(rootRelativePath);
+
+    if (isFilenameHint) {
+      const baseDirectory = base.pathname.endsWith("/")
+        ? base.pathname
+        : base.pathname.slice(0, base.pathname.lastIndexOf("/") + 1);
+      return new URL(`${baseDirectory}${rootRelativePath}${rootResolved.search}${rootResolved.hash}`, base.origin).href;
+    }
+
+    return rootResolved.href;
+  } catch {
+    return null;
+  }
+}
+
 export function hasMeaningfulPageChange(beforeHtml: string, afterHtml: string): boolean {
   const before = beforeHtml.trim();
   const after = afterHtml.trim();
@@ -332,6 +366,7 @@ async function waitForSubmitOutcome(
   const timeoutMs = options.timeoutMs ?? DEFAULT_SUBMIT_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
   const waitFor = options.waitFor?.trim();
+  const requireUrlTransition = !!waitFor && isUrlWaitHint(waitFor);
 
   if (waitFor && !isUrlWaitHint(waitFor)) {
     try {
@@ -355,6 +390,10 @@ async function waitForSubmitOutcome(
     }
     if (url && url !== beforeUrl && !url.startsWith("about:blank")) {
       return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
+    }
+    if (requireUrlTransition) {
+      await sleep(SUBMIT_POLL_INTERVAL_MS);
+      continue;
     }
     if (hasMeaningfulPageChange(beforeHtml, html)) {
       return { ok: true, ...await settleSubmitDestination(client, tabId, url || beforeUrl, html) };
@@ -399,15 +438,6 @@ export async function submitBrowseForm(
   const domOutcome = await waitForSubmitOutcome(client, session.tabId, beforeUrl, beforeHtml, options);
   if (domOutcome.ok) {
     session.url = domOutcome.url || beforeUrl || session.url;
-    let captureSync: BrowseSubmitCaptureSyncResult | null = null;
-    if (flushCapture) {
-      try {
-        captureSync = await flushCapture(session);
-      } catch {
-        captureSync = null;
-      }
-    }
-    await restartCapture(session);
     return {
       ok: true,
       url: session.url,
@@ -416,7 +446,7 @@ export async function submitBrowseForm(
       same_origin_html_rehydrated: false,
       wait_for: options.waitFor,
       submit_meta: submitMeta,
-      capture_sync: captureSync,
+      capture_sync: null,
     };
   }
 
@@ -460,15 +490,6 @@ export async function submitBrowseForm(
     rehydrate = await rehydratePlugins(session.tabId).catch(() => null);
   }
 
-  let captureSync: BrowseSubmitCaptureSyncResult | null = null;
-  if (flushCapture) {
-    try {
-      captureSync = await flushCapture(session);
-    } catch {
-      captureSync = null;
-    }
-  }
-  await restartCapture(session);
   return {
     ok: true,
     url: session.url,
@@ -478,7 +499,7 @@ export async function submitBrowseForm(
     status: typeof fallbackPayload.status === "number" ? fallbackPayload.status as number : undefined,
     wait_for: options.waitFor,
     submit_meta: submitMeta,
-    capture_sync: captureSync,
+    capture_sync: null,
     rehydrate,
   };
 }

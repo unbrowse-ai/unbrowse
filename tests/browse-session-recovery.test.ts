@@ -6,6 +6,7 @@ import {
   getOrCreateBrowseSession,
   isBrowseSessionLive,
   isRecoverableBrowseFailure,
+  rebindBrowseSessionToMatchingTab,
   resetBrowseSession,
   resolveRequestedBrowseSession,
   type BrowseSession,
@@ -60,6 +61,121 @@ describe("browse session recovery", () => {
     expect(live).toBe(true);
   });
 
+  it("rebinds liveness onto a same-path replacement tab when the tab id changes", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "dead-tab",
+      url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=old",
+      harActive: true,
+      domain: "mandai.com",
+    };
+
+    const live = await isBrowseSessionLive(session, makeClient({
+      discoverTabs: async () => [
+        { id: "replacement-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=new" },
+      ],
+      getCurrentUrl: async () => "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=new",
+      getPort: () => 7834,
+    }));
+
+    expect(live).toBe(true);
+    expect(session.tabId).toBe("replacement-tab");
+    expect(session.domain).toBe("mandai.com");
+    expect(session.brokerPort).toBe(7834);
+  });
+
+  it("waits through transient empty tab discovery before rebinding onto the replacement tab", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "dead-tab",
+      url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=old",
+      harActive: true,
+      domain: "mandai.com",
+    };
+    let discovers = 0;
+
+    const live = await isBrowseSessionLive(session, makeClient({
+      discoverTabs: async () => {
+        discovers += 1;
+        if (discovers === 1) return [];
+        return [
+          { id: "replacement-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=new" },
+        ];
+      },
+      getCurrentUrl: async () => "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=new",
+      getPort: () => 7834,
+    }));
+
+    expect(live).toBe(true);
+    expect(discovers).toBeGreaterThan(1);
+    expect(session.tabId).toBe("replacement-tab");
+  });
+
+  it("restarts the broker before strict session liveness checks", async () => {
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", { sessionId: "sess-1", tabId: "tab-1", url: "https://example.com/review", harActive: true, domain: "example.com" }],
+    ]);
+    let started = 0;
+    let brokerReady = false;
+
+    const outcome = await withSerializedStrictBrowseSession(
+      sessions,
+      makeClient({
+        start: async () => {
+          started += 1;
+          brokerReady = true;
+        },
+        discoverTabs: async () => {
+          if (!brokerReady) throw { error: "CDP command failed" };
+          return [{ id: "tab-1", url: "https://example.com/review" }];
+        },
+        getCurrentUrl: async () => "https://example.com/review",
+      }),
+      "sess-1",
+      async () => ({ ok: true }),
+    );
+
+    expect(started).toBeGreaterThan(0);
+    expect(outcome.result).toEqual({ ok: true });
+    expect(sessions.has("sess-1")).toBe(true);
+  });
+
+  it("prefers the freshly selected broker client over a stale cached session client", async () => {
+    const staleClient = makeClient({
+      start: async () => {
+        throw new Error("stale client should not be used");
+      },
+      getPort: () => 7817,
+    });
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", {
+        sessionId: "sess-1",
+        tabId: "tab-1",
+        url: "https://example.com/review",
+        harActive: true,
+        domain: "example.com",
+        brokerPort: 7817,
+        client: staleClient,
+      }],
+    ]);
+    let started = 0;
+
+    const outcome = await withSerializedStrictBrowseSession(
+      sessions,
+      makeClient({
+        start: async () => { started += 1; },
+        discoverTabs: async () => [{ id: "tab-1", url: "https://example.com/review" }],
+        getCurrentUrl: async () => "https://example.com/review",
+        getPort: () => 7817,
+      }),
+      "sess-1",
+      async () => ({ ok: true }),
+    );
+
+    expect(started).toBeGreaterThan(0);
+    expect(outcome.result).toEqual({ ok: true });
+  });
+
   it("drops dead stored tabs before creating a fresh browse session", async () => {
     const sessions = new Map<string, BrowseSession>();
     sessions.set("sess-1", { sessionId: "sess-1", tabId: "dead-tab", url: "https://example.com", harActive: true, domain: "example.com" });
@@ -110,7 +226,7 @@ describe("browse session recovery", () => {
 
     expect(session.tabId).toBe("mandai-live");
     expect(session.domain).toBe("mandai.com");
-    expect(injected).toEqual(["mandai-live"]);
+    expect(injected).toEqual([]);
   });
 
   it("creates a fresh tab instead of adopting blank or unrelated tabs during recovery", async () => {
@@ -167,6 +283,78 @@ describe("browse session recovery", () => {
     expect(session.sessionId).toBe("sess-1");
     expect(session.tabId).toBe("fresh-tab");
     expect(injected).toEqual(["fresh-tab"]);
+  });
+
+  it("rebinds a surviving session onto a replacement tab with the same pathname", async () => {
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", {
+        sessionId: "sess-1",
+        tabId: "dead-tab",
+        url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=old",
+        harActive: true,
+        domain: "mandai.com",
+      }],
+    ]);
+
+    const injected: string[] = [];
+    const rebound = await rebindBrowseSessionToMatchingTab(
+      sessions,
+      makeClient({
+        discoverTabs: async () => [
+          { id: "parks-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html" },
+          { id: "replacement-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=new" },
+        ],
+        getCurrentUrl: async (tabId) => tabId === "replacement-tab"
+          ? "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=new"
+          : "",
+        harStart: async () => {},
+      }),
+      async (tabId) => { injected.push(tabId); },
+      "sess-1",
+      "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=after-submit",
+    );
+
+    expect(rebound?.sessionId).toBe("sess-1");
+    expect(rebound?.tabId).toBe("replacement-tab");
+    expect(sessions.get("sess-1")?.tabId).toBe("replacement-tab");
+    expect(injected).toEqual(["replacement-tab"]);
+  });
+
+  it("starts the broker before trying to rebind onto a replacement tab", async () => {
+    const sessions = new Map<string, BrowseSession>([
+      ["sess-1", {
+        sessionId: "sess-1",
+        tabId: "dead-tab",
+        url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html",
+        harActive: true,
+        domain: "mandai.com",
+      }],
+    ]);
+    let started = 0;
+    let brokerReady = false;
+
+    const rebound = await rebindBrowseSessionToMatchingTab(
+      sessions,
+      makeClient({
+        start: async () => {
+          started += 1;
+          brokerReady = true;
+        },
+        discoverTabs: async () => {
+          if (!brokerReady) throw { error: "CDP command failed" };
+          return [
+            { id: "replacement-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=new" },
+          ];
+        },
+        getCurrentUrl: async () => "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=new",
+      }),
+      async () => {},
+      "sess-1",
+      "https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html?step=after-submit",
+    );
+
+    expect(started).toBeGreaterThan(0);
+    expect(rebound?.tabId).toBe("replacement-tab");
   });
 
   it("surfaces broker start failures instead of swallowing them", async () => {
