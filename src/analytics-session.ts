@@ -23,7 +23,7 @@ export function buildAnalyticsSessionPayload(
   sessionId: string,
   startedAt: string,
   source: OrchestrationTiming["source"] | "first-pass",
-  trace: Pick<ExecutionTrace, "completed_at" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct"> & {
+  trace: Pick<ExecutionTrace, "completed_at" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct" | "api_call_count"> & {
     network_events?: unknown[];
   },
   timing?: Pick<OrchestrationTiming, "time_saved_ms" | "time_saved_pct" | "cost_saved_uc">,
@@ -39,7 +39,7 @@ export function buildAnalyticsSessionPayload(
     started_at: startedAt,
     completed_at: trace.completed_at,
     trace_version: trace.trace_version,
-    api_calls: Math.max(1, trace.network_events?.length ?? 0),
+    api_calls: trace.api_call_count ?? Math.max(1, trace.network_events?.length ?? 0),
     discovery_queries: cacheLike ? 1 : 0,
     cached_skill_calls: cacheLike ? 1 : 0,
     fresh_index_calls: source === "live-capture" || source === "first-pass" || source === "browser-action" ? 1 : 0,

@@ -15,4 +15,4 @@ Purpose: durable, self-updating memory for future agents in this repo.
 
 ## Project Memory
 
-- Empty. Add durable repo facts here when they matter across tasks.
+- Telemetry and analytics storage for Unbrowse should live in this repo's backend storage path (`statsKV` / `DATABASE_URL`), not a separate module or submodule.
