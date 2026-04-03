@@ -586,7 +586,7 @@ function computeSkillTrust(
   skill: SkillManifest,
   currentSubmitterAgentId?: string,
   existingWasPublic = false,
-): SkillManifest["trust"] {
+): NonNullable<SkillManifest["trust"]> {
   const submissionCount = skill.provenance_events?.length ?? 0;
   const uniqueSubmitters = countUniqueSubmitters(skill.provenance_events);
   const verifiedReleaseSubmissions = countVerifiedReleaseSubmissions(skill.provenance_events);

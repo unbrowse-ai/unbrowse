@@ -10,6 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MONO_ROOT="$(dirname "$SCRIPT_DIR")"
 SKILL_PKG="$MONO_ROOT/packages/skill"
 SKILL_MD="$SKILL_PKG/SKILL.md"
+DOCS_DIR="$MONO_ROOT/docs"
 TARGET_REPO="${UNBROWSE_SKILL_REPO:-$HOME/Projects/unbrowse-skill}"
 
 # --------------------------------------------------------------------------
@@ -30,7 +31,7 @@ bun "$SCRIPT_DIR/sync-skill-md.ts"
 echo ""
 
 # --------------------------------------------------------------------------
-# 2. Sync SKILL.md to external skill repo (for publishing)
+# 2. Sync docs + SKILL.md to external skill repo (for publishing)
 # --------------------------------------------------------------------------
 
 if [ ! -d "$TARGET_REPO/.git" ]; then
@@ -38,6 +39,10 @@ if [ ! -d "$TARGET_REPO/.git" ]; then
   echo "(Set UNBROWSE_SKILL_REPO to override)"
   exit 0
 fi
+
+echo "=== Syncing $DOCS_DIR -> $TARGET_REPO/docs ==="
+mkdir -p "$TARGET_REPO/docs"
+rsync -a --delete "$DOCS_DIR/" "$TARGET_REPO/docs/"
 
 echo "=== Syncing $SKILL_MD -> $TARGET_REPO/SKILL.md ==="
 cp "$SKILL_MD" "$TARGET_REPO/SKILL.md"
