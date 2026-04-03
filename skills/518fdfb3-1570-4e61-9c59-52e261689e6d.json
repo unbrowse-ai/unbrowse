@@ -1,0 +1,88 @@
+{
+  "skill_id": "518fdfb3-1570-4e61-9c59-52e261689e6d",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T16:17:34.456Z",
+  "updated_at": "2026-02-17T20:08:53.754Z",
+  "name": "ebay",
+  "intent_signature": "Search for products on eBay using real-time autocomplete suggestions and retrieve high-resolution item images. These actions facilitate efficient marketplace browsing and product discovery directly from the eBay domain.",
+  "domain": "www.ebay.com",
+  "description": "Search for products on eBay using real-time autocomplete suggestions and retrieve high-resolution item images. These actions facilitate efficient marketplace browsing and product discovery directly from the eBay domain.",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (nonsession)",
+  "service_name": "ebay",
+  "endpoints": [
+    {
+      "endpoint_id": "91c13ac4-b9e6-4096-9526-b4e319c62a5d",
+      "method": "GET",
+      "url_template": "https://www.ebay.com/__endpoint/91c13ac4-b9e6-4096-9526-b4e319c62a5d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.4,
+      "description": "getUseracquisition",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "c2d90485-e808-4473-9d59-10c4b151b4a7",
+      "method": "GET",
+      "url_template": "https://www.ebay.com/__endpoint/c2d90485-e808-4473-9d59-10c4b151b4a7",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.7,
+      "description": "getInflowcomponent",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "fb59fe8d-8954-4faa-a05b-6fbaa671f3d2",
+      "method": "GET",
+      "url_template": "https://www.ebay.com/__endpoint/fb59fe8d-8954-4faa-a05b-6fbaa671f3d2",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.7,
+      "description": "getSync",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "c0cf8606-231d-476a-8979-c93499a47cf2",
+      "method": "GET",
+      "url_template": "https://www.ebay.com/__endpoint/c0cf8606-231d-476a-8979-c93499a47cf2",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.61,
+      "description": "getAjaxAutocomplete",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "A7V6qyVDVqpsEiWvWBogoCG9oFrf8FwnHVdskVGFMUkP",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "05095902cb83936407b6bd4c9c13290dee31262394d488ba5105b2bfb97a7a5b"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: ebay\ndescription: Internal API for ebay\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.ebay.com\"\n  authMethod: \"Session Token (x-ebay-c-correlation-session)\"\n  endpointCount: 8\n  apiType: \"internal\"\n  category: \"ecommerce\"\n---\n\n# Ebay API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-ebay-c-correlation-session) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /signin/sub/tt.html` — Initiate the eBay sign-in process.\n\n### Data Read (4)\n- `GET /{id}` — Retrieve details for a specific eBay item by ID.\n- `GET /customer/v1/bs_img_service` — Retrieve an image from eBay's image service.\n- `GET /gh/useracquisition` — Retrieve user acquisition related data.\n- `GET /ifh/inflowcomponent` — Retrieve data for an inflow component.\n\n### Data Write (1)\n- `POST /tkt/publish/v2/demand` — Publish a demand ticket.\n\n### Search (1)\n- `GET /sch/ajax/autocomplete` — Get autocomplete suggestions for search queries.\n\n### Config (1)\n- `GET /config/com/{comId}.json` — Fetch configuration data for a specific eBay community.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"ebay\", executionMode: \"backend\", endpoint: \"GET /{id}\" }\n```\n\nHere's a Quick Start to get you interacting with the eBay API:\n\n```typescript\n// Fetching item details by ID:\nasync function getItemDetails(itemId: string) {\n  try {\n    const item = await client.get_id({ id: itemId });\n    console.log(`Item title: ${item.title}`);\n    return item;\n  } catch (error) {\n    console.error(\"Failed to fetch item details:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Publishing a demand ticket:\nasync function publishDemandTicket(ticketData: any) {\n  try {\n    const response = await client.post_tkt_publish_v2_demand(ticketData);\n    console.log(\"Demand ticket published successfully:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to publish demand ticket:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-ebay-c-correlation-session)\n**Base URL:** `https://www.ebay.com`\n**Captured Auth:** 3 auth headers, 60 session cookies\n\n## About This Skill\n\nThis skill provides access to Ebay's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Ebay data without official API access\n- Automate actions on www.ebay.com (faster than browser automation)\n- Call the same endpoints the Ebay frontend uses\n\n## Quick Start\n\n```typescript\nimport { EbayClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await EbayClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (ufes-cache-key, sec-fetch-storage-access, x-ebay-c-correlation-session)\n- **Session cookies:** 60\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (10)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

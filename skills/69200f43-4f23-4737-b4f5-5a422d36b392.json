@@ -1,0 +1,88 @@
+{
+  "skill_id": "69200f43-4f23-4737-b4f5-5a422d36b392",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-21T15:35:13.216Z",
+  "updated_at": "2026-02-21T15:35:15.839Z",
+  "name": "marketdata",
+  "intent_signature": "Retrieve financial market data and real-",
+  "domain": "api.marketdata.app",
+  "description": "Retrieve financial market data and real-",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "marketdata",
+  "endpoints": [
+    {
+      "endpoint_id": "6498f96b-c6df-4a59-953a-9b6c292d239f",
+      "method": "GET",
+      "url_template": "https://api.marketdata.app/__endpoint/6498f96b-c6df-4a59-953a-9b6c292d239f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getPluginsCacheEverything",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "33a6a06f-5062-472e-90d9-d0dc59bfc5d9",
+      "method": "POST",
+      "url_template": "https://api.marketdata.app/__endpoint/33a6a06f-5062-472e-90d9-d0dc59bfc5d9",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createMarketdataEvent",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "884a51b2-6b73-4e97-b18e-80969ae9b995",
+      "method": "GET",
+      "url_template": "https://api.marketdata.app/__endpoint/884a51b2-6b73-4e97-b18e-80969ae9b995",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getPluginsCacheEverything2",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "a24c72b2-50ee-4375-ad4a-5b564df2a4e7",
+      "method": "GET",
+      "url_template": "https://api.marketdata.app/__endpoint/a24c72b2-50ee-4375-ad4a-5b564df2a4e7",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getOptionsChain",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "6Dt9jWSQGKCXondPuJNUhqw68C2ZWSXShihwMuP81RRM",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "c11bf18a5def6739c4bcc30b3c1f9c80e5b01b422de4a92fffc136173f2fbb3d"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: marketdata\ndescription: Internal API for marketdata\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://api.marketdata.app\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Marketdata API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /wp-content/plugins/cache-everything/{cache-everythingId}/` — Read cached data from the 'cache-everything' plugin.\n\n### Data Write (1)\n- `POST /marketdata/mtc/event` — Submit market event data to the marketdata system.\n\n### Config (1)\n- `GET /v1/options/chain/NDX/` — Get options chain data for NDX (Nasdaq 100 index).\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"marketdata\", executionMode: \"backend\", endpoint: \"GET /wp-content/plugins/cache-everything/{cache-everythingId}/\" }\n```\n\nHere are a few quick examples to get you started interacting with the `marketdata` API:\n\n**Fetching options chain data for NDX:**\n\n```typescript\n// Get options chain data for the Nasdaq 100 index (NDX).\nasync function getNDXOptionsChain() {\n  try {\n    const optionsData = await client.get_v1_options_chain_NDX_config();\n    console.log(\"NDX Options Chain Data:\", optionsData);\n    return optionsData;\n  } catch (error) {\n    console.error(\"Error fetching NDX options chain:\", error);\n    throw error;\n  }\n}\n```\n\n**Submitting market event data:**\n\n```typescript\n// Submit a market event to the marketdata system.\nasync function submitMarketEvent(eventData: any) {\n  try {\n    const response = await client.post_marketdata_mtc_event(eventData);\n    console.log(\"Market event submission response:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error submitting market event:\", error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://api.marketdata.app`\n**Captured Auth:** 7 session cookies\n\n## About This Skill\n\nThis skill provides access to Marketdata's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Marketdata data without official API access\n- Automate actions on api.marketdata.app (faster than browser automation)\n- Call the same endpoints the Marketdata frontend uses\n\n## Quick Start\n\n```typescript\nimport { MarketdataClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await MarketdataClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 7\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (4)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /v1/options/chain/NDX/`\n- `GET /wp-content/plugins/cache-everything/css/`\n- `GET /wp-content/plugins/cache-everything/js/`\n- `POST /marketdata/mtc/event`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /v1/options/chain/NDX/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /wp-content/plugins/cache-everything/css/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /wp-content/plugins/cache-everything/js/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /marketdata/mtc/event`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

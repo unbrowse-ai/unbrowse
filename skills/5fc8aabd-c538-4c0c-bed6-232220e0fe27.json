@@ -1,0 +1,84 @@
+{
+  "skill_id": "5fc8aabd-c538-4c0c-bed6-232220e0fe27",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T17:51:45.599Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "app-homemove",
+  "intent_signature": "Manage authentication flows and device verification for Homemove users. Handle secure Apple authentication challenges and track platform usage through telemetry and data collection services.",
+  "domain": "app.homemove.com",
+  "description": "Manage authentication flows and device verification for Homemove users. Handle secure Apple authentication challenges and track platform usage through telemetry and data collection services.",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (apikey)",
+  "service_name": "app-homemove",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--g-collect",
+      "method": "GET",
+      "url_template": "https://app.homemove.com/g/collect",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--appleauth-auth-verify-device-key-challenge",
+      "method": "POST",
+      "url_template": "https://app.homemove.com/appleauth/auth/verify/device/key/challenge",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--appleauth-jslog",
+      "method": "POST",
+      "url_template": "https://app.homemove.com/appleauth/jslog",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--OneCollector-1.0-",
+      "method": "POST",
+      "url_template": "https://app.homemove.com/OneCollector/1.0/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "Eq45grGysBWtN36BgyxtLQ1vDaHy4D2RrNjfyPmA5wNz",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "8d29721725b03e68efafb36a82890cb19cb10cefb4dfbc853844543758c43f5f"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: app-homemove\ndescription: Internal API for app-homemove\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://app.homemove.com\"\n  authMethod: \"API Key (apikey)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# AppHomemove API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (apikey) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n- `POST /appleauth/auth/verify/device/key/challenge` — Verify Apple authentication challenge for agent login.\n- `POST /appleauth/jslog` — Log JavaScript errors during agent authentication.\n\n### Data Write (1)\n- `POST /OneCollector/1.0/` — Send agent activity and performance data.\n\n## Quick Start\n\nHere's a Quick Start to get you interacting with the `app-homemove` API:\n\n```typescript\n// Example: Authenticating an agent using Apple authentication.\n// Assumes you have the device key, challenge, and related data.\nasync function authenticateAgent(deviceKey: string, challenge: string, authData: any) {\n  try {\n    const response = await client.appleauth_auth_verify_device_key_challenge({\n      deviceKey: deviceKey,\n      challenge: challenge,\n      authData: authData,\n    });\n    console.log(\"Authentication successful:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Authentication failed:\", error);\n    throw error;\n  }\n}\n```\n\n```typescript\n// Example: Sending agent activity data to OneCollector.\n// This is crucial for monitoring agent performance and identifying issues.\nasync function sendAgentActivityData(agentData: any) {\n  try {\n    const response = await client.OneCollector_1_0(agentData);\n    console.log(\"Data sent successfully:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to send data:\", error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (apikey) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n\n\n### Data Write (1)\n\n\n## Quick Start\n\nHere's a Quick Start to get you interacting with the `app-homemove` API:\n\n```typescript\n// Example: Authenticating an agent using Apple authentication.\n// This assumes you have the device key and challenge response.\nasync function authenticateAgent(deviceKey: string, challengeResponse: string) {\n  try {\n    const authResult = await client.appleauth_auth_verify_device_key_challenge({\n      deviceKey: deviceKey,\n      challengeResponse: challengeResponse,\n    });\n    console.log(\"Authentication successful:\", authResult);\n    return authResult;\n  } catch (error) {\n    console.error(\"Authentication failed:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Sending agent activity data to OneCollector.\n// This allows tracking agent performance and usage.\nasync function sendAgentActivityData(data: any) {\n  try {\n    const response = await client.OneCollector_1_0(data);\n    console.log(\"Data sent successfully:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error sending data:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (apikey) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n\n\n### Data Write (1)\n\n\n## Quick Start\n\nHere are some quick examples to get you started using the `app-homemove` API.\n\n```typescript\n// Authenticate an agent using Apple authentication.\nasync function authenticateAgent(key: string, challenge: string) {\n  try {\n    const response = await client.appleauth_auth_verify_device_key_challenge({\n      key: key,\n      challenge: challenge,\n    });\n    console.log(\"Authentication successful:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Authentication failed:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Send agent usage data and diagnostics.\nasync function sendUsageData(data: any) {\n  try {\n    const response = await client.OneCollector_1_0(data);\n    console.log(\"Usage data sent:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to send usage data:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (apikey) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n\n\n### Data Write (1)\n\n\n## Quick Start\n\nHere are a few quick examples to get you started using the `app-homemove` API.\n\n**Example 1: Verifying an Apple Authentication Device Key Challenge**\n\n```typescript\n// Assuming you have the device key challenge response\nconst challengeResponse = {\n  keyId: \"someKeyId\",\n  signature: \"someSignature\",\n  clientData: \"someClientData\"\n};\n\nclient.appleauth.auth.verify.device.key.challenge(challengeResponse)\n  .then(response => {\n    console.log(\"Device key verification successful:\", response);\n  })\n  .catch(error => {\n    console.error(\"Device key verification failed:\", error);\n  });\n```\n\n**Example 2: Logging a Javascript Error during Apple Authentication**\n\n```typescript\n// Example error data\nconst errorData = {\n  message: \"Failed to load resource\",\n  stack: \"Error: Failed to load resource\\n at ...\",\n  url: \"https://example.com/script.js\",\n  line: 10,\n  column: 5\n};\n\nclient.appleauth.jslog(errorData)\n  .then(response => {\n    console.log(\"Javascript error logged successfully:\", response);\n  })\n  .catch(error => {\n    console.error(\"Failed to log javascript error:\", error);\n  });\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (apikey)\n**Base URL:** `https://app.homemove.com`\n**Captured Auth:** 14 auth headers, 36 session cookies\n\n## About This Skill\n\nThis skill provides access to App Homemove's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access App Homemove data without official API access\n- Automate actions on app.homemove.com (faster than browser automation)\n- Call the same endpoints the App Homemove frontend uses\n\n## Quick Start\n\n```typescript\nimport { AppHomemoveClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await AppHomemoveClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 14 (x-apple-widget-key, x-csrf-token, x-apple-auth-attributes, x-apple-oauth-client-id, x-apple-oauth-client-type, x-apple-oauth-nonce, x-apple-oauth-redirect-uri, x-apple-oauth-require-grant-code, x-apple-oauth-response-mode, x-apple-oauth-response-type, x-apple-oauth-scopes, x-apple-oauth-state, apikey, sec-fetch-storage-access)\n- **Session cookies:** 36\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (5)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /g/collect`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /g/collect`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

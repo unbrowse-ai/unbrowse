@@ -1,0 +1,783 @@
+{
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T15:22:05.956Z",
+  "updated_at": "2026-02-20T23:15:02.096Z",
+  "name": "www.airbnb.com -- search for accommodation listings in Tokyo Japan and return property names prices and ratings",
+  "intent_signature": "search for accommodation listings in Tokyo Japan and return property names prices and ratings",
+  "domain": "www.airbnb.com",
+  "description": "Auto-discovered skill for: search for accommodation listings in Tokyo Japan and return property names prices and ratings",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "HThm-jYIJzZSdlzFh6MgH",
+      "method": "POST",
+      "url_template": "https://www.airbnb.com.sg/api/v2/get-data-layer-variables",
+      "headers_template": {
+        "x-airbnb-api-key": "d306zoyjsyarp7ifhu67rjxn52tv0t20",
+        "x-airbnb-supports-airlock-v2": "true",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-mobile": "?0",
+        "content-type": "application/json",
+        "sec-ch-viewport-width": "1280",
+        "x-airbnb-network-log-link": "0n7nwpp0igrjjz02j855p0kr4p6c",
+        "x-csrf-without-token": "1",
+        "referer": "https://www.airbnb.com.sg/s/Tokyo--Japan/homes?_set_bev_on_new_domain=1771514521_EAOWJjNjA1ZWI2Mm&set_everest_cookie_on_new_domain=1771514521.EAODM4YTM1NTM5ZmFlN2.pNDHT_HRlQ0Z_BVB3pLTa2hjoET9xLTW-sm4R-6XMlU",
+        "sec-ch-device-memory": "8",
+        "x-airbnb-client-trace-id": "09ftmam0un7jfb1ysp20n0wkx41u",
+        "x-client-request-id": "0gnqj8k0lyqzpm0dmv2b50u405k2",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"26.0.1\""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "userData": {
+            "type": "object",
+            "properties": {
+              "audienceType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "audienceType"
+            ],
+            "inferred_from_samples": 1
+          },
+          "stayListingData": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "stayReservationData": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "experienceListingData": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "experienceReservationData": {
+            "type": "object",
+            "properties": {
+              "serviceFeesInUSD": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "serviceFeesInUSD"
+            ],
+            "inferred_from_samples": 1
+          },
+          "activityListingData": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "activityReservationData": {
+            "type": "object",
+            "properties": {
+              "serviceFeesInUSD": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "serviceFeesInUSD"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "userData",
+          "stayListingData",
+          "stayReservationData",
+          "experienceListingData",
+          "experienceReservationData",
+          "activityListingData",
+          "activityReservationData"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "bG9-2Khg_F6W4LpGOhZKx",
+      "method": "POST",
+      "url_template": "https://www.airbnb.com.sg/api/v2/client_configs",
+      "headers_template": {
+        "x-airbnb-api-key": "d306zoyjsyarp7ifhu67rjxn52tv0t20",
+        "x-airbnb-supports-airlock-v2": "true",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-mobile": "?0",
+        "content-type": "application/json",
+        "sec-ch-viewport-width": "1280",
+        "x-airbnb-network-log-link": "04yg79p0syfgf718eqfzy10n2ca7",
+        "x-csrf-without-token": "1",
+        "referer": "https://www.airbnb.com.sg/s/Tokyo--Japan/homes?_set_bev_on_new_domain=1771514521_EAOWJjNjA1ZWI2Mm&set_everest_cookie_on_new_domain=1771514521.EAODM4YTM1NTM5ZmFlN2.pNDHT_HRlQ0Z_BVB3pLTa2hjoET9xLTW-sm4R-6XMlU",
+        "sec-ch-device-memory": "8",
+        "x-airbnb-client-trace-id": "1ey05ut0x1mjz606ynbv405p4wv8",
+        "x-client-request-id": "0a2gmwc1wukroe0f8lpcv0484wv2",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"26.0.1\""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "evDWMC2Or0oiDtWgXAKvq",
+      "method": "POST",
+      "url_template": "https://www.airbnb.com.sg/api/v2/marketing_event_tracking",
+      "headers_template": {
+        "x-airbnb-api-key": "d306zoyjsyarp7ifhu67rjxn52tv0t20",
+        "x-airbnb-supports-airlock-v2": "true",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-mobile": "?0",
+        "content-type": "application/json",
+        "sec-ch-viewport-width": "1280",
+        "x-airbnb-network-log-link": "12orx7h08z5y200cdvn4i1sn8yvj",
+        "x-csrf-without-token": "1",
+        "referer": "https://www.airbnb.com.sg/s/Tokyo--Japan/homes?_set_bev_on_new_domain=1771514521_EAOWJjNjA1ZWI2Mm&set_everest_cookie_on_new_domain=1771514521.EAODM4YTM1NTM5ZmFlN2.pNDHT_HRlQ0Z_BVB3pLTa2hjoET9xLTW-sm4R-6XMlU",
+        "sec-ch-device-memory": "8",
+        "x-airbnb-client-trace-id": "0pljo07189jaj40jiz10n1pdtdge",
+        "x-client-request-id": "0jv53rt1mxzqfv0ulnb741jcogfq",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"26.0.1\""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "ZQAHGySWfNdm0oNnBnSzZ",
+      "method": "GET",
+      "url_template": "https://a0.muscache.com/im/pictures/airbnb-platform-assets/AirbnbPlatformAssets-search-bar-icons/original/{id}.png",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "im_w": "240"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "Ow8vZtOZC7TTuiK2-YGMV",
+      "method": "GET",
+      "url_template": "https://a0.muscache.com/videos/search-bar-icons/webm/house-twirl-selected.webm",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "QifmPFJtRoD0BIpP7_erI",
+      "method": "GET",
+      "url_template": "https://a0.muscache.com/videos/search-bar-icons/webm/house-selected.webm",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "cKU65OjDmBZjmpgr6h0aS",
+      "method": "GET",
+      "url_template": "https://a0.muscache.com/videos/search-bar-icons/webm/balloon-twirl.webm",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "bJ_A_SO7WscURWmRzj-ul",
+      "method": "GET",
+      "url_template": "https://a0.muscache.com/videos/search-bar-icons/webm/balloon-selected.webm",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "g8yRx3NIcnMcagS0xmDIv",
+      "method": "GET",
+      "url_template": "https://a0.muscache.com/videos/search-bar-icons/webm/consierge-twirl.webm",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "JXXna1U7VWR9PJKFUduei",
+      "method": "GET",
+      "url_template": "https://a0.muscache.com/videos/search-bar-icons/webm/consierge-selected.webm",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "YTmT2SYTI71m2g17vToHm",
+      "method": "POST",
+      "url_template": "https://www.airbnb.com.sg/tracking/jitney/logging/messages",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/s/Tokyo--Japan/homes?_set_bev_on_new_domain=1771514521_EAOWJjNjA1ZWI2Mm&set_everest_cookie_on_new_domain=1771514521.EAODM4YTM1NTM5ZmFlN2.pNDHT_HRlQ0Z_BVB3pLTa2hjoET9xLTW-sm4R-6XMlU",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-device-memory": "8",
+        "sec-ch-ua-mobile": "?0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "content-type": "application/json",
+        "sec-ch-viewport-width": "1280",
+        "sec-ch-ua-platform-version": "\"26.0.1\""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "tE2JQM2G7LyBEUUjOfgkq",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com.sg/api/v3/NaviServerAnnouncementsQuery/{id}",
+      "headers_template": {
+        "x-airbnb-api-key": "d306zoyjsyarp7ifhu67rjxn52tv0t20",
+        "sec-ch-ua-platform-version": "\"26.0.1\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "x-airbnb-graphql-platform-client": "minimalist-niobe",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-mobile": "?0",
+        "x-niobe-short-circuited": "true",
+        "x-airbnb-graphql-platform": "web",
+        "content-type": "application/json",
+        "sec-ch-viewport-width": "1280",
+        "x-airbnb-network-log-link": "0nu1o871t0h4l81nzconi0ujr9ni",
+        "x-csrf-without-token": "1",
+        "referer": "https://www.airbnb.com.sg/s/Tokyo--Japan/homes?_set_bev_on_new_domain=1771514521_EAOWJjNjA1ZWI2Mm&set_everest_cookie_on_new_domain=1771514521.EAODM4YTM1NTM5ZmFlN2.pNDHT_HRlQ0Z_BVB3pLTa2hjoET9xLTW-sm4R-6XMlU",
+        "sec-ch-device-memory": "8",
+        "x-airbnb-client-trace-id": "12s7mzu1yl5hgf0v7v4rk07bvktd",
+        "x-client-request-id": "067s6bp1dw09260ojkame1tk1zat",
+        "x-client-version": "b2af014d3e8be612e04a31f1e2aa19822f7ffd0c",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "x-airbnb-supports-airlock-v2": "true"
+      },
+      "query": {
+        "operationName": "NaviServerAnnouncementsQuery",
+        "locale": "en-SG",
+        "currency": "SGD",
+        "variables": "{\"appTarget\":\"GUEST\",\"shouldSkipTaskFooter\":false}",
+        "extensions": "{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"711aeaa9f98cd7c89eb666e0deecc795b0fffb708966188e8bb1d91d48b21214\"}}"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "1LAmhN0wE2rHvw7LEps1F",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com.sg/api/v3/Header/{id}",
+      "headers_template": {
+        "x-airbnb-api-key": "d306zoyjsyarp7ifhu67rjxn52tv0t20",
+        "sec-ch-ua-platform-version": "\"26.0.1\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "x-airbnb-graphql-platform-client": "minimalist-niobe",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-mobile": "?0",
+        "x-niobe-short-circuited": "true",
+        "x-airbnb-graphql-platform": "web",
+        "content-type": "application/json",
+        "sec-ch-viewport-width": "1280",
+        "x-airbnb-network-log-link": "048sal31s6nnnj0ctv75o1gekqfe",
+        "x-csrf-without-token": "1",
+        "referer": "https://www.airbnb.com.sg/s/Tokyo--Japan/homes?_set_bev_on_new_domain=1771514521_EAOWJjNjA1ZWI2Mm&set_everest_cookie_on_new_domain=1771514521.EAODM4YTM1NTM5ZmFlN2.pNDHT_HRlQ0Z_BVB3pLTa2hjoET9xLTW-sm4R-6XMlU",
+        "sec-ch-device-memory": "8",
+        "x-airbnb-client-trace-id": "0krzhiu0sfp1851dzgfh20vqhoax",
+        "x-client-request-id": "09utvao0o55det1i0vvhm1kzk7of",
+        "x-client-version": "b2af014d3e8be612e04a31f1e2aa19822f7ffd0c",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "x-airbnb-supports-airlock-v2": "true"
+      },
+      "query": {
+        "operationName": "Header",
+        "locale": "en-SG",
+        "currency": "SGD",
+        "variables": "{\"cdnCacheSafe\":false,\"hasLoggedIn\":false,\"isInitialLoad\":false,\"source\":\"EXPLORE\",\"supportsM13ListingsSetupFlow\":true}",
+        "extensions": "{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"bc3340f83468b3f9bcca4f324dd25f53486cea0db84985c6ba82a5b8d7d65079\"}}"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "RZmR59m5V8B2-w4jBDeB-",
+      "method": "GET",
+      "url_template": "https://www.airbnb.com.sg/api/v3/GetConsentForUserQuery/{id}",
+      "headers_template": {
+        "x-airbnb-api-key": "d306zoyjsyarp7ifhu67rjxn52tv0t20",
+        "sec-ch-ua-platform-version": "\"26.0.1\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "x-airbnb-graphql-platform-client": "minimalist-niobe",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-dpr": "1",
+        "sec-ch-ua-mobile": "?0",
+        "x-niobe-short-circuited": "true",
+        "x-airbnb-graphql-platform": "web",
+        "content-type": "application/json",
+        "sec-ch-viewport-width": "1280",
+        "x-airbnb-network-log-link": "1uafty011mntbm146dyqp07fropp",
+        "x-csrf-without-token": "1",
+        "referer": "https://www.airbnb.com.sg/s/Tokyo--Japan/homes?_set_bev_on_new_domain=1771514521_EAOWJjNjA1ZWI2Mm&set_everest_cookie_on_new_domain=1771514521.EAODM4YTM1NTM5ZmFlN2.pNDHT_HRlQ0Z_BVB3pLTa2hjoET9xLTW-sm4R-6XMlU",
+        "sec-ch-device-memory": "8",
+        "x-airbnb-client-trace-id": "0o61k2e1e9sr191ln7zd10roy7f3",
+        "x-client-request-id": "11cqpad10tw1z11s8uys31akixn0",
+        "x-client-version": "b2af014d3e8be612e04a31f1e2aa19822f7ffd0c",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "x-airbnb-supports-airlock-v2": "true"
+      },
+      "query": {
+        "operationName": "GetConsentForUserQuery",
+        "locale": "en-SG",
+        "currency": "SGD",
+        "variables": "{\"deviceId\":\"1771514521.EAODM4YTM1NTM5ZmFlN2.pNDHT_HRlQ0Z_BVB3pLTa2hjoET9xLTW-sm4R-6XMlU\"}",
+        "extensions": "{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"dd2a3aa987350b2855a0075ff0c1ad62951bfe77ae8784fa92bc76b1e7a602fd\"}}"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "b4msLWWwJnwJDNy5zprB9",
+      "method": "POST",
+      "url_template": "https://d0a7e.airbnb.com/js/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/x-www-form-urlencoded",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "oQPxY9g7HI7V5d4iNtYxP",
+      "method": "GET",
+      "url_template": "https://maps.googleapis.com/maps/api/js",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "language": "en",
+        "region": "SG",
+        "v": "3.61",
+        "key": "REMOVED_GOOGLE_API_KEY",
+        "hyperloopconfig": "false",
+        "map_ids": "f070129df0f6b488,e7d50401c220d678,ade88f5df5ab7f24,94ab3b273b0d6b81,e8e60e5f8e6faa9e,ef77169ce0287a7",
+        "callback": "__onGoogleMapsLoad"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "HCQjB8dhojKmJEdHp05X4",
+      "method": "GET",
+      "url_template": "https://maps.googleapis.com/maps/api/mapsjs/gen_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "csp_test": "true"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "JC7q0hFXPZxVF_GrjHqj8",
+      "method": "GET",
+      "url_template": "https://maps.googleapis.com/maps/api/js/StaticMapService.GetMapImage",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "1m2": "",
+        "1i465435": "",
+        "2i206134": "",
+        "2e1": "",
+        "3u11": "",
+        "4m2": "",
+        "1u438": "",
+        "2u592": "",
+        "5m9": "",
+        "1e0": "",
+        "5sen": "",
+        "6ssg": "",
+        "8m3": "",
+        "1e33": "",
+        "2e3": "",
+        "8e1": "",
+        "10b1": "",
+        "12b1": "",
+        "7s76aa4feafa54e1b4ddc75427": "",
+        "key": "REMOVED_GOOGLE_API_KEY",
+        "token": "81981"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "J-lR5tSVNnqpvl5-Fs4Xz",
+      "method": "GET",
+      "url_template": "https://maps.googleapis.com/maps/api/mapsjs/mapConfigs:batchGet",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "language": "en",
+        "region": "SG",
+        "alt": "protojson",
+        "major_version": "61",
+        "minor_version": "14",
+        "map_ids": "76aa4feafa54e1b4ddc75427",
+        "map_type": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "pEKwo_KifEfwa7-MzgCqA",
+      "method": "POST",
+      "url_template": "https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/GetViewportInfo",
+      "headers_template": {
+        "x-goog-maps-api-signature": "76553",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "x-user-agent": "grpc-web-javascript/0.1",
+        "referer": "https://www.airbnb.com.sg/",
+        "x-goog-gmp-client-signals": "CAIqBzMuNjEuMTRaDhIMCJrV3MwGEIDO5M0C",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "x-goog-api-key": "REMOVED_GOOGLE_API_KEY",
+        "x-goog-maps-api-salt": "X3uP3QpgY",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "content-type": "application/json+protobuf",
+        "x-goog-maps-session-id": "128B7FCE-D474-4BD2-A294-84FD9700F8FD"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "anyOf": [
+            {
+              "type": "string",
+              "inferred_from_samples": 10
+            },
+            {
+              "type": "array",
+              "inferred_from_samples": 10
+            },
+            {
+              "type": "integer",
+              "inferred_from_samples": 10
+            },
+            {
+              "type": "null",
+              "inferred_from_samples": 10
+            }
+          ],
+          "inferred_from_samples": 10
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "tHUWxvrewQa7GoCPhOXbI",
+      "method": "GET",
+      "url_template": "https://mapsresources-pa.googleapis.com/v1/tiles",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "map_id": "76aa4feafa54e1b4ddc75427",
+        "version": "sdk-17839098911403284280",
+        "pb": "!1m5!1m4!1i11!2i1819!3i806!4i256!2m3!1e0!2sm!3i767531170!2m6!1e2!2smaps_api!5i1!9m2!1e1!2b1!3m13!2sen!3sSG!5e18!12m5!1e68!2m2!1sset!2sRoadmap!4e2!12m3!1e37!2m1!1ssmartmaps!4e0!5m1!1e3!23i46991212!23i47054750!23i47083502!23i56565656!26m2!1e2!1e3"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "tOHPjbMmuEenmFi2y9Vw-",
+      "method": "GET",
+      "url_template": "https://mapsresources-pa.googleapis.com/v1/featureMaps",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.airbnb.com.sg/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "map_id": "76aa4feafa54e1b4ddc75427",
+        "version": "17839098911403284280",
+        "pb": "!1m4!1m3!1i11!2i1818!3i805!1m4!1m3!1i11!2i1819!3i805!1m4!1m3!1i11!2i1818!3i806!1m4!1m3!1i11!2i1818!3i807!1m4!1m3!1i11!2i1819!3i806!1m4!1m3!1i11!2i1819!3i807!2m3!1e0!2sm!3i767531170!2m6!1e2!2smaps_api!5i1!9m2!1e1!2b1!3m13!2sen!3sSG!5e18!12m5!1e68!2m2!1sset!2sRoadmap!4e2!12m3!1e37!2m1!1ssmartmaps!4e3!12m1!5b1!23i46991212!23i47054750!23i47083502!23i56565656!26m2!1e2!1e3"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 0,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "inferred_from_samples": 6
+            },
+            "zrange": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "inferred_from_samples": 6
+              },
+              "inferred_from_samples": 6
+            },
+            "layer": {
+              "type": "string",
+              "inferred_from_samples": 6
+            },
+            "base": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "inferred_from_samples": 3
+              },
+              "inferred_from_samples": 3
+            },
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "inferred_from_samples": 3
+                  },
+                  "a": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "inferred_from_samples": 3
+                    },
+                    "inferred_from_samples": 3
+                  },
+                  "bb": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "inferred_from_samples": 3
+                    },
+                    "inferred_from_samples": 3
+                  },
+                  "c": {
+                    "type": "string",
+                    "inferred_from_samples": 3
+                  },
+                  "io": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "inferred_from_samples": 3
+                    },
+                    "inferred_from_samples": 3
+                  }
+                },
+                "required": [
+                  "id",
+                  "a",
+                  "bb",
+                  "c",
+                  "io"
+                ],
+                "inferred_from_samples": 3
+              },
+              "inferred_from_samples": 3
+            }
+          },
+          "required": [
+            "id",
+            "zrange",
+            "layer"
+          ],
+          "inferred_from_samples": 6
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "XDpuXKOAeDEChARu3KsdV",
+      "method": "POST",
+      "url_template": "https://www.airbnb.com.sg/~partytown/0.9.1/proxytown",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "content-type": "text/plain;charset=UTF-8",
+        "referer": ""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "F": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "M": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "inferred_from_samples": 2
+                },
+                {
+                  "type": "string",
+                  "inferred_from_samples": 2
+                }
+              ],
+              "inferred_from_samples": 2
+            },
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "F",
+          "M"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "skill_id": "hF14W9CTI07mZgb6l9zYZ"
+}

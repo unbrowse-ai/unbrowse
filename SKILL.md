@@ -313,6 +313,14 @@ Preferred order:
 - `sync` after a successful step that revealed useful network traffic
 - `close` once the run is complete
 
+### Dependency-walk rule for multi-step sites
+
+- Treat each successful `submit` as the gate that unlocks the next step.
+- Do not `go` directly to guessed downstream pages unless the current session already reached them through the real upstream form transition.
+- After `submit`, trust the returned `url`, `session_id`, and next-step hints. Those are the dependency edges you just proved.
+- If a later page falls back to `abandonedCart`, `session_expired`, wrong audience, or wrong product, resume from the last known good upstream page and walk forward again.
+- Use `sync` after successful transitions so future resolve/execute runs inherit the working dependency chain instead of only the terminal page.
+
 ### JS-heavy forms: what worked best
 
 - Prefer real page clicks for date and time pickers before trying to patch hidden fields.

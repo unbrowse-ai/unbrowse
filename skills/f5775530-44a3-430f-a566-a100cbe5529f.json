@@ -1,0 +1,114 @@
+{
+  "skill_id": "f5775530-44a3-430f-a566-a100cbe5529f",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-22T21:42:44.454Z",
+  "updated_at": "2026-02-22T21:42:47.053Z",
+  "name": "znanylekarz-pl",
+  "intent_signature": "Retrieve doctor availability, manage appointment",
+  "domain": "www.znanylekarz.pl",
+  "description": "Retrieve doctor availability, manage appointment",
+  "owner_type": "marketplace",
+  "auth_type": "Bearer Token",
+  "service_name": "znanylekarz-pl",
+  "endpoints": [
+    {
+      "endpoint_id": "39ca0d66-cf2b-457d-9f35-2e7b8920b807",
+      "method": "GET",
+      "url_template": "https://www.znanylekarz.pl/__endpoint/39ca0d66-cf2b-457d-9f35-2e7b8920b807",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getPaginatedFeedUpdates",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "324a025c-5a65-4d4c-bfc1-dd88154c12c1",
+      "method": "GET",
+      "url_template": "https://www.znanylekarz.pl/__endpoint/324a025c-5a65-4d4c-bfc1-dd88154c12c1",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getRoundedCenterMediaAsset",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "a7e50d53-7052-4871-be63-75df1533e781",
+      "method": "GET",
+      "url_template": "https://www.znanylekarz.pl/__endpoint/a7e50d53-7052-4871-be63-75df1533e781",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getPcCenterMediaAsset",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "5a2a830f-8d15-45d7-88b7-4be0b19d3f4d",
+      "method": "GET",
+      "url_template": "https://www.znanylekarz.pl/__endpoint/5a2a830f-8d15-45d7-88b7-4be0b19d3f4d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getBookingWidgetData",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "165af521-f054-4ce5-894b-7d3109b95a0f",
+      "method": "GET",
+      "url_template": "https://www.znanylekarz.pl/__endpoint/165af521-f054-4ce5-894b-7d3109b95a0f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getChatEnabled206156",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "190315cb-9bcc-49e1-9a12-658058bfb11b",
+      "method": "GET",
+      "url_template": "https://www.znanylekarz.pl/__endpoint/190315cb-9bcc-49e1-9a12-658058bfb11b",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getSlots987298",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "83qHpyQvyxonssXsX7r6GJS4ENCNiQYifj54CbowTEeR",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "da9cf1fb807fc54b67899a51ea508023981a3af8c16184a043df5790b46a4da3"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: znanylekarz-pl\ndescription: Internal API for znanylekarz-pl\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.znanylekarz.pl\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 6\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# ZnanylekarzPl API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (3)\n- `GET /api/v3/booking/widget/data` — Retrieve booking widget data.\n- `GET /api/v3/doctors/{doctorId}/addresses/{addressId}/slots` — Get available time slots for a doctor's address.\n- `GET /api/v3/patient-chat/doctor/{doctorId}/has-chat-enabled` — Check if doctor has chat enabled.\n\n### Media (2)\n- `GET /scripttemplates/202505.2.0/assets/otCenterRounded.json` — Get rounded center media asset.\n- `GET /scripttemplates/202505.2.0/assets/v2/otPcCenter.json` — Get PC center media asset.\n\n### Core API (1)\n- `GET /j.php` — Fetch paginated feed updates.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"znanylekarz-pl\", executionMode: \"backend\", endpoint: \"GET /api/v3/booking/widget/data\" }\n```\n\nHere's a \"Quick Start\" section for your API skill document:\n\n```typescript\n// Fetch the latest feed updates (paginated).  This example retrieves the first page.\nconst feed = await client.j({ page: 1 });\nconsole.log(feed);\n```\n\n```typescript\n// Retrieve available time slots for a specific doctor and address.\nconst doctorId = \"12345\";\nconst addressId = \"67890\";\nconst slots = await client.doctorsDoctorIdAddressesAddressIdSlots({ doctorId, addressId });\nconsole.log(slots);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://www.znanylekarz.pl`\n**Captured Auth:** 2 auth headers, 13 session cookies\n\n## About This Skill\n\nThis skill provides access to Znanylekarz Pl's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Znanylekarz Pl data without official API access\n- Automate actions on www.znanylekarz.pl (faster than browser automation)\n- Call the same endpoints the Znanylekarz Pl frontend uses\n\n## Quick Start\n\n```typescript\nimport { ZnanylekarzPlClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await ZnanylekarzPlClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (sec-fetch-storage-access, authorization)\n- **Session cookies:** 13\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (6)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/v3/booking/widget/data`\n- `GET /api/v3/doctors/206156/addresses/987298/slots`\n- `GET /api/v3/patient-chat/doctor/206156/has-chat-enabled`\n- `GET /j.php`\n- `GET /scripttemplates/202505.2.0/assets/otCenterRounded.json`\n- `GET /scripttemplates/202505.2.0/assets/v2/otPcCenter.json`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/v3/booking/widget/data`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v3/doctors/206156/addresses/987298/slots`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v3/patient-chat/doctor/206156/has-chat-enabled`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /j.php`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /scripttemplates/202505.2.0/assets/otCenterRounded.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /scripttemplates/202505.2.0/assets/v2/otPcCenter.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

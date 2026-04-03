@@ -1,0 +1,2125 @@
+{
+  "skill_id": "LpEYwMX3pAWtSsvLHwtED",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:49:56.628Z",
+  "updated_at": "2026-02-23T07:49:56.628Z",
+  "name": "www.cfcunderwriting.com -- Retrieve and manage web form",
+  "intent_signature": "Retrieve and manage web form",
+  "domain": "www.cfcunderwriting.com",
+  "description": "Auto-discovered skill for: Retrieve and manage web form",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "NRPlAR0xRLSMN0x2Hkm4i",
+      "method": "GET",
+      "url_template": "https://app.hubspot.com/feedback-web-fetcher",
+      "headers_template": {
+        "referer": "https://www.cfc.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "uUqSFBYyXIMlbOFMjv3Ek",
+      "method": "GET",
+      "url_template": "https://feedback.hubapi.com/feedback/public/v1/web-config",
+      "headers_template": {
+        "x-hs-referer": "https://www.cfc.com/en-us/",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://app.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "6072523",
+        "utk": "8e20724b35dc1aac633cfc012e3989e6",
+        "bundleVersion": "1.29469",
+        "currentUrl": "https://www.cfc.com/en-us/",
+        "pageUrl": "https://www.cfc.com/en-us/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "webRespondent": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "config": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "webRespondent",
+          "config"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "kUwqZvJjd3ouKaF0JfrVj",
+      "method": "POST",
+      "url_template": "https://www.cfc.com/api/stats",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/en-us/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "multipart/form-data; boundary=----WebKitFormBoundaryo4VzqDTL98nMQkBq",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "xfq7MGPiy0CPlH7nRoZYx",
+      "method": "GET",
+      "url_template": "https://www.cfcunderwriting.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "aZWq4yKHoUYs2n1mYaPWU",
+      "method": "GET",
+      "url_template": "https://www.cfc.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "tAjRVmF5-u4HL9Sl5z3Yc",
+      "method": "GET",
+      "url_template": "https://www.cfc.com/en-gb/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "iTiaT06wVcQ7pSe4t4Zl4",
+      "method": "GET",
+      "url_template": "https://www.cfc.com/en-us/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "YdeyXGWv8kEMy_eAGberP",
+      "method": "GET",
+      "url_template": "https://dev.visualwebsiteoptimizer.com/j.php",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "a": "955455",
+        "u": "https://www.cfc.com/en-us/",
+        "vn": "2.1",
+        "x": "true"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "5v9lcwLOIXVJLCYM6jbEx",
+      "method": "GET",
+      "url_template": "https://player.vimeo.com/progressive_redirect/playback/{id}/rendition/540p/file.mp4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "loc": "external",
+        "signature": "ed6b9cd3d3d450d3e575e10e17edf8585e70971fcc319420fa28d08fd5739bb5"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "Z6XC8FBRmvcDjHdmW5fAY",
+      "method": "GET",
+      "url_template": "https://forms.hsforms.com/embed/v3/form/{id}/{id}/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "hs_static_app": "forms-embed",
+        "hs_static_app_version": "1.10590",
+        "X-HubSpot-Static-App-Info": "forms-embed-1.10590"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "properties": {
+              "portalId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "guid": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cssClass": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "inlineMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "redirectUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submitText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "formFieldGroups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "label": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "type": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "fieldType": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "description": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "groupName": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "displayOrder": {
+                            "type": "integer",
+                            "inferred_from_samples": 8
+                          },
+                          "required": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "selectedOptions": {
+                            "type": "array",
+                            "inferred_from_samples": 8
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "value": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "displayOrder": {
+                                  "type": "integer",
+                                  "inferred_from_samples": 2
+                                },
+                                "doubleData": {
+                                  "type": "integer",
+                                  "inferred_from_samples": 2
+                                },
+                                "hidden": {
+                                  "type": "boolean",
+                                  "inferred_from_samples": 2
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                },
+                                "readOnly": {
+                                  "type": "boolean",
+                                  "inferred_from_samples": 2
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "value",
+                                "displayOrder",
+                                "doubleData",
+                                "hidden",
+                                "description",
+                                "readOnly"
+                              ],
+                              "inferred_from_samples": 2
+                            },
+                            "inferred_from_samples": 8
+                          },
+                          "validation": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "inferred_from_samples": 8
+                              },
+                              "message": {
+                                "type": "string",
+                                "inferred_from_samples": 8
+                              },
+                              "data": {
+                                "type": "string",
+                                "inferred_from_samples": 8
+                              },
+                              "useDefaultBlockList": {
+                                "type": "boolean",
+                                "inferred_from_samples": 8
+                              },
+                              "blockedEmailAddresses": {
+                                "type": "array",
+                                "inferred_from_samples": 8
+                              },
+                              "checkPhoneFormat": {
+                                "type": "boolean",
+                                "inferred_from_samples": 8
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "message",
+                              "data",
+                              "useDefaultBlockList",
+                              "blockedEmailAddresses",
+                              "checkPhoneFormat"
+                            ],
+                            "inferred_from_samples": 8
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "hidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "defaultValue": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "isSmartField": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "unselectedLabel": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "placeholder": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "dependentFieldFilters": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "filters": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "operator": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      },
+                                      "strValue": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      },
+                                      "boolValue": {
+                                        "type": "boolean",
+                                        "inferred_from_samples": 2
+                                      },
+                                      "numberValue": {
+                                        "type": "integer",
+                                        "inferred_from_samples": 2
+                                      },
+                                      "strValues": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "inferred_from_samples": 2
+                                        },
+                                        "inferred_from_samples": 2
+                                      },
+                                      "numberValues": {
+                                        "type": "array",
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "operator",
+                                      "strValue",
+                                      "boolValue",
+                                      "numberValue",
+                                      "strValues",
+                                      "numberValues"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  },
+                                  "inferred_from_samples": 2
+                                },
+                                "dependentFormField": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "fieldType": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "groupName": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "displayOrder": {
+                                      "type": "integer",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "required": {
+                                      "type": "boolean",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "selectedOptions": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      },
+                                      "inferred_from_samples": 2
+                                    },
+                                    "options": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "label": {
+                                            "type": "string",
+                                            "inferred_from_samples": 2
+                                          },
+                                          "value": {
+                                            "type": "string",
+                                            "inferred_from_samples": 2
+                                          },
+                                          "displayOrder": {
+                                            "type": "integer",
+                                            "inferred_from_samples": 2
+                                          },
+                                          "doubleData": {
+                                            "type": "integer",
+                                            "inferred_from_samples": 2
+                                          },
+                                          "hidden": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 2
+                                          },
+                                          "description": {
+                                            "type": "string",
+                                            "inferred_from_samples": 2
+                                          },
+                                          "readOnly": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 2
+                                          }
+                                        },
+                                        "required": [
+                                          "label",
+                                          "value",
+                                          "displayOrder",
+                                          "doubleData",
+                                          "hidden",
+                                          "description",
+                                          "readOnly"
+                                        ],
+                                        "inferred_from_samples": 2
+                                      },
+                                      "inferred_from_samples": 2
+                                    },
+                                    "validation": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "inferred_from_samples": 2
+                                        },
+                                        "message": {
+                                          "type": "string",
+                                          "inferred_from_samples": 2
+                                        },
+                                        "data": {
+                                          "type": "string",
+                                          "inferred_from_samples": 2
+                                        },
+                                        "useDefaultBlockList": {
+                                          "type": "boolean",
+                                          "inferred_from_samples": 2
+                                        },
+                                        "blockedEmailAddresses": {
+                                          "type": "array",
+                                          "inferred_from_samples": 2
+                                        },
+                                        "checkPhoneFormat": {
+                                          "type": "boolean",
+                                          "inferred_from_samples": 2
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "message",
+                                        "data",
+                                        "useDefaultBlockList",
+                                        "blockedEmailAddresses",
+                                        "checkPhoneFormat"
+                                      ],
+                                      "inferred_from_samples": 2
+                                    },
+                                    "enabled": {
+                                      "type": "boolean",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "hidden": {
+                                      "type": "boolean",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "defaultValue": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "isSmartField": {
+                                      "type": "boolean",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "unselectedLabel": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "placeholder": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "dependentFieldFilters": {
+                                      "type": "array",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "labelHidden": {
+                                      "type": "boolean",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "propertyObjectType": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "metaData": {
+                                      "type": "array",
+                                      "inferred_from_samples": 2
+                                    },
+                                    "objectTypeId": {
+                                      "type": "string",
+                                      "inferred_from_samples": 2
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "label",
+                                    "type",
+                                    "fieldType",
+                                    "description",
+                                    "groupName",
+                                    "displayOrder",
+                                    "required",
+                                    "selectedOptions",
+                                    "options",
+                                    "validation",
+                                    "enabled",
+                                    "hidden",
+                                    "defaultValue",
+                                    "isSmartField",
+                                    "unselectedLabel",
+                                    "placeholder",
+                                    "dependentFieldFilters",
+                                    "labelHidden",
+                                    "propertyObjectType",
+                                    "metaData",
+                                    "objectTypeId"
+                                  ],
+                                  "inferred_from_samples": 2
+                                },
+                                "formFieldAction": {
+                                  "type": "string",
+                                  "inferred_from_samples": 2
+                                }
+                              },
+                              "required": [
+                                "filters",
+                                "dependentFormField",
+                                "formFieldAction"
+                              ],
+                              "inferred_from_samples": 2
+                            },
+                            "inferred_from_samples": 8
+                          },
+                          "labelHidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "propertyObjectType": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "metaData": {
+                            "type": "array",
+                            "inferred_from_samples": 8
+                          },
+                          "objectTypeId": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "label",
+                          "type",
+                          "fieldType",
+                          "description",
+                          "groupName",
+                          "displayOrder",
+                          "required",
+                          "selectedOptions",
+                          "options",
+                          "validation",
+                          "enabled",
+                          "hidden",
+                          "defaultValue",
+                          "isSmartField",
+                          "unselectedLabel",
+                          "placeholder",
+                          "dependentFieldFilters",
+                          "labelHidden",
+                          "propertyObjectType",
+                          "metaData",
+                          "objectTypeId"
+                        ],
+                        "inferred_from_samples": 8
+                      },
+                      "inferred_from_samples": 9
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "inferred_from_samples": 9
+                    },
+                    "isSmartGroup": {
+                      "type": "boolean",
+                      "inferred_from_samples": 9
+                    },
+                    "richText": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "inferred_from_samples": 9
+                        },
+                        "type": {
+                          "type": "string",
+                          "inferred_from_samples": 9
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "type"
+                      ],
+                      "inferred_from_samples": 9
+                    },
+                    "isPageBreak": {
+                      "type": "boolean",
+                      "inferred_from_samples": 9
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "default",
+                    "isSmartGroup",
+                    "richText",
+                    "isPageBreak"
+                  ],
+                  "inferred_from_samples": 9
+                },
+                "inferred_from_samples": 1
+              },
+              "metaData": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "inferred_from_samples": 6
+                    },
+                    "value": {
+                      "type": "string",
+                      "inferred_from_samples": 6
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "inferred_from_samples": 6
+                },
+                "inferred_from_samples": 1
+              },
+              "captchaEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "formTypeNumber": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "thankYouMessageJson": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "style": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "variantId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "isPublished": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "embedVersion": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "captchaVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "portalId",
+              "guid",
+              "cssClass",
+              "inlineMessage",
+              "redirectUrl",
+              "submitText",
+              "formFieldGroups",
+              "metaData",
+              "captchaEnabled",
+              "formTypeNumber",
+              "thankYouMessageJson",
+              "themeColor",
+              "themeName",
+              "style",
+              "variantId",
+              "isPublished",
+              "embedVersion",
+              "captchaVersion"
+            ],
+            "inferred_from_samples": 1
+          },
+          "properties": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "knownSmartFields": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "object",
+            "properties": {
+              "ServiceHub:Feedback:TrellisSmileys": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ServiceHub:Feedback:TrellisSmileys"
+            ],
+            "inferred_from_samples": 1
+          },
+          "scopes": {
+            "type": "object",
+            "properties": {
+              "noBranding": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "renderShell": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "rawHtmlAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "customStyleAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "noBranding",
+              "renderShell",
+              "rawHtmlAccess",
+              "customStyleAccess"
+            ],
+            "inferred_from_samples": 1
+          },
+          "time": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "themeCss": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "globalStyle": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "countryCode": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "portalSetting": {
+            "type": "object",
+            "properties": {
+              "enableLiveValidation": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enableLiveValidation"
+            ],
+            "inferred_from_samples": 1
+          },
+          "errorCode": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "form",
+          "properties",
+          "knownSmartFields",
+          "gates",
+          "scopes",
+          "time",
+          "themeCss",
+          "globalStyle",
+          "countryCode",
+          "portalSetting",
+          "errorCode"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "iNQ6JEgV3aqJKo5880hY7",
+      "method": "GET",
+      "url_template": "https://download-video-ak.vimeocdn.com/v3-1/playback/{id}/ab219df4",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.cfc.com/"
+      },
+      "query": {
+        "__token__": "st=1771832990~exp=1771836590~acl=/v3-1/playback/fd95f88f-c0ba-4a73-90d1-f1ff283bd4dd/ab219df4*~hmac=a0b0313529b243b252eccb6901ccd3d22f36210a827e3b6fe17deb899246c9eb",
+        "r": "dXMtZWFzdDE="
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "hs5CTDbExJ8y52_IjdTov",
+      "method": "GET",
+      "url_template": "https://www.google.com/recaptcha/api2/anchor",
+      "headers_template": {
+        "referer": "https://www.cfc.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "ar": "1",
+        "k": "6LemiyEaAAAAAGwb4nR8oX38fxyM36xjIGbwz6d4",
+        "co": "aHR0cHM6Ly93d3cuY2ZjLmNvbTo0NDM.",
+        "hl": "en",
+        "v": "vUgXt_KV952_-5BB2jjloYzl",
+        "size": "invisible",
+        "anchor-ms": "20000",
+        "execute-ms": "30000",
+        "cb": "r53ae9emmo1"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "0XPihOGHSMzgt-qK22Imf",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Montserrat:wght@400;500;700",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "yKC08IUzMj1OfplxRpmtd",
+      "method": "GET",
+      "url_template": "https://api.hubspot.com/livechat-public/v1/message/public",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "x-hubspot-messages-uri": "https://www.cfc.com/en-us/",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "6072523",
+        "conversations-embed": "static-1.25563",
+        "mobile": "false",
+        "messagesUtk": "d01b37aec0aa4cf59756f08b2e71cbd6",
+        "traceId": "d01b37aec0aa4cf59756f08b2e71cbd6"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "@type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "@type": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "reason": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "@type",
+              "reason",
+              "description"
+            ],
+            "inferred_from_samples": 1
+          },
+          "type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "@type",
+          "metadata",
+          "type"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "5s5yKbYXatRRcYOq9lDnS",
+      "method": "GET",
+      "url_template": "https://api.hubapi.com/hs-script-loader-public/v2/config/pixels-and-events/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "6072523"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "pixels": {
+            "type": "object",
+            "properties": {
+              "LINKEDIN": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pixelId": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "limitedDataUseEnabled": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "pixelInitializer": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "pixelId",
+                    "limitedDataUseEnabled",
+                    "pixelInitializer"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "LINKEDIN"
+            ],
+            "inferred_from_samples": 1
+          },
+          "enhancedConversionEventSettings": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "pixels",
+          "enhancedConversionEventSettings"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "Cs8gH_GyeswIuA0URjUKv",
+      "method": "GET",
+      "url_template": "https://cta-service-cms2.hubspot.com/web-interactives/public/v1/embed/combinedConfigs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "contentIds": "131064698153",
+        "portalId": "6072523",
+        "currentUrl": "https://www.cfc.com/en-us/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "sortedAudienceConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "requestedConfigs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "containerStyles": {
+                  "type": "object",
+                  "properties": {
+                    "position": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "width": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "integer",
+                          "inferred_from_samples": 1
+                        },
+                        "units": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "units"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "height": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "integer",
+                          "inferred_from_samples": 1
+                        },
+                        "units": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "units"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "scaleHeightToFitContent": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "useOverlay": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "useResponsiveStyling": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "position",
+                    "width",
+                    "height",
+                    "scaleHeightToFitContent",
+                    "useOverlay",
+                    "useResponsiveStyling"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "containerType": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "iframeSrc": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "hideInteractiveOnSmallScreen": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "webInteractiveId": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "contentModelId": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "audienceId": {
+                  "type": "null",
+                  "inferred_from_samples": 1
+                },
+                "triggers": {
+                  "type": "object",
+                  "properties": {
+                    "showOnPageScroll": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "showOnExitIntent": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "showAfterDelay": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "showAfterInactivity": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "delayInSeconds": {
+                      "type": "integer",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "showOnPageScroll",
+                    "showOnExitIntent",
+                    "showAfterDelay",
+                    "showAfterInactivity",
+                    "delayInSeconds"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "specificity": {
+                  "type": "null",
+                  "inferred_from_samples": 1
+                },
+                "campaignGuid": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "displayFrequency": {
+                  "type": "null",
+                  "inferred_from_samples": 1
+                },
+                "isDismissable": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "isHTMLVersionOnly": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "shouldUseJsTracking": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "useSameOriginRedirectTracking": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "shouldCloseOnFormSubmission": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "isActiveAbTest": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "isPersonalizationEnabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "containerStyles",
+                "containerType",
+                "iframeSrc",
+                "hideInteractiveOnSmallScreen",
+                "webInteractiveId",
+                "contentModelId",
+                "audienceId",
+                "triggers",
+                "specificity",
+                "campaignGuid",
+                "displayFrequency",
+                "isDismissable",
+                "isHTMLVersionOnly",
+                "shouldUseJsTracking",
+                "useSameOriginRedirectTracking",
+                "shouldCloseOnFormSubmission",
+                "isActiveAbTest",
+                "isPersonalizationEnabled"
+              ],
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "array",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "sortedAudienceConfigs",
+          "requestedConfigs",
+          "gates"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "wStwgFXxuRAXQ_70NIZJn",
+      "method": "GET",
+      "url_template": "https://forms.hscollectedforms.net/collected-forms/v1/config/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "6072523",
+        "utk": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "portalId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "submissionsApiDomain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "reportScraperTest": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "formCaptureEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "token": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "portalId",
+          "submissionsApiDomain",
+          "reportScraperTest",
+          "formCaptureEnabled",
+          "token"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "A4Kn2cBitzQI5dF24yGC2",
+      "method": "GET",
+      "url_template": "https://6072523.hs-sites.com/hs-web-interactive-6072523-131064698153",
+      "headers_template": {
+        "referer": "https://www.cfc.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "enableResponsiveStyles": "true"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ZgqU1PYxoupJQUPCP1ScF",
+      "method": "GET",
+      "url_template": "https://apikeys.civiccomputing.com/c/v",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "d": "www.cfc.com",
+        "p": "CookieControl Single-Site",
+        "v": "9",
+        "k": "866c7c632587fb363594a295a0344471bc0d2cd3",
+        "format": "json"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "format": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "product": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "domain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "record_consent_state": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "geo": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "country": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "countryName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "continent": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "european_union": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "gdpr_applies": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "state": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ccpa_applies": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "_source": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "success",
+              "country",
+              "countryName",
+              "continent",
+              "european_union",
+              "gdpr_applies",
+              "state",
+              "ccpa_applies",
+              "_source"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "valid",
+          "format",
+          "product",
+          "version",
+          "domain",
+          "record_consent_state",
+          "geo"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "Ka_oM3cbRxuzjk-5SLao4",
+      "method": "GET",
+      "url_template": "https://6072523.hs-sites.com/_hcms/forms/embed/v3/form/{id}/{id}/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://6072523.hs-sites.com/hs-web-interactive-6072523-131064698153?enableResponsiveStyles=true",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "hs_static_app": "forms-embed",
+        "hs_static_app_version": "1.10590",
+        "X-HubSpot-Static-App-Info": "forms-embed-1.10590"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "properties": {
+              "portalId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "guid": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cssClass": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "inlineMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "redirectUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submitText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "formFieldGroups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "label": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "type": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "fieldType": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "description": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "groupName": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "displayOrder": {
+                            "type": "integer",
+                            "inferred_from_samples": 8
+                          },
+                          "required": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "selectedOptions": {
+                            "type": "array",
+                            "inferred_from_samples": 8
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string",
+                                  "inferred_from_samples": 8
+                                },
+                                "value": {
+                                  "type": "string",
+                                  "inferred_from_samples": 8
+                                },
+                                "displayOrder": {
+                                  "type": "integer",
+                                  "inferred_from_samples": 8
+                                },
+                                "doubleData": {
+                                  "type": "integer",
+                                  "inferred_from_samples": 8
+                                },
+                                "hidden": {
+                                  "type": "boolean",
+                                  "inferred_from_samples": 8
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "inferred_from_samples": 8
+                                },
+                                "readOnly": {
+                                  "type": "boolean",
+                                  "inferred_from_samples": 8
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "value",
+                                "displayOrder",
+                                "doubleData",
+                                "hidden",
+                                "description",
+                                "readOnly"
+                              ],
+                              "inferred_from_samples": 8
+                            },
+                            "inferred_from_samples": 8
+                          },
+                          "validation": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "inferred_from_samples": 8
+                              },
+                              "message": {
+                                "type": "string",
+                                "inferred_from_samples": 8
+                              },
+                              "data": {
+                                "type": "string",
+                                "inferred_from_samples": 8
+                              },
+                              "useDefaultBlockList": {
+                                "type": "boolean",
+                                "inferred_from_samples": 8
+                              },
+                              "blockedEmailAddresses": {
+                                "type": "array",
+                                "inferred_from_samples": 8
+                              },
+                              "checkPhoneFormat": {
+                                "type": "boolean",
+                                "inferred_from_samples": 8
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "message",
+                              "data",
+                              "useDefaultBlockList",
+                              "blockedEmailAddresses",
+                              "checkPhoneFormat"
+                            ],
+                            "inferred_from_samples": 8
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "hidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "defaultValue": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "isSmartField": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "unselectedLabel": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "placeholder": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "dependentFieldFilters": {
+                            "type": "array",
+                            "inferred_from_samples": 8
+                          },
+                          "labelHidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 8
+                          },
+                          "propertyObjectType": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          },
+                          "metaData": {
+                            "type": "array",
+                            "inferred_from_samples": 8
+                          },
+                          "objectTypeId": {
+                            "type": "string",
+                            "inferred_from_samples": 8
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "label",
+                          "type",
+                          "fieldType",
+                          "description",
+                          "groupName",
+                          "displayOrder",
+                          "required",
+                          "selectedOptions",
+                          "options",
+                          "validation",
+                          "enabled",
+                          "hidden",
+                          "defaultValue",
+                          "isSmartField",
+                          "unselectedLabel",
+                          "placeholder",
+                          "dependentFieldFilters",
+                          "labelHidden",
+                          "propertyObjectType",
+                          "metaData",
+                          "objectTypeId"
+                        ],
+                        "inferred_from_samples": 8
+                      },
+                      "inferred_from_samples": 8
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "inferred_from_samples": 8
+                    },
+                    "isSmartGroup": {
+                      "type": "boolean",
+                      "inferred_from_samples": 8
+                    },
+                    "richText": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "inferred_from_samples": 8
+                        },
+                        "type": {
+                          "type": "string",
+                          "inferred_from_samples": 8
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "type"
+                      ],
+                      "inferred_from_samples": 8
+                    },
+                    "isPageBreak": {
+                      "type": "boolean",
+                      "inferred_from_samples": 8
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "default",
+                    "isSmartGroup",
+                    "richText",
+                    "isPageBreak"
+                  ],
+                  "inferred_from_samples": 8
+                },
+                "inferred_from_samples": 1
+              },
+              "metaData": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "inferred_from_samples": 4
+                    },
+                    "value": {
+                      "type": "string",
+                      "inferred_from_samples": 4
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "inferred_from_samples": 4
+                },
+                "inferred_from_samples": 1
+              },
+              "captchaEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "formTypeNumber": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "thankYouMessageJson": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "style": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "variantId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "isPublished": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "embedVersion": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "captchaVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "portalId",
+              "guid",
+              "cssClass",
+              "inlineMessage",
+              "redirectUrl",
+              "submitText",
+              "formFieldGroups",
+              "metaData",
+              "captchaEnabled",
+              "formTypeNumber",
+              "thankYouMessageJson",
+              "themeColor",
+              "themeName",
+              "style",
+              "variantId",
+              "isPublished",
+              "embedVersion",
+              "captchaVersion"
+            ],
+            "inferred_from_samples": 1
+          },
+          "properties": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "knownSmartFields": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "object",
+            "properties": {
+              "ServiceHub:Feedback:TrellisSmileys": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ServiceHub:Feedback:TrellisSmileys"
+            ],
+            "inferred_from_samples": 1
+          },
+          "scopes": {
+            "type": "object",
+            "properties": {
+              "noBranding": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "renderShell": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "rawHtmlAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "customStyleAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "noBranding",
+              "renderShell",
+              "rawHtmlAccess",
+              "customStyleAccess"
+            ],
+            "inferred_from_samples": 1
+          },
+          "time": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "themeCss": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "globalStyle": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "countryCode": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "portalSetting": {
+            "type": "object",
+            "properties": {
+              "enableLiveValidation": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enableLiveValidation"
+            ],
+            "inferred_from_samples": 1
+          },
+          "errorCode": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "form",
+          "properties",
+          "knownSmartFields",
+          "gates",
+          "scopes",
+          "time",
+          "themeCss",
+          "globalStyle",
+          "countryCode",
+          "portalSetting",
+          "errorCode"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "8c8v1M3FLVhiFR1tauNvG",
+      "method": "GET",
+      "url_template": "https://px.ads.linkedin.com/attribution_trigger",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "pid": "350665",
+        "time": "1771832990651",
+        "url": "https://www.cfc.com/en-us/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "ezyjsNXRltf5_ygjABcpe",
+      "method": "GET",
+      "url_template": "https://px.ads.linkedin.com/collect",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cfc.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "v": "2",
+        "fmt": "js",
+        "pid": "350665",
+        "time": "1771832990651",
+        "li_adsId": "f23f4ce2-0b91-4ec7-9786-d06f242eb042",
+        "url": "https://www.cfc.com/en-us/"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "rKASd7tR6ep0z6HIKiu-I",
+      "method": "GET",
+      "url_template": "https://www.linkedin.com/px/li_sync",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.cfc.com/"
+      },
+      "query": {
+        "redirect": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=350665&time=1771832990651&li_adsId=f23f4ce2-0b91-4ec7-9786-d06f242eb042&url=https%3A%2F%2Fwww.cfc.com%2Fen-us%2F&cookiesTest=true&liSync=true"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "hyahu0ByNsKQOwuz2VWGz",
+      "method": "GET",
+      "url_template": "https://px4.ads.linkedin.com/collect",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.cfc.com/"
+      },
+      "query": {
+        "v": "2",
+        "fmt": "js",
+        "pid": "350665",
+        "time": "1771832990651",
+        "li_adsId": "f23f4ce2-0b91-4ec7-9786-d06f242eb042",
+        "url": "https://www.cfc.com/en-us/",
+        "cookiesTest": "true",
+        "liSync": "true",
+        "e_ipv6": "AQInupO7-2NwuAAAAZyJed8Kw781Chn2CyYUiMyjPjUvR-9L1ZiLxM9USyy1q0XaDzOV8d363Iddc6qK3zjjCquyvdU70sZf"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.cfcunderwriting.com-session"
+}

@@ -66,6 +66,11 @@ function getInstallTelemetryPath(): string {
   return join(getConfigDir(), "install-state.json");
 }
 
+function getLandingToken(): string | undefined {
+  const token = process.env.UNBROWSE_LANDING_TOKEN?.trim();
+  return token ? token : undefined;
+}
+
 function sanitizeProfileName(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 }
@@ -201,8 +206,10 @@ export async function ensureCliInstallTracked(hostType = detectTelemetryHostType
   if (state.cli_first_seen_reported_at) return;
 
   const createdAt = new Date().toISOString();
+  const landingToken = getLandingToken();
   const ok = await postTelemetry("/v1/telemetry/install", {
     install_id: state.install_id,
+    landing_token: landingToken,
     source: "cli-first-seen",
     host_type: hostType,
     skill: "unbrowse",
@@ -231,8 +238,10 @@ export async function recordInstallTelemetryEvent(
   },
 ): Promise<void> {
   const createdAt = options?.createdAt ?? new Date().toISOString();
+  const landingToken = getLandingToken();
   await postTelemetry("/v1/telemetry/install", {
     install_id: getInstallId(),
+    landing_token: landingToken,
     source,
     host_type: options?.hostType ?? detectTelemetryHostType(),
     skill: options?.skill ?? "unbrowse",
@@ -254,9 +263,11 @@ export async function recordFunnelTelemetryEvent(
   },
 ): Promise<void> {
   const createdAt = options?.createdAt ?? new Date().toISOString();
+  const landingToken = getLandingToken();
   await postTelemetry("/v1/telemetry/events", {
     install_id: getInstallId(),
     session_id: options?.sessionId,
+    landing_token: landingToken,
     name,
     source: options?.source ?? "cli",
     host_type: options?.hostType ?? detectTelemetryHostType(),

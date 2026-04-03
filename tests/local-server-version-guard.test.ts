@@ -13,4 +13,8 @@ describe("local server version guard", () => {
   it("ignores servers that do not report a package version", () => {
     expect(isServerVersionMismatch(undefined, "2.12.0")).toBe(false);
   });
+
+  it("flags same-version servers when the code hash drifts", () => {
+    expect(isServerVersionMismatch("2.12.0", "2.12.0", "oldhash123456", "newhash654321")).toBe(true);
+  });
 });

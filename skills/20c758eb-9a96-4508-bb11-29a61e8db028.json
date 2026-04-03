@@ -1,0 +1,75 @@
+{
+  "skill_id": "20c758eb-9a96-4508-bb11-29a61e8db028",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-14T13:15:19.576Z",
+  "updated_at": "2026-02-18T12:25:33.566Z",
+  "name": "redtrack",
+  "intent_signature": "Manage ad tracking integrations, access product",
+  "domain": "www.redtrack.io",
+  "description": "Manage ad tracking integrations, access product",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "redtrack",
+  "endpoints": [
+    {
+      "endpoint_id": "b5cfab22-c0ec-4cb3-8406-c2ac884ddca3",
+      "method": "GET",
+      "url_template": "https://www.redtrack.io/__endpoint/b5cfab22-c0ec-4cb3-8406-c2ac884ddca3",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getEndpointById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "fc4a6e22-c5f3-46fa-b406-4e2361f5e049",
+      "method": "GET",
+      "url_template": "https://www.redtrack.io/__endpoint/fc4a6e22-c5f3-46fa-b406-4e2361f5e049",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getView",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "1362c184-dedd-47cd-9cbb-f62ea001ac17",
+      "method": "GET",
+      "url_template": "https://www.redtrack.io/__endpoint/1362c184-dedd-47cd-9cbb-f62ea001ac17",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getIntegrations",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "FK5r3UU1nGVgR9n2qgvXM9jRoq3efNDeiGKycPGiZ96N",
+    "download_count": 0,
+    "total_versions": 3,
+    "latest_version_hash": "5aab03d1e261fbd4cb3d5bd0fe2339607b18dcf010837bccc20176ecd47cd333"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: redtrack\ndescription: Internal API for redtrack\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.redtrack.io\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 5\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Redtrack API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (4)\n- `GET /api/campaigns` — Get a list of campaigns.\n- `GET /integrations/` — Get a list of available integrations.\n- `GET /products/redtrack-io/rating_schema.json` — Retrieve the rating schema for RedTrack.io.\n- `GET /view` — Retrieve a specific view.\n\n### Config (1)\n- `GET /consentconfig/{consentconfigId}/settings.json` — Get consent configuration settings.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"redtrack\", executionMode: \"backend\", endpoint: \"GET /api/campaigns\" }\n```\n\nHere's a Quick Start guide to get you started with the RedTrack API:\n\n```typescript\n// Retrieve consent configuration settings for a specific consent configuration ID.\nasync function getConsentConfigSettings(consentconfigId: string) {\n  try {\n    const settings = await client.consentconfig_consentconfigId_settings_json({ consentconfigId });\n    console.log(\"Consent Configuration Settings:\", settings);\n    return settings;\n  } catch (error) {\n    console.error(\"Failed to retrieve consent configuration settings:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Fetch a list of campaigns.\nasync function listCampaigns() {\n  try {\n    const campaigns = await client.api_campaigns();\n    console.log(\"Campaigns:\", campaigns);\n    return campaigns;\n  } catch (error) {\n    console.error(\"Failed to retrieve campaigns:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.redtrack.io`\n**Captured Auth:** 5 session cookies\n\n## About This Skill\n\nThis skill provides access to Redtrack's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Redtrack data without official API access\n- Automate actions on www.redtrack.io (faster than browser automation)\n- Call the same endpoints the Redtrack frontend uses\n\n## Quick Start\n\n```typescript\nimport { RedtrackClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await RedtrackClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 5\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (24)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

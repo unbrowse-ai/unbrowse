@@ -1,0 +1,1210 @@
+{
+  "skill_id": "j1NQhSKDXqIwlPjTh8LYL",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:47:41.688Z",
+  "updated_at": "2026-02-23T07:47:41.688Z",
+  "name": "business.just-eat.co.uk -- Manage partner dashboard tools, access business",
+  "intent_signature": "Manage partner dashboard tools, access business",
+  "domain": "business.just-eat.co.uk",
+  "description": "Auto-discovered skill for: Manage partner dashboard tools, access business",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "kX4vf9hcD4W7co3ZswN7O",
+      "method": "GET",
+      "url_template": "https://app.hubspot.com/content-tools-menu/api/v1/tools-menu/has-permission-json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://business.just-eat.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "481217"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "U8OxJYTS0RmaLcEDVFvZR",
+      "method": "POST",
+      "url_template": "https://app.hubspot.com/api/cartographer/v1/rhumb",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://app.hubspot.com/conversations-visitor/481217/threads/utk/48deae66d2c1469db0bf793b94bdc01d?uuid=b4878a61d9c2424eb8ade94fdd830ea8&mobile=false&mobileSafari=false&hideWelcomeMessage=false&hstc=&domain=business.just-eat.co.uk&inApp53=false&messagesUtk=48deae66d2c1469db0bf793b94bdc01d&url=https%3A%2F%2Fbusiness.just-eat.co.uk%2F&inline=false&isFullscreen=false&globalCookieOptOut=&isFirstVisitorSession=true&isAttachmentDisabled=false&isInitialInputFocusDisabled=false&enableWidgetCookieBanner=false&isInCMS=true&hideScrollToButton=true&isIOSMobile=false",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "text/plain;charset=UTF-8",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "jvYaVfm2Vy9DgUEBlHD1o",
+      "method": "GET",
+      "url_template": "https://business.just-eat.co.uk/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "E4AlCM6vN-tPenReVwoA1",
+      "method": "GET",
+      "url_template": "https://business.just-eat.co.uk/_hcms/forms/embed/v3/form/{id}/{id}/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://business.just-eat.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "hs_static_app": "forms-embed",
+        "hs_static_app_version": "1.10590",
+        "X-HubSpot-Static-App-Info": "forms-embed-1.10590"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "properties": {
+              "portalId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "guid": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cssClass": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "inlineMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "redirectUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submitText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "formFieldGroups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "label": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "type": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "fieldType": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "description": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "groupName": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "displayOrder": {
+                            "type": "integer",
+                            "inferred_from_samples": 3
+                          },
+                          "required": {
+                            "type": "boolean",
+                            "inferred_from_samples": 3
+                          },
+                          "selectedOptions": {
+                            "type": "array",
+                            "inferred_from_samples": 3
+                          },
+                          "options": {
+                            "type": "array",
+                            "inferred_from_samples": 3
+                          },
+                          "validation": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "inferred_from_samples": 3
+                              },
+                              "message": {
+                                "type": "string",
+                                "inferred_from_samples": 3
+                              },
+                              "data": {
+                                "type": "string",
+                                "inferred_from_samples": 3
+                              },
+                              "useDefaultBlockList": {
+                                "type": "boolean",
+                                "inferred_from_samples": 3
+                              },
+                              "blockedEmailAddresses": {
+                                "type": "array",
+                                "inferred_from_samples": 3
+                              },
+                              "checkPhoneFormat": {
+                                "type": "boolean",
+                                "inferred_from_samples": 3
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "message",
+                              "data",
+                              "useDefaultBlockList",
+                              "blockedEmailAddresses",
+                              "checkPhoneFormat"
+                            ],
+                            "inferred_from_samples": 3
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "inferred_from_samples": 3
+                          },
+                          "hidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 3
+                          },
+                          "defaultValue": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "isSmartField": {
+                            "type": "boolean",
+                            "inferred_from_samples": 3
+                          },
+                          "unselectedLabel": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "placeholder": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "dependentFieldFilters": {
+                            "type": "array",
+                            "inferred_from_samples": 3
+                          },
+                          "labelHidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 3
+                          },
+                          "propertyObjectType": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          },
+                          "metaData": {
+                            "type": "array",
+                            "inferred_from_samples": 3
+                          },
+                          "objectTypeId": {
+                            "type": "string",
+                            "inferred_from_samples": 3
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "label",
+                          "type",
+                          "fieldType",
+                          "description",
+                          "groupName",
+                          "displayOrder",
+                          "required",
+                          "selectedOptions",
+                          "options",
+                          "validation",
+                          "enabled",
+                          "hidden",
+                          "defaultValue",
+                          "isSmartField",
+                          "unselectedLabel",
+                          "placeholder",
+                          "dependentFieldFilters",
+                          "labelHidden",
+                          "propertyObjectType",
+                          "metaData",
+                          "objectTypeId"
+                        ],
+                        "inferred_from_samples": 3
+                      },
+                      "inferred_from_samples": 4
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "inferred_from_samples": 4
+                    },
+                    "isSmartGroup": {
+                      "type": "boolean",
+                      "inferred_from_samples": 4
+                    },
+                    "richText": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "inferred_from_samples": 4
+                        },
+                        "type": {
+                          "type": "string",
+                          "inferred_from_samples": 4
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "type"
+                      ],
+                      "inferred_from_samples": 4
+                    },
+                    "isPageBreak": {
+                      "type": "boolean",
+                      "inferred_from_samples": 4
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "default",
+                    "isSmartGroup",
+                    "richText",
+                    "isPageBreak"
+                  ],
+                  "inferred_from_samples": 4
+                },
+                "inferred_from_samples": 1
+              },
+              "metaData": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "value": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "inferred_from_samples": 5
+                },
+                "inferred_from_samples": 1
+              },
+              "captchaEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "formTypeNumber": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "thankYouMessageJson": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "style": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "variantId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "isPublished": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "embedVersion": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "captchaVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "portalId",
+              "guid",
+              "cssClass",
+              "inlineMessage",
+              "redirectUrl",
+              "submitText",
+              "formFieldGroups",
+              "metaData",
+              "captchaEnabled",
+              "formTypeNumber",
+              "thankYouMessageJson",
+              "themeColor",
+              "themeName",
+              "style",
+              "variantId",
+              "isPublished",
+              "embedVersion",
+              "captchaVersion"
+            ],
+            "inferred_from_samples": 1
+          },
+          "properties": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "knownSmartFields": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "object",
+            "properties": {
+              "ServiceHub:Feedback:TrellisSmileys": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ServiceHub:Feedback:TrellisSmileys"
+            ],
+            "inferred_from_samples": 1
+          },
+          "scopes": {
+            "type": "object",
+            "properties": {
+              "noBranding": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "renderShell": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "rawHtmlAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "customStyleAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "noBranding",
+              "renderShell",
+              "rawHtmlAccess",
+              "customStyleAccess"
+            ],
+            "inferred_from_samples": 1
+          },
+          "time": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "themeCss": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "globalStyle": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "countryCode": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "portalSetting": {
+            "type": "object",
+            "properties": {
+              "enableLiveValidation": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enableLiveValidation"
+            ],
+            "inferred_from_samples": 1
+          },
+          "errorCode": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "form",
+          "properties",
+          "knownSmartFields",
+          "gates",
+          "scopes",
+          "time",
+          "themeCss",
+          "globalStyle",
+          "countryCode",
+          "portalSetting",
+          "errorCode"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "QwYviNMDkBnsg76eJeH4r",
+      "method": "GET",
+      "url_template": "https://business.just-eat.co.uk/_hcms/livechat/widget",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://business.just-eat.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "x-hubspot-messages-uri": "https://business.just-eat.co.uk/",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "481217",
+        "conversations-embed": "static-1.25563",
+        "mobile": "false",
+        "messagesUtk": "48deae66d2c1469db0bf793b94bdc01d",
+        "traceId": "48deae66d2c1469db0bf793b94bdc01d"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "@type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "chatflowId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "channelInstanceId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "showingHsBranding": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "privateLoad": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "shouldListenToGdprBannerConsent": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "sessionId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "language": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "widgetLocation": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "availabilityOptions": {
+            "type": "object",
+            "properties": {
+              "awayMessage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "typicalResponseTime": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "officeHoursStartTime": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "awayMessage",
+              "typicalResponseTime",
+              "officeHoursStartTime"
+            ],
+            "inferred_from_samples": 1
+          },
+          "gdprConsentOptions": {
+            "type": "object",
+            "properties": {
+              "gdprConsentToProcessEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "gdprConsentToCommunicateEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "cookieConsentPrompt": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "gdprExplicitConsentToProcessRequired": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "consentToCommunicateSubscriptionId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "customConsentToCommunicateMessage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "customConsentToProcessMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "customConsentToProcessCheckboxLabel": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "cookieConsentPromptMessage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "consentToProcessStatus": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "gdprConsentToProcessEnabled",
+              "gdprConsentToCommunicateEnabled",
+              "cookieConsentPrompt",
+              "gdprExplicitConsentToProcessRequired",
+              "consentToCommunicateSubscriptionId",
+              "customConsentToCommunicateMessage",
+              "customConsentToProcessMessage",
+              "customConsentToProcessCheckboxLabel",
+              "cookieConsentPromptMessage",
+              "consentToProcessStatus"
+            ],
+            "inferred_from_samples": 1
+          },
+          "sendFrom": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "portalId": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "userId": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "email": {
+                  "type": "null",
+                  "inferred_from_samples": 1
+                },
+                "firstName": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "lastName": {
+                  "type": "null",
+                  "inferred_from_samples": 1
+                },
+                "avatar": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "meetingsLinkUrl": {
+                  "type": "null",
+                  "inferred_from_samples": 1
+                },
+                "meetingsLinkText": {
+                  "type": "null",
+                  "inferred_from_samples": 1
+                },
+                "agentType": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "agentState": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "isResponderAI": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "bot": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                },
+                "online": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "portalId",
+                "userId",
+                "email",
+                "firstName",
+                "lastName",
+                "avatar",
+                "meetingsLinkUrl",
+                "meetingsLinkText",
+                "agentType",
+                "agentState",
+                "isResponderAI",
+                "bot",
+                "online"
+              ],
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "object",
+            "properties": {
+              "LiveChat:ConversationsVisitor:DisableAway": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "Conversations:ScreenCapture": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "commerce:cpq:ai:ClosingAgentRefresh": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "LiveChat:ColorSchemeIsolation": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "LiveChat:Threads:closeThread": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "LiveChat:ConversationsVisitor:InAppHelp": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CustomerAgent:ExperimentalInlineCitations": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "LiveChat:UpdatedChatLauncherExperience": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "LiveChat:ConversationsVisitor:DisableAway",
+              "Conversations:ScreenCapture",
+              "commerce:cpq:ai:ClosingAgentRefresh",
+              "LiveChat:ColorSchemeIsolation",
+              "LiveChat:Threads:closeThread",
+              "LiveChat:ConversationsVisitor:InAppHelp",
+              "CustomerAgent:ExperimentalInlineCitations",
+              "LiveChat:UpdatedChatLauncherExperience"
+            ],
+            "inferred_from_samples": 1
+          },
+          "accentColor": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "messagesPageUri": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "knowledgeBaseUrl": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "isKnowledgeBaseV3": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "@type": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "@type"
+            ],
+            "inferred_from_samples": 1
+          },
+          "showPreviousConversations": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "initialMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "inboxId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "customEmailCaptureDelay": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "askForEmailMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "chatHeadingConfig": {
+                "type": "object",
+                "properties": {
+                  "@type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "userIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "inferred_from_samples": 1
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "teamIds": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "chatHeadingConfigType": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "@type",
+                  "userIds",
+                  "teamIds",
+                  "chatHeadingConfigType"
+                ],
+                "inferred_from_samples": 1
+              },
+              "clientTriggers": {
+                "type": "object",
+                "properties": {
+                  "displayOnExitIntent": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "displayOnTimeDelay": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "timeDelaySeconds": {
+                        "type": "integer",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "timeDelaySeconds"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "displayOnScrollPercentage": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "scrollPercentage": {
+                        "type": "integer",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "scrollPercentage"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "displayOnExitIntent",
+                  "displayOnTimeDelay",
+                  "displayOnScrollPercentage"
+                ],
+                "inferred_from_samples": 1
+              },
+              "popOpenWelcomeMessage": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "popOpenWidget": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "captureVisitorEmailAddress": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "popMessageOnSmallScreens": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "searchableKnowledgeBaseIds": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "knowledgeBaseEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "knowledgeBaseRecommendationType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "customConsentToCommunicateMessage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "customConsentToProcessMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "customConsentToProcessCheckboxLabel": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "consentToCommunicateSubscriptionId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "cookieConsentPromptMessage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "gdprConsentToProcessEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "gdprConsentToCommunicateEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "cookieConsentPrompt": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "gdprExplicitConsentRequired": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "quickRepliesDisplay": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "launcherType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "name": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "portalId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "id": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "surveyId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "initialMessage",
+              "inboxId",
+              "customEmailCaptureDelay",
+              "askForEmailMessage",
+              "chatHeadingConfig",
+              "clientTriggers",
+              "popOpenWelcomeMessage",
+              "popOpenWidget",
+              "captureVisitorEmailAddress",
+              "popMessageOnSmallScreens",
+              "searchableKnowledgeBaseIds",
+              "knowledgeBaseEnabled",
+              "knowledgeBaseRecommendationType",
+              "customConsentToCommunicateMessage",
+              "customConsentToProcessMessage",
+              "customConsentToProcessCheckboxLabel",
+              "consentToCommunicateSubscriptionId",
+              "cookieConsentPromptMessage",
+              "gdprConsentToProcessEnabled",
+              "gdprConsentToCommunicateEnabled",
+              "cookieConsentPrompt",
+              "gdprExplicitConsentRequired",
+              "quickRepliesDisplay",
+              "launcherType",
+              "name",
+              "portalId",
+              "id",
+              "surveyId"
+            ],
+            "inferred_from_samples": 1
+          },
+          "routingRuleDefinitionAI": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "draggable": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "fontFamily": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "fontGroup": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "fontFallbacks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 8
+            },
+            "inferred_from_samples": 1
+          },
+          "fontVariants": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "enableSdkCloseButton": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "enableAttachments": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "enableScreencapture": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "recommendedQuestionsForAgent": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "spamProtectionMetadata": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "systemChatflow": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "@type",
+          "chatflowId",
+          "channelInstanceId",
+          "showingHsBranding",
+          "privateLoad",
+          "shouldListenToGdprBannerConsent",
+          "sessionId",
+          "language",
+          "widgetLocation",
+          "availabilityOptions",
+          "gdprConsentOptions",
+          "sendFrom",
+          "gates",
+          "accentColor",
+          "messagesPageUri",
+          "knowledgeBaseUrl",
+          "isKnowledgeBaseV3",
+          "type",
+          "metadata",
+          "showPreviousConversations",
+          "message",
+          "routingRuleDefinitionAI",
+          "draggable",
+          "fontFamily",
+          "fontGroup",
+          "fontFallbacks",
+          "fontVariants",
+          "enableSdkCloseButton",
+          "enableAttachments",
+          "enableScreencapture",
+          "recommendedQuestionsForAgent",
+          "spamProtectionMetadata",
+          "systemChatflow"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "MQM6uHGEB3FBWbglmxnRT",
+      "method": "GET",
+      "url_template": "https://cta-service-cms2.hubspot.com/web-interactives/public/v1/embed/combinedConfigs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://business.just-eat.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "481217",
+        "currentUrl": "https://business.just-eat.co.uk/",
+        "contentId": "85370401165"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "sortedAudienceConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "requestedConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "array",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "sortedAudienceConfigs",
+          "requestedConfigs",
+          "gates"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "NejtNb0Ao6B4vgEvvBV5T",
+      "method": "GET",
+      "url_template": "https://js.hs-banner.com/v2/cf-location",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://business.just-eat.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "PiChaihwUiXqTk7PZaYyu",
+      "method": "GET",
+      "url_template": "https://static.hsappstatic.net/conversations-visitor-ui/static-1.9449/audio/notification.mp3",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://app.hubspot.com/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "business.just-eat.co.uk-session"
+}

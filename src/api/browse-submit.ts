@@ -1,5 +1,6 @@
 import type { BrowseSession } from "./browse-session.js";
 import { isRecoverableBrowseFailure } from "./browse-session.js";
+import { MONTH_INDEX } from "./browse-submit-prereqs.js";
 
 export interface BrowseSubmitOptions {
   formSelector?: string;
@@ -50,6 +51,7 @@ export interface BrowseSubmitResult {
 
 const DEFAULT_SUBMIT_TIMEOUT_MS = 8_000;
 const SUBMIT_POLL_INTERVAL_MS = 250;
+const SUBMIT_SETTLE_WINDOW_MS = 1_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -64,6 +66,40 @@ export function isUrlWaitHint(value?: string): boolean {
   return /^https?:\/\//i.test(value) || value.startsWith("/");
 }
 
+export function resolveSubmitWaitHint(baseUrl: string, value?: string): string | null {
+  if (!isUrlWaitHint(value)) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      return new URL(trimmed).href;
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const base = new URL(baseUrl);
+    const rootResolved = new URL(trimmed, base.origin);
+    const rootRelativePath = rootResolved.pathname.replace(/^\/+/, "");
+    const isFilenameHint = rootRelativePath.length > 0
+      && !rootRelativePath.includes("/")
+      && /\.[a-z0-9]+$/i.test(rootRelativePath);
+
+    if (isFilenameHint) {
+      const baseDirectory = base.pathname.endsWith("/")
+        ? base.pathname
+        : base.pathname.slice(0, base.pathname.lastIndexOf("/") + 1);
+      return new URL(`${baseDirectory}${rootRelativePath}${rootResolved.search}${rootResolved.hash}`, base.origin).href;
+    }
+
+    return rootResolved.href;
+  } catch {
+    return null;
+  }
+}
+
 export function hasMeaningfulPageChange(beforeHtml: string, afterHtml: string): boolean {
   const before = beforeHtml.trim();
   const after = afterHtml.trim();
@@ -74,11 +110,27 @@ export function hasMeaningfulPageChange(beforeHtml: string, afterHtml: string): 
 
   const beforeBody = before.match(/<body[\s\S]*?>([\s\S]*?)<\/body>/i)?.[1] ?? before;
   const afterBody = after.match(/<body[\s\S]*?>([\s\S]*?)<\/body>/i)?.[1] ?? after;
+  const normalizeVisibleText = (html: string) => html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const beforeText = normalizeVisibleText(beforeBody);
+  const afterText = normalizeVisibleText(afterBody);
+  if (beforeText || afterText) return beforeText !== afterText;
   return beforeBody.trim() !== afterBody.trim();
 }
 
 function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
+  const monthIndex = JSON.stringify(MONTH_INDEX);
   return `(function() {
+    var MONTH_INDEX = ${monthIndex};
     function findForm(selector) {
       if (selector) return document.querySelector(selector);
       var active = document.activeElement;
@@ -95,6 +147,134 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
       if (active && form.contains(active) && /^(submit|image)$/i.test(active.getAttribute("type") || "")) return active;
       return form.querySelector('button[type="submit"], input[type="submit"], input[type="image"], button:not([type])');
     }
+    function isDisabled(node) {
+      if (!node) return false;
+      if (node.disabled) return true;
+      if (typeof node.getAttribute === "function") {
+        var ariaDisabled = node.getAttribute("aria-disabled");
+        if (ariaDisabled && ariaDisabled.toLowerCase() === "true") return true;
+      }
+      return !!(node.classList && node.classList.contains("disabled"));
+    }
+    function textValue(node) {
+      if (!node) return "";
+      if (typeof node.value === "string" && node.value.trim()) return node.value.trim();
+      return (node.textContent || "").trim();
+    }
+    function pushUnique(list, value) {
+      if (!value) return;
+      if (!list.includes(value)) list.push(value);
+    }
+    function inferIsoDate() {
+      var existing = document.querySelector("[data-input-date], input[name='selectedDate']");
+      var existingValue = textValue(existing);
+      if (/^\\d{4}-\\d{2}-\\d{2}$/.test(existingValue)) return existingValue;
+
+      var dayNode = document.querySelector(
+        ".day.active, .day.current, .calendar-day.active, .calendar-day.selected, .calendar-day.current, [data-day].active, [data-day].current, [data-day].selected, [data-date].active, [data-date].selected, [aria-selected='true'][data-day], [aria-selected='true'][data-date], .ui-state-active"
+      );
+      var dayValue = dayNode
+        ? (dayNode.getAttribute("data-day") || dayNode.getAttribute("data-date") || dayNode.getAttribute("data-value") || textValue(dayNode))
+        : "";
+      var dayMatch = dayValue.match(/\\b(\\d{1,2})\\b/);
+      if (!dayMatch) return null;
+
+      var monthNode = document.querySelector(
+        "[data-calendar-title], .ui-datepicker-title, .calendar-month-year, .month-year, .datepicker-switch, .calendar-header .title"
+      );
+      var monthLabel = monthNode
+        ? (monthNode.getAttribute("data-calendar-title") || monthNode.getAttribute("data-current-month") || textValue(monthNode))
+        : "";
+      var yearMatch = monthLabel.match(/\\b(\\d{4})\\b/);
+      var tokens = monthLabel
+        .toLowerCase()
+        .replace(/[^a-z0-9\\s]+/g, " ")
+        .split(/\\s+/)
+        .map(function(token) { return token.trim(); })
+        .filter(Boolean);
+      var monthValue = null;
+      for (var i = 0; i < tokens.length; i++) {
+        var token = tokens[i];
+        monthValue = MONTH_INDEX[token] || MONTH_INDEX[token.slice(0, 3)];
+        if (monthValue) break;
+      }
+      if (!monthValue || !yearMatch) return null;
+
+      return yearMatch[1] + "-" + monthValue + "-" + String(dayMatch[1]).padStart(2, "0");
+    }
+    function dispatchValue(node, value) {
+      if (!node) return;
+      if ("value" in node) {
+        node.value = value;
+      } else {
+        node.textContent = value;
+      }
+      try {
+        node.dispatchEvent(new Event("input", { bubbles: true }));
+        node.dispatchEvent(new Event("change", { bubbles: true }));
+      } catch {}
+    }
+    function dispatchCheck(node, checked) {
+      if (!node) return;
+      if ("checked" in node) node.checked = checked;
+      try {
+        node.dispatchEvent(new Event("input", { bubbles: true }));
+        node.dispatchEvent(new Event("change", { bubbles: true }));
+        if (typeof node.click === "function") node.click();
+      } catch {}
+      if ("checked" in node && node.checked !== checked) node.checked = checked;
+    }
+    function prepareMandaiResidentGate(form, prereqState) {
+      if (!form) return;
+      var action = form.getAttribute("action") || "";
+      var step = String(form.getAttribute("data-step") || "");
+      if (!/\\/bin\\/wrs\\/ticket-selection/i.test(action) || step !== "2") return;
+
+      var residentRadio = form.querySelector("input.booking-selection--btn[type='radio'][value='resident'], input[name='booking-selection'][value='resident']");
+      var residentCheckbox = form.querySelector("#checkSingapore, input[name='isSingaporean'][type='checkbox']");
+      var quantityControls = form.querySelector("[data-number-ticket], .number-ticket, .qty-ticket, input[name='quantityTicket']");
+      var needsResidentGate = !!(residentRadio || residentCheckbox) && !quantityControls;
+      if (!needsResidentGate) return;
+
+      if (residentRadio && !residentRadio.checked) {
+        dispatchCheck(residentRadio, true);
+        pushUnique(prereqState.patched, "input[name='booking-selection'][value='resident']");
+      }
+      if (residentCheckbox && !residentCheckbox.checked) {
+        dispatchCheck(residentCheckbox, true);
+        pushUnique(prereqState.patched, "#checkSingapore");
+      }
+
+      pushUnique(prereqState.missing, "[data-number-ticket], input[name='quantityTicket']");
+    }
+    function prepareSubmitState(submitter, selector) {
+      var prereqState = { patched: [], missing: [] };
+      var isoDate = inferIsoDate();
+      if (isoDate) {
+        Array.from(document.querySelectorAll("[data-input-date], input[name='selectedDate'], [data-summary-date], input[name='summaryDate']")).forEach(function(node) {
+          var before = textValue(node);
+          if (before !== isoDate) {
+            dispatchValue(node, isoDate);
+            pushUnique(prereqState.patched, node.matches ? node.matches("[data-input-date]") ? "[data-input-date]" : node.matches("input[name='selectedDate']") ? "input[name='selectedDate']" : node.matches("[data-summary-date]") ? "[data-summary-date]" : "input[name='summaryDate']" : "date_target");
+          }
+        });
+      } else {
+        var emptyDateInput = document.querySelector("[data-input-date], input[name='selectedDate']");
+        if (emptyDateInput && !textValue(emptyDateInput)) {
+          pushUnique(prereqState.missing, "selectedDate");
+        }
+      }
+
+      prepareMandaiResidentGate(form, prereqState);
+
+      if (!submitter) {
+        pushUnique(prereqState.missing, selector || "submitter");
+      } else if (isDisabled(submitter)) {
+        pushUnique(prereqState.missing, selector || "[data-submit-next]:not(.disabled)");
+      }
+
+      return prereqState;
+    }
 
     var form = findForm(${JSON.stringify(options.formSelector ?? "")});
     if (!form) {
@@ -102,6 +282,8 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
     }
 
     var submitter = findSubmitter(form, ${JSON.stringify(options.submitSelector ?? "")});
+    var prereqState = prepareSubmitState(submitter, ${JSON.stringify(options.submitSelector ?? null)});
+    submitter = findSubmitter(form, ${JSON.stringify(options.submitSelector ?? "")});
     var meta = {
       ok: true,
       form_action: form.getAttribute("action") || "",
@@ -109,7 +291,12 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
       submitter: submitter ? (submitter.getAttribute("name") || submitter.id || submitter.textContent || submitter.tagName || "").trim() : null,
       submit_selector_used: ${JSON.stringify(options.submitSelector ?? null)},
       form_selector_used: ${JSON.stringify(options.formSelector ?? null)},
+      prereq_state: prereqState,
     };
+
+    if (prereqState.missing.length > 0) {
+      return JSON.stringify({ ...meta, ok: false, reason: "prereq_state_incomplete" });
+    }
 
     if (submitter && typeof submitter.click === "function") {
       submitter.click();
@@ -300,6 +487,27 @@ function parseJsonString(value: unknown): Record<string, unknown> | null {
   }
 }
 
+async function settleSubmitDestination(
+  client: BrowseSubmitClient,
+  tabId: string,
+  url: string,
+  html: string,
+): Promise<{ url: string; html: string }> {
+  let settledUrl = url;
+  let settledHtml = html;
+  const deadline = Date.now() + SUBMIT_SETTLE_WINDOW_MS;
+
+  while (Date.now() < deadline) {
+    await sleep(Math.min(SUBMIT_POLL_INTERVAL_MS, Math.max(50, deadline - Date.now())));
+    const nextUrl = await client.getCurrentUrl(tabId).catch(() => "");
+    const nextHtml = await client.getPageHtml(tabId).catch(() => "");
+    if (nextUrl && !nextUrl.startsWith("about:blank")) settledUrl = nextUrl;
+    if (nextHtml) settledHtml = nextHtml;
+  }
+
+  return { url: settledUrl, html: settledHtml };
+}
+
 async function waitForSubmitOutcome(
   client: BrowseSubmitClient,
   tabId: string,
@@ -310,6 +518,7 @@ async function waitForSubmitOutcome(
   const timeoutMs = options.timeoutMs ?? DEFAULT_SUBMIT_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
   const waitFor = options.waitFor?.trim();
+  const requireUrlTransition = !!waitFor && isUrlWaitHint(waitFor);
 
   if (waitFor && !isUrlWaitHint(waitFor)) {
     try {
@@ -317,7 +526,7 @@ async function waitForSubmitOutcome(
       if (waitResult?.status === "found" || waitResult?.status === "ready") {
         const url = await client.getCurrentUrl(tabId).catch(() => beforeUrl);
         const html = await client.getPageHtml(tabId).catch(() => beforeHtml);
-        return { ok: true, url, html };
+        return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
       }
     } catch {
       // fall through to polling
@@ -329,13 +538,17 @@ async function waitForSubmitOutcome(
     const html = await client.getPageHtml(tabId).catch(() => "");
 
     if (waitFor && isUrlWaitHint(waitFor) && url.includes(waitFor)) {
-      return { ok: true, url, html };
+      return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
     }
     if (url && url !== beforeUrl && !url.startsWith("about:blank")) {
-      return { ok: true, url, html };
+      return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
+    }
+    if (requireUrlTransition) {
+      await sleep(SUBMIT_POLL_INTERVAL_MS);
+      continue;
     }
     if (hasMeaningfulPageChange(beforeHtml, html)) {
-      return { ok: true, url: url || beforeUrl, html };
+      return { ok: true, ...await settleSubmitDestination(client, tabId, url || beforeUrl, html) };
     }
 
     await sleep(SUBMIT_POLL_INTERVAL_MS);
@@ -374,28 +587,38 @@ export async function submitBrowseForm(
     };
   }
 
-  const domOutcome = await waitForSubmitOutcome(client, session.tabId, beforeUrl, beforeHtml, options);
-  if (domOutcome.ok) {
-    session.url = domOutcome.url || beforeUrl || session.url;
-    let captureSync: BrowseSubmitCaptureSyncResult | null = null;
-    if (flushCapture) {
-      try {
-        captureSync = await flushCapture(session);
-      } catch {
-        captureSync = null;
-      }
-    }
-    await restartCapture(session);
+  if (!submitMeta?.ok && submitMeta?.reason === "prereq_state_incomplete") {
     return {
-      ok: true,
-      url: session.url,
-      mode: "dom",
+      ok: false,
+      url: beforeUrl || session.url,
+      mode: "noop",
       fallback_used: false,
       same_origin_html_rehydrated: false,
+      recoverable: false,
+      reason: "prereq_state_incomplete",
       wait_for: options.waitFor,
       submit_meta: submitMeta,
-      capture_sync: captureSync,
     };
+  }
+
+  const domOutcome = await waitForSubmitOutcome(client, session.tabId, beforeUrl, beforeHtml, options);
+  if (domOutcome.ok) {
+    const sameUrl = (domOutcome.url || beforeUrl || session.url) === (beforeUrl || session.url);
+    if (submitMeta == null && sameUrl) {
+      // Unknown submit state + no navigation usually means hidden DOM churn, not a real step transition.
+    } else {
+      session.url = domOutcome.url || beforeUrl || session.url;
+      return {
+        ok: true,
+        url: session.url,
+        mode: "dom",
+        fallback_used: false,
+        same_origin_html_rehydrated: false,
+        wait_for: options.waitFor,
+        submit_meta: submitMeta,
+        capture_sync: null,
+      };
+    }
   }
 
   if (submitError && !isRecoverableBrowseFailure(submitError) && !sameOriginFetchFallback) {
@@ -415,7 +638,25 @@ export async function submitBrowseForm(
     };
   }
 
-  const fallbackPayload = parseJsonString(await client.evaluate(session.tabId, buildSameOriginFetchExpression(options)));
+  let fallbackPayload: Record<string, unknown> | null = null;
+  let fallbackError: unknown = null;
+  try {
+    fallbackPayload = parseJsonString(await client.evaluate(session.tabId, buildSameOriginFetchExpression(options)));
+  } catch (error) {
+    fallbackError = error;
+  }
+  if (fallbackError) {
+    return {
+      ok: false,
+      url: beforeUrl || session.url,
+      mode: "same_origin_fetch",
+      fallback_used: true,
+      same_origin_html_rehydrated: false,
+      recoverable: isRecoverableBrowseFailure(fallbackError),
+      reason: fallbackError instanceof Error ? fallbackError.message : "same_origin_fetch_failed",
+      submit_meta: submitMeta,
+    };
+  }
   if (!fallbackPayload?.ok) {
     return {
       ok: false,
@@ -438,15 +679,6 @@ export async function submitBrowseForm(
     rehydrate = await rehydratePlugins(session.tabId).catch(() => null);
   }
 
-  let captureSync: BrowseSubmitCaptureSyncResult | null = null;
-  if (flushCapture) {
-    try {
-      captureSync = await flushCapture(session);
-    } catch {
-      captureSync = null;
-    }
-  }
-  await restartCapture(session);
   return {
     ok: true,
     url: session.url,
@@ -456,7 +688,7 @@ export async function submitBrowseForm(
     status: typeof fallbackPayload.status === "number" ? fallbackPayload.status as number : undefined,
     wait_for: options.waitFor,
     submit_meta: submitMeta,
-    capture_sync: captureSync,
+    capture_sync: null,
     rehydrate,
   };
 }

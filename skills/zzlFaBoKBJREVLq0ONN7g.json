@@ -1,0 +1,32 @@
+{
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T18:39:06.365Z",
+  "updated_at": "2026-02-20T18:39:06.365Z",
+  "name": "www.overbuff.com -- get overwatch player stats for lekt8",
+  "intent_signature": "get overwatch player stats for lekt8",
+  "domain": "www.overbuff.com",
+  "description": "Auto-discovered skill for: get overwatch player stats for lekt8",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "R0ngAgYtSlSZK0ViZTRMB",
+      "method": "POST",
+      "url_template": "https://www.overbuff.com/cdn-cgi/rum",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.overbuff.com/players/lekt8",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "skill_id": "zzlFaBoKBJREVLq0ONN7g"
+}

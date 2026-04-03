@@ -1,0 +1,414 @@
+{
+  "skill_id": "5c4xT3EylfEZywkLCE5Jh",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:51:27.720Z",
+  "updated_at": "2026-02-23T07:51:27.720Z",
+  "name": "www.njleg.state.nj.us -- Search for New Jersey legislative",
+  "intent_signature": "Search for New Jersey legislative",
+  "domain": "www.njleg.state.nj.us",
+  "description": "Auto-discovered skill for: Search for New Jersey legislative",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "182GR2nrIqHCRZFm2dNA7",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/api/emergencyBanner",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.njleg.state.nj.us/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "inferred_from_samples": 2
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "srNilTkr4c5q4snqLuvgZ",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/api/calendarEvents/selectedDay/2-23-2026",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.njleg.state.nj.us/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "Code_Description": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Time": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Time_Start": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Location": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Time_End": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Date": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Date_for_Query": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "House_Trans": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "AgendaComment": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "AgendaTypeDescription": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Type": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Time_for_Query": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Code_House": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Status": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Committee_House": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "Agenda_Date_Parameter": {
+              "type": "string",
+              "inferred_from_samples": 2
+            },
+            "SessionYear": {
+              "type": "integer",
+              "inferred_from_samples": 2
+            },
+            "ShowLink": {
+              "type": "string",
+              "inferred_from_samples": 2
+            }
+          },
+          "required": [
+            "Code_Description",
+            "Agenda_Time",
+            "Agenda_Time_Start",
+            "Agenda_Location",
+            "Agenda_Time_End",
+            "Agenda_Date",
+            "Agenda_Date_for_Query",
+            "House_Trans",
+            "AgendaComment",
+            "AgendaTypeDescription",
+            "Agenda_Type",
+            "Agenda_Time_for_Query",
+            "Code_House",
+            "Agenda_Status",
+            "Committee_House",
+            "Agenda_Date_Parameter",
+            "SessionYear",
+            "ShowLink"
+          ],
+          "inferred_from_samples": 2
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "ktrgklBepPFoQwg4V-xJ9",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/api/calendarEvents/eventTypesbyMonth/2/{id}/{id}",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.njleg.state.nj.us/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "Agenda_Date_for_Query": {
+                "type": "string",
+                "inferred_from_samples": 7
+              }
+            },
+            "required": [
+              "Agenda_Date_for_Query"
+            ],
+            "inferred_from_samples": 7
+          },
+          "inferred_from_samples": 3
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "TWZNl88ESZueUy8qTAOVa",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/api/billSearch/sessions",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.njleg.state.nj.us/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "display": {
+              "type": "string",
+              "inferred_from_samples": 14
+            },
+            "value": {
+              "type": "integer",
+              "inferred_from_samples": 14
+            }
+          },
+          "required": [
+            "display",
+            "value"
+          ],
+          "inferred_from_samples": 14
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "nKamzKMbWOJ1fCn6qzXgj",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/api/budgetHome",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.njleg.state.nj.us/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "Leadin": {
+                "type": "string",
+                "inferred_from_samples": 4
+              },
+              "LinkValue": {
+                "type": "string",
+                "inferred_from_samples": 4
+              },
+              "LinkTitle": {
+                "type": "string",
+                "inferred_from_samples": 4
+              },
+              "LinkText": {
+                "type": "string",
+                "inferred_from_samples": 4
+              },
+              "ShowFlag": {
+                "type": "integer",
+                "inferred_from_samples": 2
+              },
+              "id": {
+                "type": "integer",
+                "inferred_from_samples": 8
+              },
+              "FileName": {
+                "type": "null",
+                "anyOf": [
+                  {
+                    "type": "null",
+                    "inferred_from_samples": 8
+                  },
+                  {
+                    "type": "string",
+                    "inferred_from_samples": 8
+                  }
+                ],
+                "inferred_from_samples": 8
+              },
+              "DisplayText": {
+                "type": "string",
+                "inferred_from_samples": 8
+              },
+              "DisplayOrder": {
+                "type": "integer",
+                "inferred_from_samples": 8
+              },
+              "ShowHide": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "inferred_from_samples": 3
+          },
+          "inferred_from_samples": 3
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "481pf0Oio2vMIvrwLXsrW",
+      "method": "POST",
+      "url_template": "https://www.njleg.state.nj.us/api/users/validateUser",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.njleg.state.nj.us/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "U8vb2sp72DEJY0iiCaC3f",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "0hkvn7ofb8l1C80la3TUO",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.njleg.state.nj.us/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Libre Baskerville:ital@1",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "4nsm2uFT1j3JdT5RzdRMq",
+      "method": "GET",
+      "url_template": "https://www.google.com/recaptcha/api2/anchor",
+      "headers_template": {
+        "referer": "https://www.njleg.state.nj.us/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "ar": "1",
+        "k": "6LcLm50iAAAAAHDXUlkIcbohUWBK40O5PGOH8aTq",
+        "co": "aHR0cHM6Ly93d3cubmpsZWcuc3RhdGUubmoudXM6NDQz",
+        "hl": "en",
+        "v": "P8cyHPrXODVy7ASorEhMUv3P",
+        "size": "invisible",
+        "anchor-ms": "20000",
+        "execute-ms": "30000",
+        "cb": "nrouwbdxd1eg"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "wGVky-KIu2m5f-1Y-EB6z",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/_next/data/pqIK6zGXPzeLeust63g-E/en.json",
+      "headers_template": {
+        "x-nextjs-data": "1",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.njleg.state.nj.us/",
+        "purpose": "prefetch",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.njleg.state.nj.us-session"
+}

@@ -1,0 +1,1714 @@
+{
+  "skill_id": "LbQQLQKnqW512BseQ4Sou",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:50:35.542Z",
+  "updated_at": "2026-02-23T07:50:35.542Z",
+  "name": "www.foodnetwork.com -- Manage Food Network digital assets and user synchronization",
+  "intent_signature": "Manage Food Network digital assets and user synchronization",
+  "domain": "www.foodnetwork.com",
+  "description": "Auto-discovered skill for: Manage Food Network digital assets and user synchronization",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "zHhFHONH7VOs_WChU2oSe",
+      "method": "GET",
+      "url_template": "https://c.go-mpulse.net/api/config.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "d": "www.foodnetwork.com",
+        "t": "5906110",
+        "v": "1.687.0",
+        "sl": "0",
+        "si": "1c6cd258-845d-47c2-9cfc-e27921dd3fe4-NaN",
+        "plugins": "AK,ConfigOverride,Continuity,PageParams,IFrameDelay,AutoXHR,SPA,History,Angular,Backbone,Ember,RT,CrossDomain,BW,PaintTiming,NavigationTiming,ResourceTiming,Memory,CACHE_RELOAD,Errors,TPAnalytics,UserTiming,Akamai,Early,LOGN",
+        "acao": "",
+        "ak.ai": "325785"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "h.key": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "h.d": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "h.t": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "h.cr": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "session_id": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "site_domain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "beacon_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "autorun": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "beacon_interval": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "BW": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled"
+            ],
+            "inferred_from_samples": 1
+          },
+          "RT": {
+            "type": "object",
+            "properties": {
+              "session_exp": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "session_exp"
+            ],
+            "inferred_from_samples": 1
+          },
+          "ResourceTiming": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "splitAtPath": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled",
+              "splitAtPath"
+            ],
+            "inferred_from_samples": 1
+          },
+          "PageParams": {
+            "type": "object",
+            "properties": {
+              "xhr": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pageGroups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "parameter1": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "parameter2": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "on": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "parameter1",
+                    "parameter2",
+                    "on"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              },
+              "customMetrics": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "customTimers": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "customDimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "index": {
+                      "type": "integer",
+                      "inferred_from_samples": 1
+                    },
+                    "type": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "label": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "dataType": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "xhr_ok": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "varName": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "index",
+                    "type",
+                    "label",
+                    "dataType",
+                    "xhr_ok",
+                    "varName"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              },
+              "urlPatterns": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "params": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "xhr",
+              "pageGroups",
+              "customMetrics",
+              "customTimers",
+              "customDimensions",
+              "urlPatterns",
+              "params"
+            ],
+            "inferred_from_samples": 1
+          },
+          "Akamai": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "mapping_xhr_base_url": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mapping_xhr_url_path": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mapping_xhr_url_v4_prefix": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mapping_xhr_url_v6_prefix": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled",
+              "mapping_xhr_base_url",
+              "mapping_xhr_url_path",
+              "mapping_xhr_url_v4_prefix",
+              "mapping_xhr_url_v6_prefix"
+            ],
+            "inferred_from_samples": 1
+          },
+          "user_ip": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "h.key",
+          "h.d",
+          "h.t",
+          "h.cr",
+          "session_id",
+          "site_domain",
+          "beacon_url",
+          "autorun",
+          "beacon_interval",
+          "BW",
+          "RT",
+          "ResourceTiming",
+          "PageParams",
+          "Akamai",
+          "user_ip"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "iPSHQxuGtMrEmNay3enzg",
+      "method": "GET",
+      "url_template": "https://dafpw2yx3eeta2m4a3dq-pz5dpx-83da239c8-clientnsv4-s.akamaihd.net/eum/results.txt",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.foodnetwork.com/"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "867HX_ISv7uT449hlaBCr",
+      "method": "GET",
+      "url_template": "https://eyaqnakoaaqdajqacqcyiaaacbuzybwh-pz5dpx-1381102fa-clienttons-s.akamaihd.net/eum/results.txt",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.foodnetwork.com/"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "wGCqXV6OuUQfOTaJbtRd5",
+      "method": "GET",
+      "url_template": "https://t.skimresources.com/api/v2/robots.txt",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "__skimjs_preflight__please_ignore__": "true",
+        "rnd": "0.6494927476175015"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "fFYCf3glg0PFS7KiAp-QF",
+      "method": "POST",
+      "url_template": "https://sdk.iad-05.braze.com/api/v3/data/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "x-braze-triggersrequest": "true",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "x-braze-last-req-ms-ago": "7200000",
+        "x-braze-datarequest": "true",
+        "sec-ch-ua-mobile": "?0",
+        "x-braze-req-attempt": "1",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "content-type": "application/json"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "attributes_blacklist": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "inferred_from_samples": 2
+                },
+                "inferred_from_samples": 1
+              },
+              "content_cards": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "enabled"
+                ],
+                "inferred_from_samples": 1
+              },
+              "events_blacklist": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "global_request_rate_limit": {
+                "type": "object",
+                "properties": {
+                  "capacity": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "endpoint_overrides": {
+                    "type": "object",
+                    "properties": {
+                      "banners/sync": {
+                        "type": "object",
+                        "properties": {
+                          "capacity": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "refill_rate": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "capacity",
+                          "refill_rate"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "content_cards/sync": {
+                        "type": "object",
+                        "properties": {
+                          "capacity": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "refill_rate": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "capacity",
+                          "refill_rate"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "push/redeliver": {
+                        "type": "object",
+                        "properties": {
+                          "capacity": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "refill_rate": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "capacity",
+                          "refill_rate"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "banners/sync",
+                      "content_cards/sync",
+                      "push/redeliver"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "refill_rate": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "capacity",
+                  "enabled",
+                  "endpoint_overrides",
+                  "refill_rate"
+                ],
+                "inferred_from_samples": 1
+              },
+              "messaging_session_timeout": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "purchases_blacklist": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "request_backoff": {
+                "type": "object",
+                "properties": {
+                  "max_sleep_duration_ms": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "min_sleep_duration_ms": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "scale_factor": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "max_sleep_duration_ms",
+                  "min_sleep_duration_ms",
+                  "scale_factor"
+                ],
+                "inferred_from_samples": 1
+              },
+              "time": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "vapid_public_key": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "attributes_blacklist",
+              "content_cards",
+              "events_blacklist",
+              "global_request_rate_limit",
+              "messaging_session_timeout",
+              "purchases_blacklist",
+              "request_backoff",
+              "time",
+              "vapid_public_key"
+            ],
+            "inferred_from_samples": 1
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "trigger_id": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "trigger_id"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "delay": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "end_time": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "id": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "priority": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "re_eligibility": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "start_time": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "trigger_condition": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "event_name": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "property_filters": {
+                            "type": "array",
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "comparator": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "property_key": {
+                                    "type": "string",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "property_type": {
+                                    "type": "string",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "property_value": {
+                                    "type": "string",
+                                    "inferred_from_samples": 2
+                                  }
+                                },
+                                "required": [
+                                  "comparator",
+                                  "property_key",
+                                  "property_type",
+                                  "property_value"
+                                ],
+                                "inferred_from_samples": 2
+                              },
+                              "inferred_from_samples": 2
+                            },
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "event_name",
+                          "property_filters"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "type": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "data",
+                      "type"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "inferred_from_samples": 1
+                },
+                "type": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "data",
+                "delay",
+                "end_time",
+                "id",
+                "priority",
+                "re_eligibility",
+                "start_time",
+                "trigger_condition",
+                "type"
+              ],
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "config",
+          "triggers"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "UBt1M9hxSdXQXRRgsJ5de",
+      "method": "POST",
+      "url_template": "https://r.skimresources.com/api/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/x-www-form-urlencoded",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "merchant_domains": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "guid": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "consent": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "csp": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "sessid": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "ts": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "country": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "country_state": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "bv": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "merchant_domains",
+          "guid",
+          "consent",
+          "csp",
+          "sessid",
+          "ts",
+          "country",
+          "country_state",
+          "bv"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "COpbu_6Ig_nIrkqcXd9mq",
+      "method": "POST",
+      "url_template": "https://t.skimresources.com/api/v2/page",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "text/plain",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "J-xf1fQw905S2opsDTVvq",
+      "method": "GET",
+      "url_template": "https://www.foodnetwork.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "2BTmKwxEuht1-rwY_VraE",
+      "method": "GET",
+      "url_template": "https://s.go-mpulse.net/boomerang/4GVSE-B6LEJ-4VVQP-R27UY-HHASW",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "QEuLF7hDRZ9Yg3pyz5Hqo",
+      "method": "GET",
+      "url_template": "https://accounts.dds.discovery.com/accounts-proxy-prod/v1/terms/status",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "S0pqT2tnoadumGQmA2RWf",
+      "method": "GET",
+      "url_template": "https://cdn.cookielaw.org/consent/{id}/{id}.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "CookieSPAEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "CookieSameSiteNoneEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "CookieV2CSPEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "MultiVariantTestingEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "UseV2": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "MobileSDK": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "SkipGeolocation": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "ScriptType": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "Version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "OptanonDataJSON": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "GeolocationUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "BulkDomainCheckUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "RuleSet": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "Id": {
+                  "type": "string",
+                  "inferred_from_samples": 5
+                },
+                "Name": {
+                  "type": "string",
+                  "inferred_from_samples": 5
+                },
+                "Countries": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "inferred_from_samples": 3
+                  },
+                  "inferred_from_samples": 5
+                },
+                "States": {
+                  "type": "object",
+                  "properties": {
+                    "us": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "inferred_from_samples": 2
+                      },
+                      "inferred_from_samples": 2
+                    }
+                  },
+                  "inferred_from_samples": 5
+                },
+                "LanguageSwitcherPlaceholder": {
+                  "type": "object",
+                  "properties": {
+                    "default": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "es": {
+                      "type": "string",
+                      "inferred_from_samples": 5
+                    },
+                    "no": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "de": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "sv": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "ru": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "fi": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "pt": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "bg": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "pt-br": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "hr": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "it": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "fr": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "hu": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "es-mx": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "cs": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "ar": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "sk": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "sl": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "pl": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "ro": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "da": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "tr": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "nl": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    }
+                  },
+                  "required": [
+                    "default",
+                    "es"
+                  ],
+                  "inferred_from_samples": 5
+                },
+                "BannerPushesDown": {
+                  "type": "boolean",
+                  "inferred_from_samples": 5
+                },
+                "Default": {
+                  "type": "boolean",
+                  "inferred_from_samples": 5
+                },
+                "Global": {
+                  "type": "boolean",
+                  "inferred_from_samples": 5
+                },
+                "Type": {
+                  "type": "string",
+                  "inferred_from_samples": 5
+                },
+                "UseGoogleVendors": {
+                  "type": "boolean",
+                  "inferred_from_samples": 5
+                },
+                "VariantEnabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 5
+                },
+                "TestEndTime": {
+                  "type": "null",
+                  "inferred_from_samples": 5
+                },
+                "Variants": {
+                  "type": "array",
+                  "inferred_from_samples": 5
+                },
+                "TemplateName": {
+                  "type": "string",
+                  "inferred_from_samples": 5
+                },
+                "Conditions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "Id": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "Name": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "Expression": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "TemplateType": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "TemplateName": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "LanguageSwitcherPlaceholder": {
+                        "type": "object",
+                        "properties": {
+                          "default": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "es": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "default",
+                          "es"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "UseGoogleVendors": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "GCEnable": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "IsGPPEnabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "Id",
+                      "Name",
+                      "Expression",
+                      "TemplateType",
+                      "TemplateName",
+                      "LanguageSwitcherPlaceholder",
+                      "UseGoogleVendors",
+                      "GCEnable",
+                      "IsGPPEnabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "inferred_from_samples": 5
+                },
+                "GCEnable": {
+                  "type": "boolean",
+                  "inferred_from_samples": 5
+                },
+                "IsGPPEnabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 5
+                },
+                "EnableJWTAuthForKnownUsers": {
+                  "type": "boolean",
+                  "inferred_from_samples": 5
+                }
+              },
+              "required": [
+                "Id",
+                "Name",
+                "Countries",
+                "States",
+                "LanguageSwitcherPlaceholder",
+                "BannerPushesDown",
+                "Default",
+                "Global",
+                "Type",
+                "UseGoogleVendors",
+                "VariantEnabled",
+                "TestEndTime",
+                "Variants",
+                "TemplateName",
+                "Conditions",
+                "GCEnable",
+                "IsGPPEnabled",
+                "EnableJWTAuthForKnownUsers"
+              ],
+              "inferred_from_samples": 5
+            },
+            "inferred_from_samples": 1
+          },
+          "IabData": {
+            "type": "object",
+            "properties": {
+              "cookieVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "createdTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "updatedTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentScreen": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentLanguage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "vendorListVersion": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "maxVendorId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "encodingType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "globalVendorListUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cookieVersion",
+              "createdTime",
+              "updatedTime",
+              "cmpId",
+              "cmpVersion",
+              "consentScreen",
+              "consentLanguage",
+              "vendorListVersion",
+              "maxVendorId",
+              "encodingType",
+              "globalVendorListUrl"
+            ],
+            "inferred_from_samples": 1
+          },
+          "IabV2Data": {
+            "type": "object",
+            "properties": {
+              "cookieVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "createdTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "updatedTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentScreen": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentLanguage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "vendorListVersion": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "maxVendorId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "encodingType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "globalVendorListUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cookieVersion",
+              "createdTime",
+              "updatedTime",
+              "cmpId",
+              "cmpVersion",
+              "consentScreen",
+              "consentLanguage",
+              "vendorListVersion",
+              "maxVendorId",
+              "encodingType",
+              "globalVendorListUrl"
+            ],
+            "inferred_from_samples": 1
+          },
+          "Iab2V2Data": {
+            "type": "object",
+            "properties": {
+              "cookieVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "createdTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "updatedTime": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmpVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentScreen": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "consentLanguage": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "vendorListVersion": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "maxVendorId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "encodingType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "globalVendorListUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cookieVersion",
+              "createdTime",
+              "updatedTime",
+              "cmpId",
+              "cmpVersion",
+              "consentScreen",
+              "consentLanguage",
+              "vendorListVersion",
+              "maxVendorId",
+              "encodingType",
+              "globalVendorListUrl"
+            ],
+            "inferred_from_samples": 1
+          },
+          "GoogleData": {
+            "type": "object",
+            "properties": {
+              "vendorListVersion": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "googleVendorListUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "vendorListVersion",
+              "googleVendorListUrl"
+            ],
+            "inferred_from_samples": 1
+          },
+          "ScriptDynamicLoadEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "TenantFeatures": {
+            "type": "object",
+            "properties": {
+              "CookieV2BannerFocus": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2RejectAll": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2TargetedTemplates": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GPC": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GeolocationJsonApi": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "WebButtonCustomisations": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2TCF21": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2SkipCategory": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2BannerLogo": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "ConsentStoreConsentStrings": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2AssignTemplateRule": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "MobileAuthenticatedConsents": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2MicrosoftUET": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GCMDMA": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookiesSameSiteNone": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2RemoveSettingsIcon": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2NewConsentReceiptAPI": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GeneralVendors": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "CookieV2GPP": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "CookieV2BannerFocus",
+              "CookieV2RejectAll",
+              "CookieV2TargetedTemplates",
+              "CookieV2GPC",
+              "CookieV2GeolocationJsonApi",
+              "WebButtonCustomisations",
+              "CookieV2TCF21",
+              "CookieV2SkipCategory",
+              "CookieV2BannerLogo",
+              "ConsentStoreConsentStrings",
+              "CookieV2AssignTemplateRule",
+              "MobileAuthenticatedConsents",
+              "CookieV2MicrosoftUET",
+              "CookieV2GCMDMA",
+              "CookiesSameSiteNone",
+              "CookieV2RemoveSettingsIcon",
+              "CookieV2NewConsentReceiptAPI",
+              "CookieV2GeneralVendors",
+              "CookieV2GPP"
+            ],
+            "inferred_from_samples": 1
+          },
+          "IsSuppressBanner": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "IsSuppressPC": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "PublisherCC": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "Domain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "TenantGuid": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "EnvId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "RemoteActionsEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "GeoRuleGroupName": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "GATrackToggle": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "GATrackAssignedCategory": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "WebFormIntegrationEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "WebFormSrcUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "WebFormWorkerUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "GppData": {
+            "type": "object",
+            "properties": {
+              "cmpId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cmpId"
+            ],
+            "inferred_from_samples": 1
+          },
+          "AuthenticatedConsent": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "CDNLocation": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "RootDomainConsentEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "RootDomainUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "LanguageDetectionEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "LanguageDetectionByHtml": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "DataLanguage": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "DisclosureCDNUrl": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "SEOOptimization": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "CookieSPAEnabled",
+          "CookieSameSiteNoneEnabled",
+          "CookieV2CSPEnabled",
+          "MultiVariantTestingEnabled",
+          "UseV2",
+          "MobileSDK",
+          "SkipGeolocation",
+          "ScriptType",
+          "Version",
+          "OptanonDataJSON",
+          "GeolocationUrl",
+          "BulkDomainCheckUrl",
+          "RuleSet",
+          "IabData",
+          "IabV2Data",
+          "Iab2V2Data",
+          "GoogleData",
+          "ScriptDynamicLoadEnabled",
+          "TenantFeatures",
+          "IsSuppressBanner",
+          "IsSuppressPC",
+          "PublisherCC",
+          "Domain",
+          "TenantGuid",
+          "EnvId",
+          "RemoteActionsEnabled",
+          "GeoRuleGroupName",
+          "GATrackToggle",
+          "GATrackAssignedCategory",
+          "WebFormIntegrationEnabled",
+          "WebFormSrcUrl",
+          "WebFormWorkerUrl",
+          "GppData",
+          "AuthenticatedConsent",
+          "CDNLocation",
+          "RootDomainConsentEnabled",
+          "RootDomainUrl",
+          "LanguageDetectionEnabled",
+          "LanguageDetectionByHtml",
+          "DataLanguage",
+          "DisclosureCDNUrl",
+          "SEOOptimization"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "NGibGDqYj2YV5lQe4mlIy",
+      "method": "GET",
+      "url_template": "https://cdn.cookielaw.org/consent/{id}/{id}/en.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "IiPULcEgd5YDOA4fEyl3Q",
+      "method": "GET",
+      "url_template": "https://trial-eum-clientnsv4-s.akamaihd.net/eum/getdns.txt",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "c": "pz5dpxlhx"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ZVsIn2F7NKgijuGWvCf3z",
+      "method": "GET",
+      "url_template": "https://trial-eum-clienttons-s.akamaihd.net/eum/getdns.txt",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "c": "pz5dpxlhx"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "Tn2-Qh3ykC9w0q5LsdYVs",
+      "method": "GET",
+      "url_template": "https://cdn.cookielaw.org/scripttemplates/{id}.2.0/assets/v2/otPcCenter.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.foodnetwork.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "html": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "css": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "name",
+          "html",
+          "css"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "www.foodnetwork.com-session"
+}

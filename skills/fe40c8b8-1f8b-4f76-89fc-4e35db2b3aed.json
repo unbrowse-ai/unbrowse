@@ -1,0 +1,71 @@
+{
+  "skill_id": "fe40c8b8-1f8b-4f76-89fc-4e35db2b3aed",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-14T21:33:59.107Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "comeup",
+  "intent_signature": "Interact with the ComeUp freelance marketplace",
+  "domain": "comeup.com",
+  "description": "Interact with the ComeUp freelance marketplace",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (x-xsrf-token)",
+  "service_name": "comeup",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--pack-fr-EU",
+      "method": "GET",
+      "url_template": "https://comeup.com/pack/fr-EU",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--sync-ba624535-d4e0-44c3-b3cc-291bca3babd8-web",
+      "method": "GET",
+      "url_template": "https://comeup.com/sync/ba624535-d4e0-44c3-b3cc-291bca3babd8/web",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--cookie-verify",
+      "method": "POST",
+      "url_template": "https://comeup.com/cookie-verify",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "5BWZ11ve8YSeWbhtch2ay3c7MrgdP875hps3J4CxJpYj",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "a3978cb830cf8062078f6cf18812871650bdc866587da3af84212bb589744a24"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: comeup\ndescription: Internal API for comeup\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://comeup.com\"\n  authMethod: \"Session Token (x-xsrf-token)\"\n  endpointCount: 12\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Comeup API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-xsrf-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (3)\n- `GET /cms/_nuxt/builds/meta/{metaToken}` — Retrieve metadata for authentication.\n- `GET /cms/api/user/me` — Get the current user's profile.\n- `POST /cookie-verify` — Verify cookie validity.\n\n### Data Read (6)\n- `GET /68234c0aa57bce8dd740205f.json` — Download static JSON data.\n- `GET /cms/api/{apiId}/current` — Fetch current data for a specific API.\n- `GET /cms/api/supported-host/l10n/hosts` — Get supported hosts for localization.\n- `GET /locales/locales.fr.json` — Download French locale data.\n- `GET /pack/fr-EU` — Download French-EU pack data.\n- `GET /sync/{syncId}/web` — Fetch paginated feed updates.\n\n### Data Write (2)\n- `POST /api/t/event` — Send a tracking event.\n- `POST /v1/analytics/evts` — Send analytics events.\n\n### Config (1)\n- `GET /cms/api/sentry/config` — Retrieve Sentry configuration.\n\n## Quick Start\n\nHere are some examples to get you started using the `comeup` API:\n\n```typescript\n// Fetching user profile after authentication.  Assumes authentication flow has already completed.\nasync function getUserProfile() {\n  try {\n    const user = await client.cms_api_user_me();\n    console.log(\"User profile:\", user);\n    return user;\n  } catch (error) {\n    console.error(\"Failed to fetch user profile:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Sending a tracking event.\nasync function sendTrackingEvent(eventData: any) {\n  try {\n    const response = await client.api_t_event(eventData);\n    console.log(\"Tracking event sent:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to send tracking event:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-xsrf-token)\n**Base URL:** `https://comeup.com`\n**Captured Auth:** 2 auth headers, 18 session cookies\n\n## About This Skill\n\nThis skill provides access to Comeup's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Comeup data without official API access\n- Automate actions on comeup.com (faster than browser automation)\n- Call the same endpoints the Comeup frontend uses\n\n## Quick Start\n\n```typescript\nimport { ComeupClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await ComeupClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (sec-fetch-storage-access, x-xsrf-token)\n- **Session cookies:** 18\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (18)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /cms/api/host-features/current`\n- `GET /cms/api/host-settings/current`\n- `GET /cms/api/sentry/config`\n- `GET /cms/api/supported-host/l10n/hosts`\n- `GET /cms/api/user/me`\n- `GET /pack/fr-EU`\n- `GET /sync/ba624535-d4e0-44c3-b3cc-291bca3babd8/web`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /cms/api/host-features/current`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /cms/api/host-settings/current`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /cms/api/sentry/config`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /cms/api/supported-host/l10n/hosts`\n- Status: `auth_required` | Quality: `49` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /cms/api/user/me`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pack/fr-EU`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /sync/ba624535-d4e0-44c3-b3cc-291bca3babd8/web`\n- Status: `auth_required` | Quality: `55` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

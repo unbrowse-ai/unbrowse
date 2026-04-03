@@ -1,0 +1,2621 @@
+{
+  "skill_id": "w8Y1KfXqx6lk3_ANCLM9Q",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:52:34.227Z",
+  "updated_at": "2026-02-23T07:52:34.227Z",
+  "name": "www.embroker.com -- Manage business insurance features and consent configurations through",
+  "intent_signature": "Manage business insurance features and consent configurations through",
+  "domain": "www.embroker.com",
+  "description": "Auto-discovered skill for: Manage business insurance features and consent configurations through",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "-YkNxsA9ugIut_OxUVcsn",
+      "method": "GET",
+      "url_template": "https://cdn.growthbook.io/api/features/sdk-XqutX2vQlG31KnpL",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "features": {
+            "type": "object",
+            "properties": {
+              "homepage-industry-dropdown-hero": {
+                "type": "object",
+                "properties": {
+                  "defaultValue": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "condition": {
+                          "type": "object",
+                          "properties": {
+                            "deviceId": {
+                              "type": "string",
+                              "inferred_from_samples": 2
+                            }
+                          },
+                          "required": [
+                            "deviceId"
+                          ],
+                          "inferred_from_samples": 2
+                        },
+                        "force": {
+                          "type": "boolean",
+                          "inferred_from_samples": 2
+                        }
+                      },
+                      "required": [
+                        "condition",
+                        "force"
+                      ],
+                      "inferred_from_samples": 2
+                    },
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "defaultValue",
+                  "rules"
+                ],
+                "inferred_from_samples": 1
+              },
+              "display-risk-profile-placements": {
+                "type": "object",
+                "properties": {
+                  "defaultValue": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "defaultValue"
+                ],
+                "inferred_from_samples": 1
+              },
+              "display-cyber-insurance-coverage-toc-version": {
+                "type": "object",
+                "properties": {
+                  "defaultValue": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "condition": {
+                          "type": "object",
+                          "properties": {
+                            "deviceId": {
+                              "type": "string",
+                              "inferred_from_samples": 1
+                            }
+                          },
+                          "required": [
+                            "deviceId"
+                          ],
+                          "inferred_from_samples": 1
+                        },
+                        "force": {
+                          "type": "boolean",
+                          "inferred_from_samples": 2
+                        },
+                        "coverage": {
+                          "type": "integer",
+                          "inferred_from_samples": 1
+                        },
+                        "hashAttribute": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "seed": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "hashVersion": {
+                          "type": "integer",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "force"
+                      ],
+                      "inferred_from_samples": 2
+                    },
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "defaultValue",
+                  "rules"
+                ],
+                "inferred_from_samples": 1
+              },
+              "startup-industry-page-v2": {
+                "type": "object",
+                "properties": {
+                  "defaultValue": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "condition": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "inferred_from_samples": 2
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "inferred_from_samples": 2
+                        },
+                        "force": {
+                          "type": "boolean",
+                          "inferred_from_samples": 2
+                        }
+                      },
+                      "required": [
+                        "condition",
+                        "force"
+                      ],
+                      "inferred_from_samples": 2
+                    },
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "defaultValue",
+                  "rules"
+                ],
+                "inferred_from_samples": 1
+              },
+              "display-tech-companies-variation1": {
+                "type": "object",
+                "properties": {
+                  "defaultValue": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "condition": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "inferred_from_samples": 1
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "inferred_from_samples": 1
+                        },
+                        "force": {
+                          "type": "boolean",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "condition",
+                        "force"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "defaultValue",
+                  "rules"
+                ],
+                "inferred_from_samples": 1
+              },
+              "display-law-firms-variation1": {
+                "type": "object",
+                "properties": {
+                  "defaultValue": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "condition": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "inferred_from_samples": 1
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "inferred_from_samples": 1
+                        },
+                        "force": {
+                          "type": "boolean",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "condition",
+                        "force"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "defaultValue",
+                  "rules"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "homepage-industry-dropdown-hero",
+              "display-risk-profile-placements",
+              "display-cyber-insurance-coverage-toc-version",
+              "startup-industry-page-v2",
+              "display-tech-companies-variation1",
+              "display-law-firms-variation1"
+            ],
+            "inferred_from_samples": 1
+          },
+          "experiments": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "dateUpdated": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "status",
+          "features",
+          "experiments",
+          "dateUpdated"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "gE7TJ6bkUfBWsQeho03Wy",
+      "method": "GET",
+      "url_template": "https://www.embroker.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "oWEh6y9BSy1ezRbsno_tv",
+      "method": "GET",
+      "url_template": "https://cdn.growthbook.io/sub/sdk-XqutX2vQlG31KnpL",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "cache-control": "no-cache",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "text/event-stream",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "DAha6L20Ry9VC6t4AcSix",
+      "method": "GET",
+      "url_template": "https://ws.zoominfo.com/pixel/{id}c73db1e0001a0e029e",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "DMi2cJP6-FMU_Pwr1C_D-",
+      "method": "GET",
+      "url_template": "https://scout.salesloft.com/r",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "tid": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0IjoxMDE0Nzh9.z8fjxN-5FwnxUKmJVHH4Wg2V9E5bR-EyyGHL--FJayQ"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "5Ifm3UymhSZ-YZhM6C5cn",
+      "method": "GET",
+      "url_template": "https://aa.agkn.com/adscores/g.pixel",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "sid": "9212296888",
+        "cv1": "8f359388-fcd9-4958-bbee-4d3874f1e42a",
+        "cv2": "udvrboua",
+        "page": "www.embroker.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "cdzmQkAPjgtfP81AerKv0",
+      "method": "GET",
+      "url_template": "https://px.ads.linkedin.com/attribution_trigger",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "pid": "59039",
+        "time": "1771833147923",
+        "url": "https://www.embroker.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "GI0bDxndzauMzbWf4XYvK",
+      "method": "GET",
+      "url_template": "https://px.ads.linkedin.com/collect",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "v": "2",
+        "fmt": "js",
+        "pid": "59039",
+        "time": "1771833147923",
+        "li_adsId": "beab1068-0059-4917-920b-27c28168efb3",
+        "url": "https://www.embroker.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "KiJkTFP4S0qnZVojm1ZzD",
+      "method": "GET",
+      "url_template": "https://consentcdn.cookiebot.com/consentconfig/{id}/settings.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "widget": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "distanceVerticalPx": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "distanceHorizontalPx": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "position",
+                  "distanceVerticalPx",
+                  "distanceHorizontalPx"
+                ],
+                "inferred_from_samples": 1
+              },
+              "theme": {
+                "type": "object",
+                "properties": {
+                  "closed": {
+                    "type": "object",
+                    "properties": {
+                      "backgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "foregroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "backgroundColor",
+                      "foregroundColor"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "opened": {
+                    "type": "object",
+                    "properties": {
+                      "backgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "foregroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "highlightColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "shadeColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeTextColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeBorderColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawTextColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawBorderColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "detailsBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "backgroundColor",
+                      "foregroundColor",
+                      "highlightColor",
+                      "shadeColor",
+                      "changeBackgroundColor",
+                      "changeTextColor",
+                      "changeBorderColor",
+                      "withdrawBackgroundColor",
+                      "withdrawTextColor",
+                      "withdrawBorderColor",
+                      "detailsBackgroundColor"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "closed",
+                  "opened"
+                ],
+                "inferred_from_samples": 1
+              },
+              "content": {
+                "type": "object",
+                "properties": {
+                  "cultures": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "default": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "autodetectLanguage": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "cultures",
+                  "default",
+                  "autodetectLanguage"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled",
+              "position",
+              "theme",
+              "content"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "widget"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "937ZvxHzy1FT7M2F3_OU1",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/v1/projects/c8zRt4txGrXM29gGUh1MbqLtE3XygTf5/settings",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "_lastModified": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "integrations": {
+            "type": "object",
+            "properties": {
+              "Stitch Data": {
+                "type": "object",
+                "properties": {
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "versionSettings"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Hotjar": {
+                "type": "object",
+                "properties": {
+                  "hjPlaceholderPolyfill": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "hjid": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "hjPlaceholderPolyfill",
+                  "hjid",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Facebook Pixel": {
+                "type": "object",
+                "properties": {
+                  "automaticConfiguration": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "blacklistPiiProperties": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "contentTypes": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "inferred_from_samples": 1
+                  },
+                  "initWithExistingTraits": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "keyForExternalId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "legacyEvents": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "inferred_from_samples": 1
+                  },
+                  "limitedDataUse": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "pixelId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "standardEvents": {
+                    "type": "object",
+                    "properties": {
+                      "Signup Complete": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "Application Quoted": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "Confirm Purchase": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "Signup Complete",
+                      "Application Quoted",
+                      "Confirm Purchase"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "standardEventsCustomProperties": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "userIdAsExternalId": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "valueIdentifier": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "whitelistPiiProperties": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "automaticConfiguration",
+                  "blacklistPiiProperties",
+                  "contentTypes",
+                  "initWithExistingTraits",
+                  "keyForExternalId",
+                  "legacyEvents",
+                  "limitedDataUse",
+                  "pixelId",
+                  "standardEvents",
+                  "standardEventsCustomProperties",
+                  "userIdAsExternalId",
+                  "valueIdentifier",
+                  "whitelistPiiProperties",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "ShareASale": {
+                "type": "object",
+                "properties": {
+                  "createLeads": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "merchantId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "useTotalAsAmount": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "createLeads",
+                  "merchantId",
+                  "useTotalAsAmount",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Google Analytics": {
+                "type": "object",
+                "properties": {
+                  "anonymizeIp": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "classic": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "contentGroupings": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "inferred_from_samples": 1
+                  },
+                  "dimensions": {
+                    "type": "object",
+                    "properties": {
+                      "applicationID": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "companyID": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "loggedViaAdmin": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "isBroker": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "isRenewal": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "applicationID",
+                      "companyID",
+                      "loggedViaAdmin",
+                      "isBroker",
+                      "isRenewal"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "domain": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "doubleClick": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "enableServerIdentify": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "enhancedEcommerce": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "enhancedLinkAttribution": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "identifyCategory": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "identifyEventName": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "ignoredReferrers": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "includeSearch": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "metrics": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "inferred_from_samples": 1
+                  },
+                  "mobileTrackingId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "nameTracker": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "nonInteraction": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "optimize": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "preferAnonymousId": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "protocolMappings": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "inferred_from_samples": 1
+                  },
+                  "reportUncaughtExceptions": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "resetCustomDimensionsOnPage": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "sampleRate": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "sendUserId": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "setAllMappedProps": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "siteSpeedSampleRate": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "topLevelContextMapping": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "trackCategorizedPages": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "trackNamedPages": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "trackingId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "useGoogleAmpClientId": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 4
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "anonymizeIp",
+                  "classic",
+                  "contentGroupings",
+                  "dimensions",
+                  "domain",
+                  "doubleClick",
+                  "enableServerIdentify",
+                  "enhancedEcommerce",
+                  "enhancedLinkAttribution",
+                  "identifyCategory",
+                  "identifyEventName",
+                  "ignoredReferrers",
+                  "includeSearch",
+                  "metrics",
+                  "mobileTrackingId",
+                  "nameTracker",
+                  "nonInteraction",
+                  "optimize",
+                  "preferAnonymousId",
+                  "protocolMappings",
+                  "reportUncaughtExceptions",
+                  "resetCustomDimensionsOnPage",
+                  "sampleRate",
+                  "sendUserId",
+                  "setAllMappedProps",
+                  "siteSpeedSampleRate",
+                  "topLevelContextMapping",
+                  "trackCategorizedPages",
+                  "trackNamedPages",
+                  "trackingId",
+                  "useGoogleAmpClientId",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "LinkedIn Insight Tag": {
+                "type": "object",
+                "properties": {
+                  "partnerId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "partnerId",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Google AdWords New": {
+                "type": "object",
+                "properties": {
+                  "accountId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "clickConversions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "event": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "id": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "event",
+                        "id",
+                        "accountId"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "conversionLinker": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "defaultPageConversion": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "disableAdPersonalization": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "pageLoadConversions": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "sendPageView": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "accountId",
+                  "clickConversions",
+                  "conversionLinker",
+                  "defaultPageConversion",
+                  "disableAdPersonalization",
+                  "pageLoadConversions",
+                  "sendPageView",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Heap": {
+                "type": "object",
+                "properties": {
+                  "appId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 2
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "appId",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Webhooks": {
+                "type": "object",
+                "properties": {
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "versionSettings",
+                  "type"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Impact Partnership Cloud": {
+                "type": "object",
+                "properties": {
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "versionSettings"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Salesforce (Actions)": {
+                "type": "object",
+                "properties": {
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "versionSettings",
+                  "type"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Segment.io": {
+                "type": "object",
+                "properties": {
+                  "apiKey": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unbundledIntegrations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "addBundledMetadata": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "maybeBundledConfigIds": {
+                    "type": "object",
+                    "properties": {
+                      "Hotjar": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "Facebook Pixel": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "ShareASale": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "LinkedIn Insight Tag": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "Google AdWords New": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "Heap": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "Hotjar",
+                      "Facebook Pixel",
+                      "ShareASale",
+                      "LinkedIn Insight Tag",
+                      "Google AdWords New",
+                      "Heap"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "retryQueue": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "apiKey",
+                  "unbundledIntegrations",
+                  "addBundledMetadata",
+                  "maybeBundledConfigIds",
+                  "versionSettings",
+                  "retryQueue"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "Stitch Data",
+              "Hotjar",
+              "Facebook Pixel",
+              "ShareASale",
+              "Google Analytics",
+              "LinkedIn Insight Tag",
+              "Google AdWords New",
+              "Heap",
+              "Webhooks",
+              "Impact Partnership Cloud",
+              "Salesforce (Actions)",
+              "Segment.io"
+            ],
+            "inferred_from_samples": 1
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "track": {
+                "type": "object",
+                "properties": {
+                  "__default": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Application Started": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Application Submitted": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "ApplicationStarted": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "ApplicationSubmitted": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "ApplicationSubmittedOFACRejected": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Impression": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "GetStarted-ApplicationStatusClicked": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "GetStarted-ViewOrUploadPoliciesClicked": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Page Viewed": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Purchase Intent": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Signup Completed": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Signup Email Provided": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Signup Started": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "StartupEngaged": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Update User Traits": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Webhooks": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Webhooks"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "__default",
+                  "Application Started",
+                  "Application Submitted",
+                  "ApplicationStarted",
+                  "ApplicationSubmitted",
+                  "ApplicationSubmittedOFACRejected",
+                  "Form Impression",
+                  "GetStarted-ApplicationStatusClicked",
+                  "GetStarted-ViewOrUploadPoliciesClicked",
+                  "Page Viewed",
+                  "Purchase Intent",
+                  "Signup Completed",
+                  "Signup Email Provided",
+                  "Signup Started",
+                  "StartupEngaged",
+                  "Update User Traits"
+                ],
+                "inferred_from_samples": 1
+              },
+              "identify": {
+                "type": "object",
+                "properties": {
+                  "__default": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "email": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "policies": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "companies": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "job_title": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "last_name": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "user_type": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "created_at": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "first_name": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "applications": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "first_campaign": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "latest_campaign": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "__default",
+                  "email",
+                  "policies",
+                  "companies",
+                  "job_title",
+                  "last_name",
+                  "user_type",
+                  "created_at",
+                  "first_name",
+                  "applications",
+                  "first_campaign",
+                  "latest_campaign"
+                ],
+                "inferred_from_samples": 1
+              },
+              "group": {
+                "type": "object",
+                "properties": {
+                  "__default": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "policies": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "company_id": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "applications": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "first_campaign": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "latest_campaign": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "__default",
+                  "policies",
+                  "company_id",
+                  "applications",
+                  "first_campaign",
+                  "latest_campaign"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "track",
+              "identify",
+              "group"
+            ],
+            "inferred_from_samples": 1
+          },
+          "edgeFunction": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "analyticsNextEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "middlewareSettings": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "enabledMiddleware": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "metrics": {
+            "type": "object",
+            "properties": {
+              "sampleRate": {
+                "type": "number",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "sampleRate"
+            ],
+            "inferred_from_samples": 1
+          },
+          "legacyVideoPluginsEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "remotePlugins": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "autoInstrumentationSettings": {
+            "type": "object",
+            "properties": {
+              "disableTraffic": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "sampleRate": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "disableTraffic",
+              "sampleRate"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "_lastModified",
+          "integrations",
+          "plan",
+          "edgeFunction",
+          "analyticsNextEnabled",
+          "middlewareSettings",
+          "enabledMiddleware",
+          "metrics",
+          "legacyVideoPluginsEnabled",
+          "remotePlugins",
+          "autoInstrumentationSettings"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "y8dzaGKGfNgdpk517Bjms",
+      "method": "GET",
+      "url_template": "https://scout.salesloft.com/i",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "QwYZwnwjRZGcHV3hUQZZo",
+      "method": "GET",
+      "url_template": "https://www.linkedin.com/px/li_sync",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.embroker.com/"
+      },
+      "query": {
+        "redirect": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=59039&time=1771833147923&li_adsId=beab1068-0059-4917-920b-27c28168efb3&url=https%3A%2F%2Fwww.embroker.com%2F&cookiesTest=true&liSync=true"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "vDduR05Z5r56j70bKnsgL",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/hotjar/1.4.0/hotjar.dynamic.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "y-nCbFdOU9neRXKO1DpiJ",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/facebook-pixel/2.11.5/facebook-pixel.dynamic.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "-YoWspYki9ZHb7tJrcPp2",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/shareasale/2.2.4/shareasale.dynamic.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "m0BE0wFLhjvhogyLJDHBG",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/linkedin-insight-tag/1.0.1/linkedin-insight-tag.dynamic.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "p7vJ2l2GAyQLKzNNIwh2e",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/google-adwords-new/1.3.0/google-adwords-new.dynamic.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "L5yA6HgdWHbYd40QPAyYI",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/heap/2.1.2/heap.dynamic.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "kt8SJLngLMTGDupoMJx3G",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/vendor/commons.59560acdd69ed701c941.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "jKz-F0hacvvo4Ihn-QZeo",
+      "method": "GET",
+      "url_template": "https://px4.ads.linkedin.com/collect",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.embroker.com/"
+      },
+      "query": {
+        "v": "2",
+        "fmt": "js",
+        "pid": "59039",
+        "time": "1771833147923",
+        "li_adsId": "beab1068-0059-4917-920b-27c28168efb3",
+        "url": "https://www.embroker.com/",
+        "cookiesTest": "true",
+        "liSync": "true",
+        "e_ipv6": "AQJFDcsVDP9SkAAAAZyJfEVvudQ5UhOcElsJfHhM4Pao3Arw1jTP5JqKEeFac1j0Fp4vkImSJkF9YTyA0hoSwX4U0_LMiT0g"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "5his_tk--HWkwXoWxhpMz",
+      "method": "GET",
+      "url_template": "https://heapanalytics.com/h",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.embroker.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "a": "2442627734",
+        "u": "1095614207288803",
+        "v": "6010980066769420",
+        "s": "4998967470170262",
+        "b": "web",
+        "tv": "4.0",
+        "z": "0",
+        "h": "/",
+        "d": "www.embroker.com",
+        "t": "Embroker – Business Insurance, Technology & Expertise",
+        "ts": "1771833148802",
+        "ubv": "145.0.7632.6",
+        "upv": "10_15_7",
+        "sch": "720",
+        "scw": "1280",
+        "st": "1771833148803",
+        "lv": "4.23.11",
+        "ld": "cdn.heapanalytics.com"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "0L6zP9ldc5bcu2pRtN-ZA",
+      "method": "GET",
+      "url_template": "https://app.qualified.com/w/1/p5Pr3z6bz8LfyRCB/messenger",
+      "headers_template": {
+        "referer": "https://www.embroker.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "uuid": "d384a178-14c5-4a51-8f3b-ffa005bc5ed5"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.embroker.com-session"
+}

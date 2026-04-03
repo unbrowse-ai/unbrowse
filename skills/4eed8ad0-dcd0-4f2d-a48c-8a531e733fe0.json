@@ -1,0 +1,75 @@
+{
+  "skill_id": "4eed8ad0-dcd0-4f2d-a48c-8a531e733fe0",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T16:21:57.524Z",
+  "updated_at": "2026-02-22T08:53:30.785Z",
+  "name": "linear",
+  "intent_signature": "Manage feature flags and report violations while monitoring Linear's system status and service health. Retrieve detailed product information including platform features, pricing plans, and customer testimonials.",
+  "domain": "api.linear.app",
+  "description": "Manage feature flags and report violations while monitoring Linear's system status and service health. Retrieve detailed product information including platform features, pricing plans, and customer testimonials.",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "linear",
+  "endpoints": [
+    {
+      "endpoint_id": "521a12c8-5aac-4574-a0d2-7aabf784be4b",
+      "method": "POST",
+      "url_template": "https://api.linear.app/__endpoint/521a12c8-5aac-4574-a0d2-7aabf784be4b",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "updateResourceById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "ae584a9d-400c-4c43-859c-1bd5b1927484",
+      "method": "POST",
+      "url_template": "https://api.linear.app/__endpoint/ae584a9d-400c-4c43-859c-1bd5b1927484",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "queryResourcesByIndexId",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "560eb885-9e50-4487-9641-4a5e2d88c304",
+      "method": "POST",
+      "url_template": "https://api.linear.app/__endpoint/560eb885-9e50-4487-9641-4a5e2d88c304",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "queryIndexForSearchResults",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "2EJ2aQ2sQoQpKsqkdRXRYzUe83YMPfpnDegZxWuWxiDU",
+    "download_count": 0,
+    "total_versions": 5,
+    "latest_version_hash": "a15b8b1895b29c3b6174716c7f01d7b0224254def91e0dd9f873de64921b99e4"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: linear\ndescription: Internal API for linear\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://api.linear.app\"\n  authMethod: \"API Key (x-algolia-api-key)\"\n  endpointCount: 10\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Linear API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (x-algolia-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (6)\n- `GET /{id}` — Retrieve information about an item by ID.\n- `GET /{id}/github` — Get GitHub information for an item.\n- `GET /api/statuspage` — Check the current API status.\n- `GET /contact/support` — Retrieve support contact information.\n- `GET /docs/{docId}` — Retrieve a specific documentation page.\n- `GET /integrations/{integrationId}` — Get details about a specific integration.\n\n### Data Write (1)\n- `POST /report-violation` — Report a violation or abuse.\n\n### Search (1)\n- `POST /1/indexes/*/queries` — Query an index for search results.\n\n### Media (1)\n- `GET /assets/homepage/pulse-audio.mp3` — Download an audio asset.\n\n### Config (1)\n- `POST /flags/` — Update a feature flag configuration.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"linear\", executionMode: \"backend\", endpoint: \"GET /{id}\" }\n```\n\nHere are a few examples to get you started with the Linear API:\n\n```typescript\n// Retrieve information about an item with a specific ID.\nasync function getItemDetails(itemId: string) {\n  const item = await client.get({ id: itemId });\n  console.log(`Item details: ${JSON.stringify(item)}`);\n  return item;\n}\n```\n\n```typescript\n// Report a violation.  Requires a description of the violation.\nasync function reportAbuse(violationDescription: string) {\n  try {\n    await client.post_report_violation({ description: violationDescription });\n    console.log(\"Violation reported successfully.\");\n  } catch (error) {\n    console.error(\"Failed to report violation:\", error);\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (x-algolia-api-key)\n**Base URL:** `https://api.linear.app`\n**Captured Auth:** 1 auth headers\n\n## About This Skill\n\nThis skill provides access to Linear's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Linear data without official API access\n- Automate actions on api.linear.app (faster than browser automation)\n- Call the same endpoints the Linear frontend uses\n\n## Quick Start\n\n```typescript\nimport { LinearClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await LinearClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (x-algolia-api-key)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (34)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

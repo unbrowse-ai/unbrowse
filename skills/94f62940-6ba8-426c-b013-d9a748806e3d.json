@@ -1,0 +1,84 @@
+{
+  "skill_id": "94f62940-6ba8-426c-b013-d9a748806e3d",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-15T12:21:00.576Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "polygonfaucet",
+  "intent_signature": "Interact with polygonfaucet.com to",
+  "domain": "polygonfaucet.com",
+  "description": "Interact with polygonfaucet.com to",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (csrf-token)",
+  "service_name": "polygonfaucet",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--json",
+      "method": "GET",
+      "url_template": "https://polygonfaucet.com/json",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--releasesettings",
+      "method": "GET",
+      "url_template": "https://polygonfaucet.com/releasesettings",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--siteconfig",
+      "method": "GET",
+      "url_template": "https://polygonfaucet.com/siteconfig",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--monitoring",
+      "method": "POST",
+      "url_template": "https://polygonfaucet.com/monitoring",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "D3Utx8YoL64FTqKKcK3TPacWXbyDuvQYq2CucJMfFUxW",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "ad12ce3c41e440d1c9b701481d58776cfb54c700e62a659b6d994ccc1a613ee8"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: polygonfaucet\ndescription: Internal API for polygonfaucet\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://polygonfaucet.com\"\n  authMethod: \"Session Token (csrf-token)\"\n  endpointCount: 5\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Polygonfaucet API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (csrf-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /{id}` — Retrieve data associated with a specific ID.\n\n### Data Write (3)\n- `POST /analytics/v1/page` — Report page view analytics.\n- `POST /monitoring` — Report monitoring data to the faucet.\n- `POST /v1/visitor-events/enqueue` — Enqueue visitor events for processing.\n\n### Core API (1)\n- `POST /v1/{v1Id}` — Interact with the core faucet API using a v1 ID.\n\n## Quick Start\n\nHere's a Quick Start to get you interacting with the polygonfaucet API:\n\n```typescript\n// Retrieve data associated with a specific ID.\nconst data = await client.get({ id: \"some-unique-id\" });\nconsole.log(data);\n```\n\n```typescript\n// Enqueue a visitor event.\nconst response = await client.post_v1_visitor_events_enqueue({\n  event_type: \"button_click\",\n  event_data: { button_id: \"request_tokens\" },\n});\nconsole.log(response);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (csrf-token)\n**Base URL:** `https://polygonfaucet.com`\n**Captured Auth:** 5 auth headers\n\n## About This Skill\n\nThis skill provides access to Polygonfaucet's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Polygonfaucet data without official API access\n- Automate actions on polygonfaucet.com (faster than browser automation)\n- Call the same endpoints the Polygonfaucet frontend uses\n\n## Quick Start\n\n```typescript\nimport { PolygonfaucetClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await PolygonfaucetClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 5 (csrf-token, token, x-authorized-identity, x-authorized-token, x-write-key)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (8)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /json`\n- `GET /releasesettings`\n- `GET /siteconfig`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /json`\n- Status: `verified` | Quality: `2` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /releasesettings`\n- Status: `verified` | Quality: `2` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /siteconfig`\n- Status: `verified` | Quality: `2` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

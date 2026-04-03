@@ -6,6 +6,8 @@ import {
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { publishSkill } from "../marketplace/index.js";
 import type { SkillManifest } from "../types/index.js";
+import { readWorkflowArtifact } from "../workflow/artifact.js";
+import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
 
 type PassivePublishDeps = {
   cachePublishedSkill: typeof cachePublishedSkill;
@@ -84,6 +86,14 @@ export function queuePassiveSkillPublish(
 
     const validation = await deps.validateManifest({ ...publishDraft, skill_id: "__validate__" });
     if (!validation.valid) {
+      writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(
+        skill,
+        readWorkflowArtifact(skill.skill_id),
+        {
+          publishStatus: "blocked-validation",
+          validationErrors: validation.hardErrors,
+        },
+      ));
       console.warn(
         `[publish] passive publish skipped for ${skill.skill_id}: ${validation.hardErrors.join("; ") || "validation failed"}`,
       );
@@ -103,6 +113,14 @@ export function queuePassiveSkillPublish(
       operation_graph: skill.operation_graph,
       ...(skill.auth_profile_ref ? { auth_profile_ref: skill.auth_profile_ref } : {}),
     });
+    writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(
+      skill,
+      readWorkflowArtifact(skill.skill_id),
+      {
+        publishStatus: "published",
+        publishedAt: new Date().toISOString(),
+      },
+    ));
 
     // Publish graph edges via dedicated endpoint (fire-and-forget)
     if (skill.operation_graph?.operations) {

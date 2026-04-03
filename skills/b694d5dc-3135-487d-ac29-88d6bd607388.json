@@ -1,0 +1,114 @@
+{
+  "skill_id": "b694d5dc-3135-487d-ac29-88d6bd607388",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T16:43:10.962Z",
+  "updated_at": "2026-02-18T23:23:06.008Z",
+  "name": "zoopla-co-uk",
+  "intent_signature": "Access Zoopla's property marketplace to manage user consent settings, participate in platform experiments, and retrieve member-specific privacy data. It supports core site interactions and configuration management using active session authentication.",
+  "domain": "www.zoopla.co.uk",
+  "description": "Access Zoopla's property marketplace to manage user consent settings, participate in platform experiments, and retrieve member-specific privacy data. It supports core site interactions and configuration management using active session authentication.",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (active_session)",
+  "service_name": "zoopla-co-uk",
+  "endpoints": [
+    {
+      "endpoint_id": "90f93f2b-ea6a-400c-b547-a8886c546301",
+      "method": "GET",
+      "url_template": "https://www.zoopla.co.uk/__endpoint/90f93f2b-ea6a-400c-b547-a8886c546301",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getEndpointById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "85b512e6-4f61-4550-8703-c07c5f9991c2",
+      "method": "GET",
+      "url_template": "https://www.zoopla.co.uk/__endpoint/85b512e6-4f61-4550-8703-c07c5f9991c2",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getCoreJwipkTveE9QppB",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "131f3a5d-d725-4c24-bd4e-b61c4bfc7faa",
+      "method": "GET",
+      "url_template": "https://www.zoopla.co.uk/__endpoint/131f3a5d-d725-4c24-bd4e-b61c4bfc7faa",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getExperiments",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "893f1096-ef2e-453d-aabb-81bdc688d393",
+      "method": "GET",
+      "url_template": "https://www.zoopla.co.uk/__endpoint/893f1096-ef2e-453d-aabb-81bdc688d393",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getMembersPrivacy",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "2e1f4a1b-3e94-4b9b-b3ff-471fd20bb778",
+      "method": "GET",
+      "url_template": "https://www.zoopla.co.uk/__endpoint/2e1f4a1b-3e94-4b9b-b3ff-471fd20bb778",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getLatestJwipkTveE9QppB",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "b2b3c721-dc97-4206-9700-5c1c207e158e",
+      "method": "GET",
+      "url_template": "https://www.zoopla.co.uk/__endpoint/b2b3c721-dc97-4206-9700-5c1c207e158e",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getEndpoint",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "Eq45grGysBWtN36BgyxtLQ1vDaHy4D2RrNjfyPmA5wNz",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "31153ac1aea5c6fc982a3a7006115e6c59cad9ad4383a3e6a7556243f2993062"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: zoopla-co-uk\ndescription: Internal API for zoopla-co-uk\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.zoopla.co.uk\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# ZooplaCoUk API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /for-sale/details/` — Retrieve detailed information for a specific property for sale.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"zoopla-co-uk\", executionMode: \"backend\", endpoint: \"GET /for-sale/details/\" }\n```\n\nHere are a few examples to get you started with the `zoopla-co-uk` API.\n\n```typescript\n// Retrieve details for a property with a known listing ID.\nasync function getPropertyDetails(listingId: string) {\n  const propertyDetails = await client.for_sale_details({ listing_id: listingId });\n  return propertyDetails;\n}\n```\n\n```typescript\n// Example of calling the function with a specific listing ID\nasync function main() {\n  const listingId = \"123456789\"; // Replace with a valid listing ID\n  const details = await getPropertyDetails(listingId);\n\n  if (details) {\n    console.log(\"Property Details:\", details);\n  } else {\n    console.log(\"Property not found or an error occurred.\");\n  }\n}\n\nmain();\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.zoopla.co.uk`\n**Captured Auth:** 2 session cookies\n\n## About This Skill\n\nThis skill provides access to Zoopla Co Uk's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Zoopla Co Uk data without official API access\n- Automate actions on www.zoopla.co.uk (faster than browser automation)\n- Call the same endpoints the Zoopla Co Uk frontend uses\n\n## Quick Start\n\n```typescript\nimport { ZooplaCoUkClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await ZooplaCoUkClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 2\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (1)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

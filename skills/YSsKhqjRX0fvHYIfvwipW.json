@@ -1,0 +1,3839 @@
+{
+  "skill_id": "YSsKhqjRX0fvHYIfvwipW",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:46:25.285Z",
+  "updated_at": "2026-02-23T07:46:25.285Z",
+  "name": "hitrustalliance.net -- Retrieve detailed company profiles and compliance information from",
+  "intent_signature": "Retrieve detailed company profiles and compliance information from",
+  "domain": "hitrustalliance.net",
+  "description": "Auto-discovered skill for: Retrieve detailed company profiles and compliance information from",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "zO2xx-4cF8a22yY0aHxrx",
+      "method": "GET",
+      "url_template": "https://app.hubspot.com/content-tools-menu/api/v1/tools-menu/has-permission-json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "23257256"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "0xcqQo2Q9YH6-oblBz6fC",
+      "method": "GET",
+      "url_template": "https://lptag.liveperson.net/lptag/api/account/{id}/configuration/applications/taglets/.jsonp",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "v": "2.0",
+        "df": "undefined",
+        "b": "undefined"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "KoFRKVCYPtKI0WXCnI1O9",
+      "method": "GET",
+      "url_template": "https://accdn.lpsnmedia.net/api/account/{id}/configuration/setting/accountproperties",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "__d": "36639"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "inferred_from_samples": 46
+            },
+            "createdDate": {
+              "type": "string",
+              "inferred_from_samples": 46
+            },
+            "modifiedDate": {
+              "type": "string",
+              "inferred_from_samples": 17
+            },
+            "type": {
+              "type": "integer",
+              "inferred_from_samples": 46
+            },
+            "propertyValue": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "inferred_from_samples": 46
+                    },
+                    {
+                      "type": "object",
+                      "inferred_from_samples": 46
+                    },
+                    {
+                      "type": "array",
+                      "inferred_from_samples": 46
+                    },
+                    {
+                      "type": "integer",
+                      "inferred_from_samples": 46
+                    }
+                  ],
+                  "inferred_from_samples": 46
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "inferred_from_samples": 46
+            },
+            "deleted": {
+              "type": "boolean",
+              "inferred_from_samples": 46
+            }
+          },
+          "required": [
+            "id",
+            "createdDate",
+            "type",
+            "propertyValue",
+            "deleted"
+          ],
+          "inferred_from_samples": 46
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "VW47KlYh8vFCG8GT8x4WH",
+      "method": "GET",
+      "url_template": "https://accdn.lpsnmedia.net/api/account/{id}/configuration/le-campaigns/zones",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "fields": "zoneValue",
+        "__d": "81061"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "inferred_from_samples": 16
+            },
+            "createdDate": {
+              "type": "string",
+              "inferred_from_samples": 16
+            },
+            "modifiedDate": {
+              "type": "string",
+              "inferred_from_samples": 16
+            },
+            "name": {
+              "type": "string",
+              "inferred_from_samples": 16
+            },
+            "deleted": {
+              "type": "boolean",
+              "inferred_from_samples": 16
+            },
+            "zoneType": {
+              "type": "integer",
+              "inferred_from_samples": 16
+            },
+            "mainZone": {
+              "type": "boolean",
+              "inferred_from_samples": 16
+            },
+            "capping": {
+              "type": "integer",
+              "inferred_from_samples": 16
+            },
+            "mapping": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "engagementSubType": {
+                    "type": "integer",
+                    "inferred_from_samples": 4
+                  }
+                },
+                "required": [
+                  "engagementSubType"
+                ],
+                "inferred_from_samples": 4
+              },
+              "inferred_from_samples": 16
+            },
+            "isDeleted": {
+              "type": "boolean",
+              "inferred_from_samples": 16
+            },
+            "zoneValue": {
+              "type": "string",
+              "inferred_from_samples": 12
+            }
+          },
+          "required": [
+            "id",
+            "createdDate",
+            "modifiedDate",
+            "name",
+            "deleted",
+            "zoneType",
+            "mainZone",
+            "capping",
+            "mapping",
+            "isDeleted"
+          ],
+          "inferred_from_samples": 16
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "9WE_Bz0oiwuMojRJoi9Vd",
+      "method": "GET",
+      "url_template": "https://va.v.liveperson.net/api/js/{id}",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "cb": "lpCb612x7265",
+        "t": "sp",
+        "ts": "1771832779504",
+        "pid": "6161462829",
+        "tid": "4425352049",
+        "pt": "Cybersecurity Risk Management and Information Protection | HITRUST",
+        "u": "https://hitrustalliance.net/",
+        "df": "0",
+        "os": "1",
+        "identities": "[{\"iss\":\"LivePerson\",\"acr\":\"0\"}]"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "cdGf4JcXbZOKUZ9DVtvw3",
+      "method": "GET",
+      "url_template": "https://accdn.lpsnmedia.net/api/account/{id}/configuration/le-campaigns/campaigns/{id}/engagements/{id}/revision/198",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "v": "3.0",
+        "flavor": "dependency",
+        "__d": "21419"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "onsiteLocations": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "visitorBehaviors": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "followMePages": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "availabilityPolicyForMessaging": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "followMeTime": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "campaignId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "renderingType": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "channel": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "allowUnauthMsg": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "description": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "language": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "source": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "type": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "enabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "useSystemRouting": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "effects": {
+            "type": "object",
+            "properties": {
+              "useLightBox": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "secondsToCollapseAfter": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "useLightBox",
+              "secondsToCollapseAfter"
+            ],
+            "inferred_from_samples": 1
+          },
+          "createdDate": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "displayInstances": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "presentation": {
+                  "type": "object",
+                  "properties": {
+                    "tglConf": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "tglConf"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "macros": {
+                  "type": "array",
+                  "inferred_from_samples": 1
+                },
+                "tglName": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "events": {
+                  "type": "object",
+                  "properties": {
+                    "click": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "inferred_from_samples": 1
+                        },
+                        "url": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "target": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "url",
+                        "target"
+                      ],
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "click"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "displayInstanceType": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "presentation",
+                "macros",
+                "tglName",
+                "events",
+                "displayInstanceType",
+                "enabled"
+              ],
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "name": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "modifiedDate": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "id": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "isPopOut": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "onsiteLocations",
+          "visitorBehaviors",
+          "followMePages",
+          "availabilityPolicyForMessaging",
+          "followMeTime",
+          "campaignId",
+          "renderingType",
+          "channel",
+          "allowUnauthMsg",
+          "description",
+          "language",
+          "source",
+          "type",
+          "zones",
+          "enabled",
+          "useSystemRouting",
+          "effects",
+          "createdDate",
+          "displayInstances",
+          "name",
+          "modifiedDate",
+          "id",
+          "isPopOut"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "WZEYiFisJphOJlP3IRhGy",
+      "method": "GET",
+      "url_template": "https://accdn.lpsnmedia.net/api/account/{id}/configuration/le-campaigns/campaigns/{id}/engagements/{id}/revision/201",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "v": "3.0",
+        "flavor": "dependency",
+        "__d": "45887"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "onsiteLocations": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "followMeTime": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "renderingType": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "channel": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "allowUnauthMsg": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "windowConf": {
+            "type": "object",
+            "properties": {
+              "json": {
+                "type": "object",
+                "properties": {
+                  "externalConfiguration": {
+                    "type": "null",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "externalConfiguration"
+                ],
+                "inferred_from_samples": 1
+              },
+              "type": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "json",
+              "type"
+            ],
+            "inferred_from_samples": 1
+          },
+          "description": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "language": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "source": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "type": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "enabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "isUnifiedWindow": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "id": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "isPopOut": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "timeInQueue": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "visitorBehaviors": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "followMePages": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "availabilityPolicyForMessaging": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "campaignId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "windowId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "conversationType": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "useSystemRouting": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "createdDate": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "displayInstances": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "presentation": {
+                  "type": "object",
+                  "properties": {
+                    "border": {
+                      "type": "object",
+                      "properties": {
+                        "color": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        },
+                        "width": {
+                          "type": "integer",
+                          "inferred_from_samples": 3
+                        },
+                        "radius": {
+                          "type": "integer",
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "color",
+                        "width",
+                        "radius"
+                      ],
+                      "inferred_from_samples": 3
+                    },
+                    "margin": {
+                      "type": "object",
+                      "properties": {},
+                      "inferred_from_samples": 3
+                    },
+                    "size": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "inferred_from_samples": 3
+                        },
+                        "height": {
+                          "type": "integer",
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "inferred_from_samples": 3
+                    },
+                    "background": {
+                      "type": "object",
+                      "properties": {
+                        "image": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        },
+                        "color": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "image",
+                        "color"
+                      ],
+                      "inferred_from_samples": 3
+                    },
+                    "elements": {
+                      "type": "object",
+                      "properties": {
+                        "images": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "css": {
+                                "type": "object",
+                                "properties": {
+                                  "top": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "left": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "zIndex": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 2
+                                  }
+                                },
+                                "required": [
+                                  "top",
+                                  "left",
+                                  "zIndex"
+                                ],
+                                "inferred_from_samples": 2
+                              },
+                              "role": {
+                                "type": "string",
+                                "inferred_from_samples": 2
+                              },
+                              "imageUrl": {
+                                "type": "string",
+                                "inferred_from_samples": 2
+                              }
+                            },
+                            "required": [
+                              "css",
+                              "role",
+                              "imageUrl"
+                            ],
+                            "inferred_from_samples": 2
+                          },
+                          "inferred_from_samples": 2
+                        },
+                        "labels": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "css": {
+                                "type": "object",
+                                "properties": {
+                                  "fontFamily": {
+                                    "type": "string",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "top": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "left": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "fontSize": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "fontStyle": {
+                                    "type": "string",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "fontWeight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 2
+                                  },
+                                  "zIndex": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 2
+                                  }
+                                },
+                                "required": [
+                                  "fontFamily",
+                                  "color",
+                                  "top",
+                                  "left",
+                                  "fontSize",
+                                  "fontStyle",
+                                  "fontWeight",
+                                  "zIndex"
+                                ],
+                                "inferred_from_samples": 2
+                              },
+                              "text": {
+                                "type": "string",
+                                "inferred_from_samples": 2
+                              }
+                            },
+                            "required": [
+                              "css",
+                              "text"
+                            ],
+                            "inferred_from_samples": 2
+                          },
+                          "inferred_from_samples": 2
+                        }
+                      },
+                      "inferred_from_samples": 3
+                    },
+                    "floating_engagement": {
+                      "type": "boolean",
+                      "inferred_from_samples": 3
+                    }
+                  },
+                  "required": [
+                    "border",
+                    "margin",
+                    "size",
+                    "background",
+                    "elements",
+                    "floating_engagement"
+                  ],
+                  "inferred_from_samples": 3
+                },
+                "macros": {
+                  "type": "array",
+                  "inferred_from_samples": 3
+                },
+                "events": {
+                  "type": "object",
+                  "properties": {
+                    "click": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "inferred_from_samples": 3
+                        },
+                        "target": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "target"
+                      ],
+                      "inferred_from_samples": 3
+                    }
+                  },
+                  "required": [
+                    "click"
+                  ],
+                  "inferred_from_samples": 3
+                },
+                "displayInstanceType": {
+                  "type": "integer",
+                  "inferred_from_samples": 3
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 3
+                }
+              },
+              "required": [
+                "presentation",
+                "macros",
+                "events",
+                "displayInstanceType",
+                "enabled"
+              ],
+              "inferred_from_samples": 3
+            },
+            "inferred_from_samples": 1
+          },
+          "name": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "modifiedDate": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "availabilityPolicy": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "onsiteLocations",
+          "followMeTime",
+          "renderingType",
+          "channel",
+          "allowUnauthMsg",
+          "windowConf",
+          "description",
+          "language",
+          "source",
+          "type",
+          "enabled",
+          "isUnifiedWindow",
+          "id",
+          "isPopOut",
+          "timeInQueue",
+          "visitorBehaviors",
+          "followMePages",
+          "availabilityPolicyForMessaging",
+          "campaignId",
+          "zones",
+          "windowId",
+          "conversationType",
+          "useSystemRouting",
+          "createdDate",
+          "displayInstances",
+          "name",
+          "modifiedDate",
+          "availabilityPolicy"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "rRe2muN0VU28qzkM6AAqv",
+      "method": "GET",
+      "url_template": "https://accdn.lpsnmedia.net/api/account/{id}/configuration/le-campaigns/campaigns/{id}/engagements/{id}/revision/194",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "v": "3.0",
+        "flavor": "dependency",
+        "__d": "92832"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "onsiteLocations": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "followMeTime": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "renderingType": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "channel": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "allowUnauthMsg": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "windowConf": {
+            "type": "object",
+            "properties": {
+              "json": {
+                "type": "object",
+                "properties": {
+                  "externalConfiguration": {
+                    "type": "null",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "externalConfiguration"
+                ],
+                "inferred_from_samples": 1
+              },
+              "type": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "json",
+              "type"
+            ],
+            "inferred_from_samples": 1
+          },
+          "description": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "language": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "source": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "type": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "enabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "skillName": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "isUnifiedWindow": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "id": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "isPopOut": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "timeInQueue": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "visitorBehaviors": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "followMePages": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "availabilityPolicyForMessaging": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "campaignId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "windowId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "conversationType": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "skillId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "useSystemRouting": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "createdDate": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "displayInstances": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "presentation": {
+                  "type": "object",
+                  "properties": {
+                    "border": {
+                      "type": "object",
+                      "properties": {
+                        "color": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        },
+                        "width": {
+                          "type": "integer",
+                          "inferred_from_samples": 3
+                        },
+                        "radius": {
+                          "type": "integer",
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "color",
+                        "width",
+                        "radius"
+                      ],
+                      "inferred_from_samples": 3
+                    },
+                    "margin": {
+                      "type": "object",
+                      "properties": {},
+                      "inferred_from_samples": 3
+                    },
+                    "size": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "inferred_from_samples": 3
+                        },
+                        "height": {
+                          "type": "integer",
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "inferred_from_samples": 3
+                    },
+                    "background": {
+                      "type": "object",
+                      "properties": {
+                        "image": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        },
+                        "color": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "image",
+                        "color"
+                      ],
+                      "inferred_from_samples": 3
+                    },
+                    "elements": {
+                      "type": "object",
+                      "properties": {
+                        "labels": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "css": {
+                                "type": "object",
+                                "properties": {
+                                  "fontFamily": {
+                                    "type": "string",
+                                    "inferred_from_samples": 3
+                                  },
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 3
+                                  },
+                                  "top": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 3
+                                  },
+                                  "left": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 3
+                                  },
+                                  "fontSize": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 3
+                                  },
+                                  "fontStyle": {
+                                    "type": "string",
+                                    "inferred_from_samples": 3
+                                  },
+                                  "fontWeight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 3
+                                  },
+                                  "zIndex": {
+                                    "type": "integer",
+                                    "inferred_from_samples": 3
+                                  }
+                                },
+                                "required": [
+                                  "fontFamily",
+                                  "color",
+                                  "top",
+                                  "left",
+                                  "fontSize",
+                                  "fontStyle",
+                                  "fontWeight",
+                                  "zIndex"
+                                ],
+                                "inferred_from_samples": 3
+                              },
+                              "text": {
+                                "type": "string",
+                                "inferred_from_samples": 3
+                              }
+                            },
+                            "required": [
+                              "css",
+                              "text"
+                            ],
+                            "inferred_from_samples": 3
+                          },
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "labels"
+                      ],
+                      "inferred_from_samples": 3
+                    },
+                    "floating_engagement": {
+                      "type": "boolean",
+                      "inferred_from_samples": 3
+                    }
+                  },
+                  "required": [
+                    "border",
+                    "margin",
+                    "size",
+                    "background",
+                    "elements",
+                    "floating_engagement"
+                  ],
+                  "inferred_from_samples": 3
+                },
+                "macros": {
+                  "type": "array",
+                  "inferred_from_samples": 3
+                },
+                "events": {
+                  "type": "object",
+                  "properties": {
+                    "click": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "inferred_from_samples": 3
+                        },
+                        "target": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "target"
+                      ],
+                      "inferred_from_samples": 3
+                    }
+                  },
+                  "required": [
+                    "click"
+                  ],
+                  "inferred_from_samples": 3
+                },
+                "displayInstanceType": {
+                  "type": "integer",
+                  "inferred_from_samples": 3
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 3
+                }
+              },
+              "required": [
+                "presentation",
+                "macros",
+                "events",
+                "displayInstanceType",
+                "enabled"
+              ],
+              "inferred_from_samples": 3
+            },
+            "inferred_from_samples": 1
+          },
+          "name": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "modifiedDate": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "availabilityPolicy": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "onsiteLocations",
+          "followMeTime",
+          "renderingType",
+          "channel",
+          "allowUnauthMsg",
+          "windowConf",
+          "description",
+          "language",
+          "source",
+          "type",
+          "enabled",
+          "skillName",
+          "isUnifiedWindow",
+          "id",
+          "isPopOut",
+          "timeInQueue",
+          "visitorBehaviors",
+          "followMePages",
+          "availabilityPolicyForMessaging",
+          "campaignId",
+          "zones",
+          "windowId",
+          "conversationType",
+          "skillId",
+          "useSystemRouting",
+          "createdDate",
+          "displayInstances",
+          "name",
+          "modifiedDate",
+          "availabilityPolicy"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "p6WLIbrn-QgVlfYikAIRA",
+      "method": "GET",
+      "url_template": "https://accdn.lpsnmedia.net/api/account/{id}/configuration/engagement-window/window-confs/{id}",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "__d": "35266"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "name": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "description": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "json": {
+            "type": "object",
+            "properties": {
+              "timeStampGrouping": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "logoAltText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "scheme": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "surveyAgentChatEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "customVars": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "inferred_from_samples": 1
+              },
+              "postChatSurveyOnNonInteractiveChat": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "sound": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "smsPreFormId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "surveyPreChatId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "surveyPostChatEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "language": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "sendIconType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "widgets": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "attachmentIcon": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "windowSize": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "clearHistory": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "closeWindowButtonBehaviorType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "surveyOfflineId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "floatingWindow": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "agentAvatarPadding": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "id": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "agentImage": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "logoRedirectUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "emojiEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "engagementWindowBorder": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "email": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "surveyPreChatEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "customStyle": {
+                "type": "object",
+                "properties": {
+                  "v": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "meta": {
+                    "type": "object",
+                    "properties": {
+                      "fonts": {
+                        "type": "object",
+                        "properties": {
+                          "1": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "1"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "colors": {
+                        "type": "object",
+                        "properties": {
+                          "1": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "2": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "3": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "4": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "5": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "6": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "7": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "8": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "9": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "1",
+                          "2",
+                          "3",
+                          "4",
+                          "5",
+                          "6",
+                          "7",
+                          "8",
+                          "9"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "fonts",
+                      "colors"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "agent": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "background-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "background-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_visitor": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "background-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "border-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "background-color",
+                                  "border-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_time": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-weight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-family": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-style": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "color",
+                                  "font-weight",
+                                  "font-family",
+                                  "font-style"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "actionsMenu_actionItem": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "border-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "border-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "mainArea": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "background-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "background-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "actionsMenu": {
+                        "type": "object",
+                        "properties": {
+                          "options": {
+                            "type": "object",
+                            "properties": {
+                              "icon_set": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "icon_set"
+                            ],
+                            "inferred_from_samples": 1
+                          },
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "background-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "background-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "options",
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "top": {
+                        "type": "object",
+                        "properties": {
+                          "options": {
+                            "type": "object",
+                            "properties": {
+                              "icon_set": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              },
+                              "minimize_icon": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "icon_set",
+                              "minimize_icon"
+                            ],
+                            "inferred_from_samples": 1
+                          },
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "background-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "border-radius": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "border-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "background-color",
+                                  "border-radius",
+                                  "border-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "options",
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_visitorArrowBorder": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "border-left-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "border-left-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "topBarIcon": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "left": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "left"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "logo": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "background-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "text-align": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "background-color",
+                                  "text-align"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "agentImage": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "src": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "src"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_message": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-weight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-family": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-style": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "color",
+                                  "font-weight",
+                                  "font-family",
+                                  "font-style"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_agent_text": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-weight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-family": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-style": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "color",
+                                  "font-weight",
+                                  "font-family",
+                                  "font-style"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_visitor_parent": {
+                        "type": "object",
+                        "properties": {
+                          "options": {
+                            "type": "object",
+                            "properties": {
+                              "transcript_bubble_visitor_parent": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "transcript_bubble_visitor_parent"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "options"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "input_text": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-weight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-family": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-style": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "color",
+                                  "font-weight",
+                                  "font-family",
+                                  "font-style"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_agent": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "background-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "border-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "background-color",
+                                  "border-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_agentArrow": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "border-right-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "border-right-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_agent_parent": {
+                        "type": "object",
+                        "properties": {
+                          "options": {
+                            "type": "object",
+                            "properties": {
+                              "transcript_bubble_agent_parent": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "transcript_bubble_agent_parent"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "options"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "input": {
+                        "type": "object",
+                        "properties": {
+                          "options": {
+                            "type": "object",
+                            "properties": {
+                              "icon_set": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "icon_set"
+                            ],
+                            "inferred_from_samples": 1
+                          },
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "background-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "border-radius": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-weight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-family": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-style": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "background-color",
+                                  "border-radius",
+                                  "color",
+                                  "font-weight",
+                                  "font-family",
+                                  "font-style"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "options",
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_visitor_text": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-weight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-family": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-style": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "color",
+                                  "font-weight",
+                                  "font-family",
+                                  "font-style"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "logoImage": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "src": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "src"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_visitorArrow": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "border-left-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "border-left-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "transcript_bubble_agentArrowBorder": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "border-right-color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "border-right-color"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "top_text": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-weight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-family": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-style": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "color",
+                                  "font-weight",
+                                  "font-family",
+                                  "font-style"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "actionsMenu_actionItem_text": {
+                        "type": "object",
+                        "properties": {
+                          "attrs": {
+                            "type": "object",
+                            "properties": {
+                              "style": {
+                                "type": "object",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-weight": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-family": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "font-style": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "color",
+                                  "font-weight",
+                                  "font-family",
+                                  "font-style"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "style"
+                            ],
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "attrs"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "agent",
+                      "transcript_bubble_visitor",
+                      "transcript_time",
+                      "actionsMenu_actionItem",
+                      "mainArea",
+                      "actionsMenu",
+                      "top",
+                      "transcript_bubble_visitorArrowBorder",
+                      "topBarIcon",
+                      "logo",
+                      "agentImage",
+                      "transcript_message",
+                      "transcript_bubble_agent_text",
+                      "transcript_bubble_visitor_parent",
+                      "input_text",
+                      "transcript_bubble_agent",
+                      "transcript_bubble_agentArrow",
+                      "transcript_bubble_agent_parent",
+                      "input",
+                      "transcript_bubble_visitor_text",
+                      "logoImage",
+                      "transcript_bubble_visitorArrow",
+                      "transcript_bubble_agentArrowBorder",
+                      "top_text",
+                      "actionsMenu_actionItem_text"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "v",
+                  "meta",
+                  "config"
+                ],
+                "inferred_from_samples": 1
+              },
+              "welcomeMessage": {
+                "type": "object",
+                "properties": {
+                  "wrapQuickReplies": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "isDefault": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "quickReplies": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "whenToPresent": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "isEnabled": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "text": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "wrapQuickReplies",
+                  "isDefault",
+                  "quickReplies",
+                  "whenToPresent",
+                  "isEnabled",
+                  "text"
+                ],
+                "inferred_from_samples": 1
+              },
+              "menuLocation": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "readNotificationsType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "headerEnhancedUi": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "logoUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "timeStampLocation": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "print": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "popoutAction": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "logoImage": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "bubbleGrouping": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "markAsUrgent": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "surveyPostChatId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "name": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "logoPinToTop": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "brandLogoEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "agentUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "browserNotifications": {
+                "type": "object",
+                "properties": {
+                  "tabNotification": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "nativeNotification": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "tabNotification",
+                  "nativeNotification"
+                ],
+                "inferred_from_samples": 1
+              },
+              "surveyAgentChatId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "timeStampGrouping",
+              "logoAltText",
+              "scheme",
+              "surveyAgentChatEnabled",
+              "customVars",
+              "postChatSurveyOnNonInteractiveChat",
+              "sound",
+              "smsPreFormId",
+              "surveyPreChatId",
+              "surveyPostChatEnabled",
+              "description",
+              "language",
+              "sendIconType",
+              "widgets",
+              "attachmentIcon",
+              "windowSize",
+              "clearHistory",
+              "closeWindowButtonBehaviorType",
+              "surveyOfflineId",
+              "floatingWindow",
+              "agentAvatarPadding",
+              "id",
+              "agentImage",
+              "logoRedirectUrl",
+              "emojiEnabled",
+              "engagementWindowBorder",
+              "email",
+              "surveyPreChatEnabled",
+              "customStyle",
+              "welcomeMessage",
+              "menuLocation",
+              "readNotificationsType",
+              "headerEnhancedUi",
+              "logoUrl",
+              "timeStampLocation",
+              "print",
+              "popoutAction",
+              "logoImage",
+              "bubbleGrouping",
+              "markAsUrgent",
+              "surveyPostChatId",
+              "name",
+              "logoPinToTop",
+              "brandLogoEnabled",
+              "agentUrl",
+              "browserNotifications",
+              "surveyAgentChatId"
+            ],
+            "inferred_from_samples": 1
+          },
+          "deleted": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "order": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "isUserDefault": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "json",
+          "deleted",
+          "order",
+          "isUserDefault",
+          "type"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "mrTpILslwRtao3lo1Xse3",
+      "method": "GET",
+      "url_template": "https://hitrustalliance.net/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "_fbI59pNvflNk-cPptY0R",
+      "method": "GET",
+      "url_template": "https://hitrustalliance.net/hubfs/Website/Website%20Videos/fy25_-_q4_-_brand_video_v1.mp4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "YdTFgGfWVD5wyNdJIy6KD",
+      "method": "GET",
+      "url_template": "https://hitrustalliance.net/_hcms/forms/embed/v3/form/{id}/{id}/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "hs_static_app": "forms-embed",
+        "hs_static_app_version": "1.10590",
+        "X-HubSpot-Static-App-Info": "forms-embed-1.10590"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "properties": {
+              "portalId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "guid": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cssClass": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "inlineMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "redirectUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submitText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "formFieldGroups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "label": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "type": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "fieldType": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "description": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "groupName": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "displayOrder": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "required": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "selectedOptions": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "options": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "validation": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              },
+                              "message": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              },
+                              "data": {
+                                "type": "string",
+                                "inferred_from_samples": 1
+                              },
+                              "useDefaultBlockList": {
+                                "type": "boolean",
+                                "inferred_from_samples": 1
+                              },
+                              "blockedEmailAddresses": {
+                                "type": "array",
+                                "inferred_from_samples": 1
+                              },
+                              "checkPhoneFormat": {
+                                "type": "boolean",
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "message",
+                              "data",
+                              "useDefaultBlockList",
+                              "blockedEmailAddresses",
+                              "checkPhoneFormat"
+                            ],
+                            "inferred_from_samples": 1
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "hidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "defaultValue": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "isSmartField": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "unselectedLabel": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "placeholder": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "dependentFieldFilters": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "labelHidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "propertyObjectType": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "metaData": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "objectTypeId": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "label",
+                          "type",
+                          "fieldType",
+                          "description",
+                          "groupName",
+                          "displayOrder",
+                          "required",
+                          "selectedOptions",
+                          "options",
+                          "validation",
+                          "enabled",
+                          "hidden",
+                          "defaultValue",
+                          "isSmartField",
+                          "unselectedLabel",
+                          "placeholder",
+                          "dependentFieldFilters",
+                          "labelHidden",
+                          "propertyObjectType",
+                          "metaData",
+                          "objectTypeId"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "inferred_from_samples": 1
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "isSmartGroup": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "richText": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "type": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "type"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "isPageBreak": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "default",
+                    "isSmartGroup",
+                    "richText",
+                    "isPageBreak"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              },
+              "metaData": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "value": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "inferred_from_samples": 3
+                },
+                "inferred_from_samples": 1
+              },
+              "captchaEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "formTypeNumber": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "thankYouMessageJson": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "style": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "variantId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "isPublished": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "embedVersion": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "captchaVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "portalId",
+              "guid",
+              "cssClass",
+              "inlineMessage",
+              "redirectUrl",
+              "submitText",
+              "formFieldGroups",
+              "metaData",
+              "captchaEnabled",
+              "formTypeNumber",
+              "thankYouMessageJson",
+              "themeColor",
+              "themeName",
+              "style",
+              "variantId",
+              "isPublished",
+              "embedVersion",
+              "captchaVersion"
+            ],
+            "inferred_from_samples": 1
+          },
+          "properties": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "knownSmartFields": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "object",
+            "properties": {
+              "ServiceHub:Feedback:TrellisSmileys": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ServiceHub:Feedback:TrellisSmileys"
+            ],
+            "inferred_from_samples": 1
+          },
+          "scopes": {
+            "type": "object",
+            "properties": {
+              "noBranding": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "renderShell": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "rawHtmlAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "customStyleAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "noBranding",
+              "renderShell",
+              "rawHtmlAccess",
+              "customStyleAccess"
+            ],
+            "inferred_from_samples": 1
+          },
+          "time": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "themeCss": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "globalStyle": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "countryCode": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "portalSetting": {
+            "type": "object",
+            "properties": {
+              "enableLiveValidation": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enableLiveValidation"
+            ],
+            "inferred_from_samples": 1
+          },
+          "errorCode": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "form",
+          "properties",
+          "knownSmartFields",
+          "gates",
+          "scopes",
+          "time",
+          "themeCss",
+          "globalStyle",
+          "countryCode",
+          "portalSetting",
+          "errorCode"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "TUEn0GApTpKH6o4FQ2Cmn",
+      "method": "GET",
+      "url_template": "https://hitrustalliance.net/_hcms/livechat/widget",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "x-hubspot-messages-uri": "https://hitrustalliance.net/",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "23257256",
+        "conversations-embed": "static-1.25563",
+        "mobile": "false",
+        "messagesUtk": "661baf1b84fb46268f38fabb17a8f0ca",
+        "traceId": "661baf1b84fb46268f38fabb17a8f0ca"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "@type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "@type": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "reason": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "@type",
+              "reason",
+              "description"
+            ],
+            "inferred_from_samples": 1
+          },
+          "type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "@type",
+          "metadata",
+          "type"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "LZ9tktSFZuG0xQd7vLwTm",
+      "method": "GET",
+      "url_template": "https://js.hs-banner.com/v2/cf-location",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ZKjw7YmCwm_mDa96NuTZO",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Lato:ital,wght@0,400;0,700;1,400",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "dM-DJiw7ZIMMb0ePnH8fA",
+      "method": "GET",
+      "url_template": "https://forms.hscollectedforms.net/collected-forms/v1/config/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "23257256",
+        "utk": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "portalId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "submissionsApiDomain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "reportScraperTest": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "formCaptureEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "token": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "portalId",
+          "submissionsApiDomain",
+          "reportScraperTest",
+          "formCaptureEnabled",
+          "token"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "rmu68vH3mxRryhdrKpdyq",
+      "method": "GET",
+      "url_template": "https://cta-service-cms2.hubspot.com/web-interactives/public/v1/embed/combinedConfigs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "23257256",
+        "currentUrl": "https://hitrustalliance.net/",
+        "contentId": "152880436616"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "sortedAudienceConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "requestedConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "array",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "sortedAudienceConfigs",
+          "requestedConfigs",
+          "gates"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "NJjukrxo-4Vcrb1hGyEJX",
+      "method": "GET",
+      "url_template": "https://va-e.c.liveperson.net/visitor/lpDC-LE2/{id}/questions/hi_trust.json.txt",
+      "headers_template": {
+        "lp-domain-referer": "https://hitrustalliance.net",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://va-e.c.liveperson.net/hcp/html/postmessage.min.html?bust=1771832779509&loc=https%3A%2F%2Fhitrustalliance.net",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "lp-url": "https://hitrustalliance.net/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "*/*",
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "query": {
+        "__d": "76461"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "hitrustfaq": {
+            "type": "object",
+            "properties": {
+              "header": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "inferred_from_samples": 1
+              },
+              "engagements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "eid": {
+                      "type": "string",
+                      "inferred_from_samples": 7
+                    },
+                    "content": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "inferred_from_samples": 7
+                        },
+                        "link": {
+                          "type": "string",
+                          "inferred_from_samples": 7
+                        }
+                      },
+                      "required": [
+                        "text",
+                        "link"
+                      ],
+                      "inferred_from_samples": 7
+                    }
+                  },
+                  "required": [
+                    "eid",
+                    "content"
+                  ],
+                  "inferred_from_samples": 7
+                },
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "header",
+              "engagements"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "hitrustfaq"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "2YEtPpSuGLD2Sqgbi8pgZ",
+      "method": "GET",
+      "url_template": "https://c.6sc.co/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "sZq89GVeqGxz6FtfWPOwX",
+      "method": "GET",
+      "url_template": "https://ipv6.6sc.co/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "de7MUBpTOXzSgXrHlI__5",
+      "method": "GET",
+      "url_template": "https://c.6sc.co/refresh",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://hitrustalliance.net/"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "LszOKMZwusFu7bZ3OePcG",
+      "method": "GET",
+      "url_template": "https://epsilon.6sense.com/v3/company/details",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "x-6s-customid": "WebTag e8d582d6-5158-47c7-82fe-13ea59768618",
+        "referer": "https://hitrustalliance.net/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "company": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "name": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "region": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "country": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "state": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "city": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "industry": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "companyId": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "country_iso_code": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "address": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "zip": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "phone": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "employee_range": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "revenue_range": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "employee_count": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "annual_revenue": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "is_blacklisted": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "state_code": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "is_6qa": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "geoIP_country": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "geoIP_state": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "geoIP_city": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "company_match": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "additional_comment": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "sic": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "sic_description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "naics": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "naics_description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "industry_v2": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "industry": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "subindustry": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "industry",
+                    "subindustry"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "domain",
+              "name",
+              "region",
+              "country",
+              "state",
+              "city",
+              "industry",
+              "companyId",
+              "country_iso_code",
+              "address",
+              "zip",
+              "phone",
+              "employee_range",
+              "revenue_range",
+              "employee_count",
+              "annual_revenue",
+              "is_blacklisted",
+              "state_code",
+              "is_6qa",
+              "geoIP_country",
+              "geoIP_state",
+              "geoIP_city",
+              "company_match",
+              "additional_comment",
+              "sic",
+              "sic_description",
+              "naics",
+              "naics_description",
+              "industry_v2"
+            ],
+            "inferred_from_samples": 1
+          },
+          "scores": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "segments": {
+            "type": "object",
+            "properties": {
+              "ids": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "names": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "list": {
+                "type": "array",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ids",
+              "names",
+              "list"
+            ],
+            "inferred_from_samples": 1
+          },
+          "confidence": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "company",
+          "scores",
+          "segments",
+          "confidence"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "hitrustalliance.net-session"
+}
