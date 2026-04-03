@@ -133,6 +133,8 @@ unbrowse snap --filter interactive
 unbrowse click e2
 unbrowse fill e5 "hello world"
 unbrowse submit --wait-for "/next-page.html"
+# only when you explicitly want browser-side prereq help:
+unbrowse submit --assist-site-state --wait-for "/next-page.html"
 unbrowse close
 ```
 
@@ -149,6 +151,7 @@ Use one `session_id` through the whole flow. `snap` gives the live refs. `submit
 ### 2. Traversal rules
 
 - Browser-native by default. No hidden same-origin replay during ordinary page walking.
+- `submit` is a thin browser-native proxy by default. Only opt into `--assist-site-state` or fetch fallback when you explicitly want extra recovery/help.
 - Successful `submit` proves a workflow edge.
 - Trust the actual page state:
   - `form[action]`
@@ -192,6 +195,12 @@ unbrowse execute \
 ```
 
 Resolve finds candidate endpoints. Execute is explicit replay, not ad-hoc traversal.
+
+This resolve/execute pair is the router/meta surface for published contracts:
+
+- `resolve` searches the published contract graph
+- `execute` runs one explicit replay contract
+- `skill` / `skills` let you inspect the published contract inventory
 
 ### 5. Review, feedback, publish
 
@@ -267,7 +276,7 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form. Browser-native by default; passive evidence only during traversal. Same-origin rehydrate fallback is opt-in |
+| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
 | `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
 | `fill` | `[--session id] <ref> <value>` | Fill input by ref |
@@ -357,6 +366,7 @@ unbrowse eval 'document.querySelector("input[name=selectedDate]").value'
 
 # 4. submit the actual page form
 unbrowse submit --wait-for "/time-selection.html"
+unbrowse submit --assist-site-state --wait-for "/time-selection.html"
 
 # 5. persist the captured step without closing the tab
 unbrowse sync
@@ -425,7 +435,8 @@ unbrowse skill {id}                                # Get skill details
 unbrowse search --intent "..." --domain "..."      # Search marketplace
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse go "https://example.com/form"             # Open a live capture tab
-unbrowse submit --wait-for "/next-step"            # Submit current form with recovery and auto-queue publish for that step
+unbrowse submit --wait-for "/next-step"            # Thin browser-native submit
+unbrowse submit --assist-site-state --wait-for "/next-step"  # Explicit site-state assist for JS-heavy steps
 unbrowse sync                                      # Flush any extra captured routes into the route cache
 unbrowse health                                    # Server health check
 ```

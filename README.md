@@ -196,12 +196,19 @@ unbrowse search --intent "get stock prices"
 
 For most MCP hosts, the standard flow is `unbrowse_resolve` first, then `unbrowse_execute`. For JS-heavy or first-time capture workflows, use the browser tool chain: `unbrowse_go -> unbrowse_snap -> action tools -> unbrowse_submit/unbrowse_sync -> unbrowse_close`.
 
+For published workflow contracts, treat the resolve/execute pair as the router/meta surface:
+
+- `unbrowse_resolve` finds candidate published contracts
+- `unbrowse_execute` runs one explicit replay contract
+- `unbrowse_skill` / `unbrowse_skills` let you inspect the published surface
+
 ## Dependency walk for multi-step UIs
 
 Treat each successful browser submit as a dependency boundary.
 
 - Do not jump straight to guessed downstream URLs like `/date-selection.html` or `/payment.html` unless the current session already reached them through the real page flow.
 - Use `unbrowse_submit` for the actual transition, then trust the returned `url`, `session_id`, and any next-step hints over your own assumptions.
+- `unbrowse_submit` is a thin browser-native proxy by default. Only opt into extra traversal help when you explicitly pass `--assist-site-state` or `same_origin_fetch_fallback`.
 - `unbrowse_sync` after a good transition so the route graph records which request chain unlocked the next page.
 - If a page later returns `abandonedCart`, `session_expired`, or a wrong audience/product variant, restart from the last known good upstream step and walk forward again.
 

@@ -136,7 +136,7 @@ Execute is the explicit replay surface. Traversal-time browser tools (`go`, `sna
 For multi-step browser flows, downstream pages depend on upstream state. Treat `POST /v1/browse/submit` as the boundary that proves the dependency edge.
 
 - Call `go`, `snap`, action tools, then `submit` for the real page transition.
-- Regular traversal is browser-native by default. `same_origin_fetch_fallback` must be explicitly enabled; passive API observation stays for publish/index analysis, not normal page walking.
+- Regular traversal is browser-native and thin by default. `assist_site_state` and `same_origin_fetch_fallback` must be explicitly enabled; passive API observation stays for publish/index analysis, not normal page walking.
 - Monitored requests discovered while traversing are not exposed as live replay steps yet. They become harness-visible only after publish/index compiles the workflow contract.
 - After `submit`, trust the returned `url`, `session_id`, and transition metadata. Do not guess deep links if the session has not actually unlocked them yet.
 - `sync` after important transitions so the route graph records the working request chain and future resolve/execute calls can inherit it.

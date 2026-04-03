@@ -1182,12 +1182,14 @@ export async function registerRoutes(app: FastifyInstance) {
       wait_for: waitFor,
       same_origin_fetch_fallback: sameOriginFetchFallback,
       timeout_ms: timeoutMs,
+      assist_site_state: assistSiteState,
     } = (req.body as {
       form_selector?: string;
       submit_selector?: string;
       wait_for?: string;
       same_origin_fetch_fallback?: boolean;
       timeout_ms?: number;
+      assist_site_state?: boolean;
     }) ?? {};
 
     try {
@@ -1210,6 +1212,7 @@ export async function registerRoutes(app: FastifyInstance) {
             waitFor,
             sameOriginFetchFallback,
             timeoutMs,
+            assistSiteState,
           },
         ),
         (result) => !result.ok && result.recoverable === true,

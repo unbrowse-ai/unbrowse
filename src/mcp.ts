@@ -342,7 +342,7 @@ const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
   unbrowse_login: "Call this on auth_required. Unbrowse reuses browser cookies and stored auth automatically after login.",
   unbrowse_go: "Browser-first flow for JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync -> close. Do not skip ahead to guessed deep links before the real upstream step succeeds.",
   unbrowse_snap: "Use this immediately after go and after major UI transitions so you can act by stable refs instead of brittle selectors.",
-  unbrowse_submit: "Prefer real page submit before hidden-field hacks. Traversal stays browser-native by default; passive request observation is recorded for publish-time linking, not executed during click-around. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
+  unbrowse_submit: "Prefer real page submit before hidden-field hacks. Traversal stays browser-native and thin by default; passive request observation is recorded for publish-time linking, not executed during click-around. Only enable assist_site_state or same_origin_fetch_fallback when you explicitly want extra recovery/help. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
   unbrowse_sync: "Run after important successful transitions so the route graph learns the working request chain before the tab closes.",
   unbrowse_close: "Close at the end of the browser-first workflow so capture flushes, auth saves, and learned routes index.",
   unbrowse_eval: "Use sparingly, mainly to inspect or patch hidden state the page already depends on.",
@@ -897,13 +897,14 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_submit",
-    description: "Submit the active form. Browser-native by default; monitored requests stay passive until publish/index. Same-origin rehydrate fallback is opt-in.",
+    description: "Submit the active form. Thin browser-native proxy by default; monitored requests stay passive until publish/index. Site-state assist and same-origin rehydrate are explicit opt-ins.",
     inputSchema: {
       type: "object",
       properties: {
         form_selector: { type: "string", description: "Optional CSS selector for the form." },
         submit_selector: { type: "string", description: "Optional CSS selector for the submit button." },
         wait_for: { type: "string", description: "Optional URL/path fragment to wait for after submit." },
+        assist_site_state: { type: "boolean", description: "Enable site-specific browser-state assist before submit. Default false." },
         same_origin_fetch_fallback: { type: "boolean", description: "Enable fetch+rehydrate fallback. Default false unless explicitly enabled." },
         timeout_ms: { type: "number", description: "Optional submit timeout in milliseconds." },
         session_id: { type: "string", description: "Optional browse session id." },
@@ -914,7 +915,7 @@ const tools: ToolDefinition[] = [
     handler: async (args) => {
       await ensureServerReady();
       const body: Record<string, unknown> = {};
-      for (const key of ["form_selector", "submit_selector", "wait_for", "same_origin_fetch_fallback", "timeout_ms", "session_id"] as const) {
+      for (const key of ["form_selector", "submit_selector", "wait_for", "assist_site_state", "same_origin_fetch_fallback", "timeout_ms", "session_id"] as const) {
         if (args[key] !== undefined) body[key] = args[key];
       }
       const result = await api("POST", "/v1/browse/submit", body) as Record<string, unknown>;

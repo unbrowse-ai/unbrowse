@@ -974,7 +974,7 @@ export const CLI_REFERENCE = {
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
     { name: "go", usage: '<url> [--session id]', desc: "Open a live Kuri browser tab for capture-first workflows" },
-    { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form. Browser-native by default; passive evidence only during traversal. Same-origin rehydrate fallback is opt-in" },
+    { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]", desc: "Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins" },
     { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs" },
     { name: "click", usage: "[--session id] <ref>", desc: "Click element by ref (e.g. e5)" },
     { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by ref" },
@@ -1328,6 +1328,9 @@ async function cmdSubmit(flags: Record<string, string | boolean>): Promise<void>
   if (typeof flags["submit-selector"] === "string") body.submit_selector = flags["submit-selector"];
   if (typeof flags["wait-for"] === "string") body.wait_for = flags["wait-for"];
   if (typeof flags["timeout-ms"] === "string") body.timeout_ms = Number(flags["timeout-ms"]);
+  if (flags["assist-site-state"] !== undefined) {
+    body.assist_site_state = flags["assist-site-state"] !== "false";
+  }
   if (flags["same-origin-fetch-fallback"] !== undefined) {
     body.same_origin_fetch_fallback = flags["same-origin-fetch-fallback"] !== "false";
   }
