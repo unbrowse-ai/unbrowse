@@ -14,6 +14,7 @@ crons = ["17 */6 * * *"]
 [vars]
 ENVIRONMENT = "production"
 PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
 [[kv_namespaces]]
@@ -55,6 +56,7 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 [env.staging.vars]
 ENVIRONMENT = "staging"
 PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"

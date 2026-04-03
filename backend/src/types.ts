@@ -17,6 +17,7 @@ export interface Env {
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
   PAYMENTS_ENABLED?: string;
+  X402_SEARCH_ENABLED?: string;
   X402_NETWORK_MODE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;

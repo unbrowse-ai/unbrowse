@@ -17,6 +17,7 @@ type = "inherit"
 [vars]
 ENVIRONMENT = "production"
 PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
 [[routes]]

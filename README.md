@@ -252,7 +252,7 @@ For Cascade split provisioning during publish, set either:
 - `UNBROWSE_CASCADE_SPLIT_ADDRESS` or `UNBROWSE_CASCADE_SPLIT_CONFIG` to pin an already-created split config address
 - or `UNBROWSE_CASCADE_PLATFORM_WALLET`, `UNBROWSE_CASCADE_SIGNER_SECRET_KEY`, `UNBROWSE_CASCADE_RPC_URL`, and `UNBROWSE_CASCADE_RPC_WS_URL` to auto-create/update the split via `@cascade-fyi/splits-sdk`
 
-Worker payment gating is controlled by `PAYMENTS_ENABLED`. Set it to `false` / `0` / `off` to disable x402 skill gates and Tier 3 search fees entirely. Use `X402_NETWORK_MODE=mainnet` when a non-production worker still needs to advertise real mainnet payment terms for Lobster/Corbits e2e.
+Worker payment gating is controlled by `PAYMENTS_ENABLED`. Set it to `false` / `0` / `off` to disable all x402 gates. To keep discovery free while still gating paid skill manifests and execution detail, set `X402_SEARCH_ENABLED=false`. Use `X402_NETWORK_MODE=mainnet` when a non-production worker still needs to advertise real mainnet payment terms for Lobster/Corbits e2e.
 
 ## Architecture
 
