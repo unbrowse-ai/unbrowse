@@ -77,7 +77,9 @@ export const listAllBlogPosts = cache(async () => {
 
   const all: Array<(typeof legacyItems)[number] | (typeof dynamicItems)[number]> = [...legacyItems];
 
-  // Legacy static pages remain canonical when the same slug also exists in the API.
+  // Static routes are the current canonical source for legacy articles.
+  // If someone later publishes the same slug via the dynamic API, keep the
+  // legacy entry in the blog index to avoid duplicate crawl targets.
   for (const item of dynamicItems) {
     if (!all.some((existing) => existing.slug === item.slug)) {
       all.push(item);

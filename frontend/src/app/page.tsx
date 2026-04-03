@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Constellation } from "@/components/constellation";
 import { ChatDemo } from "@/components/chat-demo";
+import { AcquisitionTracker } from "@/components/acquisition-tracker";
 import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
@@ -13,8 +14,8 @@ import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? `For CLI-first hosts, start with ${INSTALL_CMD_GENERIC}. That clone-and-setup path is deterministic and does not depend on npm release assets being healthy. It also handles the real first-run flow: ToS acceptance, agent registration plus API-key caching, and lobster.cash wallet detection when present. Pairing a wallet is how you turn browsing into earnings: that address is synced onto your profile, used for contributor payouts when your routes earn, and used for paid-route spending. Upgrade with ${UPGRADE_CMD_GENERIC}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths.`
-  : `Start with ${INSTALL_CMD_GENERIC} for the CLI host path. It handles ToS, registration, and wallet detection. Pair a wallet if you want contributor payouts to land at your address. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
+  ? `For CLI-first hosts, start with ${INSTALL_CMD_GENERIC}. That clone-and-setup path is deterministic and does not depend on npm release assets being healthy. It also handles the real first-run flow: ToS acceptance, agent registration plus API-key caching, and wallet detection when present. Pairing a wallet is how you turn browsing into earnings: that address is synced onto your profile, used for contributor payouts when your routes earn, and used for paid-route spending. Unbrowse supports wallet providers such as lobster.cash for x402-gated routes. Upgrade with ${UPGRADE_CMD_GENERIC}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths.`
+  : `Start with ${INSTALL_CMD_GENERIC} for the CLI host path. It handles ToS, registration, and wallet detection. Pair a wallet if you want contributor payouts to land at your address. Unbrowse supports wallet providers such as lobster.cash for x402-gated routes. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
 const DOCS_URL = "https://docs.unbrowse.ai";
 
 const faqJsonLd = {
@@ -99,6 +100,7 @@ const faqJsonLd = {
 export default function Home() {
   return (
     <div className="relative selection:bg-orange-500/30 overflow-x-hidden">
+      <AcquisitionTracker />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}

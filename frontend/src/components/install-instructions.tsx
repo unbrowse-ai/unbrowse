@@ -8,6 +8,7 @@ import {
   UPGRADE_CMD_CLAUDE,
   UPGRADE_CMD_GENERIC,
 } from "@/lib/install-command";
+import { trackWebEvent } from "@/lib/web-telemetry";
 
 const tabs = [
     {
@@ -80,6 +81,7 @@ export function InstallInstructions() {
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(tab.code);
+    trackWebEvent("install_command_copied", { tab_id: tab.id });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

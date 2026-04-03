@@ -11,7 +11,7 @@ repository: https://github.com/unbrowse-ai/unbrowse
 
 # Unbrowse
 
-Canonical docs: https://docs.unbrowse.ai
+Public companion docs: https://docs.unbrowse.ai
 
 Repo docs:
 - README and SKILL.md in: https://github.com/unbrowse-ai/unbrowse
@@ -33,7 +33,7 @@ Current product path:
 ${INSTALL_CMD_GENERIC}
 \`\`\`
 
-This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and lobster.cash wallet detection when present. If a wallet is configured, that address is synced onto your agent profile and becomes the destination for contributor payouts when your routes earn.
+This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and wallet detection when present. If a wallet is configured, that address becomes the contributor/payment truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
 
 Upgrade an existing clone in place:
 
@@ -127,7 +127,7 @@ unbrowse execute --skill <skill_id> --endpoint <endpoint_id> --confirm-unsafe
 3. If a result looks wrong, inspect \`available_endpoints\` and retry with a specific endpoint id.
 4. Use \`--schema\`, \`--path\`, and \`--extract\` instead of piping into \`jq\`.
 5. If a site returns \`auth_required\`, run \`login\` and retry.
-6. Use https://docs.unbrowse.ai for the canonical narrative docs.
+6. Use https://docs.unbrowse.ai for the public companion docs. Treat this file and the repo as the agent/product-truth contract.
 `;
 
 export async function GET() {

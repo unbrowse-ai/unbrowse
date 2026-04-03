@@ -100,11 +100,11 @@ Shipped today:
 - reusable learned skills
 - marketplace-backed reuse
 - reliability scoring, verification, and drift handling
+- x402-gated marketplace payment lane for paid search/execution
 
-Not shipped today:
+Not fully shipped today:
 
-- route payments
-- contributor payouts
+- the paper's full multi-party payout and attribution model
 - validator staking
 - TEE-backed attestation
 

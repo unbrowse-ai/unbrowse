@@ -31,9 +31,9 @@ For polished user-facing notes, write `.release-notes.md` first. For announcemen
 
 Detailed release choreography lives in [docs/RELEASING.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/RELEASING.md).
 
-## Tag-triggered deploy pipeline
+## Release workflow behavior
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`.
+`.github/workflows/release.yml` is the canonical release workflow. It runs on `main` pushes and on `v*` tag pushes.
 
 Current jobs:
 
@@ -41,6 +41,8 @@ Current jobs:
 2. deploy backend with `cd backend && bun run deploy:ci`
 3. deploy frontend with `cd frontend && bun run deploy`
 4. sync the standalone skill repo
+
+Reruns are expected to be safe. The workflow is meant to complete cleanly when npm already has the version, and keep npm publish, frontend deploy, backend deploy, and skill sync aligned instead of partially failing on a replay.
 
 ## Manual local deploy commands
 

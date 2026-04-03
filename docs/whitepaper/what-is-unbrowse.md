@@ -54,12 +54,13 @@ Today, it is accurate to say Unbrowse ships:
 - local-first capture and execution
 - marketplace-backed reuse
 - reliability scoring, verification, and drift handling
+- x402 / HTTP 402 payment-gated marketplace paths
+- wallet-linked creator payout identity and payment metadata surfaces
 
-Today, it is not accurate to say Unbrowse already ships:
+Today, it is not accurate to say Unbrowse already ships the full paper economy:
 
-- x402 or HTTP 402 payments
-- Solana or USDC settlement
-- contributor payouts
+- multi-party fee splits across contributors, infra, and treasury
+- paper-style dynamic route pricing and fee ceilings
 - validator staking or slashing
 - TEE or E2B-based attestation
 

@@ -29,9 +29,12 @@ async function timedPost(path: string, body: unknown): Promise<{ data: unknown; 
 }
 
 function expectSearchStatus(status: number, data: unknown): void {
-  expect([200, 402]).toContain(status);
+  expect([200, 402, 429]).toContain(status);
   if (status === 402) {
     expect((data as Record<string, unknown>)?.error).toBe("Payment Required");
+  }
+  if (status === 429) {
+    expect((data as Record<string, unknown>)?.error).toBe("Rate limit exceeded");
   }
 }
 

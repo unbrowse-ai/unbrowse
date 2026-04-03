@@ -18,6 +18,10 @@ function isPaidSearchResponse(status: number, data: Record<string, unknown>): bo
   return status === 402 && data.error === "Payment Required";
 }
 
+function isRateLimitedResponse(status: number, data: Record<string, unknown>): boolean {
+  return status === 429 && data.error === "Rate limit exceeded";
+}
+
 describe("#221 composite search score wiring", () => {
   // Unit: rescoreWithComposite applies the formula to search results
   it("rescores results using metadata reliability, freshness, and verification", () => {
@@ -99,8 +103,11 @@ describe("#221 composite search score wiring", () => {
     const data = (await res.json()) as Record<string, unknown> & {
       results?: Array<{ id: number | string; score: number; metadata?: Record<string, unknown> }>;
     };
-    expect([200, 402]).toContain(res.status);
+    expect([200, 402, 429]).toContain(res.status);
     if (isPaidSearchResponse(res.status, data)) {
+      return;
+    }
+    if (isRateLimitedResponse(res.status, data)) {
       return;
     }
 

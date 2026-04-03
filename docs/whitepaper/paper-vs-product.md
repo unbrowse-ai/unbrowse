@@ -30,15 +30,15 @@ Status meanings:
 
 | Paper claim | Status | Notes |
 | --- | --- | --- |
-| Economic adoption condition `froute < c_rediscovery` | Partial | The paper’s framing is documented, but the client does not currently execute explicit fee-vs-rediscovery decisions because route pricing is not shipped. |
-| Route-level pricing | Coming soon | No x402 or marketplace fee flow in the current codebase. |
-| HTTP 402 payment handshake | Coming soon | Not implemented. |
-| x402 settlement | Coming soon | Not implemented. |
-| USDC on Solana settlement | Coming soon | Not implemented. |
-| Fee splits across contributors, maintainers, infra, treasury | Coming soon | Not implemented. |
-| Delta-based attribution for route improvements | Coming soon | Not implemented. |
-| Contributor payouts | Coming soon | Not implemented. |
-| Site-owner compensation and opt-in monetization | Coming soon | Not implemented. |
+| Economic adoption condition `froute < c_rediscovery` | Partial | The framing is documented and unpaid paths can fall back to free indexing/live capture, but the client does not yet run an explicit optimizer over route price versus rediscovery cost. |
+| Route-level pricing | Shipped | Skills and marketplace search can advertise prices and gate access through the shipped payment lane. |
+| HTTP 402 payment handshake | Shipped | Resolve/execute/search surfaces can return `payment_required` with x402-compatible payment requirements. |
+| x402 settlement | Partial | The x402-compatible gate path ships today, but transaction execution and final settlement are delegated to the external wallet provider / Corbits-compatible facilitator. |
+| USDC on Solana settlement | Partial | The shipped lane advertises USDC payment terms on Solana and Base; settlement execution still lives in the wallet/provider layer rather than entirely inside Unbrowse. |
+| Fee splits across contributors, maintainers, infra, treasury | Partial | Payment routing exists, but the paper’s richer multi-party split architecture is not implemented in full. |
+| Delta-based attribution for route improvements | Partial | Current payout routing narrows to the winning contributor wallet; the paper’s full attribution model is broader than what ships today. |
+| Contributor payouts | Shipped | Wallet-linked creator payout identity and transaction/earnings surfaces exist today, though in a narrower form than the full paper economy. |
+| Site-owner compensation and opt-in monetization | Partial | The product surface includes opt-in per-execution pricing hooks, but not the complete paper-era site-owner economy. |
 | Dynamic route pricing based on savings and trust | Coming soon | Not implemented. |
 
 ## Trust and Validation
@@ -73,4 +73,4 @@ The paper is best understood as:
 - a partially realized description of trust and graph infrastructure
 - a forward-looking roadmap for the route economy
 
-Any paper section that depends on payments, payouts, validator staking, or cryptographic attestation should currently be read as `coming soon`.
+Any paper section that depends on the full route economy, validator staking, or cryptographic attestation should be read carefully: the narrow payment lane ships today, but the broader paper-era economics are still only partial.

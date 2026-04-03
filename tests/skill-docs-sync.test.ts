@@ -34,15 +34,21 @@ describe("skill docs sync", () => {
 
     expect(rootReadme).toContain("./docs/whitepaper/README.md");
     expect(rootReadme).toContain("./docs/whitepaper/for-investors.md");
-    expect(rootReadme).toContain("drop-in browser for agents");
+    expect(rootReadme).toContain("30x faster");
+    expect(rootReadme).toContain("90% cheaper");
     expect(rootReadme).not.toContain("internal-cathedral");
     expect(skillReadme).toContain("./docs/whitepaper/for-technical-readers.md");
-    expect(skillReadme).toContain("drop-in browser for agents");
+    expect(skillReadme).toContain("30x faster");
+    expect(skillReadme).toContain("90% cheaper");
     expect(skillReadme).not.toContain("internal-cathedral");
     expect(skillDoc).toContain("./docs/whitepaper/for-investors.md");
-    expect(skillDoc).toContain("drop-in browser for agents");
+    expect(skillDoc).toContain("OpenClaw / `agent-browser`");
+    expect(skillDoc).toContain("30x faster");
+    expect(skillDoc).toContain("90% cheaper");
     expect(skillDoc).not.toContain("internal-cathedral");
-    expect(packageSkillDoc).toContain("drop-in browser for agents");
+    expect(packageSkillDoc).toContain("OpenClaw / `agent-browser`");
+    expect(packageSkillDoc).toContain("30x faster");
+    expect(packageSkillDoc).toContain("90% cheaper");
     expect(packageSkillDoc).not.toContain("internal-cathedral");
     expect(networkLayer.toLowerCase()).not.toContain("cathedral");
   });
