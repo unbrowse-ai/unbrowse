@@ -6,7 +6,7 @@ One agent learns a site once. Every later agent gets the fast path.
 
 Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
-> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint pipeline (`sync`, `close`, or manual `publish`). See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
 ## MCP server
 
@@ -15,7 +15,7 @@ Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the
 - Protocol: JSON-RPC 2.0 MCP over stdio
 - Handshake: `initialize`, `notifications/initialized`, `ping`
 - Capability surface today: `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, and `prompts/get`
-- Current MCP shape: tool actuation plus read-only workflow contract/DAG resources and one planning prompt for published workflow execution.
+- Current MCP shape: tool actuation plus read-only workflow contract/DAG resources and one planning prompt for indexed/published workflow execution.
 - Runtime model: the MCP server fronts the local Unbrowse runtime on `http://localhost:6969`; hosts talk standard MCP, and Unbrowse uses the local HTTP runtime behind the scenes.
 
 Core MCP tools:
@@ -23,12 +23,13 @@ Core MCP tools:
 - Discovery: `unbrowse_health`, `unbrowse_search`, `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_feedback`
 - Auth/cache: `unbrowse_login`, `unbrowse_skills`, `unbrowse_skill`, `unbrowse_sessions`
 - Browser capture: `unbrowse_go`, `unbrowse_snap`, `unbrowse_click`, `unbrowse_fill`, `unbrowse_type`, `unbrowse_press`, `unbrowse_select`, `unbrowse_scroll`, `unbrowse_submit`, `unbrowse_screenshot`, `unbrowse_text`, `unbrowse_markdown`, `unbrowse_cookies`, `unbrowse_eval`, `unbrowse_sync`, `unbrowse_close`
+- Local pipeline: `unbrowse_index`, `unbrowse_settings`
 
-Published-workflow MCP resources/prompts:
+Indexed/published workflow MCP resources/prompts:
 
-- `workflow_publish://<skill>` — exported workflow artifact summary for one published skill
+- `workflow_publish://<skill>` — exported workflow artifact summary for one indexed/published skill
 - `workflow_contract://<skill>/<endpoint>` — sanitized replay contract: params, enums, prerequisites, x402/payment requirements, provenance hints, and next-state checks
-- `workflow_dag://<skill>/<endpoint>` — dependency walk view for one published workflow edge
+- `workflow_dag://<skill>/<endpoint>` — dependency walk view for one indexed/published workflow edge
 - `plan_workflow_execution` — prompt scaffold that tells the model to inspect the contract + DAG before choosing traversal vs explicit replay
 
 Typical MCP host config:
@@ -201,17 +202,25 @@ unbrowse skills
 unbrowse search --intent "get stock prices"
 ```
 
-For most MCP hosts, the standard flow is `unbrowse_resolve` first, then `unbrowse_execute`. For JS-heavy or first-time capture workflows, use the browser tool chain: `unbrowse_go -> unbrowse_snap -> action tools -> unbrowse_submit/unbrowse_sync -> unbrowse_close`.
+For most MCP hosts, the standard flow is `unbrowse_resolve` first, then `unbrowse_execute`. For JS-heavy or first-time capture workflows, use the browser tool chain: `unbrowse_go -> unbrowse_snap -> action tools -> unbrowse_submit -> unbrowse_sync -> unbrowse_close`.
 
-For published workflow contracts, treat the resolve/execute pair as the router/meta surface:
+For indexed/published workflow contracts, treat the resolve/execute pair as the router/meta surface:
 
-- `unbrowse_resolve` finds candidate published contracts
+- `unbrowse_resolve` finds candidate indexed/published contracts
 - `unbrowse_execute` runs one explicit replay contract
-- `unbrowse_skill` / `unbrowse_skills` let you inspect the published surface
+- `unbrowse_skill` / `unbrowse_skills` let you inspect the indexed/published surface
 - MCP resources let hosts inspect the same surface before tool calls, including x402/payment requirements:
   - `workflow_contract://<skill>/<endpoint>`
   - `workflow_dag://<skill>/<endpoint>`
   - prompt `plan_workflow_execution`
+
+Local capture/publish policy is configurable:
+
+- `unbrowse settings --auto-publish off`
+- `unbrowse settings --publish-blacklist "linkedin.com,x.com"`
+- `unbrowse settings --publish-promptlist "github.com"`
+
+Those settings only affect automatic publish after explicit checkpoints (`sync`, `close`). Local `index` still works, and explicit `publish` is still available with confirmation when a guarded domain is intentional.
 
 ## Dependency walk for multi-step UIs
 
@@ -220,7 +229,7 @@ Treat each successful browser submit as a dependency boundary.
 - Do not jump straight to guessed downstream URLs like `/date-selection.html` or `/payment.html` unless the current session already reached them through the real page flow.
 - Use `unbrowse_submit` for the actual transition, then trust the returned `url`, `session_id`, and any next-step hints over your own assumptions.
 - `unbrowse_submit` is a thin browser-native proxy by default. Only opt into extra traversal help when you explicitly pass `--assist-site-state` or `same_origin_fetch_fallback`.
-- `unbrowse_sync` after a good transition so the route graph records which request chain unlocked the next page.
+- `unbrowse_sync` after a good transition so the current capture is checkpointed and the background `index -> publish` pipeline records which request chain unlocked the next page.
 - If a page later returns `abandonedCart`, `session_expired`, or a wrong audience/product variant, restart from the last known good upstream step and walk forward again.
 
 The dependency graph is not just API-to-API. On JS-heavy checkout flows it also captures browser-state prerequisites: selected product, resident/non-resident audience, date, slot, auth, and cart state. Future agents should reason from those prerequisites before calling deeper steps.
@@ -239,9 +248,9 @@ Unbrowse has a six-layer pipeline that turns any website into a reusable API:
 
 When an agent navigates through Unbrowse, every network API call is intercepted and recorded with response bodies -- automatically, with no explicit capture step. The JS interceptor is injected via `Page.addScriptToEvaluateOnNewDocument` so early SPA hydration calls are never missed. Chrome extension webRequest data supplements the interceptor for service worker traffic.
 
-### 2. Background indexing
+### 2. Checkpoint + indexing
 
-Captured traffic is reverse-engineered into API endpoints in the background without blocking the agent. The indexer extracts endpoints, builds an operation graph, and writes results to a local skill cache. The heavy work (marketplace validation and publishing) runs asynchronously -- the agent gets its result immediately.
+Captured traffic is checkpointed explicitly with `sync` or `close`, then reverse-engineered into API endpoints in the background without blocking the agent. The indexer extracts endpoints, builds an operation graph, and writes results to a local skill cache plus workflow export. Remote share/publish is a later pipeline step queued from those checkpoint commands or run explicitly with `publish`.
 
 ### 3. Cache-first resolution
 

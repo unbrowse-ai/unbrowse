@@ -18,19 +18,18 @@ import { getRegistrableDomain } from "../domain.js";
 import type { SkillManifest, EndpointDescriptor } from "../types/index.js";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { sanitizeForPublish } from "../publish/sanitize.js";
 import { readWorkflowArtifact } from "../workflow/artifact.js";
 import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
+import { getUnbrowseConfigPath } from "../settings.js";
 
-const UNBROWSE_CONFIG_PATH = join(homedir(), ".unbrowse", "config.json");
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
 
 /** Read agent_id from local config — used for contributor attribution on publish. */
 function getLocalAgentId(): string | undefined {
   try {
-    const config = JSON.parse(readFileSync(UNBROWSE_CONFIG_PATH, "utf-8"));
+    const config = JSON.parse(readFileSync(getUnbrowseConfigPath(), "utf-8"));
     return config.agent_id ?? undefined;
   } catch {
     return undefined;
@@ -141,11 +140,20 @@ export interface BackgroundIndexJob {
   contextUrl?: string;
   clientScope?: string;
   cacheKey: string;
+  publishAfterIndex?: boolean;
+}
+
+export interface IndexedSkillState {
+  skill: SkillManifest;
+  domain: string;
+  clientScope?: string;
+  scopedKey: string;
 }
 
 /**
- * Queue a skill for background processing: graph building, marketplace
- * validation, and publishing. Non-blocking — returns immediately.
+ * Queue a skill for background processing: local graph/export indexing and,
+ * only when explicitly requested, remote marketplace publish/share.
+ * Non-blocking — returns immediately.
  * Per-domain coalescing: only one job per domain runs at a time, while the
  * latest pending work for that domain is merged and replayed after the active
  * job completes.
@@ -155,26 +163,29 @@ export function queueBackgroundIndex(job: BackgroundIndexJob): void {
   if (indexInFlight.has(key)) {
     const pending = pendingIndexJobs.get(key);
     pendingIndexJobs.set(key, pending ? mergeBackgroundIndexJobs(pending, job) : job);
-    console.error(`[background-index] coalesced pending job for ${key}: already in flight`);
+    console.error(`[capture-pipeline] coalesced pending job for ${key}: already in flight`);
     return;
   }
 
   const work = backgroundIndexProcessor(job)
     .catch(err =>
-      console.error(`[background-index] failed for ${key}: ${(err as Error).message}`)
+      console.error(`[capture-pipeline] failed for ${key}: ${(err as Error).message}`)
     )
     .finally(() => {
       indexInFlight.delete(key);
       const pending = pendingIndexJobs.get(key);
       if (pending) {
         pendingIndexJobs.delete(key);
-        console.error(`[background-index] replaying coalesced job for ${key}`);
+        console.error(`[capture-pipeline] replaying coalesced job for ${key}`);
         queueBackgroundIndex(pending);
       }
     });
 
   indexInFlight.set(key, work);
-  console.error(`[background-index] queued for ${key}`);
+  console.error(
+    `[capture-pipeline] queued for ${key}`
+      + (job.publishAfterIndex ? " (index+publish)" : " (index-only)"),
+  );
 }
 
 export function mergeBackgroundIndexJobs(
@@ -206,10 +217,35 @@ export function mergeBackgroundIndexJobs(
     contextUrl: incoming.contextUrl ?? current.contextUrl,
     clientScope: incoming.clientScope ?? current.clientScope,
     cacheKey: incoming.cacheKey,
+    publishAfterIndex: incoming.publishAfterIndex ?? current.publishAfterIndex,
   };
 }
 
-async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
+function persistIndexedSkillState(
+  job: BackgroundIndexJob,
+  skill: SkillManifest,
+  scopedKey: string,
+): void {
+  try { cachePublishedSkill(skill, job.clientScope); } catch { /* best-effort */ }
+  writeSkillSnapshot(scopedKey, skill);
+  writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(
+    skill,
+    readWorkflowArtifact(skill.skill_id),
+    { publishStatus: "indexed" },
+  ));
+
+  const domainKey = getDomainReuseKey(job.contextUrl ?? job.domain);
+  if (domainKey) {
+    domainSkillCache.set(domainKey, {
+      skillId: skill.skill_id,
+      localSkillPath: snapshotPathForCacheKey(scopedKey),
+      ts: Date.now(),
+    });
+    persistDomainCache();
+  }
+}
+
+export async function indexSkillLocally(job: BackgroundIndexJob): Promise<IndexedSkillState> {
   let { skill, domain, clientScope } = job;
   const scope = clientScope ?? "global";
   const scopedKey = scopedCacheKey(scope, job.cacheKey);
@@ -217,7 +253,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   // 0. Merge with existing domain snapshot (accumulate endpoints across captures)
   const merged = findAndMergeDomainSnapshot(SKILL_SNAPSHOT_DIR, domain, skill);
   if (merged) {
-    console.error(`[background-index] merged ${skill.endpoints.length} new endpoint(s) into existing ${merged.endpoints.length - skill.endpoints.length} for ${domain}`);
+    console.error(`[capture-pipeline] merged ${skill.endpoints.length} new endpoint(s) into existing ${merged.endpoints.length - skill.endpoints.length} for ${domain}`);
     skill = merged;
   }
 
@@ -231,46 +267,75 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     }
   }
 
-  // 3. Update local snapshot with merged skill + graph + descriptions
+  // 3. Persist local indexed state and an indexed workflow export.
+  persistIndexedSkillState(job, skill, scopedKey);
+  return { skill, domain, clientScope, scopedKey };
+}
 
-  // 4. Sanitize + validate + publish to marketplace (remote, ~1.5s total)
-  const selection = selectMarketplacePublishEndpoints(skill);
-  if (selection.endpoints.length === 0) {
-    console.error(
-      `[background-index] no publishable endpoints for ${domain} (${formatMarketplacePublishSelection(selection)})`,
-    );
-    return;
-  }
-  console.error(
-    `[background-index] publishing ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${domain} (${formatMarketplacePublishSelection(selection)})`,
-  );
-
-  // Deterministic PII sanitization — secrets redacted, values replaced with synthetic placeholders.
-  // The calling agent can later POST to /v1/skills/:id/review with better descriptions and examples.
-  const sanitized = sanitizeForPublish(selection.endpoints);
-
-  const { operation_graph: _g, ...base } = skill;
-  const draft: SkillManifest = { ...base, endpoints: sanitized, indexer_id: getLocalAgentId() };
-  const validation = await validateManifest({ ...draft, skill_id: "__validate__" });
-  if (!validation.valid) {
+export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
+  published: boolean;
+  publishStatus: "indexed" | "blocked-validation" | "published";
+  publishedSkill?: SkillManifest;
+  publishedAt?: string;
+  validationErrors?: string[];
+}> {
+  const { skill, domain, clientScope, scopedKey } = indexed;
+  const markBlockedValidation = (errors: string[]) => {
     writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(
       skill,
       readWorkflowArtifact(skill.skill_id),
       {
         publishStatus: "blocked-validation",
-        validationErrors: validation.hardErrors,
+        validationErrors: errors,
       },
     ));
-    console.warn(
-      `[background-index] validation failed for ${domain}: ${validation.hardErrors.join("; ")}`
+    return {
+      published: false as const,
+      publishStatus: "blocked-validation" as const,
+      validationErrors: errors,
+    };
+  };
+  const selection = selectMarketplacePublishEndpoints(skill);
+  if (selection.endpoints.length === 0) {
+    console.log(
+      `[capture-pipeline] remote publish skipped for ${domain}: no admitted endpoints (${formatMarketplacePublishSelection(selection)})`,
     );
-    return;
+    return { published: false, publishStatus: "indexed" };
+  }
+  console.log(
+    `[capture-pipeline] remote publish ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${domain} (${formatMarketplacePublishSelection(selection)})`,
+  );
+
+  const sanitized = sanitizeForPublish(selection.endpoints);
+
+  const { operation_graph: _g, ...base } = skill;
+  const draft: SkillManifest = { ...base, endpoints: sanitized, indexer_id: getLocalAgentId() };
+  let validation;
+  try {
+    validation = await validateManifest({ ...draft, skill_id: "__validate__" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[capture-pipeline] remote publish validation failed for ${domain}: ${message}`);
+    return markBlockedValidation([message]);
+  }
+  if (!validation.valid) {
+    console.warn(
+      `[capture-pipeline] remote publish blocked for ${domain}: ${validation.hardErrors.join("; ")}`
+    );
+    return markBlockedValidation(validation.hardErrors);
   }
 
   const publishStart = Date.now();
-  const published = await publishSkill(draft);
+  let published;
+  try {
+    published = await publishSkill(draft);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[capture-pipeline] remote publish failed for ${domain}: ${message}`);
+    return markBlockedValidation([message]);
+  }
   const publishMs = Date.now() - publishStart;
-  console.error(`[background-index] publish latency: ${publishMs}ms for ${domain}`);
+  console.error(`[capture-pipeline] remote publish latency: ${publishMs}ms for ${domain}`);
 
   const publishedSkill: SkillManifest = {
     ...published,
@@ -279,19 +344,18 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     ...(skill.auth_profile_ref ? { auth_profile_ref: skill.auth_profile_ref } : {}),
   };
 
-  // 5. Update caches with published version (has backend descriptions)
   cachePublishedSkill(publishedSkill, clientScope);
   writeSkillSnapshot(scopedKey, publishedSkill);
+  const publishedAt = new Date().toISOString();
   writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(
     skill,
     readWorkflowArtifact(skill.skill_id),
     {
       publishStatus: "published",
-      publishedAt: new Date().toISOString(),
+      publishedAt,
     },
   ));
 
-  // 6. Publish graph edges via dedicated endpoint (fire-and-forget)
   if (skill.operation_graph?.operations) {
     for (const op of skill.operation_graph.operations) {
       const opEdges = (skill.operation_graph.edges ?? [])
@@ -313,8 +377,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     }
   }
 
-  // 7. Update domain cache so cross-intent reuse works
-  const domainKey = getDomainReuseKey(job.contextUrl ?? domain);
+  const domainKey = getDomainReuseKey(domain);
   if (domainKey) {
     domainSkillCache.set(domainKey, {
       skillId: publishedSkill.skill_id,
@@ -324,7 +387,28 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     persistDomainCache();
   }
 
-  console.error(`[background-index] completed for ${domain} -> ${published.skill_id}`);
+  console.error(`[capture-pipeline] remote publish completed for ${domain} -> ${published.skill_id}`);
+  return {
+    published: true,
+    publishStatus: "published",
+    publishedSkill,
+    publishedAt,
+  };
+}
+
+async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
+  const indexed = await indexSkillLocally(job);
+  console.error(`[capture-pipeline] local index completed for ${indexed.domain} -> ${indexed.skill.skill_id}`);
+
+  if (!job.publishAfterIndex) {
+    console.error(`[capture-pipeline] remote publish not queued for ${indexed.domain}`);
+    return;
+  }
+
+  const publishResult = await publishIndexedSkill(indexed);
+  if (!publishResult.published && publishResult.publishStatus === "indexed") {
+    console.error(`[capture-pipeline] no remote publish performed for ${indexed.domain}`);
+  }
 }
 
 /** Check if a domain has an indexing job running. */
@@ -338,12 +422,12 @@ export async function drainPendingIndexJobs(): Promise<void> {
   while (indexInFlight.size > 0) {
     const pending = [...indexInFlight.values()];
     if (!logged) {
-      console.error(`[background-index] draining ${pending.length} pending job(s)...`);
+      console.error(`[capture-pipeline] draining ${pending.length} pending job(s)...`);
       logged = true;
     }
     await Promise.allSettled(pending);
   }
-  console.error(`[background-index] all jobs drained`);
+  console.error(`[capture-pipeline] all jobs drained`);
 }
 
 export function resetIndexQueueForTests(): void {

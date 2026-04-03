@@ -757,7 +757,7 @@ export interface WorkflowArtifact {
   recipes: WorkflowRecipe[];
 }
 
-export type WorkflowPublishStatus = "captured" | "blocked-validation" | "published";
+export type WorkflowPublishStatus = "captured" | "indexed" | "blocked-validation" | "published";
 
 export interface WorkflowPublishBindingSource {
   source_kind: WorkflowTokenCandidate["source_kind"];

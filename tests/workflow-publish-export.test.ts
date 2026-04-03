@@ -6,6 +6,7 @@ import type { SkillManifest, WorkflowArtifact, WorkflowPublishArtifact } from ".
 import { writeWorkflowArtifact } from "../src/workflow/artifact.js";
 import { buildWorkflowPublishArtifact, readWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../src/workflow/publish.js";
 import { queuePassiveSkillPublish, resetPassivePublishQueueForTests } from "../src/orchestrator/passive-publish.js";
+import { indexSkillLocally, publishIndexedSkill } from "../src/indexer/index.js";
 
 const tempDirs: string[] = [];
 const originalConfigDir = process.env.UNBROWSE_CONFIG_DIR;
@@ -245,5 +246,42 @@ describe("workflow publish export", () => {
     const serialized = readFileSync(join(tmp, "workflow-exports", `${skill.skill_id}.json`), "utf-8");
     expect(serialized).not.toContain("super-secret-token");
     expect(serialized).toContain("\"token_bindings\"");
+  });
+
+  it("writes indexed status before remote publish and upgrades after explicit publish", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "unbrowse-workflow-indexed-"));
+    tempDirs.push(tmp);
+    process.env.UNBROWSE_CONFIG_DIR = tmp;
+
+    const skill = makeSkill();
+    const workflowArtifact = makeWorkflowArtifact();
+    writeWorkflowArtifact(workflowArtifact);
+
+    const indexed = await indexSkillLocally({
+      skill,
+      domain: skill.domain,
+      intent: skill.intent_signature,
+      cacheKey: `test:${skill.domain}`,
+    });
+
+    let exported = readWorkflowPublishArtifact(skill.skill_id) as WorkflowPublishArtifact;
+    expect(exported.publish_status).toBe("indexed");
+    expect(exported.published_at).toBeUndefined();
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => { throw new Error("offline"); };
+    try {
+      const published = await publishIndexedSkill(indexed);
+      expect(published.published).toBe(false);
+      expect(published.publishStatus).toBe("blocked-validation");
+      expect(published.validationErrors).toContain("offline");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    exported = readWorkflowPublishArtifact(skill.skill_id) as WorkflowPublishArtifact;
+    expect(exported.publish_status).toBe("blocked-validation");
+    expect(exported.published_at).toBeUndefined();
+    expect(exported.validation_errors).toContain("offline");
   });
 });

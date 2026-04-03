@@ -60,6 +60,93 @@ async function runCli(baseUrl: string, args: string[]): Promise<{ code: number; 
 }
 
 describe("cli agent experience", () => {
+  it("routes settings updates to the local settings endpoint", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/settings") {
+        expect(requests.at(-1)?.body).toEqual({
+          auto_publish_checkpoints: false,
+          publish_domain_blacklist: ["linkedin.com", "x.com"],
+          publish_domain_promptlist: ["github.com"],
+        });
+        return Response.json({
+          ok: true,
+          capture_pipeline: {
+            auto_publish_checkpoints: false,
+            publish_domain_blacklist: ["linkedin.com", "x.com"],
+            publish_domain_promptlist: ["github.com"],
+          },
+          next_step: "Auto-publish after sync/close is disabled.",
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl, requests) => {
+      const out = await runCli(baseUrl, [
+        "settings",
+        "--auto-publish", "off",
+        "--publish-blacklist", "linkedin.com,x.com",
+        "--publish-promptlist", "github.com",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.capture_pipeline).toBeDefined();
+      expect(out.body.next_step).toContain("Auto-publish");
+      expect(requests.some((entry) => entry.path === "/v1/settings" && entry.method === "POST")).toBe(true);
+    });
+  });
+
+  it("routes index to the local-only skill reindex endpoint", async () => {
+    await withStubServer(async (req) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/skills/skill-123/index") {
+        return Response.json({ ok: true, skill_id: "skill-123", indexed: true, publish_status: "indexed" });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl, requests) => {
+      const out = await runCli(baseUrl, [
+        "index",
+        "--skill", "skill-123",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.publish_status).toBe("indexed");
+      expect(requests.some((entry) => entry.path === "/v1/skills/skill-123/index" && entry.method === "POST")).toBe(true);
+    });
+  });
+
+  it("forwards confirm_publish when explicitly publishing a guarded skill", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/skills/skill-123/publish") {
+        expect(requests.at(-1)?.body).toEqual({
+          endpoints: [{ endpoint_id: "ep-1", description: "test" }],
+          confirm_publish: true,
+        });
+        return Response.json({
+          ok: true,
+          skill_id: "skill-123",
+          publish_status: "published",
+          next_step: "Remote share completed.",
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl, requests) => {
+      const out = await runCli(baseUrl, [
+        "publish",
+        "--skill", "skill-123",
+        "--confirm-publish",
+        "--endpoints", '[{"endpoint_id":"ep-1","description":"test"}]',
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.publish_status).toBe("published");
+      expect(requests.some((entry) => entry.path === "/v1/skills/skill-123/publish" && entry.method === "POST")).toBe(true);
+    });
+  });
+
   it("falls back from payment_required to free live capture on resolve", async () => {
     let resolveCalls = 0;
 

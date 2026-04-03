@@ -125,8 +125,10 @@
 * **browse/submit**: stop hammering Kuri with repeated post-submit HTML probes on URL-transition steps by preferring lighter URL-only settle checks until the tab stabilizes
 * **browse/submit**: make `browse submit` a thin proxy by default again, and require explicit `assist_site_state` / `--assist-site-state` opt-in before site-specific browser-state helpers run
 * **browse/submit**: keep regular traversal browser-native by default, make same-origin fetch fallback explicit opt-in only, and update CLI/MCP guidance so passive API analysis no longer silently turns into live fetch replay during submit flows
+* **kuri/browse**: stop reusing a “healthy” Kuri broker when its Chrome/CDP is gone; browser startup now requires a live CDP/tab path before `go` reuses an existing broker
 * **workflow/publish**: compile publish-safe replay contracts from passive traversal evidence, including typed params, enums, derived auth/token hints, prerequisites, next-state validators, and usage notes for explicit replay after publish
 * **mcp/workflow**: expose published workflow artifacts as read-only MCP resources (`workflow_publish://`, `workflow_contract://`, `workflow_dag://`) plus a `plan_workflow_execution` prompt so hosts can inspect dependency walks, typed restrictions, and x402/payment requirements before choosing traversal vs replay
+* **capture/pipeline**: split checkpoint, local index, and remote publish semantics so `sync`/`close` queue an explicit background `index -> publish` pipeline, add local-only `index`, add local `settings` for auto-publish + blacklist/prompt-list domain policy, surface `publish_policy` / `next_step` hints in tool output, mark workflow exports as `indexed` before remote share, and align CLI/MCP/skill docs around the new capture lifecycle
 * **orchestrator/publish**: enrich local endpoint descriptions and review prompts with audience, eligibility, pricing, and validity constraints so captured skills keep caveats like resident vs non-resident bundle rules before publish
 * **cli/tests**: stop local server bootstrap from blocking `/health` on remote auto-registration, make API routes wait briefly for background registration instead of failing fast, isolate snapshot-heavy e2e fixtures from the user’s real `~/.unbrowse` cache, and skip wallet bootstrap in the packaged setup smoke
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
@@ -1472,3 +1474,6 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - x402 workers can now force `mainnet` payment terms outside production via `X402_NETWORK_MODE`, which unblocks Lobster wallet e2e against staging.
 - Fix browse submit so Mandai's resident gate is compiled into prerequisite state before `NEXT`, instead of falling through into a broken same-origin replay.
 - Treat Kuri broker `ECONNRESET` / socket-close failures as recoverable browse errors and return structured submit failures instead of raw 500s.
+- Fix browse recovery after live navigation: `go` now retries if it hands back a dead tab, empty `text` / `markdown` reads trigger session recovery, and `eval` recovers like `snap` instead of failing on stale tab bindings.
+- Fix Kuri broker reuse so stale `/tabs` registry entries no longer keep a dead broker alive after Chrome/CDP disappears.
+- Fix `browse sync` so it queues the same background publish/index path as `close`, instead of stopping at local cache flush only.
