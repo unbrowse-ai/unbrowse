@@ -435,6 +435,19 @@ async function executeResolvedEndpoint(result: Record<string, unknown>, args: Re
       : undefined);
 
   if (!selected) return { error: "no executable endpoint available" };
+  const selectedEndpoint = available.find((endpoint) => isPlainObject(endpoint) && endpoint.endpoint_id === selected);
+  if (
+    isPlainObject(selectedEndpoint) &&
+    selectedEndpoint.requires_third_party_terms_confirmation === true &&
+    args.confirm_third_party_terms !== true
+  ) {
+    return {
+      error: "third_party_terms_confirmation_required",
+      message: `Selected endpoint requires explicit third-party terms confirmation`
+        + (typeof selectedEndpoint.third_party_terms_policy_domain === "string" ? ` for ${selectedEndpoint.third_party_terms_policy_domain}` : "")
+        + ". Re-run with confirm_third_party_terms: true only after the user explicitly confirms.",
+    };
+  }
 
   return api("POST", `/v1/skills/${skillId}/execute`, {
     intent: args.intent,
@@ -445,6 +458,7 @@ async function executeResolvedEndpoint(result: Record<string, unknown>, args: Re
     projection: { raw: args.raw !== false },
     ...(typeof args.url === "string" ? { context_url: args.url } : {}),
     ...(args.dry_run === true ? { dry_run: true } : {}),
+    ...(args.confirm_third_party_terms === true ? { confirm_third_party_terms: true } : {}),
   }) as Promise<Record<string, unknown>>;
 }
 
@@ -497,6 +511,7 @@ const tools: ToolDefinition[] = [
         params: { type: "object", description: "Extra execution params merged into the endpoint call." },
         execute: { type: "boolean", description: "Auto-execute the selected or top-ranked endpoint." },
         dry_run: { type: "boolean", description: "Preview unsafe calls without applying them." },
+        confirm_third_party_terms: { type: "boolean", description: "Explicitly confirm policy-sensitive third-party terms risk for flagged domains/actions." },
         force_capture: { type: "boolean", description: "Bypass cache and re-capture the exact URL." },
         raw: { type: "boolean", description: "Keep raw projection enabled. Default true." },
         schema: { type: "boolean", description: "Return a schema tree instead of data." },
@@ -529,6 +544,7 @@ const tools: ToolDefinition[] = [
         body.params = { ...(isPlainObject(body.params) ? body.params : {}), ...args.params };
       }
       if (args.dry_run === true) body.dry_run = true;
+      if (args.confirm_third_party_terms === true) body.confirm_third_party_terms = true;
       if (args.force_capture === true) body.force_capture = true;
 
       let result = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
@@ -570,6 +586,7 @@ const tools: ToolDefinition[] = [
         intent: { type: "string", description: "Optional natural-language intent for trace context." },
         dry_run: { type: "boolean", description: "Preview unsafe calls without applying them." },
         confirm_unsafe: { type: "boolean", description: "Confirm mutation if the endpoint is unsafe." },
+        confirm_third_party_terms: { type: "boolean", description: "Explicitly confirm policy-sensitive third-party terms risk for flagged domains/actions." },
         raw: { type: "boolean", description: "Keep raw projection enabled. Default true." },
         schema: { type: "boolean", description: "Return a schema tree instead of data." },
         path: { type: "string", description: "Drill into the result before returning it, e.g. data.items[] ." },
@@ -592,6 +609,7 @@ const tools: ToolDefinition[] = [
       if (typeof args.intent === "string") body.intent = args.intent;
       if (args.dry_run === true) body.dry_run = true;
       if (args.confirm_unsafe === true) body.confirm_unsafe = true;
+      if (args.confirm_third_party_terms === true) body.confirm_third_party_terms = true;
 
       const result = await api("POST", `/v1/skills/${args.skill}/execute`, body) as Record<string, unknown>;
       const nestedError = resolveNestedError(result);

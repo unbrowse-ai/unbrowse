@@ -220,6 +220,7 @@ Non-GET endpoints (POST, PUT, DELETE) require explicit confirmation:
 
 - `dry_run: true` — preview what would execute without side effects
 - `confirm_unsafe: true` — explicit user consent to proceed
+- `confirm_third_party_terms: true` — extra explicit confirmation for policy-sensitive domains/actions such as X write endpoints
 
 GET endpoints auto-execute. Mutations never fire without opt-in.
 

@@ -18,6 +18,7 @@ import { tryFirstPassBrowserAction } from "./first-pass-action.js";
 import { DEFAULT_CAPTURE_TOKENS, computeTimingEconomics } from "./timing-economics.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { checkWalletConfigured } from "../payments/wallet.js";
+import { annotateEndpointPolicy, endpointRequiresThirdPartyTermsConfirmation, getEndpointPolicy } from "../site-policy.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -1946,6 +1947,12 @@ export async function resolveAndExecute(
         score: Math.round(r.score * 10) / 10,
         description: r.endpoint.description,
         url: r.endpoint.url_template,
+        ...(endpointRequiresThirdPartyTermsConfirmation(annotateEndpointPolicy(r.endpoint))
+          ? {
+              requires_third_party_terms_confirmation: true,
+              third_party_terms_policy_domain: getEndpointPolicy(annotateEndpointPolicy(r.endpoint))?.policy_domain,
+            }
+          : {}),
       })),
       extra: extraFields ?? null,
     });
@@ -1989,6 +1996,13 @@ export async function resolveAndExecute(
           dom_extraction: !!r.endpoint.dom_extraction,
           trigger_url: r.endpoint.trigger_url,
           needs_params: r.endpoint.semantic?.requires?.some((b) => b.required) ?? false,
+          ...(endpointRequiresThirdPartyTermsConfirmation(annotateEndpointPolicy(r.endpoint))
+            ? {
+                requires_third_party_terms_confirmation: true,
+                third_party_terms_policy_domain: getEndpointPolicy(annotateEndpointPolicy(r.endpoint))?.policy_domain,
+                third_party_terms_policy_reason: getEndpointPolicy(annotateEndpointPolicy(r.endpoint))?.reason,
+              }
+            : {}),
         })),
         ...extraFields,
       },
@@ -2030,6 +2044,7 @@ export async function resolveAndExecute(
 
 
   function canAutoExecuteEndpoint(endpoint: SkillManifest["endpoints"][number]): boolean {
+    endpoint = annotateEndpointPolicy(endpoint);
     const endpointParams = resolveEndpointTemplateBindings(endpoint, resolvedParams, context?.url);
     const missing = missingTemplateParams(endpoint, endpointParams);
     // For params that inferDefaultParam can't resolve synchronously, check if LLM
@@ -2044,6 +2059,9 @@ export async function resolveAndExecute(
       if (unresolvedBySync.length > 4) return false;
     }
     if (endpoint.dom_extraction) return true;
+    if (endpointRequiresThirdPartyTermsConfirmation(endpoint) && !options?.confirm_third_party_terms) {
+      return false;
+    }
     if (endpoint.method !== "GET" && endpoint.idempotency !== "safe") {
       // Block high-risk non-safe endpoints unless caller has confirmed
       const unsafeScore = computeUnsafeActionScore(endpoint);
