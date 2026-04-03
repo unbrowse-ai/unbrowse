@@ -336,13 +336,13 @@ const COMMON_TOOL_POLICY = [
 
 const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
   unbrowse_resolve: "This is the standard entrypoint. Resolve often returns a deferred available_endpoints list on multi-endpoint sites like X, LinkedIn, Reddit, and GitHub. Pick by action_kind, description, URL pattern, and prefer dom_extraction=false.",
-  unbrowse_execute: "Use the skill_id and endpoint_id returned from unbrowse_resolve. Intent is optional but helps parameter binding. For write actions, preview with dry_run before the real call.",
+  unbrowse_execute: "Use the skill_id and endpoint_id returned from unbrowse_resolve. Intent is optional but helps parameter binding. This is the explicit replay path: published workflow contracts describe params, restrictions, and derived auth state. For write actions, preview with dry_run before the real call.",
   unbrowse_feedback: "Feedback is mandatory after you present results to the user. Rating guidance from SKILL.md: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless.",
   unbrowse_search: "Use this when a domain has many endpoints or when you need to narrow marketplace candidates before resolving.",
   unbrowse_login: "Call this on auth_required. Unbrowse reuses browser cookies and stored auth automatically after login.",
   unbrowse_go: "Browser-first flow for JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync -> close. Do not skip ahead to guessed deep links before the real upstream step succeeds.",
   unbrowse_snap: "Use this immediately after go and after major UI transitions so you can act by stable refs instead of brittle selectors.",
-  unbrowse_submit: "Prefer real page submit before hidden-field hacks. This tool already falls back to same-origin rehydrate for JS-heavy forms. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
+  unbrowse_submit: "Prefer real page submit before hidden-field hacks. Traversal stays browser-native by default; passive request observation is recorded for publish-time linking, not executed during click-around. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
   unbrowse_sync: "Run after important successful transitions so the route graph learns the working request chain before the tab closes.",
   unbrowse_close: "Close at the end of the browser-first workflow so capture flushes, auth saves, and learned routes index.",
   unbrowse_eval: "Use sparingly, mainly to inspect or patch hidden state the page already depends on.",
@@ -589,14 +589,14 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_execute",
-    description: "Execute a specific learned endpoint by skill id and endpoint id.",
+    description: "Execute a specific learned endpoint by skill id and endpoint id. This is the explicit replay path, separate from live browser traversal.",
     inputSchema: {
       type: "object",
       properties: {
         skill: { type: "string", description: "Skill id." },
         endpoint: { type: "string", description: "Endpoint id inside the skill." },
         params: { type: "object", description: "Execution params." },
-        url: { type: "string", description: "Context URL for replay/auth." },
+        url: { type: "string", description: "Context URL for explicit replay/auth." },
         intent: { type: "string", description: "Optional natural-language intent for trace context." },
         dry_run: { type: "boolean", description: "Preview unsafe calls without applying them." },
         confirm_unsafe: { type: "boolean", description: "Confirm mutation if the endpoint is unsafe." },
@@ -897,14 +897,14 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_submit",
-    description: "Submit the active form, with same-origin rehydrate fallback for JS-heavy flows.",
+    description: "Submit the active form. Browser-native by default; monitored requests stay passive until publish/index. Same-origin rehydrate fallback is opt-in.",
     inputSchema: {
       type: "object",
       properties: {
         form_selector: { type: "string", description: "Optional CSS selector for the form." },
         submit_selector: { type: "string", description: "Optional CSS selector for the submit button." },
         wait_for: { type: "string", description: "Optional URL/path fragment to wait for after submit." },
-        same_origin_fetch_fallback: { type: "boolean", description: "Enable fetch+rehydrate fallback. Default true." },
+        same_origin_fetch_fallback: { type: "boolean", description: "Enable fetch+rehydrate fallback. Default false unless explicitly enabled." },
         timeout_ms: { type: "number", description: "Optional submit timeout in milliseconds." },
         session_id: { type: "string", description: "Optional browse session id." },
       },

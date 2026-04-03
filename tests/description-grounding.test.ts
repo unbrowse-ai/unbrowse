@@ -93,14 +93,29 @@ describe("description grounding (issue #226)", () => {
       method: "GET",
       params: [
         { name: "id", in: "path" },
-        { name: "fields", in: "query", example: "name,price" },
+        { name: "fields", in: "query", example: "name,price", type: "string", required: true },
       ],
       sample_response_keys: ["name", "price", "description"],
       domain: "example.com",
     });
     // Prompt must contain the actual params and response fields
     expect(prompt).toContain("id (path)");
-    expect(prompt).toContain("fields (query)");
+    expect(prompt).toContain("fields (query, string, required)");
     expect(prompt).toContain("name, price, description");
+  });
+
+  it("scrubs raw sensitive values from prompt context", () => {
+    const prompt = buildDescriptionPrompt({
+      url_template: "https://api.example.com/account",
+      method: "POST",
+      params: [
+        { name: "email", in: "body", example: "user@example.com", type: "string" },
+        { name: "session_token", in: "header", example: "[REDACTED]", type: "string" },
+      ],
+      domain: "example.com",
+    });
+    expect(prompt).toContain("user@example.com");
+    expect(prompt).toContain("[REDACTED]");
+    expect(prompt).not.toContain("eyJ");
   });
 });

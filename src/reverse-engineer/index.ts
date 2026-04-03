@@ -6,7 +6,7 @@ import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
-import { buildDescriptionPrompt, groundedDescription, extractResponseKeys } from "./description-prompt.js";
+import { buildDescriptionPrompt, groundedDescription, extractResponseKeys, inferDescriptionParams } from "./description-prompt.js";
 import { isRscPayload, extractRscDataEndpoints } from "../capture/rsc.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -181,17 +181,26 @@ function buildEndpointDescription(
 
   // Build param descriptors from the flattened sample request so the
   // description is grounded in the actual parameters observed at capture time.
-  const params: Array<{ name: string; in: string; example?: string }> = [];
-  for (const [key, value] of Object.entries(sampleRequest)) {
-    // Determine whether the param came from the query string or the body.
-    const inKind = url.searchParams.has(key) ? "query"
-      : url.pathname.includes(`{${key}}`) ? "path"
-      : "body";
-    const example = value != null && typeof value !== "object" ? String(value) : undefined;
-    params.push({ name: key, in: inKind, ...(example ? { example } : {}) });
-  }
+  const locationHints = Object.fromEntries(
+    Object.keys(sampleRequest).map((key) => [
+      key,
+      url.searchParams.has(key) ? "query"
+        : url.pathname.includes(`{${key}}`) ? "path"
+        : "body",
+    ]),
+  );
+  const params = inferDescriptionParams(sampleRequest, locationHints);
 
   const responseKeys = extractResponseKeys(sampleResponse);
+  const dependencyBindings = Array.from(new Set([
+    ...Object.keys(sampleRequest),
+    ...responseKeys.filter((key) => /(id|slug|cursor|page|date|token|status|type|name)/i.test(key)),
+  ]));
+  const searchTerms = Array.from(new Set([
+    ...url.pathname.split("/").filter(Boolean),
+    ...Object.keys(sampleRequest),
+    ...responseKeys,
+  ])).slice(0, 24);
 
   const ctx = {
     url_template: req.url,
@@ -199,6 +208,8 @@ function buildEndpointDescription(
     params,
     sample_response_keys: responseKeys.length > 0 ? responseKeys : undefined,
     domain: url.hostname,
+    dependency_bindings: dependencyBindings,
+    search_terms: searchTerms,
   };
 
   // Build the grounding prompt (available for optional LLM polish in
