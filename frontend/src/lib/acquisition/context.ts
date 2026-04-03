@@ -10,11 +10,24 @@ const ACQUISITION_KEYS = [
   "utm_campaign",
   "utm_content",
   "utm_term",
+  "utm_id",
   "gclid",
   "wbraid",
   "gbraid",
   "fbclid",
+  "twclid",
+  "ttclid",
+  "msclkid",
+  "li_fat_id",
   "referrer_host",
+  "channel",
+  "campaign_id",
+  "campaign_name",
+  "content_id",
+  "content_type",
+  "creative_id",
+  "ad_id",
+  "adset_id",
   "inferred_icp",
 ] as const;
 
@@ -26,11 +39,24 @@ export interface AcquisitionContext {
   utm_campaign?: string;
   utm_content?: string;
   utm_term?: string;
+  utm_id?: string;
   gclid?: string;
   wbraid?: string;
   gbraid?: string;
   fbclid?: string;
+  twclid?: string;
+  ttclid?: string;
+  msclkid?: string;
+  li_fat_id?: string;
   referrer_host?: string;
+  channel?: string;
+  campaign_id?: string;
+  campaign_name?: string;
+  content_id?: string;
+  content_type?: string;
+  creative_id?: string;
+  ad_id?: string;
+  adset_id?: string;
   inferred_icp?: string;
 }
 
@@ -73,6 +99,25 @@ function includesAny(haystack: string, needles: string[]): boolean {
   return needles.some((needle) => haystack.includes(needle));
 }
 
+function inferChannel(context: Partial<AcquisitionContext>): string | undefined {
+  const source = normalizeNeedle(context.channel ?? context.utm_source);
+  const referrer = normalizeNeedle(context.referrer_host);
+  const medium = normalizeNeedle(context.utm_medium);
+  const haystack = [source, referrer, medium].filter(Boolean).join(" ");
+
+  if (!haystack) return undefined;
+  if (includesAny(haystack, ["x", "twitter", "t.co", "x.com"])) return "x";
+  if (includesAny(haystack, ["google", "gclid"])) return "google";
+  if (includesAny(haystack, ["linkedin", "li_fat_id"])) return "linkedin";
+  if (includesAny(haystack, ["meta", "facebook", "instagram", "fbclid"])) return "meta";
+  if (includesAny(haystack, ["tiktok", "ttclid"])) return "tiktok";
+  if (includesAny(haystack, ["bing", "microsoft", "msclkid"])) return "bing";
+  if (includesAny(haystack, ["email", "newsletter"])) return "email";
+  if (includesAny(haystack, ["reddit"])) return "reddit";
+  if (includesAny(haystack, ["hackernews", "news.ycombinator.com", "hn"])) return "hackernews";
+  return context.utm_source ?? context.referrer_host;
+}
+
 export function inferIcpFromContext(context: Partial<AcquisitionContext>): string | undefined {
   const haystack = [
     context.utm_source,
@@ -110,12 +155,29 @@ export function extractAcquisitionContext(url: URL, referrer?: string | null): A
     utm_campaign: sanitizeValue(url.searchParams.get("utm_campaign")),
     utm_content: sanitizeValue(url.searchParams.get("utm_content")),
     utm_term: sanitizeValue(url.searchParams.get("utm_term")),
+    utm_id: sanitizeValue(url.searchParams.get("utm_id")),
     gclid: sanitizeValue(url.searchParams.get("gclid")),
     wbraid: sanitizeValue(url.searchParams.get("wbraid")),
     gbraid: sanitizeValue(url.searchParams.get("gbraid")),
     fbclid: sanitizeValue(url.searchParams.get("fbclid")),
+    twclid: sanitizeValue(url.searchParams.get("twclid")),
+    ttclid: sanitizeValue(url.searchParams.get("ttclid")),
+    msclkid: sanitizeValue(url.searchParams.get("msclkid")),
+    li_fat_id: sanitizeValue(url.searchParams.get("li_fat_id")),
     referrer_host: hostnameFromReferrer(referrer),
+    channel: sanitizeValue(url.searchParams.get("channel")),
+    campaign_id: sanitizeValue(url.searchParams.get("campaign_id")),
+    campaign_name: sanitizeValue(url.searchParams.get("campaign_name")),
+    content_id: sanitizeValue(url.searchParams.get("content_id")),
+    content_type: sanitizeValue(url.searchParams.get("content_type")),
+    creative_id: sanitizeValue(url.searchParams.get("creative_id")),
+    ad_id: sanitizeValue(url.searchParams.get("ad_id")),
+    adset_id: sanitizeValue(url.searchParams.get("adset_id")),
   };
+  context.channel = inferChannel(context);
+  if (!context.campaign_id) context.campaign_id = context.utm_campaign;
+  if (!context.content_id) context.content_id = context.utm_content;
+  if (!context.creative_id) context.creative_id = context.ad_id;
   const inferredIcp = inferIcpFromContext(context);
   if (inferredIcp) context.inferred_icp = inferredIcp;
   return context;

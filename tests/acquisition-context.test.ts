@@ -26,6 +26,9 @@ describe("acquisition context helpers", () => {
       utm_term: "openclaw plugin",
       gclid: "test-gclid",
       referrer_host: "www.google.com",
+      channel: "google",
+      campaign_id: "openclaw_launch",
+      content_id: "plugin_one_command",
       inferred_icp: "openclaw-normie",
     });
   });
@@ -40,6 +43,8 @@ describe("acquisition context helpers", () => {
     const encoded = serializeAcquisitionContext({
       utm_source: "x",
       utm_campaign: "agent_builder_launch",
+      channel: "x",
+      campaign_id: "agent_builder_launch",
       referrer_host: "x.com",
       inferred_icp: "agent-builder",
     });
@@ -47,6 +52,8 @@ describe("acquisition context helpers", () => {
     expect(parseAcquisitionContext(encoded)).toEqual({
       utm_source: "x",
       utm_campaign: "agent_builder_launch",
+      channel: "x",
+      campaign_id: "agent_builder_launch",
       referrer_host: "x.com",
       inferred_icp: "agent-builder",
     });

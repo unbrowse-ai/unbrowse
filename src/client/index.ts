@@ -8,6 +8,12 @@ import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
 import { detectHostEnvironment } from "../runtime/browser-host.js";
+import {
+  decodeTelemetryAttribution,
+  mergeTelemetryAttribution,
+  mergeTelemetryProperties,
+  type TelemetryAttribution,
+} from "../telemetry-attribution.js";
 
 const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
@@ -84,6 +90,7 @@ interface InstallTelemetryState {
   install_id: string;
   first_seen_at: string;
   cli_first_seen_reported_at?: string;
+  attribution?: TelemetryAttribution;
 }
 
 type TelemetryHostType = "cli" | "codex" | "openclaw" | "mcp" | "native" | "unknown";
@@ -139,16 +146,42 @@ function createInstallTelemetryState(): InstallTelemetryState {
   };
 }
 
+function readInstallAttributionFromEnv(): TelemetryAttribution | undefined {
+  return decodeTelemetryAttribution(process.env.UNBROWSE_ATTRIBUTION_B64);
+}
+
 function getOrCreateInstallTelemetryState(): InstallTelemetryState {
   const existing = loadInstallTelemetryState();
-  if (existing?.install_id) return existing;
+  const incomingAttribution = readInstallAttributionFromEnv();
+
+  if (existing?.install_id) {
+    const mergedAttribution = mergeTelemetryAttribution(existing.attribution, incomingAttribution);
+    if (JSON.stringify(mergedAttribution ?? null) !== JSON.stringify(existing.attribution ?? null)) {
+      const nextState: InstallTelemetryState = {
+        ...existing,
+        attribution: mergedAttribution,
+      };
+      saveInstallTelemetryState(nextState);
+      return nextState;
+    }
+    return existing;
+  }
+
   const created = createInstallTelemetryState();
-  saveInstallTelemetryState(created);
-  return created;
+  const nextState: InstallTelemetryState = {
+    ...created,
+    attribution: incomingAttribution,
+  };
+  saveInstallTelemetryState(nextState);
+  return nextState;
 }
 
 export function getInstallId(): string {
   return getOrCreateInstallTelemetryState().install_id;
+}
+
+export function getTelemetryAttribution(): TelemetryAttribution | undefined {
+  return getOrCreateInstallTelemetryState().attribution;
 }
 
 export function detectTelemetryHostType(): TelemetryHostType {
@@ -199,10 +232,10 @@ export async function ensureCliInstallTracked(hostType = detectTelemetryHostType
     skill: "unbrowse",
     status: "installed",
     created_at: createdAt,
-    properties: {
+    properties: mergeTelemetryProperties({
       profile: getActiveProfile(),
       first_seen_at: state.first_seen_at,
-    },
+    }, state.attribution),
   });
 
   if (!ok) return;
@@ -230,7 +263,7 @@ export async function recordInstallTelemetryEvent(
     skill_version: options?.skillVersion,
     status: options?.status ?? "installed",
     created_at: createdAt,
-    properties: options?.properties,
+    properties: mergeTelemetryProperties(options?.properties, getTelemetryAttribution()),
   });
 }
 
@@ -252,7 +285,7 @@ export async function recordFunnelTelemetryEvent(
     source: options?.source ?? "cli",
     host_type: options?.hostType ?? detectTelemetryHostType(),
     created_at: createdAt,
-    properties: options?.properties,
+    properties: mergeTelemetryProperties(options?.properties, getTelemetryAttribution()),
   });
 }
 
@@ -998,7 +1031,10 @@ export async function recordExecution(
 
 export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): Promise<void> {
   if (LOCAL_ONLY) return;
-  await api("POST", "/v1/analytics/sessions", payload);
+  await api("POST", "/v1/analytics/sessions", {
+    ...getTelemetryAttribution(),
+    ...payload,
+  });
 }
 
 /** Record a payment transaction for a paid skill execution. Fire-and-forget. */

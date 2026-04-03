@@ -506,6 +506,50 @@ export interface AcquisitionSummary {
   };
 }
 
+export interface CampaignFeedbackRow {
+  channel: string;
+  campaign_id: string;
+  campaign_name?: string;
+  content_id?: string;
+  content_type?: string;
+  creative_id?: string;
+  ad_id?: string;
+  adset_id?: string;
+  inferred_icp?: string;
+  variant_id?: string;
+  experiment_id?: string;
+  landing_sessions: number;
+  content_page_sessions: number;
+  install_section_views: number;
+  install_command_copies: number;
+  reported_installs: number;
+  setup_completed: number;
+  cli_invoked: number;
+  registrations: number;
+  first_resolve_started: number;
+  first_resolve_succeeded: number;
+  total_sessions: number;
+  successful_sessions: number;
+  install_copy_rate_from_landing: number;
+  reported_install_rate_from_copy: number;
+  first_resolve_success_rate_from_install: number;
+  session_success_rate: number;
+}
+
+export interface CampaignFeedbackSummary {
+  generated_at: string;
+  window_days: number;
+  filters?: {
+    channel?: string;
+    campaign_id?: string;
+    content_id?: string;
+    inferred_icp?: string;
+    variant_id?: string;
+    experiment_id?: string;
+  };
+  rows: CampaignFeedbackRow[];
+}
+
 export type LandingVariantStatus = "draft" | "active" | "archived";
 
 export interface LandingVariantContent {

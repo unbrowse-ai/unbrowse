@@ -3,6 +3,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
 import { DocsEmbed } from "@/components/docs-embed";
+import { ContentPageTracker } from "@/components/content-page-tracker";
 import versionInfo from "../../../version.json";
 import "./globals.css";
 
@@ -256,6 +257,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeProvider>
           <AuthProvider>
+            <ContentPageTracker />
             <Navbar />
             <main className="min-h-screen">
               {children}
