@@ -346,8 +346,8 @@ unbrowse skill {id}                                # Get skill details
 unbrowse search --intent "..." --domain "..."      # Search marketplace
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse go "https://example.com/form"             # Open a live capture tab
-unbrowse submit --wait-for "/next-step"            # Submit current form with recovery
-unbrowse sync                                      # Flush current step into route cache
+unbrowse submit --wait-for "/next-step"            # Submit current form with recovery and auto-queue publish for that step
+unbrowse sync                                      # Flush any extra captured routes into the route cache
 unbrowse health                                    # Server health check
 ```
 

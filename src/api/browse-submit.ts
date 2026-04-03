@@ -19,8 +19,18 @@ export interface BrowseSubmitClient {
 export interface BrowseSubmitDeps {
   client: BrowseSubmitClient;
   session: BrowseSession;
+  flushCapture?: (session: BrowseSession) => Promise<BrowseSubmitCaptureSyncResult | null>;
   restartCapture: (session: BrowseSession) => Promise<void>;
   rehydratePlugins: (tabId: string) => Promise<unknown>;
+}
+
+export interface BrowseSubmitCaptureSyncResult {
+  indexed: boolean;
+  mode: "http" | "dom" | "none";
+  skill_id?: string | null;
+  endpoint_count: number;
+  request_count?: number;
+  background_publish_queued?: boolean;
 }
 
 export interface BrowseSubmitResult {
@@ -34,6 +44,7 @@ export interface BrowseSubmitResult {
   status?: number;
   wait_for?: string;
   submit_meta?: Record<string, unknown> | null;
+  capture_sync?: BrowseSubmitCaptureSyncResult | null;
   rehydrate?: unknown;
 }
 
@@ -337,7 +348,7 @@ export async function submitBrowseForm(
   deps: BrowseSubmitDeps,
   options: BrowseSubmitOptions = {},
 ): Promise<BrowseSubmitResult> {
-  const { client, session, restartCapture, rehydratePlugins } = deps;
+  const { client, session, flushCapture, restartCapture, rehydratePlugins } = deps;
   const sameOriginFetchFallback = options.sameOriginFetchFallback !== false;
   const beforeUrl = await client.getCurrentUrl(session.tabId).catch(() => session.url);
   const beforeHtml = await client.getPageHtml(session.tabId).catch(() => "");
@@ -366,6 +377,14 @@ export async function submitBrowseForm(
   const domOutcome = await waitForSubmitOutcome(client, session.tabId, beforeUrl, beforeHtml, options);
   if (domOutcome.ok) {
     session.url = domOutcome.url || beforeUrl || session.url;
+    let captureSync: BrowseSubmitCaptureSyncResult | null = null;
+    if (flushCapture) {
+      try {
+        captureSync = await flushCapture(session);
+      } catch {
+        captureSync = null;
+      }
+    }
     await restartCapture(session);
     return {
       ok: true,
@@ -375,6 +394,7 @@ export async function submitBrowseForm(
       same_origin_html_rehydrated: false,
       wait_for: options.waitFor,
       submit_meta: submitMeta,
+      capture_sync: captureSync,
     };
   }
 
@@ -418,6 +438,14 @@ export async function submitBrowseForm(
     rehydrate = await rehydratePlugins(session.tabId).catch(() => null);
   }
 
+  let captureSync: BrowseSubmitCaptureSyncResult | null = null;
+  if (flushCapture) {
+    try {
+      captureSync = await flushCapture(session);
+    } catch {
+      captureSync = null;
+    }
+  }
   await restartCapture(session);
   return {
     ok: true,
@@ -428,6 +456,7 @@ export async function submitBrowseForm(
     status: typeof fallbackPayload.status === "number" ? fallbackPayload.status as number : undefined,
     wait_for: options.waitFor,
     submit_meta: submitMeta,
+    capture_sync: captureSync,
     rehydrate,
   };
 }
