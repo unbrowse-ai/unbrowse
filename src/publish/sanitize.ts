@@ -14,11 +14,51 @@ const SECRET_VALUE_PATTERNS = [
 ];
 
 const SECRET_KEY_PATTERNS = /^(api[_-]?key|access[_-]?token|auth[_-]?token|secret[_-]?key|private[_-]?key|password|passwd|session[_-]?id|session[_-]?token|csrf[_-]?token|client[_-]?secret|bearer|refresh[_-]?token|id[_-]?token|jwt|nonce|otp|pin|ssn|credit[_-]?card)$/i;
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const PHONE_PATTERN = /(?<!\w)(?:\+?\d[\d\s-]{7,}\d)(?!\w)/g;
+const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
+const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+\b/g;
+const CREDIT_CARD_PATTERN = /\b(?:\d[ -]*?){13,19}\b/g;
+const LONG_ID_PATTERN = /\b[A-Za-z0-9_-]{20,}\b/g;
 
 export function looksLikeSecret(key: string, value: unknown): boolean {
   if (typeof value !== "string" || value.length < 8) return false;
   if (SECRET_KEY_PATTERNS.test(key)) return true;
   return SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+export function sanitizeAgentVisibleText(text: string): string {
+  return text
+    .replace(JWT_PATTERN, "[secret-token]")
+    .replace(EMAIL_PATTERN, "user@example.com")
+    .replace(PHONE_PATTERN, "[phone]")
+    .replace(UUID_PATTERN, "00000000-0000-0000-0000-000000000000")
+    .replace(CREDIT_CARD_PATTERN, "[sensitive-number]")
+    .replace(URL_PATTERN, (value) => {
+      if (/^https?:\/\/example\.com/i.test(value)) return value;
+      return "https://example.com/resource";
+    })
+    .replace(LONG_ID_PATTERN, (value) => {
+      if (looksLikeSecret("", value)) return "[secret-token]";
+      return value;
+    });
+}
+
+export function sanitizeAgentVisibleValue(key: string, value: unknown): unknown {
+  if (value == null) return value;
+  if (typeof value === "string") {
+    return synthesizePlaceholder(key, sanitizeAgentVisibleText(value));
+  }
+  if (Array.isArray(value)) return value.slice(0, 3).map((entry) => sanitizeAgentVisibleValue(key, entry));
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>)) {
+      out[childKey] = sanitizeAgentVisibleValue(childKey, childValue);
+    }
+    return out;
+  }
+  return synthesizePlaceholder(key, value);
 }
 
 export function redactSecrets(obj: unknown, parentKey = ""): unknown {

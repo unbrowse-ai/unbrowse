@@ -966,7 +966,7 @@ export const CLI_REFERENCE = {
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/metadata back to skill" },
-    { name: "publish", usage: "--skill ID [--endpoints '[...]']", desc: "Describe + publish skill to marketplace (two-phase)" },
+    { name: "publish", usage: "--skill ID [--endpoints '[...]']", desc: "Describe + publish skill to marketplace; compile linked replay contracts from passive capture evidence" },
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
@@ -974,7 +974,7 @@ export const CLI_REFERENCE = {
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
     { name: "go", usage: '<url> [--session id]', desc: "Open a live Kuri browser tab for capture-first workflows" },
-    { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows" },
+    { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]", desc: "Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins" },
     { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs" },
     { name: "click", usage: "[--session id] <ref>", desc: "Click element by ref (e.g. e5)" },
     { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by ref" },
@@ -1066,7 +1066,7 @@ function printHelp(): void {
     "  1. go -> open the live tab you want to work in",
     "  2. snap -> inspect refs and confirm the page state",
     "  3. click/fill/eval -> set real page state",
-    "  4. submit -> prefer DOM submit; auto-flush current capture; fall back to same-origin rehydrate",
+    "  4. submit -> prefer DOM submit; keep traversal browser-native; opt into same-origin rehydrate only for explicit replay/recovery debugging",
     "  5. sync -> flush any additional captured routes after a successful step",
     "  6. close -> finish capture + indexing",
   );
@@ -1328,6 +1328,9 @@ async function cmdSubmit(flags: Record<string, string | boolean>): Promise<void>
   if (typeof flags["submit-selector"] === "string") body.submit_selector = flags["submit-selector"];
   if (typeof flags["wait-for"] === "string") body.wait_for = flags["wait-for"];
   if (typeof flags["timeout-ms"] === "string") body.timeout_ms = Number(flags["timeout-ms"]);
+  if (flags["assist-site-state"] !== undefined) {
+    body.assist_site_state = flags["assist-site-state"] !== "false";
+  }
   if (flags["same-origin-fetch-fallback"] !== undefined) {
     body.same_origin_fetch_fallback = flags["same-origin-fetch-fallback"] !== "false";
   }

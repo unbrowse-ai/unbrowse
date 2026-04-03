@@ -6,6 +6,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureLocalServer } from "./runtime/local-server.js";
+import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./workflow/publish.js";
+import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -63,6 +65,40 @@ type ListedTool = {
   description: string;
   inputSchema: JsonSchema;
   annotations?: Record<string, boolean>;
+};
+
+type ResourceDefinition = {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
+  read: () => unknown;
+};
+
+type ListedResource = {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
+};
+
+type PromptArgument = {
+  name: string;
+  description?: string;
+  required?: boolean;
+};
+
+type PromptDefinition = {
+  name: string;
+  description: string;
+  arguments?: PromptArgument[];
+  get: (args: Record<string, unknown>) => { description?: string; messages: Array<Record<string, unknown>> };
+};
+
+type ListedPrompt = {
+  name: string;
+  description: string;
+  arguments?: PromptArgument[];
 };
 
 function writeStdout(message: unknown): void {
@@ -139,6 +175,14 @@ function errorResult(message: string, details?: unknown): ToolResult {
     ],
     structuredContent: details ?? { error: message },
     isError: true,
+  };
+}
+
+function textResource(uri: string, value: unknown, mimeType = "application/json"): { uri: string; mimeType: string; text: string } {
+  return {
+    uri,
+    mimeType,
+    text: typeof value === "string" ? value : JSON.stringify(value, null, 2),
   };
 }
 
@@ -272,6 +316,193 @@ function validateArguments(schema: JsonSchema, args: Record<string, unknown>): s
   return errors;
 }
 
+function skillIdFromWorkflowExportPath(entry: string): string | null {
+  const base = path.basename(entry);
+  return base.endsWith(".json") ? base.slice(0, -".json".length) : null;
+}
+
+function summarizeWorkflowRecipe(artifact: WorkflowPublishArtifact, recipe: WorkflowPublishRecipe): Record<string, unknown> {
+  return {
+    skill_id: artifact.skill_id,
+    domain: artifact.domain,
+    intent_signature: artifact.intent_signature,
+    endpoint_id: recipe.endpoint_id,
+    operation_id: recipe.operation_id ?? null,
+    preferred: recipe.preferred,
+    provenance_backed: recipe.provenance_backed,
+    last_successful_strategy: recipe.last_successful_strategy ?? null,
+    usage_notes: recipe.usage_notes,
+    mutation_guard: recipe.mutation_guard,
+    token_bindings: recipe.token_bindings,
+    replay_contract: recipe.replay_contract,
+  };
+}
+
+function buildWorkflowDagView(artifact: WorkflowPublishArtifact, recipe: WorkflowPublishRecipe): Record<string, unknown> {
+  return {
+    skill_id: artifact.skill_id,
+    domain: artifact.domain,
+    intent_signature: artifact.intent_signature,
+    endpoint_id: recipe.endpoint_id,
+    operation_id: recipe.operation_id ?? null,
+    preferred: recipe.preferred,
+    steps: recipe.steps,
+    dependency_bindings: recipe.replay_contract.dependency_bindings,
+    search_terms: recipe.replay_contract.search_terms,
+    prerequisite_specs: recipe.replay_contract.prerequisite_specs,
+    next_state: recipe.replay_contract.next_state,
+    token_bindings: recipe.token_bindings,
+  };
+}
+
+function listWorkflowResources(): ResourceDefinition[] {
+  const resources: ResourceDefinition[] = [];
+  for (const exportPath of listWorkflowPublishArtifacts()) {
+    const skillId = skillIdFromWorkflowExportPath(exportPath);
+    if (!skillId) continue;
+    const artifact = readWorkflowPublishArtifact(skillId);
+    if (!artifact) continue;
+
+    const publishUri = `workflow_publish://${artifact.skill_id}`;
+    resources.push({
+      uri: publishUri,
+      name: `Workflow Publish Artifact: ${artifact.skill_id}`,
+      description: `Published workflow export summary for ${artifact.domain}.`,
+      mimeType: "application/json",
+      read: () => artifact,
+    });
+
+    for (const recipe of artifact.recipes) {
+      const contractUri = `workflow_contract://${artifact.skill_id}/${recipe.endpoint_id}`;
+      resources.push({
+        uri: contractUri,
+        name: `Workflow Contract: ${artifact.skill_id}/${recipe.endpoint_id}`,
+        description: `Typed replay contract, x402/payment requirements, restrictions, and usage notes for ${recipe.endpoint_id}.`,
+        mimeType: "application/json",
+        read: () => summarizeWorkflowRecipe(artifact, recipe),
+      });
+
+      const dagUri = `workflow_dag://${artifact.skill_id}/${recipe.endpoint_id}`;
+      resources.push({
+        uri: dagUri,
+        name: `Workflow DAG: ${artifact.skill_id}/${recipe.endpoint_id}`,
+        description: `Dependency-oriented workflow graph view for ${recipe.endpoint_id}.`,
+        mimeType: "application/json",
+        read: () => buildWorkflowDagView(artifact, recipe),
+      });
+    }
+  }
+  return resources;
+}
+
+function listResource(resource: ResourceDefinition): ListedResource {
+  return {
+    uri: resource.uri,
+    name: resource.name,
+    description: resource.description,
+    mimeType: resource.mimeType,
+  };
+}
+
+function workflowPromptMessages(args: Record<string, unknown>): { description: string; messages: Array<Record<string, unknown>> } {
+  const skillId = typeof args.skill_id === "string" ? args.skill_id : "";
+  const artifact = skillId ? readWorkflowPublishArtifact(skillId) : null;
+  if (!artifact) {
+    return {
+      description: "Plan workflow execution from a published contract.",
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `No published workflow artifact found for ${skillId || "the requested skill"}. Use resolve/skill inspection first, or capture and publish the workflow before planning replay.`,
+          },
+        },
+      ],
+    };
+  }
+
+  const requestedEndpoint = typeof args.endpoint_id === "string" ? args.endpoint_id : undefined;
+  const recipe = requestedEndpoint
+    ? artifact.recipes.find((entry) => entry.endpoint_id === requestedEndpoint)
+    : artifact.recipes.find((entry) => entry.preferred) ?? artifact.recipes[0];
+  if (!recipe) {
+    return {
+      description: "Plan workflow execution from a published contract.",
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `No workflow recipe found in published artifact ${artifact.skill_id}. Inspect workflow_publish://${artifact.skill_id} first.`,
+          },
+        },
+      ],
+    };
+  }
+
+  const goal = typeof args.intent === "string"
+    ? args.intent
+    : (typeof args.user_goal === "string" ? args.user_goal : artifact.intent_signature);
+  const contract = summarizeWorkflowRecipe(artifact, recipe);
+  const dag = buildWorkflowDagView(artifact, recipe);
+  return {
+    description: `Plan execution for ${artifact.skill_id}/${recipe.endpoint_id}.`,
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: [
+            `Goal: ${goal}`,
+            "",
+            "Use this published workflow contract and DAG to decide whether to:",
+            "1. execute the explicit replay contract directly, or",
+            "2. use browser traversal first, then replay later.",
+            "",
+            "Rules:",
+            "- traversal stays browser-native and thin by default",
+            "- only opt into assist_site_state when thin submit is insufficient",
+            "- trust prerequisite_specs, dependency_bindings, and next_state before deeper calls",
+            "- inspect payment_requirement before explicit replay; x402_required means wallet/payment planning first",
+            "- do not invent params outside parameter_specs",
+            "",
+            `Contract resource: workflow_contract://${artifact.skill_id}/${recipe.endpoint_id}`,
+            previewValue(contract),
+            "",
+            `DAG resource: workflow_dag://${artifact.skill_id}/${recipe.endpoint_id}`,
+            previewValue(dag),
+          ].join("\n"),
+        },
+      },
+    ],
+  };
+}
+
+const prompts: PromptDefinition[] = [
+  {
+    name: "plan_workflow_execution",
+    description: "Plan whether to use browser traversal or explicit replay for a published workflow contract, using its prerequisites, typed params, and dependency graph.",
+    arguments: [
+      { name: "skill_id", description: "Published skill id.", required: true },
+      { name: "endpoint_id", description: "Optional endpoint id. Defaults to the preferred recipe.", required: false },
+      { name: "intent", description: "Optional user goal or task phrasing.", required: false },
+      { name: "user_goal", description: "Optional alternate wording for the goal.", required: false },
+    ],
+    get: workflowPromptMessages,
+  },
+];
+
+const promptMap = new Map(prompts.map((prompt) => [prompt.name, prompt]));
+
+function listPrompt(prompt: PromptDefinition): ListedPrompt {
+  return {
+    name: prompt.name,
+    description: prompt.description,
+    arguments: prompt.arguments,
+  };
+}
+
 let serverReadyPromise: Promise<void> | null = null;
 
 async function ensureServerReady(): Promise<void> {
@@ -336,13 +567,13 @@ const COMMON_TOOL_POLICY = [
 
 const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
   unbrowse_resolve: "This is the standard entrypoint. Resolve often returns a deferred available_endpoints list on multi-endpoint sites like X, LinkedIn, Reddit, and GitHub. Pick by action_kind, description, URL pattern, and prefer dom_extraction=false.",
-  unbrowse_execute: "Use the skill_id and endpoint_id returned from unbrowse_resolve. Intent is optional but helps parameter binding. For write actions, preview with dry_run before the real call.",
+  unbrowse_execute: "Use the skill_id and endpoint_id returned from unbrowse_resolve. Intent is optional but helps parameter binding. This is the explicit replay path: published workflow contracts describe params, restrictions, and derived auth state. For write actions, preview with dry_run before the real call.",
   unbrowse_feedback: "Feedback is mandatory after you present results to the user. Rating guidance from SKILL.md: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless.",
   unbrowse_search: "Use this when a domain has many endpoints or when you need to narrow marketplace candidates before resolving.",
   unbrowse_login: "Call this on auth_required. Unbrowse reuses browser cookies and stored auth automatically after login.",
   unbrowse_go: "Browser-first flow for JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync -> close. Do not skip ahead to guessed deep links before the real upstream step succeeds.",
   unbrowse_snap: "Use this immediately after go and after major UI transitions so you can act by stable refs instead of brittle selectors.",
-  unbrowse_submit: "Prefer real page submit before hidden-field hacks. This tool already falls back to same-origin rehydrate for JS-heavy forms. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
+  unbrowse_submit: "Prefer real page submit before hidden-field hacks. Traversal stays browser-native and thin by default; passive request observation is recorded for publish-time linking, not executed during click-around. Only enable assist_site_state or same_origin_fetch_fallback when you explicitly want extra recovery/help. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
   unbrowse_sync: "Run after important successful transitions so the route graph learns the working request chain before the tab closes.",
   unbrowse_close: "Close at the end of the browser-first workflow so capture flushes, auth saves, and learned routes index.",
   unbrowse_eval: "Use sparingly, mainly to inspect or patch hidden state the page already depends on.",
@@ -589,14 +820,14 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_execute",
-    description: "Execute a specific learned endpoint by skill id and endpoint id.",
+    description: "Execute a specific learned endpoint by skill id and endpoint id. This is the explicit replay path, separate from live browser traversal.",
     inputSchema: {
       type: "object",
       properties: {
         skill: { type: "string", description: "Skill id." },
         endpoint: { type: "string", description: "Endpoint id inside the skill." },
         params: { type: "object", description: "Execution params." },
-        url: { type: "string", description: "Context URL for replay/auth." },
+        url: { type: "string", description: "Context URL for explicit replay/auth." },
         intent: { type: "string", description: "Optional natural-language intent for trace context." },
         dry_run: { type: "boolean", description: "Preview unsafe calls without applying them." },
         confirm_unsafe: { type: "boolean", description: "Confirm mutation if the endpoint is unsafe." },
@@ -897,14 +1128,15 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_submit",
-    description: "Submit the active form, with same-origin rehydrate fallback for JS-heavy flows.",
+    description: "Submit the active form. Thin browser-native proxy by default; monitored requests stay passive until publish/index. Site-state assist and same-origin rehydrate are explicit opt-ins.",
     inputSchema: {
       type: "object",
       properties: {
         form_selector: { type: "string", description: "Optional CSS selector for the form." },
         submit_selector: { type: "string", description: "Optional CSS selector for the submit button." },
         wait_for: { type: "string", description: "Optional URL/path fragment to wait for after submit." },
-        same_origin_fetch_fallback: { type: "boolean", description: "Enable fetch+rehydrate fallback. Default true." },
+        assist_site_state: { type: "boolean", description: "Enable site-specific browser-state assist before submit. Default false." },
+        same_origin_fetch_fallback: { type: "boolean", description: "Enable fetch+rehydrate fallback. Default false unless explicitly enabled." },
         timeout_ms: { type: "number", description: "Optional submit timeout in milliseconds." },
         session_id: { type: "string", description: "Optional browse session id." },
       },
@@ -914,7 +1146,7 @@ const tools: ToolDefinition[] = [
     handler: async (args) => {
       await ensureServerReady();
       const body: Record<string, unknown> = {};
-      for (const key of ["form_selector", "submit_selector", "wait_for", "same_origin_fetch_fallback", "timeout_ms", "session_id"] as const) {
+      for (const key of ["form_selector", "submit_selector", "wait_for", "assist_site_state", "same_origin_fetch_fallback", "timeout_ms", "session_id"] as const) {
         if (args[key] !== undefined) body[key] = args[key];
       }
       const result = await api("POST", "/v1/browse/submit", body) as Record<string, unknown>;
@@ -1074,6 +1306,12 @@ async function handleRequest(message: JsonRpcRequest): Promise<void> {
         tools: {
           listChanged: false,
         },
+        resources: {
+          listChanged: false,
+        },
+        prompts: {
+          listChanged: false,
+        },
       },
       serverInfo: {
         name: "unbrowse",
@@ -1102,6 +1340,53 @@ async function handleRequest(message: JsonRpcRequest): Promise<void> {
     jsonRpcResult(id, {
       tools: tools.map(listTool),
     });
+    return;
+  }
+
+  if (method === "resources/list") {
+    jsonRpcResult(id, {
+      resources: listWorkflowResources().map(listResource),
+    });
+    return;
+  }
+
+  if (method === "resources/read") {
+    const uri = typeof params.uri === "string" ? params.uri : undefined;
+    if (!uri) {
+      jsonRpcError(id, -32602, "Resource uri is required");
+      return;
+    }
+    const resource = listWorkflowResources().find((entry) => entry.uri === uri);
+    if (!resource) {
+      jsonRpcError(id, -32602, `Unknown resource: ${uri}`);
+      return;
+    }
+    jsonRpcResult(id, {
+      contents: [textResource(resource.uri, resource.read(), resource.mimeType)],
+    });
+    return;
+  }
+
+  if (method === "prompts/list") {
+    jsonRpcResult(id, {
+      prompts: prompts.map(listPrompt),
+    });
+    return;
+  }
+
+  if (method === "prompts/get") {
+    const name = typeof params.name === "string" ? params.name : undefined;
+    const promptArgs = isPlainObject(params.arguments) ? params.arguments : {};
+    if (!name) {
+      jsonRpcError(id, -32602, "Prompt name is required");
+      return;
+    }
+    const prompt = promptMap.get(name);
+    if (!prompt) {
+      jsonRpcError(id, -32602, `Unknown prompt: ${name}`);
+      return;
+    }
+    jsonRpcResult(id, prompt.get(promptArgs));
     return;
   }
 

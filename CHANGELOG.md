@@ -31,6 +31,7 @@
 ### Features
 
 - add tracked `docs/agent-memory.md` and require agents to read/write durable Lewis preferences there
+* **docs/skill**: rewrite the public `SKILL.md` around the real Kuri-first model, including browser-native traversal rules, Kuri-to-Unbrowse command mapping, publish-time contract compilation, and a direct-Kuri debug escape hatch for session drift
 * **docs/mcp**: document dependency-walk rules for JS-heavy multi-step sites so future agents treat successful browse submits as the prerequisite edge for downstream pages instead of guessing deep links
 * **workflow/publish**: export sanitized workflow assets beside raw workflow artifacts so mined routes now persist as publishable, documented, token-censored inventory with `captured`/`published` status
 * add a real `unbrowse mcp` stdio server with `initialize`, `tools/list`, `tools/call`, and core Unbrowse resolve/execute/browse tools
@@ -63,11 +64,15 @@
 
 ### Bug Fixes
 
+* **browse/kuri**: disable ambient CDP attach during explicit clean-room runs like `UNBROWSE_IMPORT_BROWSER_COOKIES=0` or local-only staging loops, so packaged and staging Mandai repros use isolated managed Chrome instead of crashing on stray local browser sessions
 * **browse/sessions**: stop strict browse sessions from dying after successful submits or transient post-navigation CDP churn by retrying liveness checks, only expiring sessions when the tab is truly gone, and surfacing recoverable follow-up browser errors as retryable failures instead of fake `session_expired` drops
 * **browse/sessions**: rebind successful submit flows onto replacement tabs that already reached the hinted next-step pathname, so packaged staging runs keep the same session alive when Mandai swaps the underlying browser target between steps
 * **browse/submit**: resolve filename-style wait hints like `/tickets-selection.html` and `/add-ons-selection.html` relative to the current ticketing workflow directory instead of the site root, so packaged Mandai submit recovery keeps the session pinned to the real next step
 * **browse/submit**: compile hidden page prerequisites before clicking submit by filling Mandai-style hidden date fields, refusing visually disabled next-step buttons, and returning structured `prereq_state_incomplete` metadata instead of blindly falling through to same-origin submit fallback
 * **browse/kuri**: keep large `/evaluate` expressions in the request query string even on POST, matching the shipped Kuri broker contract so long submit scripts stop failing live with `Missing expression parameter`
+* **browse/kuri**: encode `+` in Kuri eval query strings and disable ambient CDP attach during explicit clean-room runs, so staging Mandai repros stop corrupting compiled browser scripts or latching onto stray local Chrome state
+* **browse/session**: rank same-path real tabs above exact `about:blank` placeholders during liveness checks while still treating freshly created owned blank tabs as live before first navigation
+* **browse/submit**: add Mandai-specific park, resident-ticket, date, and add-on submit compilers that patch hidden prerequisite state, detect document-level NEXT buttons outside the form, and fall back to native form submit when Mandai keeps a valid step visually disabled
 * **browse/kuri**: when a managed Kuri broker dies after submit but its headless Chrome instance is still alive, restart Kuri onto that surviving managed CDP port instead of launching a fresh browser and orphaning the live workflow tab
 * **packaged/kuri**: stop the skill pack/build path from silently shipping stale vendored Kuri binaries by failing fast on broken `submodules/kuri` checkouts, rebuilding when the vendored manifest source SHA drifts from `justrach/kuri` `adding-extensions`, stamping packaged Kuri artifacts with source/hash metadata, and wiring a dedicated baked-Kuri guard into `prepack`, root pack/publish scripts, and CI/release so stale vendor drift fails before tarball or npm publish
 * **landing/packaging**: forward signed landing tokens on CLI install and funnel telemetry so homepage attribution reaches analytics, and check in the baked Kuri vendor manifest so the new packaging guard passes in CI
@@ -105,6 +110,12 @@
 * **browse/session**: harden packaged Kuri tab recovery by accepting `/tab/new` ids across response shapes, falling back to reusable idle tabs when Kuri cannot create a fresh target, and preferring blank/new-tab recovery over hijacking unrelated tabs
 * **browse/session**: enforce one-tab-per-session recovery by only reattaching to same-domain tabs and reusing idle tabs before opening raw CDP fallbacks, so browse sessions stop leaking or hijacking stray tabs
 * **browse/session**: keep explicit read-only session recovery pinned to the original route by only reattaching dead tabs when the last known URL pathname matches, and otherwise forcing a fresh owned tab instead of silently rewinding onto another same-domain page
+* **browse/session**: when the live tab swaps off-route, prefer the single meaningful same-domain replacement over a stale owned placeholder tab, close that stale blank tab after rebinding, and refresh click responses so multi-step sites like Mandai stop drifting onto `about:blank`
+* **browse/submit**: stop hammering Kuri with repeated post-submit HTML probes on URL-transition steps by preferring lighter URL-only settle checks until the tab stabilizes
+* **browse/submit**: make `browse submit` a thin proxy by default again, and require explicit `assist_site_state` / `--assist-site-state` opt-in before site-specific browser-state helpers run
+* **browse/submit**: keep regular traversal browser-native by default, make same-origin fetch fallback explicit opt-in only, and update CLI/MCP guidance so passive API analysis no longer silently turns into live fetch replay during submit flows
+* **workflow/publish**: compile publish-safe replay contracts from passive traversal evidence, including typed params, enums, derived auth/token hints, prerequisites, next-state validators, and usage notes for explicit replay after publish
+* **mcp/workflow**: expose published workflow artifacts as read-only MCP resources (`workflow_publish://`, `workflow_contract://`, `workflow_dag://`) plus a `plan_workflow_execution` prompt so hosts can inspect dependency walks, typed restrictions, and x402/payment requirements before choosing traversal vs replay
 * **orchestrator/publish**: enrich local endpoint descriptions and review prompts with audience, eligibility, pricing, and validity constraints so captured skills keep caveats like resident vs non-resident bundle rules before publish
 * **cli/tests**: stop local server bootstrap from blocking `/health` on remote auto-registration, make API routes wait briefly for background registration instead of failing fast, isolate snapshot-heavy e2e fixtures from the user’s real `~/.unbrowse` cache, and skip wallet bootstrap in the packaged setup smoke
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope

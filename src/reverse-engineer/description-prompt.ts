@@ -1,9 +1,52 @@
+import { inferSchema } from "../transform/index.js";
+import { sanitizeAgentVisibleText, sanitizeAgentVisibleValue } from "../publish/sanitize.js";
+
+export interface DescriptionParamContext {
+  name: string;
+  in: string;
+  example?: string;
+  type?: string;
+  required?: boolean;
+  enum_values?: Array<string | number | boolean>;
+  description?: string;
+}
+
 export interface DescriptionContext {
   url_template: string;
   method: string;
-  params: Array<{ name: string; in: string; example?: string }>;
+  params: DescriptionParamContext[];
   sample_response_keys?: string[];
   domain: string;
+  dependency_bindings?: string[];
+  search_terms?: string[];
+}
+
+function inferParamDescription(param: DescriptionParamContext): string | undefined {
+  if (param.description) return sanitizeAgentVisibleText(param.description);
+  const lower = param.name.toLowerCase();
+  if (/^(q|query|search|term|keyword)$/.test(lower)) return "Search query text.";
+  if (/date/.test(lower)) return "Date value used by the request.";
+  if (/email/.test(lower)) return "Email-style identifier.";
+  if (/country|residence|region|locale/.test(lower)) return "Audience or geographic selector.";
+  if (/id|slug|handle|username|urn/.test(lower)) return "Resource identifier.";
+  if (/token|csrf|session|auth|nonce|secret|key/.test(lower)) return "Derived auth or anti-forgery parameter.";
+  return undefined;
+}
+
+function renderParamLine(param: DescriptionParamContext): string {
+  const signatureParts = [param.in];
+  if (param.type) signatureParts.push(param.type);
+  if (param.required) signatureParts.push("required");
+  const suffix: string[] = [];
+  const description = inferParamDescription(param);
+  if (description) suffix.push(description);
+  if (param.enum_values && param.enum_values.length > 0) {
+    suffix.push(`allowed: ${param.enum_values.join(" | ")}`);
+  }
+  if (param.example) {
+    suffix.push(`example placeholder: "${sanitizeAgentVisibleText(param.example)}"`);
+  }
+  return `  - ${param.name} (${signatureParts.join(", ")})${suffix.length > 0 ? ` — ${suffix.join("; ")}` : ""}`;
 }
 
 /**
@@ -19,7 +62,7 @@ export function buildDescriptionPrompt(ctx: DescriptionContext): string {
   if (ctx.params.length > 0) {
     parts.push("Parameters:");
     for (const p of ctx.params) {
-      parts.push(`  - ${p.name} (${p.in})${p.example ? `: e.g. "${p.example}"` : ""}`);
+      parts.push(renderParamLine(p));
     }
   }
 
@@ -27,6 +70,15 @@ export function buildDescriptionPrompt(ctx: DescriptionContext): string {
     parts.push(`Response fields: ${ctx.sample_response_keys.join(", ")}`);
   }
 
+  if (ctx.dependency_bindings && ctx.dependency_bindings.length > 0) {
+    parts.push(`Dependency vars: ${ctx.dependency_bindings.map((entry) => sanitizeAgentVisibleText(entry)).join(", ")}`);
+  }
+
+  if (ctx.search_terms && ctx.search_terms.length > 0) {
+    parts.push(`Search terms: ${ctx.search_terms.map((entry) => sanitizeAgentVisibleText(entry)).join(", ")}`);
+  }
+
+  parts.push("Do not copy concrete ids, tokens, emails, phone numbers, or user-specific values. Replace concrete values with role-based placeholders when describing parameters.");
   parts.push("Write a one-sentence description of what this endpoint does, grounded in the parameters and response fields above.");
   return parts.join("\n");
 }
@@ -78,6 +130,35 @@ export function groundedDescription(ctx: DescriptionContext): string {
   }
 
   return parts.join(" ");
+}
+
+export function inferDescriptionParams(
+  input: Record<string, unknown>,
+  locationHints?: Record<string, string>,
+): DescriptionParamContext[] {
+  const schema = inferSchema([input]);
+  const requiredKeys = new Set(schema.required ?? []);
+  const properties = schema.properties ?? {};
+  return Object.entries(input).map(([name, value]) => {
+    const propertySchema = properties[name];
+    const enumValues = Array.isArray(value)
+      ? value
+          .filter((entry) => typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean")
+          .slice(0, 6) as Array<string | number | boolean>
+      : undefined;
+    const sanitizedExample = sanitizeAgentVisibleValue(name, value);
+    return {
+      name,
+      in: locationHints?.[name] ?? "body",
+      ...(propertySchema?.type ? { type: propertySchema.type } : {}),
+      ...(requiredKeys.has(name) ? { required: true } : {}),
+      ...(enumValues && enumValues.length > 1 ? { enum_values: enumValues } : {}),
+      ...(sanitizedExample != null && typeof sanitizedExample !== "object"
+        ? { example: String(sanitizedExample) }
+        : {}),
+      ...(inferParamDescription({ name, in: locationHints?.[name] ?? "body" }) ? { description: inferParamDescription({ name, in: locationHints?.[name] ?? "body" }) } : {}),
+    };
+  });
 }
 
 function titleCase(text: string): string {
