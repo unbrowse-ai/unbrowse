@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/lib/server-fetch";
+
 export interface LandingVariantCopy {
   hero_headline: string;
   hero_emphasis: string;
@@ -48,7 +50,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai
 
 export async function getHomepageLandingAssignment(): Promise<LandingAssignmentEnvelope> {
   try {
-    const response = await fetch(`${API_URL}/v1/landing/homepage/active`, {
+    const response = await fetchWithTimeout(`${API_URL}/v1/landing/homepage/active`, {
       next: { revalidate: 300 },
     });
     if (!response.ok) return DEFAULT_ASSIGNMENT;

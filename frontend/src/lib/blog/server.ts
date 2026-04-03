@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { fetchWithTimeout } from "@/lib/server-fetch";
 import type { BlogPost, BlogListItem } from "./types";
 import { LEGACY_BLOG_POSTS } from "./legacy-posts";
 
@@ -13,7 +14,7 @@ const API_BASE = "https://beta-api.unbrowse.ai/v1";
 export const getBlogPost = cache(
   async (slug: string): Promise<BlogPost | null> => {
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${API_BASE}/blog/posts/${encodeURIComponent(slug)}`,
         { next: { revalidate: 300 } }
       );
@@ -31,7 +32,7 @@ export const getBlogPost = cache(
 
 export const listDynamicBlogPosts = cache(async (): Promise<BlogListItem[]> => {
   try {
-    const res = await fetch(`${API_BASE}/blog/posts`, {
+    const res = await fetchWithTimeout(`${API_BASE}/blog/posts`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return [];

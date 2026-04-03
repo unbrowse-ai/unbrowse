@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { LEGACY_BLOG_POSTS } from "@/lib/blog/legacy-posts";
+import { fetchWithTimeout } from "@/lib/server-fetch";
 
 const API_BASE = "https://beta-api.unbrowse.ai/v1";
 
@@ -12,7 +13,7 @@ interface DynamicPost {
 
 async function fetchDynamicBlogSlugs(): Promise<DynamicPost[]> {
   try {
-    const res = await fetch(`${API_BASE}/blog/posts`, {
+    const res = await fetchWithTimeout(`${API_BASE}/blog/posts`, {
       next: { revalidate: 3600 },
     });
     if (!res.ok) return [];
