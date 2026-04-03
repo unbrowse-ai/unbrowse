@@ -11,7 +11,9 @@
 import { existsSync, mkdirSync, chmodSync, copyFileSync, createWriteStream, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import http from "node:http";
 import https from "node:https";
+import { SUPPORTED_TARGETS, buildReleaseAssetUrl, getReleaseAssetConfig } from "./release-assets.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
@@ -40,29 +42,24 @@ const platform = process.platform; // darwin, linux
 const arch = process.arch; // arm64, x64
 const target = `${platform}-${arch}`;
 
-const SUPPORTED = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"];
-if (!SUPPORTED.includes(target)) {
+if (!SUPPORTED_TARGETS.includes(target)) {
   console.warn(`[unbrowse] No prebuilt binary for ${target}.`);
   console.warn("[unbrowse] This package ships only the native binary wrapper.");
   process.exit(0);
 }
 
-// Read version from package.json
-const pkg = JSON.parse(
-  (await import("node:fs")).readFileSync(join(packageRoot, "package.json"), "utf-8")
-);
-const version = pkg.version;
-const repo = "unbrowse-ai/unbrowse";
+const { version, repo, tag, baseUrl } = getReleaseAssetConfig(packageRoot);
 const assetName = `unbrowse-${target}`;
-const url = `https://github.com/${repo}/releases/download/v${version}/${assetName}`;
+const url = buildReleaseAssetUrl(baseUrl, tag, assetName);
 
-console.log(`[unbrowse] Downloading binary for ${target} (v${version})...`);
+console.log(`[unbrowse] Downloading binary for ${target} (${tag})...`);
 
 function download(url, dest) {
   return new Promise((resolve, reject) => {
     const follow = (url, redirects = 0) => {
       if (redirects > 5) return reject(new Error("Too many redirects"));
-      https.get(url, { headers: { "User-Agent": "unbrowse-postinstall" } }, (res) => {
+      const client = url.startsWith("http://") ? http : https;
+      client.get(url, { headers: { "User-Agent": "unbrowse-postinstall" } }, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           return follow(res.headers.location, redirects + 1);
         }
@@ -88,7 +85,8 @@ try {
   console.log(`[unbrowse] Binary installed: ${binaryPath}`);
 } catch (err) {
   console.warn(`[unbrowse] Binary download failed: ${err.message}`);
-  console.warn("[unbrowse] Install failed: native binary unavailable for this version/target.");
+  console.warn(`[unbrowse] Install failed: native binary unavailable for ${repo} ${tag} (${target}).`);
   // Clean up partial download
   try { unlinkSync(binaryPath); } catch {}
+  process.exit(1);
 }

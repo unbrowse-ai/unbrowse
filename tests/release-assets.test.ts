@@ -18,8 +18,11 @@ describe("release asset wiring", () => {
     const workflow = readFileSync(RELEASE_WORKFLOW, "utf8");
 
     expect(workflow).toContain("name: Upload CLI Release Assets");
+    expect(workflow).toContain("name: Verify CLI Release Assets");
     expect(workflow).toContain("bash scripts/build-binaries.sh --all");
-    expect(workflow).toContain("gh release upload \"$TAG\" dist/unbrowse-* --clobber");
+    expect(workflow).toContain("gh release upload \"$TAG\" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber");
+    expect(workflow).toContain("run: node scripts/verify-release-assets.mjs");
+    expect(workflow).toContain("needs: verify-release-assets");
     expect(workflow).toContain("bash scripts/ensure-submodules.sh submodules/kuri");
   });
 });

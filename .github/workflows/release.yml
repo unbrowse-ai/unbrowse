@@ -38,10 +38,27 @@ jobs:
             gh release create "$TAG" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --title "$TAG" --notes "Release ${TAG}"
           fi
 
+  verify-release-assets:
+    name: Verify CLI Release Assets
+    runs-on: self-hosted
+    needs: upload-release-assets
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify release assets are reachable
+        working-directory: packages/skill
+        env:
+          UNBROWSE_RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/verify-release-assets.mjs
+
   publish-cli:
     name: Publish CLI (npm)
     runs-on: self-hosted
-    needs: upload-release-assets
+    needs: verify-release-assets
     outputs:
       package_name: ${{ steps.pkg.outputs.name }}
       package_version: ${{ steps.pkg.outputs.version }}
