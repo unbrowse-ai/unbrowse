@@ -62,8 +62,8 @@ export function HeroCTA({ experimentId, variantId, primaryLabel }: Props) {
           </code>
         </button>
 
-        <div className="rounded-xl border border-border bg-surface-raised px-4 py-4 text-left">
-          <div className="flex items-start justify-between gap-3">
+        <div className="rounded-xl border border-border bg-surface-raised px-4 py-3.5 text-left">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-text-muted">
                 Optional Host Shortcut
@@ -74,10 +74,10 @@ export function HeroCTA({ experimentId, variantId, primaryLabel }: Props) {
             </div>
             <button
               onClick={() => handleCopy(INSTALL_CMD_SKILL, "host_shortcut")}
-              className="shrink-0 flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-text-muted hover:text-orange-600 transition-colors"
+              className="inline-flex shrink-0 items-center gap-1 self-start rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium uppercase tracking-wider text-text-muted transition-colors hover:border-orange-500/30 hover:text-orange-600"
             >
               {copied === INSTALL_CMD_SKILL ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied === INSTALL_CMD_SKILL ? "Copied" : "Copy"}
+              {copied === INSTALL_CMD_SKILL ? "Copied" : "Copy skill"}
             </button>
           </div>
           <code className="mt-3 block overflow-x-auto whitespace-nowrap font-mono text-xs text-text-primary sm:text-sm">

@@ -145,7 +145,7 @@ function buildFallbackQuests(
       reward_multiplier: 5,
       type: "first-indexer" as const,
       deadline: "Sunday 23:59 UTC",
-    }] : []),
+    } satisfies MinerQuest] : []),
     ...(second ? [{
       id: "quest-fallback-2",
       title: `First to index ${second.domain}`,
@@ -154,7 +154,7 @@ function buildFallbackQuests(
       reward_multiplier: 4,
       type: "first-indexer" as const,
       deadline: "Sunday 23:59 UTC",
-    }] : []),
+    } satisfies MinerQuest] : []),
     {
       id: "quest-fallback-3",
       title: "Cover requested domains",
@@ -164,7 +164,7 @@ function buildFallbackQuests(
       deadline: "Sunday 23:59 UTC",
       progress: 0,
       goal: Math.max(3, Math.min(10, uncoveredCount || 5)),
-    },
+    } satisfies MinerQuest,
     {
       id: "quest-fallback-4",
       title: "40 routes in one session",
@@ -174,7 +174,7 @@ function buildFallbackQuests(
       deadline: "Sunday 23:59 UTC",
       progress: 0,
       goal: 40,
-    },
+    } satisfies MinerQuest,
   ].slice(0, 4);
 }
 
@@ -252,7 +252,7 @@ export function buildMinerDemandBoardFromEvents(
           reward_multiplier: Math.max(4, bounty.reward_multiplier),
           type: "first-indexer" as const,
           deadline: "Sunday 23:59 UTC",
-        })),
+        } satisfies MinerQuest)),
         {
           id: "quest-demand-domain-sprint",
           title: "Cover requested domains",
@@ -262,7 +262,7 @@ export function buildMinerDemandBoardFromEvents(
           deadline: "Sunday 23:59 UTC",
           progress: 0,
           goal: domainGoal,
-        },
+        } satisfies MinerQuest,
         {
           id: "quest-demand-route-count",
           title: `${routeGoal} routes from demand targets`,
@@ -272,7 +272,7 @@ export function buildMinerDemandBoardFromEvents(
           deadline: "Sunday 23:59 UTC",
           progress: 0,
           goal: routeGoal,
-        },
+        } satisfies MinerQuest,
       ].slice(0, 4)
     : buildFallbackQuests(effectiveBounties, domainCoverage);
 

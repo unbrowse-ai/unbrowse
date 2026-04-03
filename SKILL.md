@@ -196,7 +196,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url>` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows |
+| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows |
 | `snap` | `[--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `<ref>` | Click element by ref (e.g. e5) |
 | `fill` | `<ref> <value>` | Fill input by ref |
@@ -346,8 +346,8 @@ unbrowse skill {id}                                # Get skill details
 unbrowse search --intent "..." --domain "..."      # Search marketplace
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse go "https://example.com/form"             # Open a live capture tab
-unbrowse submit --wait-for "/next-step"            # Submit current form with recovery
-unbrowse sync                                      # Flush current step into route cache
+unbrowse submit --wait-for "/next-step"            # Submit current form with recovery and auto-queue publish for that step
+unbrowse sync                                      # Flush any extra captured routes into the route cache
 unbrowse health                                    # Server health check
 ```
 

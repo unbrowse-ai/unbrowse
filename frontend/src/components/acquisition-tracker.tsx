@@ -30,6 +30,9 @@ export function AcquisitionTracker({ experimentId, variantId }: Props) {
       if (sectionId === "install") {
         trackWebEvent("install_section_viewed", { section_id: sectionId }, context);
       }
+      if (sectionId === "first-task") {
+        trackWebEvent("first_task_section_viewed", { section_id: sectionId }, context);
+      }
       emitExplorationDepth();
     };
 
@@ -59,7 +62,7 @@ export function AcquisitionTracker({ experimentId, variantId }: Props) {
         }
       }, { threshold: 0.45 });
 
-      for (const sectionId of ["install", "demo", "registry", "faq"]) {
+      for (const sectionId of ["install", "demo", "registry", "faq", "first-task"]) {
         const target = document.getElementById(sectionId);
         if (!target) continue;
         target.setAttribute("data-landing-section", sectionId);

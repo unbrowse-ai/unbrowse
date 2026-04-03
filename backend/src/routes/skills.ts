@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { publishSkill, getSkill, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
+import { listPopularSkills } from "../services/popularity.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { addSkillDiscovered, getAgent, updateAgentWallet } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
@@ -20,6 +21,14 @@ publicSkillRoutes.use("/skills", rateLimit({ limit: 60, window: 60, prefix: "ski
 // GET /v1/skills -- list all
 publicSkillRoutes.get("/skills", async (c) => {
   const skills = await listSkills(c.env);
+  return c.json({ skills });
+});
+// GET /v1/skills/popular -- list top skills by observed executions
+publicSkillRoutes.get("/skills/popular", async (c) => {
+  const limit = parseInt(c.req.query("limit") ?? "8", 10);
+  const skills = await listPopularSkills(c.env, limit);
+  c.header("Cache-Control", "public, max-age=60");
+  c.header("Access-Control-Allow-Origin", "*");
   return c.json({ skills });
 });
 // GET /v1/skills/:id -- get by ID (x402-gated for paid skills)

@@ -11,6 +11,14 @@ Current production deploy split:
 - marketplace API origin: `https://beta-api.unbrowse.ai`
 - web origin: `https://www.unbrowse.ai` and `https://unbrowse.ai`
 
+Webhook/runtime extras:
+
+- `POST /v1/webhooks/github` is the public GitHub webhook receiver for opt-in PR maintenance
+- it dispatches the self-hosted `pr-agent.yml` workflow instead of blindly auto-merging PRs
+- backend cron trigger runs every 6 hours UTC and flushes queued Telegram PR digests
+- required webhook/notification secrets are documented below
+- setup steps live in [docs/github-webhook-pr-bot.md](/Users/lekt9/.codex/worktrees/3c82/unbrowse/docs/github-webhook-pr-bot.md)
+
 ## Canonical release path
 
 Use the repo-root release flow:
@@ -120,6 +128,10 @@ Backend runtime secrets are documented in [backend/wrangler.toml](/Users/lekt9/.
 - `UNKEY_ROOT_KEY`
 - `EMERGENTDB_API_KEY`
 - `NEBIUS_API_KEY`
+- `GITHUB_WEBHOOK_SECRET`
+- `GITHUB_PR_BOT_TOKEN`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
 
 ## Runtime config sources of truth
 
