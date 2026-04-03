@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
 import { LocalSupervisor } from "./supervisor.js";
+import { CODE_HASH } from "../version.js";
 
 type PidState = {
   pid: number;
@@ -10,16 +11,24 @@ type PidState = {
   started_at: string;
   entrypoint: string;
   version?: string;
+  code_hash?: string;
   restart_count?: number;
 };
 
 type ServerHealth = {
   status?: string;
   package_version?: string;
+  code_hash?: string;
 };
 
-export function isServerVersionMismatch(runningVersion: string | undefined, installedVersion: string): boolean {
-  return !!runningVersion && runningVersion !== installedVersion;
+export function isServerVersionMismatch(
+  runningVersion: string | undefined,
+  installedVersion: string,
+  runningCodeHash?: string,
+  installedCodeHash?: string,
+): boolean {
+  return (!!runningVersion && runningVersion !== installedVersion)
+    || (!!runningCodeHash && !!installedCodeHash && runningCodeHash !== installedCodeHash);
 }
 
 async function fetchServerHealth(baseUrl: string, timeoutMs = 2_000): Promise<ServerHealth | null> {
@@ -130,6 +139,7 @@ function spawnServer(
     started_at: new Date().toISOString(),
     entrypoint,
     version: getVersion(metaUrl),
+    code_hash: CODE_HASH,
     restart_count: restartCount,
   };
   writeFileSync(pidFile, JSON.stringify(state, null, 2));
@@ -146,14 +156,18 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
   const initialHealth = await fetchServerHealth(baseUrl);
   if (initialHealth) {
     const runningVersion = initialHealth.package_version;
-    if (isServerVersionMismatch(runningVersion, installedVersion)) {
-      const versionInfo = checkServerVersion(baseUrl, metaUrl);
+    const runningCodeHash = initialHealth.code_hash;
+    if (isServerVersionMismatch(runningVersion, installedVersion, runningCodeHash, CODE_HASH)) {
+      const versionInfo = checkServerVersion(baseUrl, metaUrl, {
+        runningVersion,
+        runningCodeHash,
+      });
       if (versionInfo?.needs_restart) {
         stopServer(baseUrl);
         await new Promise((resolve) => setTimeout(resolve, 1_000));
       } else {
         throw new Error(
-          `Server version mismatch on ${baseUrl}: running ${runningVersion}, installed ${installedVersion}. Run "unbrowse restart" or stop the stale server bound to that port.`,
+          `Server runtime mismatch on ${baseUrl}: running ${runningVersion ?? "unknown"} (${runningCodeHash ?? "unknown"}), installed ${installedVersion} (${CODE_HASH}). Run "unbrowse restart" or stop the stale server bound to that port.`,
         );
       }
     } else {
@@ -223,17 +237,44 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
 
 /**
  * Check if the running server version matches the installed CLI version.
- * Returns null if no server is running, or { running, installed, needs_restart }.
+ * Returns null if no server is running, or runtime/version details.
  */
-export function checkServerVersion(baseUrl: string, metaUrl: string): { running: string; installed: string; needs_restart: boolean } | null {
+export function checkServerVersion(
+  baseUrl: string,
+  metaUrl: string,
+): {
+  running: string;
+  installed: string;
+  running_code_hash?: string;
+  installed_code_hash: string;
+  needs_restart: boolean;
+} | null;
+export function checkServerVersion(
+  baseUrl: string,
+  metaUrl: string,
+  healthOverride?: {
+    runningVersion?: string;
+    runningCodeHash?: string;
+  },
+): {
+  running: string;
+  installed: string;
+  running_code_hash?: string;
+  installed_code_hash: string;
+  needs_restart: boolean;
+} | null {
   const pidFile = getServerPidFile(baseUrl);
   const state = readPidState(pidFile);
   if (!state) return null;
   const installed = getVersion(metaUrl);
+  const running = healthOverride?.runningVersion ?? state.version ?? "unknown";
+  const runningCodeHash = healthOverride?.runningCodeHash ?? state.code_hash;
   return {
-    running: state.version ?? "unknown",
+    running,
     installed,
-    needs_restart: state.version !== installed,
+    ...(runningCodeHash ? { running_code_hash: runningCodeHash } : {}),
+    installed_code_hash: CODE_HASH,
+    needs_restart: isServerVersionMismatch(running, installed, runningCodeHash, CODE_HASH),
   };
 }
 

@@ -7,6 +7,7 @@ import path from "node:path";
 import { checkServerVersion, stopServer } from "../src/runtime/local-server.js";
 import { getServerPidFile } from "../src/runtime/paths.js";
 import { parseArgs } from "../src/cli.js";
+import { CODE_HASH } from "../src/version.js";
 
 const TEST_BASE_URL = "http://localhost:19999";
 
@@ -55,6 +56,26 @@ describe("PidState version tracking", () => {
     const result = checkServerVersion(TEST_BASE_URL, import.meta.url);
     expect(result).not.toBeNull();
     expect(result!.needs_restart).toBe(false);
+    expect(result!.installed_code_hash).toBe(CODE_HASH);
+  });
+
+  it("checkServerVersion detects same-version code hash drift", () => {
+    const pkgPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    writeFileSync(pidFile, JSON.stringify({
+      pid: process.pid,
+      base_url: TEST_BASE_URL,
+      started_at: new Date().toISOString(),
+      entrypoint: "test",
+      version: pkg.version,
+      code_hash: "stalehash123456",
+    }));
+    const result = checkServerVersion(TEST_BASE_URL, import.meta.url);
+    expect(result).not.toBeNull();
+    expect(result!.running).toBe(pkg.version);
+    expect(result!.running_code_hash).toBe("stalehash123456");
+    expect(result!.installed_code_hash).toBe(CODE_HASH);
+    expect(result!.needs_restart).toBe(true);
   });
 });
 

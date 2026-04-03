@@ -517,3 +517,169 @@ export type RoutingTelemetryEvent =
   | RoutingCandidateEvent
   | RoutingStepEvent
   | RoutingSessionCompletedEvent;
+
+export type WorkflowStepStrategy = "server" | "trigger-intercept" | "browser-action" | "browser-fetch";
+
+export interface WorkflowActionStep {
+  action: string;
+  selector?: string;
+  value?: string;
+  ref?: string;
+  step_index?: number;
+}
+
+export interface WorkflowTokenCandidate {
+  source_kind: "cookie" | "request_header" | "response_header" | "request_body" | "hidden_input" | "meta" | "bootstrap_json";
+  source_name: string;
+  source_path?: string;
+  observed_value?: string;
+  confidence: number;
+}
+
+export interface TokenBinding {
+  binding_id: string;
+  target_location: "header" | "body";
+  target_name: string;
+  refresh_on_statuses: number[];
+  candidates: WorkflowTokenCandidate[];
+  selected_source_kind?: WorkflowTokenCandidate["source_kind"];
+  selected_source_name?: string;
+}
+
+export interface MutationGuard {
+  confirm_unsafe_required: boolean;
+  provenance_backed: boolean;
+  auth_required: boolean;
+  parameter_mapping_confident: boolean;
+  block_reason?: string;
+}
+
+export interface WorkflowStep {
+  step_id: string;
+  strategy: WorkflowStepStrategy;
+  provenance: "observed-request" | "bundle-inferred" | "dom-form" | "trigger-url" | "learned-runtime";
+  trigger_url?: string;
+  action_sequence?: WorkflowActionStep[];
+  success_count?: number;
+  failure_count?: number;
+  last_status?: number;
+  last_error?: string;
+  last_used_at?: string;
+}
+
+export interface WorkflowRecipe {
+  recipe_id: string;
+  endpoint_id: string;
+  operation_id?: string;
+  preferred: boolean;
+  provenance_backed: boolean;
+  steps: WorkflowStep[];
+  token_bindings: TokenBinding[];
+  mutation_guard: MutationGuard;
+  last_successful_strategy?: WorkflowStepStrategy;
+  last_used_at?: string;
+}
+
+export interface WorkflowDomFieldHint {
+  form_selector?: string;
+  field_name: string;
+  value?: string;
+  field_type?: string;
+}
+
+export interface WorkflowMetaHint {
+  key: string;
+  value: string;
+}
+
+export interface WorkflowBootstrapHint {
+  path: string;
+  value: string;
+}
+
+export interface WorkflowEvidence {
+  observed_request_count: number;
+  observed_request_urls: string[];
+  har_lineage_ids: Array<string | undefined>;
+  trigger_urls: string[];
+  js_bundle_urls: string[];
+  dom_form_hints: WorkflowDomFieldHint[];
+  meta_hints: WorkflowMetaHint[];
+  bootstrap_hints: WorkflowBootstrapHint[];
+}
+
+export interface WorkflowArtifact {
+  artifact_version: string;
+  skill_id: string;
+  domain: string;
+  intent_signature: string;
+  captured_at: string;
+  final_url: string;
+  auth_state: {
+    auth_profile_ref?: string;
+    cookie_names: string[];
+    header_names: string[];
+    authenticated: boolean;
+  };
+  evidence: WorkflowEvidence;
+  recipes: WorkflowRecipe[];
+}
+
+export type WorkflowPublishStatus = "captured" | "blocked-validation" | "published";
+
+export interface WorkflowPublishBindingSource {
+  source_kind: WorkflowTokenCandidate["source_kind"];
+  source_name: string;
+  source_path?: string;
+  confidence: number;
+}
+
+export interface WorkflowPublishBinding {
+  target_location: TokenBinding["target_location"];
+  target_name: string;
+  refresh_on_statuses: number[];
+  selected_source_kind?: TokenBinding["selected_source_kind"];
+  selected_source_name?: string;
+  candidates: WorkflowPublishBindingSource[];
+}
+
+export interface WorkflowPublishRecipe {
+  endpoint_id: string;
+  operation_id?: string;
+  preferred: boolean;
+  provenance_backed: boolean;
+  last_successful_strategy?: WorkflowStepStrategy;
+  steps: Array<{
+    strategy: WorkflowStepStrategy;
+    provenance: WorkflowStep["provenance"];
+    trigger_url?: string;
+    action_count: number;
+  }>;
+  mutation_guard: MutationGuard;
+  token_bindings: WorkflowPublishBinding[];
+}
+
+export interface WorkflowPublishArtifact {
+  export_version: string;
+  generated_at: string;
+  publish_status: WorkflowPublishStatus;
+  published_at?: string;
+  validation_errors?: string[];
+  skill_id: string;
+  domain: string;
+  intent_signature: string;
+  sanitized_endpoints: EndpointDescriptor[];
+  workflow_summary: {
+    recipe_count: number;
+    preferred_endpoint_ids: string[];
+    authenticated_capture: boolean;
+    token_binding_count: number;
+    trigger_url_count: number;
+  };
+  auth_summary: WorkflowArtifact["auth_state"];
+  recipes: WorkflowPublishRecipe[];
+  docs: {
+    headline: string;
+    bullets: string[];
+  };
+}
