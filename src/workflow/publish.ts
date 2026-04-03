@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { log } from "../logger.js";
@@ -41,6 +41,14 @@ export function readWorkflowPublishArtifact(skillId: string): WorkflowPublishArt
   } catch {
     return null;
   }
+}
+
+export function listWorkflowPublishArtifacts(): string[] {
+  const dir = getWorkflowExportDir();
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((entry) => entry.endsWith(".json"))
+    .map((entry) => join(dir, entry));
 }
 
 function stripQuery(url?: string): string | undefined {

@@ -6,6 +6,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureLocalServer } from "./runtime/local-server.js";
+import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./workflow/publish.js";
+import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -63,6 +65,40 @@ type ListedTool = {
   description: string;
   inputSchema: JsonSchema;
   annotations?: Record<string, boolean>;
+};
+
+type ResourceDefinition = {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
+  read: () => unknown;
+};
+
+type ListedResource = {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
+};
+
+type PromptArgument = {
+  name: string;
+  description?: string;
+  required?: boolean;
+};
+
+type PromptDefinition = {
+  name: string;
+  description: string;
+  arguments?: PromptArgument[];
+  get: (args: Record<string, unknown>) => { description?: string; messages: Array<Record<string, unknown>> };
+};
+
+type ListedPrompt = {
+  name: string;
+  description: string;
+  arguments?: PromptArgument[];
 };
 
 function writeStdout(message: unknown): void {
@@ -139,6 +175,14 @@ function errorResult(message: string, details?: unknown): ToolResult {
     ],
     structuredContent: details ?? { error: message },
     isError: true,
+  };
+}
+
+function textResource(uri: string, value: unknown, mimeType = "application/json"): { uri: string; mimeType: string; text: string } {
+  return {
+    uri,
+    mimeType,
+    text: typeof value === "string" ? value : JSON.stringify(value, null, 2),
   };
 }
 
@@ -270,6 +314,192 @@ function validateArguments(schema: JsonSchema, args: Record<string, unknown>): s
   }
 
   return errors;
+}
+
+function skillIdFromWorkflowExportPath(entry: string): string | null {
+  const base = path.basename(entry);
+  return base.endsWith(".json") ? base.slice(0, -".json".length) : null;
+}
+
+function summarizeWorkflowRecipe(artifact: WorkflowPublishArtifact, recipe: WorkflowPublishRecipe): Record<string, unknown> {
+  return {
+    skill_id: artifact.skill_id,
+    domain: artifact.domain,
+    intent_signature: artifact.intent_signature,
+    endpoint_id: recipe.endpoint_id,
+    operation_id: recipe.operation_id ?? null,
+    preferred: recipe.preferred,
+    provenance_backed: recipe.provenance_backed,
+    last_successful_strategy: recipe.last_successful_strategy ?? null,
+    usage_notes: recipe.usage_notes,
+    mutation_guard: recipe.mutation_guard,
+    token_bindings: recipe.token_bindings,
+    replay_contract: recipe.replay_contract,
+  };
+}
+
+function buildWorkflowDagView(artifact: WorkflowPublishArtifact, recipe: WorkflowPublishRecipe): Record<string, unknown> {
+  return {
+    skill_id: artifact.skill_id,
+    domain: artifact.domain,
+    intent_signature: artifact.intent_signature,
+    endpoint_id: recipe.endpoint_id,
+    operation_id: recipe.operation_id ?? null,
+    preferred: recipe.preferred,
+    steps: recipe.steps,
+    dependency_bindings: recipe.replay_contract.dependency_bindings,
+    search_terms: recipe.replay_contract.search_terms,
+    prerequisite_specs: recipe.replay_contract.prerequisite_specs,
+    next_state: recipe.replay_contract.next_state,
+    token_bindings: recipe.token_bindings,
+  };
+}
+
+function listWorkflowResources(): ResourceDefinition[] {
+  const resources: ResourceDefinition[] = [];
+  for (const exportPath of listWorkflowPublishArtifacts()) {
+    const skillId = skillIdFromWorkflowExportPath(exportPath);
+    if (!skillId) continue;
+    const artifact = readWorkflowPublishArtifact(skillId);
+    if (!artifact) continue;
+
+    const publishUri = `workflow_publish://${artifact.skill_id}`;
+    resources.push({
+      uri: publishUri,
+      name: `Workflow Publish Artifact: ${artifact.skill_id}`,
+      description: `Published workflow export summary for ${artifact.domain}.`,
+      mimeType: "application/json",
+      read: () => artifact,
+    });
+
+    for (const recipe of artifact.recipes) {
+      const contractUri = `workflow_contract://${artifact.skill_id}/${recipe.endpoint_id}`;
+      resources.push({
+        uri: contractUri,
+        name: `Workflow Contract: ${artifact.skill_id}/${recipe.endpoint_id}`,
+        description: `Typed replay contract, restrictions, and usage notes for ${recipe.endpoint_id}.`,
+        mimeType: "application/json",
+        read: () => summarizeWorkflowRecipe(artifact, recipe),
+      });
+
+      const dagUri = `workflow_dag://${artifact.skill_id}/${recipe.endpoint_id}`;
+      resources.push({
+        uri: dagUri,
+        name: `Workflow DAG: ${artifact.skill_id}/${recipe.endpoint_id}`,
+        description: `Dependency-oriented workflow graph view for ${recipe.endpoint_id}.`,
+        mimeType: "application/json",
+        read: () => buildWorkflowDagView(artifact, recipe),
+      });
+    }
+  }
+  return resources;
+}
+
+function listResource(resource: ResourceDefinition): ListedResource {
+  return {
+    uri: resource.uri,
+    name: resource.name,
+    description: resource.description,
+    mimeType: resource.mimeType,
+  };
+}
+
+function workflowPromptMessages(args: Record<string, unknown>): { description: string; messages: Array<Record<string, unknown>> } {
+  const skillId = typeof args.skill_id === "string" ? args.skill_id : "";
+  const artifact = skillId ? readWorkflowPublishArtifact(skillId) : null;
+  if (!artifact) {
+    return {
+      description: "Plan workflow execution from a published contract.",
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `No published workflow artifact found for ${skillId || "the requested skill"}. Use resolve/skill inspection first, or capture and publish the workflow before planning replay.`,
+          },
+        },
+      ],
+    };
+  }
+
+  const requestedEndpoint = typeof args.endpoint_id === "string" ? args.endpoint_id : undefined;
+  const recipe = requestedEndpoint
+    ? artifact.recipes.find((entry) => entry.endpoint_id === requestedEndpoint)
+    : artifact.recipes.find((entry) => entry.preferred) ?? artifact.recipes[0];
+  if (!recipe) {
+    return {
+      description: "Plan workflow execution from a published contract.",
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `No workflow recipe found in published artifact ${artifact.skill_id}. Inspect workflow_publish://${artifact.skill_id} first.`,
+          },
+        },
+      ],
+    };
+  }
+
+  const goal = typeof args.intent === "string"
+    ? args.intent
+    : (typeof args.user_goal === "string" ? args.user_goal : artifact.intent_signature);
+  const contract = summarizeWorkflowRecipe(artifact, recipe);
+  const dag = buildWorkflowDagView(artifact, recipe);
+  return {
+    description: `Plan execution for ${artifact.skill_id}/${recipe.endpoint_id}.`,
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: [
+            `Goal: ${goal}`,
+            "",
+            "Use this published workflow contract and DAG to decide whether to:",
+            "1. execute the explicit replay contract directly, or",
+            "2. use browser traversal first, then replay later.",
+            "",
+            "Rules:",
+            "- traversal stays browser-native and thin by default",
+            "- only opt into assist_site_state when thin submit is insufficient",
+            "- trust prerequisite_specs, dependency_bindings, and next_state before deeper calls",
+            "- do not invent params outside parameter_specs",
+            "",
+            `Contract resource: workflow_contract://${artifact.skill_id}/${recipe.endpoint_id}`,
+            previewValue(contract),
+            "",
+            `DAG resource: workflow_dag://${artifact.skill_id}/${recipe.endpoint_id}`,
+            previewValue(dag),
+          ].join("\n"),
+        },
+      },
+    ],
+  };
+}
+
+const prompts: PromptDefinition[] = [
+  {
+    name: "plan_workflow_execution",
+    description: "Plan whether to use browser traversal or explicit replay for a published workflow contract, using its prerequisites, typed params, and dependency graph.",
+    arguments: [
+      { name: "skill_id", description: "Published skill id.", required: true },
+      { name: "endpoint_id", description: "Optional endpoint id. Defaults to the preferred recipe.", required: false },
+      { name: "intent", description: "Optional user goal or task phrasing.", required: false },
+      { name: "user_goal", description: "Optional alternate wording for the goal.", required: false },
+    ],
+    get: workflowPromptMessages,
+  },
+];
+
+const promptMap = new Map(prompts.map((prompt) => [prompt.name, prompt]));
+
+function listPrompt(prompt: PromptDefinition): ListedPrompt {
+  return {
+    name: prompt.name,
+    description: prompt.description,
+    arguments: prompt.arguments,
+  };
 }
 
 let serverReadyPromise: Promise<void> | null = null;
@@ -1075,6 +1305,12 @@ async function handleRequest(message: JsonRpcRequest): Promise<void> {
         tools: {
           listChanged: false,
         },
+        resources: {
+          listChanged: false,
+        },
+        prompts: {
+          listChanged: false,
+        },
       },
       serverInfo: {
         name: "unbrowse",
@@ -1103,6 +1339,53 @@ async function handleRequest(message: JsonRpcRequest): Promise<void> {
     jsonRpcResult(id, {
       tools: tools.map(listTool),
     });
+    return;
+  }
+
+  if (method === "resources/list") {
+    jsonRpcResult(id, {
+      resources: listWorkflowResources().map(listResource),
+    });
+    return;
+  }
+
+  if (method === "resources/read") {
+    const uri = typeof params.uri === "string" ? params.uri : undefined;
+    if (!uri) {
+      jsonRpcError(id, -32602, "Resource uri is required");
+      return;
+    }
+    const resource = listWorkflowResources().find((entry) => entry.uri === uri);
+    if (!resource) {
+      jsonRpcError(id, -32602, `Unknown resource: ${uri}`);
+      return;
+    }
+    jsonRpcResult(id, {
+      contents: [textResource(resource.uri, resource.read(), resource.mimeType)],
+    });
+    return;
+  }
+
+  if (method === "prompts/list") {
+    jsonRpcResult(id, {
+      prompts: prompts.map(listPrompt),
+    });
+    return;
+  }
+
+  if (method === "prompts/get") {
+    const name = typeof params.name === "string" ? params.name : undefined;
+    const promptArgs = isPlainObject(params.arguments) ? params.arguments : {};
+    if (!name) {
+      jsonRpcError(id, -32602, "Prompt name is required");
+      return;
+    }
+    const prompt = promptMap.get(name);
+    if (!prompt) {
+      jsonRpcError(id, -32602, `Unknown prompt: ${name}`);
+      return;
+    }
+    jsonRpcResult(id, prompt.get(promptArgs));
     return;
   }
 
