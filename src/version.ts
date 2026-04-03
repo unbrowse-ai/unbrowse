@@ -39,14 +39,18 @@ function computeCodeHash(): string {
 }
 
 function getGitSha(): string {
-  return "unknown";
+  return process.env.UNBROWSE_BUILD_GIT_SHA?.trim() || "unknown";
 }
 
 /** 12-char hex hash of all source file contents */
-export const CODE_HASH: string = computeCodeHash();
+export const CODE_HASH: string = process.env.UNBROWSE_BUILD_CODE_HASH?.trim() || computeCodeHash();
 
 /** Short git commit SHA */
 export const GIT_SHA: string = getGitSha();
 
 /** Combined version: "{code_hash}@{git_sha}" — stamped on every trace */
 export const TRACE_VERSION: string = `${CODE_HASH}@${GIT_SHA}`;
+
+/** Signed release attestation; embedded in compiled binaries when available. */
+export const RELEASE_MANIFEST_BASE64: string = process.env.UNBROWSE_RELEASE_MANIFEST_BASE64?.trim() || "";
+export const RELEASE_MANIFEST_SIGNATURE: string = process.env.UNBROWSE_RELEASE_MANIFEST_SIGNATURE?.trim() || "";

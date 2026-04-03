@@ -25,15 +25,17 @@ jobs:
           bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
       - run: bash scripts/build-binaries.sh --all
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
       - name: Create or update GitHub release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${GITHUB_REF_NAME}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/unbrowse-* --clobber
+            gh release upload "$TAG" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber
           else
-            gh release create "$TAG" dist/unbrowse-* --title "$TAG" --notes "Release ${TAG}"
+            gh release create "$TAG" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --title "$TAG" --notes "Release ${TAG}"
           fi
 
   publish-cli:
@@ -148,8 +150,6 @@ jobs:
             PUBLISHED=1
           fi
           echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
-
-          fi
 
   deploy-backend:
     name: Deploy Backend (CF Worker)

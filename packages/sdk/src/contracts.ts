@@ -11,6 +11,9 @@ export interface SkillSubmissionProvenance {
   client_code_hash?: string;
   client_git_sha?: string;
   transport?: string;
+  release_manifest_version?: string;
+  release_manifest_verified?: boolean;
+  release_manifest_reason?: string;
 }
 
 export interface SkillTrustMetadata {
@@ -18,8 +21,20 @@ export interface SkillTrustMetadata {
   promotion_reason: string;
   submission_count: number;
   unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
   verified_ratio: number;
   last_submission_at: string;
+}
+
+export interface EndpointCorroboration {
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  last_submission_at: string;
+  submitter_agent_ids?: string[];
+  verified_release_submitter_ids?: string[];
 }
 
 export interface ResponseSchema {
@@ -56,6 +71,7 @@ export interface EndpointDescriptor {
   trigger_url?: string;
   exec_strategy?: "server" | "trigger-intercept" | "browser";
   graph_visibility?: GraphVisibility;
+  corroboration?: EndpointCorroboration;
 }
 
 export interface SkillManifest {
