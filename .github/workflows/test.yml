@@ -20,7 +20,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test:issue-regressions
         name: Run issue regressions and eval contract tests
-      - run: bun test tests/path-params.test.ts tests/utils.test.ts
+      - run: bun test tests/path-params.test.ts tests/utils.test.ts tests/pr-agent.test.ts
         name: Run unit tests
 
   quality-gate:
@@ -50,6 +50,19 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test backend/tests/
         name: Run all backend tests
+
+  landing-funnel-e2e:
+    name: Landing Funnel E2E
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: bun run test:landing-funnel:e2e
+        name: Run landing funnel end-to-end coverage
 
   typecheck:
     name: Typecheck Backend
@@ -88,6 +101,8 @@ jobs:
       - run: npm pack --dry-run
         name: Validate npm package
         working-directory: packages/skill
+      - run: bash scripts/smoke-packaged-cli.sh
+        name: Smoke packaged global install
 
   cli-e2e:
     name: CLI E2E

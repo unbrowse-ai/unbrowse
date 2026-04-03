@@ -55,7 +55,7 @@ Today, it is accurate to say Unbrowse ships:
 - marketplace-backed reuse
 - reliability scoring, verification, and drift handling
 - x402 / HTTP 402 payment-gated marketplace paths
-- wallet-linked creator payout identity and payment metadata surfaces
+- wallet-linked creator payout identity, payment metadata surfaces, and current payout routing
 
 Today, it is not accurate to say Unbrowse already ships the full paper economy:
 

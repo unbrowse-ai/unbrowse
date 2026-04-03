@@ -133,6 +133,7 @@ describe("analytics routes", () => {
       "/v1/analytics/network",
       "/v1/analytics/economics",
       "/v1/analytics/funnel",
+      "/v1/analytics/routing",
       "/v1/analytics/pricing",
       "/v1/analytics/dashboard",
       "/v1/analytics/install-funnel",
@@ -177,6 +178,7 @@ describe("analytics routes", () => {
       "/v1/analytics/network",
       "/v1/analytics/economics",
       "/v1/analytics/funnel",
+      "/v1/analytics/routing",
       "/v1/analytics/install-funnel",
     ];
 

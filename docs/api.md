@@ -13,6 +13,8 @@ Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The 
 
 The normal product path is local-first. CLI commands hit the local server, and the local server proxies marketplace-backed work when needed.
 
+Backend payment policy can split discovery from detail. With `X402_SEARCH_ENABLED=false`, `/v1/search*` stays free for discovery while paid `/v1/skills/:id` manifests still return `402 Payment Required`.
+
 ## TypeScript SDK
 
 The SDK lives in [`packages/sdk`](../packages/sdk/README.md). It is a thin wrapper over the same local server routes the CLI uses.
@@ -118,6 +120,7 @@ Useful post-processing flags supported by the current CLI:
 - `--schema` — show schema/extraction hints without data
 - `--path "data.items[]"` — drill into a nested path first
 - `--extract "name,url,alias:deep.path"` — project fields without `jq`
+- `--confirm-third-party-terms` — required for policy-sensitive mutations on flagged domains such as X write endpoints, in addition to `--confirm-unsafe`
 - `--limit N` — cap array results
 
 ## Auth
