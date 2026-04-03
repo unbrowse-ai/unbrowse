@@ -1,12 +1,41 @@
 # Unbrowse
 
-Turn any website into a reusable API interface for agents. Unbrowse captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
+Unbrowse is a local Model Context Protocol (MCP) server and CLI that turns any website into a reusable API interface for agents. It captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
 
 One agent learns a site once. Every later agent gets the fast path.
 
 Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
+
+## MCP server
+
+Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the MCP server entrypoint.
+
+- Protocol: JSON-RPC 2.0 MCP over stdio
+- Handshake: `initialize`, `notifications/initialized`, `ping`
+- Capability surface today: `tools/list` and `tools/call`
+- Current MCP shape: tools only. No `resources/*` or `prompts/*` methods yet.
+- Runtime model: the MCP server fronts the local Unbrowse runtime on `http://localhost:6969`; hosts talk standard MCP, and Unbrowse uses the local HTTP runtime behind the scenes.
+
+Core MCP tools:
+
+- Discovery: `unbrowse_health`, `unbrowse_search`, `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_feedback`
+- Auth/cache: `unbrowse_login`, `unbrowse_skills`, `unbrowse_skill`, `unbrowse_sessions`
+- Browser capture: `unbrowse_go`, `unbrowse_snap`, `unbrowse_click`, `unbrowse_fill`, `unbrowse_type`, `unbrowse_press`, `unbrowse_select`, `unbrowse_scroll`, `unbrowse_submit`, `unbrowse_screenshot`, `unbrowse_text`, `unbrowse_markdown`, `unbrowse_cookies`, `unbrowse_eval`, `unbrowse_sync`, `unbrowse_close`
+
+Typical MCP host config:
+
+```json
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "npx",
+      "args": ["-y", "unbrowse", "mcp"]
+    }
+  }
+}
+```
 
 ## Quick start
 
@@ -20,7 +49,9 @@ cd ~/unbrowse && ./setup --host off
 
 If a wallet is configured, that wallet address becomes the contributor truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
 
-Unbrowse supports wallet providers such as `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` will encourage it, and if the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically. That wallet becomes the payout destination for contributed routes and the spending wallet for paid marketplace routes.
+
+Unbrowse supports wallet providers such as Crossmint `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
 
 Headless/CI-friendly bootstrap:
 
@@ -35,13 +66,22 @@ git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git 
 cd ~/.codex/skills/unbrowse && ./setup --host codex
 ```
 
+For generic MCP hosts:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+That writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template is also published at [`/mcp.json`](https://www.unbrowse.ai/mcp.json).
+
 If your agent host uses skills:
 
 ```bash
 npx skills add unbrowse-ai/unbrowse
 ```
 
-If you want to call the canonical local API from app code instead of shelling out to the CLI:
+If you want to call the canonical local API from app code instead of shelling out to the CLI or MCP server:
 
 ```bash
 npm install @unbrowse/sdk
@@ -62,12 +102,28 @@ const result = await unbrowse.resolve({
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
 
+Check the exact command for your install with:
+
+```bash
+unbrowse upgrade
+```
+
+Codex and Claude installs now also get a session-start update hint during `unbrowse setup`, so newer releases are surfaced in the host before the CLI drifts too far behind.
+
 If you installed from a repo clone:
 
 ```bash
 cd ~/unbrowse
 git pull --ff-only
 ./setup --host off
+```
+
+If you installed for a generic MCP host:
+
+```bash
+cd ~/unbrowse
+git pull --ff-only
+./setup --host mcp
 ```
 
 If your agent host uses skills, rerun its skill install/update command too:
@@ -80,7 +136,7 @@ Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](htt
 
 Public companion docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. Interactive setup prompts for ToS acceptance and optionally an email-style agent identity. Headless runs can preseed `UNBROWSE_NON_INTERACTIVE=1`, `UNBROWSE_TOS_ACCEPTED=1`, and `UNBROWSE_AGENT_EMAIL=...`.
+Every CLI command auto-starts the local runtime on `http://localhost:6969` by default, and `unbrowse mcp` uses that same runtime behind the MCP stdio surface. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. Interactive setup prompts for ToS acceptance and optionally an email-style agent identity. Headless runs can preseed `UNBROWSE_NON_INTERACTIVE=1`, `UNBROWSE_TOS_ACCEPTED=1`, and `UNBROWSE_AGENT_EMAIL=...`.
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
@@ -117,18 +173,21 @@ Whitepaper companion set:
 - Prebuilds the packaged CLI runtime and installs the stable `unbrowse` shim for the repo bootstrap path.
 - Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
 - Registers the Open Code `/unbrowse` command when Open Code is present.
-- Runs the first-use flow: ToS, agent registration/API-key caching, and wallet detection.
+- Runs the first-use flow: ToS, agent registration/API-key caching, wallet detection, and Crossmint `lobster.cash` encouragement.
 - Starts the local Unbrowse server unless `--no-start` is passed.
 
 ## Common commands
 
 ```bash
 unbrowse health
+unbrowse mcp
 unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
 unbrowse login --url "https://calendar.google.com"
 unbrowse skills
 unbrowse search --intent "get stock prices"
 ```
+
+For most MCP hosts, the standard flow is `unbrowse_resolve` first, then `unbrowse_execute`. For JS-heavy or first-time capture workflows, use the browser tool chain: `unbrowse_go -> unbrowse_snap -> action tools -> unbrowse_submit/unbrowse_sync -> unbrowse_close`.
 
 ## Demo notes
 
@@ -193,7 +252,7 @@ For Cascade split provisioning during publish, set either:
 - `UNBROWSE_CASCADE_SPLIT_ADDRESS` or `UNBROWSE_CASCADE_SPLIT_CONFIG` to pin an already-created split config address
 - or `UNBROWSE_CASCADE_PLATFORM_WALLET`, `UNBROWSE_CASCADE_SIGNER_SECRET_KEY`, `UNBROWSE_CASCADE_RPC_URL`, and `UNBROWSE_CASCADE_RPC_WS_URL` to auto-create/update the split via `@cascade-fyi/splits-sdk`
 
-Worker payment gating is controlled by `PAYMENTS_ENABLED`. Set it to `false` / `0` / `off` to disable x402 skill gates and Tier 3 search fees entirely. Use `X402_NETWORK_MODE=mainnet` when a non-production worker still needs to advertise real mainnet payment terms for Lobster/Corbits e2e.
+Worker payment gating is controlled by `PAYMENTS_ENABLED`. Set it to `false` / `0` / `off` to disable all x402 gates. To keep discovery free while still gating paid skill manifests and execution detail, set `X402_SEARCH_ENABLED=false`. Use `X402_NETWORK_MODE=mainnet` when a non-production worker still needs to advertise real mainnet payment terms for Lobster/Corbits e2e.
 
 ## Architecture
 

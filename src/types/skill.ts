@@ -76,6 +76,12 @@ export interface EndpointSemanticDescriptor {
   auth_required?: boolean;
 }
 
+export interface EndpointPolicyDescriptor {
+  requires_third_party_terms_confirmation: boolean;
+  policy_domain: string;
+  reason: string;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
@@ -121,6 +127,8 @@ export interface EndpointDescriptor {
    *  by filling a DOM form rather than a direct API call. Used by isStructuredSearchForm
    *  to gate search-form execution paths. */
   search_form?: import("../execution/search-forms.js").SearchFormSpec;
+  /** Optional third-party policy metadata surfaced to callers and enforced at execute time. */
+  policy?: EndpointPolicyDescriptor;
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -253,6 +261,13 @@ export interface ExecutionTrace {
   started_at: string;
   completed_at: string;
   success: boolean;
+  session_id?: string;
+  step_index?: number;
+  state_hash?: string;
+  candidate_count?: number;
+  selected_operation_id?: string;
+  reachable_operation_count?: number;
+  api_call_count?: number;
   status_code?: number;
   error?: string;
   result?: unknown;
@@ -319,6 +334,8 @@ export interface EndpointStats {
 
 export interface ExecutionOptions {
   confirm_unsafe?: boolean;
+  /** Explicit user confirmation for domains/actions that may violate third-party site terms. */
+  confirm_third_party_terms?: boolean;
   dry_run?: boolean;
   /** User's request intent — used for endpoint ranking instead of skill.intent_signature */
   intent?: string;
@@ -377,4 +394,292 @@ export interface OrchestrationTiming {
   paid_execution_uc?: number;
   /** Code version hash + git SHA — tracks which code produced this timing */
   trace_version?: string;
+}
+
+export type RoutingRunType = "single_shot" | "long_running";
+export type RoutingTelemetrySource =
+  | "route-cache"
+  | "marketplace"
+  | "graph"
+  | "live-capture"
+  | "browser-action"
+  | "defer";
+export type RoutingSessionOutcome = "success" | "failure" | "defer" | "abandon";
+
+export interface RoutingContextBuckets {
+  role: "general" | "developer" | "researcher" | "analyst" | "operator" | "unknown";
+  cost_sensitivity: "low" | "medium" | "high" | "unknown";
+  latency_sensitivity: "low" | "medium" | "high" | "unknown";
+  output_preference: "structured" | "raw" | "mixed" | "unknown";
+  task_horizon: "short" | "long" | "unknown";
+  has_prior_history: boolean;
+}
+
+export interface RoutingCandidateSnapshot {
+  candidate_id: string;
+  rank: number;
+  skill_id?: string;
+  endpoint_id: string;
+  operation_id?: string;
+  route_fingerprint: string;
+  score: number;
+  chosen: boolean;
+  reachable: boolean;
+  rejection_reason?: string;
+  feature_snapshot: {
+    method?: string;
+    has_response_schema: boolean;
+    dom_extraction: boolean;
+    verification_status?: string;
+    reliability_score?: number;
+    unsafe_action_score?: number;
+  };
+}
+
+export interface RoutingTelemetryBaseEvent {
+  event_id: string;
+  event_type:
+    | "routing_session_started"
+    | "routing_candidates_ranked"
+    | "routing_step_executed"
+    | "routing_session_completed";
+  session_id: string;
+  created_at: string;
+  trace_version?: string;
+  anonymized_agent_id?: string;
+  top_level_intent: string;
+  normalized_domains: string[];
+  run_type: RoutingRunType;
+}
+
+export interface RoutingSessionEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_session_started";
+  context_buckets: RoutingContextBuckets;
+}
+
+export interface RoutingCandidateEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_candidates_ranked";
+  step_id: string;
+  step_index: number;
+  source: RoutingTelemetrySource;
+  state_hash_before: string;
+  candidate_count: number;
+  reachable_operation_count?: number;
+  available_binding_count?: number;
+  missing_binding_count?: number;
+  selected_endpoint_id?: string;
+  selected_operation_id?: string;
+  candidates: RoutingCandidateSnapshot[];
+}
+
+export interface RoutingStepEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_step_executed";
+  step_id: string;
+  step_index: number;
+  source: RoutingTelemetrySource;
+  state_hash_before: string;
+  state_hash_after: string;
+  selected_skill_id?: string;
+  selected_endpoint_id?: string;
+  selected_operation_id?: string;
+  reachable_operation_count?: number;
+  available_binding_count?: number;
+  missing_binding_count?: number;
+  candidate_count: number;
+  execution_latency_ms?: number;
+  status_code?: number;
+  success?: boolean;
+  failure_reason?: string;
+  schema_fingerprint?: string;
+  response_hash?: string;
+  cross_domain_transition: boolean;
+  retry_count: number;
+  user_override: boolean;
+  did_step_unlock_next_step: boolean;
+  required_recovery: boolean;
+}
+
+export interface RoutingSessionCompletedEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_session_completed";
+  completed_at: string;
+  final_outcome: RoutingSessionOutcome;
+  final_success: boolean;
+  total_steps: number;
+  total_candidates_ranked: number;
+  total_api_calls: number;
+  retry_count: number;
+  user_override: boolean;
+  required_recovery: boolean;
+}
+
+export type RoutingTelemetryEvent =
+  | RoutingSessionEvent
+  | RoutingCandidateEvent
+  | RoutingStepEvent
+  | RoutingSessionCompletedEvent;
+
+export type WorkflowStepStrategy = "server" | "trigger-intercept" | "browser-action" | "browser-fetch";
+
+export interface WorkflowActionStep {
+  action: string;
+  selector?: string;
+  value?: string;
+  ref?: string;
+  step_index?: number;
+}
+
+export interface WorkflowTokenCandidate {
+  source_kind: "cookie" | "request_header" | "response_header" | "request_body" | "hidden_input" | "meta" | "bootstrap_json";
+  source_name: string;
+  source_path?: string;
+  observed_value?: string;
+  confidence: number;
+}
+
+export interface TokenBinding {
+  binding_id: string;
+  target_location: "header" | "body";
+  target_name: string;
+  refresh_on_statuses: number[];
+  candidates: WorkflowTokenCandidate[];
+  selected_source_kind?: WorkflowTokenCandidate["source_kind"];
+  selected_source_name?: string;
+}
+
+export interface MutationGuard {
+  confirm_unsafe_required: boolean;
+  provenance_backed: boolean;
+  auth_required: boolean;
+  parameter_mapping_confident: boolean;
+  block_reason?: string;
+}
+
+export interface WorkflowStep {
+  step_id: string;
+  strategy: WorkflowStepStrategy;
+  provenance: "observed-request" | "bundle-inferred" | "dom-form" | "trigger-url" | "learned-runtime";
+  trigger_url?: string;
+  action_sequence?: WorkflowActionStep[];
+  success_count?: number;
+  failure_count?: number;
+  last_status?: number;
+  last_error?: string;
+  last_used_at?: string;
+}
+
+export interface WorkflowRecipe {
+  recipe_id: string;
+  endpoint_id: string;
+  operation_id?: string;
+  preferred: boolean;
+  provenance_backed: boolean;
+  steps: WorkflowStep[];
+  token_bindings: TokenBinding[];
+  mutation_guard: MutationGuard;
+  last_successful_strategy?: WorkflowStepStrategy;
+  last_used_at?: string;
+}
+
+export interface WorkflowDomFieldHint {
+  form_selector?: string;
+  field_name: string;
+  value?: string;
+  field_type?: string;
+}
+
+export interface WorkflowMetaHint {
+  key: string;
+  value: string;
+}
+
+export interface WorkflowBootstrapHint {
+  path: string;
+  value: string;
+}
+
+export interface WorkflowEvidence {
+  observed_request_count: number;
+  observed_request_urls: string[];
+  har_lineage_ids: Array<string | undefined>;
+  trigger_urls: string[];
+  js_bundle_urls: string[];
+  dom_form_hints: WorkflowDomFieldHint[];
+  meta_hints: WorkflowMetaHint[];
+  bootstrap_hints: WorkflowBootstrapHint[];
+}
+
+export interface WorkflowArtifact {
+  artifact_version: string;
+  skill_id: string;
+  domain: string;
+  intent_signature: string;
+  captured_at: string;
+  final_url: string;
+  auth_state: {
+    auth_profile_ref?: string;
+    cookie_names: string[];
+    header_names: string[];
+    authenticated: boolean;
+  };
+  evidence: WorkflowEvidence;
+  recipes: WorkflowRecipe[];
+}
+
+export type WorkflowPublishStatus = "captured" | "blocked-validation" | "published";
+
+export interface WorkflowPublishBindingSource {
+  source_kind: WorkflowTokenCandidate["source_kind"];
+  source_name: string;
+  source_path?: string;
+  confidence: number;
+}
+
+export interface WorkflowPublishBinding {
+  target_location: TokenBinding["target_location"];
+  target_name: string;
+  refresh_on_statuses: number[];
+  selected_source_kind?: TokenBinding["selected_source_kind"];
+  selected_source_name?: string;
+  candidates: WorkflowPublishBindingSource[];
+}
+
+export interface WorkflowPublishRecipe {
+  endpoint_id: string;
+  operation_id?: string;
+  preferred: boolean;
+  provenance_backed: boolean;
+  last_successful_strategy?: WorkflowStepStrategy;
+  steps: Array<{
+    strategy: WorkflowStepStrategy;
+    provenance: WorkflowStep["provenance"];
+    trigger_url?: string;
+    action_count: number;
+  }>;
+  mutation_guard: MutationGuard;
+  token_bindings: WorkflowPublishBinding[];
+}
+
+export interface WorkflowPublishArtifact {
+  export_version: string;
+  generated_at: string;
+  publish_status: WorkflowPublishStatus;
+  published_at?: string;
+  validation_errors?: string[];
+  skill_id: string;
+  domain: string;
+  intent_signature: string;
+  sanitized_endpoints: EndpointDescriptor[];
+  workflow_summary: {
+    recipe_count: number;
+    preferred_endpoint_ids: string[];
+    authenticated_capture: boolean;
+    token_binding_count: number;
+    trigger_url_count: number;
+  };
+  auth_summary: WorkflowArtifact["auth_state"];
+  recipes: WorkflowPublishRecipe[];
+  docs: {
+    headline: string;
+    bullets: string[];
+  };
 }

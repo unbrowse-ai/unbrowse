@@ -1,5 +1,6 @@
 import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
+import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
@@ -38,6 +39,21 @@ import {
 } from "../orchestrator/index.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { isAllowedByRobots } from "./robots.js";
+import { annotateEndpointPolicy, endpointRequiresThirdPartyTermsConfirmation, getEndpointPolicy } from "../site-policy.js";
+import {
+  mergeWorkflowArtifacts,
+  readWorkflowArtifact,
+  recordWorkflowRecipeOutcome,
+  writeWorkflowArtifact,
+} from "../workflow/artifact.js";
+import { buildWorkflowArtifactFromCapture } from "../workflow/compile.js";
+import {
+  needsWorkflowTokenRefresh,
+  pickWorkflowRecipe,
+  resolveWorkflowBindings,
+  translateWorkflowStrategy,
+} from "../workflow/runtime.js";
+import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
@@ -46,6 +62,112 @@ function stampTrace(trace: ExecutionTrace): ExecutionTrace {
 
 const DEFAULT_BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+
+function cloneReplayBody(body: unknown): unknown {
+  if (!body || typeof body !== "object") return body;
+  if (Array.isArray(body)) return body.map((entry) => cloneReplayBody(entry));
+  return { ...(body as Record<string, unknown>) };
+}
+
+function serializeReplayBody(body: unknown, headers: Record<string, string>): BodyInit | undefined {
+  if (body == null) return undefined;
+  if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  if (body instanceof FormData) return body;
+  const contentType = headers["content-type"] ?? headers["Content-Type"] ?? "";
+  if (/application\/x-www-form-urlencoded/i.test(contentType) && body && typeof body === "object" && !Array.isArray(body)) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+      if (value == null) continue;
+      params.set(key, String(value));
+    }
+    return params.toString();
+  }
+  return JSON.stringify(body);
+}
+
+async function reloadExecutionAuthState(
+  skill: SkillManifest,
+  epDomain: string,
+  authHeaders: Record<string, string>,
+  cookies: Array<{ name: string; value: string; domain: string }>,
+): Promise<void> {
+  for (const key of Object.keys(authHeaders)) delete authHeaders[key];
+  cookies.splice(0, cookies.length);
+
+  if (skill.auth_profile_ref) {
+    const stored = await getCredential(skill.auth_profile_ref);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as {
+          headers?: Record<string, string>;
+          cookies?: Array<{ name: string; value: string; domain: string }>;
+        };
+        Object.assign(authHeaders, parsed.headers ?? {});
+        cookies.push(...(parsed.cookies ?? []));
+      } catch {
+        /* ignore malformed auth state */
+      }
+    }
+  }
+
+  if (cookies.length === 0) {
+    try {
+      const resolved = await getAuthCookies(epDomain, {
+        autoExtract: !!skill.auth_profile_ref,
+      });
+      if (resolved?.length) cookies.push(...resolved);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (Object.keys(authHeaders).length === 0) {
+    try {
+      const sessionKey = `${getRegistrableDomain(epDomain)}-session`;
+      const sessionData = await getCredential(sessionKey);
+      if (sessionData) {
+        const parsed = JSON.parse(sessionData) as { headers?: Record<string, string>; cookies?: typeof cookies };
+        if (parsed.headers) Object.assign(authHeaders, parsed.headers);
+        if (parsed.cookies && cookies.length === 0) cookies.push(...parsed.cookies);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function persistWorkflowArtifactForCapture(
+  artifactSkill: SkillManifest,
+  captured: Pick<CaptureResult, "requests" | "har_lineage_id" | "final_url" | "html" | "js_bundles" | "cookies">,
+  capturedAuthHeaders?: Record<string, string>,
+): void {
+  try {
+    if (process.env.UNBROWSE_DEBUG_WORKFLOW === "1") {
+      log(
+        "workflow",
+        `capture artifact attempt skill=${artifactSkill.skill_id} requests=${captured.requests.length} final_url=${captured.final_url}`,
+      );
+    }
+    const nextArtifact = mergeWorkflowArtifacts(
+      buildWorkflowArtifactFromCapture(artifactSkill, captured, { authHeaders: capturedAuthHeaders }),
+      readWorkflowArtifact(artifactSkill.skill_id),
+    );
+    const writtenPath = writeWorkflowArtifact(nextArtifact);
+    const exportPath = writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(artifactSkill, nextArtifact, {
+      publishStatus: "captured",
+    }));
+    if (process.env.UNBROWSE_DEBUG_WORKFLOW === "1") {
+      log(
+        "workflow",
+        `capture persisted skill=${artifactSkill.skill_id} requests=${captured.requests.length} path=${writtenPath ?? "write-failed"} export=${exportPath ?? "write-failed"}`,
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log("workflow", `capture persistence failed for ${artifactSkill.skill_id}: ${message}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Quality gate — validate extracted data before marketplace publishing
@@ -757,6 +879,7 @@ async function trySeedStructuredDocumentSkill(
 
   let data: unknown;
   let passed = false;
+  let successfulReplayUrl = replayUrls[0] ?? url;
   for (const replayUrl of replayUrls) {
     const res = await fetch(replayUrl, {
       method: "GET",
@@ -769,6 +892,7 @@ async function trySeedStructuredDocumentSkill(
     const assessment = assessIntentResult(data, intent);
     if (assessment.verdict === "pass") {
       passed = true;
+      successfulReplayUrl = replayUrl;
       break;
     }
   }
@@ -833,6 +957,28 @@ async function trySeedStructuredDocumentSkill(
     }
   }
   try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+  const seededRequest: RawRequest = {
+    url: successfulReplayUrl,
+    method: "GET",
+    request_headers: headers,
+    response_status: 200,
+    response_headers: {
+      "content-type": typeof data === "string" ? "text/plain" : "application/json",
+    },
+    response_body: typeof data === "string" ? data : JSON.stringify(data),
+    timestamp: new Date().toISOString(),
+  };
+  persistWorkflowArtifactForCapture(
+    learned,
+    {
+      requests: [seededRequest],
+      har_lineage_id: `seeded:${learned.skill_id}:canonical-document`,
+      final_url: successfulReplayUrl,
+      cookies: cookies ?? [],
+      js_bundles: new Map(),
+    },
+    authHeaders,
+  );
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: nanoid(),
@@ -932,6 +1078,27 @@ async function trySeedPublicDocumentFetchSkill(
     }
   }
   try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+  const seededRequest: RawRequest = {
+    url,
+    method: "GET",
+    request_headers: headers,
+    response_status: response.status,
+    response_headers: Object.fromEntries(response.headers.entries()),
+    response_body: html,
+    timestamp: new Date().toISOString(),
+  };
+  persistWorkflowArtifactForCapture(
+    learned,
+    {
+      requests: [seededRequest],
+      har_lineage_id: `seeded:${learned.skill_id}:document-fetch`,
+      final_url: response.url || url,
+      html,
+      cookies: cookies ?? [],
+      js_bundles: new Map(),
+    },
+    authHeaders,
+  );
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: nanoid(),
@@ -1073,7 +1240,28 @@ async function executeBrowserCapture(
         },
       };
     }
-    throw captureErr;
+    const message = captureErr instanceof Error ? captureErr.message : String(captureErr);
+    const normalizedError = /unable to connect/i.test(message)
+      ? "connection_failed"
+      : /timed out/i.test(message)
+        ? "capture_timeout"
+        : "capture_failed";
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: normalizedError,
+    });
+    return {
+      trace,
+      result: {
+        error: normalizedError,
+        message,
+      },
+    };
   }
 
   const finalDomain = (() => {
@@ -1313,6 +1501,7 @@ async function executeBrowserCapture(
         } catch { /* publish failure is non-fatal */ }
         if (learned) {
           try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
+          persistWorkflowArtifactForCapture(learned, captured, capturedAuthHeaders);
         }
 
         const trace: ExecutionTrace = stampTrace({
@@ -1451,6 +1640,7 @@ async function executeBrowserCapture(
   // Return the local draft as learned_skill — no blocking on marketplace publish
   let learned: SkillManifest = localDraft;
   try { cachePublishedSkill(localDraft, options?.client_scope); } catch { /* best-effort */ }
+  persistWorkflowArtifactForCapture(localDraft, captured, capturedAuthHeaders);
 
   // Attribute lifecycle phases for this capture-to-publish flow
   const completedAt = new Date().toISOString();
@@ -1640,6 +1830,9 @@ export async function executeEndpoint(
   projection?: ProjectionOptions,
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
+  endpoint = annotateEndpointPolicy(endpoint);
+  const workflowArtifact = readWorkflowArtifact(skill.skill_id);
+  const workflowRecipe = pickWorkflowRecipe(workflowArtifact, endpoint.endpoint_id);
   const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
   // WebSocket endpoint: connect, collect messages, return
   if (endpoint.method === "WS") {
@@ -1713,8 +1906,25 @@ export async function executeEndpoint(
     }
   }
 
-  // Mutation safety gate
-  if (endpoint.method !== "GET" && endpoint.idempotency === "unsafe") {
+  // Mutation safety / policy gate
+  if (endpoint.method !== "GET") {
+    if (workflowRecipe?.mutation_guard.block_reason) {
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "workflow_blocked",
+        }),
+        result: {
+          error: "workflow_blocked",
+          message: workflowRecipe.mutation_guard.block_reason,
+        },
+      };
+    }
     if (options?.dry_run) {
       // Merge path_params defaults for dry_run preview too
       const dryParams = { ...params };
@@ -1742,11 +1952,32 @@ export async function executeEndpoint(
         }),
         result: {
           dry_run: true,
+          ...(endpoint.policy ? { site_policy: endpoint.policy } : {}),
           would_execute: { method: endpoint.method, url, body },
         },
       };
     }
-    if (!options?.confirm_unsafe) {
+    if (endpointRequiresThirdPartyTermsConfirmation(endpoint) && !options?.confirm_third_party_terms) {
+      const policy = getEndpointPolicy(endpoint)!;
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "third_party_terms_confirmation_required",
+        }),
+        result: {
+          error: "third_party_terms_confirmation_required",
+          message: `This endpoint may violate third-party site terms for ${policy.policy_domain}. Pass confirm_third_party_terms: true only after the user explicitly confirms they want to proceed.`,
+          policy_domain: policy.policy_domain,
+          policy_reason: policy.reason,
+        },
+      };
+    }
+    if (endpoint.idempotency === "unsafe" && !options?.confirm_unsafe) {
       return {
         trace: stampTrace({
           trace_id: nanoid(),
@@ -1769,52 +2000,9 @@ export async function executeEndpoint(
   const authHeaders: Record<string, string> = {};
   const cookies: Array<{ name: string; value: string; domain: string }> = [];
 
-  if (skill.auth_profile_ref) {
-    const stored = await getCredential(skill.auth_profile_ref);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as {
-          headers?: Record<string, string>;
-          cookies?: typeof cookies;
-        };
-        Object.assign(authHeaders, parsed.headers ?? {});
-        cookies.push(...(parsed.cookies ?? []));
-      } catch {
-        // malformed stored cred — skip
-      }
-    }
-  }
-
   // Endpoint domain — used for cookie resolution, strategy caching, auth refresh
   const epDomain = (() => { try { return new URL(endpoint.url_template).hostname; } catch { return skill.domain; } })();
-
-  // Bird-style: auto-resolve cookies from vault → browser fallback
-  if (cookies.length === 0) {
-    try {
-      const resolved = await getAuthCookies(epDomain, {
-        autoExtract: !!skill.auth_profile_ref || endpoint.semantic?.auth_required === true,
-      });
-      if (resolved && resolved.length > 0) {
-        cookies.push(...resolved);
-      }
-    } catch {
-      // URL parse failure — skip cookie resolution
-    }
-  }
-
-  // Also check the domain-session vault for stored auth headers (authorization, api keys, etc.)
-  // These are captured during browser-capture and stored alongside cookies.
-  if (Object.keys(authHeaders).length === 0) {
-    try {
-      const sessionKey = `${getRegistrableDomain(epDomain)}-session`;
-      const sessionData = await getCredential(sessionKey);
-      if (sessionData) {
-        const parsed = JSON.parse(sessionData) as { headers?: Record<string, string>; cookies?: typeof cookies };
-        if (parsed.headers) Object.assign(authHeaders, parsed.headers);
-        if (parsed.cookies && cookies.length === 0) cookies.push(...parsed.cookies);
-      }
-    } catch { /* skip */ }
-  }
+  await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
 
   log("exec", `endpoint ${endpoint.endpoint_id}: cookies=${cookies.length} authHeaders=${Object.keys(authHeaders).length} hasAuth=${cookies.length > 0 || Object.keys(authHeaders).length > 0}`);
 
@@ -1858,9 +2046,20 @@ export async function executeEndpoint(
     }
   }
   let url = interpolate(urlTemplate, mergedParams);
-  const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
+  let body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
   const isSafe = endpoint.method === "GET";
+  let workflowBindings = workflowRecipe && workflowArtifact
+    ? resolveWorkflowBindings(workflowRecipe, {
+        cookies,
+        authHeaders,
+        body,
+        artifact: workflowArtifact,
+      })
+    : null;
+  if (workflowBindings?.bodyOverride !== undefined) {
+    body = workflowBindings.bodyOverride;
+  }
 
   // Append leftover params as query string on GET requests.
   // Params already consumed by path_params, endpoint.query, or {template} vars are skipped.
@@ -1899,9 +2098,14 @@ export async function executeEndpoint(
     }
   }
 
+  const hasAuthContext =
+    cookies.length > 0 ||
+    Object.keys(authHeaders).length > 0 ||
+    !!skill.auth_profile_ref ||
+    endpoint.semantic?.auth_required === true;
 
   // robots.txt compliance gate — block disallowed paths before any network call.
-  if (!options?.skip_robots_check) {
+  if (!options?.skip_robots_check && !hasAuthContext) {
     const allowed = await isAllowedByRobots(url);
     if (!allowed) {
       const traceId = nanoid();
@@ -1926,7 +2130,10 @@ export async function executeEndpoint(
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
 
-  const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
+  const serverFetch = async (
+    extraHeaders: Record<string, string> = {},
+    bodyOverride: unknown = body,
+  ): Promise<{ data: unknown; status: number; trace_id: string }> => {
     const endpointHeaders = normalizeReplayHeaders(endpoint.headers_template);
     const sessionHeaders = normalizeReplayHeaders(authHeaders);
 
@@ -1938,6 +2145,7 @@ export async function executeEndpoint(
       ...defaultAccept,
       ...endpointHeaders,
       ...sessionHeaders,
+      ...normalizeReplayHeaders(extraHeaders),
     };
     // Strip browser-only headers that cause issues server-side
     delete headers["sec-ch-ua"];
@@ -1991,7 +2199,7 @@ export async function executeEndpoint(
       const res = await fetch(replayUrl, {
         method: endpoint.method,
         headers: replayHeaders,
-        body: body ? JSON.stringify(body) : undefined,
+        body: serializeReplayBody(bodyOverride, replayHeaders),
         redirect: "follow",
       });
       let data: unknown;
@@ -2017,10 +2225,14 @@ export async function executeEndpoint(
 
   let result: { data: unknown; status: number; trace_id: string };
   const hasAuth = cookies.length > 0 || Object.keys(authHeaders).length > 0;
+  const preferredWorkflowStrategy = workflowRecipe?.steps[0]?.strategy
+    ? translateWorkflowStrategy(workflowRecipe.steps[0].strategy)
+    : undefined;
+  let workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy;
 
   if (endpoint.dom_extraction && isSafe) {
     if (hasStructuredReplay) {
-      result = await serverFetch();
+      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
       if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         result = await executeDomExtractionEndpoint(
           endpoint,
@@ -2049,12 +2261,13 @@ export async function executeEndpoint(
     // Endpoint-level learned strategy (strong signal — proven for this specific endpoint).
     // Domain-level prediction is only used as a tiebreaker, never to skip server-fetch entirely,
     // because different endpoints on the same domain may have different requirements.
-    const endpointStrategy = endpoint.exec_strategy;
+    const endpointStrategy = preferredWorkflowStrategy ?? endpoint.exec_strategy;
 
     if (hasStructuredReplay) {
-      result = await serverFetch();
+      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
       if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         strategy = "server";
+        workflowChosenStrategy = "server";
       } else if (endpoint.trigger_url && isSafe) {
         // Build trigger URL with agent's params applied — don't replay original captured search
         let triggerUrl = endpoint.trigger_url;
@@ -2071,18 +2284,22 @@ export async function executeEndpoint(
         }
         result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
         strategy = "trigger-intercept";
+        workflowChosenStrategy = "trigger-intercept";
       } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
+        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       }
     } else if (endpointStrategy === "server") {
       // Proven: server-fetch works for this endpoint
-      result = await serverFetch();
+      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
       if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
+        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       } else {
         strategy = "server";
+        workflowChosenStrategy = "server";
       }
     } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
       // Proven: this endpoint needs trigger-intercept
@@ -2099,34 +2316,40 @@ export async function executeEndpoint(
       log("exec", `using learned strategy trigger-intercept via ${triggerUrl}`);
       result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
       strategy = "trigger-intercept";
+      workflowChosenStrategy = "trigger-intercept";
     } else if (endpointStrategy === "browser") {
       if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
-        result = await serverFetch();
+        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
         if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
           strategy = "server";
+          workflowChosenStrategy = "server";
         } else {
           log("exec", `server replay rejected stale learned browser strategy for ${endpoint.endpoint_id}; falling back to browser`);
           result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
           strategy = "browser";
+          workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
         }
       } else {
         log("exec", `using learned strategy browser`);
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
+        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       }
     } else {
       // No endpoint-level strategy — always try server-fetch first (fastest path).
       // Fall back to trigger-intercept or browser if server returns 4xx.
       try {
-        result = await serverFetch();
+        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
         if (result.status >= 200 && result.status < 400) {
           // For API endpoints, trust the server response — no fallback to browser
           const isApiEndpoint = /\/(api|graphql)\b/i.test(endpoint.url_template) || /\.(json)(\?|$)/.test(endpoint.url_template);
           if (!isApiEndpoint && shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
             strategy = "browser";
+            workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
           } else {
             strategy = "server";
+            workflowChosenStrategy = "server";
           }
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
@@ -2143,14 +2366,17 @@ export async function executeEndpoint(
             }
             result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
             strategy = "trigger-intercept";
+            workflowChosenStrategy = "trigger-intercept";
           } else {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
             strategy = "browser";
+            workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
           }
         }
       } catch {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
+        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       }
     }
 
@@ -2165,7 +2391,7 @@ export async function executeEndpoint(
   } else if (isSafe) {
     // No auth: fetch-first for safe GETs — fall back to browser if SPA shell or error
     try {
-      result = await withRetry(serverFetch, (r) => isRetryableStatus(r.status));
+      result = await withRetry(() => serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride), (r) => isRetryableStatus(r.status));
       if (typeof result.data === "string" && isHtml(result.data)) {
         if (isSpaShell(result.data)) {
           result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
@@ -2176,7 +2402,24 @@ export async function executeEndpoint(
     }
   } else {
     // No auth, non-GET: server fetch
-    result = await serverFetch();
+    result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+  }
+
+  if (workflowRecipe && workflowArtifact && needsWorkflowTokenRefresh(result.status)) {
+    const refreshed = await refreshAuthFromBrowser(epDomain);
+    if (refreshed) {
+      await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
+      workflowBindings = resolveWorkflowBindings(workflowRecipe, {
+        cookies,
+        authHeaders,
+        body,
+        artifact: workflowArtifact,
+      });
+      result = await serverFetch(workflowBindings.extraHeaders, workflowBindings.bodyOverride);
+      if (result.status >= 200 && result.status < 400) {
+        workflowChosenStrategy = workflowChosenStrategy ?? "server";
+      }
+    }
   }
   const { status, trace_id } = result;
   let data = result.data;
@@ -2355,6 +2598,30 @@ export async function executeEndpoint(
     resultData = applyProjection(data, projection);
   } else if (trace.success) {
     resultData = projectResultForIntent(data, effectiveIntent);
+  }
+
+  if (workflowArtifact && workflowRecipe && workflowChosenStrategy) {
+    const updatedWorkflow = recordWorkflowRecipeOutcome(
+      workflowArtifact,
+      endpoint.endpoint_id,
+      workflowChosenStrategy,
+      {
+        success: trace.success,
+        status,
+        error: trace.error,
+        selectedBindings: workflowBindings?.selectedBindings,
+      },
+    );
+    const writtenPath = writeWorkflowArtifact(updatedWorkflow);
+    if (process.env.UNBROWSE_DEBUG_WORKFLOW === "1") {
+      log(
+        "workflow",
+        `execution persisted skill=${skill.skill_id} endpoint=${endpoint.endpoint_id} strategy=${workflowChosenStrategy} path=${writtenPath ?? "write-failed"}`,
+      );
+    }
+    trace.result = trace.result;
+    (trace as ExecutionTrace & { workflow_selected_bindings?: unknown; workflow_strategy?: string }).workflow_selected_bindings = workflowBindings?.selectedBindings;
+    (trace as ExecutionTrace & { workflow_selected_bindings?: unknown; workflow_strategy?: string }).workflow_strategy = workflowChosenStrategy;
   }
 
   return {

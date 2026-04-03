@@ -5,18 +5,29 @@ import {
   INSTALL_CMD_CLAUDE,
   INSTALL_CMD_CODEX,
   INSTALL_CMD_GENERIC,
+  INSTALL_CMD_MCP,
+  MCP_CONFIG_JSON,
+  MCP_CONFIG_PATH,
   UPGRADE_CMD_GENERIC,
+  UPGRADE_CMD_MCP,
 } from "../frontend/src/lib/install-command";
 
 const ROOT = path.resolve(import.meta.dir, "..");
 
 describe("bootstrap install flow", () => {
-  it("publishes deterministic clone-and-setup commands", () => {
-    expect(INSTALL_CMD_GENERIC).toContain("git clone --single-branch --depth 1");
-    expect(INSTALL_CMD_GENERIC).toContain("./setup --host off");
+  it("publishes deterministic install and upgrade commands", () => {
+    expect(INSTALL_CMD_GENERIC).toContain("curl -fsSL");
+    expect(INSTALL_CMD_GENERIC).toContain("install.sh");
+    expect(INSTALL_CMD_MCP).toContain("./setup --host mcp");
     expect(INSTALL_CMD_CODEX).toContain("./setup --host codex");
     expect(INSTALL_CMD_CLAUDE).toContain("./setup --host claude");
-    expect(UPGRADE_CMD_GENERIC).toContain("git pull --ff-only");
+    expect(UPGRADE_CMD_GENERIC).toContain("curl -fsSL");
+    expect(UPGRADE_CMD_MCP).toContain("./setup --host mcp");
+    expect(MCP_CONFIG_PATH).toContain("unbrowse/mcp/unbrowse.json");
+    expect(MCP_CONFIG_JSON).toContain("\"mcpServers\"");
+    expect(MCP_CONFIG_JSON).toContain("\"command\": \"unbrowse\"");
+    expect(MCP_CONFIG_JSON).toContain("\"args\": [");
+    expect(MCP_CONFIG_JSON).toContain("\"mcp\"");
   });
 
   it("ships a repo bootstrap script that builds the packaged runtime and installs a shim", () => {
@@ -26,11 +37,19 @@ describe("bootstrap install flow", () => {
     expect(script).toContain("packages/skill/bin/unbrowse-wrapper.mjs");
     expect(script).toContain('CODEX_HOME_DIR/skills/unbrowse');
     expect(script).toContain('$HOME/.claude/skills/unbrowse');
+    expect(script).toContain("auto|codex|claude|mcp|off");
+    expect(script).toContain('MCP_CONFIG_DIR="$(resolve_config_home)/unbrowse/mcp"');
+    expect(script).toContain('log "wrote MCP config: $MCP_CONFIG_PATH"');
+    expect(script).toContain('"args": ["mcp"]');
     expect(script).toContain("--accept-tos");
     expect(script).toContain("--agent-email");
     expect(script).toContain("UNBROWSE_TOS_ACCEPTED=1");
     expect(script).toContain("UNBROWSE_AGENT_EMAIL");
     expect(script).toContain("UNBROWSE_SKIP_WALLET_SETUP=1");
+    expect(script).toContain('UNBROWSE_SETUP_METHOD="repo-clone"');
+    expect(script).toContain('UNBROWSE_SETUP_HOST="$TARGET_HOST"');
+    expect(script).toContain('UNBROWSE_SETUP_ROOT="$ROOT_DIR"');
+    expect(script).toContain("Crossmint lobster.cash recommended");
   });
 
   it("ships a standalone skill bootstrap script for the public repo clone path", () => {
@@ -40,10 +59,32 @@ describe("bootstrap install flow", () => {
     expect(script).toContain('exec node "$ROOT_DIR/bin/unbrowse-wrapper.mjs"');
     expect(script).toContain('CODEX_HOME_DIR/skills/unbrowse');
     expect(script).toContain('$HOME/.claude/skills/unbrowse');
+    expect(script).toContain("auto|codex|claude|mcp|off");
+    expect(script).toContain('MCP_CONFIG_DIR="$(resolve_config_home)/unbrowse/mcp"');
+    expect(script).toContain('log "wrote MCP config: $MCP_CONFIG_PATH"');
+    expect(script).toContain('"args": ["mcp"]');
     expect(script).toContain("--accept-tos");
     expect(script).toContain("--agent-email");
     expect(script).toContain("UNBROWSE_TOS_ACCEPTED=1");
     expect(script).toContain("UNBROWSE_AGENT_EMAIL");
     expect(script).toContain("UNBROWSE_SKIP_WALLET_SETUP=1");
+    expect(script).toContain('UNBROWSE_SETUP_METHOD="repo-clone"');
+    expect(script).toContain('UNBROWSE_SETUP_HOST="$TARGET_HOST"');
+    expect(script).toContain('UNBROWSE_SETUP_ROOT="$ROOT_DIR"');
+    expect(script).toContain("Crossmint lobster.cash recommended");
+  });
+
+  it("keeps frontend install and agent docs pointing new installs at Crossmint", () => {
+    const homePage = readFileSync(path.join(ROOT, "frontend", "src", "app", "page.tsx"), "utf8");
+    const installUi = readFileSync(path.join(ROOT, "frontend", "src", "components", "install-instructions.tsx"), "utf8");
+    const skillRoute = readFileSync(path.join(ROOT, "frontend", "src", "app", "skill.md", "route.ts"), "utf8");
+    const llms = readFileSync(path.join(ROOT, "frontend", "public", "llms.txt"), "utf8");
+    const llmsFull = readFileSync(path.join(ROOT, "frontend", "public", "llms-full.txt"), "utf8");
+
+    expect(homePage).toContain("Crossmint lobster.cash");
+    expect(installUi).toContain("Crossmint lobster.cash");
+    expect(skillRoute).toContain("Crossmint lobster.cash");
+    expect(llms).toContain("Crossmint lobster.cash");
+    expect(llmsFull).toContain("Crossmint lobster.cash");
   });
 });

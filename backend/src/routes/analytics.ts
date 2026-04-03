@@ -10,6 +10,7 @@ import {
 import { getAcquisitionSummary } from "../services/acquisition.js";
 import { getFunnelSummary } from "../services/funnel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
+import { getLandingHomepageAnalyticsSummary } from "../services/landing-experiments.js";
 import {
   getGrowthMetrics,
   getNetworkHealthMetrics,
@@ -22,6 +23,7 @@ import {
   saveRevenuePricing,
 } from "../services/metrics.js";
 import { bearerAuth } from "../middleware/auth.js";
+import { getRoutingTelemetrySummary as getRoutingSummary } from "../services/routing-telemetry.js";
 
 export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
@@ -84,6 +86,13 @@ analyticsRoutes.get("/analytics/economics", async (c) => {
   return c.json(metrics);
 });
 
+analyticsRoutes.get("/analytics/routing", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 180);
+  const summary = await getRoutingSummary(c.env, days);
+  setAnalyticsHeaders(c);
+  return c.json(summary);
+});
+
 analyticsRoutes.get("/analytics/agents", async (c) => {
   const health = await getAgentHealth(c.env);
   setAnalyticsHeaders(c);
@@ -119,6 +128,13 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     cached_skill_calls?: number;
     fresh_index_calls?: number;
     browser_mode?: "default" | "replaced" | "manual" | "unknown";
+    success?: boolean;
+    source?: string;
+    time_saved_ms?: number;
+    time_saved_pct?: number;
+    tokens_saved?: number;
+    tokens_saved_pct?: number;
+    cost_saved_uc?: number;
   }>();
   if (!body.session_id || !body.started_at) {
     return c.json({ error: "session_id and started_at required" }, 400);
@@ -133,6 +149,13 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     cached_skill_calls: body.cached_skill_calls,
     fresh_index_calls: body.fresh_index_calls,
     browser_mode: body.browser_mode,
+    success: body.success,
+    source: body.source,
+    time_saved_ms: body.time_saved_ms,
+    time_saved_pct: body.time_saved_pct,
+    tokens_saved: body.tokens_saved,
+    tokens_saved_pct: body.tokens_saved_pct,
+    cost_saved_uc: body.cost_saved_uc,
   });
   return c.json({ ok: true });
 });
@@ -200,6 +223,13 @@ analyticsRoutes.get("/analytics/install", async (c) => {
 analyticsRoutes.get("/analytics/install-funnel", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
   const summary = await getFunnelSummary(c.env, days);
+  setAnalyticsHeaders(c);
+  return c.json(summary);
+});
+
+analyticsRoutes.get("/analytics/landing-funnel", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 180);
+  const summary = await getLandingHomepageAnalyticsSummary(c.env, days);
   setAnalyticsHeaders(c);
   return c.json(summary);
 });

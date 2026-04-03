@@ -201,4 +201,68 @@ describe("input payload ingestion", () => {
       }),
     });
   });
+
+  it("blocks policy-gated mutations until third-party terms confirmation is explicit", async () => {
+    const endpoint: EndpointDescriptor = {
+      endpoint_id: "post-tweet",
+      method: "POST",
+      url_template: "https://api.x.com/2/tweets",
+      body: {
+        text: "{text}",
+      },
+      idempotency: "unsafe",
+      verification_status: "verified",
+      reliability_score: 1,
+      description: "create tweet",
+    };
+
+    const out = await executeSkill(
+      makeSkill(endpoint),
+      { text: "hello world" },
+      { raw: true },
+      { confirm_unsafe: true },
+    );
+
+    expect((out.result as Record<string, unknown>).error).toBe("third_party_terms_confirmation_required");
+    expect((out.result as Record<string, unknown>).policy_domain).toBe("x.com");
+  });
+
+  it("allows policy-gated mutations after explicit third-party terms confirmation", async () => {
+    const server = await startEchoServer();
+    const endpoint: EndpointDescriptor = {
+      endpoint_id: "post-tweet",
+      method: "POST",
+      url_template: `${server.baseUrl}/2/tweets`,
+      body: {
+        text: "{text}",
+      },
+      idempotency: "unsafe",
+      verification_status: "verified",
+      reliability_score: 1,
+      description: "create tweet",
+      policy: {
+        requires_third_party_terms_confirmation: true,
+        policy_domain: "x.com",
+        reason: "X write endpoints require explicit user confirmation.",
+      },
+    };
+
+    await executeSkill(
+      makeSkill(endpoint),
+      { text: "hello world" },
+      { raw: true },
+      {
+        confirm_unsafe: true,
+        confirm_third_party_terms: true,
+      },
+    );
+
+    expect(server.lastRequest()).toEqual({
+      method: "POST",
+      url: "/2/tweets",
+      body: JSON.stringify({
+        text: "hello world",
+      }),
+    });
+  });
 });

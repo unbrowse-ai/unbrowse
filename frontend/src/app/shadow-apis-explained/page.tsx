@@ -702,7 +702,7 @@ export default function ShadowApisExplainedPage() {
           </div>
           <div className="mt-6 rounded-xl border border-border bg-code-bg p-4 sm:p-6 font-mono text-sm">
             <div className="text-text-muted mb-1"># Install Unbrowse and discover your first shadow APIs</div>
-            <div className="text-orange-600">npm install -g unbrowse</div>
+            <div className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</div>
             <div className="text-orange-600 mt-1">unbrowse go https://example.com</div>
             <div className="text-text-muted mt-1"># Browse normally. Close the tab. Unbrowse captures everything.</div>
           </div>

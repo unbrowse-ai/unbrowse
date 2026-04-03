@@ -1,6 +1,6 @@
 {
   "name": "unbrowse-monorepo",
-  "version": "2.11.0",
+  "version": "2.12.1",
   "workspaces": [
     "packages/*",
     "backend",
@@ -21,6 +21,7 @@
     "test:p0-p1:analyze": "bun scripts/analyze-p0-p1-issues.ts",
     "test:p0-p1:generate": "bun scripts/fetch-p0-p1-issues.ts",
     "test:all": "bun test tests/ evals/quality-gate.test.ts backend/tests/",
+    "test:landing-funnel:e2e": "bun test tests/landing-funnel-e2e.test.ts",
     "test:e2e:truth": "bash scripts/test-e2e-truth.sh",
     "test:claims": "bun run test:e2e:truth && bun run eval:codex:product-success",
     "test:openclaw-plugin": "bash scripts/ensure-submodules.sh && npm test --prefix submodules/openclaw-unbrowse-plugin",
@@ -45,6 +46,7 @@
     "preset:show": "bun scripts/profile.ts show",
     "preset:clear": "bun scripts/profile.ts clear",
     "blog:publish": "bun scripts/publish-blog.ts",
+    "optimize:landing-funnel": "bun scripts/landing-funnel-optimize.ts",
     "check:skill-docs": "bun test tests/skill-docs-sync.test.ts",
     "sync:skill-md": "bun scripts/sync-skill-md.ts",
     "check:skill-md": "bun scripts/sync-skill-md.ts --check",

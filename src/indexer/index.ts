@@ -15,6 +15,9 @@ import type { SkillManifest, EndpointDescriptor } from "../types/index.js";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { sanitizeForPublish } from "../publish/sanitize.js";
+import { readWorkflowArtifact } from "../workflow/artifact.js";
+import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
 
 const UNBROWSE_CONFIG_PATH = join(homedir(), ".unbrowse", "config.json");
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
@@ -40,216 +43,6 @@ function getLocalAgentId(): string | undefined {
  * Strip PII and user-specific data from endpoints before publishing to marketplace.
  * Deterministic baseline — the agent sanitizer builds on top of this.
  */
-// Patterns that identify secret/token values regardless of field name
-const SECRET_VALUE_PATTERNS = [
-  /^eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,       // JWT tokens
-  /^Bearer\s+\S+/i,                                       // Bearer tokens
-  /^Basic\s+[A-Za-z0-9+/=]+/i,                           // Basic auth
-  /^ghp_[A-Za-z0-9]{36}/,                                // GitHub PAT
-  /^sk-[A-Za-z0-9]{20,}/,                                // OpenAI/Stripe secret keys
-  /^pk_(live|test)_[A-Za-z0-9]+/,                        // Stripe publishable keys
-  /^xox[bsrp]-[A-Za-z0-9-]+/,                           // Slack tokens
-  /^AKIA[A-Z0-9]{16}/,                                   // AWS access key
-  /^[A-Za-z0-9+/]{40,}={0,2}$/,                         // Base64 encoded secrets (long)
-  /^v2\.[A-Za-z0-9_-]{20,}/,                             // Various API v2 tokens
-];
-
-// Field name patterns that indicate the value is a secret
-const SECRET_KEY_PATTERNS = /^(api[_-]?key|access[_-]?token|auth[_-]?token|secret[_-]?key|private[_-]?key|password|passwd|session[_-]?id|session[_-]?token|csrf[_-]?token|client[_-]?secret|bearer|refresh[_-]?token|id[_-]?token|jwt|nonce|otp|pin|ssn|credit[_-]?card)$/i;
-
-/**
- * Returns true if a value looks like a secret/token/credential.
- */
-export function looksLikeSecret(key: string, value: unknown): boolean {
-  if (typeof value !== "string" || value.length < 8) return false;
-  if (SECRET_KEY_PATTERNS.test(key)) return true;
-  return SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(value));
-}
-
-/**
- * Recursively walk an object and replace secret-looking values with "[REDACTED]".
- * Returns a new object — does not mutate the input.
- */
-export function redactSecrets(obj: unknown, parentKey = ""): unknown {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj === "string") {
-    return looksLikeSecret(parentKey, obj) ? "[REDACTED]" : obj;
-  }
-  if (Array.isArray(obj)) {
-    return obj.map((item, i) => redactSecrets(item, parentKey));
-  }
-  if (typeof obj === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-      result[k] = redactSecrets(v, k);
-    }
-    return result;
-  }
-  return obj;
-}
-
-/**
- * Strip PII and user-specific data from endpoints before publishing to marketplace.
- * Deterministic baseline — the agent sanitizer builds on top of this.
- *
- * Layer 1: Redact secrets (tokens, keys, JWTs) from ALL string values
- * Layer 2: Strip example responses, query defaults, sample URLs
- */
-/**
- * Synthesize a plausible placeholder value for a given real value.
- * Preserves type and rough shape so agents can understand the endpoint.
- */
-function synthesizePlaceholder(key: string, value: unknown): unknown {
-  if (value === null || value === undefined) return value;
-  if (typeof value === "number") return Number.isInteger(value) ? 12345 : 99.99;
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    if (looksLikeSecret(key, value)) return "[REDACTED]";
-    // Email-like
-    if (/@/.test(value)) return "user@example.com";
-    // URL-like
-    if (/^https?:\/\//.test(value)) return "https://example.com/item/123";
-    // UUID-like
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}/.test(value)) return "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
-    // Numeric string
-    if (/^\d+$/.test(value)) return "12345";
-    // Date-like
-    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return "2026-01-15T00:00:00Z";
-    // Short identifier
-    if (value.length <= 8) return "abc123";
-    // General text — return a generic of similar length
-    if (value.length > 100) return "Example description text for this item.";
-    return "example-value";
-  }
-  if (Array.isArray(value)) {
-    return value.length > 0 ? [synthesizeExample(value[0], 0)] : [];
-  }
-  if (typeof value === "object") {
-    return synthesizeExample(value, 0);
-  }
-  return value;
-}
-
-/**
- * Recursively synthesize a structurally similar example with placeholder values.
- * Keeps keys and types, replaces actual data with generic equivalents.
- */
-export function synthesizeExample(obj: unknown, depth = 0): unknown {
-  if (depth > 5) return null; // prevent infinite recursion
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj !== "object") return synthesizePlaceholder("", obj);
-  if (Array.isArray(obj)) {
-    // Keep at most 2 items to show the shape
-    return obj.slice(0, 2).map((item) => synthesizeExample(item, depth + 1));
-  }
-  const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    result[k] = typeof v === "object" && v !== null
-      ? synthesizeExample(v, depth + 1)
-      : synthesizePlaceholder(k, v);
-  }
-  return result;
-}
-
-/**
- * Strip PII and user-specific data from endpoints before publishing to marketplace.
- * Replaces real data with structurally similar synthetic examples so agents
- * can still understand the endpoint shape.
- *
- * Layer 1: Redact secrets (tokens, keys, JWTs) from ALL string values
- * Layer 2: Synthesize placeholder examples, sanitize query defaults
- */
-export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
-  return endpoints.map((ep) => {
-    const clean = { ...ep };
-
-    // Layer 1: Redact any secret values in headers, query, body
-    if (clean.headers_template) {
-      clean.headers_template = redactSecrets(clean.headers_template) as Record<string, string>;
-    }
-    if (clean.query) {
-      clean.query = redactSecrets(clean.query) as Record<string, unknown>;
-    }
-    if (clean.body) {
-      clean.body = redactSecrets(clean.body) as Record<string, unknown>;
-    }
-
-    // Layer 2: Replace query defaults with generic placeholders
-    if (clean.query) {
-      clean.query = Object.fromEntries(
-        Object.entries(clean.query).map(([k, v]) => [k, typeof v === "string" ? "example" : v]),
-      );
-    }
-
-    // Replace path_params with generic placeholders
-    if (clean.path_params) {
-      clean.path_params = Object.fromEntries(
-        Object.keys(clean.path_params).map((k) => [k, "example"]),
-      );
-    }
-
-    // Synthesize body example (keep structure, replace values)
-    if (clean.body) clean.body = synthesizeExample(clean.body) as Record<string, unknown>;
-    if (clean.body_params) clean.body_params = synthesizeExample(clean.body_params) as Record<string, unknown>;
-
-    // Strip header values — keep keys only (headers are not useful as examples)
-    if (clean.headers_template) {
-      clean.headers_template = Object.fromEntries(
-        Object.keys(clean.headers_template).map((k) => [k, ""]),
-      );
-    }
-
-    // Strip trigger_url query params (keep origin + path)
-    if (clean.trigger_url) {
-      try {
-        const u = new URL(clean.trigger_url);
-        clean.trigger_url = u.origin + u.pathname;
-      } catch { /* keep as-is if unparseable */ }
-    }
-
-    // Sanitize semantic descriptor — synthesize examples instead of deleting
-    if (clean.semantic) {
-      const sem = { ...clean.semantic };
-
-      // Synthesize structurally similar examples
-      if (sem.example_response_compact) {
-        sem.example_response_compact = synthesizeExample(sem.example_response_compact);
-      }
-      if (sem.example_request) {
-        sem.example_request = synthesizeExample(sem.example_request);
-      }
-
-      // Replace sample URL query params with placeholders
-      if (sem.sample_request_url) {
-        try {
-          const u = new URL(sem.sample_request_url);
-          for (const key of u.searchParams.keys()) {
-            u.searchParams.set(key, "example");
-          }
-          sem.sample_request_url = u.toString();
-        } catch { delete sem.sample_request_url; }
-      }
-
-      // Strip example_value from bindings (these are real captured values)
-      if (sem.requires) {
-        sem.requires = sem.requires.map((b) => {
-          const { example_value: _, ...rest } = b;
-          return rest;
-        });
-      }
-      if (sem.provides) {
-        sem.provides = sem.provides.map((b) => {
-          const { example_value: _, ...rest } = b;
-          return rest;
-        });
-      }
-
-      clean.semantic = sem;
-    }
-
-    return clean;
-  });
-}
 
 /**
  * Merge agent-reviewed endpoint metadata into sanitized endpoints.
@@ -403,6 +196,14 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   const draft: SkillManifest = { ...base, endpoints: sanitized, indexer_id: getLocalAgentId() };
   const validation = await validateManifest({ ...draft, skill_id: "__validate__" });
   if (!validation.valid) {
+    writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(
+      skill,
+      readWorkflowArtifact(skill.skill_id),
+      {
+        publishStatus: "blocked-validation",
+        validationErrors: validation.hardErrors,
+      },
+    ));
     console.warn(
       `[background-index] validation failed for ${domain}: ${validation.hardErrors.join("; ")}`
     );
@@ -424,6 +225,14 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   // 5. Update caches with published version (has backend descriptions)
   cachePublishedSkill(publishedSkill, clientScope);
   writeSkillSnapshot(scopedKey, publishedSkill);
+  writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(
+    skill,
+    readWorkflowArtifact(skill.skill_id),
+    {
+      publishStatus: "published",
+      publishedAt: new Date().toISOString(),
+    },
+  ));
 
   // 6. Publish graph edges via dedicated endpoint (fire-and-forget)
   if (skill.operation_graph?.operations) {

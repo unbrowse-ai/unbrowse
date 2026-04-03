@@ -234,6 +234,17 @@ describe("public skill x402 route", () => {
     expect(body.skill_id).toBe(PAID_SKILL_ID);
   });
 
+  it("keeps paid skill detail gated when free search mode is enabled", async () => {
+    const res = await publicSkillRoutes.request(
+      `http://localhost/skills/${PAID_SKILL_ID}`,
+      {},
+      { ...BASE_ENV, X402_SEARCH_ENABLED: "false" },
+    );
+
+    expect(res.status).toBe(402);
+    expect(res.headers.get("PAYMENT-REQUIRED")).toBeTruthy();
+  });
+
   it("routes multi-contributor skills to the majority contributor wallet", async () => {
     const multiContributorSkill: SkillManifest = {
       ...paidSkill,

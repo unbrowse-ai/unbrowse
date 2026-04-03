@@ -157,7 +157,7 @@ export const comparisonRows: ComparisonRow[] = [
   },
   {
     dimension: "Setup",
-    unbrowse: "npm install -g unbrowse (one command, 464 KB runtime)",
+    unbrowse: "curl -fsSL https://unbrowse.ai/install.sh | bash (one command)",
     competitor: (name) =>
       name === "Crawl4AI"
         ? "pip install crawl4ai + browser binary download"

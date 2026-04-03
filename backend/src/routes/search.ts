@@ -3,7 +3,7 @@ import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../services/discovery.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
-import { buildSkillPaymentTerms, paymentsEnabled, verifyX402Proof, x402Response, x402UseTestnet } from "../middleware/x402-gate.js";
+import { buildSkillPaymentTerms, searchPaymentsEnabled, verifyX402Proof, x402Response, x402UseTestnet } from "../middleware/x402-gate.js";
 
 function extractAgentId(authHeader: string | undefined | null): string {
   if (!authHeader) return "anonymous";
@@ -16,7 +16,7 @@ function chargeSearchFee(env: Env, agentId: string): void {
 }
 
 function shouldRequireSearchPayment(env: Env): boolean {
-  return paymentsEnabled(env);
+  return searchPaymentsEnabled(env);
 }
 
 async function requireSearchPayment(
@@ -63,7 +63,7 @@ searchRoutes.post("/search", async (c) => {
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntent(c.env, intent, k ?? 5);
-    if (paymentsEnabled(c.env)) {
+    if (shouldRequireSearchPayment(c.env)) {
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     }
@@ -82,7 +82,7 @@ searchRoutes.post("/search/domain", async (c) => {
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntentInDomain(c.env, intent, domain, k ?? 5);
-    if (paymentsEnabled(c.env)) {
+    if (shouldRequireSearchPayment(c.env)) {
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     }
@@ -106,7 +106,7 @@ searchRoutes.post("/search/resolve", async (c) => {
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10);
-    if (paymentsEnabled(c.env)) {
+    if (shouldRequireSearchPayment(c.env)) {
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     }

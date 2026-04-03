@@ -146,4 +146,45 @@ describe("path parameterization (BUG-006)", () => {
     expect(ep.url_template).toContain("/users/@me/guilds");
     expect(ep.path_params).toBeUndefined();
   });
+
+  it("does not rewrite unrelated infrastructure prefixes from the page path", () => {
+    const reqs = [makeReq(
+      "GET",
+      "https://www.linkedin.com/litms/api/metadata/user",
+      JSON.stringify({
+        emails: { sha1: ["a"], sha256: ["b"] },
+        client: {
+          deviceType: "Personal computer",
+          browserLanguage: "en-GB",
+          assignedControlGroup: "target",
+          isUserLoggedIn: true,
+          countryCode: "sg",
+          isInternalRequest: false,
+        },
+        id: { dmp: "abc" },
+        compliance: {
+          isCCPAOptIn: true,
+          isLinkedInEmployee: false,
+          isGDPRCountryResident: false,
+          isFunctionalOptIn: true,
+          isGeoOptIn: true,
+          isGDPROptIn: false,
+          isAdvertisingOptIn: false,
+          isAnalyticsAndResearchOptIn: true,
+        },
+        primaryEmail: { sha1: "a", sha256: "b" },
+        preference: { language: "en-us" },
+      }),
+    )];
+    const context: ExtractionContext = {
+      pageUrl: "https://www.linkedin.com/feed/",
+    };
+    const endpoints = extractEndpoints(reqs, undefined, context);
+
+    expect(endpoints.length).toBe(1);
+    const ep = endpoints[0];
+    expect(ep.url_template).toContain("/litms/api/metadata/user");
+    expect(ep.url_template).not.toContain("/{slug}/api/metadata/user");
+    expect(ep.path_params).toBeUndefined();
+  });
 });
