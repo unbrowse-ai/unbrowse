@@ -220,7 +220,7 @@ export default function MineTheInternetPage() {
       {
         "@type": "HowToStep",
         name: "Install Unbrowse",
-        text: "Run npm install -g unbrowse in your terminal.",
+        text: "Run curl -fsSL https://unbrowse.ai/install.sh | bash in your terminal.",
       },
       {
         "@type": "HowToStep",
@@ -265,7 +265,7 @@ export default function MineTheInternetPage() {
         name: "Do I need special hardware to mine the internet?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "No. Web mining requires only a laptop and a web browser. There are no GPUs, no mining rigs, no electricity costs. You install Unbrowse with npm install -g unbrowse and browse the web normally. Routes are captured automatically in the background.",
+          text: "No. Web mining requires only a laptop and a web browser. There are no GPUs, no mining rigs, no electricity costs. You install Unbrowse with curl -fsSL https://unbrowse.ai/install.sh | bash and browse the web normally. Routes are captured automatically in the background.",
         },
       },
       {
@@ -391,7 +391,7 @@ export default function MineTheInternetPage() {
           <div className="space-y-3">
             <div className="rounded-lg bg-surface border border-border p-4 font-mono text-sm sm:text-base">
               <span className="text-text-secondary/60 select-none">$ </span>
-              <span className="text-orange-600">npm install -g unbrowse</span>
+              <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
             </div>
             <div className="rounded-lg bg-surface border border-border p-4 font-mono text-sm sm:text-base">
               <span className="text-text-secondary/60 select-none">$ </span>
@@ -557,7 +557,7 @@ export default function MineTheInternetPage() {
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
             <span className="text-text-secondary/60 select-none">$ </span>
-            <span className="text-orange-600">npm install -g unbrowse</span>
+            <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <a

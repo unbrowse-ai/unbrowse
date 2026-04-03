@@ -766,7 +766,7 @@ export default function TopDomainsToMinePage() {
           </h2>
           <div className="rounded-xl border border-border bg-code-bg p-4 sm:p-6 font-mono text-sm leading-6 mb-6">
             <div className="text-text-muted mb-1"># Install Unbrowse</div>
-            <div className="text-orange-600">npm install -g unbrowse</div>
+            <div className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</div>
             <div className="text-text-muted mt-4 mb-1">
               # Mine your first domain
             </div>
@@ -899,7 +899,7 @@ export default function TopDomainsToMinePage() {
             <div className="text-text-muted mb-1">
               # Start mining the most valuable domains today
             </div>
-            <div className="text-orange-600">npm install -g unbrowse</div>
+            <div className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</div>
           </div>
         </section>
       </article>

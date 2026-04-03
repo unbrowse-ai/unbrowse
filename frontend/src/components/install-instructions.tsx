@@ -5,6 +5,8 @@ import { Copy, Check } from "lucide-react";
 import {
   INSTALL_CMD_CLAUDE,
   INSTALL_CMD_GENERIC,
+  INSTALL_CMD_NPM,
+  INSTALL_CMD_SKILL,
   INSTALL_CMD_MCP,
   MCP_CONFIG_JSON,
   MCP_CONFIG_PATH,
@@ -17,14 +19,18 @@ import { trackWebEvent } from "@/lib/web-telemetry";
 const tabs = [
   {
     id: "cli",
-    label: "CLI / Cursor / Codex",
+    label: "Cursor / Codex / CLI",
     command: INSTALL_CMD_GENERIC,
-    code: `${INSTALL_CMD_GENERIC}
+    code: `# One-line install
+${INSTALL_CMD_GENERIC}
 
-# First run may ask for ToS acceptance and agent identity
-unbrowse health
+# Optional: add the skill after install
+${INSTALL_CMD_SKILL}
 
-# Already installed?
+# Verify
+unbrowse health --pretty
+
+# Upgrade after releases
 ${UPGRADE_CMD_GENERIC}`,
   },
   {
@@ -48,26 +54,63 @@ ${UPGRADE_CMD_MCP}`,
   {
     id: "claude",
     label: "Claude Code",
-    command: INSTALL_CMD_CLAUDE,
-    code: `${INSTALL_CMD_CLAUDE}
+    command: INSTALL_CMD_GENERIC,
+    code: `# One-line install
+${INSTALL_CMD_GENERIC}
 
-# First run may ask for ToS acceptance and agent identity
-unbrowse health
+# Optional: add the skill in Claude after install
+${INSTALL_CMD_SKILL}
 
-# Already installed?
+# Verify
+unbrowse health --pretty
+
+# Upgrade after releases
+${UPGRADE_CMD_GENERIC}
+
+# Repo fallback if you want a local checkout
+${INSTALL_CMD_CLAUDE}
 ${UPGRADE_CMD_CLAUDE}`,
   },
   {
     id: "openclaw",
     label: "OpenClaw",
     command: "npx unbrowse-openclaw install --restart",
-    code: `npx unbrowse-openclaw install --restart
+    code: `# Install the published browser-replacement plugin
+npx unbrowse-openclaw install --restart
 
-# Pulls in the local Unbrowse runtime automatically
+# The package pulls in the local Unbrowse runtime automatically
+
 # Older OpenClaw builds may ask once to trust the plugin
+# Type y and press enter if prompted
 
-# Already installed?
-unbrowse-openclaw install --restart`,
+# Or install globally for repeat use
+npm install -g unbrowse-openclaw
+unbrowse-openclaw install --restart
+
+# Fallback routing instead of hard browser blocking
+unbrowse-openclaw install --mode fallback --restart
+
+# Use a named OpenClaw profile
+unbrowse-openclaw install --profile work --restart`,
+  },
+  {
+    id: "cursor",
+    label: "Cursor",
+    command: INSTALL_CMD_GENERIC,
+    code: `# One-line install
+${INSTALL_CMD_GENERIC}
+
+# Optional: add the skill in Cursor after install
+${INSTALL_CMD_SKILL}
+
+# npm-only fallback
+${INSTALL_CMD_NPM}
+
+# Upgrade after releases
+${UPGRADE_CMD_GENERIC}
+
+# Check the install
+unbrowse health --pretty`,
   },
 ] as const;
 

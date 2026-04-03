@@ -465,7 +465,7 @@ export default function AgentFleetEconomicsPage() {
           </div>
           <div className="rounded-xl bg-surface-sunken border border-border p-4 font-mono text-sm">
             <p className="text-text-secondary mb-1"># Install</p>
-            <p className="text-text-primary">npm install -g unbrowse</p>
+            <p className="text-text-primary">curl -fsSL https://unbrowse.ai/install.sh | bash</p>
             <p className="text-text-secondary mt-3 mb-1"># Your agents discover routes automatically</p>
             <p className="text-text-primary">unbrowse resolve &quot;search for flights to Tokyo&quot; --url kayak.com</p>
             <p className="text-text-secondary mt-3 mb-1"># Every resolve checks the shared graph first</p>

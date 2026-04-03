@@ -510,7 +510,7 @@ export default function RoutingLayerPage() {
             </a>
           </div>
           <p className="mt-4 text-sm text-text-secondary font-mono">
-            npm install -g unbrowse
+            curl -fsSL https://unbrowse.ai/install.sh | bash
           </p>
         </section>
 

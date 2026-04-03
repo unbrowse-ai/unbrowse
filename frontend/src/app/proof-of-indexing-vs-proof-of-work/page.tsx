@@ -477,7 +477,7 @@ export default function ProofOfIndexingVsProofOfWorkPage() {
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
             <span className="text-text-secondary/60 select-none">$ </span>
-            <span className="text-orange-600">npm install -g unbrowse</span>
+            <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <a
