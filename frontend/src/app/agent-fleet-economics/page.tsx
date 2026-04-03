@@ -335,10 +335,10 @@ export default function AgentFleetEconomicsPage() {
           </p>
         </section>
 
-        {/* --- Early Miner Advantage --- */}
+        {/* --- Early Contributor Advantage --- */}
         <section className="mb-12">
           <h2 className="text-2xl font-semibold tracking-tight mb-4">
-            The early miner advantage
+            The early contributor advantage
           </h2>
           <p className="text-base sm:text-lg leading-8 text-text-secondary mb-6">
             There is a first-mover dynamic in route discovery. The first agent to index a domain&rsquo;s internal APIs gets a structural advantage:
@@ -346,7 +346,7 @@ export default function AgentFleetEconomicsPage() {
 
           <div className="space-y-4 mb-6">
             <div className="rounded-xl border border-orange-500/20 bg-orange-50/50 p-4 sm:p-5">
-              <div className="font-semibold text-text-primary mb-1">2x early indexer rewards for 30 days</div>
+              <div className="font-semibold text-text-primary mb-1">2x first-contributor rewards for 30 days</div>
               <p className="text-sm text-text-secondary">
                 The first contributor to index a domain earns double the standard revenue share for the first 30 days. Instead of 70%, you earn the equivalent of 2x on every resolve against routes you discovered first. This incentivizes aggressive early indexing.
               </p>
