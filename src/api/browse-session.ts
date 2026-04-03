@@ -97,6 +97,28 @@ function extractDomain(url: string | undefined): string {
   }
 }
 
+function normalizeBrowseUrl(url: string | undefined): URL | null {
+  if (!url) return null;
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeBrowsePathname(pathname: string): string {
+  if (!pathname) return "/";
+  return pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname;
+}
+
+function matchesPreferredBrowseTab(tabUrl: string | undefined, preferredUrl: string | undefined): boolean {
+  const candidate = normalizeBrowseUrl(tabUrl);
+  const preferred = normalizeBrowseUrl(preferredUrl);
+  if (!candidate || !preferred) return false;
+  if (candidate.hostname.replace(/^www\./, "") !== preferred.hostname.replace(/^www\./, "")) return false;
+  return normalizeBrowsePathname(candidate.pathname) === normalizeBrowsePathname(preferred.pathname);
+}
+
 function cleanupSessionQueue(sessionId: string): void {
   sessionQueues.delete(sessionId);
 }
@@ -196,18 +218,16 @@ async function adoptExistingBrowseTab(
   sessions: Map<string, BrowseSession>,
   client: BrowseSessionClient,
   injectInterceptor: (tabId: string) => Promise<unknown>,
-  preferredDomain?: string,
+  preferredUrl?: string,
   sessionId?: string,
 ): Promise<BrowseSession | null> {
   try {
     const tabs = await client.discoverTabs();
-    const normalizedPreferred = preferredDomain?.replace(/^www\./, "") ?? "";
-    if (!normalizedPreferred) return null;
+    if (!preferredUrl) return null;
     const reservedTabs = ownedTabIds(sessions, sessionId);
     const candidate = tabs.find((tab) => {
       if (!tab.id || reservedTabs.has(tab.id)) return false;
-      const domain = extractDomain(tab.url);
-      return !!domain && domain === normalizedPreferred;
+      return matchesPreferredBrowseTab(tab.url, preferredUrl);
     });
 
     if (!candidate?.id) return null;
@@ -318,11 +338,11 @@ export async function getOrCreateBrowseSession(
   if (existingSessions.length === 1) {
     const existing = existingSessions[0];
     if (await isBrowseSessionLive(existing, client)) return existing;
-    const preferredDomain = existing.domain || extractDomain(existing.url);
+    const preferredUrl = existing.url;
     const targetSessionId = existing.sessionId;
     const existingClient = resolveSessionClient(existing, client);
     await dropBrowseSession(sessions, existingClient, existing);
-    const adopted = await adoptExistingBrowseTab(sessions, existingClient, injectInterceptor, preferredDomain, targetSessionId);
+    const adopted = await adoptExistingBrowseTab(sessions, existingClient, injectInterceptor, preferredUrl, targetSessionId);
     if (adopted) return adopted;
     return createBrowseSession(sessions, existingClient, injectInterceptor, targetSessionId);
   }
@@ -333,9 +353,9 @@ export async function getOrCreateBrowseSession(
 
   const existing = existingSessions[0];
   const targetSessionId = existing?.sessionId;
-  const preferredDomain = existing?.domain || extractDomain(existing?.url);
+  const preferredUrl = existing?.url;
   if (existing) await dropBrowseSession(sessions, client, existing);
-  const adopted = await adoptExistingBrowseTab(sessions, client, injectInterceptor, preferredDomain, targetSessionId);
+  const adopted = await adoptExistingBrowseTab(sessions, client, injectInterceptor, preferredUrl, targetSessionId);
   if (adopted) return adopted;
   return createBrowseSession(sessions, client, injectInterceptor, targetSessionId);
 }
@@ -351,10 +371,10 @@ export async function resetBrowseSession(
     ? sessions.get(sessionId)
     : [...sessions.values()][0];
   const targetSessionId = sessionId ?? existing?.sessionId;
-  const preferredDomain = existing?.domain || extractDomain(existing?.url);
+  const preferredUrl = existing?.url;
   const existingClient = resolveSessionClient(existing, client);
   await dropBrowseSession(sessions, existingClient, existing);
-  const adopted = await adoptExistingBrowseTab(sessions, existingClient, injectInterceptor, preferredDomain, targetSessionId);
+  const adopted = await adoptExistingBrowseTab(sessions, existingClient, injectInterceptor, preferredUrl, targetSessionId);
   if (adopted) return adopted;
   return createBrowseSession(sessions, existingClient, injectInterceptor, targetSessionId);
 }
