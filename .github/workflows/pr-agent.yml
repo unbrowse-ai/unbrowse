@@ -1,0 +1,89 @@
+name: PR Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: Repository full name
+        required: true
+        type: string
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
+      head_sha:
+        description: PR head sha
+        required: true
+        type: string
+      trigger_source:
+        description: Source event
+        required: true
+        type: string
+      trigger_reason:
+        description: Trigger reason
+        required: true
+        type: string
+      operation:
+        description: Agent operation
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  checks: read
+
+jobs:
+  pr-agent:
+    name: Review And Repair PR
+    runs-on: self-hosted
+    timeout-minutes: 90
+    concurrency:
+      group: pr-agent-${{ inputs.repo }}-${{ inputs.pr_number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.head_sha }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install GitHub CLI
+        run: |
+          if command -v gh >/dev/null 2>&1; then
+            gh --version
+            exit 0
+          fi
+          GH_VERSION=2.70.0
+          curl -fsSL -o /tmp/gh.tgz "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/gh.tgz -C /tmp
+          echo "/tmp/gh_${GH_VERSION}_linux_amd64/bin" >> "$GITHUB_PATH"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Run PR agent
+        env:
+          CODEX_HOME: ${{ runner.temp }}/codex-home
+          GH_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_PR_BOT_MERGE_METHOD: SQUASH
+        run: |
+          bun scripts/pr-agent.ts \
+            --repo "${{ inputs.repo }}" \
+            --pr "${{ inputs.pr_number }}" \
+            --operation "${{ inputs.operation }}" \
+            --trigger-source "${{ inputs.trigger_source }}" \
+            --trigger-reason "${{ inputs.trigger_reason }}"

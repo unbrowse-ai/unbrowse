@@ -10,9 +10,11 @@ const originalPackageRoot = process.env.UNBROWSE_PACKAGE_ROOT;
 const originalHome = process.env.HOME;
 const originalPath = process.env.PATH;
 const originalSkipWalletSetup = process.env.UNBROWSE_SKIP_WALLET_SETUP;
+const originalCodexHome = process.env.CODEX_HOME;
 
 function isolateSetupEnv(homeDir: string): void {
   process.env.HOME = homeDir;
+  process.env.CODEX_HOME = path.join(homeDir, ".codex");
   process.env.PATH = "/usr/bin:/bin";
   process.env.UNBROWSE_SKIP_WALLET_SETUP = "1";
 }
@@ -26,6 +28,8 @@ afterEach(() => {
   else process.env.PATH = originalPath;
   if (originalSkipWalletSetup === undefined) delete process.env.UNBROWSE_SKIP_WALLET_SETUP;
   else process.env.UNBROWSE_SKIP_WALLET_SETUP = originalSkipWalletSetup;
+  if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+  else process.env.CODEX_HOME = originalCodexHome;
   while (tmpDirs.length > 0) {
     const dir = tmpDirs.pop();
     if (dir && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
@@ -37,6 +41,8 @@ describe("runtime setup", () => {
     const cwd = mkdtempSync(path.join(os.tmpdir(), "unbrowse-setup-"));
     tmpDirs.push(cwd);
     isolateSetupEnv(cwd);
+    mkdirSync(path.join(cwd, ".codex"), { recursive: true });
+    mkdirSync(path.join(cwd, ".claude"), { recursive: true });
 
     const report = await runSetup({
       cwd,
@@ -50,6 +56,14 @@ describe("runtime setup", () => {
     expect(report.opencode.command_file).toBe(commandPath);
     expect(readFileSync(commandPath, "utf8")).toContain("Do not use Brave Search");
     expect(readFileSync(commandPath, "utf8")).toContain("only allowed tool for website access");
+    const codexConfig = path.join(cwd, ".codex", "config.toml");
+    const claudeSettings = path.join(cwd, ".claude", "settings.json");
+    expect(readFileSync(codexConfig, "utf8")).toContain('event = "SessionStart"');
+    expect(readFileSync(codexConfig, "utf8")).toContain("unbrowse-update-hint.mjs");
+    expect(readFileSync(codexConfig, "utf8")).toContain("codex_hooks = true");
+    expect(readFileSync(claudeSettings, "utf8")).toContain("unbrowse-update-hint.mjs");
+    expect(report.update_hints.some((hook) => hook.host === "codex" && hook.action === "installed")).toBe(true);
+    expect(report.update_hints.some((hook) => hook.host === "claude" && hook.action === "installed")).toBe(true);
   });
 
   it("treats a packaged Kuri binary as already installed", async () => {

@@ -1,0 +1,121 @@
+{
+  "experiment_id": "homepage-2026-04-browser-replacement",
+  "page": "homepage",
+  "updated_at": "2026-04-03T00:00:00.000Z",
+  "control_variant_id": "control-browser-replacement",
+  "assignment_salt": "homepage-browser-replacement-v1",
+  "canary_weight_cap": 0.1,
+  "shadow_generation_limit": 3,
+  "optimizer_runs": [],
+  "variants": [
+    {
+      "variant_id": "control-browser-replacement",
+      "label": "Browser Replacement Control",
+      "status": "active",
+      "source": "human",
+      "angle_family": "browser-replacement",
+      "weight": 0.5,
+      "rationale": "Canonical wedge. Drop-in replacement for browser automation in agent stacks.",
+      "copy": {
+        "hero_headline": "A drop-in replacement",
+        "hero_emphasis": "for browser automation.",
+        "hero_subheadline": "Built for agent stacks that are tired of repeating the same browser workflow on every run. Unbrowse learns the request path behind the page, so repeat tasks run faster, cheaper, and with less breakage than driving the DOM every time.",
+        "hero_support_line": "Same websites. Same permissions. Same browser fallback when needed.",
+        "trust_bar_order": [
+          "benchmarks",
+          "speed",
+          "paper",
+          "github",
+          "npm"
+        ],
+        "definition_heading": "The browser slot stays. The execution path changes.",
+        "definition_body": "Unbrowse is a drop-in replacement for browser automation in agent stacks. On the first pass it can use a real browser to capture the site's request flow. On later runs it reuses that learned route as a skill. The browser stays available for auth and hard cases, but repeated browser work becomes reusable infrastructure instead of repeated cost.",
+        "install_eyebrow": "Replace The Browser",
+        "install_body": "Install the runtime, then replace repeated browser automation with learned routes your agent can reuse.",
+        "hero_cta_label": "Copy Install"
+      }
+    },
+    {
+      "variant_id": "speed-proof",
+      "label": "Speed Proof",
+      "status": "active",
+      "source": "human",
+      "angle_family": "speed-proof",
+      "weight": 0.5,
+      "rationale": "Lead with the benchmark proof while keeping browser replacement as the category.",
+      "copy": {
+        "hero_headline": "Replace browser automation",
+        "hero_emphasis": "with the faster path.",
+        "hero_subheadline": "Unbrowse keeps the browser slot in your agent stack, but stops repeating the DOM loop on every run. It learns the request path behind the page and reuses it later.",
+        "hero_support_line": "3.6x faster than Playwright on average across 94 benchmarked domains.",
+        "trust_bar_order": [
+          "speed",
+          "benchmarks",
+          "paper",
+          "github",
+          "npm"
+        ],
+        "definition_heading": "Browser fallback when you need it. Route reuse when you do not.",
+        "definition_body": "Most agent stacks pay the browser tax over and over again. Unbrowse turns that repeated browser work into reusable learned routes. The browser remains available for auth, anti-bot, and hard cases, but it stops being the default path for repeat execution.",
+        "install_eyebrow": "Install Once",
+        "install_body": "Install the runtime and let your agent switch repeated browser tasks onto reusable learned routes.",
+        "hero_cta_label": "Copy Install"
+      }
+    },
+    {
+      "variant_id": "reliability-canary",
+      "label": "Reliability Canary",
+      "status": "canary",
+      "source": "human",
+      "angle_family": "reliability",
+      "weight": 0.1,
+      "rationale": "Test whether lower-breakage framing outperforms pure speed framing.",
+      "canary_started_at": "2026-04-03T00:00:00.000Z",
+      "copy": {
+        "hero_headline": "Stop rebuilding broken",
+        "hero_emphasis": "browser flows.",
+        "hero_subheadline": "Unbrowse is a drop-in replacement for browser automation in agent stacks. It learns the request path behind the page so your agent stops depending on fragile DOM execution for every repeat task.",
+        "hero_support_line": "Less browser rediscovery. Less selector breakage. Same browser fallback when needed.",
+        "trust_bar_order": [
+          "benchmarks",
+          "paper",
+          "github",
+          "speed",
+          "npm"
+        ],
+        "definition_heading": "Learn once. Reuse later.",
+        "definition_body": "Browser automation repeats the same visible workflow every time. Unbrowse captures that workflow once, packages the useful path as a skill, and reuses it later. That makes repeat execution faster and less brittle than rebuilding the browser path every run.",
+        "install_eyebrow": "Reduce Breakage",
+        "install_body": "Install the runtime, keep browser auth when needed, and shift repeat work away from fragile DOM-driven execution.",
+        "hero_cta_label": "Copy Install"
+      }
+    },
+    {
+      "variant_id": "reuse-shadow",
+      "label": "Reuse Shadow",
+      "status": "shadow",
+      "source": "auto_generated",
+      "angle_family": "learn-once-reuse-later",
+      "weight": 0,
+      "rationale": "Shadow candidate focused on repeated browser work becoming reusable infrastructure.",
+      "copy": {
+        "hero_headline": "Turn repeated browser work",
+        "hero_emphasis": "into reusable routes.",
+        "hero_subheadline": "Unbrowse keeps the browser in the loop for first-pass capture and auth, then reuses the learned route on later runs so your agents stop rediscovering the same workflow from scratch.",
+        "hero_support_line": "Built for agent stacks that want route reuse instead of browser rediscovery.",
+        "trust_bar_order": [
+          "benchmarks",
+          "paper",
+          "speed",
+          "github",
+          "npm"
+        ],
+        "definition_heading": "Repeated browser work should become memory.",
+        "definition_body": "The website workflow does not need to be rediscovered every time. Unbrowse captures the request path once and turns it into a reusable skill, with browser fallback still available for hard cases.",
+        "install_eyebrow": "Reuse The Fast Path",
+        "install_body": "Install the runtime and let repeat tasks reuse learned routes instead of launching the full browser flow every time.",
+        "hero_cta_label": "Copy Install"
+      }
+    }
+  ]
+}

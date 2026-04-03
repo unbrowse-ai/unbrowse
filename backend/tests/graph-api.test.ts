@@ -35,6 +35,10 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
+const LIVE_GRAPH_TEST_RUN =
+  process.env.BACKEND_LIVE_TEST_RUN === "1" || process.env.GRAPH_TEST_RUN === "1";
+const liveDescribe = LIVE_GRAPH_TEST_RUN ? describe : describe.skip;
+
 function loadApiKey(): string {
   if (process.env.GRAPH_TEST_API_KEY) return process.env.GRAPH_TEST_API_KEY;
   try {
@@ -232,7 +236,7 @@ const REDDIT_SKILL = {
 
 // ─── Tests ───────────────────────────────────────────────────
 
-describe("Graph API — Index & Search", () => {
+liveDescribe("Graph API — Index & Search", () => {
   beforeAll(async () => {
     // Best-effort fixture publish only. Search tests below tolerate cold/missing index state.
     // Keep setup bounded so a transient live API stall does not burn the whole suite timeout.
@@ -306,7 +310,7 @@ describe("Graph API — Index & Search", () => {
   }, TIMEOUT);
 });
 
-describe("Graph API — DAG Chain Resolution", () => {
+liveDescribe("Graph API — DAG Chain Resolution", () => {
   it("resolves chain for chart-v8 endpoint", async () => {
     const { status, data } = await post("/v1/graph/chain", {
       domain: "finance.yahoo.com",
@@ -336,7 +340,7 @@ describe("Graph API — DAG Chain Resolution", () => {
   }, TIMEOUT);
 });
 
-describe("Graph API — Sessions & Predictions", () => {
+liveDescribe("Graph API — Sessions & Predictions", () => {
   it("records session actions", async () => {
     const sessionId = `test-session-${Date.now()}`;
     const { status: s1 } = await post("/v1/graph/session", {
@@ -367,7 +371,7 @@ describe("Graph API — Sessions & Predictions", () => {
   }, TIMEOUT);
 });
 
-describe("Graph API — Negative Examples", () => {
+liveDescribe("Graph API — Negative Examples", () => {
   it("records a negative example", async () => {
     const { status, data } = await post("/v1/graph/negative", {
       domain: "finance.yahoo.com",
@@ -380,7 +384,7 @@ describe("Graph API — Negative Examples", () => {
   }, TIMEOUT);
 });
 
-describe("Graph API — Observability", () => {
+liveDescribe("Graph API — Observability", () => {
   it("returns credit balance", async () => {
     const { status, data } = await get("/v1/graph/credits");
     expect(status).toBe(200);
