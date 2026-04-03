@@ -67,10 +67,37 @@ function docBullets(
     if (preferred.length > 0) bullets.push(`preferred routes: ${preferred.join(", ")}`);
     const guarded = workflowArtifact.recipes.filter((recipe) => recipe.mutation_guard.confirm_unsafe_required).length;
     if (guarded > 0) bullets.push(`${guarded} mutation recipe${guarded === 1 ? "" : "s"} require confirm_unsafe`);
+    const preferredRecipe = workflowArtifact.recipes.find((recipe) => recipe.preferred) ?? workflowArtifact.recipes[0];
+    const preferredUsage = preferredRecipe ? usageNotesForRecipe(preferredRecipe)[0] : undefined;
+    if (preferredUsage) bullets.push(preferredUsage);
   } else {
     bullets.push("no workflow artifact captured yet");
   }
   return bullets;
+}
+
+function usageNotesForRecipe(recipe: WorkflowArtifact["recipes"][number]): string[] {
+  const notes: string[] = [];
+  const requiredUserParams = recipe.replay_contract.parameter_specs
+    .filter((param) => param.user_supplied && param.required)
+    .map((param) => `${param.name}:${param.type}${param.enum_values?.length ? `=${param.enum_values.join("|")}` : ""}`);
+  if (requiredUserParams.length > 0) {
+    notes.push(`params: ${requiredUserParams.join(", ")}`);
+  }
+  const derivedParams = recipe.replay_contract.parameter_specs
+    .filter((param) => !param.user_supplied)
+    .map((param) => `${param.name}<=${param.derived_from?.[0] ?? "observed state"}`);
+  if (derivedParams.length > 0) {
+    notes.push(`derived: ${derivedParams.slice(0, 4).join(", ")}`);
+  }
+  const prereqs = recipe.replay_contract.prerequisite_specs
+    .filter((entry) => entry.required)
+    .map((entry) => entry.name);
+  if (prereqs.length > 0) {
+    notes.push(`prereqs: ${prereqs.slice(0, 4).join(", ")}`);
+  }
+  notes.push("replay: explicit only; traversal stays browser-native");
+  return notes;
 }
 
 function buildPublishedRecipes(workflowArtifact: WorkflowArtifact | null): WorkflowPublishRecipe[] {
@@ -99,8 +126,10 @@ function buildPublishedRecipes(workflowArtifact: WorkflowArtifact | null): Workf
         source_name: candidate.source_name,
         source_path: candidate.source_path,
         confidence: candidate.confidence,
-      })),
+        })),
     })),
+    replay_contract: recipe.replay_contract,
+    usage_notes: usageNotesForRecipe(recipe),
   }));
 }
 

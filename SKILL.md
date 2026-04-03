@@ -19,14 +19,14 @@ Kuri is the agent's browser — a 464 KB Zig-native CDP broker with ~3ms cold st
 
 The clean category line is: Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents.
 
-**How it works:** Agents use `Browser.launch()` and `page.goto()` like Playwright. Under the hood, `goto()` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.
+**How it works:** Agents use `Browser.launch()` and `page.goto()` like Playwright. Under the hood, `goto()` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background. That traversal stays browser-native: requests are only observed passively while clicking around. Later, publish/index compiles the observed DOM + network evidence into linked replay contracts for future reuse.
 
 **Three execution paths:**
 1. **Skill cache** (Path 1) — instant, <200ms. Cached internal API route.
 2. **Shared route graph** (Path 2) — sub-second. Route discovered by another agent, served from the collectively maintained marketplace.
 3. **Kuri browser** (Path 3) — 20-80s. Full browser session via Kuri. Unbrowse captures and indexes traffic for future acceleration.
 
-Every method except `goto()` proxies directly to Kuri — snapshots, ref-based actions, DOM queries, HAR recording, cookies, screenshots. The full Kuri API surface is available. Unbrowse is the second-class citizen here: it indexes in the background and provides a faster path when one exists.
+Every method except `goto()` proxies directly to Kuri — snapshots, ref-based actions, DOM queries, HAR recording, cookies, screenshots. The full Kuri API surface is available. Unbrowse is the second-class citizen here: it indexes in the background and provides a faster path when one exists. During live traversal it should not silently switch into API replay; replay is an explicit post-publish path.
 
 **Performance:** On the API-native path, the product is positioned as roughly ~30x faster and ~90% cheaper than repeated browser execution. In the current published benchmark set, Unbrowse shows 3.6x mean speedup and 5.4x median over Playwright across 94 live domains, with 18 domains completing in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
 
@@ -198,7 +198,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
-| `publish` | `--skill ID [--endpoints '[...]']` | Describe + publish skill to marketplace (two-phase) |
+| `publish` | `--skill ID [--endpoints '[...]']` | Describe + publish skill to marketplace; compile linked replay contracts from passive capture evidence |
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
@@ -206,7 +206,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows |
+| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form. Browser-native by default; passive evidence only during traversal. Same-origin rehydrate fallback is opt-in |
 | `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
 | `fill` | `[--session id] <ref> <value>` | Fill input by ref |
@@ -325,7 +325,7 @@ Preferred order:
 
 - Prefer real page clicks for date and time pickers before trying to patch hidden fields.
 - If the UI is flaky, inspect hidden inputs, cookies, or selected values with `eval`, then submit the real form.
-- Use `submit` instead of hand-rolled fetches first. It already prefers DOM submit and falls back to same-origin HTML rehydrate when navigation stalls.
+- Use `submit` instead of hand-rolled fetches first. Regular traversal stays browser-native; only opt into same-origin fetch fallback when you are explicitly debugging replay or recovery behavior.
 - Use `sync` after important transitions so the route graph learns the working request chain before the tab is closed.
 - Do not switch to external browser tools or raw HTTP unless the user explicitly authorizes fallback.
 

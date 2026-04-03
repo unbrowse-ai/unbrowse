@@ -576,6 +576,7 @@ export interface WorkflowRecipe {
   steps: WorkflowStep[];
   token_bindings: TokenBinding[];
   mutation_guard: MutationGuard;
+  replay_contract: WorkflowReplayContract;
   last_successful_strategy?: WorkflowStepStrategy;
   last_used_at?: string;
 }
@@ -585,6 +586,11 @@ export interface WorkflowDomFieldHint {
   field_name: string;
   value?: string;
   field_type?: string;
+  selector?: string;
+  required?: boolean;
+  pattern?: string;
+  min?: string;
+  max?: string;
 }
 
 export interface WorkflowMetaHint {
@@ -597,6 +603,78 @@ export interface WorkflowBootstrapHint {
   value: string;
 }
 
+export interface WorkflowDomOptionHint {
+  form_selector?: string;
+  field_name: string;
+  values: string[];
+  labels?: string[];
+  field_type?: string;
+}
+
+export interface WorkflowParameterSourceHint {
+  source_kind:
+    | WorkflowTokenCandidate["source_kind"]
+    | "path_template"
+    | "query_default"
+    | "body_default"
+    | "observed_query"
+    | "observed_body"
+    | "semantic_requires";
+  source_name: string;
+  source_path?: string;
+  confidence?: number;
+}
+
+export interface WorkflowParameterConstraint {
+  kind: "enum" | "format" | "pattern" | "min" | "max";
+  value?: string | number | boolean;
+  description?: string;
+}
+
+export interface WorkflowParameterSpec {
+  name: string;
+  location: "path" | "query" | "body" | "header";
+  description?: string;
+  type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+  required: boolean;
+  user_supplied: boolean;
+  default_value?: unknown;
+  example_value?: unknown;
+  format?: string;
+  enum_values?: Array<string | number | boolean>;
+  derived_from?: string[];
+  constraints?: WorkflowParameterConstraint[];
+  source_hints: WorkflowParameterSourceHint[];
+}
+
+export interface WorkflowPrerequisiteSpec {
+  prerequisite_id: string;
+  kind: "authenticated-session" | "token-binding" | "hidden-field" | "page-context" | "browser-action" | "submit-blocker";
+  name: string;
+  description?: string;
+  required: boolean;
+  selector?: string;
+  source_kind?: string;
+  source_name?: string;
+  derived_from?: string;
+}
+
+export interface WorkflowNextStateSpec {
+  kind: "page_url" | "response_schema" | "dom_selector";
+  value: string;
+  description?: string;
+}
+
+export interface WorkflowReplayContract {
+  explicit_replay_only: boolean;
+  exposure_stage: "publish";
+  dependency_bindings: string[];
+  search_terms: string[];
+  parameter_specs: WorkflowParameterSpec[];
+  prerequisite_specs: WorkflowPrerequisiteSpec[];
+  next_state: WorkflowNextStateSpec[];
+}
+
 export interface WorkflowEvidence {
   observed_request_count: number;
   observed_request_urls: string[];
@@ -604,6 +682,7 @@ export interface WorkflowEvidence {
   trigger_urls: string[];
   js_bundle_urls: string[];
   dom_form_hints: WorkflowDomFieldHint[];
+  dom_option_hints: WorkflowDomOptionHint[];
   meta_hints: WorkflowMetaHint[];
   bootstrap_hints: WorkflowBootstrapHint[];
 }
@@ -657,6 +736,8 @@ export interface WorkflowPublishRecipe {
   }>;
   mutation_guard: MutationGuard;
   token_bindings: WorkflowPublishBinding[];
+  replay_contract: WorkflowReplayContract;
+  usage_notes: string[];
 }
 
 export interface WorkflowPublishArtifact {

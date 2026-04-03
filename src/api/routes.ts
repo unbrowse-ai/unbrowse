@@ -1174,7 +1174,7 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /v1/browse/submit — submit active form, fall back to same-origin fetch+rehydrate
+  // POST /v1/browse/submit — submit active form; same-origin fetch+rehydrate is explicit opt-in
   app.post("/v1/browse/submit", async (req, reply) => {
     const {
       form_selector: formSelector,

@@ -123,6 +123,8 @@ Useful post-processing flags supported by the current CLI:
 - `--confirm-third-party-terms` — required for policy-sensitive mutations on flagged domains such as X write endpoints, in addition to `--confirm-unsafe`
 - `--limit N` — cap array results
 
+Execute is the explicit replay surface. Traversal-time browser tools (`go`, `snap`, `click`, `fill`, `submit`) only gather passive evidence. Linked replay contracts, parameter restrictions, enums, and derived auth/token hints are compiled and exposed later through publish/index artifacts.
+
 ## Auth
 
 `POST /v1/auth/login` is the user-facing login path. It opens a visible browser flow, stores session state under `~/.unbrowse/profiles/<domain>/`, and lets later calls reuse that auth locally.
@@ -134,6 +136,8 @@ Useful post-processing flags supported by the current CLI:
 For multi-step browser flows, downstream pages depend on upstream state. Treat `POST /v1/browse/submit` as the boundary that proves the dependency edge.
 
 - Call `go`, `snap`, action tools, then `submit` for the real page transition.
+- Regular traversal is browser-native by default. `same_origin_fetch_fallback` must be explicitly enabled; passive API observation stays for publish/index analysis, not normal page walking.
+- Monitored requests discovered while traversing are not exposed as live replay steps yet. They become harness-visible only after publish/index compiles the workflow contract.
 - After `submit`, trust the returned `url`, `session_id`, and transition metadata. Do not guess deep links if the session has not actually unlocked them yet.
 - `sync` after important transitions so the route graph records the working request chain and future resolve/execute calls can inherit it.
 - If the server later returns `abandonedCart`, `session_expired`, or the wrong product/audience variant, restart from the last known good upstream step instead of forcing a downstream page.

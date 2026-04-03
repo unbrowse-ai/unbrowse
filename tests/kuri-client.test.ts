@@ -162,6 +162,20 @@ exit 1
       headless: false,
       attachToExistingChrome: true,
     });
+
+    expect(kuri.resolveKuriLaunchConfig({
+      UNBROWSE_IMPORT_BROWSER_COOKIES: "0",
+    } as NodeJS.ProcessEnv)).toEqual({
+      headless: false,
+      attachToExistingChrome: false,
+    });
+
+    expect(kuri.resolveKuriLaunchConfig({
+      UNBROWSE_LOCAL_ONLY: "1",
+    } as NodeJS.ProcessEnv)).toEqual({
+      headless: false,
+      attachToExistingChrome: false,
+    });
   });
 
   it("reuses a surviving managed Chrome even when ambient CDP attach is disabled", () => {
@@ -319,6 +333,32 @@ exit 1
       await expect(kuri.evaluate("tab-1", longExpression)).resolves.toBe("ok");
       expect(seenMethod).toBe("POST");
       expect(new URL(seenUrl).searchParams.get("expression")).toBe(longExpression);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("encodes plus signs in evaluate expressions so Kuri does not turn concatenation into spaces", async () => {
+    const originalFetch = globalThis.fetch;
+    const expression = '(() => "#" + "single")()';
+    let seenUrl = "";
+
+    globalThis.fetch = (async (input) => {
+      seenUrl = String(input);
+      return new Response(JSON.stringify({
+        result: {
+          result: {
+            type: "string",
+            value: "ok",
+          },
+        },
+      }));
+    }) as typeof fetch;
+
+    try {
+      await expect(kuri.evaluate("tab-1", expression)).resolves.toBe("ok");
+      expect(seenUrl).toContain("%2B");
+      expect(seenUrl).not.toContain("+");
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -49,9 +49,20 @@ export interface BrowseSubmitResult {
   rehydrate?: unknown;
 }
 
+interface BrowseSubmitPageProbe {
+  action?: string;
+  step?: string;
+  ticketingType?: string;
+  hasActiveParkCard?: boolean;
+  hasResidentGate?: boolean;
+  hasQuantityControls?: boolean;
+}
+
 const DEFAULT_SUBMIT_TIMEOUT_MS = 8_000;
 const SUBMIT_POLL_INTERVAL_MS = 250;
 const SUBMIT_SETTLE_WINDOW_MS = 1_000;
+const TRACE_SUBMIT_DEBUG = process.env.UNBROWSE_TRACE_DEBUG === "1";
+const ENABLE_TRAVERSAL_FETCH_FALLBACK = process.env.UNBROWSE_ENABLE_TRAVERSAL_FETCH_FALLBACK === "1";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -59,6 +70,15 @@ function sleep(ms: number): Promise<void> {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function traceSubmit(event: string, payload: Record<string, unknown>): void {
+  if (!TRACE_SUBMIT_DEBUG) return;
+  try {
+    console.log(`[browse-submit] ${event} ${JSON.stringify(payload)}`);
+  } catch {
+    console.log(`[browse-submit] ${event}`);
+  }
 }
 
 export function isUrlWaitHint(value?: string): boolean {
@@ -247,6 +267,16 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
 
       pushUnique(prereqState.missing, "[data-number-ticket], input[name='quantityTicket']");
     }
+    function findMandaiActiveParkCard(form) {
+      if (!form) return null;
+      var action = form.getAttribute("action") || "";
+      var step = String(form.getAttribute("data-step") || "");
+      var ticketingType = textValue(form.querySelector("input[name='type-ticketing']"));
+      if (!/\\/bin\\/wrs\\/product-selection/i.test(action)) return null;
+      if (step && step !== "1") return null;
+      if (ticketingType && ticketingType !== "park") return null;
+      return form.querySelector(".thumbnail-ticket-item.active");
+    }
     function prepareSubmitState(submitter, selector) {
       var prereqState = { patched: [], missing: [] };
       var isoDate = inferIsoDate();
@@ -266,6 +296,10 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
       }
 
       prepareMandaiResidentGate(form, prereqState);
+      var parkCard = findMandaiActiveParkCard(form);
+      if (form && /\\/bin\\/wrs\\/product-selection/i.test(form.getAttribute("action") || "") && !parkCard) {
+        pushUnique(prereqState.missing, ".thumbnail-ticket-item.active");
+      }
 
       if (!submitter) {
         pushUnique(prereqState.missing, selector || "submitter");
@@ -298,6 +332,12 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
       return JSON.stringify({ ...meta, ok: false, reason: "prereq_state_incomplete" });
     }
 
+    var parkCard = findMandaiActiveParkCard(form);
+    if (parkCard && typeof parkCard.click === "function") {
+      parkCard.click();
+      return JSON.stringify({ ...meta, submit_kind: "park_card_click" });
+    }
+
     if (submitter && typeof submitter.click === "function") {
       submitter.click();
       return JSON.stringify({ ...meta, submit_kind: "click" });
@@ -311,6 +351,366 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
       return JSON.stringify({ ...meta, submit_kind: "submit" });
     }
     return JSON.stringify({ ok: false, reason: "submit_unavailable" });
+  })()`;
+}
+
+function buildSubmitPageProbeExpression(options: BrowseSubmitOptions): string {
+  return `(function() {
+    function findForm(selector) {
+      if (selector) return document.querySelector(selector);
+      var active = document.activeElement;
+      if (active && active.closest) {
+        var fromActive = active.closest("form");
+        if (fromActive) return fromActive;
+      }
+      return document.querySelector("form");
+    }
+    var form = findForm(${JSON.stringify(options.formSelector ?? "")});
+    if (!form) return JSON.stringify({ ok: false, reason: "form_not_found" });
+    var typeInput = form.querySelector("input[name='type-ticketing']");
+    return JSON.stringify({
+      ok: true,
+      action: form.getAttribute("action") || "",
+      step: String(form.getAttribute("data-step") || ""),
+      ticketingType: typeInput && typeof typeInput.value === "string" ? typeInput.value : "",
+      hasActiveParkCard: !!form.querySelector(".thumbnail-ticket-item.active"),
+      hasResidentGate: !!form.querySelector("input[name='booking-selection'][value='resident'], #checkSingapore"),
+      hasQuantityControls: !!form.querySelector("[data-number-ticket], input[name='quantityTicket']"),
+    });
+  })()`;
+}
+
+function buildMandaiParkSubmitExpression(options: BrowseSubmitOptions): string {
+  return `(function() {
+    function findForm(selector) {
+      if (selector) return document.querySelector(selector);
+      return document.querySelector("form");
+    }
+    function isDisabled(node) {
+      if (!node) return false;
+      return !!(node.disabled || (node.classList && node.classList.contains("disabled")) || node.getAttribute("aria-disabled") === "true");
+    }
+    var form = findForm(${JSON.stringify(options.formSelector ?? "")});
+    if (!form) return JSON.stringify({ ok: false, reason: "form_not_found" });
+    var card = form.querySelector(".thumbnail-ticket-item.active");
+    var submitter = ${JSON.stringify(options.submitSelector ?? "")} ? document.querySelector(${JSON.stringify(options.submitSelector ?? "")}) : form.querySelector("[data-submit-next], .btn-proceed, button[type='submit'], input[type='submit']");
+    var meta = {
+      ok: true,
+      form_action: form.getAttribute("action") || "",
+      form_method: (form.getAttribute("method") || "GET").toUpperCase(),
+      submitter: submitter ? (submitter.getAttribute("name") || submitter.id || submitter.textContent || submitter.tagName || "").trim() : ".thumbnail-ticket-item.active",
+      submit_selector_used: ${JSON.stringify(options.submitSelector ?? null)},
+      form_selector_used: ${JSON.stringify(options.formSelector ?? null)},
+      prereq_state: { patched: [], missing: [] },
+    };
+    if (!card) {
+      meta.ok = false;
+      meta.reason = "prereq_state_incomplete";
+      meta.prereq_state.missing.push(".thumbnail-ticket-item.active");
+      return JSON.stringify(meta);
+    }
+    var cardPane = card.closest(".tab-pane");
+    if (cardPane && cardPane.id) {
+      Array.from(document.querySelectorAll("li[data-block-content]")).forEach(function(node) {
+        node.classList.remove("active");
+      });
+      Array.from(document.querySelectorAll(".tab-pane")).forEach(function(node) {
+        node.classList.remove("active");
+      });
+      var matchingTab = document.querySelector("li[data-block-content='#" + cardPane.id + "']");
+      if (matchingTab) matchingTab.classList.add("active");
+      cardPane.classList.add("active");
+      meta.prereq_state.patched.push("#" + cardPane.id);
+    }
+    var input = card.querySelector("input[name='ticket']");
+    if (input) {
+      input.checked = true;
+      input.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    card.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    card.click();
+    submitter = ${JSON.stringify(options.submitSelector ?? "")} ? document.querySelector(${JSON.stringify(options.submitSelector ?? "")}) : form.querySelector("[data-submit-next], .btn-proceed, button[type='submit'], input[type='submit']");
+    if (submitter && !isDisabled(submitter) && typeof submitter.click === "function") {
+      submitter.click();
+      meta.submit_kind = "park_card_click_then_submit";
+      return JSON.stringify(meta);
+    }
+    if (submitter && typeof submitter.click === "function") {
+      setTimeout(function() {
+        try {
+          if (!isDisabled(submitter)) submitter.click();
+        } catch {}
+      }, 150);
+      meta.submit_kind = "park_card_click_then_submit";
+      return JSON.stringify(meta);
+    }
+    meta.submit_kind = "park_card_click";
+    return JSON.stringify(meta);
+  })()`;
+}
+
+function buildMandaiResidentGateSubmitExpression(options: BrowseSubmitOptions): string {
+  return `(function() {
+    function findForm(selector) {
+      if (selector) return document.querySelector(selector);
+      return document.querySelector("form");
+    }
+    function dispatch(node, checked) {
+      if (!node) return;
+      if ("checked" in node) node.checked = checked;
+      node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+      if ("checked" in node) node.checked = checked;
+    }
+    function isDisabled(node) {
+      if (!node) return false;
+      return !!(node.disabled || (node.classList && node.classList.contains("disabled")) || node.getAttribute("aria-disabled") === "true");
+    }
+    var form = findForm(${JSON.stringify(options.formSelector ?? "")});
+    if (!form) return JSON.stringify({ ok: false, reason: "form_not_found" });
+    var submitter = ${JSON.stringify(options.submitSelector ?? "")}
+      ? document.querySelector(${JSON.stringify(options.submitSelector ?? "")})
+      : document.querySelector("[data-submit-next], a.btn-proceed, .btn-proceed, button[type='submit'], input[type='submit']");
+    var residentRadio = form.querySelector("input.booking-selection--btn[type='radio'][value='resident'], input[name='booking-selection'][value='resident']");
+    var residentCheckbox = form.querySelector("#checkSingapore, input[name='isSingaporean'][type='checkbox']");
+    var patched = [];
+    if (residentRadio && !residentRadio.checked) {
+      dispatch(residentRadio, true);
+      patched.push("input[name='booking-selection'][value='resident']");
+    }
+    if (residentCheckbox && !residentCheckbox.checked) {
+      dispatch(residentCheckbox, true);
+      patched.push("#checkSingapore");
+    }
+    var quantityControls = form.querySelector("[data-number-ticket], input[name='quantityTicket']");
+    var meta = {
+      ok: true,
+      form_action: form.getAttribute("action") || "",
+      form_method: (form.getAttribute("method") || "GET").toUpperCase(),
+      submitter: submitter ? (submitter.getAttribute("name") || submitter.id || submitter.textContent || submitter.tagName || "").trim() : null,
+      submit_selector_used: ${JSON.stringify(options.submitSelector ?? null)},
+      form_selector_used: ${JSON.stringify(options.formSelector ?? null)},
+      prereq_state: { patched: patched, missing: [] },
+    };
+    if (!quantityControls) {
+      meta.ok = false;
+      meta.reason = "prereq_state_incomplete";
+      meta.prereq_state.missing.push("[data-number-ticket], input[name='quantityTicket']");
+      return JSON.stringify(meta);
+    }
+    if (!submitter) {
+      form.submit();
+      meta.submit_kind = "native_submit";
+      return JSON.stringify(meta);
+    }
+    if (isDisabled(submitter)) {
+      form.submit();
+      meta.submit_kind = "native_submit";
+      return JSON.stringify(meta);
+    }
+    submitter.click();
+    meta.submit_kind = "click";
+    return JSON.stringify(meta);
+  })()`;
+}
+
+function buildMandaiTicketQuantitySubmitExpression(options: BrowseSubmitOptions): string {
+  return `(function() {
+    function findForm(selector) {
+      if (selector) return document.querySelector(selector);
+      return document.querySelector("form");
+    }
+    function dispatch(node, checked) {
+      if (!node) return;
+      if ("checked" in node) node.checked = checked;
+      node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+      if ("checked" in node) node.checked = checked;
+    }
+    function isDisabled(node) {
+      if (!node) return false;
+      return !!(node.disabled || (node.classList && node.classList.contains("disabled")) || node.getAttribute("aria-disabled") === "true");
+    }
+    function isLocalResidentQuantity(node) {
+      if (!node) return false;
+      var name = (node.getAttribute("name") || "").toLowerCase();
+      if (name.includes("_local_")) return true;
+      var residentsOnly = node.closest(".residents-only, [data-residents-only='true']");
+      return !!residentsOnly;
+    }
+    function setQuantity(node, value) {
+      if (!node) return;
+      node.disabled = false;
+      node.removeAttribute("disabled");
+      node.value = String(value);
+      node.setAttribute("data-number-ticket", String(value));
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    var form = findForm(${JSON.stringify(options.formSelector ?? "")});
+    if (!form) return JSON.stringify({ ok: false, reason: "form_not_found" });
+    var residentRadio = form.querySelector("input.booking-selection--btn[type='radio'][value='resident'], input[name='booking-selection'][value='resident']");
+    var residentCheckbox = form.querySelector("#checkSingapore, input[name='isSingaporean'][type='checkbox']");
+    var patched = [];
+    if (residentRadio && !residentRadio.checked) {
+      dispatch(residentRadio, true);
+      patched.push("input[name='booking-selection'][value='resident']");
+    }
+    if (residentCheckbox && !residentCheckbox.checked) {
+      dispatch(residentCheckbox, true);
+      patched.push("#checkSingapore");
+    }
+    var submitter = ${JSON.stringify(options.submitSelector ?? "")}
+      ? document.querySelector(${JSON.stringify(options.submitSelector ?? "")})
+      : document.querySelector("[data-submit-next], a.btn-proceed, .btn-proceed, button[type='submit'], input[type='submit']");
+    var quantities = Array.from(form.querySelectorAll("[data-number-ticket], input[name='quantityTicket']"));
+    var residentQuantities = quantities.filter(function(node) {
+      return isLocalResidentQuantity(node);
+    });
+    var residentPositives = residentQuantities.filter(function(node) {
+      return Number.parseInt(node.value || "0", 10) > 0;
+    });
+    if (residentPositives.length > 0) {
+      residentPositives.forEach(function(node) {
+        if (node.disabled || !node.getAttribute("data-number-ticket")) {
+          setQuantity(node, Number.parseInt(node.value || "0", 10));
+          if (node.id) patched.push("#" + node.id);
+        }
+      });
+    }
+    var positives = quantities.filter(function(node) {
+      return Number.parseInt(node.value || "0", 10) > 0;
+    });
+    var meta = {
+      ok: true,
+      form_action: form.getAttribute("action") || "",
+      form_method: (form.getAttribute("method") || "GET").toUpperCase(),
+      submitter: submitter ? (submitter.getAttribute("name") || submitter.id || submitter.textContent || submitter.tagName || "").trim() : null,
+      submit_selector_used: ${JSON.stringify(options.submitSelector ?? null)},
+      form_selector_used: ${JSON.stringify(options.formSelector ?? null)},
+      prereq_state: { patched: patched, missing: [] },
+    };
+    if (positives.length === 0) {
+      meta.ok = false;
+      meta.reason = "prereq_state_incomplete";
+      meta.prereq_state.missing.push("[data-number-ticket]>0");
+      return JSON.stringify(meta);
+    }
+    if (!submitter) {
+      form.submit();
+      meta.submit_kind = "native_submit";
+      return JSON.stringify(meta);
+    }
+    if (isDisabled(submitter)) {
+      form.submit();
+      meta.submit_kind = "native_submit";
+      return JSON.stringify(meta);
+    }
+    submitter.click();
+    meta.submit_kind = "click";
+    return JSON.stringify(meta);
+  })()`;
+}
+
+function buildMandaiDateSubmitExpression(options: BrowseSubmitOptions): string {
+  return `(function() {
+    function findForm(selector) {
+      if (selector) return document.querySelector(selector);
+      return document.querySelector("form");
+    }
+    function isDisabled(node) {
+      if (!node) return false;
+      return !!(node.disabled || (node.classList && node.classList.contains("disabled")) || node.getAttribute("aria-disabled") === "true");
+    }
+    var form = findForm(${JSON.stringify(options.formSelector ?? "")});
+    if (!form) return JSON.stringify({ ok: false, reason: "form_not_found" });
+    var submitter = ${JSON.stringify(options.submitSelector ?? "")}
+      ? document.querySelector(${JSON.stringify(options.submitSelector ?? "")})
+      : document.querySelector("[data-submit-next], a.btn-proceed, .btn-proceed, button[type='submit'], input[type='submit']");
+    var selectedDateCandidates = Array.from(document.querySelectorAll("input[name='selectedDate'], [data-input-date]"));
+    var summaryDateCandidates = Array.from(document.querySelectorAll("[data-summary-date], input[name='summaryDate']"));
+    var selectedDate = selectedDateCandidates.find(function(node) {
+      return typeof node.value === "string" && node.value.trim().length > 0;
+    }) || selectedDateCandidates[0] || null;
+    var summaryDate = summaryDateCandidates.find(function(node) {
+      return typeof node.value === "string" && node.value.trim().length > 0;
+    }) || summaryDateCandidates[0] || null;
+    var selectedValue = selectedDate && typeof selectedDate.value === "string" ? selectedDate.value.trim() : "";
+    var summaryValue = summaryDate && typeof summaryDate.value === "string" ? summaryDate.value.trim() : "";
+    var patched = [];
+    var meta = {
+      ok: true,
+      form_action: form.getAttribute("action") || "",
+      form_method: (form.getAttribute("method") || "GET").toUpperCase(),
+      submitter: submitter ? (submitter.getAttribute("name") || submitter.id || submitter.textContent || submitter.tagName || "").trim() : null,
+      submit_selector_used: ${JSON.stringify(options.submitSelector ?? null)},
+      form_selector_used: ${JSON.stringify(options.formSelector ?? null)},
+      prereq_state: { patched: patched, missing: [] },
+    };
+    if (!selectedValue && summaryValue && selectedDate && "value" in selectedDate) {
+      selectedDate.value = summaryValue;
+      selectedDate.dispatchEvent(new Event("input", { bubbles: true }));
+      selectedDate.dispatchEvent(new Event("change", { bubbles: true }));
+      selectedValue = summaryValue;
+      patched.push("input[name='selectedDate']");
+    }
+    if (!selectedValue) {
+      meta.ok = false;
+      meta.reason = "prereq_state_incomplete";
+      meta.prereq_state.missing.push("selectedDate");
+      return JSON.stringify(meta);
+    }
+    if (!submitter) {
+      form.submit();
+      meta.submit_kind = "native_submit";
+      return JSON.stringify(meta);
+    }
+    if (isDisabled(submitter)) {
+      form.submit();
+      meta.submit_kind = "native_submit";
+      return JSON.stringify(meta);
+    }
+    submitter.click();
+    meta.submit_kind = "click";
+    return JSON.stringify(meta);
+  })()`;
+}
+
+function buildMandaiAddonSubmitExpression(options: BrowseSubmitOptions): string {
+  return `(function() {
+    function findForm(selector) {
+      if (selector) return document.querySelector(selector);
+      return document.querySelector("form");
+    }
+    function isDisabled(node) {
+      if (!node) return false;
+      return !!(node.disabled || (node.classList && node.classList.contains("disabled")) || node.getAttribute("aria-disabled") === "true");
+    }
+    var form = findForm(${JSON.stringify(options.formSelector ?? "")});
+    if (!form) return JSON.stringify({ ok: false, reason: "form_not_found" });
+    var submitter = ${JSON.stringify(options.submitSelector ?? "")} ? document.querySelector(${JSON.stringify(options.submitSelector ?? "")}) : form.querySelector("[data-submit-next], .btn-proceed, button[type='submit'], input[type='submit']");
+    var meta = {
+      ok: true,
+      form_action: form.getAttribute("action") || "",
+      form_method: (form.getAttribute("method") || "GET").toUpperCase(),
+      submitter: submitter ? (submitter.getAttribute("name") || submitter.id || submitter.textContent || submitter.tagName || "").trim() : null,
+      submit_selector_used: ${JSON.stringify(options.submitSelector ?? null)},
+      form_selector_used: ${JSON.stringify(options.formSelector ?? null)},
+      prereq_state: { patched: [], missing: [] },
+    };
+    if (!submitter || isDisabled(submitter)) {
+      meta.ok = false;
+      meta.reason = "prereq_state_incomplete";
+      meta.prereq_state.missing.push(${JSON.stringify(options.submitSelector ?? "[data-submit-next]:not(.disabled)")});
+      return JSON.stringify(meta);
+    }
+    submitter.click();
+    meta.submit_kind = "click";
+    return JSON.stringify(meta);
   })()`;
 }
 
@@ -562,17 +962,70 @@ export async function submitBrowseForm(
   options: BrowseSubmitOptions = {},
 ): Promise<BrowseSubmitResult> {
   const { client, session, flushCapture, restartCapture, rehydratePlugins } = deps;
-  const sameOriginFetchFallback = options.sameOriginFetchFallback !== false;
+  const sameOriginFetchFallback = options.sameOriginFetchFallback ?? ENABLE_TRAVERSAL_FETCH_FALLBACK;
   const beforeUrl = await client.getCurrentUrl(session.tabId).catch(() => session.url);
   const beforeHtml = await client.getPageHtml(session.tabId).catch(() => "");
+  let pageProbe: BrowseSubmitPageProbe | null = null;
+  try {
+    pageProbe = parseJsonString(await client.evaluate(session.tabId, buildSubmitPageProbeExpression(options))) as BrowseSubmitPageProbe | null;
+  } catch {
+    pageProbe = null;
+  }
+
+  let domExpression = buildDomSubmitExpression(options);
+  if (pageProbe?.action && /\/bin\/wrs\/product-selection/i.test(pageProbe.action) && pageProbe.ticketingType === "park") {
+    domExpression = buildMandaiParkSubmitExpression(options);
+  } else if (
+    pageProbe?.action
+    && /\/bin\/wrs\/datestep\.json/i.test(pageProbe.action)
+    && pageProbe.step === "3"
+  ) {
+    domExpression = buildMandaiDateSubmitExpression(options);
+  } else if (
+    pageProbe?.action
+    && /\/bin\/wrs\/addon-selection/i.test(pageProbe.action)
+    && pageProbe.step === "5"
+  ) {
+    domExpression = buildMandaiAddonSubmitExpression(options);
+  } else if (
+    pageProbe?.action
+    && /\/bin\/wrs\/ticket-selection/i.test(pageProbe.action)
+    && pageProbe.step === "2"
+    && pageProbe.hasQuantityControls
+  ) {
+    domExpression = buildMandaiTicketQuantitySubmitExpression(options);
+  } else if (
+    pageProbe?.action
+    && /\/bin\/wrs\/ticket-selection/i.test(pageProbe.action)
+    && pageProbe.step === "2"
+    && pageProbe.hasResidentGate
+    && !pageProbe.hasQuantityControls
+  ) {
+    domExpression = buildMandaiResidentGateSubmitExpression(options);
+  }
+  traceSubmit("page-probe", {
+    before_url: beforeUrl || session.url,
+    page_probe: pageProbe,
+  });
 
   let submitMeta: Record<string, unknown> | null = null;
   let submitError: unknown = null;
+  let submitMetaRaw: unknown = null;
   try {
-    submitMeta = parseJsonString(await client.evaluate(session.tabId, buildDomSubmitExpression(options)));
+    submitMetaRaw = await client.evaluate(session.tabId, domExpression);
+    submitMeta = parseJsonString(submitMetaRaw);
   } catch (error) {
     submitError = error;
   }
+  traceSubmit("dom-meta", {
+    before_url: beforeUrl || session.url,
+    submit_meta: submitMeta,
+    submit_meta_raw_type: submitMetaRaw === null ? "null" : typeof submitMetaRaw,
+    submit_meta_raw_preview: typeof submitMetaRaw === "string" && !submitMeta
+      ? submitMetaRaw.slice(0, 240)
+      : undefined,
+    submit_error: submitError instanceof Error ? submitError.message : String(submitError ?? ""),
+  });
 
   if (!submitMeta?.ok && submitMeta?.reason === "form_not_found") {
     return {
@@ -602,6 +1055,12 @@ export async function submitBrowseForm(
   }
 
   const domOutcome = await waitForSubmitOutcome(client, session.tabId, beforeUrl, beforeHtml, options);
+  traceSubmit("dom-outcome", {
+    before_url: beforeUrl || session.url,
+    dom_ok: domOutcome.ok,
+    dom_url: domOutcome.url,
+    wait_for: options.waitFor ?? null,
+  });
   if (domOutcome.ok) {
     const sameUrl = (domOutcome.url || beforeUrl || session.url) === (beforeUrl || session.url);
     if (submitMeta == null && sameUrl) {
@@ -645,6 +1104,11 @@ export async function submitBrowseForm(
   } catch (error) {
     fallbackError = error;
   }
+  traceSubmit("fallback", {
+    before_url: beforeUrl || session.url,
+    fallback_payload: fallbackPayload,
+    fallback_error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError ?? ""),
+  });
   if (fallbackError) {
     return {
       ok: false,
