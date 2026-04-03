@@ -6,7 +6,7 @@ import { PopularSkillCard } from "@/components/popular-skill-card";
 export async function RegistryShowcase() {
   let skills: PopularSkillSummary[] = [];
   try {
-    skills = await listPopularSkills(8);
+    skills = await listPopularSkills(8, { revalidate: 300 });
   } catch {
     try {
       const fallback = await listSkillCards({ limit: 8, revalidate: 300 });
