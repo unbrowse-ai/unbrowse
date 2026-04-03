@@ -4,6 +4,9 @@ set -euo pipefail
 echo "[truth] cli"
 bun test tests/cli-e2e.test.ts tests/cli-input-payload.test.ts --timeout 120000
 
+echo "[truth] routing telemetry"
+bun test tests/cli-routing-telemetry.e2e.test.ts --timeout 180000
+
 echo "[truth] kuri"
 bun test tests/kuri-e2e.test.ts --timeout 120000
 
