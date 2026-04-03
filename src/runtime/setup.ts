@@ -197,9 +197,9 @@ export async function runSetup(options?: {
   const lobsterInstalled = hasBinary("lobstercash") ||
     existsSync(path.join(os.homedir(), ".agents", "skills", "lobstercash", "SKILL.md"));
 
-  // Auto-setup lobster.cash wallet if skill is installed but wallet not configured
+  // Auto-setup Crossmint lobster.cash if the wallet tooling is already present.
   if (!skipWalletSetup && !walletCheck.configured && lobsterInstalled) {
-    console.log("[unbrowse] lobster.cash skill detected but wallet not configured — running wallet setup...");
+    console.log("[unbrowse] Crossmint lobster.cash detected but wallet not configured — running wallet setup...");
     try {
       execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
         stdio: "inherit",
@@ -211,7 +211,7 @@ export async function runSetup(options?: {
         console.log(`[unbrowse] wallet configured (${recheck.provider})`);
       }
     } catch {
-      console.warn("[unbrowse] lobster.cash wallet setup failed or was skipped — continuing without wallet");
+      console.warn("[unbrowse] Crossmint lobster.cash setup failed or was skipped — continuing without wallet");
     }
   }
 
@@ -223,13 +223,13 @@ export async function runSetup(options?: {
     message: finalWalletCheck.configured
       ? `Wallet configured (${finalWalletCheck.provider}). This address is the contributor truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used for paid-route spending.`
       : lobsterInstalled
-        ? "lobster.cash installed but wallet not paired. Pair it now so this wallet address becomes your contributor payout target and your paid-route spending wallet. Run: lobstercash setup"
-        : "No wallet configured. Install/pair a wallet so your contributor payouts have a destination address and premium-route spending can clear automatically. Without it you stay in free indexing mode only.",
+        ? "Crossmint lobster.cash is installed but not paired. Pair it now so this wallet address becomes your contributor payout target and your paid-route spending wallet. Run: npx @crossmint/lobster-cli setup"
+        : "No wallet configured. Recommended for new installs: set up Crossmint lobster.cash so contributor payouts have a destination address and paid-route spending can clear automatically. Without it you stay in free indexing mode only.",
     install_hint: finalWalletCheck.configured
       ? undefined
       : lobsterInstalled
-        ? "lobstercash setup"
-        : "npx skills add https://github.com/Crossmint/lobstercash-cli-skills --global --yes",
+        ? "npx @crossmint/lobster-cli setup"
+        : "npx @crossmint/lobster-cli setup",
   };
 
   return {

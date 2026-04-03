@@ -117,4 +117,20 @@ describe("runtime setup", () => {
     expect(report.browser_engine.action).toBe("already-installed");
     expect(report.browser_engine.installed).toBe(true);
   });
+
+  it("encourages Crossmint lobster.cash when no wallet is configured", async () => {
+    const cwd = mkdtempSync(path.join(os.tmpdir(), "unbrowse-setup-wallet-"));
+    tmpDirs.push(cwd);
+    isolateSetupEnv(cwd);
+
+    const report = await runSetup({
+      cwd,
+      opencode: "off",
+      installBrowser: false,
+    });
+
+    expect(report.wallet.configured).toBe(false);
+    expect(report.wallet.message).toContain("Crossmint lobster.cash");
+    expect(report.wallet.install_hint).toBe("npx @crossmint/lobster-cli setup");
+  });
 });

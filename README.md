@@ -20,7 +20,9 @@ cd ~/unbrowse && ./setup --host off
 
 If a wallet is configured, that wallet address becomes the contributor truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
 
-Unbrowse supports wallet providers such as `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` will encourage it, and if the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically. That wallet becomes the payout destination for contributed routes and the spending wallet for paid marketplace routes.
+
+Unbrowse supports wallet providers such as Crossmint `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
 
 Headless/CI-friendly bootstrap:
 
@@ -134,7 +136,7 @@ Whitepaper companion set:
 - Prebuilds the packaged CLI runtime and installs the stable `unbrowse` shim for the repo bootstrap path.
 - Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
 - Registers the Open Code `/unbrowse` command when Open Code is present.
-- Runs the first-use flow: ToS, agent registration/API-key caching, and wallet detection.
+- Runs the first-use flow: ToS, agent registration/API-key caching, wallet detection, and Crossmint `lobster.cash` encouragement.
 - Starts the local Unbrowse server unless `--no-start` is passed.
 
 ## Common commands
