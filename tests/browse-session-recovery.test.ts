@@ -85,10 +85,34 @@ describe("browse session recovery", () => {
     expect(injected).toEqual(["mandai-live"]);
   });
 
+  it("creates a fresh tab instead of adopting blank or unrelated tabs during recovery", async () => {
+    const sessions = new Map<string, BrowseSession>();
+    sessions.set("default", { tabId: "dead-tab", url: "https://www.mandai.com/old", harActive: true, domain: "mandai.com" });
+
+    const injected: string[] = [];
+    const session = await getOrCreateBrowseSession(
+      sessions,
+      makeClient({
+        closeTab: async () => {},
+        discoverTabs: async () => [
+          { id: "other-tab", url: "https://example.com" },
+          { id: "idle-tab", url: "chrome://newtab/" },
+          { id: "blank-tab", url: "about:blank" },
+        ],
+        getCurrentUrl: async (tabId) => tabId === "fresh-tab" ? "about:blank" : "",
+        newTab: async () => "fresh-tab",
+      }),
+      async (tabId) => { injected.push(tabId); },
+    );
+
+    expect(session.tabId).toBe("fresh-tab");
+    expect(injected).toEqual(["fresh-tab"]);
+  });
+
   it("retries once after a recoverable CDP failure result", async () => {
     const sessions = new Map<string, BrowseSession>();
     const created: string[] = [];
-    const closed: string[] = [];
+    const closed = new Set<string>();
     const runs: string[] = [];
 
     const result = await withRecoveredBrowseSession(
@@ -99,8 +123,8 @@ describe("browse session recovery", () => {
           created.push(next);
           return next;
         },
-        closeTab: async (tabId) => { closed.push(tabId); },
-        discoverTabs: async () => created.map((id) => ({ id, url: "about:blank" })),
+        closeTab: async (tabId) => { closed.add(tabId); },
+        discoverTabs: async () => created.filter((id) => !closed.has(id)).map((id) => ({ id, url: "about:blank" })),
         getCurrentUrl: async (tabId) => `https://example.com/${tabId}`,
       }),
       async () => {},
@@ -113,7 +137,7 @@ describe("browse session recovery", () => {
 
     expect(result.recovered).toBe(true);
     expect(runs).toEqual(["tab-1", "tab-2"]);
-    expect(closed).toEqual(["tab-1"]);
+    expect(Array.from(closed)).toEqual(["tab-1"]);
     expect(result.result).toEqual({ ok: true });
   });
 });

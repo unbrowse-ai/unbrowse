@@ -130,4 +130,42 @@ exit 1
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("accepts Kuri tab ids returned as id", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/tab/new")) return new Response(JSON.stringify({ id: "tab-from-id" }));
+      if (url.includes("/discover")) return new Response(JSON.stringify({ ok: true }));
+      if (url.includes("/tabs")) return new Response(JSON.stringify([{ id: "tab-from-id", url: "about:blank" }]));
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      await expect(kuri.newTab("about:blank")).resolves.toBe("tab-from-id");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("reuses an idle tab before opening a raw CDP fallback tab", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/tab/new")) return new Response(JSON.stringify({ error: "Target.createTarget failed" }));
+      if (url.includes("/discover")) return new Response(JSON.stringify({ error: "Cannot connect to Chrome" }));
+      if (url.includes("/tabs")) return new Response(JSON.stringify([{ id: "idle-tab", url: "chrome://newtab/" }]));
+      if (url.includes("/json/new?")) {
+        if (init?.method !== "PUT") throw new Error("expected PUT");
+        throw new Error("should not create a raw CDP tab when an idle tab exists");
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      await expect(kuri.newTab("about:blank")).resolves.toBe("idle-tab");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
