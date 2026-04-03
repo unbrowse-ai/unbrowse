@@ -23,6 +23,20 @@ function canTrack(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
+function getLandingContext(): Record<string, unknown> | undefined {
+  if (typeof document === "undefined") return undefined;
+  const root = document.getElementById("landing-page-root");
+  if (!root) return undefined;
+  const variantId = root.getAttribute("data-landing-variant-id");
+  const icp = root.getAttribute("data-landing-icp");
+  const experimentId = root.getAttribute("data-landing-experiment-id");
+  const context: Record<string, unknown> = {};
+  if (variantId) context.variant_id = variantId;
+  if (icp) context.icp = icp;
+  if (experimentId) context.experiment_id = experimentId;
+  return Object.keys(context).length > 0 ? context : undefined;
+}
+
 export function trackWebEvent(name: string, properties?: Record<string, unknown>): void {
   if (!canTrack()) return;
 
@@ -36,7 +50,10 @@ export function trackWebEvent(name: string, properties?: Record<string, unknown>
       path: `${window.location.pathname}${window.location.search}`,
       referrer: document.referrer || null,
       created_at: new Date().toISOString(),
-      properties,
+      properties: {
+        ...getLandingContext(),
+        ...properties,
+      },
     });
     const url = `${resolveApiUrl()}/v1/telemetry/web`;
 

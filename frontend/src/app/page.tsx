@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Constellation } from "@/components/constellation";
 import { ChatDemo } from "@/components/chat-demo";
 import { AcquisitionTracker } from "@/components/acquisition-tracker";
 import { InstallInstructions } from "@/components/install-instructions";
@@ -8,6 +7,8 @@ import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { HeroCTA } from "@/components/hero-cta";
+import { IcpPaths } from "@/components/icp-paths";
+import { mergeLandingCopy } from "@/lib/landing/default-copy";
 import {
   INSTALL_CMD_GENERIC,
   INSTALL_CMD_MCP,
@@ -16,6 +17,7 @@ import {
   UPGRADE_CMD_GENERIC,
   UPGRADE_CMD_MCP,
 } from "@/lib/install-command";
+import { getLandingVariant } from "@/lib/landing/server";
 import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
@@ -24,6 +26,11 @@ const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
   ? `Start with ${INSTALL_CMD_GENERIC}. That script installs the CLI, runs setup, and finishes the real first-run flow: ToS acceptance, agent registration plus API-key caching, and wallet detection when present. Set up Crossmint lobster.cash during bootstrap if you want to earn from mined routes: that wallet is synced onto your profile, used for contributor payouts when your routes earn, and used for paid-route spending. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL} for slash-command or host discovery. For generic MCP hosts, run ${INSTALL_CMD_MCP}; that writes a ready-to-import config to ${MCP_CONFIG_PATH}, and the generic template lives at https://www.unbrowse.ai/mcp.json. Upgrade CLI installs with ${UPGRADE_CMD_GENERIC} and MCP installs with ${UPGRADE_CMD_MCP}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Older OpenClaw builds may ask once to trust the plugin.`
   : `Start with ${INSTALL_CMD_GENERIC}. Set up Crossmint lobster.cash during install if you want contributor payouts to land in your wallet. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL}. Generic MCP hosts can use ${INSTALL_CMD_MCP}. Upgrade with ${UPGRADE_CMD_GENERIC} or ${UPGRADE_CMD_MCP}. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
 const DOCS_URL = "https://docs.unbrowse.ai";
+
+function pickQueryValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -104,9 +111,28 @@ const faqJsonLd = {
   ],
 };
 
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ icp?: string | string[]; variant_id?: string | string[]; experiment_id?: string | string[]; seed?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const selectedVariant = await getLandingVariant({
+    icp: pickQueryValue(params.icp),
+    variantId: pickQueryValue(params.variant_id),
+    experimentId: pickQueryValue(params.experiment_id),
+    seed: pickQueryValue(params.seed),
+  });
+  const landingCopy = mergeLandingCopy(selectedVariant);
+
   return (
-    <div className="relative selection:bg-orange-500/30 overflow-x-hidden">
+    <div
+      id="landing-page-root"
+      data-landing-variant-id={landingCopy.variantId}
+      data-landing-icp={landingCopy.icp}
+      data-landing-experiment-id={landingCopy.experimentId}
+      className="relative selection:bg-orange-500/30 overflow-x-hidden"
+    >
       <AcquisitionTracker />
       <script
         type="application/ld+json"
@@ -154,19 +180,18 @@ export default function Home() {
               <span className="flex items-center gap-1">611+ stars on GitHub <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" /></span>
             </a>
             
-                         <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
-                           A drop-in replacement
+                          <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
+                           {landingCopy.heroTitle}
                            <br className="hidden sm:block" />
-                           <span className="text-orange-500">for browser automation.</span>
+                           <span className="text-orange-500">{landingCopy.heroHighlight}</span>
                          </h1>
 
                           <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-                            Built for agent stacks that are tired of repeating the same browser workflow on every run.
-                            Unbrowse learns the request path behind the page, so repeat tasks run faster, cheaper, and with less breakage than driving the DOM every time.
+                            {landingCopy.heroBody}
                           </p>
 
             <p className="animate-fade-up stagger-2 mt-4 max-w-3xl text-sm sm:text-base text-text-muted leading-relaxed">
-              Same websites. Same permissions. Same browser fallback when needed.
+              {landingCopy.heroSupporting}
             </p>
 
             {/* ═══ Trust Bar ═══ */}
@@ -184,14 +209,13 @@ export default function Home() {
 
             {/* ═══ What is Unbrowse — Definition Block (moved above install) ═══ */}
             <div className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-3xl text-center">
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4 text-text-primary">The browser slot stays. The execution path changes.</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4 text-text-primary">{landingCopy.definitionTitle}</h2>
               <p className="text-text-secondary text-base sm:text-lg leading-relaxed">
-                Unbrowse is a drop-in replacement for browser automation in agent stacks.
-                On the first pass it can use a real browser to capture the site&apos;s request flow.
-                On later runs it reuses that learned route as a skill.
-                The browser stays available for auth and hard cases, but repeated browser work becomes reusable infrastructure instead of repeated cost.
+                {landingCopy.definitionBody}
               </p>
             </div>
+
+            <IcpPaths />
 
             <div id="install" className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-4xl text-left">
               <div className="rounded-2xl border border-border bg-surface shadow-sm overflow-hidden">
@@ -204,7 +228,7 @@ export default function Home() {
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      Local runtime first. Host shortcuts second. MCP and OpenClaw have dedicated tabs when you need them.
+                      {landingCopy.installSummary}
                     </p>
                   </div>
                 </div>
@@ -428,7 +452,7 @@ export default function Home() {
       </section>
 
        {/* ═══ Post-Install ═══ */}
-       <section className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
+       <section id="post-install" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
          <div className="relative max-w-4xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-500/20 text-orange-600 text-xs font-mono font-medium uppercase tracking-widest mb-6">
@@ -533,7 +557,7 @@ export default function Home() {
        </section>
 
        {/* ═══ Learn More — Blog & Comparison Links ═══ */}
-       <section className="relative py-12 sm:py-16 border-t border-border bg-surface-sunken">
+       <section id="go-deeper" className="relative py-12 sm:py-16 border-t border-border bg-surface-sunken">
          <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-8 text-text-primary">Go Deeper</h2>
            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">

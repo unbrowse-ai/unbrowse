@@ -81,10 +81,28 @@ describe("acquisition analytics", () => {
       {
         visitor_id: "visitor-1",
         session_id: "session-1",
+        name: "landing_section_viewed",
+        path: "/",
+        referrer: "https://x.com/getFoundry",
+        created_at: isoHoursAgo(2),
+        properties: { section_id: "demo", variant_id: "openclaw-normie-v1", icp: "openclaw-normie", experiment_id: "homepage" },
+      },
+      {
+        visitor_id: "visitor-1",
+        session_id: "session-1",
         name: "install_command_copied",
         path: "/",
         referrer: "https://x.com/getFoundry",
         created_at: isoHoursAgo(1),
+      },
+      {
+        visitor_id: "visitor-1",
+        session_id: "session-1",
+        name: "icp_path_clicked",
+        path: "/",
+        referrer: "https://x.com/getFoundry",
+        created_at: isoHoursAgo(1),
+        properties: { target_id: "openclaw-normie", variant_id: "openclaw-normie-v1", icp: "openclaw-normie", experiment_id: "homepage" },
       },
       {
         visitor_id: "visitor-2",
@@ -141,6 +159,8 @@ describe("acquisition analytics", () => {
         install_copy_from_install_view: number;
       };
       top_referrers: Array<{ referrer: string; sessions: number }>;
+      sections: Array<{ section_id: string; sessions: number; share_of_landing: number; install_copy_rate_after_view: number }>;
+      icp_paths: Array<{ target_id: string; sessions: number; click_through_rate_from_landing: number }>;
     };
 
     expect(body.totals.visitors).toBe(3);
@@ -157,6 +177,27 @@ describe("acquisition analytics", () => {
       { referrer: "direct", sessions: 1 },
       { referrer: "www.google.com", sessions: 1 },
       { referrer: "x.com", sessions: 1 },
+    ]);
+    expect(body.sections).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        section_id: "install",
+        sessions: 2,
+        share_of_landing: 0.67,
+        install_copy_rate_after_view: 0.5,
+      }),
+      expect.objectContaining({
+        section_id: "demo",
+        sessions: 1,
+        share_of_landing: 0.33,
+        install_copy_rate_after_view: 1,
+      }),
+    ]));
+    expect(body.icp_paths).toEqual([
+      {
+        target_id: "openclaw-normie",
+        sessions: 1,
+        click_through_rate_from_landing: 0.33,
+      },
     ]);
   });
 });

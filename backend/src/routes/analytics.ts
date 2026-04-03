@@ -7,7 +7,7 @@ import {
   getEngagement,
   getRetention,
 } from "../services/analytics.js";
-import { getAcquisitionSummary } from "../services/acquisition.js";
+import { getFilteredAcquisitionSummary } from "../services/acquisition.js";
 import { getFunnelSummary } from "../services/funnel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
 import {
@@ -199,7 +199,14 @@ analyticsRoutes.get("/analytics/dashboard", async (c) => {
 
 analyticsRoutes.get("/analytics/acquisition", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 90);
-  const summary = await getAcquisitionSummary(c.env, days);
+  const summary = await getFilteredAcquisitionSummary(c.env, {
+    days,
+    filters: {
+      variant_id: c.req.query("variant_id")?.trim(),
+      icp: c.req.query("icp")?.trim(),
+      experiment_id: c.req.query("experiment_id")?.trim(),
+    },
+  });
   setAnalyticsHeaders(c);
   return c.json(summary);
 });
