@@ -750,19 +750,62 @@ async function cmdReview(flags: Record<string, string | boolean>): Promise<void>
   output(await api("POST", `/v1/skills/${skillId}/review`, { endpoints }), !!flags.pretty);
 }
 
+function parseCsvFlag(value: string | boolean | undefined): string[] | undefined {
+  if (typeof value !== "string") return undefined;
+  const parts = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : [];
+}
+
+async function cmdIndex(flags: Record<string, string | boolean>): Promise<void> {
+  const skillId = flags.skill as string;
+  if (!skillId) die("--skill is required");
+  output(await api("POST", `/v1/skills/${skillId}/index`, {}), !!flags.pretty);
+}
+
 async function cmdPublish(flags: Record<string, string | boolean>): Promise<void> {
   const skillId = flags.skill as string;
   if (!skillId) die("--skill is required");
   const endpointsJson = flags.endpoints as string | undefined;
+  const confirmPublish = flags["confirm-publish"] === true;
   if (endpointsJson) {
     // Phase 2: merge descriptions + publish
     const endpoints = JSON.parse(endpointsJson) as Array<Record<string, unknown>>;
     if (!Array.isArray(endpoints) || endpoints.length === 0) die("--endpoints must be a non-empty JSON array");
-    output(await api("POST", `/v1/skills/${skillId}/publish`, { endpoints }), !!flags.pretty);
+    output(await api("POST", `/v1/skills/${skillId}/publish`, {
+      endpoints,
+      ...(confirmPublish ? { confirm_publish: true } : {}),
+    }), !!flags.pretty);
   } else {
     // Phase 1: return endpoints needing descriptions
-    output(await api("POST", `/v1/skills/${skillId}/publish`, {}), !!flags.pretty);
+    output(await api("POST", `/v1/skills/${skillId}/publish`, {
+      ...(confirmPublish ? { confirm_publish: true } : {}),
+    }), !!flags.pretty);
   }
+}
+
+async function cmdSettings(flags: Record<string, string | boolean>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (typeof flags["auto-publish"] === "string") {
+    const normalized = String(flags["auto-publish"]).trim().toLowerCase();
+    if (normalized !== "on" && normalized !== "off") die("--auto-publish must be on or off");
+    body.auto_publish_checkpoints = normalized === "on";
+  }
+
+  const blacklist = parseCsvFlag(flags["publish-blacklist"]);
+  if (blacklist) body.publish_domain_blacklist = blacklist;
+  const promptlist = parseCsvFlag(flags["publish-promptlist"]);
+  if (promptlist) body.publish_domain_promptlist = promptlist;
+  if (flags["clear-publish-blacklist"] === true) body.clear_publish_domain_blacklist = true;
+  if (flags["clear-publish-promptlist"] === true) body.clear_publish_domain_promptlist = true;
+
+  const hasMutation = Object.keys(body).length > 0;
+  output(
+    await api(hasMutation ? "POST" : "GET", "/v1/settings", hasMutation ? body : undefined),
+    !!flags.pretty,
+  );
 }
 
 async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
@@ -966,7 +1009,9 @@ export const CLI_REFERENCE = {
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/metadata back to skill" },
-    { name: "publish", usage: "--skill ID [--endpoints '[...]']", desc: "Describe + publish skill to marketplace; compile linked replay contracts from passive capture evidence" },
+    { name: "index", usage: "--skill ID", desc: "Recompute local graph/contracts/export from cached skill state only" },
+    { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Re-index locally, then publish/share from cached skill state; without endpoints returns review metadata first" },
+    { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]", desc: "Show or update local capture/publish policy settings" },
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
@@ -989,8 +1034,8 @@ export const CLI_REFERENCE = {
     { name: "eval", usage: "[--session id] <expression>", desc: "Evaluate JavaScript" },
     { name: "back", usage: "[--session id]", desc: "Navigate back" },
     { name: "forward", usage: "[--session id]", desc: "Navigate forward" },
-    { name: "sync", usage: "[--session id]", desc: "Flush the current step's captured traffic into route cache without closing tab" },
-    { name: "close", usage: "[--session id]", desc: "Close browse session, flush + index traffic" },
+    { name: "sync", usage: "[--session id]", desc: "Checkpoint current capture, keep tab open, queue background index + publish" },
+    { name: "close", usage: "[--session id]", desc: "Checkpoint capture, queue background index + publish, then close browse session" },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -1023,7 +1068,10 @@ export const CLI_REFERENCE = {
     'unbrowse execute --skill abc --endpoint def --path "data.items[]" --extract "name,url" --limit 10 --pretty',
     "unbrowse feedback --skill abc --endpoint def --rating 5",
     'unbrowse review --skill abc --endpoints \'[{"endpoint_id":"def","description":"..."}]\'',
+    "unbrowse index --skill abc --pretty",
     "unbrowse publish --skill abc --pretty",
+    "unbrowse publish --skill abc --confirm-publish --pretty",
+    'unbrowse settings --auto-publish off --publish-blacklist "linkedin.com,x.com" --publish-promptlist "github.com" --pretty',
     'unbrowse publish --skill abc --endpoints \'[{"endpoint_id":"def","description":"Search court judgments by keywords","action_kind":"search","resource_kind":"judgment"}]\'',
   ],
 };
@@ -1067,8 +1115,8 @@ function printHelp(): void {
     "  2. snap -> inspect refs and confirm the page state",
     "  3. click/fill/eval -> set real page state",
     "  4. submit -> prefer DOM submit; keep traversal browser-native; opt into same-origin rehydrate only for explicit replay/recovery debugging",
-    "  5. sync -> flush any additional captured routes after a successful step",
-    "  6. close -> finish capture + indexing",
+    "  5. sync -> checkpoint the current step and queue background index + publish",
+    "  6. close -> final checkpoint + queue background index + publish, then close the session",
   );
 
   lines.push(
@@ -1536,7 +1584,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "review", "publish", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
+    "feedback", "fb", "review", "index", "publish", "settings", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
@@ -1572,7 +1620,9 @@ async function main(): Promise<void> {
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
     case "review": return cmdReview(flags);
+    case "index": return cmdIndex(flags);
     case "publish": return cmdPublish(flags);
+    case "settings": return cmdSettings(flags);
     case "login": return cmdLogin(flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);

@@ -21,7 +21,7 @@ Use this mental model:
 
 - **Traversal**: browser-native. `go`, `snap`, `click`, `fill`, `select`, `eval`, `submit`, `close`. No hidden API replay while clicking around.
 - **Publish/index**: passive evidence gets compiled later into a workflow DAG, typed params, restrictions, enums, token/header hints, and replay contracts.
-- **Replay/execute**: explicit only. Use published contracts when you want a non-browser call.
+- **Replay/execute**: explicit only. Use indexed/published contracts when you want a non-browser call.
 
 The clean category line is: Unbrowse is the agent-facing browser tool; Kuri is the primitive engine underneath.
 
@@ -134,6 +134,7 @@ unbrowse snap --filter interactive
 unbrowse click e2
 unbrowse fill e5 "hello world"
 unbrowse submit --wait-for "/next-page.html"
+unbrowse sync
 unbrowse close
 ```
 
@@ -158,13 +159,27 @@ Use one `session_id` through the whole flow. `snap` gives the live refs. `submit
   - returned `url`
 - Do not guess downstream URLs when the page already tells you the next step.
 - If a step stalls, inspect with `snap`, `eval`, and hidden-field probes before retrying.
-- Use `close` when done so captured evidence can flush and index.
+- Use `sync` for explicit mid-flow checkpoints.
+- Use `close` for the final checkpoint so auth saves and the background `index -> publish` pipeline is queued.
 
-### 3. Publish/index after traversal
+### 3. Checkpoint, index, publish
 
-Traversal is discovery. Publish is compilation.
+Traversal is discovery. Checkpoints drive compilation.
 
-At publish time, Unbrowse links:
+- `sync` -> checkpoint current capture, keep tab open, queue background `index -> publish`
+- `close` -> checkpoint current capture, queue background `index -> publish`, save auth, close tab
+- `index` -> recompute local DAG/contracts/export only
+- `publish` -> rerun local index, then explicitly remote-share/re-publish
+- `settings` -> inspect/update local auto-publish policy, blacklist, and prompt-list domains
+
+Workflow lifecycle:
+
+- `captured`
+- `indexed`
+- `published`
+- `blocked-validation`
+
+At index/publish time, Unbrowse links:
 
 - DOM prerequisites
 - hidden fields
@@ -175,7 +190,7 @@ At publish time, Unbrowse links:
 
 That output becomes the machine-readable replay contract exposed to later agents.
 
-### 4. Resolve and execute published routes
+### 4. Resolve and execute indexed/published routes
 
 When a route is already known, use the explicit resolve/execute path.
 
@@ -196,17 +211,27 @@ unbrowse execute \
 
 Use `--path`, `--extract`, and `--limit` instead of shell post-processing. Execute is explicit replay, not ad-hoc traversal.
 
-This resolve/execute pair is the router/meta surface for published contracts:
+This resolve/execute pair is the router/meta surface for indexed/published contracts:
 
-- `resolve` searches the published contract graph
+- `resolve` searches the indexed/published contract graph
 - `execute` runs one explicit replay contract
-- `skill` / `skills` let you inspect the published contract inventory
+- `skill` / `skills` let you inspect the indexed/published contract inventory
 
-On the MCP surface, agents can also inspect published contract state before choosing tools:
+On the MCP surface, agents can also inspect indexed/published contract state before choosing tools:
 
 - resource `workflow_contract://<skill>/<endpoint>` (typed params, restrictions, x402/payment requirements)
 - resource `workflow_dag://<skill>/<endpoint>`
 - prompt `plan_workflow_execution`
+
+If the user does not want automatic ownership claims on captured domains, configure it locally:
+
+```bash
+unbrowse settings --auto-publish off
+unbrowse settings --publish-blacklist "linkedin.com,x.com"
+unbrowse settings --publish-promptlist "github.com"
+```
+
+Those rules only affect automatic publish after `sync` / `close`. Local `index` still works. Explicit `publish` remains available with `--confirm-publish` on guarded domains.
 
 ### 5. Feedback, review, publish
 
@@ -282,27 +307,33 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
+| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, then publish/share from cached skill state |
+| `settings` | `[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]` | Show or update local capture/publish policy settings |
+| `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state only |
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
+| `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
-| `go` | `<url>` | Navigate browser to URL (passive indexing) |
-| `snap` | `[--filter interactive]` | A11y snapshot with @eN refs |
-| `click` | `<ref>` | Click element by ref (e.g. e5) |
-| `fill` | `<ref> <value>` | Fill input by ref |
+| `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
+| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
+| `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
+| `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
+| `fill` | `[--session id] <ref> <value>` | Fill input by ref |
 | `type` | `<text>` | Type text with key events |
 | `press` | `<key>` | Press key (Enter, Tab, Escape) |
 | `select` | `<ref> <value>` | Select option by ref |
 | `scroll` | `[up|down|left|right]` | Scroll the page |
-| `screenshot` |  | Capture screenshot (base64 PNG) |
-| `text` |  | Get page text content |
-| `markdown` |  | Get page as Markdown |
-| `cookies` |  | Get page cookies |
-| `eval` | `<expression>` | Evaluate JavaScript |
-| `back` |  | Navigate back |
-| `forward` |  | Navigate forward |
-| `close` |  | Close browse session, flush + index traffic |
+| `screenshot` | `[--session id]` | Capture screenshot (base64 PNG) |
+| `text` | `[--session id]` | Get page text content |
+| `markdown` | `[--session id]` | Get page as Markdown |
+| `cookies` | `[--session id]` | Get page cookies |
+| `eval` | `[--session id] <expression>` | Evaluate JavaScript |
+| `back` | `[--session id]` | Navigate back |
+| `forward` | `[--session id]` | Navigate forward |
+| `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish |
+| `close` | `[--session id]` | Checkpoint capture, queue background index + publish, then close browse session |
 
 ### Global flags
 
@@ -343,25 +374,26 @@ unbrowse feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5
 
 
 
-### First-time domains — browse to index
+### First-time domains — browse to checkpoint
 
 When resolve has no cached skill for a domain, it either:
-1. **Auto-captures** — opens a Kuri browser session, navigates, captures traffic, indexes, and returns endpoints (20-80s, transparent)
+1. **Auto-captures** — opens a Kuri browser session, navigates, captures traffic, checkpoints it, and returns endpoints (20-80s, transparent)
 2. **Returns `browse_session_open`** — the site needs interaction (login, search, navigation) before APIs appear
 
 If you get `browse_session_open`, drive the browser with Kuri primitives:
 
 ```bash
-# Browser is already open on the site. Navigate, interact, build up the index:
+# Browser is already open on the site. Navigate, interact, checkpoint progress:
 unbrowse snap                          # See what's on page (a11y snapshot with @eN refs)
 unbrowse click e5                      # Click element by ref
 unbrowse fill e3 "search query"        # Fill input
 unbrowse press Enter                   # Submit
 unbrowse snap                          # See results
-unbrowse close                         # Close session — flushes all captured traffic to indexer
+unbrowse sync                          # Mid-flow checkpoint
+unbrowse close                         # Final checkpoint + close session
 ```
 
-All traffic is passively captured during the browse session. After `close`, the captured APIs are indexed and available for future `resolve` calls. The next time you (or any agent) resolves the same domain, it hits the cache in <200ms instead of browsing again.
+All traffic is passively captured during the browse session. `sync` and `close` checkpoint that capture and queue the background `index -> publish` pipeline. Local `index` can also recompute the DAG/contracts/export without remote share. The next time you (or any agent) resolves the same domain, it hits the cache in <200ms instead of browsing again.
 
 ### Dependency walk for multi-step sites
 
@@ -369,7 +401,7 @@ All traffic is passively captured during the browse session. After `close`, the 
 - Do not `go` directly to guessed downstream pages unless the current session already reached them through the real upstream form transition.
 - After `submit`, trust the returned `url`, `session_id`, and next-step hints over your own assumptions.
 - If a later page falls back to `abandonedCart`, `session_expired`, wrong audience, or wrong product, resume from the last known good upstream page and walk forward again.
-- Use `sync` after successful transitions so future resolve/execute runs inherit the working dependency chain instead of only the terminal page.
+- Use `sync` after successful transitions so the checkpointed capture queues the background `index -> publish` pipeline and future resolve/execute runs inherit the working dependency chain instead of only the terminal page.
 
 **If auth is needed**, the CLI detects `auth_required` and auto-opens a login window:
 ```bash

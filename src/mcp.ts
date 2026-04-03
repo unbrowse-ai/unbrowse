@@ -367,7 +367,7 @@ function listWorkflowResources(): ResourceDefinition[] {
     resources.push({
       uri: publishUri,
       name: `Workflow Publish Artifact: ${artifact.skill_id}`,
-      description: `Published workflow export summary for ${artifact.domain}.`,
+      description: `Indexed/published workflow export summary for ${artifact.domain}.`,
       mimeType: "application/json",
       read: () => artifact,
     });
@@ -409,13 +409,13 @@ function workflowPromptMessages(args: Record<string, unknown>): { description: s
   const artifact = skillId ? readWorkflowPublishArtifact(skillId) : null;
   if (!artifact) {
     return {
-      description: "Plan workflow execution from a published contract.",
+      description: "Plan workflow execution from an indexed or published contract.",
       messages: [
         {
           role: "user",
           content: {
             type: "text",
-            text: `No published workflow artifact found for ${skillId || "the requested skill"}. Use resolve/skill inspection first, or capture and publish the workflow before planning replay.`,
+            text: `No workflow artifact found for ${skillId || "the requested skill"}. Use resolve/skill inspection first, or capture and index/publish the workflow before planning replay.`,
           },
         },
       ],
@@ -428,13 +428,13 @@ function workflowPromptMessages(args: Record<string, unknown>): { description: s
     : artifact.recipes.find((entry) => entry.preferred) ?? artifact.recipes[0];
   if (!recipe) {
     return {
-      description: "Plan workflow execution from a published contract.",
+      description: "Plan workflow execution from an indexed or published contract.",
       messages: [
         {
           role: "user",
           content: {
             type: "text",
-            text: `No workflow recipe found in published artifact ${artifact.skill_id}. Inspect workflow_publish://${artifact.skill_id} first.`,
+            text: `No workflow recipe found in indexed/published artifact ${artifact.skill_id}. Inspect workflow_publish://${artifact.skill_id} first.`,
           },
         },
       ],
@@ -456,7 +456,7 @@ function workflowPromptMessages(args: Record<string, unknown>): { description: s
           text: [
             `Goal: ${goal}`,
             "",
-            "Use this published workflow contract and DAG to decide whether to:",
+            "Use this indexed/published workflow contract and DAG to decide whether to:",
             "1. execute the explicit replay contract directly, or",
             "2. use browser traversal first, then replay later.",
             "",
@@ -482,7 +482,7 @@ function workflowPromptMessages(args: Record<string, unknown>): { description: s
 const prompts: PromptDefinition[] = [
   {
     name: "plan_workflow_execution",
-    description: "Plan whether to use browser traversal or explicit replay for a published workflow contract, using its prerequisites, typed params, and dependency graph.",
+    description: "Plan whether to use browser traversal or explicit replay for an indexed/published workflow contract, using its prerequisites, typed params, and dependency graph.",
     arguments: [
       { name: "skill_id", description: "Published skill id.", required: true },
       { name: "endpoint_id", description: "Optional endpoint id. Defaults to the preferred recipe.", required: false },
@@ -567,15 +567,17 @@ const COMMON_TOOL_POLICY = [
 
 const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
   unbrowse_resolve: "This is the standard entrypoint. Resolve often returns a deferred available_endpoints list on multi-endpoint sites like X, LinkedIn, Reddit, and GitHub. Pick by action_kind, description, URL pattern, and prefer dom_extraction=false.",
-  unbrowse_execute: "Use the skill_id and endpoint_id returned from unbrowse_resolve. Intent is optional but helps parameter binding. This is the explicit replay path: published workflow contracts describe params, restrictions, and derived auth state. For write actions, preview with dry_run before the real call.",
+  unbrowse_execute: "Use the skill_id and endpoint_id returned from unbrowse_resolve. Intent is optional but helps parameter binding. This is the explicit replay path: indexed/published workflow contracts describe params, restrictions, and derived auth state. For write actions, preview with dry_run before the real call.",
   unbrowse_feedback: "Feedback is mandatory after you present results to the user. Rating guidance from SKILL.md: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless.",
+  unbrowse_index: "Use this to recompute the local graph, workflow contracts, and sanitized export for a cached skill without remote marketplace share. Helpful after review metadata changes or before an explicit publish.",
+  unbrowse_settings: "Use this to inspect or update the local capture/publish policy. Disable auto-publish after sync/close, or add blacklist/prompt-list domains when you do not want automatic remote share.",
   unbrowse_search: "Use this when a domain has many endpoints or when you need to narrow marketplace candidates before resolving.",
   unbrowse_login: "Call this on auth_required. Unbrowse reuses browser cookies and stored auth automatically after login.",
   unbrowse_go: "Browser-first flow for JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync -> close. Do not skip ahead to guessed deep links before the real upstream step succeeds.",
   unbrowse_snap: "Use this immediately after go and after major UI transitions so you can act by stable refs instead of brittle selectors.",
   unbrowse_submit: "Prefer real page submit before hidden-field hacks. Traversal stays browser-native and thin by default; passive request observation is recorded for publish-time linking, not executed during click-around. Only enable assist_site_state or same_origin_fetch_fallback when you explicitly want extra recovery/help. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
-  unbrowse_sync: "Run after important successful transitions so the route graph learns the working request chain before the tab closes.",
-  unbrowse_close: "Close at the end of the browser-first workflow so capture flushes, auth saves, and learned routes index.",
+  unbrowse_sync: "Explicit checkpoint. Run after important successful transitions to flush current capture, keep the tab open, and queue the background index -> publish pipeline.",
+  unbrowse_close: "Final checkpoint. Close at the end of the browser-first workflow so capture flushes, auth saves, and the background index -> publish pipeline is queued before the tab closes.",
   unbrowse_eval: "Use sparingly, mainly to inspect or patch hidden state the page already depends on.",
   unbrowse_sessions: "Use this for debugging when a site is slow, wrong, or unstable and you need the captured session trace.",
 };
@@ -887,6 +889,71 @@ const tools: ToolDefinition[] = [
       if (typeof args.outcome === "string") body.outcome = args.outcome;
       if (isPlainObject(args.diagnostics)) body.diagnostics = args.diagnostics;
       return successResult(await api("POST", "/v1/feedback", body), "Feedback submitted.");
+    },
+  },
+  {
+    name: "unbrowse_index",
+    description: "Recompute the local graph, workflow contracts, and sanitized workflow export for a cached skill without remote marketplace share.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill: { type: "string", description: "Skill id to re-index locally." },
+      },
+      required: ["skill"],
+      additionalProperties: false,
+    },
+    annotations: { destructiveHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      return successResult(await api("POST", `/v1/skills/${args.skill}/index`, {}), "Local index recomputed.");
+    },
+  },
+  {
+    name: "unbrowse_settings",
+    description: "Show or update local capture/publish policy settings, including auto-publish after sync/close and domain blacklist/prompt-list rules.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        auto_publish: { type: "boolean", description: "Enable or disable auto-publish after sync/close checkpoints." },
+        publish_blacklist: {
+          type: "array",
+          items: { type: "string" },
+          description: "Domains that must never auto-publish; explicit publish still requires confirmation.",
+        },
+        publish_promptlist: {
+          type: "array",
+          items: { type: "string" },
+          description: "Domains that should pause auto-publish and require explicit publish confirmation.",
+        },
+        clear_publish_blacklist: { type: "boolean", description: "Clear the current publish blacklist." },
+        clear_publish_promptlist: { type: "boolean", description: "Clear the current publish prompt-list." },
+      },
+      additionalProperties: false,
+    },
+    annotations: { destructiveHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      const hasMutation = args.auto_publish === true
+        || args.auto_publish === false
+        || Array.isArray(args.publish_blacklist)
+        || Array.isArray(args.publish_promptlist)
+        || args.clear_publish_blacklist === true
+        || args.clear_publish_promptlist === true;
+
+      if (!hasMutation) {
+        return successResult(await api("GET", "/v1/settings"), "Local capture/publish policy settings.");
+      }
+
+      const body: Record<string, unknown> = {};
+      if (args.auto_publish === true || args.auto_publish === false) {
+        body.auto_publish_checkpoints = args.auto_publish;
+      }
+      if (Array.isArray(args.publish_blacklist)) body.publish_domain_blacklist = args.publish_blacklist;
+      if (Array.isArray(args.publish_promptlist)) body.publish_domain_promptlist = args.publish_promptlist;
+      if (args.clear_publish_blacklist === true) body.clear_publish_domain_blacklist = true;
+      if (args.clear_publish_promptlist === true) body.clear_publish_domain_promptlist = true;
+
+      return successResult(await api("POST", "/v1/settings", body), "Local capture/publish policy updated.");
     },
   },
   {
@@ -1235,7 +1302,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_sync",
-    description: "Flush captured network traffic into the local skill cache without closing the tab.",
+    description: "Checkpoint the current capture, keep the tab open, and queue the background index -> publish pipeline.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string", description: "Optional browse session id." } },
@@ -1244,12 +1311,12 @@ const tools: ToolDefinition[] = [
     annotations: { destructiveHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/sync", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Browse traffic synchronized.");
+      return successResult(await api("POST", "/v1/browse/sync", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Capture checkpoint recorded; background pipeline queued.");
     },
   },
   {
     name: "unbrowse_close",
-    description: "Close the active browse session, flush capture, save auth, and index what was learned.",
+    description: "Checkpoint capture, queue the background index -> publish pipeline, save auth, and close the active browse session.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string", description: "Optional browse session id." } },
@@ -1258,7 +1325,7 @@ const tools: ToolDefinition[] = [
     annotations: { destructiveHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/close", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Browse session closed.");
+      return successResult(await api("POST", "/v1/browse/close", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Browse session closed after queuing the background pipeline.");
     },
   },
 ];
