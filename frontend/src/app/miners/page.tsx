@@ -98,14 +98,14 @@ export default function MinersPage() {
         <section className="rounded-[32px] border border-border bg-surface-raised p-8 animate-fade-up">
           <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-[11px] font-mono uppercase tracking-[0.22em] text-orange-500">
             <Zap className="h-3 w-3" />
-            Miner Leaderboard
+            Contributor Leaderboard
           </div>
           <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">
             Mine the web. Earn x402.
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-6 text-text-secondary">
             Every route you index earns micropayments when AI agents use it. Compete to cover the most
-            valuable domains, claim bounties for high-demand endpoints, and climb the miner rankings.
+            valuable domains, claim bounties for high-demand endpoints, and climb the contributor rankings.
             The more you browse, the more you earn.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -146,7 +146,7 @@ export default function MinersPage() {
             icon={<Globe className="h-4 w-4" />}
           />
           <StatCard
-            label="Active Miners"
+            label="Active Contributors"
             value={data?.network.total_agents ?? 0}
             icon={<Users className="h-4 w-4" />}
           />
@@ -176,7 +176,7 @@ export default function MinersPage() {
         <div className="mt-8 flex gap-2 overflow-x-auto scrollbar-hide animate-fade-up stagger-2">
           {(
             [
-              { key: "leaderboard", label: "Top Miners", icon: <Crown className="h-4 w-4" /> },
+              { key: "leaderboard", label: "Top Contributors", icon: <Crown className="h-4 w-4" /> },
               { key: "domains", label: "Domain Map", icon: <Globe className="h-4 w-4" /> },
               { key: "bounties", label: "Bounty Board", icon: <Target className="h-4 w-4" /> },
               { key: "quests", label: "Weekly Quests", icon: <Sparkles className="h-4 w-4" /> },
@@ -329,7 +329,7 @@ function LeaderboardSection({ entries }: { entries: LeaderboardEntry[] }) {
             <div className="mt-4 pt-4 border-t border-border/70">
               <button
                 onClick={() => {
-                  const text = `I'm ranked #${index + 1} on the Unbrowse miner leaderboard with a score of ${entry.contribution_score.toFixed(4)}. Mining the web for AI agents.\n\nhttps://unbrowse.ai/miners`;
+                  const text = `I'm ranked #${index + 1} on the Unbrowse contributor leaderboard with a score of ${entry.contribution_score.toFixed(4)}. Mining the web for AI agents.\n\nhttps://unbrowse.ai/miners`;
                   window.open(
                     `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
                     "_blank"
@@ -351,7 +351,7 @@ function LeaderboardSection({ entries }: { entries: LeaderboardEntry[] }) {
             <p className="text-xs font-mono uppercase tracking-[0.22em] text-text-muted">
               Full board
             </p>
-            <h2 className="mt-2 text-2xl font-semibold">All miners</h2>
+            <h2 className="mt-2 text-2xl font-semibold">All contributors</h2>
           </div>
           <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-xs font-mono uppercase tracking-[0.2em] text-orange-500">
             <TrendingUp className="h-3.5 w-3.5" />
@@ -364,7 +364,7 @@ function LeaderboardSection({ entries }: { entries: LeaderboardEntry[] }) {
             <thead>
               <tr className="text-xs font-mono uppercase tracking-[0.18em] text-text-muted">
                 <th className="px-3 py-3">Rank</th>
-                <th className="px-3 py-3">Miner</th>
+                <th className="px-3 py-3">Contributor</th>
                 <th className="px-3 py-3">Score</th>
                 <th className="px-3 py-3">x402 Earned</th>
                 <th className="px-3 py-3">Executions</th>
@@ -408,7 +408,7 @@ function LeaderboardSection({ entries }: { entries: LeaderboardEntry[] }) {
                     <td className="px-3 py-4">
                       <button
                         onClick={() => {
-                          const text = `I'm ranked #${index + 4} on the Unbrowse miner leaderboard. Mining the web for AI agents.\n\nhttps://unbrowse.ai/miners`;
+                          const text = `I'm ranked #${index + 4} on the Unbrowse contributor leaderboard. Mining the web for AI agents.\n\nhttps://unbrowse.ai/miners`;
                           window.open(
                             `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
                             "_blank"
@@ -427,7 +427,7 @@ function LeaderboardSection({ entries }: { entries: LeaderboardEntry[] }) {
                     colSpan={7}
                     className="px-3 py-8 text-center text-sm text-text-muted"
                   >
-                    No ranked miners yet. Be the first.
+                    No ranked contributors yet. Be the first.
                   </td>
                 </tr>
               )}
@@ -733,7 +733,7 @@ function QuestSection({ quests }: { quests: MinerQuest[] }) {
         </div>
       </div>
       <p className="mt-3 text-sm text-text-secondary">
-        Complete quests before the weekly reset for bonus multipliers. First-indexer quests are
+        Complete quests before the weekly reset for bonus multipliers. First-contributor quests are
         winner-take-all.
       </p>
 
