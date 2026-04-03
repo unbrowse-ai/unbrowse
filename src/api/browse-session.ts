@@ -7,6 +7,8 @@ export interface BrowseSession {
   url: string;
   harActive: boolean;
   domain: string;
+  brokerPort?: number;
+  client?: BrowseSessionClient;
 }
 
 export interface BrowseTabRef {
@@ -21,6 +23,7 @@ export interface BrowseSessionClient {
   closeTab(tabId: string): Promise<void>;
   discoverTabs(): Promise<BrowseTabRef[]>;
   getCurrentUrl(tabId: string): Promise<string>;
+  getPort?(): number;
 }
 
 export type BrowseSessionErrorCode =
@@ -95,6 +98,10 @@ function cleanupSessionQueue(sessionId: string): void {
   sessionQueues.delete(sessionId);
 }
 
+function resolveSessionClient(session: BrowseSession | undefined, fallback: BrowseSessionClient): BrowseSessionClient {
+  return session?.client ?? fallback;
+}
+
 export function createRegisteredBrowseSession(
   sessions: Map<string, BrowseSession>,
   input: {
@@ -103,6 +110,8 @@ export function createRegisteredBrowseSession(
     url: string;
     domain: string;
     harActive?: boolean;
+    brokerPort?: number;
+    client?: BrowseSessionClient;
   },
 ): BrowseSession {
   const existing = [...sessions.values()].find((session) => session.tabId === input.tabId);
@@ -110,6 +119,8 @@ export function createRegisteredBrowseSession(
     existing.url = input.url;
     existing.domain = input.domain;
     existing.harActive = input.harActive ?? existing.harActive;
+    existing.brokerPort = input.brokerPort ?? existing.brokerPort;
+    existing.client = input.client ?? existing.client;
     return existing;
   }
 
@@ -120,6 +131,8 @@ export function createRegisteredBrowseSession(
     url: input.url,
     domain: input.domain,
     harActive: input.harActive ?? true,
+    brokerPort: input.brokerPort,
+    client: input.client,
   };
   sessions.set(sessionId, session);
   return session;
@@ -163,6 +176,8 @@ async function createBrowseSession(
     url: "about:blank",
     domain: "",
     harActive: true,
+    brokerPort: client.getPort?.(),
+    client,
   });
 }
 
@@ -194,6 +209,8 @@ async function adoptExistingBrowseTab(
       url: candidate.url ?? "about:blank",
       domain: extractDomain(candidate.url),
       harActive: true,
+      brokerPort: client.getPort?.(),
+      client,
     });
   } catch {
     return null;
@@ -206,7 +223,7 @@ async function dropBrowseSession(
   session: BrowseSession | undefined,
 ): Promise<void> {
   if (!session) return;
-  await client.closeTab(session.tabId).catch(() => {});
+  await resolveSessionClient(session, client).closeTab(session.tabId).catch(() => {});
   removeBrowseSession(sessions, session.sessionId);
 }
 
@@ -215,11 +232,12 @@ export async function isBrowseSessionLive(
   client: BrowseSessionClient,
 ): Promise<boolean> {
   if (!session.tabId) return false;
+  const sessionClient = resolveSessionClient(session, client);
 
   try {
-    const tabs = await client.discoverTabs();
+    const tabs = await sessionClient.discoverTabs();
     if (!tabs.some((tab) => tab.id === session.tabId)) return false;
-    const currentUrl = await client.getCurrentUrl(session.tabId);
+    const currentUrl = await sessionClient.getCurrentUrl(session.tabId);
     return typeof currentUrl === "string" && currentUrl.length > 0;
   } catch {
     return false;
@@ -273,10 +291,11 @@ export async function getOrCreateBrowseSession(
     if (await isBrowseSessionLive(existing, client)) return existing;
     const preferredDomain = existing.domain || extractDomain(existing.url);
     const targetSessionId = existing.sessionId;
-    await dropBrowseSession(sessions, client, existing);
-    const adopted = await adoptExistingBrowseTab(sessions, client, injectInterceptor, preferredDomain, targetSessionId);
+    const existingClient = resolveSessionClient(existing, client);
+    await dropBrowseSession(sessions, existingClient, existing);
+    const adopted = await adoptExistingBrowseTab(sessions, existingClient, injectInterceptor, preferredDomain, targetSessionId);
     if (adopted) return adopted;
-    return createBrowseSession(sessions, client, injectInterceptor, targetSessionId);
+    return createBrowseSession(sessions, existingClient, injectInterceptor, targetSessionId);
   }
 
   const live = await listLiveBrowseSessions(sessions, client);
@@ -303,10 +322,11 @@ export async function resetBrowseSession(
     : [...sessions.values()][0];
   const targetSessionId = sessionId ?? existing?.sessionId;
   const preferredDomain = existing?.domain || extractDomain(existing?.url);
-  await dropBrowseSession(sessions, client, existing);
-  const adopted = await adoptExistingBrowseTab(sessions, client, injectInterceptor, preferredDomain, targetSessionId);
+  const existingClient = resolveSessionClient(existing, client);
+  await dropBrowseSession(sessions, existingClient, existing);
+  const adopted = await adoptExistingBrowseTab(sessions, existingClient, injectInterceptor, preferredDomain, targetSessionId);
   if (adopted) return adopted;
-  return createBrowseSession(sessions, client, injectInterceptor, targetSessionId);
+  return createBrowseSession(sessions, existingClient, injectInterceptor, targetSessionId);
 }
 
 async function withSessionQueue<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
@@ -361,6 +381,7 @@ export async function withSerializedRecoveredBrowseSession<T>(
   return withSessionQueue(resolved.sessionId, async () => {
     let session = sessions.get(resolved.sessionId);
     if (!session) throw new BrowseSessionError("session_expired");
+    const sessionClient = resolveSessionClient(session, client);
 
     try {
       const result = await run(session);
@@ -371,7 +392,7 @@ export async function withSerializedRecoveredBrowseSession<T>(
       if (!isRecoverableBrowseFailure(error)) throw error;
     }
 
-    session = await resetBrowseSession(sessions, client, injectInterceptor, resolved.sessionId);
+    session = await resetBrowseSession(sessions, sessionClient, injectInterceptor, resolved.sessionId);
     const result = await run(session);
     return { session, result, recovered: true };
   });
