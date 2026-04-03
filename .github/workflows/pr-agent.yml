@@ -29,6 +29,7 @@ permissions:
   pull-requests: write
   issues: write
   actions: read
+  checks: read
 
 jobs:
   pr-agent:
@@ -72,6 +73,7 @@ jobs:
       - name: Run PR agent
         env:
           GH_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           bun scripts/pr-agent.ts \
             --repo "${{ inputs.repo }}" \
