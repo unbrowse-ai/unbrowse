@@ -2,9 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [main]
     tags: ["v*"]
-  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -239,12 +237,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            MSG="chore: release ${GITHUB_REF_NAME}"
-          else
-            MSG="chore: sync main ${GITHUB_SHA}"
-          fi
-          bash scripts/sync-skill.sh "$MSG"
+          bash scripts/sync-skill.sh "chore: release ${GITHUB_REF_NAME}"
 
   release-skill-repo:
     name: Release Skill Repo
