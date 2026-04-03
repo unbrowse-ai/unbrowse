@@ -51,7 +51,7 @@ if (!sourceDir) {
 }
 
 if (!hasBinary("zig")) {
-  if (hasVendoredBinaries()) process.exit(0);
+  if (hasVendoredBinaries(vendorRoot)) process.exit(0);
   throw new Error(`Zig is required to build bundled Kuri binaries from ${sourceDir}`);
 }
 
