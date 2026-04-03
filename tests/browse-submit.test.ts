@@ -235,6 +235,129 @@ describe("browse submit", () => {
     expect(session.url).toBe("https://example.com/tickets-selection.html");
   });
 
+  it("does not treat hidden same-page html churn as a successful dom submit", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/tickets-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+    let htmlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => {
+            evalCount += 1;
+            if (evalCount === 1) return JSON.stringify({ ok: true, submit_kind: "click" });
+            return JSON.stringify({
+              ok: true,
+              status: 200,
+              url: "https://example.com/date-selection.html",
+              same_origin_html_rehydrated: true,
+              rehydrate: { attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] },
+            });
+          },
+          getCurrentUrl: async () => "https://example.com/tickets-selection.html",
+          getPageHtml: async () => {
+            htmlReads += 1;
+            return htmlReads === 1
+              ? "<html><body><input type='hidden' value='0'><div>Who are you booking for?</div></body></html>"
+              : "<html><body><input type='hidden' value='1'><div>Who are you booking for?</div></body></html>";
+          },
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20 },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("same_origin_fetch");
+    expect(result.fallback_used).toBe(true);
+    expect(result.url).toBe("https://example.com/date-selection.html");
+  });
+
+  it("does not report dom success when submit metadata is missing and the url never changes", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/tickets-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => {
+            evalCount += 1;
+            if (evalCount === 1) return "SyntaxError: unexpected token";
+            return JSON.stringify({
+              ok: true,
+              status: 200,
+              url: "https://example.com/date-selection.html",
+              same_origin_html_rehydrated: true,
+              rehydrate: { attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] },
+            });
+          },
+          getCurrentUrl: async () => "https://example.com/tickets-selection.html",
+          getPageHtml: async () => "<html><body><div>Who are you booking for?</div><input type='hidden' value='1'></body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20 },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("same_origin_fetch");
+    expect(result.submit_meta).toBeNull();
+    expect(result.url).toBe("https://example.com/date-selection.html");
+  });
+
+  it("returns a recoverable result when same-origin fallback loses the broker socket", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/tickets-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => {
+            evalCount += 1;
+            if (evalCount === 1) return JSON.stringify({ ok: true, submit_kind: "click" });
+            const error = new Error("The socket connection was closed unexpectedly");
+            (error as Error & { code?: string }).code = "ECONNRESET";
+            throw error;
+          },
+          getCurrentUrl: async () => "https://example.com/tickets-selection.html",
+          getPageHtml: async () => "<html><body>tickets-selection</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20 },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.mode).toBe("same_origin_fetch");
+    expect(result.fallback_used).toBe(true);
+    expect(result.recoverable).toBe(true);
+    expect(result.reason).toContain("socket connection was closed unexpectedly");
+  });
+
   it("retries once on recoverable submit failure and preserves updated session url", async () => {
     const sessions = new Map<string, BrowseSession>();
     const created: string[] = [];

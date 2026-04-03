@@ -110,6 +110,20 @@ export function hasMeaningfulPageChange(beforeHtml: string, afterHtml: string): 
 
   const beforeBody = before.match(/<body[\s\S]*?>([\s\S]*?)<\/body>/i)?.[1] ?? before;
   const afterBody = after.match(/<body[\s\S]*?>([\s\S]*?)<\/body>/i)?.[1] ?? after;
+  const normalizeVisibleText = (html: string) => html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const beforeText = normalizeVisibleText(beforeBody);
+  const afterText = normalizeVisibleText(afterBody);
+  if (beforeText || afterText) return beforeText !== afterText;
   return beforeBody.trim() !== afterBody.trim();
 }
 
@@ -200,6 +214,39 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
         node.dispatchEvent(new Event("change", { bubbles: true }));
       } catch {}
     }
+    function dispatchCheck(node, checked) {
+      if (!node) return;
+      if ("checked" in node) node.checked = checked;
+      try {
+        node.dispatchEvent(new Event("input", { bubbles: true }));
+        node.dispatchEvent(new Event("change", { bubbles: true }));
+        if (typeof node.click === "function") node.click();
+      } catch {}
+      if ("checked" in node && node.checked !== checked) node.checked = checked;
+    }
+    function prepareMandaiResidentGate(form, prereqState) {
+      if (!form) return;
+      var action = form.getAttribute("action") || "";
+      var step = String(form.getAttribute("data-step") || "");
+      if (!/\\/bin\\/wrs\\/ticket-selection/i.test(action) || step !== "2") return;
+
+      var residentRadio = form.querySelector("input.booking-selection--btn[type='radio'][value='resident'], input[name='booking-selection'][value='resident']");
+      var residentCheckbox = form.querySelector("#checkSingapore, input[name='isSingaporean'][type='checkbox']");
+      var quantityControls = form.querySelector("[data-number-ticket], .number-ticket, .qty-ticket, input[name='quantityTicket']");
+      var needsResidentGate = !!(residentRadio || residentCheckbox) && !quantityControls;
+      if (!needsResidentGate) return;
+
+      if (residentRadio && !residentRadio.checked) {
+        dispatchCheck(residentRadio, true);
+        pushUnique(prereqState.patched, "input[name='booking-selection'][value='resident']");
+      }
+      if (residentCheckbox && !residentCheckbox.checked) {
+        dispatchCheck(residentCheckbox, true);
+        pushUnique(prereqState.patched, "#checkSingapore");
+      }
+
+      pushUnique(prereqState.missing, "[data-number-ticket], input[name='quantityTicket']");
+    }
     function prepareSubmitState(submitter, selector) {
       var prereqState = { patched: [], missing: [] };
       var isoDate = inferIsoDate();
@@ -217,6 +264,8 @@ function buildDomSubmitExpression(options: BrowseSubmitOptions): string {
           pushUnique(prereqState.missing, "selectedDate");
         }
       }
+
+      prepareMandaiResidentGate(form, prereqState);
 
       if (!submitter) {
         pushUnique(prereqState.missing, selector || "submitter");
@@ -554,17 +603,22 @@ export async function submitBrowseForm(
 
   const domOutcome = await waitForSubmitOutcome(client, session.tabId, beforeUrl, beforeHtml, options);
   if (domOutcome.ok) {
-    session.url = domOutcome.url || beforeUrl || session.url;
-    return {
-      ok: true,
-      url: session.url,
-      mode: "dom",
-      fallback_used: false,
-      same_origin_html_rehydrated: false,
-      wait_for: options.waitFor,
-      submit_meta: submitMeta,
-      capture_sync: null,
-    };
+    const sameUrl = (domOutcome.url || beforeUrl || session.url) === (beforeUrl || session.url);
+    if (submitMeta == null && sameUrl) {
+      // Unknown submit state + no navigation usually means hidden DOM churn, not a real step transition.
+    } else {
+      session.url = domOutcome.url || beforeUrl || session.url;
+      return {
+        ok: true,
+        url: session.url,
+        mode: "dom",
+        fallback_used: false,
+        same_origin_html_rehydrated: false,
+        wait_for: options.waitFor,
+        submit_meta: submitMeta,
+        capture_sync: null,
+      };
+    }
   }
 
   if (submitError && !isRecoverableBrowseFailure(submitError) && !sameOriginFetchFallback) {
@@ -584,7 +638,25 @@ export async function submitBrowseForm(
     };
   }
 
-  const fallbackPayload = parseJsonString(await client.evaluate(session.tabId, buildSameOriginFetchExpression(options)));
+  let fallbackPayload: Record<string, unknown> | null = null;
+  let fallbackError: unknown = null;
+  try {
+    fallbackPayload = parseJsonString(await client.evaluate(session.tabId, buildSameOriginFetchExpression(options)));
+  } catch (error) {
+    fallbackError = error;
+  }
+  if (fallbackError) {
+    return {
+      ok: false,
+      url: beforeUrl || session.url,
+      mode: "same_origin_fetch",
+      fallback_used: true,
+      same_origin_html_rehydrated: false,
+      recoverable: isRecoverableBrowseFailure(fallbackError),
+      reason: fallbackError instanceof Error ? fallbackError.message : "same_origin_fetch_failed",
+      submit_meta: submitMeta,
+    };
+  }
   if (!fallbackPayload?.ok) {
     return {
       ok: false,

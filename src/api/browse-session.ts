@@ -53,6 +53,8 @@ const RECOVERABLE_BROWSE_FAILURES = [
   "execution context was destroyed",
   "cannot find context with specified id",
   "no such target",
+  "socket connection was closed unexpectedly",
+  "econnreset",
 ];
 
 const LIVE_CHECK_RETRIES = 8;

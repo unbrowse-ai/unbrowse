@@ -1443,3 +1443,5 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - fix: post projection now derives dev.to authors from article paths and recovers Lobsters scores from text-heavy list rows
 - docs: curated public expansion corpus now includes validated non-dev science/reference/news cases for arXiv, Wiktionary, and NPR, with exact blocked terminals where needed
 - x402 workers can now force `mainnet` payment terms outside production via `X402_NETWORK_MODE`, which unblocks Lobster wallet e2e against staging.
+- Fix browse submit so Mandai's resident gate is compiled into prerequisite state before `NEXT`, instead of falling through into a broken same-origin replay.
+- Treat Kuri broker `ECONNRESET` / socket-close failures as recoverable browse errors and return structured submit failures instead of raw 500s.
