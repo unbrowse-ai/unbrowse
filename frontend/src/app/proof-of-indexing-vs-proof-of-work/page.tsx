@@ -82,9 +82,9 @@ const sections: { title: string; body: string[] }[] = [
     title: "The parallel: mechanism by mechanism",
     body: [
       "The structural parallel between proof of work and proof of indexing is not a metaphor. It is a direct mapping at the mechanism level.",
-      "In proof of work, miners validate transactions and earn BTC. In proof of indexing, indexers discover routes and earn USDC. Both convert work into a shared resource. Bitcoin miners do not build the ledger out of conviction — they do it because mining is profitable. Unbrowse contributors do not build the route graph out of altruism — they do it because indexing pays.",
+      "In proof of work, miners validate transactions and earn BTC. In proof of indexing, contributors discover routes and earn USDC. Both convert work into a shared resource. Bitcoin miners do not build the ledger out of conviction — they do it because mining is profitable. Unbrowse contributors do not build the route graph out of altruism — they do it because indexing pays.",
       "In proof of work, hashrate secures the network — the more computational power pointed at Bitcoin, the harder it is to attack. In proof of indexing, route coverage determines the hit rate — the more domains indexed, the higher the probability that an agent's query resolves from cache instead of falling back to an expensive browser session. Both metrics measure the health of the network by the aggregate contribution of participants.",
-      "In proof of work, early miners earned disproportionately. When Bitcoin was $1, a CPU could mine blocks. By the time it hit $60,000, you needed warehouses of ASICs. In proof of indexing, the first indexer of a domain earns a 2x reward multiplier. Once a domain is thoroughly indexed, the marginal return for re-indexing it drops. Early contributors capture outsized value — not from speculation, but from being first to do useful work.",
+      "In proof of work, early miners earned disproportionately. When Bitcoin was $1, a CPU could mine blocks. By the time it hit $60,000, you needed warehouses of ASICs. In proof of indexing, the first contributor to index a domain earns a 2x reward multiplier. Once a domain is thoroughly indexed, the marginal return for re-indexing it drops. Early contributors capture outsized value — not from speculation, but from being first to do useful work.",
       "In proof of work, difficulty adjusts upward as more miners join. In proof of indexing, returns diminish naturally as domains get fully indexed. Both mechanisms prevent infinite extraction from a finite resource. Bitcoin's difficulty adjustment ensures blocks arrive every 10 minutes regardless of hashrate. Proof of indexing's diminishing returns ensure contributors fan out to unindexed domains rather than redundantly indexing the same ones.",
     ],
   },
@@ -118,10 +118,10 @@ const sections: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "What miners should understand about route mining",
+    title: "What contributors should understand about route mining",
     body: [
       "If you understand mining economics, you already understand proof of indexing. The mental model transfers directly.",
-      "Domain selection is the new pool selection. Just as Bitcoin miners choose pools based on size, fees, and payout frequency, route miners should choose domains based on agent demand. High-traffic sites — e-commerce, travel, financial data, social platforms — generate more agent resolves than niche blogs. The marketplace leaderboard shows which domains are earning the most, the same way mining pool dashboards show hashrate and block frequency.",
+      "Domain selection is the new pool selection. Just as Bitcoin miners choose pools based on size, fees, and payout frequency, contributors should choose domains based on agent demand. High-traffic sites — e-commerce, travel, financial data, social platforms — generate more agent resolves than niche blogs. The marketplace leaderboard shows which domains are earning the most, the same way mining pool dashboards show hashrate and block frequency.",
       "Route quality is the new hashrate. In Bitcoin, hashrate determines your probability of finding a block. In proof of indexing, route quality determines your share of agent traffic. A complete, well-authenticated set of endpoints with accurate schemas will earn more than a partial, broken index of the same domain. Quality beats quantity, just as raw hashrate beats number of machines.",
       "Maintenance is the new difficulty adjustment. Websites change their APIs. Endpoints break. Authentication flows evolve. The contributor who keeps their routes current earns more than the one who indexes once and walks away. This is analogous to miners upgrading hardware as difficulty increases — you have to keep up with the environment to maintain earnings.",
       "The key difference: there is no race. In Bitcoin, only one miner wins each block. Mining is a zero-sum competition for each 10-minute interval. In proof of indexing, every useful route earns independently. Two contributors can both profit from the same domain if they index different endpoints or maintain better coverage for different use cases. The game is positive-sum.",
@@ -175,7 +175,7 @@ const comparisonRows: { dimension: string; pow: string; poi: string }[] = [
   {
     dimension: "Early mover advantage",
     pow: "Low difficulty, high BTC/block",
-    poi: "2x first-indexer bonus",
+    poi: "2x first-contributor bonus",
   },
   {
     dimension: "Diminishing returns",
@@ -438,7 +438,7 @@ export default function ProofOfIndexingVsProofOfWorkPage() {
             <div>
               <div className="text-3xl font-bold text-orange-600">2x</div>
               <div className="text-text-secondary mt-1">
-                First-indexer bonus on new domains
+                First-contributor bonus on new domains
               </div>
             </div>
           </div>
@@ -471,8 +471,8 @@ export default function ProofOfIndexingVsProofOfWorkPage() {
             Start mining the agentic web
           </h2>
           <p className="text-base sm:text-lg leading-8 text-text-secondary mb-6">
-            Bitcoin miners needed warehouses of ASICs. Route miners need one
-            command. Install Unbrowse, browse the web, and earn when agents use
+            Bitcoin miners needed warehouses of ASICs. Contributors need one
+            command: install Unbrowse, browse the web, and earn when agents use
             the routes you discover.
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
