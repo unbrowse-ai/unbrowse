@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
-import { INSTALL_CMD_GENERIC, UPGRADE_CMD_GENERIC } from "@/lib/install-command";
+import {
+  INSTALL_CMD_GENERIC,
+  INSTALL_CMD_MCP,
+  INSTALL_CMD_SKILL,
+  MCP_CONFIG_JSON,
+  MCP_CONFIG_PATH,
+  UPGRADE_CMD_GENERIC,
+  UPGRADE_CMD_MCP,
+} from "@/lib/install-command";
 
 const SKILL_MD = `---
 name: unbrowse
@@ -33,18 +41,33 @@ Current product path:
 ${INSTALL_CMD_GENERIC}
 \`\`\`
 
-This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and wallet detection when present. If a wallet is configured, that address becomes the contributor/payment truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
+This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and wallet detection when present. Agents that want to earn from mined routes should set up Crossmint lobster.cash during bootstrap. If a wallet is configured, that address becomes the contributor/payment truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
 
-Upgrade an existing clone in place:
+Optional after install, if your host supports skills:
+
+\`\`\`bash
+${INSTALL_CMD_SKILL}
+\`\`\`
+
+For generic MCP hosts:
+
+\`\`\`bash
+${INSTALL_CMD_MCP}
+\`\`\`
+
+That path writes a ready-to-import config to \`${MCP_CONFIG_PATH}\`.
+
+Generic MCP template:
+
+\`\`\`json
+${MCP_CONFIG_JSON}
+\`\`\`
+
+Upgrade an existing install in place:
 
 \`\`\`bash
 ${UPGRADE_CMD_GENERIC}
-\`\`\`
-
-If your host uses skills:
-
-\`\`\`bash
-npx skills add unbrowse-ai/unbrowse
+${UPGRADE_CMD_MCP}
 \`\`\`
 
 ## First-run behavior
@@ -54,6 +77,7 @@ npx skills add unbrowse-ai/unbrowse
 - starts the local server unless \`--no-start\` is passed
 - first registration prompts for ToS acceptance
 - interactive runs also offer an email-style agent identity
+- setup encourages Crossmint lobster.cash because mined-route payouts need a wallet destination
 
 Headless runs can preseed:
 

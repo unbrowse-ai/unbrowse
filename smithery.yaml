@@ -1,0 +1,53 @@
+name: "unbrowse"
+display_name: "Unbrowse"
+description: >
+  Reverse-engineer any website into reusable API skills for AI agents.
+  Unbrowse learns internal APIs from real browsing traffic and replaces brittle
+  browser automation with direct, reusable calls through a shared route graph.
+version: "2.11.0"
+license: "AGPL-3.0"
+
+author:
+  name: "Unbrowse AI"
+  url: "https://www.unbrowse.ai"
+  email: "lewis@unbrowse.ai"
+
+repository: "https://github.com/unbrowse-ai/unbrowse"
+homepage: "https://www.unbrowse.ai"
+documentation: "https://www.unbrowse.ai/skill.md"
+icon: "https://www.unbrowse.ai/logo.png"
+
+categories:
+  - "Browser Automation"
+  - "Developer Tools"
+  - "Web Scraping"
+  - "Autonomous Agents"
+
+tags:
+  - ai-agents
+  - mcp-server
+  - browser-automation
+  - reverse-engineering
+  - internal-api
+  - web-automation
+  - kuri
+  - playwright-alternative
+
+install:
+  command: "npx"
+  args: ["-y", "unbrowse", "mcp"]
+
+transports:
+  - type: "stdio"
+    description: "Local stdio MCP server for Claude Desktop, Cursor, Codex, Windsurf, and similar MCP hosts"
+
+tool_groups:
+  - name: "resolve"
+    description: "Search, resolve, and execute learned website endpoints"
+    tools: ["unbrowse_search", "unbrowse_resolve", "unbrowse_execute", "unbrowse_feedback"]
+  - name: "auth"
+    description: "Store and reuse authenticated browser state for gated sites"
+    tools: ["unbrowse_login", "unbrowse_skills", "unbrowse_skill", "unbrowse_sessions"]
+  - name: "browser"
+    description: "Capture-first browser flow for JS-heavy sites and new route discovery"
+    tools: ["unbrowse_go", "unbrowse_snap", "unbrowse_click", "unbrowse_fill", "unbrowse_type", "unbrowse_press", "unbrowse_select", "unbrowse_scroll", "unbrowse_submit", "unbrowse_screenshot", "unbrowse_text", "unbrowse_markdown", "unbrowse_cookies", "unbrowse_eval", "unbrowse_sync", "unbrowse_close"]

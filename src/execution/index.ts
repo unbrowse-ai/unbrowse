@@ -38,6 +38,7 @@ import {
 } from "../orchestrator/index.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { isAllowedByRobots } from "./robots.js";
+import { annotateEndpointPolicy, endpointRequiresThirdPartyTermsConfirmation, getEndpointPolicy } from "../site-policy.js";
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
@@ -1073,7 +1074,28 @@ async function executeBrowserCapture(
         },
       };
     }
-    throw captureErr;
+    const message = captureErr instanceof Error ? captureErr.message : String(captureErr);
+    const normalizedError = /unable to connect/i.test(message)
+      ? "connection_failed"
+      : /timed out/i.test(message)
+        ? "capture_timeout"
+        : "capture_failed";
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: normalizedError,
+    });
+    return {
+      trace,
+      result: {
+        error: normalizedError,
+        message,
+      },
+    };
   }
 
   const finalDomain = (() => {
@@ -1640,6 +1662,7 @@ export async function executeEndpoint(
   projection?: ProjectionOptions,
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
+  endpoint = annotateEndpointPolicy(endpoint);
   const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
   // WebSocket endpoint: connect, collect messages, return
   if (endpoint.method === "WS") {
@@ -1713,8 +1736,8 @@ export async function executeEndpoint(
     }
   }
 
-  // Mutation safety gate
-  if (endpoint.method !== "GET" && endpoint.idempotency === "unsafe") {
+  // Mutation safety / policy gate
+  if (endpoint.method !== "GET") {
     if (options?.dry_run) {
       // Merge path_params defaults for dry_run preview too
       const dryParams = { ...params };
@@ -1742,11 +1765,32 @@ export async function executeEndpoint(
         }),
         result: {
           dry_run: true,
+          ...(endpoint.policy ? { site_policy: endpoint.policy } : {}),
           would_execute: { method: endpoint.method, url, body },
         },
       };
     }
-    if (!options?.confirm_unsafe) {
+    if (endpointRequiresThirdPartyTermsConfirmation(endpoint) && !options?.confirm_third_party_terms) {
+      const policy = getEndpointPolicy(endpoint)!;
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "third_party_terms_confirmation_required",
+        }),
+        result: {
+          error: "third_party_terms_confirmation_required",
+          message: `This endpoint may violate third-party site terms for ${policy.policy_domain}. Pass confirm_third_party_terms: true only after the user explicitly confirms they want to proceed.`,
+          policy_domain: policy.policy_domain,
+          policy_reason: policy.reason,
+        },
+      };
+    }
+    if (endpoint.idempotency === "unsafe" && !options?.confirm_unsafe) {
       return {
         trace: stampTrace({
           trace_id: nanoid(),
@@ -1899,9 +1943,14 @@ export async function executeEndpoint(
     }
   }
 
+  const hasAuthContext =
+    cookies.length > 0 ||
+    Object.keys(authHeaders).length > 0 ||
+    !!skill.auth_profile_ref ||
+    endpoint.semantic?.auth_required === true;
 
   // robots.txt compliance gate — block disallowed paths before any network call.
-  if (!options?.skip_robots_check) {
+  if (!options?.skip_robots_check && !hasAuthContext) {
     const allowed = await isAllowedByRobots(url);
     if (!allowed) {
       const traceId = nanoid();

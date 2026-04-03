@@ -100,6 +100,29 @@ export interface OrchestrationTiming {
   trace_version?: string;
 }
 
+export interface AgentImpact {
+  source: string;
+  cache_hit: boolean;
+  browser_avoided: boolean;
+  baseline_total_ms?: number;
+  actual_total_ms?: number;
+  time_saved_ms?: number;
+  time_saved_pct: number;
+  tokens_saved: number;
+  tokens_saved_pct: number;
+  baseline_cost_uc?: number;
+  actual_cost_uc?: number;
+  cost_saved_uc?: number;
+}
+
+export interface AgentNextAction {
+  endpoint_id: string;
+  operation_id: string;
+  title: string;
+  why: string;
+  command: string;
+}
+
 export interface RequestOptions {
   headers?: HeadersInit;
   signal?: AbortSignal;
@@ -116,6 +139,7 @@ export interface ResolveInput {
   };
   projection?: ProjectionOptions;
   confirmUnsafe?: boolean;
+  confirmThirdPartyTerms?: boolean;
   dryRun?: boolean;
   forceCapture?: boolean;
 }
@@ -125,6 +149,7 @@ export interface ExecuteInput {
   params?: Record<string, unknown>;
   projection?: ProjectionOptions;
   confirmUnsafe?: boolean;
+  confirmThirdPartyTerms?: boolean;
   dryRun?: boolean;
   intent?: string;
   contextUrl?: string;
@@ -184,6 +209,9 @@ export interface AvailableEndpoint {
     required?: boolean;
     example_value?: string;
   }>;
+  requires_third_party_terms_confirmation?: boolean;
+  third_party_terms_policy_domain?: string;
+  third_party_terms_policy_reason?: string;
   [key: string]: unknown;
 }
 
@@ -194,6 +222,8 @@ export interface ResolveResponse {
   skill?: SkillManifest;
   timing?: OrchestrationTiming;
   available_endpoints?: AvailableEndpoint[];
+  impact?: AgentImpact;
+  next_actions?: AgentNextAction[];
   _recovery?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -204,6 +234,8 @@ export interface ExecuteResponse {
   skill?: SkillManifest;
   timing?: OrchestrationTiming;
   source?: string;
+  impact?: AgentImpact;
+  next_actions?: AgentNextAction[];
   _recovery?: Record<string, unknown>;
   [key: string]: unknown;
 }

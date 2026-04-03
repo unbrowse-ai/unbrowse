@@ -21,7 +21,16 @@ describe("standalone skill package runtime", () => {
     const wrapper = readFileSync(SKILL_WRAPPER, "utf8");
 
     expect(wrapper).toContain('const launcherPath = join(__dirname, "unbrowse.js");');
-    expect(wrapper).toContain("spawn(process.execPath, [launcherPath, ...process.argv.slice(2)]");
+    expect(wrapper).toContain("spawnEntrypoint(process.execPath, [launcherPath, ...process.argv.slice(2)])");
     expect(wrapper).not.toContain('spawn("bun"');
+  });
+
+  it("hardens fallback installs with explicit repair diagnostics", () => {
+    const wrapper = readFileSync(SKILL_WRAPPER, "utf8");
+
+    expect(wrapper).toContain("KNOWN_BAD_FALLBACK_VERSIONS");
+    expect(wrapper).toContain("Fallback runtime is missing required packages");
+    expect(wrapper).toContain("npm uninstall -g unbrowse && npm install -g unbrowse@latest");
+    expect(wrapper).toContain('process.argv.includes("--version")');
   });
 });
