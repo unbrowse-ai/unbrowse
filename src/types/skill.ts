@@ -253,6 +253,13 @@ export interface ExecutionTrace {
   started_at: string;
   completed_at: string;
   success: boolean;
+  session_id?: string;
+  step_index?: number;
+  state_hash?: string;
+  candidate_count?: number;
+  selected_operation_id?: string;
+  reachable_operation_count?: number;
+  api_call_count?: number;
   status_code?: number;
   error?: string;
   result?: unknown;
@@ -378,3 +385,125 @@ export interface OrchestrationTiming {
   /** Code version hash + git SHA — tracks which code produced this timing */
   trace_version?: string;
 }
+
+export type RoutingRunType = "single_shot" | "long_running";
+export type RoutingTelemetrySource =
+  | "route-cache"
+  | "marketplace"
+  | "graph"
+  | "live-capture"
+  | "browser-action"
+  | "defer";
+export type RoutingSessionOutcome = "success" | "failure" | "defer" | "abandon";
+
+export interface RoutingContextBuckets {
+  role: "general" | "developer" | "researcher" | "analyst" | "operator" | "unknown";
+  cost_sensitivity: "low" | "medium" | "high" | "unknown";
+  latency_sensitivity: "low" | "medium" | "high" | "unknown";
+  output_preference: "structured" | "raw" | "mixed" | "unknown";
+  task_horizon: "short" | "long" | "unknown";
+  has_prior_history: boolean;
+}
+
+export interface RoutingCandidateSnapshot {
+  candidate_id: string;
+  rank: number;
+  skill_id?: string;
+  endpoint_id: string;
+  operation_id?: string;
+  route_fingerprint: string;
+  score: number;
+  chosen: boolean;
+  reachable: boolean;
+  rejection_reason?: string;
+  feature_snapshot: {
+    method?: string;
+    has_response_schema: boolean;
+    dom_extraction: boolean;
+    verification_status?: string;
+    reliability_score?: number;
+    unsafe_action_score?: number;
+  };
+}
+
+export interface RoutingTelemetryBaseEvent {
+  event_id: string;
+  event_type:
+    | "routing_session_started"
+    | "routing_candidates_ranked"
+    | "routing_step_executed"
+    | "routing_session_completed";
+  session_id: string;
+  created_at: string;
+  trace_version?: string;
+  anonymized_agent_id?: string;
+  top_level_intent: string;
+  normalized_domains: string[];
+  run_type: RoutingRunType;
+}
+
+export interface RoutingSessionEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_session_started";
+  context_buckets: RoutingContextBuckets;
+}
+
+export interface RoutingCandidateEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_candidates_ranked";
+  step_id: string;
+  step_index: number;
+  source: RoutingTelemetrySource;
+  state_hash_before: string;
+  candidate_count: number;
+  reachable_operation_count?: number;
+  available_binding_count?: number;
+  missing_binding_count?: number;
+  selected_endpoint_id?: string;
+  selected_operation_id?: string;
+  candidates: RoutingCandidateSnapshot[];
+}
+
+export interface RoutingStepEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_step_executed";
+  step_id: string;
+  step_index: number;
+  source: RoutingTelemetrySource;
+  state_hash_before: string;
+  state_hash_after: string;
+  selected_skill_id?: string;
+  selected_endpoint_id?: string;
+  selected_operation_id?: string;
+  reachable_operation_count?: number;
+  available_binding_count?: number;
+  missing_binding_count?: number;
+  candidate_count: number;
+  execution_latency_ms?: number;
+  status_code?: number;
+  success?: boolean;
+  failure_reason?: string;
+  schema_fingerprint?: string;
+  response_hash?: string;
+  cross_domain_transition: boolean;
+  retry_count: number;
+  user_override: boolean;
+  did_step_unlock_next_step: boolean;
+  required_recovery: boolean;
+}
+
+export interface RoutingSessionCompletedEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_session_completed";
+  completed_at: string;
+  final_outcome: RoutingSessionOutcome;
+  final_success: boolean;
+  total_steps: number;
+  total_candidates_ranked: number;
+  total_api_calls: number;
+  retry_count: number;
+  user_override: boolean;
+  required_recovery: boolean;
+}
+
+export type RoutingTelemetryEvent =
+  | RoutingSessionEvent
+  | RoutingCandidateEvent
+  | RoutingStepEvent
+  | RoutingSessionCompletedEvent;

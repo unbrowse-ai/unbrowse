@@ -204,4 +204,32 @@ describe("cli agent experience", () => {
       expect(out.stderr).toContain("Opening browser for login");
     });
   });
+
+  it("preserves top-level resolve errors instead of slimming them to an empty object", async () => {
+    await withStubServer(async (req) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        return Response.json({
+          error: "connection_failed",
+          message: "Unable to connect. Is the computer able to access the url?",
+          login_url: "https://x.com/",
+          provider: "network",
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "resolve",
+        "--intent", "search tweets",
+        "--url", "https://x.com",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.error).toBe("connection_failed");
+      expect(out.body.message).toContain("Unable to connect");
+      expect(out.body.login_url).toBe("https://x.com/");
+      expect(out.body.provider).toBe("network");
+    });
+  });
 });

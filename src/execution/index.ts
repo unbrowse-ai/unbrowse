@@ -1073,7 +1073,28 @@ async function executeBrowserCapture(
         },
       };
     }
-    throw captureErr;
+    const message = captureErr instanceof Error ? captureErr.message : String(captureErr);
+    const normalizedError = /unable to connect/i.test(message)
+      ? "connection_failed"
+      : /timed out/i.test(message)
+        ? "capture_timeout"
+        : "capture_failed";
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: normalizedError,
+    });
+    return {
+      trace,
+      result: {
+        error: normalizedError,
+        message,
+      },
+    };
   }
 
   const finalDomain = (() => {

@@ -36,7 +36,7 @@ const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbro
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 
 type AnalyticsSessionResult = {
-  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct">;
+  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct" | "api_call_count">;
   timing?: Pick<OrchestrationTiming, "source" | "time_saved_ms" | "time_saved_pct" | "cost_saved_uc" | "tokens_saved" | "tokens_saved_pct">;
   source?: OrchestratorResult["source"];
 };
@@ -51,7 +51,7 @@ export function buildAnalyticsSessionPayload(
   },
 ): AnalyticsSessionPayload {
   const source = result.timing?.source ?? result.source;
-  const apiCalls = result.trace.endpoint_id ? 1 : 0;
+  const apiCalls = result.trace.api_call_count ?? (result.trace.endpoint_id ? 1 : 0);
   const browserMode = opts.browser_mode ?? (
     source === "live-capture" || source === "first-pass" || source === "browser-action"
       ? "default"
