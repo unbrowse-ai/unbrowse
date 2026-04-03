@@ -23,6 +23,7 @@ import { isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
+import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -823,6 +824,11 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
   if (report.opencode.action === "installed" || report.opencode.action === "updated") {
     info(`Open Code command installed at ${report.opencode.command_file}`);
   }
+  for (const hook of report.update_hints) {
+    if (hook.action === "installed" || hook.action === "updated") {
+      info(`${hook.host} update hint hook ${hook.action} at ${hook.config_file}`);
+    }
+  }
 
   await recordInstallTelemetryEvent("setup", {
     hostType,
@@ -893,6 +899,7 @@ export const CLI_REFERENCE = {
     { name: "health", usage: "", desc: "Server health check" },
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
+    { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent → search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
@@ -1041,21 +1048,29 @@ function cmdStop(flags: Record<string, string | boolean>): void {
 }
 
 async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void> {
-  info("Checking for updates...");
-  const { execSync } = await import("node:child_process");
+  const hintOnly = !!flags["hint-only"];
+  if (!hintOnly) info("Checking for updates...");
+
   try {
-    const result = execSync("npm view unbrowse version", { encoding: "utf-8", timeout: 10_000 }).trim();
-    const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
-    const installed = versionInfo?.installed ?? "unknown";
-    if (result === installed) {
-      info(`Already at latest version: ${installed}`);
+    const result = await checkForUpdates(import.meta.url, { force: !hintOnly });
+    if (!result.latest) {
+      if (!hintOnly) info("Could not check for updates right now.");
       return;
     }
-    info(`Update available: ${installed} -> ${result}`);
-    info("Run: npm install -g unbrowse@latest");
-    info("Then: unbrowse restart");
+
+    if (!result.has_update) {
+      if (!hintOnly) info(`Already at latest version: ${result.installed}`);
+      return;
+    }
+
+    info(`Update available: ${result.installed} -> ${result.latest}`);
+    info(`Run: ${result.command}`);
+    if (!hintOnly) {
+      info("Tip: `unbrowse setup` now installs session-start update hints for Codex and Claude when those hosts are present.");
+    }
+    recordUpdateHint(result.latest);
   } catch (err) {
-    info(`Could not check for updates: ${(err as Error).message}`);
+    if (!hintOnly) info(`Could not check for updates: ${(err as Error).message}`);
   }
 }
 

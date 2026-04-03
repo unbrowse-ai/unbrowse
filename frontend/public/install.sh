@@ -24,5 +24,5 @@ info "Registering skill..."
 npx -y skills add unbrowse-ai/unbrowse --yes
 
 info "Running setup..."
-unbrowse setup "$@" 2>/dev/null || unbrowse health --pretty
+UNBROWSE_SETUP_METHOD="npm-global" unbrowse setup "$@" 2>/dev/null || unbrowse health --pretty
 ok "Done! Try: unbrowse resolve --intent \"get trending\" --url \"https://google.com\" --pretty"
