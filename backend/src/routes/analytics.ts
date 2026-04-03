@@ -7,7 +7,7 @@ import {
   getEngagement,
   getRetention,
 } from "../services/analytics.js";
-import { getAcquisitionSummary } from "../services/acquisition.js";
+import { getFilteredAcquisitionSummary } from "../services/acquisition.js";
 import { getFunnelSummary } from "../services/funnel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
 import { getLandingHomepageAnalyticsSummary } from "../services/landing-experiments.js";
@@ -24,6 +24,7 @@ import {
 } from "../services/metrics.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { getRoutingTelemetrySummary as getRoutingSummary } from "../services/routing-telemetry.js";
+import { getCampaignFeedbackSummary } from "../services/campaign-feedback.js";
 
 export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
@@ -135,6 +136,33 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     tokens_saved?: number;
     tokens_saved_pct?: number;
     cost_saved_uc?: number;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_content?: string;
+    utm_term?: string;
+    utm_id?: string;
+    gclid?: string;
+    wbraid?: string;
+    gbraid?: string;
+    fbclid?: string;
+    twclid?: string;
+    ttclid?: string;
+    msclkid?: string;
+    li_fat_id?: string;
+    referrer_host?: string;
+    channel?: string;
+    campaign_id?: string;
+    campaign_name?: string;
+    content_id?: string;
+    content_type?: string;
+    creative_id?: string;
+    ad_id?: string;
+    adset_id?: string;
+    inferred_icp?: string;
+    variant_id?: string;
+    experiment_id?: string;
+    icp?: string;
   }>();
   if (!body.session_id || !body.started_at) {
     return c.json({ error: "session_id and started_at required" }, 400);
@@ -156,6 +184,33 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     tokens_saved: body.tokens_saved,
     tokens_saved_pct: body.tokens_saved_pct,
     cost_saved_uc: body.cost_saved_uc,
+    utm_source: body.utm_source,
+    utm_medium: body.utm_medium,
+    utm_campaign: body.utm_campaign,
+    utm_content: body.utm_content,
+    utm_term: body.utm_term,
+    utm_id: body.utm_id,
+    gclid: body.gclid,
+    wbraid: body.wbraid,
+    gbraid: body.gbraid,
+    fbclid: body.fbclid,
+    twclid: body.twclid,
+    ttclid: body.ttclid,
+    msclkid: body.msclkid,
+    li_fat_id: body.li_fat_id,
+    referrer_host: body.referrer_host,
+    channel: body.channel,
+    campaign_id: body.campaign_id,
+    campaign_name: body.campaign_name,
+    content_id: body.content_id,
+    content_type: body.content_type,
+    creative_id: body.creative_id,
+    ad_id: body.ad_id,
+    adset_id: body.adset_id,
+    inferred_icp: body.inferred_icp,
+    variant_id: body.variant_id,
+    experiment_id: body.experiment_id,
+    icp: body.icp,
   });
   return c.json({ ok: true });
 });
@@ -208,7 +263,14 @@ analyticsRoutes.get("/analytics/dashboard", async (c) => {
 
 analyticsRoutes.get("/analytics/acquisition", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 90);
-  const summary = await getAcquisitionSummary(c.env, days);
+  const summary = await getFilteredAcquisitionSummary(c.env, {
+    days,
+    filters: {
+      variant_id: c.req.query("variant_id")?.trim(),
+      icp: c.req.query("icp")?.trim(),
+      experiment_id: c.req.query("experiment_id")?.trim(),
+    },
+  });
   setAnalyticsHeaders(c);
   return c.json(summary);
 });
@@ -230,6 +292,23 @@ analyticsRoutes.get("/analytics/install-funnel", async (c) => {
 analyticsRoutes.get("/analytics/landing-funnel", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 180);
   const summary = await getLandingHomepageAnalyticsSummary(c.env, days);
+  setAnalyticsHeaders(c);
+  return c.json(summary);
+});
+
+analyticsRoutes.get("/analytics/campaigns", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 180);
+  const summary = await getCampaignFeedbackSummary(c.env, {
+    days,
+    filters: {
+      channel: c.req.query("channel")?.trim(),
+      campaign_id: c.req.query("campaign_id")?.trim(),
+      content_id: c.req.query("content_id")?.trim(),
+      inferred_icp: c.req.query("inferred_icp")?.trim(),
+      variant_id: c.req.query("variant_id")?.trim(),
+      experiment_id: c.req.query("experiment_id")?.trim(),
+    },
+  });
   setAnalyticsHeaders(c);
   return c.json(summary);
 });

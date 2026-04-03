@@ -4,13 +4,13 @@ import { useEffect } from "react";
 import { trackWebEvent } from "@/lib/web-telemetry";
 
 interface Props {
-  experimentId: string;
-  variantId: string;
+  experimentId?: string;
+  variantId?: string;
 }
 
 export function AcquisitionTracker({ experimentId, variantId }: Props) {
   useEffect(() => {
-    const context = { experimentId, variantId };
+    const context = experimentId || variantId ? { experimentId, variantId } : undefined;
     const trackedScrollBuckets = new Set<number>();
     const trackedSections = new Set<string>();
     const explorationTargets = new Set<string>();
@@ -27,10 +27,12 @@ export function AcquisitionTracker({ experimentId, variantId }: Props) {
       trackedSections.add(sectionId);
       explorationSections.add(sectionId);
       trackWebEvent("section_viewed", { section_id: sectionId }, context);
+      trackWebEvent("landing_section_viewed", { section_id: sectionId }, context);
       if (sectionId === "install") {
         trackWebEvent("install_section_viewed", { section_id: sectionId }, context);
       }
       if (sectionId === "first-task") {
+        trackWebEvent("landing_section_viewed", { section_id: "post-install" }, context);
         trackWebEvent("first_task_section_viewed", { section_id: sectionId }, context);
       }
       emitExplorationDepth();
@@ -62,7 +64,7 @@ export function AcquisitionTracker({ experimentId, variantId }: Props) {
         }
       }, { threshold: 0.45 });
 
-      for (const sectionId of ["install", "demo", "registry", "faq", "first-task"]) {
+      for (const sectionId of ["icp-paths", "install", "how-it-works", "works-with", "demo", "registry", "faq", "first-task"]) {
         const target = document.getElementById(sectionId);
         if (!target) continue;
         target.setAttribute("data-landing-section", sectionId);

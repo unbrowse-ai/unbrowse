@@ -1,9 +1,16 @@
 "use client";
 
+import {
+  FIRST_TOUCH_COOKIE,
+  parseAcquisitionContext,
+  readNamedCookieValue,
+  VISITOR_ID_COOKIE,
+} from "@/lib/acquisition/context";
 import { resolveApiUrl } from "@/lib/runtime-api-url";
+
 const VISITOR_KEY = "unbrowse:web:visitor-id";
 const SESSION_KEY = "unbrowse:web:session-id";
-const VISITOR_COOKIE = "unbrowse_lp_visitor";
+const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function createId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -24,10 +31,14 @@ function canTrack(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
-function readCookie(name: string): string | null {
-  if (!canTrack()) return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]+)`));
-  return match ? decodeURIComponent(match[1]) : null;
+function getCookieValue(name: string): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  return readNamedCookieValue(document.cookie, name);
+}
+
+function persistVisitorCookie(visitorId: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${VISITOR_ID_COOKIE}=${visitorId}; Path=/; Max-Age=${VISITOR_COOKIE_MAX_AGE}; SameSite=Lax`;
 }
 
 function getUtmProperties(): Record<string, string> {
@@ -43,12 +54,14 @@ function getUtmProperties(): Record<string, string> {
 export function getOrCreateWebVisitorId(): string | null {
   if (!canTrack()) return null;
   try {
-    const cookieVisitor = readCookie(VISITOR_COOKIE);
+    const cookieVisitor = getCookieValue(VISITOR_ID_COOKIE);
     if (cookieVisitor) {
       window.localStorage.setItem(VISITOR_KEY, cookieVisitor);
       return cookieVisitor;
     }
-    return getOrCreateStorageId(window.localStorage, VISITOR_KEY);
+    const created = getOrCreateStorageId(window.localStorage, VISITOR_KEY);
+    persistVisitorCookie(created);
+    return created;
   } catch {
     return null;
   }
@@ -75,6 +88,26 @@ function injectLandingToken(baseCommand: string, token: string): string {
     return baseCommand.replace("unbrowse setup", `${prefix}unbrowse setup`);
   }
   return `${prefix}${baseCommand}`;
+}
+
+function getLandingContext(): Record<string, unknown> | undefined {
+  if (typeof document === "undefined") return undefined;
+  const root = document.getElementById("landing-page-root");
+  if (!root) return undefined;
+  const variantId = root.getAttribute("data-landing-variant-id");
+  const icp = root.getAttribute("data-landing-icp");
+  const experimentId = root.getAttribute("data-landing-experiment-id");
+  const context: Record<string, unknown> = {};
+  if (variantId) context.variant_id = variantId;
+  if (icp) context.icp = icp;
+  if (experimentId) context.experiment_id = experimentId;
+  return Object.keys(context).length > 0 ? context : undefined;
+}
+
+function getAcquisitionContext(): Record<string, unknown> | undefined {
+  const cookieValue = getCookieValue(FIRST_TOUCH_COOKIE);
+  const parsed = parseAcquisitionContext(cookieValue);
+  return parsed && Object.keys(parsed).length > 0 ? { ...parsed } : undefined;
 }
 
 export async function getTokenizedInstallCommand(
@@ -126,17 +159,33 @@ export function trackWebEvent(
     const visitorId = getOrCreateWebVisitorId();
     const sessionId = getOrCreateWebSessionId();
     if (!visitorId || !sessionId) return;
+
+    const landingContext = getLandingContext();
+    const mergedContext = {
+      ...(getAcquisitionContext() ?? {}),
+      ...(landingContext ?? {}),
+      ...(context?.experimentId ? { experiment_id: context.experimentId } : {}),
+      ...(context?.variantId ? { variant_id: context.variantId } : {}),
+    };
+    const experimentId =
+      context?.experimentId ??
+      (typeof landingContext?.experiment_id === "string" ? landingContext.experiment_id : undefined);
+    const variantId =
+      context?.variantId ??
+      (typeof landingContext?.variant_id === "string" ? landingContext.variant_id : undefined);
+
     const payload = JSON.stringify({
       visitor_id: visitorId,
       session_id: sessionId,
       name,
-      experiment_id: context?.experimentId,
-      variant_id: context?.variantId,
+      experiment_id: experimentId,
+      variant_id: variantId,
       path: `${window.location.pathname}${window.location.search}`,
       referrer: document.referrer || null,
       created_at: new Date().toISOString(),
       properties: {
         ...getUtmProperties(),
+        ...mergedContext,
         ...(properties ?? {}),
       },
     });

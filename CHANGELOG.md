@@ -54,6 +54,15 @@
 * **setup/wallets**: encourage Crossmint `lobster.cash` during new-install bootstrap, surface it in setup status/docs, and point walletless installs at `npx @crossmint/lobster-cli setup`
 * **growth/landing**: add sticky SSR homepage experiments, landing-token install attribution, variant-level landing funnel analytics, an ops landing-funnel panel, and a daily optimizer workflow that rebalances live weights while only generating shadow variants inside approved messaging slots
 * **frontend/funnel**: re-center the homepage on first success after install with a copyable verification + resolve path, and extend acquisition analytics to measure install-copy to first-task-copy conversion
+* **landing/api**: add a landing-copy variant API with publish/list/resolve/summary routes, plus a `landing:publish` helper script, so homepage copy can be updated over API and measured by ICP/variant instead of staying hardcoded
+* **analytics/acquisition**: add section-depth checkpoints and ICP-path click tracking on the homepage, plus filtered acquisition summaries by `variant_id` / `icp` / `experiment_id` so landing copy resonance can be compared before tightening the funnel
+* **skills/acquisition**: add a repo-local `unbrowse-acquisition-operator` skill that owns the `traffic -> ICP -> variant -> activation` loop, routes to existing funnel/positioning/ads/measurement skills, and keeps X research/ads scoped under one measurable acquisition experiment
+* **frontend/acquisition**: persist first-touch UTM/click-id context plus sticky landing assignment cookies, resolve homepage variants from those signals server-side, and expose acquisition-dimension rollups in analytics so landing winners can be compared by source/campaign/term instead of only raw referrer
+* **analytics/campaign-feedback**: carry attribution from landing copy into copied install commands, persist it through CLI install/funnel/session telemetry, track content-page views, and add `/v1/analytics/campaigns` so X posts, articles, ads, landing variants, installs, and first-success can be compared in one loop
+* **skills/foundry**: add a repo-local `x-campaign-feedback-operator` skill plus a Foundry preset and fabricated bundle artifacts so the X/articles/ads/landing feedback loop can be installed, routed, and shared as one operator bundle
+* **skills/foundry**: add a repo-local `unbrowse-funnel-command-center` skill plus a Foundry preset and fabricated bundle artifacts so the full funnel can route from traffic and landing leaks through activation, retention, monetization, and referral under one operator entrypoint
+* **visualizers/merjs**: add a standalone `visualizers/funnel-merjs` app plus a local `/api/snapshot` proxy, session-backed `POST /api/viz` -> `/viz?id=...` flow for arbitrary analytics payloads, and native `zig build desktop` app bundle so the full funnel can be inspected in one merjs screen instead of stitched together manually from multiple analytics endpoints
+* **visualizers/json-render**: expand the merjs `/json-render` route into an arbitrary-data visualization lab with file import, shareable hash-state URLs, and prompt-driven spec generation, so funnel snapshots or any other analytics JSON can be explored inside the same merjs shell and desktop wrapper
 
 ### Tests
 
@@ -98,6 +107,7 @@
 * **docs/mcp**: make the public README surfaces explicitly describe Unbrowse as a stdio MCP server, document `initialize` / `tools/list` / `tools/call`, enumerate the shipped MCP tool groups, and clarify that `localhost:6969` is the runtime behind the MCP surface rather than a custom host protocol
 * **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
 * **frontend/homepage**: sharpen homepage positioning around AI agent builders, clarify the browser-automation replacement story, and reduce copy clutter across the hero, install, and registry sections
+* **frontend/homepage**: add explicit ICP paths for agent builders, OpenClaw users, and MCP hosts so each buyer can pattern-match to the right value prop and install path faster
 * **frontend/copy**: normalize the public role name to `contributor` across leaderboard and economics pages while keeping mining as the campaign verb
 * **frontend/registry**: stop stale search-index hits from linking to dead registry skill detail pages, and label them as index-only until the live registry has a backing skill page
 * **frontend/registry**: swap the homepage registry showcase from recent linked cards to list-only popular skills backed by observed execution counts

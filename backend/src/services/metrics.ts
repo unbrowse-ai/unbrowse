@@ -28,6 +28,33 @@ export interface AnalyticsSessionSummary {
   tokens_saved?: number;
   tokens_saved_pct?: number;
   cost_saved_uc?: number;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  utm_term?: string;
+  utm_id?: string;
+  gclid?: string;
+  wbraid?: string;
+  gbraid?: string;
+  fbclid?: string;
+  twclid?: string;
+  ttclid?: string;
+  msclkid?: string;
+  li_fat_id?: string;
+  referrer_host?: string;
+  channel?: string;
+  campaign_id?: string;
+  campaign_name?: string;
+  content_id?: string;
+  content_type?: string;
+  creative_id?: string;
+  ad_id?: string;
+  adset_id?: string;
+  inferred_icp?: string;
+  variant_id?: string;
+  experiment_id?: string;
+  icp?: string;
 }
 
 interface StoredSessionSummary extends AnalyticsSessionSummary {
