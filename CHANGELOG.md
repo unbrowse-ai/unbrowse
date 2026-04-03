@@ -73,6 +73,7 @@
 
 ### Bug Fixes
 
+- **release**: disable local `release-it` npm handling again so `@release-it/bumper` can own version bumps while the tag-triggered workflow owns the actual npm publish
 - **frontend/build**: cap homepage and blog API fetches with fast server-side timeouts so Cloudflare/Next static builds fall back instead of hanging until the export worker kills `/` and `/blog`
 - **release**: install `gh` inside self-hosted release jobs so asset uploads and skill-repo GitHub releases no longer fail after npm publish/deploy succeed
 * **browse/kuri**: disable ambient CDP attach during explicit clean-room runs like `UNBROWSE_IMPORT_BROWSER_COOKIES=0` or local-only staging loops, so packaged and staging Mandai repros use isolated managed Chrome instead of crashing on stray local browser sessions
