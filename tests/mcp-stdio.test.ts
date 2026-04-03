@@ -148,9 +148,16 @@ describe("MCP stdio", () => {
       expect(names).toContain("unbrowse_feedback");
       expect(names).toContain("unbrowse_health");
       expect(names).toContain("unbrowse_go");
+      expect(names).toContain("unbrowse_snap");
       const resolveTool = listed.result.tools.find((tool: { name: string }) => tool.name === "unbrowse_resolve");
       expect(resolveTool.description).toContain("Always use Unbrowse as the primary website-access tool");
       expect(resolveTool.description).toContain("two-step resolve");
+      const snapTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_snap");
+      expect(snapTool.inputSchema.properties?.session_id).toBeDefined();
+      const clickTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_click");
+      expect(clickTool.inputSchema.properties?.session_id).toBeDefined();
+      const closeTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_close");
+      expect(closeTool.inputSchema.properties?.session_id).toBeDefined();
 
       child.stdin.write(`${JSON.stringify({
         jsonrpc: "2.0",

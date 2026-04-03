@@ -99,6 +99,9 @@ describe("CLI input payload ingestion (integration)", () => {
         context: {
           url: "https://npmjs.com/search?q=openai",
         },
+        projection: {
+          raw: true,
+        },
       },
     });
   });
@@ -177,5 +180,41 @@ describe("CLI input payload ingestion (integration)", () => {
     expect(body._response_too_large).toBeUndefined();
     expect(body.extraction_hints).toBeUndefined();
     expect(cli.stderr).not.toContain('resolved to undefined');
+  });
+
+  it("forwards --session to browse POST commands", async () => {
+    const server = await startJsonEchoServer({ ok: true });
+
+    const cli = await runCli(server.baseUrl, [
+      "click",
+      "e5",
+      "--session", "sess-42",
+    ]);
+
+    expect(cli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "POST",
+      path: "/v1/browse/click",
+      body: {
+        ref: "e5",
+        session_id: "sess-42",
+      },
+    });
+  });
+
+  it("forwards --session to browse GET commands as a query string", async () => {
+    const server = await startJsonEchoServer({ text: "hello" });
+
+    const cli = await runCli(server.baseUrl, [
+      "text",
+      "--session", "sess-42",
+    ]);
+
+    expect(cli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "GET",
+      path: "/v1/browse/text?session_id=sess-42",
+      body: null,
+    });
   });
 });

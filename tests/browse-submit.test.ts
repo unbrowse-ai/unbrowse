@@ -33,6 +33,7 @@ describe("browse submit", () => {
 
   it("falls back to same-origin html rehydrate when DOM submit stalls", async () => {
     const session: BrowseSession = {
+      sessionId: "sess-1",
       tabId: "tab-1",
       url: "https://example.com/step-1",
       harActive: true,
@@ -95,6 +96,7 @@ describe("browse submit", () => {
 
   it("flushes capture before restarting on DOM submit success", async () => {
     const session: BrowseSession = {
+      sessionId: "sess-1",
       tabId: "tab-1",
       url: "https://example.com/step-1",
       harActive: true,
