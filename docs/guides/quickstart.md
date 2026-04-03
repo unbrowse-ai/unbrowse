@@ -2,6 +2,14 @@
 
 Read when: first local install, first CLI run, or CI/headless setup.
 
+## Install
+
+```bash
+npx unbrowse setup
+```
+
+That is the primary install path. It is one command, not one-click.
+
 Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The repo-level agent contract lives in [SKILL.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/SKILL.md).
 
 ## Fast path
@@ -12,6 +20,8 @@ cd ~/unbrowse && ./setup --host off
 ```
 
 `./setup` is the canonical bootstrap path. It does the repo-local shim/runtime prep first, then runs the real first-use flow without depending on npm release assets:
+
+It is one command, not literal one-click: the first successful run can still prompt for ToS acceptance and agent identity.
 
 1. checks the local package-manager/runtime environment
 2. verifies the bundled Kuri browser runtime, or builds it from vendored source when working from repo checkout with Zig available
