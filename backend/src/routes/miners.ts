@@ -4,6 +4,7 @@ import { skillsKV, statsKV } from "../services/kv.js";
 import { countAgents } from "../services/agents.js";
 import { getPerf } from "../services/perf.js";
 import { buildLeaderboard } from "../services/economics.js";
+import { buildMinerDemandBoard } from "../services/miner-demand.js";
 
 export const publicMinerRoutes = new Hono<{ Bindings: Env }>();
 
@@ -69,6 +70,9 @@ publicMinerRoutes.get("/miners/stats", async (c) => {
   // Domain coverage sorted by endpoint count
   const domains = Array.from(domainMap.values())
     .sort((a, b) => b.endpoints - a.endpoints);
+  const { bounties, quests } = await buildMinerDemandBoard(c.env, new Map(
+    domains.map((domain) => [domain.domain.replace(/^www\./, ""), { endpoints: domain.endpoints, skills: domain.skills }]),
+  ));
 
   c.header("Cache-Control", "public, max-age=30");
   c.header("Access-Control-Allow-Origin", "*");
@@ -87,5 +91,7 @@ publicMinerRoutes.get("/miners/stats", async (c) => {
     },
     domains,
     leaderboard: leaderboard.slice(0, 50),
+    bounties,
+    quests,
   });
 });

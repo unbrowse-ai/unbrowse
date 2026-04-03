@@ -126,6 +126,57 @@ describe("cli funnel telemetry", () => {
       expect(resolveCompleted?.body).toEqual(expect.objectContaining({
         source: "cli",
         host_type: "cli",
+        properties: expect.objectContaining({
+          intent: "get items",
+          domain: "example.com",
+          url: "https://example.com/items",
+        }),
+      }));
+    });
+  });
+
+  it("emits search telemetry with intent and domain", async () => {
+    await withStubServer(async (req) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/search/domain") {
+        return Response.json({ results: [{ id: 1, score: 0.9, metadata: { domain: "stripe.com" } }] });
+      }
+      if (path === "/v1/telemetry/install") {
+        return Response.json({ ok: true, event_id: "install-evt" });
+      }
+      if (path === "/v1/telemetry/events") {
+        return Response.json({ ok: true, event_id: "funnel-evt" });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl, requests) => {
+      const out = await runCli(baseUrl, [
+        "search",
+        "--intent", "create checkout session",
+        "--domain", "stripe.com",
+      ]);
+
+      expect(out.code).toBe(0);
+
+      const started = requests.find((req) =>
+        req.path === "/v1/telemetry/events" && req.body?.name === "search_started",
+      );
+      expect(started?.body).toEqual(expect.objectContaining({
+        properties: expect.objectContaining({
+          intent: "create checkout session",
+          domain: "stripe.com",
+        }),
+      }));
+
+      const completed = requests.find((req) =>
+        req.path === "/v1/telemetry/events" && req.body?.name === "search_completed",
+      );
+      expect(completed?.body).toEqual(expect.objectContaining({
+        properties: expect.objectContaining({
+          intent: "create checkout session",
+          domain: "stripe.com",
+          result_count: 1,
+        }),
       }));
     });
   });

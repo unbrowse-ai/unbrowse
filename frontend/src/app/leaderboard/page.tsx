@@ -11,7 +11,7 @@ export default function LeaderboardRedirect() {
 
   return (
     <div className="flex min-h-screen items-center justify-center text-text-muted text-sm">
-      Redirecting to miners leaderboard...
+      Redirecting to contributor leaderboard...
     </div>
   );
 }

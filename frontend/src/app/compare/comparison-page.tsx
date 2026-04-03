@@ -2,7 +2,7 @@ import Link from "next/link";
 import { type Competitor, comparisonRows, competitors } from "./compare-data";
 
 const ARXIV_URL = "https://arxiv.org/abs/2604.00694";
-const INSTALL_CMD = "npm install -g unbrowse";
+const INSTALL_CMD = "curl -fsSL https://unbrowse.ai/install.sh | bash";
 
 function ComparisonTable({ competitor }: { competitor: Competitor }) {
   return (
@@ -110,7 +110,7 @@ export function ComparisonPage({ slug }: { slug: string }) {
         name: "How do I switch from browser automation to Unbrowse?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Install with 'npm install -g unbrowse'. Unbrowse works as a drop-in tool for AI coding agents like Claude Code, Cursor, and Windsurf. It discovers APIs automatically from real browsing traffic — no manual endpoint mapping required.",
+          text: "Install with 'curl -fsSL https://unbrowse.ai/install.sh | bash'. After install, hosts with skills support can also use 'npx skills add unbrowse-ai/unbrowse'. Unbrowse works as a drop-in tool for AI coding agents like Claude Code, Cursor, and Windsurf. It discovers APIs automatically from real browsing traffic — no manual endpoint mapping required.",
         },
       },
     ],

@@ -134,4 +134,19 @@ describe("search route x402 gating", () => {
     expect(res.headers.get("PAYMENT-REQUIRED")).toBeNull();
     expect(res.headers.get("X-Unbrowse-Cost-Uc")).toBeNull();
   });
+
+  it("keeps discovery free when X402_SEARCH_ENABLED=false", async () => {
+    const res = await searchRoutes.request("http://localhost/search", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ intent: "search packages", k: 5 }),
+    }, { ...BASE_ENV, X402_SEARCH_ENABLED: "false" });
+
+    const body = await res.json() as Record<string, unknown>;
+
+    expect(res.status).toBe(200);
+    expect(body.results).toEqual([]);
+    expect(res.headers.get("PAYMENT-REQUIRED")).toBeNull();
+    expect(res.headers.get("X-Unbrowse-Cost-Uc")).toBeNull();
+  });
 });

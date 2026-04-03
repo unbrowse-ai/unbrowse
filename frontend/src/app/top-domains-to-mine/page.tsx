@@ -262,14 +262,14 @@ const categories: Category[] = [
     slug: "productivity",
     number: 5,
     intro:
-      "Workflow agents that manage tasks, documents, and team communication are among the fastest-growing agent categories. These domains require authentication, which makes their routes more valuable — authenticated routes are harder to discover and serve fewer miners, meaning higher earnings per route.",
+      "Workflow agents that manage tasks, documents, and team communication are among the fastest-growing agent categories. These domains require authentication, which makes their routes more valuable — authenticated routes are harder to discover and serve fewer contributors, meaning higher earnings per route.",
     domains: [
       {
         domain: "notion.so",
         why: "The default workspace for startups and knowledge workers. Page content, database queries, search, and block manipulation all use internal APIs that are richer than the public Notion API. Agents managing knowledge bases route here constantly.",
         difficulty: "Medium",
         routes: "20-30",
-        tip: "Log in with your real account. Notion's internal API (/api/v3/) exposes operations that the public API does not support, including transclusions, synced blocks, and formula evaluation. Browse a database page with filters to capture the query endpoints. These authenticated routes are high-value because few miners have them.",
+        tip: "Log in with your real account. Notion's internal API (/api/v3/) exposes operations that the public API does not support, including transclusions, synced blocks, and formula evaluation. Browse a database page with filters to capture the query endpoints. These authenticated routes are high-value because few contributors have them.",
       },
       {
         domain: "linear.app",
@@ -306,7 +306,7 @@ const categories: Category[] = [
     slug: "travel-booking",
     number: 6,
     intro:
-      "Planning agents are a high-growth category. Travel sites have extremely high commercial value per route because every search involves pricing, availability, and booking — data that agents need in structured form. These sites also have heavy bot detection, which means fewer miners and higher earnings.",
+      "Planning agents are a high-growth category. Travel sites have extremely high commercial value per route because every search involves pricing, availability, and booking — data that agents need in structured form. These sites also have heavy bot detection, which means fewer contributors and higher earnings.",
     domains: [
       {
         domain: "airbnb.com",
@@ -514,7 +514,7 @@ const categories: Category[] = [
       },
       {
         domain: "apnews.com",
-        why: "Associated Press — the wire service that feeds every major outlet. Clean internal APIs for article feeds, topic search, and breaking news. Lower bot detection than Bloomberg or Reuters, making it accessible for early miners.",
+        why: "Associated Press — the wire service that feeds every major outlet. Clean internal APIs for article feeds, topic search, and breaking news. Lower bot detection than Bloomberg or Reuters, making it accessible for early contributors.",
         difficulty: "Easy",
         routes: "8-12",
         tip: "AP News has clean, well-structured internal APIs and minimal bot detection. The article feed endpoint supports topic filtering and pagination. Browse the homepage and a topic page to capture the core routes. These are high-value news routes because AP content is the source for thousands of downstream outlets.",
@@ -617,7 +617,7 @@ export default function TopDomainsToMinePage() {
             yields routes that apply to millions of stores. One Google News
             session replaces mining dozens of individual publishers. And a
             hard-to-mine site like LinkedIn produces routes worth 10x more than
-            an easy site, because fewer miners can capture them.
+            an easy site, because fewer contributors can capture them.
           </p>
           <p className="text-base sm:text-lg leading-8 text-text-secondary">
             We benchmarked 94 domains in our paper{" "}
@@ -766,7 +766,7 @@ export default function TopDomainsToMinePage() {
           </h2>
           <div className="rounded-xl border border-border bg-code-bg p-4 sm:p-6 font-mono text-sm leading-6 mb-6">
             <div className="text-text-muted mb-1"># Install Unbrowse</div>
-            <div className="text-orange-600">npm install -g unbrowse</div>
+            <div className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</div>
             <div className="text-text-muted mt-4 mb-1">
               # Mine your first domain
             </div>
@@ -823,7 +823,7 @@ export default function TopDomainsToMinePage() {
                 Hard domains pay more.
               </strong>{" "}
               Sites with aggressive bot detection (Google, LinkedIn, X,
-              Bloomberg) have fewer miners competing for their routes. If you
+              Bloomberg) have fewer contributors competing for their routes. If you
               can successfully mine them using cookie injection from your real
               browser sessions, your routes earn disproportionately more because
               supply is constrained while demand is high.
@@ -843,7 +843,7 @@ export default function TopDomainsToMinePage() {
               </strong>{" "}
               Routes that require login (Notion, Slack, Stripe, AWS) are
               inherently more valuable because they enable agents to do things
-              that unauthenticated routes cannot. They also have fewer miners.
+              that unauthenticated routes cannot. They also have fewer contributors.
               If you already use these services, mining them while you work is
               free money.
             </p>
@@ -899,7 +899,7 @@ export default function TopDomainsToMinePage() {
             <div className="text-text-muted mb-1">
               # Start mining the most valuable domains today
             </div>
-            <div className="text-orange-600">npm install -g unbrowse</div>
+            <div className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</div>
           </div>
         </section>
       </article>

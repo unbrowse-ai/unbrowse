@@ -16,6 +16,10 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 - All notable changes must be written into `CHANGELOG.md`
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
 - Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
+- Durable agent memory lives in `docs/agent-memory.md`. Read it before substantial work.
+- Keep `docs/agent-memory.md` self-updating: when Lewis states a durable preference, recurring correction, decision, workflow, or project fact that will matter later, append a short bullet. Skip one-off noise.
+- If a new lesson would have prevented repeated prompting, write it into `docs/agent-memory.md` before handoff.
+- For external registry submissions, install docs, and public references, use `unbrowse-ai/unbrowse` — not `unbrowse-ai/unbrowse-dev`
 - Optimize for two things first: accuracy of the chosen endpoint/task, then time to execute the right one. Prefer clean deferral over fast wrong execution.
 - Product-behavior evals/tests must go through the real CLI/orchestrator path (`src/cli.ts`, `resolveAndExecute`). Do not treat raw `captureSession()` or other low-level capture primitives as product-truth tests unless the test is explicitly for capture internals.
 - For product claims, count only CLI/orchestrator runs through the canonical Codex harness (`bun run eval:codex`) that are reviewed in-thread by the agent, using the task-shaped product-success suite (`bun run eval:codex:product-success`) or equivalent real task URLs. Treat the stress suite (`bun run eval:codex:stress`) as breadth/regression signal only. The harness now also records graph/DAG selection and dependency-walk evidence in the same artifact, but those fixture-backed graph sections are still support signals, not product-truth by themselves.

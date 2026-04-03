@@ -317,7 +317,7 @@ export default function McpMassHallucinationPage() {
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm mb-6">
             <span className="text-text-secondary">$</span>{" "}
-            <span className="text-text-primary">npm install -g unbrowse</span>
+            <span className="text-text-primary">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <a

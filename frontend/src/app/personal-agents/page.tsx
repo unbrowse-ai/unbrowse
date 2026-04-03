@@ -442,7 +442,7 @@ export default function PersonalAgentsPage() {
               <span className="text-text-secondary"># Any agent via npm</span>
             </div>
             <div>
-              <code className="text-orange-600">npm install -g unbrowse</code>
+              <code className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</code>
             </div>
           </div>
         </section>

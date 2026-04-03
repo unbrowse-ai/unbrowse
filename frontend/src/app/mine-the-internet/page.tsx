@@ -115,7 +115,7 @@ const sections: { title: string; body: string[] }[] = [
       "Install Unbrowse with one command. No accounts, no API keys, no configuration. The CLI is all you need.",
       "Run your first resolve. Unbrowse will open a browser, navigate to GitHub, capture the search API call, index the route, and return the result. You just mined your first route. That endpoint is now in the shared graph, attributed to you, earning every time an agent uses it.",
       "Go deeper. Browse GitHub's issue pages, pull request views, code search, user profiles. Each page triggers different API endpoints. Each endpoint becomes a new route in the graph. A thorough session on one domain can yield 20 to 50 routes.",
-      "Every resolve command you or any agent runs also contributes to the index. If the route is already cached, the resolve is instant and the original contributor earns. If it is not cached, Unbrowse falls back to a browser session, captures the traffic, indexes the routes, and publishes them. The agent itself becomes a miner. Usage is contribution.",
+      "Every resolve command you or any agent runs also contributes to the index. If the route is already cached, the resolve is instant and the original contributor earns. If it is not cached, Unbrowse falls back to a browser session, captures the traffic, indexes the routes, and publishes them. The agent itself becomes a contributor. Usage is contribution.",
     ],
   },
   {
@@ -130,9 +130,9 @@ const sections: { title: string; body: string[] }[] = [
   {
     title: "The network effect",
     body: [
-      "Web mining has a self-reinforcing flywheel. More miners discover more routes. More routes mean faster, cheaper resolves for agents. Faster, cheaper resolves attract more agents to the network. More agents mean more resolve volume. More resolve volume means more earnings for miners. More earnings attract more miners.",
-      "This is the same flywheel that made Google Search dominant, but with one critical difference: the value flows to contributors, not to a single corporation. Google's crawlers built the index and Google captured all the ad revenue. In the Unbrowse network, the miners who build the index earn 70% of every transaction it generates.",
-      "The flywheel also creates a quality ratchet. When two miners index the same domain, the route graph serves the higher-quality version. Low-reliability routes get less traffic. High-reliability routes get more. Miners are incentivized to maintain and improve their routes over time because stale routes lose traffic to better alternatives. The network self-improves.",
+      "Web mining has a self-reinforcing flywheel. More contributors discover more routes. More routes mean faster, cheaper resolves for agents. Faster, cheaper resolves attract more agents to the network. More agents mean more resolve volume. More resolve volume means more earnings for contributors. More earnings attract more contributors.",
+      "This is the same flywheel that made Google Search dominant, but with one critical difference: the value flows to contributors, not to a single corporation. Google's crawlers built the index and Google captured all the ad revenue. In the Unbrowse network, the contributors who build the index earn 70% of every transaction it generates.",
+      "The flywheel also creates a quality ratchet. When two contributors index the same domain, the route graph serves the higher-quality version. Low-reliability routes get less traffic. High-reliability routes get more. Contributors are incentivized to maintain and improve their routes over time because stale routes lose traffic to better alternatives. The network self-improves.",
       "At critical mass, the shared route graph becomes the default way agents interact with the web. Every website effectively gets a machine-readable API layer maintained by the community that uses it. That is the endgame: a collectively built, usage-priced index of the entire callable web.",
     ],
   },
@@ -142,7 +142,7 @@ const sections: { title: string; body: string[] }[] = [
       "The math is transparent. Take any domain you want to mine, estimate the agent traffic it receives, and multiply.",
       "Conservative scenario: you index 50 routes on 2 popular domains (100 total routes). Each route averages 20 resolves per day. At $0.0035 per resolve, that is $7 per day, $210 per month, $2,520 per year. With the first-mover 2x bonus on one domain, the first month jumps to $315.",
       "Moderate scenario: you index 100 routes across 5 high-traffic domains. Each route averages 50 resolves per day. That is $17.50 per day, $525 per month, $6,300 per year.",
-      "Power miner scenario: you systematically index 500 routes across 20 domains, focusing on the highest-traffic sites. Each route averages 100 resolves per day. That is $175 per day, $5,250 per month, $63,000 per year.",
+      "Power contributor scenario: you systematically index 500 routes across 20 domains, focusing on the highest-traffic sites. Each route averages 100 resolves per day. That is $175 per day, $5,250 per month, $63,000 per year.",
       "These are not speculative projections based on token appreciation. They are arithmetic based on usage volume and a fixed fee. If agent traffic grows — and it is growing exponentially as Claude Code, Cursor, Windsurf, and other frameworks gain adoption — every number above scales proportionally.",
     ],
   },
@@ -220,7 +220,7 @@ export default function MineTheInternetPage() {
       {
         "@type": "HowToStep",
         name: "Install Unbrowse",
-        text: "Run npm install -g unbrowse in your terminal.",
+        text: "Run curl -fsSL https://unbrowse.ai/install.sh | bash in your terminal.",
       },
       {
         "@type": "HowToStep",
@@ -265,7 +265,7 @@ export default function MineTheInternetPage() {
         name: "Do I need special hardware to mine the internet?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "No. Web mining requires only a laptop and a web browser. There are no GPUs, no mining rigs, no electricity costs. You install Unbrowse with npm install -g unbrowse and browse the web normally. Routes are captured automatically in the background.",
+          text: "No. Web mining requires only a laptop and a web browser. There are no GPUs, no mining rigs, no electricity costs. You install Unbrowse with curl -fsSL https://unbrowse.ai/install.sh | bash and browse the web normally. Routes are captured automatically in the background.",
         },
       },
       {
@@ -281,7 +281,7 @@ export default function MineTheInternetPage() {
         name: "What domains should I mine first?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Focus on domains with high AI agent traffic: GitHub, Google, Reddit, StackOverflow, LinkedIn, Stripe, AWS, Hacker News, npm, and PyPI. Developer tools and search engines generate the most agent queries. The first indexer of a domain earns a 2x bonus for 30 days.",
+          text: "Focus on domains with high AI agent traffic: GitHub, Google, Reddit, StackOverflow, LinkedIn, Stripe, AWS, Hacker News, npm, and PyPI. Developer tools and search engines generate the most agent queries. The first contributor to index a domain earns a 2x bonus for 30 days.",
         },
       },
     ],
@@ -391,7 +391,7 @@ export default function MineTheInternetPage() {
           <div className="space-y-3">
             <div className="rounded-lg bg-surface border border-border p-4 font-mono text-sm sm:text-base">
               <span className="text-text-secondary/60 select-none">$ </span>
-              <span className="text-orange-600">npm install -g unbrowse</span>
+              <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
             </div>
             <div className="rounded-lg bg-surface border border-border p-4 font-mono text-sm sm:text-base">
               <span className="text-text-secondary/60 select-none">$ </span>
@@ -468,7 +468,7 @@ export default function MineTheInternetPage() {
                 <td className="py-3">$15,750</td>
               </tr>
               <tr className="border-b border-border/50">
-                <td className="py-3 pr-4">Power miner</td>
+                <td className="py-3 pr-4">Power contributor</td>
                 <td className="py-3 pr-4">500</td>
                 <td className="py-3 pr-4">100</td>
                 <td className="py-3 pr-4">$5,250</td>
@@ -505,7 +505,7 @@ export default function MineTheInternetPage() {
                   Daily resolves
                 </th>
                 <th className="py-3 pr-4 font-semibold text-text-primary">
-                  Daily payout (all miners)
+                  Daily payout (all contributors)
                 </th>
                 <th className="py-3 font-semibold text-text-primary">
                   Annual payout
@@ -557,7 +557,7 @@ export default function MineTheInternetPage() {
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
             <span className="text-text-secondary/60 select-none">$ </span>
-            <span className="text-orange-600">npm install -g unbrowse</span>
+            <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <a
