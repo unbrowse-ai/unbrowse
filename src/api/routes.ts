@@ -44,6 +44,8 @@ import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
+const BROWSE_BROKER_MAX = Math.max(1, Number(process.env.KURI_MULTI_BROKER_MAX ?? "2"));
+const BROWSE_BROKER_BASE_PORT = Number(process.env.KURI_PORT ?? "7700");
 
 type AnalyticsSessionResult = {
   trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct" | "api_call_count">;
@@ -204,9 +206,41 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
 // ── Browse session state (module-level so orchestrator can register sessions) ──
 const browseSessions = new Map<string, BrowseSession>();
 
+function browseBrokerPorts(): number[] {
+  return Array.from({ length: BROWSE_BROKER_MAX }, (_, index) => BROWSE_BROKER_BASE_PORT + index);
+}
+
+function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
+  if (session?.brokerPort !== undefined) return kuri.getKuriClient(session.brokerPort);
+  return kuri.getKuriClient();
+}
+
+function selectBrowseBrokerClient(requestedSessionId?: string): kuri.KuriClient {
+  if (requestedSessionId) {
+    const existing = browseSessions.get(requestedSessionId);
+    if (existing) return brokerForSession(existing);
+  }
+
+  const loads = new Map<number, number>(browseBrokerPorts().map((port) => [port, 0]));
+  for (const session of browseSessions.values()) {
+    const port = session.brokerPort ?? BROWSE_BROKER_BASE_PORT;
+    loads.set(port, (loads.get(port) ?? 0) + 1);
+  }
+  const [selectedPort] = [...loads.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0] ?? [BROWSE_BROKER_BASE_PORT, 0];
+  return kuri.getKuriClient(selectedPort);
+}
+
 /** Register a browse session from the orchestrator (Phase 4 handoff) */
 export function registerBrowseSession(tabId: string, url: string, domain: string): BrowseSession {
-  return createRegisteredBrowseSession(browseSessions, { tabId, url, harActive: true, domain });
+  const client = kuri.getKuriClient();
+  return createRegisteredBrowseSession(browseSessions, {
+    tabId,
+    url,
+    harActive: true,
+    domain,
+    brokerPort: client.getPort(),
+    client,
+  });
 }
 
 // ── /v1/stats cache ──────────────────────────────────────────────────
@@ -925,9 +959,10 @@ export async function registerRoutes(app: FastifyInstance) {
   }
 
   async function restartBrowseCapture(session: BrowseSession): Promise<void> {
-    await kuri.networkEnable(session.tabId).catch(() => {});
-    await kuri.harStart(session.tabId).catch(() => {});
-    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    const broker = brokerForSession(session);
+    await broker.networkEnable(session.tabId).catch(() => {});
+    await broker.harStart(session.tabId).catch(() => {});
+    await broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
     session.harActive = true;
     await injectInterceptor(session.tabId).catch(() => {});
   }
@@ -971,7 +1006,7 @@ export async function registerRoutes(app: FastifyInstance) {
     let harEntries: KuriHarEntry[] = [];
     if (session.harActive) {
       try {
-        const { entries } = await kuri.harStop(session.tabId);
+        const { entries } = await brokerForSession(session).harStop(session.tabId);
         harEntries = entries;
       } catch { /* non-fatal */ }
     }
@@ -982,7 +1017,7 @@ export async function registerRoutes(app: FastifyInstance) {
       sessionUrl: session.url,
       sessionDomain: session.domain,
       requests: allRequests,
-      getPageHtml: () => kuri.getPageHtml(session.tabId),
+      getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
     });
 
     let backgroundPublishQueued = false;
@@ -1027,39 +1062,41 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
       const sessionId = requestedSessionId(req);
+      const browseClient = selectBrowseBrokerClient(sessionId);
       const targetSession = await getOrCreateNavigateBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         injectInterceptor,
         sessionId,
       );
       const { session, result } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         targetSession.sessionId,
         async (session) => {
+          const broker = brokerForSession(session);
           const newDomain = profileName(url);
 
           if (session.harActive && session.url !== "about:blank") {
             try {
-              const { entries } = await kuri.harStop(session.tabId);
+              const { entries } = await broker.harStop(session.tabId);
               passiveIndexHar(entries, session.url);
             } catch { /* non-fatal */ }
             session.harActive = false;
           }
 
           if (session.domain && session.domain !== newDomain) {
-            await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+            await broker.authProfileSave(session.tabId, session.domain).catch(() => {});
           }
 
           let cookiesInjected = 0;
           if (newDomain && newDomain !== session.domain) {
-            await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
+            await broker.authProfileLoad(session.tabId, newDomain).catch(() => {});
             try {
               const { cookies: browserCookies } = extractBrowserCookies(newDomain);
               if (browserCookies.length > 0) {
                 for (const c of browserCookies) {
-                  await kuri.setCookie(session.tabId, c).catch(() => {});
+                  await broker.setCookie(session.tabId, c).catch(() => {});
                 }
                 cookiesInjected = browserCookies.length;
               }
@@ -1068,8 +1105,8 @@ export async function registerRoutes(app: FastifyInstance) {
 
           await restartBrowseCapture(session);
 
-          await kuri.navigate(session.tabId, url);
-          const finalUrl = await kuri.getCurrentUrl(session.tabId).catch(() => url);
+          await broker.navigate(session.tabId, url);
+          const finalUrl = await broker.getCurrentUrl(session.tabId).catch(() => url);
           session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
           session.domain = profileName(session.url);
           await injectInterceptor(session.tabId);
@@ -1108,17 +1145,18 @@ export async function registerRoutes(app: FastifyInstance) {
     }) ?? {};
 
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => submitBrowseForm(
           {
-            client: kuri,
+            client: brokerForSession(session),
             session,
             flushCapture: async (session) => await flushBrowseCapture(session, { queueBackgroundPublish: true }),
             restartCapture: restartBrowseCapture,
-            rehydratePlugins: kuri.bestEffortRehydratePlugins,
+            rehydratePlugins: (tabId) => brokerForSession(session).bestEffortRehydratePlugins(tabId),
           },
           {
             formSelector,
@@ -1131,7 +1169,7 @@ export async function registerRoutes(app: FastifyInstance) {
         (result) => !result.ok && result.recoverable === true,
       );
 
-      session.url = result.url || await kuri.getCurrentUrl(session.tabId).catch(() => session.url);
+      session.url = result.url || await brokerForSession(session).getCurrentUrl(session.tabId).catch(() => session.url);
       session.domain = profileName(session.url);
 
       const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
@@ -1158,12 +1196,13 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/browse/snap", async (req, reply) => {
     const { filter } = (req.body as { filter?: string; session_id?: string }) ?? {};
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result: snapshot } = await withSerializedRecoveredBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         injectInterceptor,
         requestedSessionId(req),
-        async (session) => kuri.snapshot(session.tabId, filter),
+        async (session) => brokerForSession(session).snapshot(session.tabId, filter),
         (snapshot) => typeof snapshot !== "string" || snapshot.trim().length === 0,
       );
       return reply.send({ snapshot, session_id: session.sessionId, tab_id: session.tabId });
@@ -1177,12 +1216,13 @@ export async function registerRoutes(app: FastifyInstance) {
     const { ref } = req.body as { ref: string; session_id?: string };
     if (!ref) return reply.code(400).send({ error: "ref required" });
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
-          await kuri.click(session.tabId, ref);
+          await brokerForSession(session).click(session.tabId, ref);
           return true;
         },
       );
@@ -1197,12 +1237,13 @@ export async function registerRoutes(app: FastifyInstance) {
     const { ref, value } = req.body as { ref: string; value: string; session_id?: string };
     if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
-          await kuri.fill(session.tabId, ref, value);
+          await brokerForSession(session).fill(session.tabId, ref, value);
           return true;
         },
       );
@@ -1217,12 +1258,13 @@ export async function registerRoutes(app: FastifyInstance) {
     const { text } = req.body as { text: string; session_id?: string };
     if (!text) return reply.code(400).send({ error: "text required" });
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
-          await kuri.keyboardType(session.tabId, text);
+          await brokerForSession(session).keyboardType(session.tabId, text);
           return true;
         },
       );
@@ -1237,12 +1279,13 @@ export async function registerRoutes(app: FastifyInstance) {
     const { key } = req.body as { key: string; session_id?: string };
     if (!key) return reply.code(400).send({ error: "key required" });
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
-          await kuri.press(session.tabId, key);
+          await brokerForSession(session).press(session.tabId, key);
           return true;
         },
       );
@@ -1257,12 +1300,13 @@ export async function registerRoutes(app: FastifyInstance) {
     const { ref, value } = req.body as { ref: string; value: string; session_id?: string };
     if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
-          await kuri.select(session.tabId, ref, value);
+          await brokerForSession(session).select(session.tabId, ref, value);
           return true;
         },
       );
@@ -1276,12 +1320,13 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/browse/scroll", async (req, reply) => {
     const { direction, amount } = (req.body as { direction?: string; amount?: number; session_id?: string }) ?? {};
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
-          await kuri.scroll(session.tabId, (direction as any) ?? "down", amount);
+          await brokerForSession(session).scroll(session.tabId, (direction as any) ?? "down", amount);
           return true;
         },
       );
@@ -1294,12 +1339,13 @@ export async function registerRoutes(app: FastifyInstance) {
   // GET /v1/browse/screenshot — capture screenshot
   app.get("/v1/browse/screenshot", async (req, reply) => {
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result: data } = await withSerializedRecoveredBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         injectInterceptor,
         requestedSessionId(req),
-        async (session) => kuri.screenshot(session.tabId),
+        async (session) => brokerForSession(session).screenshot(session.tabId),
         (data) => typeof data !== "string" || data.trim().length === 0,
       );
       return reply.send({ screenshot: data, session_id: session.sessionId, tab_id: session.tabId });
@@ -1311,12 +1357,13 @@ export async function registerRoutes(app: FastifyInstance) {
   // GET /v1/browse/text — page text
   app.get("/v1/browse/text", async (req, reply) => {
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result: text } = await withSerializedRecoveredBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         injectInterceptor,
         requestedSessionId(req),
-        async (session) => kuri.getText(session.tabId),
+        async (session) => brokerForSession(session).getText(session.tabId),
         (text) => typeof text !== "string",
       );
       return reply.send({ text, session_id: session.sessionId, tab_id: session.tabId });
@@ -1328,12 +1375,13 @@ export async function registerRoutes(app: FastifyInstance) {
   // GET /v1/browse/markdown — page as markdown
   app.get("/v1/browse/markdown", async (req, reply) => {
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result: markdown } = await withSerializedRecoveredBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         injectInterceptor,
         requestedSessionId(req),
-        async (session) => kuri.getMarkdown(session.tabId),
+        async (session) => brokerForSession(session).getMarkdown(session.tabId),
         (markdown) => typeof markdown !== "string",
       );
       return reply.send({ markdown, session_id: session.sessionId, tab_id: session.tabId });
@@ -1345,12 +1393,13 @@ export async function registerRoutes(app: FastifyInstance) {
   // GET /v1/browse/cookies — page cookies
   app.get("/v1/browse/cookies", async (req, reply) => {
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result: cookies } = await withSerializedRecoveredBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         injectInterceptor,
         requestedSessionId(req),
-        async (session) => kuri.getCookies(session.tabId),
+        async (session) => brokerForSession(session).getCookies(session.tabId),
       );
       return reply.send({ cookies, session_id: session.sessionId, tab_id: session.tabId });
     } catch (error) {
@@ -1363,11 +1412,12 @@ export async function registerRoutes(app: FastifyInstance) {
     const { expression } = req.body as { expression: string; session_id?: string };
     if (!expression) return reply.code(400).send({ error: "expression required" });
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
-        async (session) => kuri.evaluate(session.tabId, expression),
+        async (session) => brokerForSession(session).evaluate(session.tabId, expression),
         (result) => isRecoverableBrowseFailure(result),
       );
       return reply.send({ result, session_id: session.sessionId, tab_id: session.tabId });
@@ -1379,12 +1429,13 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/browse/back — navigate back
   app.post("/v1/browse/back", async (req, reply) => {
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
-          await kuri.goBack(session.tabId);
+          await brokerForSession(session).goBack(session.tabId);
           return true;
         },
       );
@@ -1397,12 +1448,13 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/browse/forward — navigate forward
   app.post("/v1/browse/forward", async (req, reply) => {
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
-          await kuri.goForward(session.tabId);
+          await brokerForSession(session).goForward(session.tabId);
           return true;
         },
       );
@@ -1415,9 +1467,10 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/browse/sync — flush captured traffic into local skill cache without closing tab
   app.post("/v1/browse/sync", async (req, reply) => {
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result: syncResult } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
           const syncResult = await flushBrowseCapture(session);
@@ -1446,17 +1499,19 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/browse/close — close session, flush HAR, index, save auth
   app.post("/v1/browse/close", async (req, reply) => {
     try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
       const { session, result: syncResult } = await withSerializedStrictBrowseSession(
         browseSessions,
-        kuri,
+        browseClient,
         requestedSessionId(req),
         async (session) => {
+          const broker = brokerForSession(session);
           if (session.domain) {
-            await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+            await broker.authProfileSave(session.tabId, session.domain).catch(() => {});
           }
 
           const syncResult = await flushBrowseCapture(session, { queueBackgroundPublish: true });
-          await kuri.closeTab(session.tabId).catch(() => {});
+          await broker.closeTab(session.tabId).catch(() => {});
           removeBrowseSession(browseSessions, session.sessionId);
           return syncResult;
         },

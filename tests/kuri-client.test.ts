@@ -91,6 +91,46 @@ exit 1
     expect(Number(readFileSync(counterFile, "utf8").trim())).toBe(4);
   }, 30_000);
 
+  it("returns the same broker client for the same port and distinct clients for different ports", () => {
+    const first = kuri.getKuriClient(7811);
+    const second = kuri.getKuriClient(7811);
+    const third = kuri.getKuriClient(7812);
+
+    expect(first).toBe(second);
+    expect(first).not.toBe(third);
+    expect(first.getPort()).toBe(7811);
+    expect(third.getPort()).toBe(7812);
+  });
+
+  it("runs independent start loops for different broker ports", async () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-multiport-"));
+    tmpDirs.push(tmpDir);
+    const fakeBin = path.join(tmpDir, "kuri");
+    writeFileSync(fakeBin, `#!/bin/sh
+counter_file="${tmpDir}/counter-$PORT.txt"
+[ -f "$counter_file" ] || echo "0" > "$counter_file"
+count="$(cat "$counter_file")"
+count=$((count + 1))
+echo "$count" > "$counter_file"
+exit 1
+`);
+    chmodSync(fakeBin, 0o755);
+    process.env.KURI_BIN = fakeBin;
+
+    const clientA = kuri.getKuriClient(7813);
+    const clientB = kuri.getKuriClient(7814);
+    const results = await Promise.allSettled([
+      clientA.start(),
+      clientB.start(),
+    ]);
+
+    expect(results.every((result) => result.status === "rejected")).toBe(true);
+    expect(Number(readFileSync(path.join(tmpDir, "counter-7813.txt"), "utf8").trim())).toBe(4);
+    expect(Number(readFileSync(path.join(tmpDir, "counter-7814.txt"), "utf8").trim())).toBe(4);
+
+    await Promise.allSettled([clientA.stop(), clientB.stop()]);
+  }, 30_000);
+
   it("derives launch mode from env flags", () => {
     expect(kuri.resolveKuriLaunchConfig({
       HEADLESS: "true",

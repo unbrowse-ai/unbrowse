@@ -142,6 +142,25 @@ describe("browse session recovery", () => {
     expect(sessions.get(second.sessionId)?.tabId).toBe("tab-2");
   });
 
+  it("records broker affinity on created browse sessions", async () => {
+    const sessions = new Map<string, BrowseSession>();
+    const client = makeClient({
+      getPort: () => 7815,
+      newTab: async () => "broker-tab",
+      discoverTabs: async () => [{ id: "broker-tab", url: "about:blank" }],
+      getCurrentUrl: async () => "about:blank",
+    });
+
+    const session = await getOrCreateBrowseSession(
+      sessions,
+      client,
+      async () => {},
+    );
+
+    expect(session.brokerPort).toBe(7815);
+    expect(session.client).toBe(client);
+  });
+
   it("requires session_id when more than one live session exists", async () => {
     const sessions = new Map<string, BrowseSession>([
       ["sess-1", { sessionId: "sess-1", tabId: "tab-1", url: "https://example.com/a", harActive: true, domain: "example.com" }],
