@@ -1,0 +1,234 @@
+{
+  "skill_id": "yrYmJcNjqjdqB8hx9mVv-",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:53:18.306Z",
+  "updated_at": "2026-02-23T07:53:18.306Z",
+  "name": "www.nerc.com -- Retrieve North American Electric Reliability Corporation (NER",
+  "intent_signature": "Retrieve North American Electric Reliability Corporation (NER",
+  "domain": "www.nerc.com",
+  "description": "Auto-discovered skill for: Retrieve North American Electric Reliability Corporation (NER",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "5f6jrlMGzz2dafVw2mfF2",
+      "method": "GET",
+      "url_template": "https://www.nerc.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "zsZBlUltOLeTHIpd3pslI",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Public Sans:ital,wght@0,100..900;1,100..900",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "lrvqy7wrGn8sRa24CXMrU",
+      "method": "GET",
+      "url_template": "https://consentcdn.cookiebot.com/consentconfig/{id}/settings.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "widget": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "distanceVerticalPx": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "distanceHorizontalPx": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "position",
+                  "distanceVerticalPx",
+                  "distanceHorizontalPx"
+                ],
+                "inferred_from_samples": 1
+              },
+              "theme": {
+                "type": "object",
+                "properties": {
+                  "closed": {
+                    "type": "object",
+                    "properties": {
+                      "backgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "foregroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "backgroundColor",
+                      "foregroundColor"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "opened": {
+                    "type": "object",
+                    "properties": {
+                      "backgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "foregroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "highlightColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "shadeColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeTextColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeBorderColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawTextColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawBorderColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "detailsBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "backgroundColor",
+                      "foregroundColor",
+                      "highlightColor",
+                      "shadeColor",
+                      "changeBackgroundColor",
+                      "changeTextColor",
+                      "changeBorderColor",
+                      "withdrawBackgroundColor",
+                      "withdrawTextColor",
+                      "withdrawBorderColor",
+                      "detailsBackgroundColor"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "closed",
+                  "opened"
+                ],
+                "inferred_from_samples": 1
+              },
+              "content": {
+                "type": "object",
+                "properties": {
+                  "cultures": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "default": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "autodetectLanguage": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "cultures",
+                  "default",
+                  "autodetectLanguage"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled",
+              "position",
+              "theme",
+              "content"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "widget"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "www.nerc.com-session"
+}

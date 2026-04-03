@@ -128,7 +128,8 @@ const skillRouteCache = new Map<
   { skillId: string; domain: string; endpointId?: string; localSkillPath?: string; ts: number }
 >();
 const ROUTE_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "route-cache.json");
-const SKILL_SNAPSHOT_DIR = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
+const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
+  ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
 
 // Domain-level skill cache: maps domain → best skillId (independent of intent/URL)
 // This enables cross-intent reuse: "find keyboards" seeds cache, "find monitors" reuses it

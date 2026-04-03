@@ -1,0 +1,715 @@
+{
+  "skill_id": "BmUOOr6llgylQzmJ8M3EY",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:40:22.825Z",
+  "updated_at": "2026-02-23T07:40:22.825Z",
+  "name": "api.hubspot.com -- Manage HubSpot portal configurations, track frontend performance",
+  "intent_signature": "Manage HubSpot portal configurations, track frontend performance",
+  "domain": "api.hubspot.com",
+  "description": "Auto-discovered skill for: Manage HubSpot portal configurations, track frontend performance",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "1fhznMAAoajPRsVJvP3bw",
+      "method": "GET",
+      "url_template": "https://app.hubspot.com/content-tools-menu/api/v1/tools-menu/has-permission-json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "53"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "3kS5oliw2tM1Eb15IDY8L",
+      "method": "GET",
+      "url_template": "https://app.hubspot.com/feedback-web-fetcher",
+      "headers_template": {
+        "referer": "https://developers.hubspot.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "HE51BD0WJ-9pltMke0U3A",
+      "method": "GET",
+      "url_template": "https://hubspot.statuspage.io/api/v2/status.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "name": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "url": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "time_zone": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "updated_at": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "url",
+              "time_zone",
+              "updated_at"
+            ],
+            "inferred_from_samples": 1
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "indicator": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "indicator",
+              "description"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "page",
+          "status"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "dJVPRnpuk2LeXw34tJD4B",
+      "method": "GET",
+      "url_template": "https://feedback.hubapi.com/feedback/public/v1/web-config",
+      "headers_template": {
+        "x-hs-referer": "https://developers.hubspot.com/",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://app.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "53",
+        "utk": "4eca4e05ba3cbb9ac30483b130000aa9",
+        "bundleVersion": "1.29469",
+        "currentUrl": "https://developers.hubspot.com/",
+        "pageUrl": "https://developers.hubspot.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "webRespondent": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "config": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "webRespondent",
+          "config"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "iY5P6nsaqJMyDvxZqS6Qs",
+      "method": "GET",
+      "url_template": "https://api.hubspot.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "RG7JLqJ88JsBJv1DmDRSl",
+      "method": "GET",
+      "url_template": "http://developers.hubspot.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "qiWjX1h9SMQ-HQh1nEykj",
+      "method": "GET",
+      "url_template": "https://developers.hubspot.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "TGqgXGMXJUTuCF5xdzOIz",
+      "method": "GET",
+      "url_template": "https://wtcfns.hubspot.com/ip-lookup",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "GeoIpInfo": {
+            "type": "object",
+            "properties": {
+              "country": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "country"
+            ],
+            "inferred_from_samples": 1
+          },
+          "IP": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "GeoIpInfo",
+          "IP"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "wYFH6ITxMmJLOpWlKj2Gz",
+      "method": "GET",
+      "url_template": "https://developers.hubspot.com/_hcms/livechat/widget",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "x-hubspot-messages-uri": "https://developers.hubspot.com/",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "53",
+        "conversations-embed": "static-1.25563",
+        "mobile": "false",
+        "messagesUtk": "604a0820a1b24db6adfe2c174c016f19",
+        "traceId": "604a0820a1b24db6adfe2c174c016f19"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "@type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "@type": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "reason": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "@type",
+              "reason",
+              "description"
+            ],
+            "inferred_from_samples": 1
+          },
+          "type": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "@type",
+          "metadata",
+          "type"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "187QL_zYJHsak-3jqumBu",
+      "method": "GET",
+      "url_template": "https://js.hs-banner.com/v2/cf-location",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "iNAY5qANodLJG2noDCT77",
+      "method": "GET",
+      "url_template": "https://cta-service-cms2.hubspot.com/web-interactives/public/v1/embed/combinedConfigs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "contentIds": "195436592037",
+        "portalId": "53",
+        "currentUrl": "https://developers.hubspot.com/",
+        "contentId": "177800390545"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "sortedAudienceConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "requestedConfigs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "containerStyles": {
+                  "type": "object",
+                  "properties": {
+                    "position": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "width": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "number",
+                          "inferred_from_samples": 2
+                        },
+                        "units": {
+                          "type": "string",
+                          "inferred_from_samples": 2
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "units"
+                      ],
+                      "inferred_from_samples": 2
+                    },
+                    "height": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "integer",
+                          "inferred_from_samples": 2
+                        },
+                        "units": {
+                          "type": "string",
+                          "inferred_from_samples": 2
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "units"
+                      ],
+                      "inferred_from_samples": 2
+                    },
+                    "scaleHeightToFitContent": {
+                      "type": "boolean",
+                      "inferred_from_samples": 2
+                    },
+                    "useOverlay": {
+                      "type": "boolean",
+                      "inferred_from_samples": 2
+                    },
+                    "useResponsiveStyling": {
+                      "type": "boolean",
+                      "inferred_from_samples": 2
+                    },
+                    "overlayBackgroundColor": {
+                      "type": "object",
+                      "properties": {
+                        "r": {
+                          "type": "integer",
+                          "inferred_from_samples": 2
+                        },
+                        "g": {
+                          "type": "integer",
+                          "inferred_from_samples": 2
+                        },
+                        "b": {
+                          "type": "integer",
+                          "inferred_from_samples": 2
+                        },
+                        "a": {
+                          "type": "number",
+                          "inferred_from_samples": 2
+                        }
+                      },
+                      "required": [
+                        "r",
+                        "g",
+                        "b",
+                        "a"
+                      ],
+                      "inferred_from_samples": 2
+                    },
+                    "offset": {
+                      "type": "object",
+                      "properties": {},
+                      "inferred_from_samples": 2
+                    },
+                    "isSingleModuleOnly": {
+                      "type": "boolean",
+                      "inferred_from_samples": 2
+                    }
+                  },
+                  "required": [
+                    "position",
+                    "width",
+                    "height",
+                    "scaleHeightToFitContent",
+                    "useOverlay",
+                    "useResponsiveStyling",
+                    "overlayBackgroundColor",
+                    "offset",
+                    "isSingleModuleOnly"
+                  ],
+                  "inferred_from_samples": 2
+                },
+                "containerType": {
+                  "type": "string",
+                  "inferred_from_samples": 2
+                },
+                "iframeSrc": {
+                  "type": "string",
+                  "inferred_from_samples": 2
+                },
+                "hideInteractiveOnSmallScreen": {
+                  "type": "boolean",
+                  "inferred_from_samples": 2
+                },
+                "webInteractiveId": {
+                  "type": "integer",
+                  "inferred_from_samples": 2
+                },
+                "contentModelId": {
+                  "type": "integer",
+                  "inferred_from_samples": 2
+                },
+                "audienceId": {
+                  "type": "null",
+                  "inferred_from_samples": 2
+                },
+                "triggers": {
+                  "type": "object",
+                  "properties": {
+                    "showOnPageScroll": {
+                      "type": "boolean",
+                      "inferred_from_samples": 2
+                    },
+                    "showOnExitIntent": {
+                      "type": "boolean",
+                      "inferred_from_samples": 2
+                    },
+                    "showAfterDelay": {
+                      "type": "boolean",
+                      "inferred_from_samples": 2
+                    },
+                    "showAfterInactivity": {
+                      "type": "boolean",
+                      "inferred_from_samples": 2
+                    },
+                    "delayInSeconds": {
+                      "type": "integer",
+                      "inferred_from_samples": 2
+                    }
+                  },
+                  "required": [
+                    "showOnPageScroll",
+                    "showOnExitIntent",
+                    "showAfterDelay",
+                    "showAfterInactivity",
+                    "delayInSeconds"
+                  ],
+                  "inferred_from_samples": 2
+                },
+                "specificity": {
+                  "type": "null",
+                  "inferred_from_samples": 2
+                },
+                "campaignGuid": {
+                  "type": "null",
+                  "inferred_from_samples": 2
+                },
+                "displayFrequency": {
+                  "type": "null",
+                  "inferred_from_samples": 2
+                },
+                "isDismissable": {
+                  "type": "boolean",
+                  "inferred_from_samples": 2
+                },
+                "isHTMLVersionOnly": {
+                  "type": "boolean",
+                  "inferred_from_samples": 2
+                },
+                "shouldUseJsTracking": {
+                  "type": "boolean",
+                  "inferred_from_samples": 2
+                },
+                "useSameOriginRedirectTracking": {
+                  "type": "boolean",
+                  "inferred_from_samples": 2
+                },
+                "shouldCloseOnFormSubmission": {
+                  "type": "boolean",
+                  "inferred_from_samples": 2
+                },
+                "isActiveAbTest": {
+                  "type": "boolean",
+                  "inferred_from_samples": 2
+                },
+                "isPersonalizationEnabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 2
+                }
+              },
+              "required": [
+                "containerStyles",
+                "containerType",
+                "iframeSrc",
+                "hideInteractiveOnSmallScreen",
+                "webInteractiveId",
+                "contentModelId",
+                "audienceId",
+                "triggers",
+                "specificity",
+                "campaignGuid",
+                "displayFrequency",
+                "isDismissable",
+                "isHTMLVersionOnly",
+                "shouldUseJsTracking",
+                "useSameOriginRedirectTracking",
+                "shouldCloseOnFormSubmission",
+                "isActiveAbTest",
+                "isPersonalizationEnabled"
+              ],
+              "inferred_from_samples": 2
+            },
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "array",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "sortedAudienceConfigs",
+          "requestedConfigs",
+          "gates"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "EEtSaX11aLLOADn3GMTGl",
+      "method": "GET",
+      "url_template": "https://cta-service-cms2.hubspot.com/web-interactives/public/v1/render/html",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "contentIds": "195436592037",
+        "portalId": "53",
+        "currentUrl": "https://developers.hubspot.com/",
+        "contentId": "177800390545",
+        "isHubspotPage": "true"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "195436592037": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "195428514581": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "195436592037",
+          "195428514581"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "TKqmA8guLyLY-z2AVMRO9",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Lato:ital,wght@0,400;0,700;1,400",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "XYEUH2wgWYja5w3UGbQSw",
+      "method": "GET",
+      "url_template": "https://wtcfns.hubspot.com/wt-api/hubdb/get_columns",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "tableId": "315080",
+        "portalId": "53"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "jb8t3YFLyY6rKXMYQr9lI",
+      "method": "GET",
+      "url_template": "https://wtcfns.hubspot.com/wt-api/hubdb/get_rows",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://developers.hubspot.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "abbreviation__eq": "us",
+        "tableId": "315080",
+        "portalId": "53"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "api.hubspot.com-session"
+}

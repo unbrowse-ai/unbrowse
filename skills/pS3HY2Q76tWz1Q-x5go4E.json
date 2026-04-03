@@ -1,0 +1,38 @@
+{
+  "skill_id": "pS3HY2Q76tWz1Q-x5go4E",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:45:00.703Z",
+  "updated_at": "2026-02-23T07:45:00.703Z",
+  "name": "api.replicate.com -- Interact with Replicate to generate content using",
+  "intent_signature": "Interact with Replicate to generate content using",
+  "domain": "api.replicate.com",
+  "description": "Auto-discovered skill for: Interact with Replicate to generate content using",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "KzAM_l8pjGcv4qMtnX7Y6",
+      "method": "GET",
+      "url_template": "https://api.replicate.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "inferred_from_samples": 1
+      }
+    }
+  ]
+}

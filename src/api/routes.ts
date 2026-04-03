@@ -19,7 +19,7 @@ import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, waitForBackgroundRegistration, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
@@ -315,7 +315,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.addHook("onRequest", async (req, reply) => {
     if (req.url === "/health" || req.url === "/v1/stats") return;
 
-    const key = getApiKey();
+    let key = getApiKey();
+    if (!key) {
+      await waitForBackgroundRegistration(15_000);
+      key = getApiKey();
+    }
     if (!key) {
       return reply.code(401).send({
         error: "api_key_required",

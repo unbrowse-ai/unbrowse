@@ -1,0 +1,155 @@
+{
+  "skill_id": "0upCFQvw36Q4cyil9h1aB",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:48:43.839Z",
+  "updated_at": "2026-02-23T07:48:43.839Z",
+  "name": "www.bellingram.co.uk -- Interact with Bell Ingram's",
+  "intent_signature": "Interact with Bell Ingram's",
+  "domain": "www.bellingram.co.uk",
+  "description": "Auto-discovered skill for: Interact with Bell Ingram's",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "iDsxhOHY9FzecED_sKc1v",
+      "method": "GET",
+      "url_template": "https://maps.googleapis.com/maps/api/js",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.bellingram.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "libraries": "places",
+        "callback": "init_location_autocomplete",
+        "ver": "3"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "hJgOBAkeoGJRiHo5YAQIK",
+      "method": "GET",
+      "url_template": "https://maps.googleapis.com/maps/api/mapsjs/gen_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.bellingram.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "csp_test": "true"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "dXnrKV3gii5gKDez6bWbo",
+      "method": "GET",
+      "url_template": "https://www.bellingram.co.uk/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ciejcuMnGe51XjTqoDpHw",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.bellingram.co.uk/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Caudex:regular,regular,700|Open Sans:regular,regular|Dancing Script:regular,400",
+        "display": "swap",
+        "ver": "3.9"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "mDZqS8GLhmiQP4NmXBjSN",
+      "method": "GET",
+      "url_template": "https://www.bellingram.co.uk/wp-content/uploads/{id}/05/Bell-Ingram-2025-Website-Banner-update.mp4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.bellingram.co.uk/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "RHOGTdFU6lrHqCmzsArok",
+      "method": "GET",
+      "url_template": "https://www.bellingram.co.ukhttps://www.bellingram.co.uk/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "XitlvBPtxX99hH7gJM8dz",
+      "method": "GET",
+      "url_template": "https://www.google.com/recaptcha/api2/anchor",
+      "headers_template": {
+        "referer": "https://www.bellingram.co.uk/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "ar": "1",
+        "k": "6Lc_97MlAAAAAEWRMrhycHtqfW3CcYKH-nQprhPj",
+        "co": "aHR0cHM6Ly93d3cuYmVsbGluZ3JhbS5jby51azo0NDM.",
+        "hl": "en",
+        "v": "vUgXt_KV952_-5BB2jjloYzl",
+        "size": "invisible",
+        "anchor-ms": "20000",
+        "execute-ms": "30000",
+        "cb": "7a776zmja75a"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.bellingram.co.uk-session"
+}

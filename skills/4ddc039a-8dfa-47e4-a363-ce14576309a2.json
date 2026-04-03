@@ -1,0 +1,84 @@
+{
+  "skill_id": "4ddc039a-8dfa-47e4-a363-ce14576309a2",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-14T09:58:11.264Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "voice-google",
+  "intent_signature": "Access Google Voice billing data to retrieve international",
+  "domain": "voice.google.com",
+  "description": "Access Google Voice billing data to retrieve international",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "voice-google",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--0tRE3K7ULPW_mS6XgdJ1GCgKpG6qGbQ8GZv4uypr_GXOUooRyydtzned5Savk2TZ0tN1lixjX_L42NX8SZoQsRlEAU-h8qzv3fN0=e365-pa-nu-rw-w1472",
+      "method": "GET",
+      "url_template": "https://voice.google.com/0tRE3K7ULPW_mS6XgdJ1GCgKpG6qGbQ8GZv4uypr_GXOUooRyydtzned5Savk2TZ0tN1lixjX_L42NX8SZoQsRlEAU-h8qzv3fN0=e365-pa-nu-rw-w1472",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--FPjT1CvI7MbvZjNnqFguyvCduuhG3pq_NlyfsD_O-um8u_PbsmTonNd8OgTpG-e05jV291tVRC7HMJb1h9fJPO2PrkgRJCXwXwA1Yg=e365-pa-nu-rw-w1472",
+      "method": "GET",
+      "url_template": "https://voice.google.com/FPjT1CvI7MbvZjNnqFguyvCduuhG3pq_NlyfsD_O-um8u_PbsmTonNd8OgTpG-e05jV291tVRC7HMJb1h9fJPO2PrkgRJCXwXwA1Yg=e365-pa-nu-rw-w1472",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--g9tHRdOm_sNXXUqsLPUot5AETp0vVtgROCnsVVfURz0H7-PN1viQ2dvAR3aMCx6UkfKfK8hEDNlvbozVb4ZOV3qbz2639Q41ilnw=e365-pa-nu-rw-w1472",
+      "method": "GET",
+      "url_template": "https://voice.google.com/g9tHRdOm_sNXXUqsLPUot5AETp0vVtgROCnsVVfURz0H7-PN1viQ2dvAR3aMCx6UkfKfK8hEDNlvbozVb4ZOV3qbz2639Q41ilnw=e365-pa-nu-rw-w1472",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--qFK9rG7FIJxhtRB5Wdxo0NK3tHhJ8iHMC37Z8e-rr6NpCGZm76V_xP_DuIn30uaKvaj3GIGkx6w5P3gw-nc3v8vMGJztEii40RrC=e365-pa-nu-rw-w566",
+      "method": "GET",
+      "url_template": "https://voice.google.com/qFK9rG7FIJxhtRB5Wdxo0NK3tHhJ8iHMC37Z8e-rr6NpCGZm76V_xP_DuIn30uaKvaj3GIGkx6w5P3gw-nc3v8vMGJztEii40RrC=e365-pa-nu-rw-w566",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "NvHJMeYkgSr4rLupi8Whyk8nTrT8EKKYM53ZTy3r2qQ",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "28b844bf1e73c8db57d6e6bfacb0b32c8c4a2544f5d6a4a3aa22214a57c04997"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: voice-google\ndescription: Internal API for voice-google\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://voice.google.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 2\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# VoiceGoogle API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (2)\n- `POST /voice/v1/voiceclient/billing/ratetable/get` — Get Google Voice billing rate for a specific number.\n- `POST /voice/v1/voiceclient/billing/specialrulesbillingcountries/list` — List countries with special billing rules for Google Voice.\n\n## Quick Start\n\n```typescript\n// Get the billing rate for a specific phone number.\nasync function getBillingRate(phoneNumber: string) {\n  try {\n    const response = await client.voice.v1.voiceclient.billing.ratetable.get({\n      phoneNumber: phoneNumber,\n    });\n    console.log(\"Billing rate:\", response.rate);\n    return response.rate;\n  } catch (error) {\n    console.error(\"Error getting billing rate:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// List countries with special billing rules.\nasync function listSpecialBillingCountries() {\n  try {\n    const response = await client.voice.v1.voiceclient.billing.specialrulesbillingcountries.list();\n    console.log(\"Countries with special billing rules:\", response.countries);\n    return response.countries;\n  } catch (error) {\n    console.error(\"Error listing special billing countries:\", error);\n    return [];\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://voice.google.com`\n**Captured Auth:** 1 auth headers, 12 session cookies\n\n## About This Skill\n\nThis skill provides access to Voice Google's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Voice Google data without official API access\n- Automate actions on voice.google.com (faster than browser automation)\n- Call the same endpoints the Voice Google frontend uses\n\n## Quick Start\n\n```typescript\nimport { VoiceGoogleClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await VoiceGoogleClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 12\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (6)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /0tRE3K7ULPW_mS6XgdJ1GCgKpG6qGbQ8GZv4uypr_GXOUooRyydtzned5Savk2TZ0tN1lixjX_L42NX8SZoQsRlEAU-h8qzv3fN0=e365-pa-nu-rw-w1472`\n- `GET /FPjT1CvI7MbvZjNnqFguyvCduuhG3pq_NlyfsD_O-um8u_PbsmTonNd8OgTpG-e05jV291tVRC7HMJb1h9fJPO2PrkgRJCXwXwA1Yg=e365-pa-nu-rw-w1472`\n- `GET /g9tHRdOm_sNXXUqsLPUot5AETp0vVtgROCnsVVfURz0H7-PN1viQ2dvAR3aMCx6UkfKfK8hEDNlvbozVb4ZOV3qbz2639Q41ilnw=e365-pa-nu-rw-w1472`\n- `GET /qFK9rG7FIJxhtRB5Wdxo0NK3tHhJ8iHMC37Z8e-rr6NpCGZm76V_xP_DuIn30uaKvaj3GIGkx6w5P3gw-nc3v8vMGJztEii40RrC=e365-pa-nu-rw-w566`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /0tRE3K7ULPW_mS6XgdJ1GCgKpG6qGbQ8GZv4uypr_GXOUooRyydtzned5Savk2TZ0tN1lixjX_L42NX8SZoQsRlEAU-h8qzv3fN0=e365-pa-nu-rw-w1472`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /FPjT1CvI7MbvZjNnqFguyvCduuhG3pq_NlyfsD_O-um8u_PbsmTonNd8OgTpG-e05jV291tVRC7HMJb1h9fJPO2PrkgRJCXwXwA1Yg=e365-pa-nu-rw-w1472`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /g9tHRdOm_sNXXUqsLPUot5AETp0vVtgROCnsVVfURz0H7-PN1viQ2dvAR3aMCx6UkfKfK8hEDNlvbozVb4ZOV3qbz2639Q41ilnw=e365-pa-nu-rw-w1472`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /qFK9rG7FIJxhtRB5Wdxo0NK3tHhJ8iHMC37Z8e-rr6NpCGZm76V_xP_DuIn30uaKvaj3GIGkx6w5P3gw-nc3v8vMGJztEii40RrC=e365-pa-nu-rw-w566`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -1,0 +1,49 @@
+{
+  "skill_id": "26e04e0a-67dd-41c8-a6b3-4d2c668bcf28",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-17T18:24:37.332Z",
+  "updated_at": "2026-02-17T18:24:38.726Z",
+  "name": "auto-insurance",
+  "intent_signature": "Browse and manage vehicle coverage options through auto",
+  "domain": "auto-insurance.com",
+  "description": "Browse and manage vehicle coverage options through auto",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "auto-insurance",
+  "endpoints": [
+    {
+      "endpoint_id": "edcfb46b-710c-442a-b2db-0fefe51e27d1",
+      "method": "GET",
+      "url_template": "https://auto-insurance.com/__endpoint/edcfb46b-710c-442a-b2db-0fefe51e27d1",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getFeedUpdates",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "7sbMhHgBXX4qWWKzbm25nzANe2UkWvwCyxxjS7Gq94kH",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "3b157b4c334b523e7d31136c81a6719a74e711778adcbe27f0be3596be6829bc"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: auto-insurance\ndescription: Internal API for auto-insurance\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://auto-insurance.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# AutoInsurance API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /` — Fetch paginated feed updates\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"auto-insurance\", executionMode: \"backend\", endpoint: \"GET /\" }\n```\n\nHere are a few quick examples to get you started interacting with the auto-insurance API:\n\n**Fetching the latest updates (paginated):**\n\n```typescript\n// Get the first page of updates\nconst updates = await client.get({ page: 1 });\n\nif (updates && updates.data) {\n  console.log(`Retrieved ${updates.data.length} updates.`);\n  updates.data.forEach(update => {\n    console.log(`Update ID: ${update.id}, Type: ${update.type}`);\n  });\n\n  if (updates.pagination.next) {\n    console.log(`Next page: ${updates.pagination.next}`);\n  }\n} else {\n  console.error(\"Failed to retrieve updates.\");\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://auto-insurance.com`\n**Captured Auth:** none captured\n\n## About This Skill\n\nThis skill provides access to Auto Insurance's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Auto Insurance data without official API access\n- Automate actions on auto-insurance.com (faster than browser automation)\n- Call the same endpoints the Auto Insurance frontend uses\n\n## Quick Start\n\n```typescript\nimport { AutoInsuranceClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await AutoInsuranceClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (1)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

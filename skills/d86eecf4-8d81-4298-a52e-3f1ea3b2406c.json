@@ -1,0 +1,136 @@
+{
+  "skill_id": "d86eecf4-8d81-4298-a52e-3f1ea3b2406c",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T19:02:22.989Z",
+  "updated_at": "2026-02-18T20:15:53.814Z",
+  "name": "luma",
+  "intent_signature": "Luma Events API - discover and browse events. Public endpoints work without auth. Use for finding local events, tech meetups, conferences.",
+  "domain": "api.lu.ma",
+  "description": "Luma Events API - discover and browse events. Public endpoints work without auth. Use for finding local events, tech meetups, conferences.",
+  "owner_type": "marketplace",
+  "auth_type": null,
+  "service_name": "luma",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--discover-{discoverId}",
+      "method": "GET",
+      "url_template": "https://api.lu.ma/discover/{discoverId}",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--discover-bootstrap-page",
+      "method": "GET",
+      "url_template": "https://api.lu.ma/discover/bootstrap-page",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--discover-category-list-categories",
+      "method": "GET",
+      "url_template": "https://api.lu.ma/discover/category/list-categories",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--discover-get-calendars",
+      "method": "GET",
+      "url_template": "https://api.lu.ma/discover/get-calendars",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--discover-get-paginated-events",
+      "method": "GET",
+      "url_template": "https://api.lu.ma/discover/get-paginated-events",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--home-{homeId}",
+      "method": "GET",
+      "url_template": "https://api.lu.ma/home/{homeId}",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--home-get-events",
+      "method": "GET",
+      "url_template": "https://api.lu.ma/home/get-events",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--home-get-subscribed-calendars",
+      "method": "GET",
+      "url_template": "https://api.lu.ma/home/get-subscribed-calendars",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "98ryuH7DhwxvCiiTZEXTy25t9RrwtuuovFMZTmbAXcth",
+    "download_count": 1,
+    "total_versions": 1,
+    "latest_version_hash": "073821c509cb0946708a1f149906f3c529b81fc0861cd0121a6a10c83b7690e7"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: luma\ndescription: Internal API for luma\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://api.lu.ma\"\n  authMethod: \"cookie\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Luma API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\ncookie — Uses session cookies from browser authentication.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (3)\n- `GET /discover/{discoverId}` — Get details for a specific discovery item.\n- `GET /discover/category/list-categories` — Get a list of event categories.\n- `GET /home/{homeId}` — Retrieve information about a specific home.\n\n## Quick Start\n\nHere's a Quick Start to get you up and running with the Luma API:\n\n```typescript\n// Retrieve details for a specific discovery item.\n// Useful for showing event details to a user.\nasync function getDiscoveryItemDetails(discoverId: string) {\n  try {\n    const discoveryItem = await client.getDiscoverDiscoverId({ discoverId });\n    console.log(\"Discovery Item Details:\", discoveryItem);\n    return discoveryItem;\n  } catch (error) {\n    console.error(\"Error fetching discovery item:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Fetch a list of event categories.\n// Useful for populating a category selection dropdown.\nasync function listEventCategories() {\n  try {\n    const categories = await client.getDiscoverCategoryListCategories();\n    console.log(\"Event Categories:\", categories);\n    return categories;\n  } catch (error) {\n    console.error(\"Error fetching event categories:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\ncookie — Uses session cookies from browser authentication.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (2)\n\n\n### Search (1)\n\n\n## Quick Start\n\nHere are a few quick examples to get you started using the Luma API:\n\n```typescript\n// Retrieve a list of available content categories.\nasync function getCategories() {\n  const categories = await client.discover.category.listCategories();\n  console.log(\"Available categories:\", categories);\n  return categories;\n}\n```\n\n```typescript\n// Get details for a specific home.\nasync function getHomeDetails(homeId: string) {\n  const homeDetails = await client.home[homeId]();\n  console.log(\"Home details:\", homeDetails);\n  return homeDetails;\n}\n```\n\n## Additional Notes\n\n**Base URL:** `https://api.lu.ma`\n**Auth:** Cookie-based (requires `luma.auth-session-key` from browser session)\n\n## Authenticated Endpoints (require auth.json cookies)\n\n### Get User's Events (registered/attending)\n```\nGET /home/get-events\n```\nReturns all events the user is registered for (upcoming and past).\n\n### Get Subscribed Calendars\n```\nGET /home/get-subscribed-calendars\n```\n\n## Public Endpoints (no auth required)\n\n### Get Events by Location\n```\nGET /discover/get-paginated-events?geo_latitude={lat}&geo_longitude={lng}&pagination_limit={limit}\n```\n\n**Example (Kuala Lumpur):**\n```bash\ncurl \"https://api.lu.ma/discover/get-paginated-events?geo_latitude=3.139&geo_longitude=101.6869&pagination_limit=20\"\n```\n\n### Get Event Categories\n```\nGET /discover/category/list-categories\n```\n\n### Get Featured Calendars\n```\nGET /discover/get-calendars\n```\n\n### Get Bootstrap Page (featured content)\n```\nGET /discover/bootstrap-page\n```\n\n## Authentication\n\nFor authenticated endpoints, include these headers:\n```\nCookie: luma.auth-session-key=<token>; luma.did=<device-id>\nOrigin: https://luma.com\nReferer: https://luma.com/\n```\n\nThe auth.json file contains the session cookies extracted from the browser.\n\n## Response Format\n\nEvents are returned in `entries[]` array with:\n- `event.name` - Event title\n- `event.url` - Short URL slug (use with lu.ma/{slug})\n- `event.start_at` - ISO timestamp (UTC)\n- `event.timezone` - Local timezone\n- `event.geo_address_info` - Location details\n- `guest_count` - Number of attendees\n- `ticket_info.is_free` - Whether free\n- `ticket_info.spots_remaining` - Available spots\n- `hosts[]` - Event organizers\n\n## Common Locations\n\n| City | Lat | Lng |\n|------|-----|-----|\n| Kuala Lumpur | 3.139 | 101.687 |\n| Singapore | 1.352 | 103.820 |\n| San Francisco | 37.775 | -122.419 |\n| New York | 40.713 | -74.006 |\n| London | 51.507 | -0.128 |\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /discover/bootstrap-page`\n- `GET /discover/category/list-categories`\n- `GET /discover/get-paginated-events`\n- `GET /home/get-events`\n- `GET /home/get-subscribed-calendars`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /discover/bootstrap-page`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /discover/category/list-categories`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /discover/get-paginated-events`\n- Status: `verified` | Quality: `0` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /home/get-events`\n- Status: `auth_required` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /home/get-subscribed-calendars`\n- Status: `auth_required` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

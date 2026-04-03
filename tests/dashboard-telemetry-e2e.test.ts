@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import app from "../backend/src/index.js";
 import type { Env, SkillManifest } from "../backend/src/types.js";
@@ -25,6 +24,7 @@ const touchedEnvKeys = [
   "UNBROWSE_BACKEND_URL",
   "UNBROWSE_CONFIG_DIR",
   "UNBROWSE_SKILL_CACHE_DIR",
+  "UNBROWSE_SKILL_SNAPSHOT_DIR",
   "TRACES_DIR",
   "UNBROWSE_LOCAL_ONLY",
   "UNBROWSE_NON_INTERACTIVE",
@@ -66,6 +66,22 @@ function createMockFetch(store: Map<string, string>, passthrough: typeof fetch) 
   };
 }
 
+function serveWithRetry(handler: { fetch: (request: Request) => Response | Promise<Response> }) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const port = 20000 + Math.floor(Math.random() * 20000);
+    try {
+      return Bun.serve({
+        port,
+        fetch: handler.fetch,
+      });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code !== "EADDRINUSE") throw error;
+    }
+  }
+  throw new Error("failed to allocate a free test port");
+}
+
 async function waitForDashboard(
   backendPort: number,
   apiKey: string,
@@ -103,27 +119,16 @@ describe("dashboard telemetry e2e", () => {
     const store = new Map<string, string>();
     globalThis.fetch = createMockFetch(store, originalFetch) as typeof fetch;
 
-    const backendPort = 8798;
-    const targetPort = 8799;
     const apiKey = "telemetry-e2e-key";
     const tempRoot = join("/tmp", `unbrowse-dashboard-telemetry-${process.pid}-${Date.now()}`);
     const configDir = join(tempRoot, "config");
     const cacheDir = join(tempRoot, "skill-cache");
-    const snapshotDir = join(homedir(), ".unbrowse", "skill-snapshots");
+    const snapshotDir = join(tempRoot, "skill-snapshots");
     const snapshotFile = join(snapshotDir, `dashboard-telemetry-${process.pid}-${Date.now()}.json`);
 
     for (const key of touchedEnvKeys) {
       originalEnv.set(key, process.env[key]);
     }
-    process.env.UNBROWSE_BACKEND_URL = `http://127.0.0.1:${backendPort}`;
-    process.env.UNBROWSE_API_KEY = apiKey;
-    process.env.UNBROWSE_CONFIG_DIR = configDir;
-    process.env.UNBROWSE_SKILL_CACHE_DIR = cacheDir;
-    process.env.TRACES_DIR = join(tempRoot, "traces");
-    process.env.UNBROWSE_LOCAL_ONLY = "0";
-    process.env.UNBROWSE_NON_INTERACTIVE = "1";
-    process.env.UNBROWSE_TOS_ACCEPTED = "1";
-
     mkdirSync(configDir, { recursive: true });
     mkdirSync(snapshotDir, { recursive: true });
     writeFileSync(join(configDir, "config.json"), JSON.stringify({
@@ -135,15 +140,14 @@ describe("dashboard telemetry e2e", () => {
       tos_accepted_at: new Date().toISOString(),
     }));
 
-    const backendServer = Bun.serve({
-      port: backendPort,
+    const backendServer = serveWithRetry({
       fetch(request) {
         return app.fetch(request, env, execCtx);
       },
     });
+    const backendPort = backendServer.port;
 
-    const targetServer = Bun.serve({
-      port: targetPort,
+    const targetServer = serveWithRetry({
       fetch() {
         return Response.json({
           items: [
@@ -153,6 +157,17 @@ describe("dashboard telemetry e2e", () => {
         });
       },
     });
+    const targetPort = targetServer.port;
+
+    process.env.UNBROWSE_BACKEND_URL = `http://127.0.0.1:${backendPort}`;
+    process.env.UNBROWSE_API_KEY = apiKey;
+    process.env.UNBROWSE_CONFIG_DIR = configDir;
+    process.env.UNBROWSE_SKILL_CACHE_DIR = cacheDir;
+    process.env.UNBROWSE_SKILL_SNAPSHOT_DIR = snapshotDir;
+    process.env.TRACES_DIR = join(tempRoot, "traces");
+    process.env.UNBROWSE_LOCAL_ONLY = "0";
+    process.env.UNBROWSE_NON_INTERACTIVE = "1";
+    process.env.UNBROWSE_TOS_ACCEPTED = "1";
 
     const now = new Date().toISOString();
     const skill: SkillManifest = {

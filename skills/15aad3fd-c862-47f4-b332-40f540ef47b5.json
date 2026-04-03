@@ -1,0 +1,114 @@
+{
+  "skill_id": "15aad3fd-c862-47f4-b332-40f540ef47b5",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T17:26:36.689Z",
+  "updated_at": "2026-02-20T05:51:26.470Z",
+  "name": "xiaohongshu",
+  "intent_signature": "Manage Xiaohongshu user profiles, retrieve system configurations, and handle security verification scripts. It enables programmatic interaction with the platform’s data services and account settings using session-based authentication.",
+  "domain": "www.xiaohongshu.com",
+  "description": "Manage Xiaohongshu user profiles, retrieve system configurations, and handle security verification scripts. It enables programmatic interaction with the platform’s data services and account settings using session-based authentication.",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (web_session)",
+  "service_name": "xiaohongshu",
+  "endpoints": [
+    {
+      "endpoint_id": "fa814647-72f3-4054-804b-bce7d558b323",
+      "method": "GET",
+      "url_template": "https://www.xiaohongshu.com/__endpoint/fa814647-72f3-4054-804b-bce7d558b323",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getData",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "93628d4e-bc12-4f06-b9dc-399df30f4aac",
+      "method": "GET",
+      "url_template": "https://www.xiaohongshu.com/__endpoint/93628d4e-bc12-4f06-b9dc-399df30f4aac",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getDataById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "1820895c-b076-4d38-9931-a61a7402a1e7",
+      "method": "GET",
+      "url_template": "https://www.xiaohongshu.com/__endpoint/1820895c-b076-4d38-9931-a61a7402a1e7",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getData2",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "b6a9403d-9b8d-4477-b6c6-034260e53adf",
+      "method": "GET",
+      "url_template": "https://www.xiaohongshu.com/__endpoint/b6a9403d-9b8d-4477-b6c6-034260e53adf",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getPlatformFile",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "fcca5ac3-d4f8-4e09-bdeb-ce9cb58a9292",
+      "method": "GET",
+      "url_template": "https://www.xiaohongshu.com/__endpoint/fcca5ac3-d4f8-4e09-bdeb-ce9cb58a9292",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.01,
+      "description": "getEndpoint2",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "61b16ef5-9b93-4bb2-b3b5-876ea5d8298d",
+      "method": "POST",
+      "url_template": "https://www.xiaohongshu.com/__endpoint/61b16ef5-9b93-4bb2-b3b5-876ea5d8298d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createShieldWebprofile",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "2PYdPjo9C24ZmwbKASWxp4WFUy9ycrA2yfJS7Xv4ZFMQ",
+    "download_count": 0,
+    "total_versions": 3,
+    "latest_version_hash": "027ea7522f7376dbde023584abaf0ce2666027332273a3fb9c0149e70a087ab6"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: xiaohongshu\ndescription: Internal API for xiaohongshu\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.xiaohongshu.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 17\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Xiaohongshu API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `POST /api/redcaptcha/v2/qr/init` — Initialize redcaptcha QR code.\n\n### Data Read (6)\n- `GET /api/im/redmoji/{redmojiId}` — Retrieve a specific redmoji.\n- `GET /api/sec/v1/ds` — Fetch security data.\n- `GET /api/sns/web/v1/board/user` — Get user board data.\n- `GET /api/sns/web/v2/user/me` — Get current user's profile.\n- `GET /data/{dataId}` — Retrieve specific data.\n- `POST /api/sns/web/racing_get` — Get racing data.\n\n### Data Write (4)\n- `POST /api/data` — Post data.\n- `POST /api/p/pj` — Post project data.\n- `POST /api/sec/v1/{v1Id}` — Post security data.\n- `POST /api/sec/v1/shield/webprofile` — Post web profile shield data.\n\n### Search (2)\n- `GET /api/sns/web/v1/search/recommend` — Get search recommendations.\n- `POST /api/redcaptcha/v2/qr/status/query` — Query redcaptcha QR code status.\n\n### Config (3)\n- `GET /api/sns/web/global/config` — Get global configuration.\n- `GET /api/sns/web/v1/system/config` — Get system configuration.\n- `POST /api/redcaptcha/v2/getconfig` — Get redcaptcha configuration.\n\n### Core API (1)\n- `POST /faas/proto/json-to-proto-json-to-proto/proxy` — Proxy request to core API.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"xiaohongshu\", executionMode: \"backend\", endpoint: \"GET /api/im/redmoji/{redmojiId}\" }\n```\n\nHere are a few examples to get you started with the Xiaohongshu API:\n\n```typescript\n// Example: Fetching the current user's profile.\nasync function getUserProfile() {\n  try {\n    const userProfile = await client.get_api_sns_web_v2_user_me();\n    console.log(\"User Profile:\", userProfile);\n    return userProfile;\n  } catch (error) {\n    console.error(\"Failed to fetch user profile:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Posting data to a generic data endpoint.\nasync function postData(data: any) {\n  try {\n    const response = await client.post_api_data(data);\n    console.log(\"Data post response:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to post data:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Searching for recommendations.\nasync function getSearchRecommendations() {\n  try {\n    const recommendations = await client.get_api_sns_web_v1_search_recommend();\n    console.log(\"Search Recommendations:\", recommendations);\n    return recommendations;\n  } catch (error) {\n    console.error(\"Failed to fetch search recommendations:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.xiaohongshu.com`\n**Captured Auth:** 10 session cookies\n\n## About This Skill\n\nThis skill provides access to Xiaohongshu's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Xiaohongshu data without official API access\n- Automate actions on www.xiaohongshu.com (faster than browser automation)\n- Call the same endpoints the Xiaohongshu frontend uses\n\n## Quick Start\n\n```typescript\nimport { XiaohongshuClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await XiaohongshuClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 10\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (23)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

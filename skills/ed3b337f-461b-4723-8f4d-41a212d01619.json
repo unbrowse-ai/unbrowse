@@ -1,0 +1,127 @@
+{
+  "skill_id": "ed3b337f-461b-4723-8f4d-41a212d01619",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:12:43.085Z",
+  "updated_at": "2026-02-19T06:15:48.353Z",
+  "name": "ncsl",
+  "intent_signature": "Access legislative research and data from",
+  "domain": "www.ncsl.org",
+  "description": "Access legislative research and data from",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (csrf-token)",
+  "service_name": "ncsl",
+  "endpoints": [
+    {
+      "endpoint_id": "b4c48281-3e63-490a-8713-533ec7891a65",
+      "method": "GET",
+      "url_template": "https://www.ncsl.org/__endpoint/b4c48281-3e63-490a-8713-533ec7891a65",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getAttributionTrigger",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "5b1ed61a-f0de-46ab-ab79-38126eced570",
+      "method": "POST",
+      "url_template": "https://www.ncsl.org/__endpoint/5b1ed61a-f0de-46ab-ab79-38126eced570",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createEndpoint",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "34d2b46e-bd88-4ac6-a977-41ed4554fd28",
+      "method": "GET",
+      "url_template": "https://www.ncsl.org/__endpoint/34d2b46e-bd88-4ac6-a977-41ed4554fd28",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getI18Njson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "54685c2d-98b4-45e2-ae9a-ea9af87daa80",
+      "method": "GET",
+      "url_template": "https://www.ncsl.org/__endpoint/54685c2d-98b4-45e2-ae9a-ea9af87daa80",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getWebsitesCookiesById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "86ff6e40-d570-4344-a8bb-ca9eeebc2590",
+      "method": "POST",
+      "url_template": "https://www.ncsl.org/__endpoint/86ff6e40-d570-4344-a8bb-ca9eeebc2590",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createWebsitesStatisticsById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "b2f02d7d-2beb-43dd-b9bd-e6c75b7331a0",
+      "method": "GET",
+      "url_template": "https://www.ncsl.org/__endpoint/b2f02d7d-2beb-43dd-b9bd-e6c75b7331a0",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getGetconfigSodar",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "dfc3d79b-8243-4d24-9653-3ab6ae50722c",
+      "method": "POST",
+      "url_template": "https://www.ncsl.org/__endpoint/dfc3d79b-8243-4d24-9653-3ab6ae50722c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createWebsitesCookieConsentById",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "8EWikfWwCSFoLck4mwSq1VkSYo2yrMG8fZyLFgNECQ15",
+    "download_count": 0,
+    "total_versions": 6,
+    "latest_version_hash": "4d4025aaf83c6331ce07a874af8ed2d76658e769baf1b4dcead3059bfa470251"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: ncsl\ndescription: Internal API for ncsl\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.ncsl.org\"\n  authMethod: \"Session Token (csrf-token)\"\n  endpointCount: 7\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Ncsl API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (csrf-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (3)\n- `GET /api/v1/snippets/websites/{websiteId}/cookies` — Retrieve cookie information for a specific website.\n- `GET /attribution_trigger` — Retrieve attribution trigger data.\n- `GET /resource-blocker/i18n/en.json` — Get the English language resource blocker configuration.\n\n### Data Write (2)\n- `POST /api/v1/snippets/websites/{websiteId}/statistics` — Submit website statistics.\n- `POST /v1/websites/{websiteId}/cookie-consent` — Submit cookie consent information for a website.\n\n### Config (1)\n- `GET /getconfig/sodar` — Retrieve the SODAR configuration.\n\n### Core API (1)\n- `POST /wa/` — Submit a web accessibility (WA) request.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"ncsl\", executionMode: \"backend\", endpoint: \"GET /api/v1/snippets/websites/{websiteId}/cookies\" }\n```\n\nHere's a Quick Start to get you interacting with the `ncsl` API:\n\n```typescript\n// Retrieve the SODAR configuration.\nconst sodarConfig = await client.getConfigSodar();\nconsole.log(\"SODAR Config:\", sodarConfig);\n```\n\n```typescript\n// Submit cookie consent information for a website.\nconst websiteId = \"example.com\"; // Replace with the actual website ID\nconst consentData = {\n  \"cookies_accepted\": true,\n  \"timestamp\": Date.now()\n};\n\nawait client.postV1WebsitesWebsiteIdCookieConsent({ websiteId, data: consentData });\nconsole.log(\"Cookie consent submitted successfully.\");\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (csrf-token)\n**Base URL:** `https://www.ncsl.org`\n**Captured Auth:** 1 auth headers\n\n## About This Skill\n\nThis skill provides access to Ncsl's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Ncsl data without official API access\n- Automate actions on www.ncsl.org (faster than browser automation)\n- Call the same endpoints the Ncsl frontend uses\n\n## Quick Start\n\n```typescript\nimport { NcslClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await NcslClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (csrf-token)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (13)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/v1/snippets/websites/a60a9f9a-9ee8-45c4-be05-711b64908d57/cookies`\n- `GET /attribution_trigger`\n- `GET /getconfig/sodar`\n- `GET /resource-blocker/i18n/en.json`\n- `POST /api/v1/snippets/websites/a60a9f9a-9ee8-45c4-be05-711b64908d57/statistics`\n- `POST /v1/websites/a60a9f9a-9ee8-45c4-be05-711b64908d57/cookie-consent`\n- `POST /wa/`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/v1/snippets/websites/a60a9f9a-9ee8-45c4-be05-711b64908d57/cookies`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /attribution_trigger`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /getconfig/sodar`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /resource-blocker/i18n/en.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /api/v1/snippets/websites/a60a9f9a-9ee8-45c4-be05-711b64908d57/statistics`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v1/websites/a60a9f9a-9ee8-45c4-be05-711b64908d57/cookie-consent`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /wa/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

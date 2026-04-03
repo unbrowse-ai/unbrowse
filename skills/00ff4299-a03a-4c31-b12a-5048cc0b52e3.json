@@ -1,0 +1,49 @@
+{
+  "skill_id": "00ff4299-a03a-4c31-b12a-5048cc0b52e3",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T18:26:12.490Z",
+  "updated_at": "2026-02-20T16:30:58.288Z",
+  "name": "finance-yahoo",
+  "intent_signature": "Query market data and financial insights via YQL on Yahoo Finance while managing platform-specific configuration settings. Retrieve and process high-quality media assets and visual content associated with financial reports and dashboard services.",
+  "domain": "finance.yahoo.com",
+  "description": "Query market data and financial insights via YQL on Yahoo Finance while managing platform-specific configuration settings. Retrieve and process high-quality media assets and visual content associated with financial reports and dashboard services.",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (fes-ds-session)",
+  "service_name": "finance-yahoo",
+  "endpoints": [
+    {
+      "endpoint_id": "3beab1a0-9022-4b05-b1b0-64e2def21f68",
+      "method": "POST",
+      "url_template": "https://finance.yahoo.com/__endpoint/3beab1a0-9022-4b05-b1b0-64e2def21f68",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createFinanceVisualization",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "JB65h5qUp7jPyxmCc4rHVLXde9QkugtnPrCT9CXTBTM6",
+    "download_count": 0,
+    "total_versions": 4,
+    "latest_version_hash": "e876586efd9d04673a24abd19df82bdfb09fd2a60e4b738a656ae41da19ca31d"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: finance-yahoo\ndescription: Internal API for finance-yahoo\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://finance.yahoo.com\"\n  authMethod: \"Cookie-based (fes-ds-session)\"\n  endpointCount: 19\n  apiType: \"internal\"\n  category: \"finance\"\n---\n\n# FinanceYahoo API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCookie-based (fes-ds-session) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n- `GET /uc/finance/cosaic/temporaryAssets/{temporaryAssetToken}` — Get temporary asset data.\n- `GET /v1/test/getcrumb` — Get a crumb for authentication.\n\n### Data Read (9)\n- `GET /api/v1/dsync/yahoo` — Get data from Yahoo's DSync service.\n- `GET /ups/{upId}/sync` — Synchronize user profile data.\n- `GET /v1/consentRecord` — Get user consent record.\n- `GET /v1/finance/quoteType/` — Get quote type information.\n- `GET /v1/finance/screener/predefined/saved` — Get saved screener definitions.\n- `GET /v7/finance/quote` — Get stock quote data.\n- `GET /v8/finance/chart/GME` — Get chart data for a specific symbol (e.g., GME).\n- `GET /xhr/i18n` — Get internationalization (i18n) data.\n- `POST /v2/public/yql` — Query data using YQL.\n\n### Data Write (2)\n- `POST /{id}` — Create or update data for a specific ID.\n- `POST /v1/finance/visualization` — Create or update a finance visualization.\n\n### Realtime (2)\n- `GET /ws/fundamentals-timeseries/v1/finance/timeseries/GME` — Get fundamentals timeseries data for a symbol (e.g., GME).\n- `GET /ws/screeners/v1/finance/calendar-events` — Get calendar events related to finance.\n\n### Config (1)\n- `GET /eh/prebid-config/{prebid-configId}` — Get prebid configuration.\n\n### Core API (3)\n- `POST /admax/bid/partners/YPBJS` — Submit a bid to AdMax.\n- `POST /nimbus_ms/remote` — Execute a remote Nimbus microservice call.\n- `POST /openrtb2/auction` — Participate in an OpenRTB auction.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"finance-yahoo\", executionMode: \"backend\", endpoint: \"GET /api/v1/dsync/yahoo\" }\n```\n\nHere are a few quick start examples to get you going with the finance-yahoo API:\n\n```typescript\n// Get stock quote data for a specific symbol (e.g., AAPL)\nasync function getStockQuote(symbol: string) {\n  try {\n    const quoteData = await client.getV7FinanceQuote({ symbols: symbol });\n    console.log(`Quote data for ${symbol}:`, quoteData);\n    return quoteData;\n  } catch (error) {\n    console.error(\"Error fetching quote data:\", error);\n    return null;\n  }\n}\n\ngetStockQuote(\"AAPL\");\n```\n\n```typescript\n// Query data using YQL to get historical stock prices\nasync function getHistoricalData(symbol: string, startDate: string, endDate: string) {\n  const yqlQuery = `select * from yahoo.finance.historicaldata where symbol = \"${symbol}\" and startDate = \"${startDate}\" and endDate = \"${endDate}\"`;\n  try {\n    const historicalData = await client.postV2PublicYql({ q: yqlQuery, format: 'json', env: 'store://datatables.org/alltableswithkeys' });\n    console.log(`Historical data for ${symbol}:`, historicalData);\n    return historicalData;\n  } catch (error) {\n    console.error(\"Error fetching historical data:\", error);\n    return null;\n  }\n}\n\ngetHistoricalData(\"MSFT\", \"2023-01-01\", \"2023-01-31\");\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Cookie-based (fes-ds-session)\n**Base URL:** `https://finance.yahoo.com`\n**Captured Auth:** 1 auth headers, 20 session cookies\n\n## About This Skill\n\nThis skill provides access to Finance Yahoo's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Finance Yahoo data without official API access\n- Automate actions on finance.yahoo.com (faster than browser automation)\n- Call the same endpoints the Finance Yahoo frontend uses\n\n## Quick Start\n\n```typescript\nimport { FinanceYahooClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await FinanceYahooClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 20\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (28)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

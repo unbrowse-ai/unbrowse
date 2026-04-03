@@ -1,0 +1,5381 @@
+{
+  "skill_id": "CzB7ihwi_qhjqjx-gawbR",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:49:12.431Z",
+  "updated_at": "2026-02-23T07:49:12.431Z",
+  "name": "bensbites.beehiiv.com -- Interact with Ben's Bites on Bee",
+  "intent_signature": "Interact with Ben's Bites on Bee",
+  "domain": "bensbites.beehiiv.com",
+  "description": "Auto-discovered skill for: Interact with Ben's Bites on Bee",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "-mvoCO2ztBCyuyU7rv1me",
+      "method": "GET",
+      "url_template": "https://cf.birdie.so/api/v1/wsauth/q2je1lwj",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bensbites.beehiiv.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "tech": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "domain": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "r1": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "h": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "be": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "ce": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "secs": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "silence": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "retry_after": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "tech",
+          "domain",
+          "r1",
+          "h",
+          "be",
+          "ce",
+          "secs",
+          "silence",
+          "retry_after"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "Y6qZrR2nCyylo7ZpMdmjR",
+      "method": "POST",
+      "url_template": "https://collector-pxebumdlwe.px-cloud.net/api/v2/collector",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bensbites.beehiiv.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/x-www-form-urlencoded",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "do": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "ob": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "do",
+          "ob"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "SM4HfTzfZXUcdrhL0UcB7",
+      "method": "GET",
+      "url_template": "https://bensbites.beehiiv.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "A2jqSO9N3JuMVdlC38kjA",
+      "method": "GET",
+      "url_template": "https://bensbites.beehiiv.com/locales/en/common.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bensbites.beehiiv.com/",
+        "x-correlation-id": "f9c3e945-500a-4570-9810-125d3466dbf3",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "baggage": "sentry-environment=production,sentry-release=083518bafc33b2d3c02f9b7deeb69eb8f038b21c,sentry-public_key=0409abfa150e5836265cfca81ae7722c,sentry-trace_id=ae8f17008d9043a1ad8d7305748d8717,sentry-org_id=922922,sentry-sampled=false,sentry-sample_rand=0.6808564681976395,sentry-sample_rate=0",
+        "sentry-trace": "ae8f17008d9043a1ad8d7305748d8717-ac1f45d96a48f301-0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "admin": {
+            "type": "object",
+            "properties": {
+              "modal": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "modal"
+            ],
+            "inferred_from_samples": 1
+          },
+          "comments": {
+            "type": "object",
+            "properties": {
+              "header": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "count": {
+                "type": "object",
+                "properties": {
+                  "singular": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "plural": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "singular",
+                  "plural"
+                ],
+                "inferred_from_samples": 1
+              },
+              "upgrade": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cta": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "cta"
+                ],
+                "inferred_from_samples": 1
+              },
+              "like": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "loading": {
+                "type": "object",
+                "properties": {
+                  "loading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "load_more": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "loading",
+                  "load_more"
+                ],
+                "inferred_from_samples": 1
+              },
+              "reporting": {
+                "type": "object",
+                "properties": {
+                  "report": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "reporting": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "reported": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "report_action_placeholder": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "file_report": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "filing_report_for": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "report",
+                  "reporting",
+                  "reported",
+                  "report_action_placeholder",
+                  "file_report",
+                  "filing_report_for"
+                ],
+                "inferred_from_samples": 1
+              },
+              "deleting": {
+                "type": "object",
+                "properties": {
+                  "delete": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "deleting": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "deleted": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "deleting_comment": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "delete_comment": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "comment_deleted": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "delete",
+                  "deleting",
+                  "deleted",
+                  "deleting_comment",
+                  "delete_comment",
+                  "comment_deleted"
+                ],
+                "inferred_from_samples": 1
+              },
+              "removing": {
+                "type": "object",
+                "properties": {
+                  "remove": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "removing": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "removed": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "removing_comment": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "remove_comment": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "comment_removed": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "remove",
+                  "removing",
+                  "removed",
+                  "removing_comment",
+                  "remove_comment",
+                  "comment_removed"
+                ],
+                "inferred_from_samples": 1
+              },
+              "commenting": {
+                "type": "object",
+                "properties": {
+                  "profile_title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "profile_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "post": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "posting": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "comment_action_placeholder": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "characters_remaining": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "characters_error": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "see_responses": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "hide_responses": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "profile_title",
+                  "profile_description",
+                  "post",
+                  "posting",
+                  "comment_action_placeholder",
+                  "characters_remaining",
+                  "characters_error",
+                  "see_responses",
+                  "hide_responses"
+                ],
+                "inferred_from_samples": 1
+              },
+              "replying": {
+                "type": "object",
+                "properties": {
+                  "reply": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "replying": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "replying_to": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel_reply": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "reply",
+                  "replying",
+                  "replying_to",
+                  "cancel_reply"
+                ],
+                "inferred_from_samples": 1
+              },
+              "editing": {
+                "type": "object",
+                "properties": {
+                  "edit": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "save": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "saving": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "edited": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "edit_comment_success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "edit_comment_error": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "edit",
+                  "save",
+                  "saving",
+                  "edited",
+                  "edit_comment_success",
+                  "edit_comment_error"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "header",
+              "count",
+              "upgrade",
+              "like",
+              "loading",
+              "reporting",
+              "deleting",
+              "removing",
+              "commenting",
+              "replying",
+              "editing"
+            ],
+            "inferred_from_samples": 1
+          },
+          "author": {
+            "type": "object",
+            "properties": {
+              "byline": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "author": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "authors": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "byline",
+              "author",
+              "authors",
+              "description"
+            ],
+            "inferred_from_samples": 1
+          },
+          "clipboard": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "failure": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "warning": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "success",
+              "failure",
+              "warning"
+            ],
+            "inferred_from_samples": 1
+          },
+          "stripe_checkout": {
+            "type": "object",
+            "properties": {
+              "free_reader": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "upgrade_to": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pay": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "acknowledgement": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "free_reader",
+              "upgrade_to",
+              "pay",
+              "acknowledgement"
+            ],
+            "inferred_from_samples": 1
+          },
+          "errors": {
+            "type": "object",
+            "properties": {
+              "400": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "description",
+                  "title"
+                ],
+                "inferred_from_samples": 1
+              },
+              "404": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "code",
+                  "description",
+                  "title"
+                ],
+                "inferred_from_samples": 1
+              },
+              "500": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "description",
+                  "title"
+                ],
+                "inferred_from_samples": 1
+              },
+              "530": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "inferred_from_samples": 1
+              },
+              "website_suspended": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description"
+                ],
+                "inferred_from_samples": 1
+              },
+              "back": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "default": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "link": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fallback": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "description",
+                  "title"
+                ],
+                "inferred_from_samples": 1
+              },
+              "refresh": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "description",
+                  "title",
+                  "label"
+                ],
+                "inferred_from_samples": 1
+              },
+              "oops": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "referrals": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "try_again": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "try_later": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "email_required": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "email_invalid": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "400",
+              "404",
+              "500",
+              "530",
+              "website_suspended",
+              "back",
+              "default",
+              "link",
+              "fallback",
+              "refresh",
+              "oops",
+              "referrals",
+              "try_again",
+              "try_later",
+              "email_required",
+              "email_invalid"
+            ],
+            "inferred_from_samples": 1
+          },
+          "feedback": {
+            "type": "object",
+            "properties": {
+              "additional": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "placeholder": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "additional",
+              "placeholder"
+            ],
+            "inferred_from_samples": 1
+          },
+          "footer": {
+            "type": "object",
+            "properties": {
+              "article": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "copyright_simple": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "newsletter": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "privacy_policy": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "report_abuse": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "terms_of_use": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "article",
+              "copyright_simple",
+              "newsletter",
+              "privacy_policy",
+              "report_abuse",
+              "terms_of_use"
+            ],
+            "inferred_from_samples": 1
+          },
+          "forms": {
+            "type": "object",
+            "properties": {
+              "helper": {
+                "type": "object",
+                "properties": {
+                  "p1_part1": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "p1_part2": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "p2_part1": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "p2_part2": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "p2_part3": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "p2_part4": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "p2_part5": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "p3_part1": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "p1_part1",
+                  "p1_part2",
+                  "p2_part1",
+                  "p2_part2",
+                  "p2_part3",
+                  "p2_part4",
+                  "p2_part5",
+                  "p3_part1"
+                ],
+                "inferred_from_samples": 1
+              },
+              "labels": {
+                "type": "object",
+                "properties": {
+                  "true": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "false": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "true",
+                  "false"
+                ],
+                "inferred_from_samples": 1
+              },
+              "placeholders": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "datetime": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "default": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "integer": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "string": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "date",
+                  "datetime",
+                  "default",
+                  "integer",
+                  "string"
+                ],
+                "inferred_from_samples": 1
+              },
+              "preview_banner": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "subscribers_only": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "subscribers_only_description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "toast": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "no_subscription": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "success",
+                  "no_subscription"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "helper",
+              "labels",
+              "placeholders",
+              "preview_banner",
+              "subscribers_only",
+              "subscribers_only_description",
+              "toast"
+            ],
+            "inferred_from_samples": 1
+          },
+          "gated": {
+            "type": "object",
+            "properties": {
+              "cta_p1": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cta_p2": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "login_or_subscribe": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "features": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "premium_content": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "private_newsletter": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "message"
+                ],
+                "inferred_from_samples": 1
+              },
+              "require_approval": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "message"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cta_p1",
+              "cta_p2",
+              "login_or_subscribe",
+              "features",
+              "premium_content",
+              "private_newsletter",
+              "require_approval"
+            ],
+            "inferred_from_samples": 1
+          },
+          "login": {
+            "type": "object",
+            "properties": {
+              "already_a_subscriber": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "not_now": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "sign_up_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "success": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "admin": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message",
+                  "title",
+                  "admin"
+                ],
+                "inferred_from_samples": 1
+              },
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "to_continue": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "send_magic_link": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "magic_link_sending": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "email_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "password_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "confirm_password_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "login_button_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "send_magic_link_button_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "forgot_password": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "reset_password": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "first_time_message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "create_password": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "divider_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "password_placeholder": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "email_placeholder": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "login_with_email_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "login_with_password_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "set_new_password": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "otp_email_message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "otp_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "send_otp_button_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submit_otp_button_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "login_with_otp_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "resend_otp_button_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "already_a_subscriber",
+              "not_now",
+              "sign_up_label",
+              "success",
+              "title",
+              "to_continue",
+              "send_magic_link",
+              "magic_link_sending",
+              "email_label",
+              "password_label",
+              "confirm_password_label",
+              "login_button_label",
+              "send_magic_link_button_label",
+              "forgot_password",
+              "reset_password",
+              "first_time_message",
+              "create_password",
+              "divider_label",
+              "password_placeholder",
+              "email_placeholder",
+              "login_with_email_label",
+              "login_with_password_label",
+              "set_new_password",
+              "otp_email_message",
+              "otp_label",
+              "send_otp_button_label",
+              "submit_otp_button_label",
+              "login_with_otp_label",
+              "resend_otp_button_label"
+            ],
+            "inferred_from_samples": 1
+          },
+          "authenticate": {
+            "type": "object",
+            "properties": {
+              "otp_input_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "not_receiving_hint": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "resend_button": {
+                "type": "object",
+                "properties": {
+                  "default": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "resending": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "resent": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "default",
+                  "resending",
+                  "resent"
+                ],
+                "inferred_from_samples": 1
+              },
+              "toast": {
+                "type": "object",
+                "properties": {
+                  "check_email": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "failed": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "missing_data": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "session_expired": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "error_sending_otp": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "check_email",
+                  "failed",
+                  "missing_data",
+                  "session_expired",
+                  "error_sending_otp"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "otp_input_label",
+              "not_receiving_hint",
+              "resend_button",
+              "toast"
+            ],
+            "inferred_from_samples": 1
+          },
+          "create_password": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submit_button_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "title",
+              "submit_button_label"
+            ],
+            "inferred_from_samples": 1
+          },
+          "reset_password": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submit_button_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "title",
+              "submit_button_label"
+            ],
+            "inferred_from_samples": 1
+          },
+          "update_password": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submit_button_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "password_helper_text": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "title",
+              "submit_button_label",
+              "password_helper_text"
+            ],
+            "inferred_from_samples": 1
+          },
+          "manage": {
+            "type": "object",
+            "properties": {
+              "orders": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "order": {
+                    "type": "object",
+                    "properties": {
+                      "number": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "creation_date": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "total_amount": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "discount": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "view_receipt_cta": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "cta": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "link": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "coaching_session": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "webinar": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "accessing": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "cancelled": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "redirecting": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "create_product_review": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "edit_product_review": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "add_to_calendar": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "link",
+                          "coaching_session",
+                          "webinar",
+                          "accessing",
+                          "cancelled",
+                          "redirecting",
+                          "create_product_review",
+                          "edit_product_review",
+                          "add_to_calendar"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "booking": {
+                        "type": "object",
+                        "properties": {
+                          "success_message": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "rescheduled_message": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "rescheduled_error": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "meeting_details": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "video_call_link": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "success_message",
+                          "rescheduled_message",
+                          "rescheduled_error",
+                          "meeting_details",
+                          "video_call_link"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "webinar": {
+                        "type": "object",
+                        "properties": {
+                          "event_details": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "event_details"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "review": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "title"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "number",
+                      "creation_date",
+                      "total_amount",
+                      "discount",
+                      "view_receipt_cta",
+                      "cta",
+                      "booking",
+                      "webinar",
+                      "review"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "delivered_on": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "view_receipt_error": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "authorize_cta": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "order",
+                  "delivered_on",
+                  "view_receipt_error",
+                  "authorize_cta"
+                ],
+                "inferred_from_samples": 1
+              },
+              "account_profile": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "form": {
+                    "type": "object",
+                    "properties": {
+                      "email_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "email_change_pending_badge_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "name_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "email_label",
+                      "email_change_pending_badge_label",
+                      "name_label"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "dropdown_options": {
+                    "type": "object",
+                    "properties": {
+                      "edit_profile_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "connections_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "reset_password_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "logout": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "edit_profile_label",
+                      "connections_label",
+                      "reset_password_label",
+                      "logout"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "social_connections": {
+                    "type": "object",
+                    "properties": {
+                      "connected_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "connect_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "disconnect_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "join_discord_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "connect_provider_description": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "connected_label",
+                      "connect_label",
+                      "disconnect_label",
+                      "join_discord_label",
+                      "connect_provider_description"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "paused_badge": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "label"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "trialing_badge": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "label"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "form",
+                  "dropdown_options",
+                  "social_connections",
+                  "paused_badge",
+                  "trialing_badge"
+                ],
+                "inferred_from_samples": 1
+              },
+              "subscription_info": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "status": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "status"
+                ],
+                "inferred_from_samples": 1
+              },
+              "password": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "set_title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "set_subtitle": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "form": {
+                    "type": "object",
+                    "properties": {
+                      "password_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "confirm_password_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "password_placeholder": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "confirm_password_placeholder": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "requirements_text": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "toast": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "error": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "success",
+                          "error"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "password_label",
+                      "confirm_password_label",
+                      "password_placeholder",
+                      "confirm_password_placeholder",
+                      "requirements_text",
+                      "toast"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "set_title",
+                  "set_subtitle",
+                  "form"
+                ],
+                "inferred_from_samples": 1
+              },
+              "one_time_payment_info": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "status": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "status"
+                ],
+                "inferred_from_samples": 1
+              },
+              "personal_details_form": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "first_name": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "last_name": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "submitting": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "edit_email": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "edit_email_header": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "save_email": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "request_submitted": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "success": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error_invalid_email": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error_email_exists": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "success",
+                      "error",
+                      "error_invalid_email",
+                      "error_email_exists"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "email",
+                  "first_name",
+                  "last_name",
+                  "submitting",
+                  "edit_email",
+                  "edit_email_header",
+                  "save_email",
+                  "cancel",
+                  "request_submitted",
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              },
+              "preferences": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "show": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "hide": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribed": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "show",
+                  "hide",
+                  "subscribed"
+                ],
+                "inferred_from_samples": 1
+              },
+              "downgrade": {
+                "type": "object",
+                "properties": {
+                  "loading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "downgrade_prorated_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "downgrade_immediately_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_free_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_premium_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_login_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_is_private": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_requires_approval": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "pending_downgrade_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "downgraded": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "resubscribed": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "unsubscribed": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "error",
+                      "downgraded",
+                      "resubscribed",
+                      "unsubscribed"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "loading",
+                  "title",
+                  "downgrade_prorated_description",
+                  "downgrade_immediately_description",
+                  "unsubscribe_free_description",
+                  "unsubscribe_premium_description",
+                  "unsubscribe_login_description",
+                  "unsubscribe_is_private",
+                  "unsubscribe_requires_approval",
+                  "pending_downgrade_description",
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              },
+              "report_abuse": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "submit": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "message",
+                  "submit"
+                ],
+                "inferred_from_samples": 1
+              },
+              "update_profile_modal": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "form": {
+                    "type": "object",
+                    "properties": {
+                      "avatar_alt": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "avatar_helper_text": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "email_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "email_change_helper_text": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "first_name_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "last_name_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "email_placeholder": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "first_name_placeholder": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "last_name_placeholder": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "avatar_alt",
+                      "avatar_helper_text",
+                      "email_label",
+                      "email_change_helper_text",
+                      "first_name_label",
+                      "last_name_label",
+                      "email_placeholder",
+                      "first_name_placeholder",
+                      "last_name_placeholder"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "cancel": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "save": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "resend_email": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "success": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error_invalid_name": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error_invalid_email": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error_email_exists": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "success",
+                      "error",
+                      "error_invalid_name",
+                      "error_invalid_email",
+                      "error_email_exists"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "form",
+                  "cancel",
+                  "save",
+                  "resend_email",
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              },
+              "read_only": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "button_label"
+                ],
+                "inferred_from_samples": 1
+              },
+              "unpause": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "message"
+                ],
+                "inferred_from_samples": 1
+              },
+              "unpause_tier": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "inferred_from_samples": 1
+              },
+              "review_order": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "submit": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "form": {
+                    "type": "object",
+                    "properties": {
+                      "name_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "name_placeholder": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "review_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "review_placeholder": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "score_label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "name_label",
+                      "name_placeholder",
+                      "review_label",
+                      "review_placeholder",
+                      "score_label"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "cancel",
+                  "submit",
+                  "form"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "orders",
+              "account_profile",
+              "subscription_info",
+              "password",
+              "one_time_payment_info",
+              "personal_details_form",
+              "preferences",
+              "downgrade",
+              "report_abuse",
+              "update_profile_modal",
+              "read_only",
+              "unpause",
+              "unpause_tier",
+              "review_order"
+            ],
+            "inferred_from_samples": 1
+          },
+          "connected_accounts_modal": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "success_toast": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "disconnect": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "error": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unknown_error": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "success",
+                  "error",
+                  "unknown_error"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "title",
+              "message",
+              "success_toast",
+              "disconnect"
+            ],
+            "inferred_from_samples": 1
+          },
+          "retention_modal": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "unsubscribe": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message",
+                  "button_label"
+                ],
+                "inferred_from_samples": 1
+              },
+              "unsubscribe_while_gift": {
+                "type": "object",
+                "properties": {
+                  "button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "button_label"
+                ],
+                "inferred_from_samples": 1
+              },
+              "unsubscribe_while_downgrading": {
+                "type": "object",
+                "properties": {
+                  "button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "button_label"
+                ],
+                "inferred_from_samples": 1
+              },
+              "downgrade": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message",
+                  "button_label"
+                ],
+                "inferred_from_samples": 1
+              },
+              "pause_plan": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "benefits": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "benefits_while_downgrading": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "button_label",
+                  "benefits",
+                  "benefits_while_downgrading"
+                ],
+                "inferred_from_samples": 1
+              },
+              "downgrade_offer": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "benefits": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "button_label",
+                  "benefits"
+                ],
+                "inferred_from_samples": 1
+              },
+              "switch_to_free": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "benefits": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 3
+                    },
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "message",
+                  "button_label",
+                  "benefits"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "title",
+              "unsubscribe",
+              "unsubscribe_while_gift",
+              "unsubscribe_while_downgrading",
+              "downgrade",
+              "pause_plan",
+              "downgrade_offer",
+              "switch_to_free"
+            ],
+            "inferred_from_samples": 1
+          },
+          "account_actions": {
+            "type": "object",
+            "properties": {
+              "downgrade": {
+                "type": "object",
+                "properties": {
+                  "loading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "downgrade_prorated_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "downgrade_immediately_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_free_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_premium_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_login_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_is_private": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_requires_approval": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "pending_downgrade_description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "downgraded": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "cancelled": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "resubscribed": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "unsubscribed": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "error",
+                      "downgraded",
+                      "cancelled",
+                      "resubscribed",
+                      "unsubscribed"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "loading",
+                  "title",
+                  "downgrade_prorated_description",
+                  "downgrade_immediately_description",
+                  "unsubscribe_free_description",
+                  "unsubscribe_premium_description",
+                  "unsubscribe_login_description",
+                  "unsubscribe_is_private",
+                  "unsubscribe_requires_approval",
+                  "pending_downgrade_description",
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              },
+              "resubscribe": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "description"
+                ],
+                "inferred_from_samples": 1
+              },
+              "report_abuse": {
+                "type": "object",
+                "properties": {
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "success": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "error",
+                      "success"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "downgrade",
+              "resubscribe",
+              "report_abuse"
+            ],
+            "inferred_from_samples": 1
+          },
+          "billing": {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "last_heading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "last_payment_heading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "last_timestamp_prefix": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "next_heading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "next_timestamp_prefix": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "lifetime_timestamp_prefix": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "n_a": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "intervals": {
+                    "type": "object",
+                    "properties": {
+                      "month": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "quarter": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "year": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "one_time": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "month",
+                      "quarter",
+                      "year",
+                      "one_time"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "empty_state": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "last_heading",
+                  "last_payment_heading",
+                  "last_timestamp_prefix",
+                  "next_heading",
+                  "next_timestamp_prefix",
+                  "lifetime_timestamp_prefix",
+                  "n_a",
+                  "intervals",
+                  "empty_state"
+                ],
+                "inferred_from_samples": 1
+              },
+              "current_plan": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "pause_tooltip_prefix": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel_tooltip_prefix": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel_tooltip": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unpause_tooltip": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel_badge_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "gift_badge_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel_in_progress_tooltip": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "change_plan_tooltip": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "change_plan_in_progress_tooltip": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "pause_tooltip_prefix",
+                  "cancel_tooltip_prefix",
+                  "cancel_tooltip",
+                  "unpause_tooltip",
+                  "cancel_badge_label",
+                  "gift_badge_label",
+                  "cancel_in_progress_tooltip",
+                  "change_plan_tooltip",
+                  "change_plan_in_progress_tooltip"
+                ],
+                "inferred_from_samples": 1
+              },
+              "free_plan": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "upgrade": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "upgrade_plan": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "upgrade",
+                  "upgrade_plan"
+                ],
+                "inferred_from_samples": 1
+              },
+              "plan": {
+                "type": "object",
+                "properties": {
+                  "change_plan": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unpause_plan": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "change_plan",
+                  "unpause_plan"
+                ],
+                "inferred_from_samples": 1
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "info_heading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "payment_method_heading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "no_card": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "update_button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "show_address_button_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "creating_premium_session": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "create_premium_session_error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "creating_premium_session",
+                      "create_premium_session_error"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "info_heading",
+                  "payment_method_heading",
+                  "no_card",
+                  "update_button_label",
+                  "show_address_button_label",
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              },
+              "plans_modal": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "current_plan_button": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "switch_to_plan_button": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "select_plan_button": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "submitting": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "billing_intervals": {
+                    "type": "object",
+                    "properties": {
+                      "month": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "quarter": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "year": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "one_time": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "month",
+                      "quarter",
+                      "year",
+                      "one_time"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "intervals": {
+                    "type": "object",
+                    "properties": {
+                      "month": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "quarter": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "year": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "one_time": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "month",
+                      "quarter",
+                      "year",
+                      "one_time"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "success": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "success",
+                      "error"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "current_plan_button",
+                  "switch_to_plan_button",
+                  "select_plan_button",
+                  "submitting",
+                  "billing_intervals",
+                  "intervals",
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "summary",
+              "current_plan",
+              "free_plan",
+              "plan",
+              "details",
+              "plans_modal"
+            ],
+            "inferred_from_samples": 1
+          },
+          "preferences": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "empty_state": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "toast": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "error": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "success",
+                  "error"
+                ],
+                "inferred_from_samples": 1
+              },
+              "organization_subscriptions": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "empty_state": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "success": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "success",
+                      "error"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "empty_state",
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "title",
+              "description",
+              "empty_state",
+              "toast",
+              "organization_subscriptions"
+            ],
+            "inferred_from_samples": 1
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "titles": {
+                "type": "object",
+                "properties": {
+                  "login": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "create_password": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "reset_password": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "update_password": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "manage": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "billing": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "preferences": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "posts": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "upgrade": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "referrals": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "recommendations": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribe": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "forms": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "tos": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "login",
+                  "create_password",
+                  "reset_password",
+                  "update_password",
+                  "manage",
+                  "billing",
+                  "preferences",
+                  "posts",
+                  "upgrade",
+                  "referrals",
+                  "recommendations",
+                  "subscribe",
+                  "forms",
+                  "tos"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "titles"
+            ],
+            "inferred_from_samples": 1
+          },
+          "nav": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mobile_title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mobile_sections": {
+                "type": "object",
+                "properties": {
+                  "general": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "account": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "general",
+                  "account"
+                ],
+                "inferred_from_samples": 1
+              },
+              "links": {
+                "type": "object",
+                "properties": {
+                  "home": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "manage": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "referrals": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "upgrade": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "home",
+                  "manage",
+                  "referrals",
+                  "upgrade"
+                ],
+                "inferred_from_samples": 1
+              },
+              "push": {
+                "type": "object",
+                "properties": {
+                  "enable": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "success": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "error": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "success",
+                      "error"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "disable": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "success": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "success"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "enable",
+                  "disable"
+                ],
+                "inferred_from_samples": 1
+              },
+              "install": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "not_logged_in": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "label",
+                  "success",
+                  "not_logged_in"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "description",
+              "mobile_title",
+              "mobile_sections",
+              "links",
+              "push",
+              "install"
+            ],
+            "inferred_from_samples": 1
+          },
+          "notifications": {
+            "type": "object",
+            "properties": {
+              "subscribe": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "error": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "require_approval": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribed": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "confirm",
+                  "error",
+                  "require_approval",
+                  "subscribed",
+                  "success"
+                ],
+                "inferred_from_samples": 1
+              },
+              "logout": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "success"
+                ],
+                "inferred_from_samples": 1
+              },
+              "optin": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "message": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "message"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "already_subscribed": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "message": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "message"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "error": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "success",
+                  "already_subscribed",
+                  "error"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "subscribe",
+              "logout",
+              "optin"
+            ],
+            "inferred_from_samples": 1
+          },
+          "polls": {
+            "type": "object",
+            "properties": {
+              "response": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "trivia": {
+                    "type": "object",
+                    "properties": {
+                      "correct": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "incorrect": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "correct",
+                      "incorrect"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "success",
+                  "trivia"
+                ],
+                "inferred_from_samples": 1
+              },
+              "extended_feedback": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "success"
+                ],
+                "inferred_from_samples": 1
+              },
+              "errors": {
+                "type": "object",
+                "properties": {
+                  "not_found": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "invalid_data": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "failed_to_load": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "not_found",
+                  "invalid_data",
+                  "failed_to_load"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "response",
+              "extended_feedback",
+              "errors"
+            ],
+            "inferred_from_samples": 1
+          },
+          "posts": {
+            "type": "object",
+            "properties": {
+              "keep_reading": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "featured": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "premium": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "keep_reading",
+              "featured",
+              "premium"
+            ],
+            "inferred_from_samples": 1
+          },
+          "products": {
+            "type": "object",
+            "properties": {
+              "instant_redemption_modal": {
+                "type": "object",
+                "properties": {
+                  "loading": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "error": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "failed_to_fetch_status": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "missing_redemption_token": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "failed_to_retrieve_order_status": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "missing_configuration": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "failed_to_fetch_status",
+                      "missing_redemption_token",
+                      "failed_to_retrieve_order_status",
+                      "missing_configuration"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "ready": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "description": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "download_file": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "access_link": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "redeem": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "add_to_calendar": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "description",
+                      "download_file",
+                      "access_link",
+                      "redeem",
+                      "add_to_calendar"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "close": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "toast": {
+                    "type": "object",
+                    "properties": {
+                      "missing_filename": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "missing_url": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "missing_filename",
+                      "missing_url"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "loading",
+                  "error",
+                  "ready",
+                  "close",
+                  "toast"
+                ],
+                "inferred_from_samples": 1
+              },
+              "purchase_success_title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "purchase_success_message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "archived_toast_message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "sold_out_toast_message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "free_label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cta": {
+                "type": "object",
+                "properties": {
+                  "sold_out": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "sold_out"
+                ],
+                "inferred_from_samples": 1
+              },
+              "webinar": {
+                "type": "object",
+                "properties": {
+                  "seats_left_one": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "seats_left_other": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "seats_left_one",
+                  "seats_left_other"
+                ],
+                "inferred_from_samples": 1
+              },
+              "free_product_guest_checkout": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "email_label": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "email_placeholder": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "submitting": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "submit": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "email_label",
+                  "email_placeholder",
+                  "submitting",
+                  "submit"
+                ],
+                "inferred_from_samples": 1
+              },
+              "free_product_logged_in_checkout": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "instant_redemption_modal",
+              "purchase_success_title",
+              "purchase_success_message",
+              "archived_toast_message",
+              "sold_out_toast_message",
+              "free_label",
+              "cta",
+              "webinar",
+              "free_product_guest_checkout",
+              "free_product_logged_in_checkout"
+            ],
+            "inferred_from_samples": 1
+          },
+          "product_reviews": {
+            "type": "object",
+            "properties": {
+              "review": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "reviews": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "load_more": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "loading": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "review",
+              "reviews",
+              "title",
+              "load_more",
+              "loading"
+            ],
+            "inferred_from_samples": 1
+          },
+          "pwa": {
+            "type": "object",
+            "properties": {
+              "enable_push_notification_prompt": {
+                "type": "object",
+                "properties": {
+                  "enable_push_notifications_from_menu": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "show_notifications_latest_updates": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "maybe_later": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "enable": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "enable_push_notifications_from_menu",
+                  "show_notifications_latest_updates",
+                  "maybe_later",
+                  "enable"
+                ],
+                "inferred_from_samples": 1
+              },
+              "install_prompt": {
+                "type": "object",
+                "properties": {
+                  "install_success:": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "install_prompt": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "install_cta": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "install_sub_cta": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "tap_on": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "in_the_browser": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "scroll_down": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "add_to_home_screen": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "look_for": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "icon_on_home_screen": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "install_success:",
+                  "install_prompt",
+                  "install_cta",
+                  "install_sub_cta",
+                  "tap_on",
+                  "in_the_browser",
+                  "scroll_down",
+                  "add_to_home_screen",
+                  "look_for",
+                  "icon_on_home_screen"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enable_push_notification_prompt",
+              "install_prompt"
+            ],
+            "inferred_from_samples": 1
+          },
+          "recommendations": {
+            "type": "object",
+            "properties": {
+              "one_last_thing": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "opt_in_text": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "subscribe_to_one": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "subscribe_to_other": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "suggestion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "toast": {
+                "type": "object",
+                "properties": {
+                  "success_one": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "success_one_double_opt": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "success_other": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "success_other_double_opt": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "success_one",
+                  "success_one_double_opt",
+                  "success_other",
+                  "success_other_double_opt"
+                ],
+                "inferred_from_samples": 1
+              },
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "modal": {
+                "type": "object",
+                "properties": {
+                  "thank_you_title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "recommended_title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "thank_you_subtitle": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "recommended_subtitle": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "next": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "skip": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribe_to_all": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribe": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribed": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribing": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "sponsored": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "thank_you_title",
+                  "recommended_title",
+                  "thank_you_subtitle",
+                  "recommended_subtitle",
+                  "next",
+                  "skip",
+                  "subscribe_to_all",
+                  "subscribe",
+                  "subscribed",
+                  "subscribing",
+                  "sponsored"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "one_last_thing",
+              "opt_in_text",
+              "subscribe_to_one",
+              "subscribe_to_other",
+              "suggestion",
+              "toast",
+              "title",
+              "modal"
+            ],
+            "inferred_from_samples": 1
+          },
+          "referrals": {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "show_more_button": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "show_more_button"
+                ],
+                "inferred_from_samples": 1
+              },
+              "breakdown": {
+                "type": "object",
+                "properties": {
+                  "confirmed": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "no_confirmed": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "no_pending": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "pending": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "confirmed",
+                  "no_confirmed",
+                  "no_pending",
+                  "pending",
+                  "title"
+                ],
+                "inferred_from_samples": 1
+              },
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "reward": {
+                "type": "object",
+                "properties": {
+                  "disclaimer": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "progress": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "description": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "description"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "disclaimer",
+                  "progress"
+                ],
+                "inferred_from_samples": 1
+              },
+              "share": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "referred_count": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "link_title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "link_help_text": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "count",
+                  "referred_count",
+                  "link_title",
+                  "link_help_text",
+                  "description",
+                  "title"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "summary",
+              "breakdown",
+              "description",
+              "reward",
+              "share"
+            ],
+            "inferred_from_samples": 1
+          },
+          "search": {
+            "type": "object",
+            "properties": {
+              "posts": {
+                "type": "object",
+                "properties": {
+                  "clear_filters": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "no_results": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "placeholder": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "clear_filters",
+                  "no_results",
+                  "placeholder"
+                ],
+                "inferred_from_samples": 1
+              },
+              "pagination": {
+                "type": "object",
+                "properties": {
+                  "next": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "back": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "like": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "comment": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "share": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "first": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "last": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "next",
+                  "back",
+                  "like",
+                  "comment",
+                  "share",
+                  "first",
+                  "last"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "posts",
+              "pagination"
+            ],
+            "inferred_from_samples": 1
+          },
+          "publications": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "description"
+            ],
+            "inferred_from_samples": 1
+          },
+          "shared": {
+            "type": "object",
+            "properties": {
+              "actions": {
+                "type": "object",
+                "properties": {
+                  "downgrading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "loading": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "reporting": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "resubscribing": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "submitting": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribing": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "downgrading",
+                  "loading",
+                  "reporting",
+                  "resubscribing",
+                  "submitting",
+                  "unsubscribing"
+                ],
+                "inferred_from_samples": 1
+              },
+              "cta": {
+                "type": "object",
+                "properties": {
+                  "view_more": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "or": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "to_participate": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "back_to_home": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "connect": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "continue": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "copy": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "deselect_all": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cancel_paid_subscription": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "downgrade_subscription": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "get_access": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "reset_password": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "load_more": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "login": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "login_to_pub": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "login_to_continue": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "logout": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "manage_subscription": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "maybe_later": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "powered_by": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "powered_by_beehiiv": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "resubscribe": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "report_abuse": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "select_all": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "sign_in": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "sign_up": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "submit": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "gdpr_signup_consent": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "and": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribe": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "subscribe_to_pub": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unsubscribe_publication": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "search": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unpause": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "view_more",
+                  "or",
+                  "to_participate",
+                  "back_to_home",
+                  "cancel",
+                  "connect",
+                  "continue",
+                  "copy",
+                  "deselect_all",
+                  "cancel_paid_subscription",
+                  "downgrade_subscription",
+                  "get_access",
+                  "reset_password",
+                  "load_more",
+                  "login",
+                  "login_to_pub",
+                  "login_to_continue",
+                  "logout",
+                  "manage_subscription",
+                  "maybe_later",
+                  "powered_by",
+                  "powered_by_beehiiv",
+                  "resubscribe",
+                  "report_abuse",
+                  "select_all",
+                  "sign_in",
+                  "sign_up",
+                  "submit",
+                  "gdpr_signup_consent",
+                  "and",
+                  "subscribe",
+                  "subscribe_to_pub",
+                  "unsubscribe",
+                  "unsubscribe_publication",
+                  "search",
+                  "unpause"
+                ],
+                "inferred_from_samples": 1
+              },
+              "n_a": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "month": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "object",
+                    "properties": {
+                      "singular": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "plural": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "singular",
+                      "plural"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "count"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "actions",
+              "cta",
+              "n_a",
+              "month"
+            ],
+            "inferred_from_samples": 1
+          },
+          "stripe": {
+            "type": "object",
+            "properties": {
+              "annual": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "features": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "monthly": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "quarterly": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "premium_description": {
+                "type": "object",
+                "properties": {
+                  "cta": {
+                    "type": "object",
+                    "properties": {
+                      "free_prefix": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "premium_prefix": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "suffix": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "free_prefix",
+                      "premium_prefix",
+                      "suffix"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "cta"
+                ],
+                "inferred_from_samples": 1
+              },
+              "upgrade_warning": {
+                "type": "object",
+                "properties": {
+                  "banner": {
+                    "type": "object",
+                    "properties": {
+                      "login_reason": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "message": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "login_reason",
+                      "message"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "modal": {
+                    "type": "object",
+                    "properties": {
+                      "message": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "message",
+                      "title"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "banner",
+                  "modal"
+                ],
+                "inferred_from_samples": 1
+              },
+              "email_confirmation": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "placeholder": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "message",
+                  "placeholder"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "annual",
+              "features",
+              "monthly",
+              "quarterly",
+              "premium_description",
+              "upgrade_warning",
+              "email_confirmation"
+            ],
+            "inferred_from_samples": 1
+          },
+          "subscribe": {
+            "type": "object",
+            "properties": {
+              "email_placeholder": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "free_trial": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "read": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "modal_header": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "email_placeholder",
+              "free_trial",
+              "read",
+              "modal_header"
+            ],
+            "inferred_from_samples": 1
+          },
+          "toast": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "login_link": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "inferred_from_samples": 1
+              },
+              "create_password": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "inferred_from_samples": 1
+              },
+              "reset_password": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "success",
+              "login_link",
+              "create_password",
+              "reset_password"
+            ],
+            "inferred_from_samples": 1
+          },
+          "upgrade": {
+            "type": "object",
+            "properties": {
+              "tax_id_placeholder": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "keep_current_plan": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "donation": {
+                "type": "object",
+                "properties": {
+                  "name_your_price": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "name_your_price"
+                ],
+                "inferred_from_samples": 1
+              },
+              "free_trial": {
+                "type": "object",
+                "properties": {
+                  "after_trial": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "nothing_due_today": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "after_trial",
+                  "nothing_due_today"
+                ],
+                "inferred_from_samples": 1
+              },
+              "interval": {
+                "type": "object",
+                "properties": {
+                  "monthly": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "annually": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "one_time": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "monthly",
+                  "annually",
+                  "one_time"
+                ],
+                "inferred_from_samples": 1
+              },
+              "success": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message",
+                  "title"
+                ],
+                "inferred_from_samples": 1
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "select_price": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "message",
+                  "select_price"
+                ],
+                "inferred_from_samples": 1
+              },
+              "tabs": {
+                "type": "object",
+                "properties": {
+                  "gift": {
+                    "type": "object",
+                    "properties": {
+                      "cta": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "description": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "form": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "recipient_email": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "purchaser_name": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "purchaser_email": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "message": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "message_placeholder": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "start_at": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "recipient_email",
+                          "purchaser_name",
+                          "purchaser_email",
+                          "message",
+                          "message_placeholder",
+                          "start_at"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "interval": {
+                        "type": "object",
+                        "properties": {
+                          "one_month": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "one_year": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "lifetime": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "one_month",
+                          "one_year",
+                          "lifetime"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "success": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "message"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "cta",
+                      "description",
+                      "form",
+                      "interval",
+                      "success",
+                      "title"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "individual": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "gift",
+                  "individual"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "tax_id_placeholder",
+              "keep_current_plan",
+              "donation",
+              "free_trial",
+              "interval",
+              "success",
+              "error",
+              "tabs"
+            ],
+            "inferred_from_samples": 1
+          },
+          "settings_side_nav": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "object",
+                "properties": {
+                  "general_information": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "billing": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "preferences": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "logout": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "referrals": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "general_information",
+                  "billing",
+                  "preferences",
+                  "logout",
+                  "referrals"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "items"
+            ],
+            "inferred_from_samples": 1
+          },
+          "cookie_banner": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "read": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "for_more_info": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "customize_title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "customize_description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cookies": {
+                "type": "object",
+                "properties": {
+                  "necessary_cookies": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "marketing_cookies": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "data_processor_cookies": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "necessary_cookies",
+                  "marketing_cookies",
+                  "data_processor_cookies"
+                ],
+                "inferred_from_samples": 1
+              },
+              "actions": {
+                "type": "object",
+                "properties": {
+                  "accept": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "customize": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "decline": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "back": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "allow_selection": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "accept",
+                  "customize",
+                  "decline",
+                  "back",
+                  "allow_selection"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "title",
+              "read",
+              "for_more_info",
+              "customize_title",
+              "customize_description",
+              "cookies",
+              "actions"
+            ],
+            "inferred_from_samples": 1
+          },
+          "oauth": {
+            "type": "object",
+            "properties": {
+              "discord": {
+                "type": "object",
+                "properties": {
+                  "authorization": {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "message": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "message"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "error"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "callback": {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "message": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "message"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "error"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "invalidState": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "message": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "message"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "apiError": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "message": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "message"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "authorization",
+                  "callback",
+                  "invalidState",
+                  "apiError"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "discord"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "admin",
+          "comments",
+          "author",
+          "clipboard",
+          "stripe_checkout",
+          "errors",
+          "feedback",
+          "footer",
+          "forms",
+          "gated",
+          "login",
+          "authenticate",
+          "create_password",
+          "reset_password",
+          "update_password",
+          "manage",
+          "connected_accounts_modal",
+          "retention_modal",
+          "account_actions",
+          "billing",
+          "preferences",
+          "meta",
+          "nav",
+          "notifications",
+          "polls",
+          "posts",
+          "products",
+          "product_reviews",
+          "pwa",
+          "recommendations",
+          "referrals",
+          "search",
+          "publications",
+          "shared",
+          "stripe",
+          "subscribe",
+          "toast",
+          "upgrade",
+          "settings_side_nav",
+          "cookie_banner",
+          "oauth"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "Vc8OBp44GqjTyMesWOgHG",
+      "method": "GET",
+      "url_template": "https://app.birdie.so/widget/embed/q2je1lwj",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bensbites.beehiiv.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "Z6UdzMjX_NnbgYd_oAFjt",
+      "method": "GET",
+      "url_template": "https://tzm.px-cloud.net/ns",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bensbites.beehiiv.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "c": "222741e0-108c-11f1-baa7-e9f2818773cd"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "cJoQ_vS6634FZeJ0B9AgQ",
+      "method": "GET",
+      "url_template": "https://cf.birdie.so/widget/embed/q2je1lwj",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://bensbites.beehiiv.com/"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "sQC5NRY6AVwSRk6diM261",
+      "method": "GET",
+      "url_template": "https://cdn.birdie.so/widget/embed/manifest.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bensbites.beehiiv.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "main.css": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "main.js": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "birdielogger.js": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "birdie_logger.js": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "main.css",
+          "main.js",
+          "birdielogger.js",
+          "birdie_logger.js"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "ZgGp-VijKDUxfpfsSswBB",
+      "method": "GET",
+      "url_template": "https://cdn.birdie.so/widget/embed/manifest.sig",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bensbites.beehiiv.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "bensbites.beehiiv.com-session"
+}

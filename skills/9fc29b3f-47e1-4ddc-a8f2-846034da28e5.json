@@ -1,0 +1,140 @@
+{
+  "skill_id": "9fc29b3f-47e1-4ddc-a8f2-846034da28e5",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:12:34.904Z",
+  "updated_at": "2026-02-20T10:17:13.203Z",
+  "name": "securityscorecard",
+  "intent_signature": "user_data/...`: Fetch",
+  "domain": "securityscorecard.com",
+  "description": "user_data/...`: Fetch",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "securityscorecard",
+  "endpoints": [
+    {
+      "endpoint_id": "8bb40ac6-8721-467f-b429-2369c2f8d713",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/__endpoint/8bb40ac6-8721-467f-b429-2369c2f8d713",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getCookiePolicyCheck",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "e42adb88-cbe8-4a6b-9d78-14b2f21cd737",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/__endpoint/e42adb88-cbe8-4a6b-9d78-14b2f21cd737",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getVisitor",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "550fc49e-75ba-445e-93e1-10da71383881",
+      "method": "POST",
+      "url_template": "https://securityscorecard.com/__endpoint/550fc49e-75ba-445e-93e1-10da71383881",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createErrorLog",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "69857206-3007-46c6-a752-e2cb09f320a0",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/__endpoint/69857206-3007-46c6-a752-e2cb09f320a0",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getConsentconfigSettingsJsonById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "6c41eac5-d1a1-4b8c-a65c-e5f964ca8e53",
+      "method": "POST",
+      "url_template": "https://securityscorecard.com/__endpoint/6c41eac5-d1a1-4b8c-a65c-e5f964ca8e53",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createEvent",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "bef1790b-e50c-4fa5-b6c4-575cbaac147a",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/__endpoint/bef1790b-e50c-4fa5-b6c4-575cbaac147a",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getUserDataJsonById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "1cf9e677-7b6c-4143-a4a6-830f87336b0b",
+      "method": "POST",
+      "url_template": "https://securityscorecard.com/__endpoint/1cf9e677-7b6c-4143-a4a6-830f87336b0b",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createEndpoint",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "4ddc096c-f0da-4303-8b04-cbb22250d2c1",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/__endpoint/4ddc096c-f0da-4303-8b04-cbb22250d2c1",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getJson",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "8EWikfWwCSFoLck4mwSq1VkSYo2yrMG8fZyLFgNECQ15",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "8665f172a0c1d8ac9a008c4bad16c39f73c89d83795db254dfabb43843828a11"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: securityscorecard\ndescription: Internal API for securityscorecard\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://securityscorecard.com\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 6\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Securityscorecard API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (2)\n- `GET /{id}` — Retrieve data for a specific SecurityScorecard ID.\n- `GET /personalize/user_data/4f6ca7fced130fc0.json` — Get personalized user data.\n\n### Data Write (3)\n- `POST /api/event` — Report an event to SecurityScorecard.\n- `POST /errorLog` — Submit an error log.\n- `POST /v2/b` — Send data to the SecurityScorecard backend (v2).\n\n### Config (1)\n- `GET /consentconfig/{consentconfigId}/settings.json` — Retrieve consent configuration settings.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"securityscorecard\", executionMode: \"backend\", endpoint: \"GET /{id}\" }\n```\n\nHere are some quick examples to get you started using the `securityscorecard` API.\n\n```typescript\n// Retrieve data for a specific SecurityScorecard ID.\nasync function getScorecardData(id: string) {\n  try {\n    const data = await client.get_id({ id });\n    console.log(\"Scorecard Data:\", data);\n    return data;\n  } catch (error) {\n    console.error(\"Error fetching scorecard data:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Report an event to SecurityScorecard.\nasync function reportEvent(eventData: any) {\n  try {\n    const response = await client.post_api_event({ body: eventData });\n    console.log(\"Event reported successfully:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error reporting event:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://securityscorecard.com`\n**Captured Auth:** 3 auth headers\n\n## About This Skill\n\nThis skill provides access to Securityscorecard's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Securityscorecard data without official API access\n- Automate actions on securityscorecard.com (faster than browser automation)\n- Call the same endpoints the Securityscorecard frontend uses\n\n## Quick Start\n\n```typescript\nimport { SecurityscorecardClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await SecurityscorecardClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (authorization, x-goog-api-key, session-id)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (9)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

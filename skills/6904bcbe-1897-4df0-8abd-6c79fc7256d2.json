@@ -1,0 +1,153 @@
+{
+  "skill_id": "6904bcbe-1897-4df0-8abd-6c79fc7256d2",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T12:03:40.399Z",
+  "updated_at": "2026-02-20T12:04:06.020Z",
+  "name": "klingai",
+  "intent_signature": "Manage Kling AI account authentication, track subscription",
+  "domain": "klingai.com",
+  "description": "Manage Kling AI account authentication, track subscription",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "klingai",
+  "endpoints": [
+    {
+      "endpoint_id": "ef94cdba-11fb-4c7c-9083-b300f89f0076",
+      "method": "POST",
+      "url_template": "https://klingai.com/__endpoint/ef94cdba-11fb-4c7c-9083-b300f89f0076",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createCollectRadar",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "33791164-da74-4812-92b4-86ebbfbd82b5",
+      "method": "POST",
+      "url_template": "https://klingai.com/__endpoint/33791164-da74-4812-92b4-86ebbfbd82b5",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createCollectMisc2",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "271aa379-67f8-4545-bc10-ca2d0380af6b",
+      "method": "GET",
+      "url_template": "https://klingai.com/__endpoint/271aa379-67f8-4545-bc10-ca2d0380af6b",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getHotUpdateJsonById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "ee3b7faf-4c77-4c3f-a062-e4f52753c586",
+      "method": "GET",
+      "url_template": "https://klingai.com/__endpoint/ee3b7faf-4c77-4c3f-a062-e4f52753c586",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getUserIsLogin",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "e4a7907a-af96-4034-a57a-b210ad6c6242",
+      "method": "GET",
+      "url_template": "https://klingai.com/__endpoint/e4a7907a-af96-4034-a57a-b210ad6c6242",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getLoginPassToken",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "0562883a-e9dc-4a37-bf40-e4c79a641d39",
+      "method": "GET",
+      "url_template": "https://klingai.com/__endpoint/0562883a-e9dc-4a37-bf40-e4c79a641d39",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getUsersPublicagentsById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "25b0dccd-669d-43ad-b1bb-0f542b0ffc94",
+      "method": "GET",
+      "url_template": "https://klingai.com/__endpoint/25b0dccd-669d-43ad-b1bb-0f542b0ffc94",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getSubscriptionsAccountQuotaById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "bf63ac62-db7b-4557-a0b6-86af98dd6ceb",
+      "method": "POST",
+      "url_template": "https://klingai.com/__endpoint/bf63ac62-db7b-4557-a0b6-86af98dd6ceb",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createConversions",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "585a5147-2f1b-4f0c-b22c-0e325c24c955",
+      "method": "GET",
+      "url_template": "https://klingai.com/__endpoint/585a5147-2f1b-4f0c-b22c-0e325c24c955",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getW57Rszob0MszwoePj5EhPgSvxA",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "4W3VvEdkAGcw5bj4MHeUGyVkUhBjNVdsLAoGhgDABPYv",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "57cba3130b416ecd218e7c17c65aec3f836ec0c036e05f884c355e0977f1766c"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: klingai\ndescription: Internal API for klingai\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://klingai.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 4\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Klingai API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (3)\n- `GET /api/user/isLogin` — Check if the user is currently logged in.\n- `GET /api/v1/users/publicagents/{publicagentToken}` — Retrieve public agent details using its token.\n- `GET /api/v1/users/subscriptions/public-account-quota/{public-account-quotaToken}` — Get quota information for a public account.\n\n### Data Write (1)\n- `POST /p/conversions/c/v` — Report a conversion event.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"klingai\", executionMode: \"backend\", endpoint: \"GET /api/user/isLogin\" }\n```\n\nHere are a few examples to get you started using the `klingai` API.\n\n```typescript\n// Check if a user is logged in.  This is a common initial check.\nasync function isLoggedIn() {\n  try {\n    const response = await client.isLogin();\n    return response.data.isLoggedIn;\n  } catch (error) {\n    console.error(\"Error checking login status:\", error);\n    return false; // Assume not logged in on error\n  }\n}\n```\n\n```typescript\n// Retrieve details for a specific public agent.\nasync function getPublicAgentDetails(publicAgentToken: string) {\n  try {\n    const response = await client.getPublicagents({ publicagentToken });\n    return response.data; // Returns the agent details\n  } catch (error) {\n    console.error(\"Error fetching public agent details:\", error);\n    return null; // Handle the error appropriately\n  }\n}\n```\n\n```typescript\n// Report a conversion event.\nasync function reportConversion(conversionData: any) {\n  try {\n    await client.conversions({ body: conversionData });\n    console.log(\"Conversion reported successfully.\");\n  } catch (error) {\n    console.error(\"Error reporting conversion:\", error);\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://klingai.com`\n**Captured Auth:** none captured\n\n## About This Skill\n\nThis skill provides access to Klingai's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Klingai data without official API access\n- Automate actions on klingai.com (faster than browser automation)\n- Call the same endpoints the Klingai frontend uses\n\n## Quick Start\n\n```typescript\nimport { KlingaiClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await KlingaiClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (18)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/user/isLogin`\n- `GET /api/v1/users/publicagents/pub-a3a94f1e-a61f-45c6-a7d2-ccf198652889`\n- `GET /api/v1/users/subscriptions/public-account-quota/pub-a3a94f1e-a61f-45c6-a7d2-ccf198652889`\n- `GET /dp/platform/da/radar/api/uid/U2FsdGVkX18oxs4/w57rSZOb0mSZWOe/pJ5EhPgSVxA`\n- `GET /kos/s101/nlav12121/language/308/e3193660-f79f-4f87-8ad8-f18c26329e22/hotUpdate/en.json`\n- `GET /pass/ksi18n/login/passToken`\n- `POST /p/conversions/c/v`\n- `POST /rest/wd/common/log/collect/misc2`\n- `POST /rest/wd/common/log/collect/radar`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/user/isLogin`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/users/publicagents/pub-a3a94f1e-a61f-45c6-a7d2-ccf198652889`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/users/subscriptions/public-account-quota/pub-a3a94f1e-a61f-45c6-a7d2-ccf198652889`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /dp/platform/da/radar/api/uid/U2FsdGVkX18oxs4/w57rSZOb0mSZWOe/pJ5EhPgSVxA`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /kos/s101/nlav12121/language/308/e3193660-f79f-4f87-8ad8-f18c26329e22/hotUpdate/en.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pass/ksi18n/login/passToken`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /p/conversions/c/v`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /rest/wd/common/log/collect/misc2`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /rest/wd/common/log/collect/radar`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

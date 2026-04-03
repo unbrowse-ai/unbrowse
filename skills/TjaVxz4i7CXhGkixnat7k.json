@@ -1,0 +1,50 @@
+{
+  "skill_id": "TjaVxz4i7CXhGkixnat7k",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:47:54.041Z",
+  "updated_at": "2026-02-23T07:47:54.041Z",
+  "name": "api.m.jd.com -- JD.com internal API for accessing e-commerce data and automations. Includes login, location, event tracking, and core platform services. Service: api.m.jd.com. Auth: Session Token (jdas-session-id).",
+  "intent_signature": "JD.com internal API for accessing e-commerce data and automations. Includes login, location, event tracking, and core platform services. Service: api.m.jd.com. Auth: Session Token (jdas-session-id).",
+  "domain": "api.m.jd.com",
+  "description": "Auto-discovered skill for: JD.com internal API for accessing e-commerce data and automations. Includes login, location, event tracking, and core platform services. Service: api.m.jd.com. Auth: Session Token (jdas-session-id).",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "21IjhiGOLgQebShr-o5wE",
+      "method": "GET",
+      "url_template": "https://api.m.jd.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "echo": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "code",
+          "echo"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ]
+}

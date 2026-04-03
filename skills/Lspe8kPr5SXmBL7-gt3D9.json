@@ -1,0 +1,88 @@
+{
+  "skill_id": "Lspe8kPr5SXmBL7-gt3D9",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:39:57.948Z",
+  "updated_at": "2026-02-23T07:39:57.948Z",
+  "name": "bureaux-commerces.seloger.com -- Retrieve editorial articles by tag and manage",
+  "intent_signature": "Retrieve editorial articles by tag and manage",
+  "domain": "bureaux-commerces.seloger.com",
+  "description": "Auto-discovered skill for: Retrieve editorial articles by tag and manage",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "Uk4AohE_-g8WcKRCz2cSm",
+      "method": "GET",
+      "url_template": "https://bureaux-commerces.seloger.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "QOl5_3tcxeLSEnCJLySux",
+      "method": "GET",
+      "url_template": "https://www.seloger-bureaux-commerces.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "OWzbYY7w6KPXLIoWT6rMV",
+      "method": "GET",
+      "url_template": "https://geo.captcha-delivery.com/captcha/",
+      "headers_template": {
+        "referer": "https://www.seloger-bureaux-commerces.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "initialCid": "AHrlqAAAAAMAafuA3fwMQMkAGAr7aw==",
+        "hash": "2513389DF4C3F68BA2A167F7468ACE",
+        "cid": "hPlixZGPYN4QXsT0wMZqlKXnjNHw_yQeG4zUzLyXlPh2gIknUQDN9AUMZ6SXnr7ZkskHSWZS489sAHbsTzg7ksgoU9XBk5iSM8ILdIa3eYLQ6se1mGAvkurW4mrm98m_",
+        "t": "fe",
+        "referer": "https://www.seloger-bureaux-commerces.com/",
+        "s": "46851",
+        "e": "5f395d394d8ae342755f24c1896a204a083c68d124b07fd6feb98f18eeca3f4f9c9ddc0b13744ae1bcfbc2374490360a",
+        "dm": "cd"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "mcIG8i35VGnT3R5uXpcKl",
+      "method": "GET",
+      "url_template": "https://geo.captcha-delivery.comhttps://geo.captcha-delivery.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "bureaux-commerces.seloger.com-session"
+}

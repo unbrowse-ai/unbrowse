@@ -1,0 +1,46 @@
+{
+  "skill_id": "yWiDjxir3nDUeGd4W8Sc1",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:47:05.695Z",
+  "updated_at": "2026-02-23T07:47:05.695Z",
+  "name": "academic.oup.com -- Manage advertising configurations, seamless access updates",
+  "intent_signature": "Manage advertising configurations, seamless access updates",
+  "domain": "academic.oup.com",
+  "description": "Auto-discovered skill for: Manage advertising configurations, seamless access updates",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "GiAzsZJw1pfLWhXijQ42w",
+      "method": "GET",
+      "url_template": "https://academic.oup.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "mwJKxnDj3kxlyc6MISU9d",
+      "method": "GET",
+      "url_template": "https://academic.oup.comhttps://academic.oup.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "academic.oup.com-session"
+}

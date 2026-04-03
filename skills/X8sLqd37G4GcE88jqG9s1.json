@@ -1,0 +1,50 @@
+{
+  "skill_id": "X8sLqd37G4GcE88jqG9s1",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:43:55.622Z",
+  "updated_at": "2026-02-23T07:43:55.622Z",
+  "name": "caple.letras.ulisboa.pt -- Access Portuguese as a Foreign Language (CAP",
+  "intent_signature": "Access Portuguese as a Foreign Language (CAP",
+  "domain": "caple.letras.ulisboa.pt",
+  "description": "Auto-discovered skill for: Access Portuguese as a Foreign Language (CAP",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "H45OKkitSWxwFXD9RXYjU",
+      "method": "GET",
+      "url_template": "https://caple.letras.ulisboa.pt/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "w6MFVZVU3YWeJ4LlpZLsu",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://caple.letras.ulisboa.pt/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Oxygen:400,700,900"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ]
+}
