@@ -801,7 +801,16 @@ export async function getSkill(skillId: string, scopeId?: string): Promise<Skill
     writeSkillCache(skill, scopeId);
     return skill;
   } catch {
-    return null;
+    try {
+      const skills = await listSkills();
+      const listed = skills.find((skill) => skill.skill_id === skillId) ?? null;
+      if (listed) {
+        writeSkillCache(listed, scopeId);
+      }
+      return listed;
+    } catch {
+      return null;
+    }
   }
 }
 

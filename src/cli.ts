@@ -756,6 +756,17 @@ async function cmdSkill(args: string[], flags: Record<string, string | boolean>)
   output(await api("GET", `/v1/skills/${id}`), !!flags.pretty);
 }
 
+async function cmdCleanupStale(flags: Record<string, string | boolean>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (typeof flags.skill === "string") body.skill_id = flags.skill;
+  if (typeof flags.domain === "string") body.domain = flags.domain;
+  if (typeof flags.limit === "string") body.limit = Number(flags.limit);
+  output(
+    await withPendingNotice(api("POST", "/v1/stale/cleanup", body), "Cleaning stale endpoints..."),
+    !!flags.pretty,
+  );
+}
+
 async function cmdSearch(flags: Record<string, string | boolean>): Promise<void> {
   const intent = flags.intent as string;
   if (!intent) die("--intent is required");
@@ -934,6 +945,7 @@ export const CLI_REFERENCE = {
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
+    { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills and evict stale cached endpoints" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
     { name: "go", usage: '<url>', desc: "Open a live Kuri browser tab for capture-first workflows" },
@@ -1466,7 +1478,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "review", "publish", "login", "skills", "skill", "search", "sessions",
+    "feedback", "fb", "review", "publish", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
@@ -1506,6 +1518,7 @@ async function main(): Promise<void> {
     case "login": return cmdLogin(flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
+    case "cleanup-stale": return cmdCleanupStale(flags);
     case "search": return cmdSearch(flags);
     case "sessions": return cmdSessions(flags);
     // Browse commands — Kuri browser actions with passive indexing
