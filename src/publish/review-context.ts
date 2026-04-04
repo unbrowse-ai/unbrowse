@@ -1,5 +1,7 @@
 import { buildSkillOperationGraph } from "../graph/index.js";
 import type { SkillManifest } from "../types/index.js";
+import { readWorkflowArtifact } from "../workflow/artifact.js";
+import { buildSafeParameterSpecView, flattenResponseSchemaFields } from "./schema-review.js";
 
 function operationTitle(actionKind: string, resourceKind: string): string {
   return `${actionKind.replace(/_/g, " ")} ${resourceKind.replace(/_/g, " ")}`.trim();
@@ -10,6 +12,8 @@ export function buildEndpointReviewContext(skill: SkillManifest, endpointId: str
   const operation = graph.operations.find((candidate) => candidate.endpoint_id === endpointId);
   const endpoint = skill.endpoints.find((candidate) => candidate.endpoint_id === endpointId);
   if (!operation || !endpoint) return null;
+  const workflowArtifact = readWorkflowArtifact(skill.skill_id);
+  const recipe = workflowArtifact?.recipes.find((candidate) => candidate.endpoint_id === endpointId) ?? null;
 
   const dependencies = graph.edges
     .filter((edge) => edge.to_operation_id === operation.operation_id)
@@ -74,6 +78,13 @@ export function buildEndpointReviewContext(skill: SkillManifest, endpointId: str
     trigger_url: endpoint.trigger_url ?? null,
     verification_status: endpoint.verification_status,
     reliability_score: endpoint.reliability_score,
+    request_schema: recipe
+      ? recipe.replay_contract.parameter_specs.map((spec) => buildSafeParameterSpecView(spec))
+      : [],
+    response_schema: flattenResponseSchemaFields(endpoint.response_schema),
+    prerequisites: recipe?.replay_contract.prerequisite_specs ?? [],
+    token_bindings: recipe?.token_bindings ?? [],
+    next_state: recipe?.replay_contract.next_state ?? [],
     dependencies,
     unlocks,
     trigger_siblings: triggerSiblings,

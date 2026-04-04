@@ -176,6 +176,16 @@ Traversal is discovery. Checkpoints drive compilation.
 - `publish` -> rerun local index, then explicitly remote-share/re-publish
 - `settings` -> inspect/update local auto-publish policy, blacklist, and prompt-list domains
 
+Fresh `sync` / `close` output is publish-review material, not immediate resolve material.
+
+After a live capture, validate it like this:
+
+1. `unbrowse skill {skill_id}` or `unbrowse publish --skill {skill_id} --pretty`
+2. inspect the captured endpoints, review context, request schema, response schema, prerequisites, and token bindings
+3. `unbrowse review --skill {skill_id} --endpoints '[...]'` or `unbrowse publish --skill {skill_id} --endpoints '[...]'`
+4. `unbrowse publish --skill {skill_id} --confirm-publish`
+5. only later, use `resolve` for reuse of the published/indexed contract
+
 Workflow lifecycle:
 
 - `captured`
@@ -197,6 +207,8 @@ That output becomes the machine-readable replay contract exposed to later agents
 ### 4. Resolve and execute indexed/published routes
 
 When a route is already known, use the explicit resolve/execute path.
+
+Do not use `resolve` as the first validation step for a just-closed live browse capture. `resolve` is for already indexed/published contracts; fresh capture inspection belongs to `skill` / `publish --pretty` / `review` / `publish`.
 
 ```bash
 unbrowse resolve \
@@ -252,6 +264,9 @@ Then improve the metadata:
 - describe what the endpoint actually does
 - label important params
 - note restrictions, audience, pricing, validity, or eligibility caveats
+- fix request/response schema notes where the inferred contract is too weak
+
+For fresh live captures, this review step comes before any expectation that `resolve` should find the route.
 
 Publish once the contract is good enough for reuse.
 
@@ -299,12 +314,12 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
 | `upgrade` |  | Check latest release and print the right upgrade command |
-| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Search cached domain routes and optionally execute the top trusted endpoint |
+| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Search cached indexed/published routes and optionally execute the top trusted endpoint |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
-| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
+| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/schema metadata back to a captured skill before publish |
 | `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state only |
-| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, then publish/share from cached skill state; without endpoints returns review metadata first |
+| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, inspect publish-review metadata, then publish/share from cached skill state |
 | `publish-bundle` | `--preset path [--hosts codex,claude,openclaw] [--site-url https://www.unbrowse.ai]` | Derive foundry bundle/share/host artifacts from one preset and write the public share manifest |
 | `settings` | `[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]` | Show or update local capture/publish policy settings |
 | `login` | `--url "..."` | Interactive browser login |
@@ -328,8 +343,8 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `eval` | `[--session id] <expression>` | Evaluate JavaScript |
 | `back` | `[--session id]` | Navigate back |
 | `forward` | `[--session id]` | Navigate forward |
-| `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish |
-| `close` | `[--session id]` | Checkpoint capture, queue background index + publish, then close browse session |
+| `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review |
+| `close` | `[--session id]` | Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review |
 
 ### Global flags
 
@@ -410,6 +425,14 @@ unbrowse sync
 
 # 6. final checkpoint + close when the flow is done
 unbrowse close
+
+# 7. inspect the captured skill / publish-review surface
+unbrowse skill {skill_id}
+unbrowse publish --skill {skill_id} --pretty
+
+# 8. review + publish for later reuse
+unbrowse review --skill {skill_id} --endpoints '[{...}]'
+unbrowse publish --skill {skill_id} --confirm-publish
 ```
 
 Preferred order:
@@ -420,6 +443,8 @@ Preferred order:
 - `submit` for the real form transition
 - `sync` after a successful step that revealed useful network traffic
 - `close` once the run is complete and you want the final checkpoint + auth save
+- then inspect/review/publish the captured contract
+- only use `resolve` later, once that contract has been indexed/published for reuse
 
 ### Dependency-walk rule for multi-step sites
 

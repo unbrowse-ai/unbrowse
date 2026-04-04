@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildBrowseRequestKey, mergeBrowseRequests } from "../src/api/browse-index.js";
+import { buildBrowseRequestKey, mergeBrowseRequests, shouldIndexDomBrowseFallback } from "../src/api/browse-index.js";
 import type { RawRequest } from "../src/capture/index.js";
 import type { KuriHarEntry } from "../src/kuri/client.js";
 
@@ -82,5 +82,50 @@ describe("browse request merge", () => {
       "https://www.mandai.com/api/cart",
       "https://www.mandai.com/cdn-cgi/rum?",
     ]);
+  });
+
+  it("defers form-only browse fallbacks without network evidence", () => {
+    const decision = shouldIndexDomBrowseFallback({
+      requestCount: 0,
+      intent: "browse www.linkedin.com",
+      extractedData: null,
+      extractedConfidence: 0,
+      hasStructuredForm: true,
+    });
+
+    expect(decision.allow).toBe(false);
+    expect(decision.reason).toBe("form_only_without_network_evidence");
+  });
+
+  it("defers low-quality repeated ui chrome rows even when a form exists", () => {
+    const decision = shouldIndexDomBrowseFallback({
+      requestCount: 0,
+      intent: "browse www.linkedin.com",
+      extractedData: [
+        "Home",
+        "My Network",
+        "Jobs",
+        "Messaging",
+        "Notifications",
+      ],
+      extractedConfidence: 0.7,
+      hasStructuredForm: true,
+    });
+
+    expect(decision.allow).toBe(false);
+    expect(decision.reason).toBe("primitive_rows");
+  });
+
+  it("still allows structured search-form fallbacks when network evidence exists", () => {
+    const decision = shouldIndexDomBrowseFallback({
+      requestCount: 2,
+      intent: "search court judgments",
+      extractedData: null,
+      extractedConfidence: 0,
+      hasStructuredForm: true,
+    });
+
+    expect(decision.allow).toBe(true);
+    expect(decision.intentLooksSearch).toBe(true);
   });
 });

@@ -12,6 +12,7 @@
 
 * **publish/dag**: publish admitted root endpoints together with DAG-linked callable workflow steps so future agents can invoke individual readable or mutable steps from the same skill
 * **deploy/experiments**: add a dedicated Cloudflare `experiments` env for backend/frontend and wire `lewis/experiments` branch pushes to that isolated workers.dev sandbox with its own API URL secret
+* **runtime/experiments**: add an `experiments` runtime preset with its own local profile, remote publish enabled, and beta backend wiring so branch-side publish tests do not reuse `prod`
 
 ### Bug Fixes
 
@@ -26,7 +27,9 @@
 * **resolve/descriptions**: classify fresh local DOM fallback labels like `Search form for <domain>` and `Page content from <domain>` as auto-generated too, so clean-state browse/index runs stop mislabeling them as reviewed agent descriptions
 * **publish/review**: make `publish --pretty` return per-endpoint review context from the operation graph, including deps, unlocks, provenance, trigger-page siblings, and current binding summaries, and stamp reviewed descriptions as agent-authored when the review step writes them back
 * **publish/review**: block remote publish, including background auto-publish after `sync`/`close`, whenever any selected endpoint still has an auto/missing description, and return a review-required next step instead of silently sharing unreviewed contracts
+* **publish/review**: surface safe request schema, response field schema, prerequisites, token bindings, and replay next-state in review context, and let `/review` persist agent-authored request/response schema annotations back into workflow artifacts
 * **graph/linkage**: teach DAG inference to add low-confidence hint edges for alias-linked binding families across DOM/HTML/API surfaces (for example profile/member/public-identifier style links), so publish review can reason over likely dependencies even when names do not match exactly
+* **browse/capture**: make browse checkpointing reuse the richer passive-capture recovery path (Performance API replay plus HAR replay) and defer zero-evidence DOM form artifacts, so empty LinkedIn-style feed sessions stop poisoning the cache with fake DOM skills
 * **resolve/runtime**: make `resolve` read-only again by returning a fast `no_cached_match` on misses, shortening search timeout, and keeping browser/login/capture flows explicit instead of side effects of resolve
 * **resolve/dag**: return the full relevant workflow DAG slice from `resolve`, attach safe dependent GET prefetch hints to DAG operations and endpoint candidates, and fix endpoint-vs-operation graph filtering during auto-exec
 
@@ -1832,6 +1835,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- docs: correct the agent-facing workflow split so fresh `sync` / `close` captures are treated as publish-review material (`skill` / `publish --pretty` / `review` / `publish`), while `resolve` stays the reuse surface for already indexed/published contracts
 - fix: retry browser capture without persistent profile only for sparse blocked-shell captures; keep rich API captures and bound browser close time so x profile/trending resolves no longer hang
 - test: add focused graph dependency-inference unit coverage so DAG edge generation is asserted directly, not only through higher-level walk tests
 - feat: agent-facing chunk responses now show only runnable operations in a readable format with a suggested next step, while raw graph/dependency data stays internal

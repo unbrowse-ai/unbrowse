@@ -43,6 +43,7 @@
     "eval:agent:add": "echo 'Use /unbrowse-eval --add to interactively add cases'",
     "preset:prod": "bun scripts/profile.ts use prod",
     "preset:testing": "bun scripts/profile.ts use testing",
+    "preset:experiments": "bun scripts/profile.ts use experiments",
     "preset:show": "bun scripts/profile.ts show",
     "preset:clear": "bun scripts/profile.ts clear",
     "blog:publish": "bun scripts/publish-blog.ts",

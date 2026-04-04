@@ -1,7 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { buildEndpointReviewContext } from "../src/publish/review-context.js";
 import { mergeAgentReview } from "../src/indexer/index.js";
-import type { EndpointDescriptor, SkillManifest } from "../src/types/skill.js";
+import { applyWorkflowSchemaReviews } from "../src/publish/schema-review.js";
+import { writeWorkflowArtifact } from "../src/workflow/artifact.js";
+import type { EndpointDescriptor, SkillManifest, WorkflowArtifact } from "../src/types/skill.js";
 
 function endpoint(overrides: Partial<EndpointDescriptor> & { endpoint_id: string; url_template: string }): EndpointDescriptor {
   return {
@@ -30,6 +35,12 @@ function skill(endpoints: EndpointDescriptor[]): SkillManifest {
     endpoints,
   };
 }
+
+const originalConfigDir = process.env.UNBROWSE_CONFIG_DIR;
+
+afterEach(() => {
+  process.env.UNBROWSE_CONFIG_DIR = originalConfigDir;
+});
 
 describe("publish review context", () => {
   test("includes dependency and unlock context for endpoint review", () => {
@@ -118,6 +129,235 @@ describe("publish review context", () => {
     expect(updated[0]?.semantic?.description_source).toBe("agent");
     expect(updated[0]?.semantic?.description_needs_review).toBe(false);
     expect(updated[0]?.semantic?.description_warning).toBeUndefined();
+  });
+
+  test("mergeAgentReview patches response schema fields from review input", () => {
+    const endpoints = [
+      endpoint({
+        endpoint_id: "feed",
+        url_template: "https://example.com/feed",
+        description: "Captured page artifact for get feed posts",
+        response_schema: {
+          type: "array",
+          inferred_from_samples: 1,
+          items: {
+            type: "object",
+            inferred_from_samples: 1,
+            properties: {
+              status: { type: "string", inferred_from_samples: 1 },
+              title: { type: "string", inferred_from_samples: 1 },
+            },
+          },
+        },
+      }),
+    ];
+
+    const updated = mergeAgentReview(endpoints, [
+      {
+        endpoint_id: "feed",
+        response_reviews: [
+          { path: "[].status", description: "Lifecycle status of the feed item", enum_values: ["draft", "published"] },
+        ],
+      },
+    ]);
+
+    expect(updated[0]?.response_schema?.items?.properties?.status?.description).toBe("Lifecycle status of the feed item");
+    expect(updated[0]?.response_schema?.items?.properties?.status?.enum_values).toEqual(["draft", "published"]);
+  });
+
+  test("review context includes request and response schema details", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "unbrowse-review-context-"));
+    process.env.UNBROWSE_CONFIG_DIR = tmp;
+
+    const s = skill([
+      endpoint({
+        endpoint_id: "submit",
+        method: "POST",
+        url_template: "https://example.com/api/checkout",
+        trigger_url: "https://example.com/checkout",
+        description: "Submit checkout",
+        response_schema: {
+          type: "object",
+          inferred_from_samples: 1,
+          properties: {
+            order_id: { type: "string", inferred_from_samples: 1, description: "Created order id" },
+            status: { type: "string", inferred_from_samples: 1, enum_values: ["pending", "paid"] },
+          },
+          required: ["order_id"],
+        },
+        semantic: {
+          action_kind: "create",
+          resource_kind: "checkout",
+          description_out: "Create checkout",
+          requires: [{ key: "item_id", required: true }],
+          provides: [{ key: "order_id", source: "response" }],
+        } as any,
+      }),
+    ]);
+
+    const artifact: WorkflowArtifact = {
+      artifact_version: "1",
+      skill_id: s.skill_id,
+      domain: s.domain,
+      intent_signature: s.intent_signature,
+      captured_at: new Date().toISOString(),
+      final_url: "https://example.com/review",
+      auth_state: { cookie_names: ["csrftoken"], header_names: ["x-csrf-token"], authenticated: true },
+      evidence: {
+        observed_request_count: 1,
+        observed_request_urls: ["https://example.com/api/checkout"],
+        har_lineage_ids: ["har-1"],
+        trigger_urls: ["https://example.com/checkout"],
+        js_bundle_urls: [],
+        dom_form_hints: [],
+        dom_option_hints: [],
+        meta_hints: [],
+        bootstrap_hints: [],
+      },
+      recipes: [
+        {
+          recipe_id: "recipe-1",
+          endpoint_id: "submit",
+          preferred: true,
+          provenance_backed: true,
+          steps: [],
+          token_bindings: [
+            {
+              binding_id: "binding-1",
+              target_location: "header",
+              target_name: "x-csrf-token",
+              refresh_on_statuses: [401, 403],
+              candidates: [{ source_kind: "cookie", source_name: "csrftoken", confidence: 0.99 }],
+            },
+          ],
+          mutation_guard: {
+            confirm_unsafe_required: true,
+            provenance_backed: true,
+            auth_required: true,
+            parameter_mapping_confident: true,
+          },
+          replay_contract: {
+            explicit_replay_only: true,
+            exposure_stage: "publish",
+            dependency_bindings: ["item_id", "x-csrf-token"],
+            search_terms: ["checkout"],
+            parameter_specs: [
+              {
+                name: "item_id",
+                location: "body",
+                description: "Checkout item id",
+                type: "string",
+                required: true,
+                user_supplied: true,
+                example_value: "sku_1",
+                source_hints: [{ source_kind: "body_default", source_name: "item_id", confidence: 0.95 }],
+              },
+              {
+                name: "x-csrf-token",
+                location: "header",
+                description: "Derived csrf header",
+                type: "string",
+                required: true,
+                user_supplied: false,
+                derived_from: ["cookie:csrftoken"],
+                source_hints: [{ source_kind: "cookie", source_name: "csrftoken", confidence: 0.99 }],
+              },
+            ],
+            prerequisite_specs: [],
+            next_state: [{ kind: "response_schema", value: "order_id,status" }],
+            payment_requirement: { status: "free", wallet_required: false },
+          },
+        },
+      ],
+    };
+    writeWorkflowArtifact(artifact);
+
+    const ctx = buildEndpointReviewContext(s, "submit");
+    const requestSchema = ctx?.request_schema as Array<Record<string, unknown>>;
+    const responseSchema = ctx?.response_schema as Array<Record<string, unknown>>;
+
+    expect(requestSchema[0]?.name).toBe("item_id");
+    expect(requestSchema[1]?.derived_from).toEqual(["cookie:csrftoken"]);
+    expect(responseSchema.some((field) => field.path === "order_id" && field.required === true)).toBe(true);
+    expect(responseSchema.some((field) => field.path === "status" && Array.isArray(field.enum_values))).toBe(true);
+    expect(Array.isArray(ctx?.token_bindings)).toBe(true);
+  });
+
+  test("workflow schema reviews patch parameter specs in workflow artifacts", () => {
+    const artifact: WorkflowArtifact = {
+      artifact_version: "1",
+      skill_id: "skill-test",
+      domain: "example.com",
+      intent_signature: "search items",
+      captured_at: new Date().toISOString(),
+      final_url: "https://example.com/search",
+      auth_state: { cookie_names: [], header_names: [], authenticated: false },
+      evidence: {
+        observed_request_count: 1,
+        observed_request_urls: ["https://example.com/search"],
+        har_lineage_ids: ["har-1"],
+        trigger_urls: [],
+        js_bundle_urls: [],
+        dom_form_hints: [],
+        dom_option_hints: [],
+        meta_hints: [],
+        bootstrap_hints: [],
+      },
+      recipes: [
+        {
+          recipe_id: "recipe-1",
+          endpoint_id: "feed",
+          preferred: true,
+          provenance_backed: true,
+          steps: [],
+          token_bindings: [],
+          mutation_guard: {
+            confirm_unsafe_required: false,
+            provenance_backed: true,
+            auth_required: false,
+            parameter_mapping_confident: true,
+          },
+          replay_contract: {
+            explicit_replay_only: true,
+            exposure_stage: "publish",
+            dependency_bindings: ["audience"],
+            search_terms: ["feed"],
+            parameter_specs: [
+              {
+                name: "audience",
+                location: "query",
+                type: "string",
+                required: false,
+                user_supplied: true,
+                source_hints: [{ source_kind: "query_default", source_name: "audience", confidence: 0.9 }],
+              },
+            ],
+            prerequisite_specs: [],
+            next_state: [],
+            payment_requirement: { status: "free", wallet_required: false },
+          },
+        },
+      ],
+    };
+
+    const updated = applyWorkflowSchemaReviews(artifact, [
+      {
+        endpoint_id: "feed",
+        parameter_reviews: [
+          {
+            name: "audience",
+            location: "query",
+            description: "Filter audience scope",
+            enum_values: ["all", "connections"],
+            required: true,
+          },
+        ],
+      },
+    ]);
+
+    expect(updated?.recipes[0]?.replay_contract.parameter_specs[0]?.description).toBe("Filter audience scope");
+    expect(updated?.recipes[0]?.replay_contract.parameter_specs[0]?.enum_values).toEqual(["all", "connections"]);
+    expect(updated?.recipes[0]?.replay_contract.parameter_specs[0]?.required).toBe(true);
   });
 
   test("review context includes hint edges from potential binding linkages", () => {

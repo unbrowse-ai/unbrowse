@@ -168,6 +168,7 @@ Prefer the preset system:
 bun run preset:show
 bun run preset:prod
 bun run preset:testing
+bun run preset:experiments
 ```
 
 Do not hand-edit runtime env wiring for normal mode switches.

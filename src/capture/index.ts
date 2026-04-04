@@ -585,6 +585,148 @@ function mergePassiveCaptureData(
 
   return Array.from(seen.values());
 }
+
+function appendInterceptedResponseBodies(
+  entries: Array<{ url: string; response_body?: string; is_js?: boolean }>,
+  responseBodies: Map<string, string>,
+): void {
+  for (const entry of entries) {
+    if (!entry.response_body || entry.is_js) continue;
+    responseBodies.set(entry.url, entry.response_body);
+  }
+}
+
+function normalizeCapturedUrl(url: string, baseUrl?: string): string {
+  if (!url) return url;
+  try {
+    return new URL(url).toString();
+  } catch {
+    if (!baseUrl) return url;
+    try {
+      return new URL(url, baseUrl).toString();
+    } catch {
+      return url;
+    }
+  }
+}
+
+const REPLAY_SKIP = /\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp|avif|map|ttf)(\?|$)/i;
+const HAR_REPLAY_CT = /application\/json|text\/plain|\+json/i;
+
+async function replayPerformanceApiResponses(
+  tabId: string,
+  responseBodies: Map<string, string>,
+  captureUrl?: string,
+  intent?: string,
+): Promise<void> {
+  const perfRaw = await kuri.evaluate(tabId, `JSON.stringify(
+    performance.getEntriesByType('resource')
+      .filter(function(e) { return e.initiatorType === 'fetch' || e.initiatorType === 'xmlhttprequest'; })
+      .map(function(e) { return e.name; })
+  )`);
+  if (typeof perfRaw !== "string" || !perfRaw.startsWith("[")) return;
+
+  const perfUrls: string[] = JSON.parse(perfRaw);
+  const wantedHints = new Set(deriveIntentHints(captureUrl, intent));
+  let replayCount = 0;
+
+  for (const perfUrl of perfUrls) {
+    if (responseBodies.has(perfUrl)) continue;
+    if (REPLAY_SKIP.test(perfUrl)) continue;
+    if (wantedHints.size > 0) {
+      const lower = perfUrl.toLowerCase();
+      if (![...wantedHints].some((hint) => lower.includes(hint))) continue;
+    }
+    if (replayCount >= 30) break;
+    try {
+      const body = await kuri.evaluate(
+        tabId,
+        `(function(){var x=new XMLHttpRequest();x.open('GET','${perfUrl.replace(/'/g, "\\'")}',false);x.send();return x.status>=200&&x.status<400?x.responseText:''})()`,
+      );
+      if (typeof body === "string" && body.length > 0 && body.length < 512 * 1024) {
+        responseBodies.set(perfUrl, body);
+        replayCount++;
+        log("capture", `replay-fetched ${perfUrl.substring(0, 80)} (${body.length}B)`);
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+
+  if (replayCount > 0) {
+    log("capture", `replay-fetched ${replayCount} API response bodies via Performance API`);
+  }
+}
+
+async function replayHarApiResponses(
+  tabId: string,
+  harEntries: kuri.KuriHarEntry[],
+  responseBodies: Map<string, string>,
+): Promise<void> {
+  let harReplayCount = 0;
+
+  for (const entry of harEntries) {
+    const harUrl = entry.request?.url;
+    if (!harUrl || responseBodies.has(harUrl)) continue;
+    if (REPLAY_SKIP.test(harUrl)) continue;
+    const method = entry.request?.method?.toUpperCase();
+    if (method === "OPTIONS" || method === "HEAD") continue;
+    const status = entry.response?.status ?? 0;
+    if (status < 200 || status >= 400) continue;
+    const ct = (entry.response?.headers ?? []).find((header: { name: string }) => header.name.toLowerCase() === "content-type")?.value ?? "";
+    if (!HAR_REPLAY_CT.test(ct) && !harUrl.includes("/api/") && !harUrl.includes("_search") && !harUrl.includes("graphql") && !harUrl.includes("voyager")) continue;
+    if (harReplayCount >= 20) break;
+    try {
+      const postData = method !== "GET" ? entry.request?.postData?.text : undefined;
+      const replayScript = method === "GET" || !postData
+        ? `(function(){var x=new XMLHttpRequest();x.open('GET','${harUrl.replace(/'/g, "\\'")}',false);x.send();return x.status>=200&&x.status<400?x.responseText:''})()`
+        : `(function(){var x=new XMLHttpRequest();x.open('${method}','${harUrl.replace(/'/g, "\\'")}',false);x.setRequestHeader('Content-Type','application/json');x.send(${JSON.stringify(postData)});return x.status>=200&&x.status<400?x.responseText:''})()`;
+      const body = await kuri.evaluate(tabId, replayScript);
+      if (typeof body === "string" && body.length > 0 && body.length < 512 * 1024) {
+        responseBodies.set(harUrl, body);
+        harReplayCount++;
+        log("capture", `har-replay-fetched ${harUrl.substring(0, 80)} (${body.length}B)`);
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+
+  if (harReplayCount > 0) {
+    log("capture", `har-replay-fetched ${harReplayCount} API response bodies from HAR entries`);
+  }
+}
+
+export async function enrichPassiveCaptureRequests(params: {
+  tabId: string;
+  captureUrl: string;
+  harEntries: kuri.KuriHarEntry[];
+  intent?: string;
+}): Promise<RawRequest[]> {
+  const { tabId, captureUrl, harEntries, intent } = params;
+  const responseBodies = new Map<string, string>();
+
+  let intercepted = await collectInterceptedRequests(tabId).catch(() => []);
+  appendInterceptedResponseBodies(intercepted, responseBodies);
+
+  if (intercepted.length === 0 && harEntries.length === 0) {
+    await waitForContentReady(tabId, captureUrl, intent, responseBodies).catch(() => {});
+    intercepted = await collectInterceptedRequests(tabId).catch(() => intercepted);
+    appendInterceptedResponseBodies(intercepted, responseBodies);
+  }
+
+  await replayPerformanceApiResponses(tabId, responseBodies, captureUrl, intent).catch(() => {});
+  await replayHarApiResponses(tabId, harEntries, responseBodies).catch(() => {});
+
+  const extensionEntries = await collectExtensionRequests(tabId).catch(() => []);
+  const requests = mergePassiveCaptureData(intercepted, harEntries, extensionEntries, responseBodies).map((request) => ({
+    ...request,
+    url: normalizeCapturedUrl(request.url, captureUrl),
+  }));
+  log("capture", `browse-checkpoint tracked ${harEntries.length} HAR, ${intercepted.length} intercepted, ${extensionEntries.length} extension, ${responseBodies.size} bodies → ${requests.length} merged`);
+  return requests;
+}
+
 /**
  * Collect network requests observed by kuri's builtin extension (chrome.webRequest).
  * Gracefully returns [] if the extension relay is not yet wired.
