@@ -1,26 +1,21 @@
 # Coming Soon
 
-This page lists the forward-looking parts of the whitepaper that are not yet present in the codebase.
+This page lists the forward-looking parts of the whitepaper that are not yet present in the codebase, or not yet present in the full form described in the paper.
 
 ## Route Economy
 
-The paper’s economic layer is still `coming soon`:
+The paper’s richer route economy is still `coming soon`:
 
-- x402-based route payments
-- HTTP 402 install-and-pay handshake
-- per-route micropayments
-- USDC on Solana settlement
-- route-level pricing
 - fee ceilings tied to rediscovery cost
 - dynamic route pricing based on confidence, freshness, and demand
+- multi-party fee splitting per execution
+- paper-style attribution across contributors and maintainers
 
 ## Contributor Economics
 
-The paper’s contributor economy is also `coming soon`:
+The paper’s fuller contributor economy is also `coming soon`:
 
-- fee split architecture
-- contributor payouts
-- maintainer payouts
+- maintainer payout lanes beyond the current winner-takes-route wallet
 - treasury or reserve accounting
 - delta-based attribution for route improvements
 - anti-Sybil economic attribution
@@ -60,3 +55,5 @@ When the whitepaper talks about these systems, read them as:
 - architectural intent
 
 Do not read them as “already available in the current release” unless the docs explicitly move them out of `coming soon`.
+
+The shipped payment lane today is narrower: x402-gated search/execution, wallet-linked payment metadata, and current payout routing. This page is about the remaining paper-era expansion beyond that shipped baseline.

@@ -15,7 +15,7 @@ import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
-import { computeTimingEconomics } from "./timing-economics.js";
+import { DEFAULT_CAPTURE_TOKENS, computeTimingEconomics } from "./timing-economics.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { checkWalletConfigured } from "../payments/wallet.js";
 import type {
@@ -1953,6 +1953,7 @@ export async function resolveAndExecute(
       result: {
         message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${resolvedSkill.skill_id}/execute with params.endpoint_id.`,
         skill_id: resolvedSkill.skill_id,
+        suggested_next_operation_id: chunk.available_operation_ids[0],
         available_operations: chunk.operations.map((operation) => ({
           operation_id: operation.operation_id,
           endpoint_id: operation.endpoint_id,

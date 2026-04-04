@@ -12,9 +12,15 @@ It is a reusable execution layer that learns routes from real browser traffic, t
 
 The clean category shorthand is:
 
-Unbrowse is a drop-in browser for agents.
+Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents.
 
 That does not mean "the browser disappears everywhere." It means agent workflows can keep a browser-shaped interface while Unbrowse swaps repeated UI replay for route resolution and execution whenever it can.
+
+The practical performance pitch is:
+
+- on the API-native path, roughly ~30x faster
+- roughly ~90% cheaper than repeated browser execution
+- reusable route assets instead of one-off browser work
 
 The closest alternatives are:
 
@@ -89,7 +95,9 @@ That distinction matters because "network-level execution" is directionally righ
 
 Say:
 
-- drop-in browser for agents
+- drop-in replacement for browser automation in agent stacks
+- ~30x faster on the API-native path
+- ~90% cheaper than repeated browser execution
 - learn once, reuse later
 - shared route memory
 - maintained execution knowledge
@@ -139,8 +147,8 @@ Partial today:
 
 Coming soon:
 
-- route pricing
-- contributor payouts
+- the full paper-era route economy beyond the shipped payment lane
+- multi-party contributor payouts and attribution
 - validator market
 - staking and slashing
 - signed attestations

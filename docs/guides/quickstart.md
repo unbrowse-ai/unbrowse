@@ -2,22 +2,39 @@
 
 Read when: first local install, first CLI run, or CI/headless setup.
 
-Canonical reader docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The repo-level agent contract lives in [SKILL.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/SKILL.md).
-
-## Fast path
+## Install
 
 ```bash
 npx unbrowse setup
 ```
 
-`unbrowse setup` is the canonical bootstrap path. In the current repo it does four things:
+That is the primary install path. It is one command, not one-click.
+
+Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The repo-level agent contract lives in [SKILL.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/SKILL.md).
+
+## Fast path
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off
+```
+
+`./setup` is the canonical bootstrap path. It does the repo-local shim/runtime prep first, then runs the real first-use flow without depending on npm release assets:
+
+It is one command, not literal one-click: the first successful run can still prompt for ToS acceptance and agent identity.
 
 1. checks the local package-manager/runtime environment
 2. verifies the bundled Kuri browser runtime, or builds it from vendored source when working from repo checkout with Zig available
-3. installs or updates the Open Code `/unbrowse` command when Open Code is detected
-4. starts the local server on `http://localhost:6969` unless `--no-start` is passed
+3. installs or updates the stable `unbrowse` shim and the Open Code `/unbrowse` command when Open Code is detected
+4. runs the first-use bootstrap: ToS acceptance, agent registration + API-key caching, wallet detection, then starts the local server on `http://localhost:6969` unless `--no-start` is passed
 
-For repeat use:
+If a wallet is configured, that wallet address becomes the contributor/payment truth: it is synced onto the agent profile, used as the contributor payout destination, and used as the spending wallet for paid marketplace routes.
+
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` now encourages it, and when the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically. That wallet becomes the contributor payout destination and the spending wallet for paid marketplace routes.
+
+Unbrowse supports wallet providers such as Crossmint `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
+
+For repeat npm installs after a healthy publish:
 
 ```bash
 npm install -g unbrowse
@@ -39,6 +56,12 @@ The CLI auto-starts the local server for normal commands. On the first real star
 - Interactive runs also let you enter an email-style agent identity. Press Enter to keep the local device id.
 - Headless runs can preseed identity with `UNBROWSE_AGENT_EMAIL`.
 - Non-interactive runs must set `UNBROWSE_TOS_ACCEPTED=1` after the user has agreed to the ToS.
+
+Headless repo bootstrap:
+
+```bash
+cd ~/unbrowse && ./setup --host off --accept-tos --agent-email agent@example.com --skip-wallet-setup
+```
 
 Useful env vars for CI/headless runs:
 
@@ -74,9 +97,53 @@ Open an auth flow when a site needs login:
 unbrowse login --url "https://calendar.google.com"
 ```
 
+## TypeScript SDK
+
+If you want to call the same local-first flow from app code:
+
+```bash
+npm install @unbrowse/sdk
+```
+
+```ts
+import { Unbrowse } from "@unbrowse/sdk";
+
+const unbrowse = new Unbrowse();
+
+const result = await unbrowse.resolve({
+  intent: "get trending searches",
+  url: "https://google.com",
+});
+
+console.log(result.result);
+```
+
+Search the marketplace directly:
+
+```ts
+const matches = await unbrowse.searchDomain({
+  intent: "find trending repositories",
+  domain: "github.com",
+  k: 3,
+});
+```
+
+Re-execute a learned skill:
+
+```ts
+const resolved = await unbrowse.resolve({
+  intent: "get stock prices",
+  url: "https://finance.yahoo.com",
+});
+
+const rerun = await unbrowse.execute(resolved, {
+  params: { symbol: "NVDA" },
+});
+```
+
 ## Working from repo checkout
 
-Initialize submodules after cloning:
+Repo checkout is the truthful install path. Initialize submodules after cloning:
 
 ```bash
 git submodule update --init --recursive
@@ -108,5 +175,6 @@ Important runtime paths:
 ## What to read next
 
 - [API reference](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/api.md)
+- [TypeScript SDK](../../packages/sdk/README.md)
 - [Deployment guide](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/deployment.md)
 - [Codex eval harness](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/codex-eval-harness.md)

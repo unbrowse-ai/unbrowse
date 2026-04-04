@@ -61,6 +61,7 @@ Unbrowse today is a local-first web capability layer for agents:
 - local credential storage and auth reuse
 - MCP server mode plus host integrations for major agent environments
 - reliability scoring, verification, and schema-drift-aware endpoint health
+- x402-gated marketplace search/execution paths with wallet-linked payment metadata
 - canonical product evals in this repo
 
 ## What To Read First
@@ -77,7 +78,7 @@ Read [What Is Unbrowse?](./what-is-unbrowse.md) and [How It Works](./how-it-work
 
 Read [Paper vs Product Status](./paper-vs-product.md) if you want the strict audit: shipped, partial, or `coming soon`.
 
-Read [Coming Soon](./coming-soon.md) if you care about the route economy, x402, contributor payouts, validator attestation, and other forward-looking parts of the paper.
+Read [Coming Soon](./coming-soon.md) if you care about the parts of the route economy that are still forward-looking: multi-party fee splits, richer attribution, validator attestation, and the rest of the paper beyond the shipped payment lane.
 
 ## Citation
 

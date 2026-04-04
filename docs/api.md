@@ -4,7 +4,7 @@ Read when: wiring a client against the local server, validating a route contract
 
 Prefer the CLI for real use. The HTTP routes below are the substrate the CLI wraps.
 
-Canonical reader docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The agent-facing CLI contract lives in [SKILL.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/SKILL.md).
+Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The agent-facing CLI contract lives in [SKILL.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/SKILL.md).
 
 ## Base URLs
 
@@ -12,6 +12,50 @@ Canonical reader docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The 
 - Marketplace backend: `https://beta-api.unbrowse.ai`
 
 The normal product path is local-first. CLI commands hit the local server, and the local server proxies marketplace-backed work when needed.
+
+## TypeScript SDK
+
+The SDK lives in [`packages/sdk`](../packages/sdk/README.md). It is a thin wrapper over the same local server routes the CLI uses.
+
+Install:
+
+```bash
+npm install @unbrowse/sdk
+```
+
+Basic resolve:
+
+```ts
+import { Unbrowse } from "@unbrowse/sdk";
+
+const unbrowse = new Unbrowse();
+
+const resolved = await unbrowse.resolve({
+  intent: "get feed posts",
+  url: "https://news.ycombinator.com",
+});
+```
+
+Explicit execute:
+
+```ts
+const rerun = await unbrowse.execute(resolved, {
+  projection: { raw: true },
+});
+```
+
+Auth helpers:
+
+```ts
+await unbrowse.importAuth({
+  url: "https://x.com/home",
+  browser: "auto",
+});
+
+await unbrowse.login({
+  url: "https://calendar.google.com",
+});
+```
 
 ## Primary routes
 
@@ -32,8 +76,6 @@ The normal product path is local-first. CLI commands hit the local server, and t
 | `POST` | `/v1/feedback` | Feedback loop for skill/endpoint quality |
 | `GET` | `/v1/stats/summary` | Marketplace summary stats |
 
-Analytics-specific surfaces are documented separately in [docs/analytics-api.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/analytics-api.md).
-
 ## Canonical resolve flow
 
 `POST /v1/intent/resolve` is the product-truth entrypoint. In the current repo it can:
@@ -52,12 +94,23 @@ The CLI wrapper is:
 unbrowse resolve --intent "..." --url "..." --pretty
 ```
 
+The SDK mirrors the CLI by copying `url` into both `params.url` and `context.url`, so ranking and replay stay aligned with the canonical product path.
+
 ## Execute flow
 
 Use execute when you already know the skill id and endpoint id:
 
 ```bash
 unbrowse execute --skill <skill_id> --endpoint <endpoint_id> --pretty
+```
+
+Or from the SDK:
+
+```ts
+await unbrowse.execute("skill_123", {
+  params: { symbol: "NVDA" },
+  contextUrl: "https://finance.yahoo.com/quote/NVDA",
+});
 ```
 
 Useful post-processing flags supported by the current CLI:
@@ -98,5 +151,5 @@ Agent registration happens through the local runtime on first startup if no save
 ## Related docs
 
 - [Quickstart](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/guides/quickstart.md)
-- [Analytics API](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/analytics-api.md)
+- [TypeScript SDK](../packages/sdk/README.md)
 - [Codex eval harness](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/codex-eval-harness.md)

@@ -42,6 +42,12 @@ execFileSync(
   { cwd: packageRoot, stdio: "inherit" },
 );
 
+execFileSync(
+  "bun",
+  [...sharedArgs, path.join(sourceDir, "mcp.ts"), "--outfile", path.join(distDir, "mcp.js")],
+  { cwd: packageRoot, stdio: "inherit" },
+);
+
 cpSync(sourceDir, runtimeSourceDir, { recursive: true, dereference: true });
 
 const indexWrapper = `#!/usr/bin/env node
@@ -80,4 +86,5 @@ const cliContents = readFileSync(cliFile, "utf8").replace(/^#!.*\n/, "");
 writeFileSync(cliFile, `#!/usr/bin/env node\n${cliContents}`);
 
 chmodSync(cliFile, 0o755);
+chmodSync(path.join(distDir, "mcp.js"), 0o755);
 chmodSync(path.join(distDir, "index.js"), 0o755);

@@ -6,7 +6,7 @@ Turn any website into a reusable API interface for agents. Unbrowse captures net
 
 One agent learns a site once. Every later agent gets the fast path.
 
-Unbrowse is a drop-in browser for agents: same browser-shaped job in the stack, but with route learning, reuse, and browser fallback built in.
+Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
@@ -18,9 +18,13 @@ git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git 
 cd ~/unbrowse && ./setup --host off
 ```
 
-`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and then runs the real first-time bootstrap: ToS acceptance, agent registration + API-key caching, and lobster.cash wallet detection when present.
+`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and then runs the real first-time bootstrap: ToS acceptance, agent registration + API-key caching, and wallet detection when present.
 
-If a wallet is configured, that wallet address is synced onto your agent profile and becomes the destination for contributor payouts when your routes earn.
+If a wallet is configured, that wallet address becomes the contributor/payment truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
+
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` now encourages it, and when the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically. That wallet becomes the payout destination for contributed routes and the spending wallet for paid marketplace routes.
+
+Unbrowse supports wallet providers such as Crossmint `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
 
 For repeat npm use after a healthy publish:
 
@@ -28,6 +32,15 @@ For repeat npm use after a healthy publish:
 npm install -g unbrowse
 unbrowse setup
 ```
+
+For generic MCP hosts:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+That writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template is also published at [`/mcp.json`](https://www.unbrowse.ai/mcp.json).
 
 If your agent host uses skills:
 
@@ -47,6 +60,14 @@ git pull --ff-only
 ./setup --host off
 ```
 
+If you installed for a generic MCP host:
+
+```bash
+cd ~/unbrowse
+git pull --ff-only
+./setup --host mcp
+```
+
 If your agent host uses skills, rerun its skill install/update command too:
 
 ```bash
@@ -55,24 +76,25 @@ npx skills add unbrowse-ai/unbrowse
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
-Canonical docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
-
 Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Canonical docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
 ## What setup does
 
-- Checks local prerequisites for the npm/npx flow.
+- Checks the local runtime/package-manager environment for the repo bootstrap or packaged CLI path.
+- Prebuilds the packaged CLI runtime and installs the stable `unbrowse` shim for the repo bootstrap path.
 - Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
 - Registers the Open Code `/unbrowse` command when Open Code is present.
+- Runs the first-use flow: ToS, agent registration/API-key caching, wallet detection, and Crossmint `lobster.cash` encouragement.
 - Starts the local Unbrowse server unless `--no-start` is passed.
 
 ## Common commands
 
 ```bash
 unbrowse health
+unbrowse mcp
 unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
 unbrowse login --url "https://calendar.google.com"
 unbrowse skills
@@ -91,12 +113,18 @@ If you tried Unbrowse on a site or API and could not get it to work, add it to [
 
 ## Docs
 
-The synced skill repo also carries the longer-form docs set:
+The synced skill repo also carries the public docs set:
+
+- [Quickstart](./docs/guides/quickstart.md)
+- [API reference](./docs/api.md)
+- [Deployment guide](./docs/deployment.md)
+- [Release checklist](./docs/RELEASING.md)
+
+Whitepaper companion docs:
 
 - [Whitepaper companion index](./docs/whitepaper/README.md)
 - [For Technical Readers](./docs/whitepaper/for-technical-readers.md)
 - [For Investors](./docs/whitepaper/for-investors.md)
-- [Analytics API](./docs/analytics-api.md)
 
 ## How it works
 
