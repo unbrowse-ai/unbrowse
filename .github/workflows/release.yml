@@ -151,6 +151,8 @@ jobs:
       - name: Smoke packaged global install
         if: steps.npm-auth.outputs.skip_publish != '1'
         run: bash scripts/smoke-packaged-cli.sh
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
 
       - name: Check if version already exists
         if: steps.npm-auth.outputs.skip_publish != '1'
