@@ -16,6 +16,7 @@ Deprecated. Durable agent memory now lives in [AGENTS.md](/Users/lekt9/.codex/wo
 - Resolve should be the single public primitive: fast cached-domain search plus execute on hit, with no browser side effects on misses. Capture/index/publish stay off the hot resolve path unless explicitly forced.
 - Resolve should return the whole relevant DAG slice for the chosen intent, not just a flat shortlist, and safe GET dependents should be surfaced as prefetch hints/context for later steps.
 - Packaged runtime health/version checks should read the installed package version from the nearest package root when available, and fall back to the embedded release manifest inside compiled binaries.
+- Local/source runtimes must never send partial release attestation headers; send both release manifest + signature together or omit both so strict backends do not reject dev publish with `release_manifest_incomplete`.
 - Explicit browser `go` flows should treat Kuri startup aborts and temporary connect failures as recoverable browse-session errors, so login/messaging learns retry instead of failing during warmup.
 - Browse mode should stay thin: `go` opens a fresh Kuri session unless the caller explicitly passes `session_id`, and read ops should not silently reset/recover or rebind onto replacement tabs.
 - Unbrowse local/runtime uses the vendored Kuri binary under `packages/skill/vendor/kuri/...`; patching `submodules/kuri` alone is not enough for real-path verification unless the vendored binaries are rebuilt.

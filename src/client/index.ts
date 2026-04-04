@@ -37,6 +37,19 @@ const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
 const recentLocalSkills = new Map<string, SkillManifest>();
 const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
 
+export function buildReleaseAttestationHeaders(
+  manifestBase64: string,
+  signature: string,
+): Record<string, string> {
+  const manifest = manifestBase64.trim();
+  const sig = signature.trim();
+  if (!manifest || !sig) return {};
+  return {
+    "X-Unbrowse-Release-Manifest": manifest,
+    "X-Unbrowse-Release-Signature": sig,
+  };
+}
+
 function decodeBase64Json(value: string): unknown {
   try {
     if (typeof globalThis !== "undefined" && typeof globalThis.atob === "function") {
@@ -442,6 +455,10 @@ async function apiRequest<T = unknown>(
   opts?: { noAuth?: boolean; timeoutMs?: number },
 ): Promise<{ data: T; headers: Headers }> {
   const key = opts?.noAuth ? "" : getApiKey();
+  const releaseAttestationHeaders = buildReleaseAttestationHeaders(
+    RELEASE_MANIFEST_BASE64,
+    RELEASE_MANIFEST_SIGNATURE,
+  );
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? API_TIMEOUT_MS);
   let res: Response;
@@ -456,12 +473,7 @@ async function apiRequest<T = unknown>(
         "X-Unbrowse-Trace-Version": TRACE_VERSION,
         "X-Unbrowse-Code-Hash": CODE_HASH,
         "X-Unbrowse-Git-Sha": GIT_SHA,
-        ...(RELEASE_MANIFEST_BASE64
-          ? { "X-Unbrowse-Release-Manifest": RELEASE_MANIFEST_BASE64 }
-          : {}),
-        ...(RELEASE_MANIFEST_SIGNATURE
-          ? { "X-Unbrowse-Release-Signature": RELEASE_MANIFEST_SIGNATURE }
-          : {}),
+        ...releaseAttestationHeaders,
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
