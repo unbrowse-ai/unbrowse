@@ -17,7 +17,7 @@ metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "
 
 Kuri is the agent's browser — a 464 KB Zig-native CDP broker with ~3ms cold start. Unbrowse is the intelligence layer that runs on top: it watches what Kuri does, learns the internal APIs (shadow APIs) that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
 
-The clean category line is: Unbrowse is a drop-in browser for agents.
+The clean category line is: Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents.
 
 **How it works:** Agents use `Browser.launch()` and `page.goto()` like Playwright. Under the hood, `goto()` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.
 
@@ -28,7 +28,7 @@ The clean category line is: Unbrowse is a drop-in browser for agents.
 
 Every method except `goto()` proxies directly to Kuri — snapshots, ref-based actions, DOM queries, HAR recording, cookies, screenshots. The full Kuri API surface is available. Unbrowse is the second-class citizen here: it indexes in the background and provides a faster path when one exists.
 
-**Performance:** 3.6x mean speedup, 5.4x median over Playwright across 94 live domains. 18 domains completed in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
+**Performance:** On the API-native path, the product is positioned as roughly ~30x faster and ~90% cheaper than repeated browser execution. In the current published benchmark set, Unbrowse shows 3.6x mean speedup and 5.4x median over Playwright across 94 live domains, with 18 domains completing in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
 
 **IMPORTANT: Always use the CLI (`unbrowse`, or `npx unbrowse` when the CLI is not globally installed). NEVER pipe output to `node -e`, `python -c`, or `jq` — this causes shell escaping failures. Use `--path`, `--extract`, and `--limit` flags instead.**
 
@@ -37,17 +37,46 @@ Every method except `goto()` proxies directly to Kuri — snapshots, ref-based a
 ## Installation
 
 ```bash
-npx unbrowse setup
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off
 ```
 
-`unbrowse setup` now prompts for an email-style agent identity before first registration. For headless runs, preseed it with `UNBROWSE_AGENT_EMAIL=you@example.com`.
+`./setup` is the single front door. It installs the local shim, then runs the real first-use path: ToS acceptance, agent registration/API key caching, and optional wallet detection without depending on npm release assets.
 
-For repeat use, install globally:
+`unbrowse setup` prompts for an email-style agent identity before first registration. For headless runs, preseed it with `UNBROWSE_AGENT_EMAIL=you@example.com`.
+
+If a wallet is configured, that wallet address becomes the contributor/payment truth: Unbrowse syncs it onto your agent profile, uses it as the destination for contributor payouts, and uses it for paid-route spending proof.
+
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` now encourages it, and when the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically.
+
+For agent-host installs:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.codex/skills/unbrowse
+cd ~/.codex/skills/unbrowse && ./setup --host codex
+```
+
+Headless bootstrap:
+
+```bash
+cd ~/unbrowse && ./setup --host off --accept-tos --agent-email you@example.com --skip-wallet-setup
+```
+
+For repeat npm installs after a healthy publish:
 
 ```bash
 npm install -g unbrowse
 unbrowse setup
 ```
+
+For repo-clone installs targeting generic MCP hosts:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+That writes a ready-to-import config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template also lives at `https://www.unbrowse.ai/mcp.json`.
 
 If your agent host uses skills, add the Unbrowse skill too:
 
@@ -79,7 +108,6 @@ Use the skill for the core loop. Use the docs when you need product context or r
 - [Whitepaper companion](./docs/whitepaper/README.md) — current map of the paper and companion docs
 - [For Technical Readers](./docs/whitepaper/for-technical-readers.md) — architecture, eval truth, and product boundary
 - [For Investors](./docs/whitepaper/for-investors.md) — market framing and roadmap boundary
-- [Analytics API](./docs/analytics-api.md) — canonical investor/product metrics surfaces
 - [Quickstart](./docs/guides/quickstart.md) — install/run path, first-use flow
 - [API notes](./docs/api.md) — route-level behavior and contracts
 - [Codex eval harness](./docs/codex-eval-harness.md) — how product-truth evals run
@@ -491,12 +519,12 @@ Speed. Cached routes execute in <200ms vs 3--20s for browser automation. Agents 
 
 ### Payment flow
 
-Paid skills return HTTP 402 with x402 payment requirements. Wallet operations are delegated to lobster.cash.
+Paid skills return HTTP 402 with x402 payment requirements. Unbrowse handles the gate; transaction execution and final status are delegated to the configured wallet provider.
 
 1. Agent resolves a marketplace skill
 2. If the skill has a price, the response includes payment requirements (amount, currency, chain)
-3. If a wallet step is required and lobster.cash wallet context is missing, complete lobster.cash setup first
-4. Transaction execution and final status are handled by lobster.cash
+3. If a wallet step is required and wallet context is missing, complete wallet setup first
+4. Transaction execution and final status are handled by your wallet provider
 5. Agents without a wallet use free mode -- capture, contribute routes, and execute from local cache
 
 **Supported chains:** Solana (USDC) and Base (USDC) via the Corbits facilitator.
@@ -508,12 +536,12 @@ Paid skills return HTTP 402 with x402 payment requirements. Wallet operations ar
   "price_usd": 0.001,
   "payment_status": "payment_required",
   "message": "This execution requires 0.001 USDC.",
-  "wallet_provider": "lobster.cash",
+  "wallet_provider": "custom-wallet",
   "indexing_fallback_available": true
 }
 ```
 
-**Wallet setup:** Set `LOBSTER_WALLET_ADDRESS` env var when pairing with lobster.cash. The skill detects the wallet automatically and includes payment proof in subsequent requests.
+**Wallet setup:** For lobster.cash, set `LOBSTER_WALLET_ADDRESS`. For other wallet providers, set `AGENT_WALLET_ADDRESS` and optionally `AGENT_WALLET_PROVIDER`. The skill detects the wallet automatically and includes wallet metadata in subsequent payment-required responses.
 
 ### Earning from route mining
 

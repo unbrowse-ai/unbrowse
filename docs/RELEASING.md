@@ -26,22 +26,20 @@ Do not bump or publish only from `packages/skill/`.
 
 ## Main-branch GitHub Actions
 
-Pushing to `main` runs `.github/workflows/release.yml`, which now:
+Pushing to `main` runs `.github/workflows/deploy.yml`, which:
 
-1. Publishes the CLI from `packages/skill/` to npm if the current version is not already published.
-2. Deploys the backend worker.
-3. Deploys the frontend.
-4. Syncs the external skill repo on `unbrowse-ai/unbrowse` `stable`.
-5. Creates the matching tag + GitHub Release in `unbrowse-ai/unbrowse` if that version does not already exist.
+1. Deploys the backend worker via `backend/wrangler.ci.toml`, preserving the existing `STATS_KV` binding.
+2. Deploys the frontend.
+3. Syncs the external skill repo on `unbrowse-ai/unbrowse` `stable`.
 
-Pushing `v*` tags still runs the same workflow, which remains safe for explicit release tags and reruns.
+`main` pushes no longer run the npm publish path. That keeps normal deploys from surfacing a green "release" job that actually skipped publish because the current version was already on npm.
 
 ## Tag-triggered GitHub Actions
 
-Tag pushes reuse `.github/workflows/release.yml`, which:
+Tag pushes run `.github/workflows/release.yml`, which:
 
 1. Publishes the CLI from `packages/skill/` to npm.
-2. Deploys the backend worker.
+2. Deploys the backend worker via `backend/wrangler.ci.toml`, preserving the existing `STATS_KV` binding.
 3. Deploys the frontend.
 4. Syncs the external skill repo.
 5. Creates or reuses the matching tag + GitHub Release in `unbrowse-ai/unbrowse`.

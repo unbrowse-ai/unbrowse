@@ -11,6 +11,13 @@ Current production deploy split:
 - marketplace API origin: `https://beta-api.unbrowse.ai`
 - web origin: `https://www.unbrowse.ai` and `https://unbrowse.ai`
 
+Webhook/runtime extras:
+
+- `POST /v1/webhooks/github` is the public GitHub webhook receiver for opt-in PR maintenance
+- backend cron trigger runs every 6 hours UTC and flushes queued Telegram PR digests
+- required webhook/notification secrets are documented below
+- setup steps live in [docs/github-webhook-pr-bot.md](/Users/lekt9/.codex/worktrees/3c82/unbrowse/docs/github-webhook-pr-bot.md)
+
 ## Canonical release path
 
 Use the repo-root release flow:
@@ -31,16 +38,42 @@ For polished user-facing notes, write `.release-notes.md` first. For announcemen
 
 Detailed release choreography lives in [docs/RELEASING.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/RELEASING.md).
 
-## Tag-triggered deploy pipeline
+## Release workflow behavior
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`.
+`.github/workflows/deploy.yml` handles `main` pushes.
+`.github/workflows/release.yml` handles `v*` tag pushes.
 
-Current jobs:
+Main deploy workflow:
+
+1. deploy backend with `cd backend && bun run deploy:ci`
+2. deploy frontend with `cd frontend && bun run deploy`
+3. sync the standalone skill repo
+
+Tag release workflow:
 
 1. publish CLI from `packages/skill/` to npm
-2. deploy backend with `cd backend && bun run deploy`
-3. deploy frontend with `cd frontend && bun run deploy`
-4. sync the standalone skill repo
+2. upload GitHub release assets
+3. deploy backend with `cd backend && bun run deploy:ci`
+4. deploy frontend with `cd frontend && bun run deploy`
+5. sync the standalone skill repo
+6. create or update the downstream skill-repo release
+
+## PR preview pipeline
+
+Internal pull requests to `main` also run `.github/workflows/preview.yml`.
+
+- frontend only; backend stays on the shared staging API
+- preview uploads go to Cloudflare Preview URLs on `workers.dev`
+- stable alias format: `pr-<number>`
+- every new PR commit updates the same PR comment instead of creating a new one
+- preview deploys are not part of required branch protection in v1
+
+Current behavior:
+
+- internal PRs: build the frontend with `NEXT_PUBLIC_API_URL=$PREVIEW_API_URL`, upload a new Worker version, and post both the stable alias URL and commit-specific preview URL back to the PR
+- fork PRs: skip preview deploy entirely so Cloudflare secrets are never exposed to forked code, and post a skip note via the target-context comment job
+- manual retry: use the `Preview` workflow's `workflow_dispatch` path with a PR number
+Reruns are expected to be safe. The tag workflow is meant to complete cleanly when npm already has the version, and keep npm publish, frontend deploy, backend deploy, and skill sync aligned instead of partially failing on a replay.
 
 ## Manual local deploy commands
 
@@ -51,7 +84,12 @@ cd backend
 bun install --frozen-lockfile
 bun run dev
 bun run deploy
+bun run deploy:ci
 ```
+
+`bun run deploy:ci` uses `backend/wrangler.ci.toml` and preserves the existing
+`STATS_KV` binding so GitHub Actions can deploy without requesting KV write
+scope on every release run.
 
 Frontend:
 
@@ -65,6 +103,8 @@ bun run deploy
 
 `frontend/package.json` currently uses `opennextjs-cloudflare build` for preview/deploy/upload.
 
+PR preview uploads use the same CLI family, but call `opennextjs-cloudflare upload --preview-alias pr-<number>` from GitHub Actions after an explicit `opennextjs-cloudflare build`.
+
 ## Required secrets
 
 Release/deploy path currently expects:
@@ -74,12 +114,23 @@ Release/deploy path currently expects:
 - `NPM_TOKEN` or `NPM_PUBLISH_TOKEN`
 - `SKILL_REPO_TOKEN`
 
+Preview deploys also expect one of:
+
+- repo variable `PREVIEW_API_URL`
+- or repo secret `PREVIEW_API_URL`
+
+That value should point at the shared staging backend origin used by preview builds. Do not hardcode the staging hostname into source files.
+
 Backend runtime secrets are documented in [backend/wrangler.toml](/Users/lekt9/.codex/worktrees/c99f/unbrowse/backend/wrangler.toml):
 
 - `API_KEY`
 - `UNKEY_ROOT_KEY`
 - `EMERGENTDB_API_KEY`
 - `NEBIUS_API_KEY`
+- `GITHUB_WEBHOOK_SECRET`
+- `GITHUB_PR_BOT_TOKEN`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
 
 ## Runtime config sources of truth
 
@@ -87,6 +138,7 @@ Backend runtime secrets are documented in [backend/wrangler.toml](/Users/lekt9/.
 - frontend routes, assets, OpenNext worker entry: [frontend/wrangler.jsonc](/Users/lekt9/.codex/worktrees/c99f/unbrowse/frontend/wrangler.jsonc)
 - frontend public API origin default: [frontend/.env.production](/Users/lekt9/.codex/worktrees/c99f/unbrowse/frontend/.env.production)
 - runtime preset switching: [scripts/profile.ts](/Users/lekt9/.codex/worktrees/c99f/unbrowse/scripts/profile.ts)
+- PR preview workflow: [.github/workflows/preview.yml](/Users/lekt9/.codex/worktrees/20aa/unbrowse/.github/workflows/preview.yml)
 
 Prefer the preset system:
 
