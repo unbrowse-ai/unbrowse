@@ -73,10 +73,16 @@ export function decorateInstallCommandWithAttribution(
 ): string {
   if (!attribution || Object.keys(attribution).length === 0) return command;
   const payload = encodeBase64Utf8(JSON.stringify(attribution));
+  const envVar = `UNBROWSE_ATTRIBUTION_B64='${payload}' `;
 
   if (command.includes("| bash")) {
-    return command.replace("| bash", `| env UNBROWSE_ATTRIBUTION_B64='${payload}' bash`);
+    return command.replace("| bash", `| env ${envVar}bash`);
   }
-
-  return `env UNBROWSE_ATTRIBUTION_B64='${payload}' ${command}`;
+  if (command.includes("./setup")) {
+    return command.replace("./setup", `${envVar}./setup`);
+  }
+  if (command.includes("unbrowse setup")) {
+    return command.replace("unbrowse setup", `${envVar}unbrowse setup`);
+  }
+  return `env ${envVar}${command}`;
 }
