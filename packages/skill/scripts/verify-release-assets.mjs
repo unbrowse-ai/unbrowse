@@ -5,13 +5,14 @@ import { fileURLToPath } from "node:url";
 import {
   RELEASE_METADATA_ASSETS,
   SUPPORTED_TARGETS,
+  buildBinaryArchiveName,
   buildReleaseAssetUrl,
   getReleaseAssetConfig,
 } from "./release-assets.mjs";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const { tag, repo, baseUrl } = getReleaseAssetConfig(packageRoot);
-const assets = [...SUPPORTED_TARGETS.map((target) => `unbrowse-${target}`), ...RELEASE_METADATA_ASSETS];
+const { tag, repo, baseUrl, version } = getReleaseAssetConfig(packageRoot);
+const assets = [...SUPPORTED_TARGETS.map((target) => buildBinaryArchiveName(version, target)), ...RELEASE_METADATA_ASSETS];
 
 async function assertReachable(assetName) {
   const url = buildReleaseAssetUrl(baseUrl, tag, assetName);

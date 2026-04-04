@@ -19,6 +19,10 @@ export function getReleaseAssetConfig(packageRoot) {
   return { version, repo, tag, baseUrl };
 }
 
+export function buildBinaryArchiveName(version, target) {
+  return `unbrowse-v${version}-${target}.tar.gz`;
+}
+
 export function buildReleaseAssetUrl(baseUrl, tag, assetName) {
   return `${baseUrl.replace(/\/+$/, "")}/${tag}/${assetName}`;
 }

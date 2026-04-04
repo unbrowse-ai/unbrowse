@@ -129,7 +129,7 @@ function writePreviewVersions(repoRoot, previewVersion) {
 function releaseAssetArgs(repoRoot) {
   const distDir = path.join(repoRoot, "dist");
   const releaseAssets = readdirSync(distDir)
-    .filter((name) => name.startsWith("unbrowse-") || name === "release-manifest.json" || name === "release-manifest.sig")
+    .filter((name) => name.endsWith(".tar.gz") || name === "release-manifest.json" || name === "release-manifest.sig")
     .map((name) => path.join("dist", name));
   if (releaseAssets.length === 0) throw new Error("no release assets found in dist/");
   return releaseAssets;

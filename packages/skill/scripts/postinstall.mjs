@@ -11,9 +11,11 @@
 import { existsSync, mkdirSync, chmodSync, copyFileSync, createWriteStream, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import http from "node:http";
 import https from "node:https";
-import { SUPPORTED_TARGETS, buildReleaseAssetUrl, getReleaseAssetConfig } from "./release-assets.mjs";
+import { SUPPORTED_TARGETS, buildBinaryArchiveName, buildReleaseAssetUrl, getReleaseAssetConfig } from "./release-assets.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
@@ -63,8 +65,8 @@ if (!SUPPORTED_TARGETS.includes(target)) {
   process.exit(0);
 }
 
-const { repo, tag, baseUrl } = getReleaseAssetConfig(packageRoot);
-const assetName = `unbrowse-${target}`;
+const { repo, tag, baseUrl, version } = getReleaseAssetConfig(packageRoot);
+const assetName = buildBinaryArchiveName(version, target);
 const url = buildReleaseAssetUrl(baseUrl, tag, assetName);
 
 console.log(`[unbrowse] Downloading binary for ${target} (${tag})...`);
@@ -96,7 +98,20 @@ function download(url, dest) {
 }
 
 try {
-  await download(url, binaryPath);
+  const archivePath = join(tmpdir(), assetName);
+  const extractDir = join(tmpdir(), `unbrowse-install-${process.pid}`);
+  await download(url, archivePath);
+  mkdirSync(extractDir, { recursive: true });
+  execFileSync("tar", ["-xzf", archivePath, "-C", extractDir]);
+  const extractedBinary = join(extractDir, "unbrowse");
+  if (!existsSync(extractedBinary)) {
+    throw new Error(`Archive ${assetName} did not contain ./unbrowse`);
+  }
+  mkdirSync(binDir, { recursive: true });
+  copyFileSync(extractedBinary, binaryPath);
+  chmodSync(binaryPath, 0o755);
+  try { unlinkSync(archivePath); } catch {}
+  try { unlinkSync(extractedBinary); } catch {}
   console.log(`[unbrowse] Binary installed: ${binaryPath}`);
 } catch (err) {
   console.warn(`[unbrowse] Binary download failed: ${err.message}`);

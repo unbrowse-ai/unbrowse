@@ -47,9 +47,10 @@ describe("standalone skill package runtime", () => {
   it("downloads the packaged binary from versioned GitHub release assets and tolerates runtime fallback", () => {
     const postinstall = readFileSync(SKILL_POSTINSTALL, "utf8");
 
-    expect(postinstall).toContain('const assetName = `unbrowse-${target}`;');
+    expect(postinstall).toContain("buildBinaryArchiveName(version, target)");
     expect(postinstall).toContain("const localBinaryPath = process.env.UNBROWSE_INSTALL_BINARY_PATH;");
-    expect(postinstall).toContain("await download(url, binaryPath);");
+    expect(postinstall).toContain('execFileSync("tar", ["-xzf", archivePath, "-C", extractDir]);');
+    expect(postinstall).toContain("copyFileSync(extractedBinary, binaryPath);");
     expect(postinstall).toContain("Falling back to source mode");
   });
 
@@ -57,6 +58,7 @@ describe("standalone skill package runtime", () => {
     const preparePack = readFileSync(SKILL_PREPARE_PACK, "utf8");
 
     expect(preparePack).toContain('const packagedBinaryPath = path.join(packageRoot, "bin", "unbrowse");');
+    expect(preparePack).toContain('execFileSync("bun", [path.join(repoRoot, "scripts", "build-release-manifest.ts")]');
     expect(preparePack).toContain("rmSync(packagedBinaryPath, { force: true });");
   });
 
