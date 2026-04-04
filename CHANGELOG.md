@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.0.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.0.1...v3.0.2) (2026-04-04)
+
+### Features
+
+* wire install attribution from landing page to agent registration ([f2c7e66](https://github.com/unbrowse-ai/unbrowse-dev/commit/f2c7e6682de2c54b2c3f75f3859f164f6fc8be8f))
+
 ## [3.0.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.4...v3.0.1) (2026-04-04)
 
 ### Features
