@@ -881,7 +881,7 @@ export const CLI_REFERENCE = {
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills and evict stale cached endpoints" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
-    { name: "go", usage: '<url> [--session id]', desc: "Open a live Kuri browser tab for capture-first workflows" },
+    { name: "go", usage: '<url> [--session id]', desc: "Open a fresh Kuri browser tab, or reuse explicit --session" },
     { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]", desc: "Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins" },
     { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs" },
     { name: "click", usage: "[--session id] <ref>", desc: "Click element by ref (e.g. e5)" },

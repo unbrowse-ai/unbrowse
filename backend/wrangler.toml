@@ -61,3 +61,25 @@ X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
+
+# --- Lewis experiments environment ---
+# Deploy: wrangler deploy --env experiments
+# Secrets: wrangler secret put EMERGENTDB_API_KEY --env experiments (etc.)
+# Public surface stays on workers.dev so this branch can be used as an isolated sandbox.
+[env.experiments]
+name = "unbrowse-backend-experiments"
+workers_dev = true
+routes = []
+
+[[env.experiments.kv_namespaces]]
+binding = "STATS_KV"
+id = "1d315d7cda1742b785cf5d23c892c5d7"
+preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
+
+[env.experiments.vars]
+ENVIRONMENT = "staging"
+PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
+X402_NETWORK_MODE = "mainnet"
+PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
+UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"

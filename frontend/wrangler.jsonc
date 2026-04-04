@@ -52,6 +52,25 @@
 					"bucket_name": "unbrowse-frontend-cache"
 				}
 			]
+		},
+		"experiments": {
+			"workers_dev": true,
+			"routes": [],
+			"images": {
+				"binding": "IMAGES"
+			},
+			"services": [
+				{
+					"binding": "WORKER_SELF_REFERENCE",
+					"service": "frontend-experiments"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "NEXT_INC_CACHE_R2_BUCKET",
+					"bucket_name": "unbrowse-frontend-cache"
+				}
+			]
 		}
 	},
 	"r2_buckets": [
