@@ -95,11 +95,11 @@ jobs:
           case "${GITHUB_REF_NAME}" in
             staging)
               CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare build
-              CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare deploy
+              OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env staging
               ;;
             lewis/experiments)
               CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare build
-              CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare deploy
+              OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env experiments
               ;;
             *)
               bun run deploy:ci
