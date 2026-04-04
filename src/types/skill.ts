@@ -386,6 +386,7 @@ export interface DiscoveryCandidate {
 export interface ResponseSchema {
   type: string;
   description?: string;
+  enum_values?: Array<string | number | boolean>;
   properties?: Record<string, ResponseSchema>;
   items?: ResponseSchema;
   required?: string[];
@@ -733,6 +734,36 @@ export interface WorkflowParameterSpec {
   derived_from?: string[];
   constraints?: WorkflowParameterConstraint[];
   source_hints: WorkflowParameterSourceHint[];
+}
+
+export interface EndpointParameterReview {
+  name: string;
+  location: "path" | "query" | "body" | "header";
+  description?: string;
+  type?: "string" | "number" | "integer" | "boolean" | "object" | "array";
+  required?: boolean;
+  user_supplied?: boolean;
+  format?: string;
+  enum_values?: Array<string | number | boolean>;
+  derived_from?: string[];
+}
+
+export interface EndpointResponseFieldReview {
+  path: string;
+  description?: string;
+  type?: string;
+  enum_values?: Array<string | number | boolean>;
+}
+
+export interface EndpointReviewPayload {
+  endpoint_id: string;
+  description?: string;
+  action_kind?: string;
+  resource_kind?: string;
+  example_request?: unknown;
+  example_response?: unknown;
+  parameter_reviews?: EndpointParameterReview[];
+  response_reviews?: EndpointResponseFieldReview[];
 }
 
 export interface WorkflowPrerequisiteSpec {

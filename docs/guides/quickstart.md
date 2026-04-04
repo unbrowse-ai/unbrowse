@@ -157,6 +157,7 @@ Repo presets are the supported runtime switch:
 bun run preset:show
 bun run preset:prod
 bun run preset:testing
+bun run preset:experiments
 ```
 
 Do not hand-edit ad hoc runtime env files unless you are intentionally changing the preset system.

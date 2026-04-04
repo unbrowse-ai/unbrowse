@@ -174,6 +174,16 @@ Traversal is discovery. Checkpoints drive compilation.
 - `publish` -> rerun local index, then explicitly remote-share/re-publish
 - `settings` -> inspect/update local auto-publish policy, blacklist, and prompt-list domains
 
+Fresh `sync` / `close` output is publish-review material, not immediate resolve material.
+
+After a live capture, validate it like this:
+
+1. `unbrowse skill {skill_id}` or `unbrowse publish --skill {skill_id} --pretty`
+2. inspect the captured endpoints, review context, request schema, response schema, prerequisites, and token bindings
+3. `unbrowse review --skill {skill_id} --endpoints '[...]'` or `unbrowse publish --skill {skill_id} --endpoints '[...]'`
+4. `unbrowse publish --skill {skill_id} --confirm-publish`
+5. only later, use `resolve` for reuse of the published/indexed contract
+
 Publish is DAG-aware: it shares the admitted root routes plus DAG-linked dependent steps from the same workflow component, keeping each readable or mutable step as its own callable endpoint for later agents.
 
 Workflow lifecycle:
@@ -197,6 +207,8 @@ That output becomes the machine-readable replay contract exposed to later agents
 ### 4. Resolve and execute indexed/published routes
 
 When a route is already known, use the explicit resolve/execute path.
+
+Do not use `resolve` as the first validation step for a just-closed live browse capture. `resolve` is for already indexed/published contracts; fresh capture inspection belongs to `skill` / `publish --pretty` / `review` / `publish`.
 
 ```bash
 unbrowse resolve \
@@ -255,6 +267,9 @@ Then improve the metadata:
 - what the params mean
 - restrictions, audience, pricing, validity, or eligibility caveats
 - correct `action_kind` / `resource_kind`
+- request/response schema notes where the inferred contract is too weak
+
+For fresh live captures, this review step comes before any expectation that `resolve` should find the route.
 
 Publish once the contract is good enough for reuse:
 
@@ -309,11 +324,11 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 |---------|-------|-------------|
 | `health` |  | Server health check |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
-| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Search cached domain routes and optionally execute the top trusted endpoint |
+| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Search cached indexed/published routes and optionally execute the top trusted endpoint |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
-| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
-| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, then publish/share from cached skill state |
+| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/schema metadata back to a captured skill before publish |
+| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, inspect publish-review metadata, then publish/share from cached skill state |
 | `settings` | `[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]` | Show or update local capture/publish policy settings |
 | `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state only |
 | `login` | `--url "..."` | Interactive browser login |
@@ -337,8 +352,8 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `eval` | `[--session id] <expression>` | Evaluate JavaScript |
 | `back` | `[--session id]` | Navigate back |
 | `forward` | `[--session id]` | Navigate forward |
-| `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish |
-| `close` | `[--session id]` | Checkpoint capture, queue background index + publish, then close browse session |
+| `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review |
+| `close` | `[--session id]` | Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review |
 
 ### Global flags
 
@@ -394,9 +409,13 @@ unbrowse press Enter                   # Submit
 unbrowse snap                          # See results
 unbrowse sync                          # Mid-flow checkpoint
 unbrowse close                         # Final checkpoint + close session
+unbrowse skill {skill_id}              # Inspect captured endpoints
+unbrowse publish --skill {skill_id} --pretty
+unbrowse review --skill {skill_id} --endpoints '[{...}]'
+unbrowse publish --skill {skill_id} --confirm-publish
 ```
 
-All traffic is passively captured during the browse session. `sync` and `close` checkpoint that capture and queue the background `index -> publish` pipeline. Local `index` can also recompute the DAG/contracts/export without remote share. The next time you (or any agent) resolves the same domain, it hits the cache instead of browsing again.
+All traffic is passively captured during the browse session. `sync` and `close` checkpoint that capture and queue the background `index -> publish` pipeline. Local `index` can also recompute the DAG/contracts/export without remote share. Before the next `resolve`, inspect/review/publish first. Once that happens, the next time you (or any agent) resolves the same domain, it hits the cache instead of browsing again.
 
 ### Dependency walk for multi-step sites
 
@@ -414,6 +433,8 @@ unbrowse login --url "https://example.com/login"
 ## Best Practices
 
 ### Two-step resolve + execute is the standard flow
+
+This is the standard flow for already indexed/published contracts, not for a just-finished live capture.
 
 Most real domains (X, LinkedIn, Reddit, GitHub, etc.) have multiple endpoints. Resolve returns a deferred list — you pick the right endpoint, then execute.
 

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
-import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, injectInterceptor, type RawRequest } from "../capture/index.js";
+import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -40,7 +40,7 @@ import {
   withSerializedStrictBrowseSession,
   removeBrowseSession,
 } from "./browse-session.js";
-import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
+import { cacheBrowseRequests, harEntriesToRawRequests } from "./browse-index.js";
 import { isUrlWaitHint, resolveSubmitWaitHint, submitBrowseForm } from "./browse-submit.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
 import {
@@ -51,6 +51,8 @@ import {
 } from "../settings.js";
 import { publishFoundryBundle } from "../foundry/publish-bundle.js";
 import { buildEndpointReviewContext } from "../publish/review-context.js";
+import { applyWorkflowSchemaReviews } from "../publish/schema-review.js";
+import { readWorkflowArtifact, writeWorkflowArtifact } from "../workflow/artifact.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
@@ -608,14 +610,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
     const { endpoints: reviews } = req.body as {
-      endpoints: Array<{
-        endpoint_id: string;
-        description?: string;
-        action_kind?: string;
-        resource_kind?: string;
-        example_request?: unknown;
-        example_response?: unknown;
-      }>;
+      endpoints: import("../types/index.js").EndpointReviewPayload[];
     };
     if (!reviews?.length) return reply.code(400).send({ error: "endpoints[] required" });
 
@@ -625,6 +620,8 @@ export async function registerRoutes(app: FastifyInstance) {
     const updated = mergeAgentReview(skill.endpoints, reviews);
     skill.endpoints = updated;
     skill.updated_at = new Date().toISOString();
+    const updatedWorkflowArtifact = applyWorkflowSchemaReviews(readWorkflowArtifact(skill.skill_id), reviews);
+    if (updatedWorkflowArtifact) writeWorkflowArtifact(updatedWorkflowArtifact);
 
     const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
     return reply.send({
@@ -663,12 +660,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
     const { endpoints: reviews, confirm_publish } = (req.body as {
-      endpoints?: Array<{
-        endpoint_id: string;
-        description?: string;
-        action_kind?: string;
-        resource_kind?: string;
-      }>;
+      endpoints?: import("../types/index.js").EndpointReviewPayload[];
       confirm_publish?: boolean;
     }) ?? {};
 
@@ -692,6 +684,8 @@ export async function registerRoutes(app: FastifyInstance) {
       const updated = mergeAgentReview(skill.endpoints, reviews);
       skill.endpoints = updated;
       skill.updated_at = new Date().toISOString();
+      const updatedWorkflowArtifact = applyWorkflowSchemaReviews(readWorkflowArtifact(skill.skill_id), reviews);
+      if (updatedWorkflowArtifact) writeWorkflowArtifact(updatedWorkflowArtifact);
       const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
       const publishResult = await publishIndexedSkill(indexed);
       return reply.send({
@@ -748,9 +742,9 @@ export async function registerRoutes(app: FastifyInstance) {
       endpoint_count: indexed.skill.endpoints.length,
       endpoints_to_describe,
       next_step:
-        `Fill each endpoint's description using review_context (deps, yields, provenance, trigger page) plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
+        `Fill each endpoint's description using review_context (deps, request_schema, response_schema, provenance, trigger page) plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
       _next_step:
-        `Fill each endpoint's description using review_context (deps, yields, provenance, trigger page) plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
+        `Fill each endpoint's description using review_context (deps, request_schema, response_schema, provenance, trigger page) plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
     });
   });
 
@@ -1225,21 +1219,6 @@ export async function registerRoutes(app: FastifyInstance) {
     };
     background_publish_queued: boolean;
   }> {
-    let intercepted: RawRequest[] = [];
-    try {
-      const raw = await collectInterceptedRequests(session.tabId);
-      intercepted = raw.map((request) => ({
-        url: request.url,
-        method: request.method,
-        request_headers: request.request_headers ?? {},
-        request_body: request.request_body,
-        response_status: request.response_status,
-        response_headers: request.response_headers ?? {},
-        response_body: request.response_body,
-        timestamp: request.timestamp,
-      }));
-    } catch { /* non-fatal */ }
-
     let harEntries: KuriHarEntry[] = [];
     if (session.harActive) {
       try {
@@ -1249,12 +1228,18 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     session.harActive = false;
 
-    const allRequests = mergeBrowseRequests(intercepted, harEntries, session.url);
+    const allRequests = await enrichPassiveCaptureRequests({
+      tabId: session.tabId,
+      captureUrl: session.url,
+      harEntries,
+      intent: `browse ${session.domain || profileName(session.url)}`,
+    });
     const syncResult = await cacheBrowseRequests({
       sessionUrl: session.url,
       sessionDomain: session.domain,
       requests: allRequests,
       getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
+      intent: `browse ${session.domain || profileName(session.url)}`,
     });
 
     let indexQueued = false;

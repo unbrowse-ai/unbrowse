@@ -219,10 +219,15 @@ export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): K
   const headless = envFlag(env.KURI_HEADLESS ?? env.HEADLESS);
   const cleanRoom = envFlag(env.UNBROWSE_LOCAL_ONLY) || envFlag(env.KURI_CLEAN_ROOM);
   const browserCookieOptOut = falseyEnv(env.UNBROWSE_IMPORT_BROWSER_COOKIES);
+  const explicitAttach = envFlag(env.KURI_ATTACH_EXISTING_CHROME ?? env.UNBROWSE_ATTACH_EXISTING_CHROME);
   const disableCdpAttach = envFlag(env.KURI_DISABLE_CDP_ATTACH);
+  const canAttachToExistingChrome = !headless && !disableCdpAttach && !cleanRoom;
   return {
     headless,
-    attachToExistingChrome: !headless && !disableCdpAttach && !cleanRoom && !browserCookieOptOut,
+    // Managed Chrome is the safe default when browser-cookie import is enabled:
+    // it preserves extension-backed capture while still restoring auth into tabs.
+    // Existing-Chrome attach remains available for explicit opt-in or true cookie-opt-out flows.
+    attachToExistingChrome: canAttachToExistingChrome && (explicitAttach || browserCookieOptOut),
   };
 }
 

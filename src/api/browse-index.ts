@@ -2,6 +2,8 @@ import { nanoid } from "nanoid";
 import { readFileSync } from "node:fs";
 import { extractEndpoints } from "../reverse-engineer/index.js";
 import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
+import { validateExtractionQuality } from "../execution/index.js";
+import { assessIntentResult } from "../intent-match.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import type { EndpointDescriptor, SkillManifest } from "../types/index.js";
 import type { RawRequest } from "../capture/index.js";
@@ -92,15 +94,69 @@ export interface BrowseIndexResult {
   skill: SkillManifest | null;
 }
 
+export function shouldIndexDomBrowseFallback(params: {
+  requestCount: number;
+  intent: string;
+  extractedData: unknown;
+  extractedConfidence: number;
+  hasStructuredForm: boolean;
+}): {
+  allow: boolean;
+  reason?: string;
+  intentLooksSearch: boolean;
+} {
+  const { requestCount, intent, extractedData, extractedConfidence, hasStructuredForm } = params;
+  const intentLooksSearch = /\b(search|find|lookup|filter)\b/i.test(intent);
+
+  if (!extractedData) {
+    if (hasStructuredForm && requestCount > 0 && intentLooksSearch) {
+      return { allow: true, intentLooksSearch };
+    }
+    return {
+      allow: false,
+      reason: hasStructuredForm ? "form_only_without_network_evidence" : "no_dom_data",
+      intentLooksSearch,
+    };
+  }
+
+  const quality = validateExtractionQuality(extractedData, extractedConfidence, intent);
+  if (!quality.valid) {
+    if (hasStructuredForm && requestCount > 0 && intentLooksSearch) {
+      return { allow: true, intentLooksSearch };
+    }
+    return {
+      allow: false,
+      reason: quality.quality_note ?? "low_quality_dom_extraction",
+      intentLooksSearch,
+    };
+  }
+
+  const semanticAssessment = assessIntentResult(extractedData, intent);
+  if (semanticAssessment.verdict === "fail") {
+    if (hasStructuredForm && requestCount > 0 && intentLooksSearch) {
+      return { allow: true, intentLooksSearch };
+    }
+    return {
+      allow: false,
+      reason: semanticAssessment.reason ?? "dom_extraction_did_not_match_intent",
+      intentLooksSearch,
+    };
+  }
+
+  return { allow: true, intentLooksSearch };
+}
+
 export async function cacheBrowseRequests(params: {
   sessionUrl: string;
   sessionDomain: string;
   requests: RawRequest[];
   getPageHtml?: () => Promise<string>;
+  intent?: string;
 }): Promise<BrowseIndexResult> {
   const { sessionUrl, sessionDomain, requests, getPageHtml } = params;
   let domain: string;
   try { domain = new URL(sessionUrl).hostname; } catch { domain = sessionDomain; }
+  const intent = params.intent ?? `browse ${domain}`;
 
   const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl: sessionUrl, finalUrl: sessionUrl });
   if (rawEndpoints.length > 0) {
@@ -137,16 +193,16 @@ export async function cacheBrowseRequests(params: {
         created_at: existingSkill?.created_at ?? new Date().toISOString(),
         updated_at: new Date().toISOString(),
         name: domain,
-        intent_signature: `browse ${domain}`,
+        intent_signature: intent,
         domain,
         description: `API skill for ${domain}`,
         owner_type: "agent",
         endpoints: mergedEndpoints,
         operation_graph: buildSkillOperationGraph(mergedEndpoints),
-        intents: Array.from(new Set([...(existingSkill?.intents ?? []), `browse ${domain}`])),
+        intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
       };
 
-      const cacheKey = buildResolveCacheKey(domain, `browse ${domain}`, sessionUrl);
+      const cacheKey = buildResolveCacheKey(domain, intent, sessionUrl);
       const scopedKey = scopedCacheKey("global", cacheKey);
       writeSkillSnapshot(scopedKey, quickSkill);
       if (domainKey) {
@@ -177,11 +233,18 @@ export async function cacheBrowseRequests(params: {
     const { inferSchema } = await import("../transform/index.js");
     const { templatizeQueryParams } = await import("../execution/index.js");
 
-    const extracted = extractFromDOM(html, `browse ${domain}`);
+    const extracted = extractFromDOM(html, intent);
     const searchForms = detectSearchForms(html);
     const validForm = searchForms.find((form: { form_selector: string; fields: unknown[] }) => isStructuredSearchForm(form));
+    const domDecision = shouldIndexDomBrowseFallback({
+      requestCount: requests.length,
+      intent,
+      extractedData: extracted.data,
+      extractedConfidence: extracted.confidence,
+      hasStructuredForm: !!validForm,
+    });
 
-    if (!extracted.data && !validForm) return { domain, indexed: false, mode: "none", skill: null };
+    if (!domDecision.allow || !extracted.data) return { domain, indexed: false, mode: "none", skill: null };
 
     const urlTemplate = templatizeQueryParams(sessionUrl);
     const endpoint: EndpointDescriptor = {
@@ -191,15 +254,15 @@ export async function cacheBrowseRequests(params: {
       idempotency: "safe",
       verification_status: "verified",
       reliability_score: extracted.confidence ?? 0.7,
-      description: validForm ? `Search form for ${domain}` : `Page content from ${domain}`,
-      response_schema: extracted.data ? inferSchema([extracted.data]) : undefined,
+      description: validForm && domDecision.intentLooksSearch ? `Search form for ${domain}` : `Page content from ${domain}`,
+      response_schema: inferSchema([extracted.data]),
       dom_extraction: {
         extraction_method: extracted.extraction_method ?? "repeated-elements",
         confidence: extracted.confidence ?? 0.7,
         ...(extracted.selector ? { selector: extracted.selector } : {}),
       },
       trigger_url: sessionUrl,
-      ...(validForm ? { search_form: validForm } : {}),
+      ...(validForm && domDecision.intentLooksSearch ? { search_form: validForm } : {}),
     };
 
     endpoint.semantic = inferEndpointSemantic(endpoint, {
@@ -223,16 +286,16 @@ export async function cacheBrowseRequests(params: {
       created_at: existing?.created_at ?? new Date().toISOString(),
       updated_at: new Date().toISOString(),
       name: domain,
-      intent_signature: `browse ${domain}`,
+      intent_signature: intent,
       domain,
       description: `DOM skill for ${domain}`,
       owner_type: "agent",
       endpoints: allEndpoints,
       operation_graph: buildSkillOperationGraph(allEndpoints),
-      intents: [...new Set([...(existing?.intents ?? []), `browse ${domain}`])],
+      intents: [...new Set([...(existing?.intents ?? []), intent])],
     };
 
-    const cacheKey = buildResolveCacheKey(domain, `browse ${domain}`, sessionUrl);
+    const cacheKey = buildResolveCacheKey(domain, intent, sessionUrl);
     const scopedKey = scopedCacheKey("global", cacheKey);
     writeSkillSnapshot(scopedKey, skill);
     const domainReuseKey = getDomainReuseKey(sessionUrl ?? domain);

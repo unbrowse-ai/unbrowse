@@ -283,14 +283,21 @@ exit 1
 
     expect(kuri.resolveKuriLaunchConfig({} as NodeJS.ProcessEnv)).toEqual({
       headless: false,
-      attachToExistingChrome: true,
+      attachToExistingChrome: false,
     });
 
     expect(kuri.resolveKuriLaunchConfig({
       UNBROWSE_IMPORT_BROWSER_COOKIES: "0",
     } as NodeJS.ProcessEnv)).toEqual({
       headless: false,
-      attachToExistingChrome: false,
+      attachToExistingChrome: true,
+    });
+
+    expect(kuri.resolveKuriLaunchConfig({
+      KURI_ATTACH_EXISTING_CHROME: "1",
+    } as NodeJS.ProcessEnv)).toEqual({
+      headless: false,
+      attachToExistingChrome: true,
     });
 
     expect(kuri.resolveKuriLaunchConfig({

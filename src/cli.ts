@@ -593,7 +593,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       // Prompt agent to review when this is likely a first-time execute
       if (trace?.skill_id && trace?.endpoint_id && limited.length > 0) {
         out._review_hint =
-          `After presenting results, improve this endpoint's description with what it returns plus any audience/eligibility/pricing/validity caveats: unbrowse review --skill ${trace.skill_id} --endpoints '[{"endpoint_id":"${trace.endpoint_id}","description":"DESCRIBE WHAT THIS RETURNS AND ANY IMPORTANT CONSTRAINTS","action_kind":"ACTION","resource_kind":"RESOURCE"}]'`;
+          `After presenting results, review this endpoint's contract: description plus request/response schema notes where needed. Example: unbrowse review --skill ${trace.skill_id} --endpoints '[{"endpoint_id":"${trace.endpoint_id}","description":"DESCRIBE WHAT THIS RETURNS AND ANY IMPORTANT CONSTRAINTS","action_kind":"ACTION","resource_kind":"RESOURCE","parameter_reviews":[{"location":"query","name":"q","description":"Search query text","type":"string","required":true}],"response_reviews":[{"path":"items[].url","description":"Canonical result URL","type":"string"}]}]'`;
       }
 
       output(out, !!flags.pretty);
@@ -660,7 +660,7 @@ async function cmdReview(flags: Record<string, string | boolean>): Promise<void>
   const skillId = flags.skill as string;
   if (!skillId) die("--skill is required");
   const endpointsJson = flags.endpoints as string;
-  if (!endpointsJson) die("--endpoints is required (JSON array of {endpoint_id, description?, action_kind?, resource_kind?})");
+  if (!endpointsJson) die("--endpoints is required (JSON array of {endpoint_id, description?, action_kind?, resource_kind?, parameter_reviews?, response_reviews?})");
   const endpoints = JSON.parse(endpointsJson) as Array<Record<string, unknown>>;
   if (!Array.isArray(endpoints) || endpoints.length === 0) die("--endpoints must be a non-empty JSON array");
   output(await api("POST", `/v1/skills/${skillId}/review`, { endpoints }), !!flags.pretty);
@@ -882,12 +882,12 @@ export const CLI_REFERENCE = {
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
-    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Search cached domain routes and optionally execute the top trusted endpoint" },
+    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Search cached indexed/published routes and optionally execute the top trusted endpoint" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
-    { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/metadata back to skill" },
+    { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/schema metadata back to a captured skill before publish" },
     { name: "index", usage: "--skill ID", desc: "Recompute local graph/contracts/export from cached skill state only" },
-    { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Re-index locally, then publish/share from cached skill state; without endpoints returns review metadata first" },
+    { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Re-index locally, inspect publish-review metadata, then publish/share from cached skill state" },
     { name: "publish-bundle", usage: "--preset path [--hosts codex,claude,openclaw] [--site-url https://www.unbrowse.ai]", desc: "Derive foundry bundle/share/host artifacts from one preset and write the public share manifest" },
     { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]", desc: "Show or update local capture/publish policy settings" },
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
@@ -911,8 +911,8 @@ export const CLI_REFERENCE = {
     { name: "eval", usage: "[--session id] <expression>", desc: "Evaluate JavaScript" },
     { name: "back", usage: "[--session id]", desc: "Navigate back" },
     { name: "forward", usage: "[--session id]", desc: "Navigate forward" },
-    { name: "sync", usage: "[--session id]", desc: "Checkpoint current capture, keep tab open, queue background index + publish" },
-    { name: "close", usage: "[--session id]", desc: "Checkpoint capture, queue background index + publish, then close browse session" },
+    { name: "sync", usage: "[--session id]", desc: "Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review" },
+    { name: "close", usage: "[--session id]", desc: "Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review" },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -944,7 +944,7 @@ export const CLI_REFERENCE = {
     "unbrowse execute --skill abc --endpoint def --schema --pretty",
     'unbrowse execute --skill abc --endpoint def --path "data.items[]" --extract "name,url" --limit 10 --pretty',
     "unbrowse feedback --skill abc --endpoint def --rating 5",
-    'unbrowse review --skill abc --endpoints \'[{"endpoint_id":"def","description":"..."}]\'',
+    'unbrowse review --skill abc --endpoints \'[{"endpoint_id":"def","description":"...","parameter_reviews":[{"location":"query","name":"q","description":"Search query","type":"string","required":true}],"response_reviews":[{"path":"items[].title","description":"Listing title","type":"string"}]}]\'',
     "unbrowse index --skill abc --pretty",
     "unbrowse publish --skill abc --pretty",
     "unbrowse publish --skill abc --confirm-publish --pretty",
@@ -995,6 +995,8 @@ function printHelp(): void {
     "  4. submit -> prefer DOM submit; keep traversal browser-native; opt into same-origin rehydrate only for explicit replay/recovery debugging",
     "  5. sync -> checkpoint the current step and queue background index + publish",
     "  6. close -> final checkpoint + queue background index + publish, then close the session",
+    "  7. skill/publish --pretty -> inspect the fresh captured endpoints and review context",
+    "  8. review/publish -> annotate and share the contract; resolve is for later reuse, not first-pass capture validation",
   );
 
   lines.push(

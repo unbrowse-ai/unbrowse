@@ -15,7 +15,7 @@ import {
   generateLocalDescription,
 } from "../orchestrator/index.js";
 import { getRegistrableDomain } from "../domain.js";
-import type { SkillManifest, EndpointDescriptor } from "../types/index.js";
+import type { EndpointReviewPayload, SkillManifest, EndpointDescriptor } from "../types/index.js";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sanitizeForPublish } from "../publish/sanitize.js";
@@ -23,6 +23,7 @@ import { readWorkflowArtifact } from "../workflow/artifact.js";
 import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
 import { getUnbrowseConfigPath } from "../settings.js";
 import { getEndpointDescriptionMetadata } from "../graph/index.js";
+import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
@@ -55,22 +56,17 @@ function getLocalAgentId(): string | undefined {
  */
 export function mergeAgentReview(
   endpoints: EndpointDescriptor[],
-  reviews: Array<{
-    endpoint_id: string;
-    description?: string;
-    action_kind?: string;
-    resource_kind?: string;
-    example_request?: unknown;
-    example_response?: unknown;
-  }>,
+  reviews: EndpointReviewPayload[],
 ): EndpointDescriptor[] {
   const reviewMap = new Map(reviews.map((r) => [r.endpoint_id, r]));
   return endpoints.map((ep) => {
     const reviewed = reviewMap.get(ep.endpoint_id);
     if (!reviewed) return ep;
+    const responseSchema = applyResponseSchemaReviews(ep.response_schema, reviewed.response_reviews);
     return {
       ...ep,
       description: reviewed.description || ep.description,
+      ...(responseSchema ? { response_schema: responseSchema } : {}),
       semantic: ep.semantic ? {
         ...ep.semantic,
         action_kind: reviewed.action_kind || ep.semantic.action_kind,
@@ -81,6 +77,9 @@ export function mergeAgentReview(
         ...(reviewed.description ? { description_warning: undefined } : {}),
         ...(reviewed.example_response ? { example_response_compact: reviewed.example_response } : {}),
         ...(reviewed.example_request ? { example_request: reviewed.example_request } : {}),
+        ...(reviewed.parameter_reviews?.length ? {
+          requires: applyBindingReviews(ep.semantic.requires, reviewed.parameter_reviews),
+        } : {}),
       } : ep.semantic,
     };
   });
