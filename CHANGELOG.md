@@ -6,6 +6,7 @@
 - add archetype and routing references for choosing the right funny brand-account voice without drifting into generic social copy
 - add `x-account-operator` foundry bundle to route winner analysis, voice selection, queue cuts, rewrites, and Typefully scheduling into one X account workflow
 - add local `publish-bundle` CLI/API flow so one foundry preset writes bundle artifacts, host snippets, and the public share manifest in one step
+- replace the repo-local `skills/foundry` symlink with a real `unbrowse-ai/foundry` git submodule
 
 ## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
 
