@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { getPackageRoot, isMainModule, runtimeArgsForEntrypoint } from "../src/runtime/paths.js";
+import { getPackageRoot, isBundledVirtualEntrypoint, isMainModule, runtimeArgsForEntrypoint } from "../src/runtime/paths.js";
 
 const tmpDirs: string[] = [];
 
@@ -76,5 +76,10 @@ describe("runtime paths", () => {
     writeFileSync(nestedModule, "// nested module\n");
 
     expect(getPackageRoot(pathToFileURL(nestedModule).href)).toBe(tmpDir);
+  });
+
+  it("detects bundled bun virtual entrypoints", () => {
+    expect(isBundledVirtualEntrypoint("/$bunfs/root/mcp.js")).toBe(true);
+    expect(isBundledVirtualEntrypoint("/tmp/unbrowse/dist/mcp.js")).toBe(false);
   });
 });

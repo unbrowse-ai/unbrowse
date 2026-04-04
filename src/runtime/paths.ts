@@ -24,6 +24,10 @@ export function resolveSiblingEntrypoint(metaUrl: string, basename: string): str
   return path.join(path.dirname(file), `${basename}${path.extname(file) || ".js"}`);
 }
 
+export function isBundledVirtualEntrypoint(entrypoint: string): boolean {
+  return entrypoint.startsWith("/$bunfs/");
+}
+
 export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): string[] {
   if (path.extname(entrypoint) !== ".ts") return [entrypoint];
   if (process.versions.bun) return [entrypoint];

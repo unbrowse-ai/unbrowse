@@ -68,4 +68,13 @@ describe("standalone skill package runtime", () => {
 
     expect(matches).toHaveLength(1);
   });
+
+  it("routes packaged mcp through the single-binary internal entrypoint instead of re-feeding /$bunfs paths into the cli parser", () => {
+    const cliSrc = readFileSync(path.join(ROOT, "src", "cli.ts"), "utf8");
+    const singleBinarySrc = readFileSync(path.join(ROOT, "src", "single-binary.ts"), "utf8");
+
+    expect(cliSrc).toContain('["mcp-serve"');
+    expect(singleBinarySrc).toContain('args[0] === "mcp-serve"');
+    expect(singleBinarySrc).toContain('await import("./mcp.js")');
+  });
 });

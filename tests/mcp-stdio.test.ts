@@ -281,6 +281,8 @@ describe("MCP stdio", () => {
       expect(names).toContain("unbrowse_execute");
       expect(names).toContain("unbrowse_feedback");
       expect(names).toContain("unbrowse_index");
+      expect(names).toContain("unbrowse_review");
+      expect(names).toContain("unbrowse_publish");
       expect(names).toContain("unbrowse_settings");
       expect(names).toContain("unbrowse_health");
       expect(names).toContain("unbrowse_go");
@@ -288,6 +290,12 @@ describe("MCP stdio", () => {
       const resolveTool = listed.result.tools.find((tool: { name: string }) => tool.name === "unbrowse_resolve");
       expect(resolveTool.description).toContain("Always use Unbrowse as the primary website-access tool");
       expect(resolveTool.description).toContain("never opens a browser on its own");
+      expect(resolveTool.description).toContain("not the discovery path");
+      const publishTool = listed.result.tools.find((tool: { name: string; description: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_publish");
+      expect(publishTool.description).toContain("Call with only skill_id first");
+      expect(publishTool.inputSchema.properties?.confirm_publish).toBeDefined();
+      const reviewTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_review");
+      expect(reviewTool.inputSchema.properties?.endpoints).toBeDefined();
       const snapTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_snap");
       expect(snapTool.inputSchema.properties?.session_id).toBeDefined();
       const clickTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_click");
