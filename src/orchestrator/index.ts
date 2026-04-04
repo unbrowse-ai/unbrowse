@@ -14,7 +14,7 @@ import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, der
 import { getSkillChunk, knownBindingsFromInputs, computeReachableEndpoints, ensureSkillOperationGraph } from "../graph/index.js";
 import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
 import { getRegistrableDomain } from "../domain.js";
-import { extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
+import { extractTemplateQueryBindings, mergeContextTemplateParams, normalizeQueryBindingKey } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationGraph } from "./dag-feedback.js";
 import { isStructuredSearchForm } from "../execution/search-forms.js";
@@ -714,9 +714,11 @@ export function isCachedSkillRelevantForIntent(
     const hasStructuredSearchEndpoint = resolvedSkill.endpoints.some((endpoint) =>
       endpointHasSearchBindings(endpoint) &&
       (!!endpoint.dom_extraction || !!endpoint.response_schema) &&
-      endpointMatchesContextOrigin(endpoint, contextUrl),
+      endpointMatchesContextOrigin(endpoint, contextUrl) &&
+      endpointMatchesExplicitSearchContext(endpoint, contextUrl),
     );
     if (hasStructuredSearchEndpoint) return true;
+    if (collectExplicitSearchContextBindingKeys(contextUrl).size > 0) return false;
   }
   return (top?.score ?? Number.NEGATIVE_INFINITY) >= 0;
 }
@@ -841,6 +843,64 @@ function endpointHasSearchBindings(
   return /(basicsearchkey|basic_search_key|query|keyword|search|lookup|find|term)/.test(haystack);
 }
 
+function isSearchBindingLikeKey(key: string): boolean {
+  return /\b(q|query|queries|keyword|keywords|search|lookup|find|term|text|rawquery|raw_query)\b/i.test(key);
+}
+
+function collectExplicitSearchContextBindingKeys(contextUrl?: string): Set<string> {
+  const keys = new Set<string>();
+  if (!contextUrl) return keys;
+  try {
+    const url = new URL(contextUrl);
+    for (const rawKey of url.searchParams.keys()) {
+      if (!isSearchBindingLikeKey(rawKey)) continue;
+      keys.add(rawKey.toLowerCase());
+      keys.add(normalizeQueryBindingKey(rawKey).toLowerCase());
+    }
+  } catch {
+    // ignore malformed context urls
+  }
+  return keys;
+}
+
+function collectEndpointBindingKeys(
+  endpoint: SkillManifest["endpoints"][number],
+): Set<string> {
+  const keys = new Set<string>();
+  const add = (rawKey?: string | null) => {
+    if (!rawKey) return;
+    const trimmed = rawKey.trim();
+    if (!trimmed) return;
+    keys.add(trimmed.toLowerCase());
+    keys.add(normalizeQueryBindingKey(trimmed).toLowerCase());
+  };
+  for (const rawKey of Object.keys(extractTemplateQueryBindings(endpoint.url_template))) add(rawKey);
+  for (const rawKey of Object.keys(endpoint.query ?? {})) add(rawKey);
+  for (const rawKey of Object.keys(endpoint.body ?? {})) add(rawKey);
+  for (const rawKey of Object.keys(endpoint.body_params ?? {})) add(rawKey);
+  for (const rawKey of Object.keys(endpoint.semantic?.example_request ?? {})) add(rawKey);
+  for (const field of endpoint.search_form?.fields ?? []) add(field.name);
+  for (const binding of endpoint.semantic?.requires ?? []) add(binding.key);
+  return keys;
+}
+
+function endpointMatchesExplicitSearchContext(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  const contextBindings = collectExplicitSearchContextBindingKeys(contextUrl);
+  if (contextBindings.size === 0) return true;
+  if (!endpointHasSearchBindings(endpoint)) return false;
+  const endpointBindings = collectEndpointBindingKeys(endpoint);
+  if (endpointBindings.size === 0) return false;
+  for (const key of contextBindings) {
+    if (endpointBindings.has(key)) return true;
+  }
+  const contextHasSearchAlias = [...contextBindings].some((key) => isSearchBindingLikeKey(key));
+  const endpointHasSearchAlias = [...endpointBindings].some((key) => isSearchBindingLikeKey(key));
+  return contextHasSearchAlias && endpointHasSearchAlias;
+}
+
 function skillHasBetterStructuredSearchEndpoint(
   skill: SkillManifest,
   currentEndpointId: string | undefined,
@@ -852,6 +912,7 @@ function skillHasBetterStructuredSearchEndpoint(
     candidate.endpoint.endpoint_id !== currentEndpointId &&
     endpointHasSearchBindings(candidate.endpoint) &&
     (!!candidate.endpoint.dom_extraction || !!candidate.endpoint.response_schema) &&
+    endpointMatchesExplicitSearchContext(candidate.endpoint, contextUrl) &&
     candidate.score >= 0
   );
 }
@@ -865,7 +926,8 @@ export function skillHasContextStructuredSearchEndpoint(
   return skill.endpoints.some((endpoint) =>
     endpointHasSearchBindings(endpoint) &&
     (!!endpoint.dom_extraction || !!endpoint.response_schema) &&
-    endpointMatchesContextOrigin(endpoint, contextUrl),
+    endpointMatchesContextOrigin(endpoint, contextUrl) &&
+    endpointMatchesExplicitSearchContext(endpoint, contextUrl),
   );
 }
 

@@ -152,6 +152,8 @@ The checkpoint pipeline is explicit:
 - `publish` — rerun local index, then perform explicit remote share/re-publish
 - `settings` — inspect or update local auto-publish policy, blacklist, and prompt-list domains
 
+Publish now shares the admitted root endpoints plus their DAG-linked callable closure for the same workflow component, so future agents can invoke an individual readable or mutable step directly instead of only the top-ranked route.
+
 Workflow exports now move through:
 
 - `captured` — raw local evidence exists

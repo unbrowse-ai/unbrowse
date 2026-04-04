@@ -172,6 +172,8 @@ Traversal is discovery. Checkpoints drive compilation.
 - `publish` -> rerun local index, then explicitly remote-share/re-publish
 - `settings` -> inspect/update local auto-publish policy, blacklist, and prompt-list domains
 
+Publish is DAG-aware: it shares the admitted root routes plus DAG-linked dependent steps from the same workflow component, keeping each readable or mutable step as its own callable endpoint for later agents.
+
 Workflow lifecycle:
 
 - `captured`

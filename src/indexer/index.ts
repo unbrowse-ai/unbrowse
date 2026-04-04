@@ -2,7 +2,7 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import { validateManifest, publishSkill, cachePublishedSkill, publishGraphEdges } from "../client/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import {
-  selectMarketplacePublishEndpoints,
+  selectMarketplacePublishClosure,
   formatMarketplacePublishSelection,
 } from "../publish-admission.js";
 import {
@@ -280,6 +280,7 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
   validationErrors?: string[];
 }> {
   const { skill, domain, clientScope, scopedKey } = indexed;
+  const selection = selectMarketplacePublishClosure(skill);
   const markBlockedValidation = (errors: string[]) => {
     writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(
       skill,
@@ -287,6 +288,8 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
       {
         publishStatus: "blocked-validation",
         validationErrors: errors,
+        endpointIds: selection.closure_endpoint_ids,
+        rootEndpointIds: selection.root_endpoint_ids,
       },
     ));
     return {
@@ -295,7 +298,6 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
       validationErrors: errors,
     };
   };
-  const selection = selectMarketplacePublishEndpoints(skill);
   if (selection.endpoints.length === 0) {
     console.log(
       `[capture-pipeline] remote publish skipped for ${domain}: no admitted endpoints (${formatMarketplacePublishSelection(selection)})`,
@@ -303,7 +305,7 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
     return { published: false, publishStatus: "indexed" };
   }
   console.log(
-    `[capture-pipeline] remote publish ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${domain} (${formatMarketplacePublishSelection(selection)})`,
+    `[capture-pipeline] remote publish ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${domain} (${selection.root_endpoint_ids.length} roots, ${selection.endpoints.length - selection.root_endpoint_ids.length} closure) (${formatMarketplacePublishSelection(selection)})`,
   );
 
   const sanitized = sanitizeForPublish(selection.endpoints);
@@ -353,13 +355,16 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
     {
       publishStatus: "published",
       publishedAt,
+      endpointIds: selection.closure_endpoint_ids,
+      rootEndpointIds: selection.root_endpoint_ids,
     },
   ));
 
   if (skill.operation_graph?.operations) {
     for (const op of skill.operation_graph.operations) {
+      if (!selection.closure_operation_ids.includes(op.operation_id)) continue;
       const opEdges = (skill.operation_graph.edges ?? [])
-        .filter(e => e.from_operation_id === op.operation_id)
+        .filter(e => e.from_operation_id === op.operation_id && selection.closure_operation_ids.includes(e.to_operation_id))
         .map(e => ({
           target_endpoint_id: skill.operation_graph!.operations.find(
             t => t.operation_id === e.to_operation_id

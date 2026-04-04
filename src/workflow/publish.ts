@@ -65,10 +65,19 @@ function docBullets(
   skill: SkillManifest,
   endpoints: EndpointDescriptor[],
   workflowArtifact: WorkflowArtifact | null,
+  rootEndpointIds: string[],
 ): string[] {
   const bullets = [
     `${endpoints.length} publishable endpoint${endpoints.length === 1 ? "" : "s"} for ${skill.intent_signature}`,
   ];
+  if (rootEndpointIds.length > 0) {
+    const closureAdded = Math.max(0, endpoints.length - rootEndpointIds.length);
+    bullets.push(
+      closureAdded > 0
+        ? `publish closure: ${rootEndpointIds.length} root step${rootEndpointIds.length === 1 ? "" : "s"} + ${closureAdded} DAG-linked dependent step${closureAdded === 1 ? "" : "s"}`
+        : `publish closure: ${rootEndpointIds.length} root step${rootEndpointIds.length === 1 ? "" : "s"}`,
+    );
+  }
   if (workflowArtifact) {
     bullets.push(`${workflowArtifact.recipes.length} workflow recipe${workflowArtifact.recipes.length === 1 ? "" : "s"} captured`);
     const preferred = workflowArtifact.recipes.filter((recipe) => recipe.preferred).map((recipe) => recipe.endpoint_id);
@@ -156,11 +165,19 @@ export function buildWorkflowPublishArtifact(
     publishStatus?: WorkflowPublishStatus;
     publishedAt?: string;
     validationErrors?: string[];
+    endpointIds?: string[];
+    rootEndpointIds?: string[];
   },
 ): WorkflowPublishArtifact {
-  const sanitizedEndpoints = sanitizeForPublish(skill.endpoints.filter((endpoint) => endpoint.method !== "WS"));
-  const recipes = buildPublishedRecipes(workflowArtifact);
+  const includeEndpointIds = new Set(options?.endpointIds ?? skill.endpoints.map((endpoint) => endpoint.endpoint_id));
+  const rootEndpointIds = (options?.rootEndpointIds ?? []).filter((endpointId) => includeEndpointIds.has(endpointId));
+  const includedEndpoints = skill.endpoints.filter((endpoint) => includeEndpointIds.has(endpoint.endpoint_id));
+  const sanitizedEndpoints = sanitizeForPublish(includedEndpoints.filter((endpoint) => endpoint.method !== "WS"));
+  const recipes = buildPublishedRecipes(workflowArtifact).filter((recipe) => includeEndpointIds.has(recipe.endpoint_id));
   const tokenBindingCount = recipes.reduce((sum, recipe) => sum + recipe.token_bindings.length, 0);
+  const closureAddedCount = rootEndpointIds.length > 0
+    ? Math.max(0, sanitizedEndpoints.length - rootEndpointIds.length)
+    : 0;
   return {
     export_version: "1",
     generated_at: new Date().toISOString(),
@@ -177,6 +194,9 @@ export function buildWorkflowPublishArtifact(
       authenticated_capture: workflowArtifact?.auth_state.authenticated ?? false,
       token_binding_count: tokenBindingCount,
       trigger_url_count: workflowArtifact?.evidence.trigger_urls.length ?? 0,
+      included_endpoint_count: sanitizedEndpoints.length,
+      root_endpoint_ids: rootEndpointIds,
+      closure_added_count: closureAddedCount,
     },
     auth_summary: workflowArtifact?.auth_state ?? {
       cookie_names: [],
@@ -186,7 +206,7 @@ export function buildWorkflowPublishArtifact(
     recipes,
     docs: {
       headline: `${skill.domain} workflow export`,
-      bullets: docBullets(skill, sanitizedEndpoints, workflowArtifact),
+      bullets: docBullets(skill, sanitizedEndpoints, workflowArtifact, rootEndpointIds),
     },
   };
 }

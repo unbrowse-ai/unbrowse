@@ -1,7 +1,7 @@
 import { cachePublishedSkill, validateManifest, publishGraphEdges } from "../client/index.js";
 import {
   formatMarketplacePublishSelection,
-  selectMarketplacePublishEndpoints,
+  selectMarketplacePublishClosure,
 } from "../publish-admission.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { publishSkill } from "../marketplace/index.js";
@@ -70,7 +70,7 @@ export function queuePassiveSkillPublish(
       return;
     }
 
-    const selection = selectMarketplacePublishEndpoints(skill);
+    const selection = selectMarketplacePublishClosure(skill);
     if (selection.endpoints.length === 0) {
       console.warn(
         `[publish] passive publish skipped for ${skill.skill_id}: no admitted endpoints (${formatMarketplacePublishSelection(selection)})`,
@@ -92,6 +92,8 @@ export function queuePassiveSkillPublish(
         {
           publishStatus: "blocked-validation",
           validationErrors: validation.hardErrors,
+          endpointIds: selection.closure_endpoint_ids,
+          rootEndpointIds: selection.root_endpoint_ids,
         },
       ));
       console.warn(
@@ -104,7 +106,7 @@ export function queuePassiveSkillPublish(
     const published = await deps.publishSkill(publishDraft);
     const publishMs = Date.now() - publishStart;
     console.log(
-      `[publish] passive publish admitted ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${skill.skill_id} (${formatMarketplacePublishSelection(selection)})`,
+      `[publish] passive publish admitted ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${skill.skill_id} (${selection.root_endpoint_ids.length} roots, ${selection.endpoints.length - selection.root_endpoint_ids.length} closure) (${formatMarketplacePublishSelection(selection)})`,
     );
     deps.cachePublishedSkill({
       ...skill,
@@ -119,14 +121,17 @@ export function queuePassiveSkillPublish(
       {
         publishStatus: "published",
         publishedAt: new Date().toISOString(),
+        endpointIds: selection.closure_endpoint_ids,
+        rootEndpointIds: selection.root_endpoint_ids,
       },
     ));
 
     // Publish graph edges via dedicated endpoint (fire-and-forget)
     if (skill.operation_graph?.operations) {
       for (const op of skill.operation_graph.operations) {
+        if (!selection.closure_operation_ids.includes(op.operation_id)) continue;
         const opEdges = (skill.operation_graph.edges ?? [])
-          .filter(e => e.from_operation_id === op.operation_id)
+          .filter(e => e.from_operation_id === op.operation_id && selection.closure_operation_ids.includes(e.to_operation_id))
           .map(e => ({
             target_endpoint_id: skill.operation_graph!.operations.find(
               t => t.operation_id === e.to_operation_id
