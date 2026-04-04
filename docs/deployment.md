@@ -14,6 +14,7 @@ Current production deploy split:
 Webhook/runtime extras:
 
 - `POST /v1/webhooks/github` is the public GitHub webhook receiver for opt-in PR maintenance
+- it dispatches the self-hosted `pr-agent.yml` workflow instead of blindly auto-merging PRs
 - backend cron trigger runs every 6 hours UTC and flushes queued Telegram PR digests
 - required webhook/notification secrets are documented below
 - setup steps live in [docs/github-webhook-pr-bot.md](/Users/lekt9/.codex/worktrees/3c82/unbrowse/docs/github-webhook-pr-bot.md)
@@ -40,7 +41,7 @@ Detailed release choreography lives in [docs/RELEASING.md](/Users/lekt9/.codex/w
 
 ## Release workflow behavior
 
-`.github/workflows/deploy.yml` handles `main` pushes.
+`.github/workflows/deploy.yml` handles `main`, `staging`, and `lewis/experiments` pushes.
 `.github/workflows/release.yml` handles `v*` tag pushes.
 
 Main deploy workflow:
@@ -48,6 +49,20 @@ Main deploy workflow:
 1. deploy backend with `cd backend && bun run deploy:ci`
 2. deploy frontend with `cd frontend && bun run deploy`
 3. sync the standalone skill repo
+
+Staging deploy workflow:
+
+1. deploy backend with `cd backend && ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging`
+2. deploy frontend with `CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare build && OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env staging` so it publishes as `frontend-staging`
+3. skip skill-repo sync and any release/publish side effects
+4. if `PREVIEW_API_URL` is unset, skip the frontend staging deploy rather than pointing staging traffic at the wrong backend
+
+Lewis experiments deploy workflow:
+
+1. deploy backend with `cd backend && ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments`
+2. deploy frontend with `CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare build && OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env experiments` so it publishes as `frontend-experiments`
+3. keep the surface on `workers.dev` only; no production or staging routes are touched
+4. if `EXPERIMENTS_API_URL` is unset, skip the frontend experiments deploy rather than pointing the sandbox at the wrong backend
 
 Tag release workflow:
 
@@ -119,7 +134,14 @@ Preview deploys also expect one of:
 - repo variable `PREVIEW_API_URL`
 - or repo secret `PREVIEW_API_URL`
 
-That value should point at the shared staging backend origin used by preview builds. Do not hardcode the staging hostname into source files.
+That value should point at the shared staging backend origin used by preview builds and `staging` branch frontend deploys. Do not hardcode the staging hostname into source files.
+
+Lewis experiments branch deploys also expect one of:
+
+- repo variable `EXPERIMENTS_API_URL`
+- or repo secret `EXPERIMENTS_API_URL`
+
+That value should point at the backend origin for the `experiments` worker deploy. Keep it separate from `PREVIEW_API_URL` so the sandbox branch can drift safely without changing staging previews.
 
 Backend runtime secrets are documented in [backend/wrangler.toml](/Users/lekt9/.codex/worktrees/c99f/unbrowse/backend/wrangler.toml):
 
@@ -146,6 +168,7 @@ Prefer the preset system:
 bun run preset:show
 bun run preset:prod
 bun run preset:testing
+bun run preset:experiments
 ```
 
 Do not hand-edit runtime env wiring for normal mode switches.

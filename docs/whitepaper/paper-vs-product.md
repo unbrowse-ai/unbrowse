@@ -33,11 +33,11 @@ Status meanings:
 | Economic adoption condition `froute < c_rediscovery` | Partial | The framing is documented and unpaid paths can fall back to free indexing/live capture, but the client does not yet run an explicit optimizer over route price versus rediscovery cost. |
 | Route-level pricing | Shipped | Skills and marketplace search can advertise prices and gate access through the shipped payment lane. |
 | HTTP 402 payment handshake | Shipped | Resolve/execute/search surfaces can return `payment_required` with x402-compatible payment requirements. |
-| x402 settlement | Partial | The x402-compatible gate path ships today, but transaction execution and final settlement are delegated to the external wallet provider / Corbits-compatible facilitator. |
-| USDC on Solana settlement | Partial | The shipped lane advertises USDC payment terms on Solana and Base; settlement execution still lives in the wallet/provider layer rather than entirely inside Unbrowse. |
-| Fee splits across contributors, maintainers, infra, treasury | Partial | Payment routing exists, but the paper’s richer multi-party split architecture is not implemented in full. |
+| x402 settlement | Shipped | The x402-compatible gate path ships today end-to-end, while wallet signing/broadcast and final transaction execution remain delegated to the external wallet provider / Corbits-compatible facilitator. |
+| USDC on Solana settlement | Shipped | The shipped lane advertises and settles USDC payment terms on Solana and Base through the external facilitator / wallet path; Unbrowse does not custody or sign transactions itself. |
+| Fee splits across contributors, maintainers, infra, treasury | Partial | Payment routing and split plumbing exist, but the paper’s richer automatic multi-party split architecture is not implemented in full. |
 | Delta-based attribution for route improvements | Partial | Current payout routing narrows to the winning contributor wallet; the paper’s full attribution model is broader than what ships today. |
-| Contributor payouts | Shipped | Wallet-linked creator payout identity and transaction/earnings surfaces exist today, though in a narrower form than the full paper economy. |
+| Contributor payouts | Shipped | Wallet-linked creator payout identity, transaction/earnings surfaces, and current payout routing exist today, though in a narrower form than the full paper economy. |
 | Site-owner compensation and opt-in monetization | Partial | The product surface includes opt-in per-execution pricing hooks, but not the complete paper-era site-owner economy. |
 | Dynamic route pricing based on savings and trust | Coming soon | Not implemented. |
 
