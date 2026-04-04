@@ -10,6 +10,7 @@
 - add `bun run publish:cli:preview` to build a prerelease npm package + GitHub binary assets against an explicit preview backend, so packaged preview installs and compiled preview binaries hit the same non-prod API by default
 - make DAG hint inference value-aware too: recover unix-string `observed_at` ordering and lift likely edges when observed response values overlap downstream request values, so weak key matches stop dropping real workflow links
 - widen passive browse capture harvest to include replayable API-style Performance API preloads and synthesize request stubs for them, so NusMods-style `api.*/*.json` resources survive checkpointing even when page-slug hints do not match
+- keep raw path-binding evidence from reverse-engineering and defer semantic naming until the graph/review layer, so compound values like `2025-2026`, `semesters/2`, and `modules/ABM5001.json` stop collapsing into junk `{id}` templates while still surfacing reviewable candidate metadata
 - add `x-brand-banter` skill bundle for Wendy's/Ryanair/MoonPie-style X brand voice, replies, and quote-tweet banter
 - add archetype and routing references for choosing the right funny brand-account voice without drifting into generic social copy
 - add `x-account-operator` foundry bundle to route winner analysis, voice selection, queue cuts, rewrites, and Typefully scheduling into one X account workflow

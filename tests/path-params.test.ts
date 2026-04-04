@@ -187,4 +187,41 @@ describe("path parameterization (BUG-006)", () => {
     expect(ep.url_template).not.toContain("/{slug}/api/metadata/user");
     expect(ep.path_params).toBeUndefined();
   });
+
+  it("keeps academic year segments intact as a named path param", () => {
+    const reqs = [makeReq("GET", "https://api.nusmods.com/v2/2025-2026/moduleList.json")];
+    const endpoints = extractEndpoints(reqs);
+
+    expect(endpoints.length).toBe(1);
+    const ep = endpoints[0];
+
+    expect(ep.url_template).toContain("/v2/{academic_year}/moduleList.json");
+    expect(ep.url_template).not.toContain("/{id}-2026/");
+    expect(ep.path_params?.academic_year).toBe("2025-2026");
+    expect(ep._path_binding_candidates?.some((candidate) => candidate.observed_value === "2025-2026")).toBe(true);
+  });
+
+  it("infers semester and module_code params for NusMods-style paths", () => {
+    const reqs = [
+      makeReq("GET", "https://api.nusmods.com/v2/2025-2026/semesters/2/venues.json"),
+      makeReq("GET", "https://api.nusmods.com/v2/2025-2026/modules/ABM5001.json"),
+    ];
+    const context: ExtractionContext = {
+      pageUrl: "https://nusmods.com/courses/ABM5001/leadership-in-biomedicine",
+    };
+    const endpoints = extractEndpoints(reqs, undefined, context);
+
+    expect(endpoints.length).toBe(2);
+
+    const semesterEndpoint = endpoints.find((ep) => ep.url_template.includes("/semesters/"));
+    expect(semesterEndpoint?.url_template).toContain("/semesters/{semester}/venues.json");
+    expect(semesterEndpoint?.path_params?.semester).toBe("2");
+    expect(semesterEndpoint?.path_params?.academic_year).toBe("2025-2026");
+
+    const moduleEndpoint = endpoints.find((ep) => ep.url_template.includes("/modules/"));
+    expect(moduleEndpoint?.url_template).toContain("/modules/{module_code}.json");
+    expect(moduleEndpoint?.path_params?.academic_year).toBe("2025-2026");
+    expect(moduleEndpoint?.path_params?.module_code).toBe("ABM5001");
+    expect(moduleEndpoint?._path_binding_candidates?.some((candidate) => candidate.observed_value === "ABM5001")).toBe(true);
+  });
 });

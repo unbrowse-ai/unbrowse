@@ -98,6 +98,47 @@ describe("publish review context", () => {
     expect((ctx?.trigger_siblings as Array<Record<string, unknown>>).length).toBe(2);
   });
 
+  test("includes raw path binding candidate evidence for review", () => {
+    const s = skill([
+      endpoint({
+        endpoint_id: "module-detail",
+        url_template: "https://api.nusmods.com/v2/{academic_year}/modules/{module_code}.json",
+        path_params: { academic_year: "2025-2026", module_code: "ABM5001" },
+        _path_binding_candidates: [
+          {
+            placeholder: "path_2",
+            observed_value: "2025-2026",
+            segment_index: 2,
+            source: "segment_pattern",
+            preceding_segment: "v2",
+          },
+          {
+            placeholder: "path_4",
+            observed_value: "ABM5001",
+            segment_index: 4,
+            source: "file_basename",
+            preceding_segment: "modules",
+            filename_suffix: ".json",
+          },
+        ],
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "module",
+          description_out: "Returns module details",
+          requires: [
+            { key: "academic_year", required: false, source: "path_params", semantic_type: "academic_year" },
+            { key: "module_code", required: false, source: "path_params", semantic_type: "module_code" },
+          ],
+          provides: [],
+        } as any,
+      }),
+    ]);
+
+    const ctx = buildEndpointReviewContext(s, "module-detail");
+    expect((ctx?.path_binding_candidates as Array<Record<string, unknown>>)[0]?.observed_value).toBe("2025-2026");
+    expect((ctx?.path_binding_candidates as Array<Record<string, unknown>>)[1]?.preceding_segment).toBe("modules");
+  });
+
   test("mergeAgentReview stamps reviewed descriptions as agent-authored", () => {
     const endpoints = [
       endpoint({

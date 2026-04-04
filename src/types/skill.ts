@@ -119,6 +119,17 @@ export interface EndpointPolicyDescriptor {
   reason: string;
 }
 
+export interface EndpointPathBindingCandidate {
+  placeholder: string;
+  observed_value: string;
+  segment_index: number;
+  source: "normalized_placeholder" | "file_basename" | "page_hint" | "context_diff" | "segment_pattern";
+  placeholder_hint?: string;
+  preceding_segment?: string;
+  filename_suffix?: string;
+  matched_page_hint?: boolean;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
@@ -164,6 +175,8 @@ export interface EndpointDescriptor {
   /** Path template inferred by batch mining (passive captures without a context page URL).
    *  Internal annotation — not persisted to the skill manifest. */
   _minedTemplate?: string;
+  /** Raw path binding evidence captured before semantic naming rewrites placeholders. */
+  _path_binding_candidates?: EndpointPathBindingCandidate[];
   /** Structured search form spec — when present, indicates this endpoint can be driven
    *  by filling a DOM form rather than a direct API call. Used by isStructuredSearchForm
    *  to gate search-form execution paths. */
