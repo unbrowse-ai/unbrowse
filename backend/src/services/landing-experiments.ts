@@ -363,26 +363,6 @@ export async function assignLandingHomepageVariant(
   };
 }
 
-export async function getActiveLandingHomepageVariant(env: Env): Promise<LandingHomepageAssignmentResponse> {
-  const config = await getLandingHomepageExperimentConfig(env);
-  const liveVariants = normalizeWeights(config)
-    .map((entry) => entry.variant)
-    .filter((variant, index, arr) => arr.findIndex((entry) => entry.variant_id === variant.variant_id) === index);
-  const chosen = liveVariants[0]
-    ?? config.variants.find((variant) => variant.variant_id === config.control_variant_id)
-    ?? config.variants[0];
-
-  return {
-    assignment: {
-      experiment_id: config.experiment_id,
-      variant_id: chosen.variant_id,
-      assigned_at: config.updated_at,
-    },
-    content: chosen.copy,
-    status: chosen.status,
-  };
-}
-
 export function encodeLandingHomepageAssignmentCookie(assignment: LandingHomepageAssignment): string {
   return stringifyAssignmentCookie(assignment);
 }
