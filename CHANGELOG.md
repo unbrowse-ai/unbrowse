@@ -1,5 +1,7 @@
 # Changelog
 
+## [2.12.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.6...v2.12.7) (2026-04-04)
+
 ## [2.12.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.5...v2.12.6) (2026-04-04)
 
 ## [2.12.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.1...v2.12.5) (2026-04-04)
