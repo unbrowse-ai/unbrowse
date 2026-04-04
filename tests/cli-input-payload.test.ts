@@ -218,4 +218,26 @@ describe("CLI input payload ingestion (integration)", () => {
       body: null,
     });
   });
+
+  it("sends publish-bundle to the foundry publish route", async () => {
+    const server = await startJsonEchoServer({ ok: true });
+
+    const cli = await runCli(server.baseUrl, [
+      "publish-bundle",
+      "--preset", "skills/x-account-operator/foundry-preset.json",
+      "--hosts", "codex,claude",
+      "--site-url", "https://www.unbrowse.ai",
+    ]);
+
+    expect(cli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "POST",
+      path: "/v1/foundry/publish-bundle",
+      body: {
+        preset_path: "skills/x-account-operator/foundry-preset.json",
+        hosts: ["codex", "claude"],
+        site_url: "https://www.unbrowse.ai",
+      },
+    });
+  });
 });

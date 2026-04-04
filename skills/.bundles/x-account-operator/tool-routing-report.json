@@ -1,0 +1,15 @@
+{
+  "bundle_id": "x-account-operator",
+  "session_count": 0,
+  "node_count": 0,
+  "edge_count": 0,
+  "action_dag": {
+    "nodes": [],
+    "edges": [],
+    "goal_starts": []
+  },
+  "next_action_dataset": {
+    "examples": [],
+    "count": 0
+  }
+}

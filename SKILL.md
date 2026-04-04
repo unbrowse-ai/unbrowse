@@ -301,6 +301,7 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
 | `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state only |
 | `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, then publish/share from cached skill state; without endpoints returns review metadata first |
+| `publish-bundle` | `--preset path [--hosts codex,claude,openclaw] [--site-url https://www.unbrowse.ai]` | Derive foundry bundle/share/host artifacts from one preset and write the public share manifest |
 | `settings` | `[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]` | Show or update local capture/publish policy settings |
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |

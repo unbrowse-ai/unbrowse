@@ -786,6 +786,19 @@ async function cmdPublish(flags: Record<string, string | boolean>): Promise<void
   }
 }
 
+async function cmdPublishBundle(flags: Record<string, string | boolean>): Promise<void> {
+  const presetPath = flags.preset as string;
+  if (!presetPath) die("--preset is required");
+  const hosts = typeof flags.hosts === "string"
+    ? flags.hosts.split(",").map((host) => host.trim()).filter(Boolean)
+    : undefined;
+  output(await api("POST", "/v1/foundry/publish-bundle", {
+    preset_path: presetPath,
+    ...(typeof flags["site-url"] === "string" ? { site_url: flags["site-url"] } : {}),
+    ...(hosts?.length ? { hosts } : {}),
+  }), !!flags.pretty);
+}
+
 async function cmdSettings(flags: Record<string, string | boolean>): Promise<void> {
   const body: Record<string, unknown> = {};
   if (typeof flags["auto-publish"] === "string") {
@@ -1011,6 +1024,7 @@ export const CLI_REFERENCE = {
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/metadata back to skill" },
     { name: "index", usage: "--skill ID", desc: "Recompute local graph/contracts/export from cached skill state only" },
     { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Re-index locally, then publish/share from cached skill state; without endpoints returns review metadata first" },
+    { name: "publish-bundle", usage: "--preset path [--hosts codex,claude,openclaw] [--site-url https://www.unbrowse.ai]", desc: "Derive foundry bundle/share/host artifacts from one preset and write the public share manifest" },
     { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]", desc: "Show or update local capture/publish policy settings" },
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
@@ -1071,6 +1085,7 @@ export const CLI_REFERENCE = {
     "unbrowse index --skill abc --pretty",
     "unbrowse publish --skill abc --pretty",
     "unbrowse publish --skill abc --confirm-publish --pretty",
+    "unbrowse publish-bundle --preset skills/x-account-operator/foundry-preset.json --pretty",
     'unbrowse settings --auto-publish off --publish-blacklist "linkedin.com,x.com" --publish-promptlist "github.com" --pretty',
     'unbrowse publish --skill abc --endpoints \'[{"endpoint_id":"def","description":"Search court judgments by keywords","action_kind":"search","resource_kind":"judgment"}]\'',
   ],
@@ -1584,7 +1599,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "review", "index", "publish", "settings", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
+    "feedback", "fb", "review", "index", "publish", "publish-bundle", "settings", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
@@ -1622,6 +1637,7 @@ async function main(): Promise<void> {
     case "review": return cmdReview(flags);
     case "index": return cmdIndex(flags);
     case "publish": return cmdPublish(flags);
+    case "publish-bundle": return cmdPublishBundle(flags);
     case "settings": return cmdSettings(flags);
     case "login": return cmdLogin(flags);
     case "skills": return cmdSkills(flags);
