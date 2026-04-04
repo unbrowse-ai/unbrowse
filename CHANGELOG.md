@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **publish/dag**: publish admitted root endpoints together with DAG-linked callable workflow steps so future agents can invoke individual readable or mutable steps from the same skill
+
+### Bug Fixes
+
+* **browser/kuri**: lazily allocate Kuri tabs in the browser wrapper so cache-hit `goto()` calls stop spawning stray blank tabs before a real browser fallback is needed
+* **resolve/search**: reject cached marketplace skills for exact-URL search tasks when they do not expose the active search binding, so obvious misses fall through to live capture without needing `--force-capture`
+
 ## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
 
 ### Bug Fixes

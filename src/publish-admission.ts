@@ -22,6 +22,14 @@ export type MarketplacePublishSelection = {
   };
 };
 
+export type MarketplacePublishClosure = MarketplacePublishSelection & {
+  root_endpoints: EndpointDescriptor[];
+  root_endpoint_ids: string[];
+  closure_endpoint_ids: string[];
+  closure_operation_ids: string[];
+  closure_edge_count: number;
+};
+
 type PublishSelectionOptions = {
   limit?: number;
 };
@@ -34,6 +42,7 @@ type ScoredCandidate = {
 
 const DEFAULT_PUBLISH_ENDPOINT_LIMIT = readPositiveIntEnv("UNBROWSE_PUBLISH_ENDPOINT_LIMIT", 12);
 const MIN_PUBLISH_RELIABILITY = readProbabilityEnv("UNBROWSE_PUBLISH_MIN_RELIABILITY", 0.2);
+const CLOSURE_EDGE_KINDS = new Set(["dependency", "auth", "parent_child", "pagination"]);
 
 function readPositiveIntEnv(name: string, fallback: number): number {
   const parsed = Number.parseInt(process.env[name] ?? "", 10);
@@ -268,6 +277,106 @@ export function selectMarketplacePublishEndpoints(
       kept: endpoints.length,
       by_reason: reasons,
     },
+  };
+}
+
+export function selectMarketplacePublishClosure(
+  skill: SkillManifest,
+  options: PublishSelectionOptions = {},
+): MarketplacePublishClosure {
+  const roots = selectMarketplacePublishEndpoints(skill, options);
+  const rootEndpointIds = roots.endpoints.map((endpoint) => endpoint.endpoint_id);
+
+  if (rootEndpointIds.length === 0) {
+    return {
+      ...roots,
+      root_endpoints: roots.endpoints,
+      root_endpoint_ids: [],
+      closure_endpoint_ids: [],
+      closure_operation_ids: [],
+      closure_edge_count: 0,
+    };
+  }
+
+  const graph = skill.operation_graph;
+  if (!graph?.operations?.length || !graph.edges?.length) {
+    return {
+      ...roots,
+      root_endpoints: roots.endpoints,
+      root_endpoint_ids: rootEndpointIds,
+      closure_endpoint_ids: rootEndpointIds,
+      closure_operation_ids: rootEndpointIds,
+      closure_edge_count: 0,
+    };
+  }
+
+  const endpointById = new Map(skill.endpoints.map((endpoint) => [endpoint.endpoint_id, endpoint]));
+  const operationById = new Map(graph.operations.map((operation) => [operation.operation_id, operation]));
+  const operationByEndpointId = new Map(graph.operations.map((operation) => [operation.endpoint_id, operation]));
+  const adjacency = new Map<string, Set<string>>();
+
+  for (const edge of graph.edges) {
+    if (!CLOSURE_EDGE_KINDS.has(edge.kind)) continue;
+    const fromSet = adjacency.get(edge.from_operation_id) ?? new Set<string>();
+    fromSet.add(edge.to_operation_id);
+    adjacency.set(edge.from_operation_id, fromSet);
+    const toSet = adjacency.get(edge.to_operation_id) ?? new Set<string>();
+    toSet.add(edge.from_operation_id);
+    adjacency.set(edge.to_operation_id, toSet);
+  }
+
+  const seenOperationIds = new Set<string>();
+  const queue: string[] = [];
+  for (const endpointId of rootEndpointIds) {
+    const operationId = operationByEndpointId.get(endpointId)?.operation_id ?? endpointId;
+    if (seenOperationIds.has(operationId)) continue;
+    seenOperationIds.add(operationId);
+    queue.push(operationId);
+  }
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    for (const neighborId of adjacency.get(current) ?? []) {
+      if (seenOperationIds.has(neighborId)) continue;
+      const neighborOperation = operationById.get(neighborId);
+      if (!neighborOperation) continue;
+      const neighborEndpoint = endpointById.get(neighborOperation.endpoint_id);
+      if (!neighborEndpoint) continue;
+      if (rejectionReason(skill, neighborEndpoint)) continue;
+      seenOperationIds.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+
+  const includedEndpointIds = new Set<string>(rootEndpointIds);
+  for (const operationId of seenOperationIds) {
+    const operation = operationById.get(operationId);
+    if (!operation) continue;
+    includedEndpointIds.add(operation.endpoint_id);
+  }
+
+  const orderedEndpoints = [
+    ...roots.endpoints,
+    ...skill.endpoints.filter(
+      (endpoint) => includedEndpointIds.has(endpoint.endpoint_id) && !rootEndpointIds.includes(endpoint.endpoint_id),
+    ),
+  ];
+
+  const closureEdgeCount = graph.edges.filter((edge) =>
+    CLOSURE_EDGE_KINDS.has(edge.kind) &&
+    seenOperationIds.has(edge.from_operation_id) &&
+    seenOperationIds.has(edge.to_operation_id),
+  ).length;
+
+  return {
+    ...roots,
+    endpoints: orderedEndpoints,
+    root_endpoints: roots.endpoints,
+    root_endpoint_ids: rootEndpointIds,
+    closure_endpoint_ids: orderedEndpoints.map((endpoint) => endpoint.endpoint_id),
+    closure_operation_ids: [...seenOperationIds],
+    closure_edge_count: closureEdgeCount,
   };
 }
 

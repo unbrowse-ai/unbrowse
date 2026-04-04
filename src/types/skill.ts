@@ -809,6 +809,9 @@ export interface WorkflowPublishArtifact {
     authenticated_capture: boolean;
     token_binding_count: number;
     trigger_url_count: number;
+    included_endpoint_count: number;
+    root_endpoint_ids: string[];
+    closure_added_count: number;
   };
   auth_summary: WorkflowArtifact["auth_state"];
   recipes: WorkflowPublishRecipe[];
