@@ -5,3 +5,6 @@
 	path = submodules/kuri
 	url = https://github.com/justrach/kuri.git
 	branch = adding-extensions
+[submodule "skills/foundry"]
+	path = skills/foundry
+	url = https://github.com/unbrowse-ai/foundry.git

@@ -1,0 +1,65 @@
+{
+  "slug": "x-brand-banter",
+  "title": "X Brand Banter Bundle",
+  "summary": "Write funny, in-character X brand posts and replies that feel like remembered accounts instead of generic marketing.",
+  "tags": [
+    "x",
+    "brand-voice",
+    "humor",
+    "banter",
+    "foundry"
+  ],
+  "fabric": {
+    "repo": "https://github.com/unbrowse-ai/foundry",
+    "skill": "foundry"
+  },
+  "repo": "https://github.com/unbrowse-ai/unbrowse",
+  "bundle_id": "x-brand-banter",
+  "bootstrap_skill": "find-skills",
+  "skills": [
+    "x-brand-banter"
+  ],
+  "routes": [
+    {
+      "when": "the request is about making an X brand account funny, sharp, or personality-driven",
+      "call": "x-brand-banter"
+    },
+    {
+      "when": "the request is about Wendy's-, Ryanair-, MoonPie-, Steak-umm-, or mascot-style brand banter",
+      "call": "x-brand-banter"
+    },
+    {
+      "when": "the request is about roasty brand replies, quote tweets, or recurring account bits",
+      "call": "x-brand-banter"
+    }
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {
+        "skill": "foundry",
+        "provides": [
+          "workflow-bundle-fabrication",
+          "candidate-skill-discovery",
+          "host-memory-routing"
+        ],
+        "requires": [
+          "x-brand-banter-ops"
+        ],
+        "alternatives": []
+      },
+      {
+        "skill": "x-brand-banter",
+        "provides": [
+          "x-brand-banter-ops",
+          "brand-account-personality-writing",
+          "funny-in-character-x-replies"
+        ],
+        "requires": [],
+        "alternatives": [
+          "witty-humour-tweets",
+          "x-virality"
+        ]
+      }
+    ]
+  }
+}
