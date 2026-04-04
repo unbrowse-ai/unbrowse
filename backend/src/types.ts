@@ -898,3 +898,51 @@ export interface LandingHomepageAnalyticsSummary {
     top_campaigns: Array<{ campaign: string; sessions: number }>;
   }>;
 }
+
+export interface LandingHomepageAnalyticsSummary {
+  generated_at: string;
+  window_days: number;
+  experiment_id: string;
+  control_variant_id: string;
+  winner_variant_id?: string;
+  winner_angle_family?: string;
+  live_weights: Array<{ variant_id: string; status: string; weight: number }>;
+  shadow_queue: Array<{ variant_id: string; label: string; source: string; rationale?: string }>;
+  canaries: Array<{ variant_id: string; label: string; started_at?: string }>;
+  optimizer_runs: Array<{ ran_at: string; winner_variant_id?: string; winner_angle_family?: string; notes?: string }>;
+  variants: Array<{
+    variant_id: string;
+    label: string;
+    status: string;
+    source: string;
+    angle_family: string;
+    weight: number;
+    rationale?: string;
+    canary_started_at?: string;
+    disabled_reason?: string;
+    generated_at?: string;
+    landing_visitors: number;
+    landing_sessions: number;
+    hero_views: number;
+    install_section_views: number;
+    install_command_copies: number;
+    install_started: number;
+    setup_completed: number;
+    registrations: number;
+    first_resolve_started: number;
+    first_resolve_succeeded: number;
+    bounce_sessions: number;
+    no_exploration_sessions: number;
+    avg_exploration_depth: number;
+    max_scroll_bucket_reached: number;
+    rates: {
+      install_copy_from_landing: number;
+      install_started_from_landing: number;
+      setup_completed_from_landing: number;
+      first_resolve_succeeded_from_landing: number;
+      first_resolve_succeeded_from_install_started: number;
+    };
+    top_referrers: Array<{ referrer: string; sessions: number }>;
+    top_campaigns: Array<{ campaign: string; sessions: number }>;
+  }>;
+}

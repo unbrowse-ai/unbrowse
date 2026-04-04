@@ -1297,12 +1297,14 @@ export async function captureSession(
       !hasUsefulCapturedRequests &&
       !hasRichCapturedTraffic
     ) {
-      // On ephemeral retry, if still blocked by Cloudflare WAF, throw auth_required
-      // so the caller can surface a login prompt instead of retrying forever
-      if (options?.forceEphemeral && html && /Cloudflare|cf\.errors\.css|cf-error-details/i.test(html)) {
-        throw Object.assign(new Error("cloudflare_waf_block"), {
+      // On ephemeral retry, surface a structured auth/block instead of throwing a
+      // generic "failed without returning" error after the second pass.
+      if (options?.forceEphemeral) {
+        const cloudflareBlocked = !!html && /Cloudflare|cf\.errors\.css|cf-error-details/i.test(html);
+        throw Object.assign(new Error(cloudflareBlocked ? "cloudflare_waf_block" : "blocked_app_shell"), {
           code: "auth_required",
-          login_url: url,
+          login_url: final_url || url,
+          ...(cloudflareBlocked ? { reason: "cloudflare_waf" } : { reason: "blocked_app_shell" }),
         });
       }
       retryFreshTab = true;
