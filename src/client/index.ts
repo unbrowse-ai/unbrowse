@@ -528,18 +528,10 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
 
 // --- Install attribution ---
 
-function parseInstallAttribution(): { install_attribution?: Record<string, string>; landing_token?: string } {
-  const result: { install_attribution?: Record<string, string>; landing_token?: string } = {};
-  const b64 = process.env.UNBROWSE_ATTRIBUTION_B64;
-  if (b64) {
-    try {
-      const decoded = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
-      if (decoded && typeof decoded === "object") result.install_attribution = decoded;
-    } catch { /* malformed — ignore */ }
-  }
+function parseInstallAttribution(): { landing_token?: string } {
   const token = process.env.UNBROWSE_LANDING_TOKEN;
-  if (token && token.length < 2048) result.landing_token = token;
-  return result;
+  if (token && token.length < 2048) return { landing_token: token };
+  return {};
 }
 
 // --- ToS acceptance ---
