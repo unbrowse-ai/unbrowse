@@ -588,6 +588,125 @@ function bindingFamilyKey(binding: OperationBinding): string | undefined {
   return `${entity}:${valueKind}`;
 }
 
+function bindingLeafAliases(binding: OperationBinding): string[] {
+  const key = binding.key.toLowerCase();
+  const aliases = new Set<string>([key]);
+  const entity = bindingEntityKind(binding);
+  const valueKind = bindingValueKind(binding);
+
+  if (valueKind === "identifier") {
+    aliases.add("id");
+    if (entity === "profile") {
+      for (const alias of ["user_id", "profile_id", "member_id", "account_id", "public_identifier", "rest_id", "screen_name", "username", "handle"]) {
+        aliases.add(alias);
+      }
+    }
+    if (entity === "repository") {
+      for (const alias of ["repo_id", "repository_id", "id"]) aliases.add(alias);
+    }
+    if (entity === "listing") {
+      for (const alias of ["listing_id", "item_id", "product_id", "id"]) aliases.add(alias);
+    }
+    if (entity === "company") {
+      for (const alias of ["company_id", "organization_id", "org_id", "id"]) aliases.add(alias);
+    }
+  }
+
+  if (valueKind === "name") {
+    aliases.add("name");
+    aliases.add("title");
+  }
+
+  if (valueKind === "url") {
+    aliases.add("url");
+    aliases.add("link");
+    aliases.add("canonical_url");
+  }
+
+  return [...aliases];
+}
+
+function normalizeObservedScalar(value: unknown): string | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : null;
+  }
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length < 4 && !/^\d+$/.test(trimmed)) return null;
+  const lowered = trimmed.toLowerCase();
+  if (["true", "false", "null", "undefined", "nan"].includes(lowered)) return null;
+  if (/^[a-z_]+$/i.test(trimmed) && trimmed.length < 8) return null;
+  return /^\d+$/.test(trimmed) ? trimmed : lowered;
+}
+
+function collectBindingObservedValues(
+  value: unknown,
+  binding: OperationBinding,
+  out = new Set<string>(),
+  prefix = "",
+): Set<string> {
+  if (value == null) return out;
+  if (Array.isArray(value)) {
+    for (const item of value.slice(0, 8)) {
+      collectBindingObservedValues(item, binding, out, `${prefix}[]`);
+    }
+    return out;
+  }
+  if (typeof value !== "object") {
+    const normalized = normalizeObservedScalar(value);
+    if (normalized && prefix) {
+      const leaf = prefix.replace(/\[\]/g, "").split(".").pop()?.toLowerCase() ?? "";
+      if (bindingLeafAliases(binding).includes(leaf)) out.add(normalized);
+    }
+    return out;
+  }
+
+  for (const [key, next] of Object.entries(value as Record<string, unknown>).slice(0, 24)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    collectBindingObservedValues(next, binding, out, path);
+  }
+  return out;
+}
+
+function hasObservedValueOverlap(
+  source: SkillOperationNode,
+  target: SkillOperationNode,
+  provided: OperationBinding,
+  required: OperationBinding,
+): boolean {
+  const sourceValues = collectBindingObservedValues(source.example_response_compact, provided);
+  const targetValues = collectBindingObservedValues(target.example_request, required);
+  if (sourceValues.size === 0 || targetValues.size === 0) return false;
+  for (const value of sourceValues) {
+    if (targetValues.has(value)) return true;
+  }
+  return false;
+}
+
+function observedValueMatchConfidence(
+  source: SkillOperationNode,
+  target: SkillOperationNode,
+  provided: OperationBinding,
+  required: OperationBinding,
+): number {
+  if (!hasObservedValueOverlap(source, target, provided, required)) return 0;
+
+  let confidence = 0.72;
+  const providedFamily = bindingFamilyKey(provided);
+  const requiredFamily = bindingFamilyKey(required);
+  if (providedFamily && requiredFamily && providedFamily === requiredFamily) confidence += 0.1;
+
+  const sourceEntity = bindingEntityKind(provided);
+  const targetEntity = bindingEntityKind(required);
+  if (sourceEntity && targetEntity && sourceEntity === targetEntity) confidence += 0.06;
+
+  if (source.resource_kind === target.resource_kind && source.resource_kind !== "resource") confidence += 0.05;
+  if (provided.key === required.key && !isGenericBindingKey(required.key)) confidence += 0.04;
+
+  return Math.min(confidence, 0.88);
+}
+
 function potentialBindingMatchConfidence(
   source: SkillOperationNode,
   target: SkillOperationNode,
@@ -875,9 +994,24 @@ export function operationSoftPenalty(op: SkillOperationNode, intent?: string): n
   return penalty;
 }
 
+function parseObservedTime(value?: string): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d+$/.test(trimmed)) {
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric)) return null;
+    return trimmed.length <= 10 ? numeric * 1000 : numeric;
+  }
+  const parsed = new Date(trimmed).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function isBefore(lhs?: string, rhs?: string): boolean {
-  if (!lhs || !rhs) return true;
-  return new Date(lhs).getTime() <= new Date(rhs).getTime();
+  const left = parseObservedTime(lhs);
+  const right = parseObservedTime(rhs);
+  if (left == null || right == null) return true;
+  return left <= right;
 }
 
 export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): SkillOperationGraph {
@@ -911,12 +1045,23 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
             .filter((candidate) => candidate.confidence > 0)
             .sort((a, b) => b.confidence - a.confidence)[0]
           : undefined;
-        const match = directMatch ?? potentialMatch?.provided;
+        const observedValueMatch = source.provides
+          .map((provided) => ({
+            provided,
+            confidence: observedValueMatchConfidence(source, target, provided, required),
+          }))
+          .filter((candidate) => candidate.confidence > 0)
+          .sort((a, b) => b.confidence - a.confidence)[0];
+        const match = directMatch ?? observedValueMatch?.provided ?? potentialMatch?.provided;
         if (!match) continue;
         const edgeId = `${source.operation_id}:${target.operation_id}:${required.key}`;
         if (seenEdges.has(edgeId)) continue;
         seenEdges.add(edgeId);
         const exactMatch = match.key === required.key;
+        const corroboratedHintConfidence =
+          observedValueMatch && (!directMatch || observedValueMatch.provided.key === directMatch.key)
+            ? observedValueMatch.confidence
+            : 0;
         edges.push({
           edge_id: edgeId,
           from_operation_id: source.operation_id,
@@ -926,8 +1071,8 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
             ? (exactMatch ? classifyEdgeKind(source, target, required.key) : "hint")
             : "hint",
           confidence: directMatch
-            ? (exactMatch ? 0.9 : 0.6)
-            : (potentialMatch?.confidence ?? 0.6),
+            ? (exactMatch ? 0.9 : Math.max(0.6, corroboratedHintConfidence))
+            : (observedValueMatch?.confidence ?? potentialMatch?.confidence ?? 0.6),
         });
       }
     }

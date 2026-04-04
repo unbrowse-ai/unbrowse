@@ -2,7 +2,7 @@
   "repo_url": "https://github.com/justrach/kuri.git",
   "branch": "adding-extensions",
   "source_sha": "005ce5cdf41347b683df99d307868a11439be972",
-  "built_at": "2026-04-04T10:27:37.892Z",
+  "built_at": "2026-04-04T10:47:10.852Z",
   "binaries": {
     "darwin-arm64": {
       "zig_target": "aarch64-macos",

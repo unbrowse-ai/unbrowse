@@ -163,6 +163,12 @@ interface ExtensionEntry {
   timestamp: number;
 }
 
+interface PerformanceResourceEntry {
+  name: string;
+  initiatorType?: string;
+  transferSize?: number;
+}
+
 export type CapturedCookie = {
   name: string;
   value: string;
@@ -505,11 +511,12 @@ export async function injectInterceptor(tabId: string): Promise<void> {
  * Priority: JS interceptor (has bodies) > HAR entries > extension observer > responseBodies-only.
  * Deduplicates by URL, keeps the highest-priority version.
  */
-function mergePassiveCaptureData(
+export function mergePassiveCaptureData(
   intercepted: Array<{ url: string; method: string; response_body?: string; response_status: number; request_headers: Record<string, string>; response_headers: Record<string, string>; request_body?: string; content_type?: string; is_js?: boolean; timestamp: string }>,
   harEntries: kuri.KuriHarEntry[],
   extensionEntries: ExtensionEntry[],
   responseBodies: Map<string, string>,
+  performanceUrls: string[] = [],
 ): RawRequest[] {
   const seen = new Map<string, RawRequest>();
 
@@ -570,6 +577,20 @@ function mergePassiveCaptureData(
 
   // Priority 4: responseBodies-only entries (from Performance API replay / HAR replay)
   // These URLs have bodies but weren't in HAR, interceptor, or extension data
+  for (const perfUrl of performanceUrls) {
+    if (seen.has(perfUrl) || responseBodies.has(perfUrl)) continue;
+    seen.set(perfUrl, {
+      url: perfUrl,
+      method: "GET",
+      request_headers: {},
+      response_status: 200,
+      response_headers: {},
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Priority 5: responseBodies-only entries (from Performance API replay / HAR replay)
+  // These URLs have bodies but weren't in HAR, interceptor, extension, or synthetic perf data
   for (const [bodyUrl, body] of responseBodies) {
     if (seen.has(bodyUrl)) continue;
     seen.set(bodyUrl, {
@@ -613,31 +634,108 @@ function normalizeCapturedUrl(url: string, baseUrl?: string): string {
 const REPLAY_SKIP = /\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp|avif|map|ttf)(\?|$)/i;
 const HAR_REPLAY_CT = /application\/json|text\/plain|\+json/i;
 
+function isSameOriginUrl(url: string, captureUrl?: string): boolean {
+  if (!captureUrl) return false;
+  try {
+    return new URL(url).origin === new URL(captureUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
+export function isReplayableApiUrl(url: string): boolean {
+  const normalized = normalizeCapturedUrl(url).toLowerCase();
+  if (!normalized || REPLAY_SKIP.test(normalized)) return false;
+  if (/\/manifest\.json([?#]|$)/.test(normalized)) return false;
+  if (/cloudflareinsights|cdn-cgi\/rum|sentry\.io|piwik|analytics|disqus|doubleclick|googletagmanager|google-analytics/.test(normalized)) return false;
+  if (/\/api\//.test(normalized)) return true;
+  if (/graphql|voyager|_search/.test(normalized)) return true;
+  if (/\/v\d+(?:[./]|\/)/.test(normalized)) return true;
+  try {
+    const parsed = new URL(normalized);
+    if (/^api\./.test(parsed.hostname) && parsed.pathname.endsWith(".json")) return true;
+  } catch {
+    // ignore bad URL
+  }
+  if (/(\?|&)format=json(?:&|$)/.test(normalized) || /(\?|&)output=json(?:&|$)/.test(normalized)) return true;
+  return false;
+}
+
+export function selectPerformanceReplayCandidates(
+  entries: PerformanceResourceEntry[],
+  params: {
+    captureUrl?: string;
+    intent?: string;
+    knownUrls?: Iterable<string>;
+    limit?: number;
+  },
+): string[] {
+  const knownUrls = new Set(params.knownUrls ?? []);
+  const wantedHints = new Set(deriveIntentHints(params.captureUrl, params.intent));
+  const scored = new Map<string, number>();
+
+  for (const entry of entries) {
+    const perfUrl = normalizeCapturedUrl(entry.name, params.captureUrl);
+    if (!perfUrl || knownUrls.has(perfUrl) || REPLAY_SKIP.test(perfUrl)) continue;
+
+    const lower = perfUrl.toLowerCase();
+    const initiator = (entry.initiatorType ?? "").toLowerCase();
+    const apiLike = isReplayableApiUrl(perfUrl);
+    const hintMatch = [...wantedHints].some((hint) => lower.includes(hint));
+    const initiatorEligible =
+      initiator === "fetch" ||
+      initiator === "xmlhttprequest" ||
+      (initiator === "link" && apiLike);
+    if (!initiatorEligible && !apiLike) continue;
+
+    let score = 0;
+    if (hintMatch) score += 10;
+    if (initiator === "fetch" || initiator === "xmlhttprequest") score += 5;
+    if (initiator === "link") score += 2;
+    if (apiLike) score += 6;
+    if (isSameOriginUrl(perfUrl, params.captureUrl)) score += 2;
+    if (/\.json([?#]|$)/.test(lower)) score += 2;
+    if (/\/v\d+(?:[./]|\/)/.test(lower)) score += 2;
+    if (score <= 0) continue;
+
+    scored.set(perfUrl, Math.max(scored.get(perfUrl) ?? 0, score));
+  }
+
+  return [...scored.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, params.limit ?? 30)
+    .map(([url]) => url);
+}
+
+async function collectPerformanceResourceEntries(tabId: string): Promise<PerformanceResourceEntry[]> {
+  const perfRaw = await kuri.evaluate(tabId, `JSON.stringify(
+    performance.getEntriesByType('resource')
+      .map(function(e) { return { name: e.name, initiatorType: e.initiatorType, transferSize: e.transferSize || 0 }; })
+  )`);
+  if (typeof perfRaw !== "string" || !perfRaw.startsWith("[")) return [];
+  const perfEntries: PerformanceResourceEntry[] = JSON.parse(perfRaw);
+  return perfEntries.filter((entry) => typeof entry?.name === "string" && entry.name.length > 0);
+}
+
 async function replayPerformanceApiResponses(
   tabId: string,
+  perfEntries: PerformanceResourceEntry[],
   responseBodies: Map<string, string>,
   captureUrl?: string,
   intent?: string,
-): Promise<void> {
-  const perfRaw = await kuri.evaluate(tabId, `JSON.stringify(
-    performance.getEntriesByType('resource')
-      .filter(function(e) { return e.initiatorType === 'fetch' || e.initiatorType === 'xmlhttprequest'; })
-      .map(function(e) { return e.name; })
-  )`);
-  if (typeof perfRaw !== "string" || !perfRaw.startsWith("[")) return;
+): Promise<string[]> {
+  const perfUrls = selectPerformanceReplayCandidates(perfEntries, {
+    captureUrl,
+    intent,
+    knownUrls: responseBodies.keys(),
+    limit: 30,
+  });
+  if (perfUrls.length === 0) return [];
 
-  const perfUrls: string[] = JSON.parse(perfRaw);
-  const wantedHints = new Set(deriveIntentHints(captureUrl, intent));
+  log("capture", `Performance API selected ${perfUrls.length} replayable resource URLs`);
   let replayCount = 0;
-
   for (const perfUrl of perfUrls) {
     if (responseBodies.has(perfUrl)) continue;
-    if (REPLAY_SKIP.test(perfUrl)) continue;
-    if (wantedHints.size > 0) {
-      const lower = perfUrl.toLowerCase();
-      if (![...wantedHints].some((hint) => lower.includes(hint))) continue;
-    }
-    if (replayCount >= 30) break;
     try {
       const body = await kuri.evaluate(
         tabId,
@@ -656,6 +754,7 @@ async function replayPerformanceApiResponses(
   if (replayCount > 0) {
     log("capture", `replay-fetched ${replayCount} API response bodies via Performance API`);
   }
+  return perfUrls;
 }
 
 async function replayHarApiResponses(
@@ -705,6 +804,7 @@ export async function enrichPassiveCaptureRequests(params: {
 }): Promise<RawRequest[]> {
   const { tabId, captureUrl, harEntries, intent } = params;
   const responseBodies = new Map<string, string>();
+  const perfEntries = await collectPerformanceResourceEntries(tabId).catch(() => []);
 
   let intercepted = await collectInterceptedRequests(tabId).catch(() => []);
   appendInterceptedResponseBodies(intercepted, responseBodies);
@@ -715,11 +815,11 @@ export async function enrichPassiveCaptureRequests(params: {
     appendInterceptedResponseBodies(intercepted, responseBodies);
   }
 
-  await replayPerformanceApiResponses(tabId, responseBodies, captureUrl, intent).catch(() => {});
+  const performanceUrls = await replayPerformanceApiResponses(tabId, perfEntries, responseBodies, captureUrl, intent).catch(() => []);
   await replayHarApiResponses(tabId, harEntries, responseBodies).catch(() => {});
 
   const extensionEntries = await collectExtensionRequests(tabId).catch(() => []);
-  const requests = mergePassiveCaptureData(intercepted, harEntries, extensionEntries, responseBodies).map((request) => ({
+  const requests = mergePassiveCaptureData(intercepted, harEntries, extensionEntries, responseBodies, performanceUrls).map((request) => ({
     ...request,
     url: normalizeCapturedUrl(request.url, captureUrl),
   }));
@@ -1106,39 +1206,14 @@ export async function captureSession(
 
     // --- Performance API discovery + sync XHR replay ---
     // The JS interceptor can miss early requests (SPA API calls fire before injection).
-    // HAR captures URLs but not response bodies.
-    // Use Performance API to discover all fetch/XHR URLs, then replay-fetch via sync
-    // XHR to get response bodies. This runs in-page so cookies/CORS are preserved.
-    const REPLAY_SKIP = /\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp|avif|map|ttf)(\?|$)/i;
+    // HAR captures URLs but not always bodies.
+    // Use Performance API to discover replayable API URLs, including API-ish preloads.
+    let performanceUrls: string[] = [];
     try {
-      const perfRaw = await phase("evaluate:perf", () => kuri.evaluate(tabId, `JSON.stringify(
-        performance.getEntriesByType('resource')
-          .filter(function(e) { return e.initiatorType === 'fetch' || e.initiatorType === 'xmlhttprequest'; })
-          .map(function(e) { return e.name; })
-      )`));
-      if (typeof perfRaw === "string" && perfRaw.startsWith("[")) {
-        const perfUrls: string[] = JSON.parse(perfRaw);
-        log("capture", `Performance API found ${perfUrls.length} fetch/XHR URLs`);
-        let replayCount = 0;
-        for (const perfUrl of perfUrls) {
-          if (responseBodies.has(perfUrl)) continue;
-          if (REPLAY_SKIP.test(perfUrl)) continue;
-          if (replayCount >= 30) break;
-          try {
-            const body = await phase("replay-fetch", () =>
-              kuri.evaluate(tabId, `(function(){var x=new XMLHttpRequest();x.open('GET','${perfUrl.replace(/'/g, "\\'")}',false);x.send();return x.status>=200&&x.status<400?x.responseText:''})()`)
-            );
-            if (typeof body === "string" && body.length > 0 && body.length < 512 * 1024) {
-              responseBodies.set(perfUrl, body);
-              replayCount++;
-              log("capture", `replay-fetched ${perfUrl.substring(0, 80)} (${body.length}B)`);
-            }
-          } catch { /* non-fatal */ }
-        }
-        if (replayCount > 0) {
-          log("capture", `replay-fetched ${replayCount} API response bodies via Performance API`);
-        }
-      }
+      const perfEntries = await phase("evaluate:perf", () => collectPerformanceResourceEntries(tabId));
+      performanceUrls = await phase("replay-fetch", () =>
+        replayPerformanceApiResponses(tabId, perfEntries, responseBodies, url, intent),
+      );
     } catch { /* non-fatal */ }
 
     // Stop HAR recording and merge with intercepted data
@@ -1200,7 +1275,7 @@ export async function captureSession(
     } catch {}
 
     // Merge all passive capture sources into unified request list
-    const requests: RawRequest[] = mergePassiveCaptureData(intercepted, harEntries, extensionEntries, responseBodies);
+    const requests: RawRequest[] = mergePassiveCaptureData(intercepted, harEntries, extensionEntries, responseBodies, performanceUrls);
     log("capture", `tracked ${harEntries.length} HAR, ${intercepted.length} intercepted, ${extensionEntries.length} extension, ${responseBodies.size} bodies → ${requests.length} merged`);
 
     // Extract session cookies via document.cookie

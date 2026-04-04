@@ -8,6 +8,8 @@
 - add browser-first MCP miss guidance on `unbrowse_resolve` cache misses, so agents are told to switch into `go -> snap -> ... -> review -> publish` instead of stalling on uncached sites
 - expand `unbrowse_resolve` MCP miss guidance to return relevant option sets too (`browse_only`, `capture_for_reuse`, `auth_then_retry`), so agents can choose the right live path instead of only seeing one generic next step
 - add `bun run publish:cli:preview` to build a prerelease npm package + GitHub binary assets against an explicit preview backend, so packaged preview installs and compiled preview binaries hit the same non-prod API by default
+- make DAG hint inference value-aware too: recover unix-string `observed_at` ordering and lift likely edges when observed response values overlap downstream request values, so weak key matches stop dropping real workflow links
+- widen passive browse capture harvest to include replayable API-style Performance API preloads and synthesize request stubs for them, so NusMods-style `api.*/*.json` resources survive checkpointing even when page-slug hints do not match
 - add `x-brand-banter` skill bundle for Wendy's/Ryanair/MoonPie-style X brand voice, replies, and quote-tweet banter
 - add archetype and routing references for choosing the right funny brand-account voice without drifting into generic social copy
 - add `x-account-operator` foundry bundle to route winner analysis, voice selection, queue cuts, rewrites, and Typefully scheduling into one X account workflow
