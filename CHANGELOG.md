@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.12.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.1...v2.12.5) (2026-04-04)
+
+### Features
+
+* wire Kuri v0.3 action primitives into browser-action floor ([c0e43a6](https://github.com/unbrowse-ai/unbrowse-dev/commit/c0e43a60a75af9630d44d71324721a99db95ad8f)), closes [#86](https://github.com/unbrowse-ai/unbrowse-dev/issues/86) [#75](https://github.com/unbrowse-ai/unbrowse-dev/issues/75) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#88](https://github.com/unbrowse-ai/unbrowse-dev/issues/88) [#85](https://github.com/unbrowse-ai/unbrowse-dev/issues/85)
+
+### Bug Fixes
+
+* refresh lockfile and spa extraction fallback ([4054a8a](https://github.com/unbrowse-ai/unbrowse-dev/commit/4054a8a99cbcba80ad648128e46c60573cfc2396))
+* resolve Invalid URL crashes and capture failures on heavy SPAs (v2.0.2) ([7a4344d](https://github.com/unbrowse-ai/unbrowse-dev/commit/7a4344d89504ff611fb269a8ee4d01f2d80a2706))
+* restore frontend landing build on restored main ([62228a6](https://github.com/unbrowse-ai/unbrowse-dev/commit/62228a6cf92166701a3e575822c66c4e483e187e))
+* security hardening — leaked keys, injection, auth gaps, timing attacks ([9d5e468](https://github.com/unbrowse-ai/unbrowse-dev/commit/9d5e4680d18c1e04816919fca1ef124dfd62ccd9)), closes [#51](https://github.com/unbrowse-ai/unbrowse-dev/issues/51) [#52](https://github.com/unbrowse-ai/unbrowse-dev/issues/52) [#53](https://github.com/unbrowse-ai/unbrowse-dev/issues/53) [#54](https://github.com/unbrowse-ai/unbrowse-dev/issues/54) [#55](https://github.com/unbrowse-ai/unbrowse-dev/issues/55) [#56](https://github.com/unbrowse-ai/unbrowse-dev/issues/56)
+* skip kuri zig cache during skill sync ([eb1d883](https://github.com/unbrowse-ai/unbrowse-dev/commit/eb1d88354fb6181339846a964a77d93714eec9e2))
+* update kuri submodule — CDP async network event capture for HAR ([0976d55](https://github.com/unbrowse-ai/unbrowse-dev/commit/0976d550f446306ef3389801c6224d9db7a329a4))
+* update kuri submodule — HAR recorder now returns entries correctly ([1f8d194](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f8d194efbca0cd0502071529ece96344f07eded))
+
 ## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
 
 ### Features
