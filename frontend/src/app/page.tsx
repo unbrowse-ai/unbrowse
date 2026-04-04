@@ -59,40 +59,71 @@ const TRUST_BAR_ITEMS: Record<LandingVariantCopy["trust_bar_order"][number], Rea
 const WEDGE_CARDS = [
   {
     eyebrow: "100x faster",
-    title: "Stop replaying the UI.",
-    body: "Browser automation repeats the visible path. Unbrowse reuses the request path behind it.",
+    title: "Skip screenshots and DOM waits.",
+    body: "OpenClaw usually pays the full browser tax on every run. Unbrowse learns the useful path once and reuses it on the next task.",
     icon: Globe,
   },
   {
     eyebrow: "90% cheaper",
-    title: "Return data, not markup.",
-    body: "Agents get structured responses instead of waiting for DOM rendering and parsing HTML back into data.",
+    title: "Pay for the task, not the browser.",
+    body: "Return structured data or actions without shipping a full browser loop through every run.",
     icon: Zap,
   },
   {
     eyebrow: "Compounds",
-    title: "Mine the internet for passive income.",
-    body: "Every useful route can compound into a reusable skill. When other agents reuse what you mined, contributor payouts can flow back to you.",
+    title: "Mine routes that can earn passive income.",
+    body: "Mine the internet into reusable skills. If other agents keep reusing what you mined, contributor payouts can compound from that reuse.",
     icon: Shield,
   },
 ] as const;
 
 const SKILL_TRAITS = [
   {
-    title: "Auth state",
-    body: "A useful skill preserves the authenticated path while keeping the browser available for login, refresh, and fallback.",
+    title: "Keeps login working",
+    body: "A useful skill keeps the authenticated path intact while still using the browser for login, refresh, and fallback when needed.",
   },
   {
-    title: "Schema and parameters",
-    body: "The output is a callable interface with inputs and structured responses, not just a captured endpoint.",
+    title: "Returns data, not markup",
+    body: "The output is a callable interface with inputs and structured responses, not another HTML page your agent has to parse.",
   },
   {
-    title: "Reliability memory",
+    title: "Refreshes when sites move",
     body: "When a route degrades, Unbrowse can re-browse, refresh the execution plan, and keep the task stable.",
   },
   {
-    title: "Shared reuse",
+    title: "Compounds on reuse",
     body: "Once a route is good, it stops being one-off automation and becomes infrastructure another agent can call again.",
+  },
+] as const;
+
+const SECONDARY_PATHS = [
+  {
+    eyebrow: "Dashboard",
+    title: "Track your routes, earnings, and wallet progress.",
+    body: "The personal progress surface for contribution history, payouts, and wallet-level stats.",
+    href: "/dashboard",
+    cta: "Open dashboard",
+  },
+  {
+    eyebrow: "Leaderboard",
+    title: "See the contributor board and network coverage.",
+    body: "The public board for ranked contributors, coverage growth, domain maps, and payout totals.",
+    href: "/miners",
+    cta: "Open leaderboard",
+  },
+  {
+    eyebrow: "Contributors",
+    title: "Your OpenClaw agent can earn while it works.",
+    body: "The OpenClaw-specific payout story, plugin angle, and passive-income framing.",
+    href: "/openclaw-earn",
+    cta: "Open earning page",
+  },
+  {
+    eyebrow: "Mining",
+    title: "Mine the internet into reusable skills.",
+    body: "The broader route-mining thesis, proof-of-indexing angle, and why reuse compounds.",
+    href: "/mine-the-internet",
+    cta: "Open mining page",
   },
 ] as const;
 
@@ -100,12 +131,12 @@ const FAQ_ITEMS = [
   {
     question: "Who is Unbrowse for?",
     answer:
-      "It is for agent builders who currently reach websites through browser automation and want a faster, cheaper, less brittle way to do repeated web tasks.",
+      "It is for OpenClaw users and agent builders whose agents do repeated tasks on real websites and are tired of paying the full browser cost every time.",
   },
   {
     question: "How does Unbrowse work?",
     answer:
-      "Unbrowse learns the request path behind a website, packages it into a reusable skill, and replays that path later instead of forcing the agent to click through the UI again.",
+      "Use the browser once to learn the website task. After that, Unbrowse can replay the learned path as a reusable skill instead of forcing the agent to click through the whole UI again.",
   },
   {
     question: "How much faster is it than headless browser automation?",
@@ -144,7 +175,7 @@ const FAQ_ITEMS = [
   {
     question: "Can I earn passive income from mined routes?",
     answer:
-      "That is part of the contributor story. If you mine useful routes and other agents reuse them, contributor payouts can accrue from that reuse instead of the work staying trapped in your one local session.",
+      "That is the contributor upside. If you mine useful routes and other agents keep reusing them, contributor payouts can accrue from that reuse instead of the work staying trapped in one local session.",
   },
   {
     question: "What is it not for?",
@@ -193,7 +224,7 @@ export default async function Home() {
         className="sr-only"
         data-agent="true"
       >
-        <h2>Unbrowse: a drop-in browser replacement for agents that mines reusable skills</h2>
+        <h2>Unbrowse: the drop-in browser for OpenClaw agents on websites</h2>
         <p>
           Unbrowse is an open-source CLI that turns websites into reusable skills for agents by
           learning the request path behind the page and replaying it later.
@@ -224,23 +255,25 @@ export default async function Home() {
             </a>
 
             <p className="mt-7 text-[11px] font-medium uppercase tracking-[0.28em] text-orange-700 sm:text-xs">
-              Drop-in browser replacement for agents
+              For OpenClaw agents on real websites
             </p>
 
             <h1 className="mt-4 max-w-4xl text-balance font-display text-[3rem] leading-[0.96] tracking-[-0.04em] text-text-primary sm:text-[4.5rem] lg:text-[5.5rem]">
-              100x faster,
-              <span className="block text-orange-500">90% cheaper web automation.</span>
+              Make your OpenClaw agent 100x faster,
+              <span className="block text-orange-500">90% cheaper on websites.</span>
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-8 text-text-secondary sm:text-xl">
-              Unbrowse replaces repeated browser flows with reusable skills mined from the route
-              behind the page. In OpenClaw, it can behave like a drop-in browser replacement for
-              agent tasks on real websites.
+              Install one plugin. Skip screenshots, DOM waits, and selector repair. Unbrowse uses
+              the browser once to learn the useful path, then reuses it on the next run.
             </p>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-text-muted sm:text-base">
-              Built for agents that currently depend on Playwright, screenshots, and brittle DOM
-              selectors to reach real websites. Every good route compounds into the shared graph
-              instead of disappearing after one run.
+              Built for agents that currently depend on Playwright-style browser loops to reach real
+              websites. Good routes compound into reusable skills, and shared reuse can turn mined
+              routes into contributor income.
+            </p>
+            <p className="mt-3 max-w-2xl text-xs font-medium uppercase tracking-[0.2em] text-text-muted sm:text-[0.82rem]">
+              Also works with Claude Code, Codex, Cursor, and MCP hosts.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-2.5 text-sm text-text-secondary">
@@ -264,7 +297,7 @@ export default async function Home() {
 
             <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-text-secondary">
               <span className="rounded-full border border-orange-500/20 bg-orange-50/70 px-3 py-1.5 text-orange-700">
-                OpenClaw drop-in browser replacement
+                Drop-in OpenClaw browser
               </span>
               <Link
                 href="#install"
@@ -298,10 +331,10 @@ export default async function Home() {
               <div className="flex items-center justify-between border-b border-border px-5 py-4">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.24em] text-text-muted">
-                    Old loop vs new loop
+                    Browser tax vs route reuse
                   </p>
                   <p className="mt-1 text-sm font-medium text-text-primary">
-                    Same website. Different primitive.
+                    Same website. Less browser.
                   </p>
                 </div>
                 <div className="rounded-full border border-orange-500/20 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
@@ -331,7 +364,19 @@ export default async function Home() {
                             <span className="font-mono">{value}</span>
                           </div>
                           <div className="mt-2 h-2 rounded-full bg-surface">
-                            <div className="h-2 rounded-full bg-text-muted/45" style={{ width: value === "14.6s" ? "88%" : value === "9.3s" ? "63%" : value === "4.9s" ? "36%" : "18%" }} />
+                            <div
+                              className="h-2 rounded-full bg-text-muted/45"
+                              style={{
+                                width:
+                                  value === "14.6s"
+                                    ? "88%"
+                                    : value === "9.3s"
+                                      ? "63%"
+                                      : value === "4.9s"
+                                        ? "36%"
+                                        : "18%",
+                              }}
+                            />
                           </div>
                         </div>
                       ))}
@@ -357,7 +402,13 @@ export default async function Home() {
                             <span className="font-mono text-orange-700">{value}</span>
                           </div>
                           <div className="mt-2 h-2 rounded-full bg-white/70">
-                            <div className="h-2 rounded-full bg-orange-500 animate-pulse" style={{ width: value === "184ms" ? "72%" : value === "118ms" ? "48%" : "26%" }} />
+                            <div
+                              className="h-2 rounded-full bg-orange-500 animate-pulse"
+                              style={{
+                                width:
+                                  value === "184ms" ? "72%" : value === "118ms" ? "48%" : "26%",
+                              }}
+                            />
                           </div>
                         </div>
                       ))}
@@ -381,14 +432,16 @@ export default async function Home() {
                     </code>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {["auth-aware", "structured output", "refreshable", "browser fallback"].map((item) => (
-                      <span
-                        key={item}
-                        className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-text-secondary"
-                      >
-                        {item}
-                      </span>
-                    ))}
+                    {["auth-aware", "structured output", "refreshable", "browser fallback"].map(
+                      (item) => (
+                        <span
+                          key={item}
+                          className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-text-secondary"
+                        >
+                          {item}
+                        </span>
+                      ),
+                    )}
                   </div>
                 </div>
 
@@ -416,7 +469,9 @@ export default async function Home() {
               <p className="mt-5 text-[11px] font-medium uppercase tracking-[0.24em] text-orange-700">
                 {eyebrow}
               </p>
-              <h2 className="mt-5 text-xl font-semibold tracking-tight text-text-primary">{title}</h2>
+              <h2 className="mt-5 text-xl font-semibold tracking-tight text-text-primary">
+                {title}
+              </h2>
               <p className="mt-3 text-sm leading-7 text-text-secondary">{body}</p>
             </div>
           ))}
@@ -426,20 +481,21 @@ export default async function Home() {
       <section className="border-b border-border/70 py-16 sm:py-24">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
           <div className="max-w-xl">
-            <SectionEyebrow>What A Skill Contains</SectionEyebrow>
+            <SectionEyebrow>Why OpenClaw Users Switch</SectionEyebrow>
             <h2 className="mt-5 text-balance text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-              Route reuse is the wedge. Execution quality is the product.
+              Replace the browser loop. Keep the website task.
             </h2>
             <p className="mt-5 text-base leading-8 text-text-secondary sm:text-lg">
-              The landing page should make one thing obvious: Unbrowse is for teams replacing
-              repeated browser work on agent tasks, not for generic browser QA.
+              Unbrowse is for agents that need to log in, click through real sites, and bring back
+              data or actions. It is not for generic browser QA, pixel tests, or full end-to-end UI
+              suites.
             </p>
 
             <div className="mt-8 space-y-4">
               {[
-                "Mine the route once with the real browser.",
-                "Replay it later as a reusable skill.",
-                "Refresh it when the site shifts instead of repairing selectors.",
+                "Old way: Playwright, screenshots, waits, selectors, retries.",
+                "New way: install Unbrowse as the OpenClaw browser layer and reuse the learned path.",
+                "When the site shifts: re-browse once, refresh the route, keep going.",
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3">
                   <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-orange-500" />
@@ -452,21 +508,26 @@ export default async function Home() {
           <div className="rounded-[2rem] border border-border bg-surface p-4 shadow-sm sm:p-6">
             <div className="rounded-[1.5rem] border border-orange-500/20 bg-orange-50/70 p-5">
               <p className="text-[11px] uppercase tracking-[0.24em] text-orange-700">
-                What gets better
+                What compounds
               </p>
               <p className="mt-3 text-2xl font-semibold tracking-tight text-text-primary">
-                One good route can replace a lot of repeated browser work.
+                The first good run pays for the next ones.
               </p>
               <p className="mt-3 text-sm leading-7 text-text-secondary">
-                That is why the page should feel obvious fast: struggling moment, better primitive,
-                proof, install. And when the route is valuable, it compounds.
+                One working route removes a lot of repeated browser work. When you publish a route
+                other agents reuse, that shared reuse can turn into contributor income.
               </p>
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {SKILL_TRAITS.map((trait) => (
-                <div key={trait.title} className="rounded-[1.5rem] border border-border bg-surface-sunken p-5">
-                  <p className="text-lg font-semibold tracking-tight text-text-primary">{trait.title}</p>
+                <div
+                  key={trait.title}
+                  className="rounded-[1.5rem] border border-border bg-surface-sunken p-5"
+                >
+                  <p className="text-lg font-semibold tracking-tight text-text-primary">
+                    {trait.title}
+                  </p>
                   <p className="mt-3 text-sm leading-7 text-text-secondary">{trait.body}</p>
                 </div>
               ))}
@@ -495,12 +556,11 @@ export default async function Home() {
           <div className="max-w-xl">
             <SectionEyebrow>{landing.content.install_eyebrow}</SectionEyebrow>
             <h2 className="mt-5 text-balance text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-              Install the runtime. Then watch one real route work.
+              Install the plugin. Then watch one real website task work.
             </h2>
             <p className="mt-5 text-base leading-8 text-text-secondary sm:text-lg">
-              Working backwards from the ideal user outcome is simple here: in a few minutes, the
-              agent should complete one web task through a reusable skill instead of a browser loop.
-              For OpenClaw, that means a practical drop-in replacement for the browser path.
+              Fastest way to pattern-match the product: install Unbrowse into OpenClaw, run one
+              website task, then watch the next run skip most of the browser loop.
             </p>
 
             <div className="mt-8 space-y-4">
@@ -545,7 +605,10 @@ export default async function Home() {
               experimentId={landing.assignment.experiment_id}
               variantId={landing.assignment.variant_id}
             />
-            <div id="demo" className="rounded-[2rem] border border-border bg-surface p-5 shadow-sm sm:p-6">
+            <div
+              id="demo"
+              className="rounded-[2rem] border border-border bg-surface p-5 shadow-sm sm:p-6"
+            >
               <div className="max-w-2xl">
                 <SectionEyebrow>Demo</SectionEyebrow>
                 <h2 className="mt-5 text-balance text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
@@ -558,6 +621,45 @@ export default async function Home() {
               <div className="mt-8">
                 <ChatDemo />
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 sm:pb-20">
+          <div className="rounded-[2rem] border border-border bg-surface/70 p-6 shadow-sm backdrop-blur sm:p-8">
+            <div className="max-w-2xl">
+              <SectionEyebrow>Other Paths</SectionEyebrow>
+              <h2 className="mt-5 text-balance text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
+                The contributor and mining work did not go away.
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-text-secondary sm:text-base">
+                It moved off the homepage so the main wedge stayed clear. These pages carry the
+                route-mining, payout, leaderboard, and proof-of-indexing story in full.
+              </p>
+            </div>
+
+            <div className="mt-8 grid gap-4 lg:grid-cols-3">
+              {SECONDARY_PATHS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="group rounded-[1.5rem] border border-border bg-surface p-5 transition-colors hover:border-orange-500/30 hover:bg-orange-50/40"
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-orange-700">
+                    {item.eyebrow}
+                  </p>
+                  <h3 className="mt-4 text-xl font-semibold tracking-tight text-text-primary">
+                    {item.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-text-secondary">{item.body}</p>
+                  <div className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-orange-700">
+                    {item.cta}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
         </div>

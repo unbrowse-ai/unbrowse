@@ -8,6 +8,10 @@
 * trim primary navigation so the landing page stops fighting itself
 * tune the landing background and tab scrolling utilities for a calmer presentation
 * sharpen the landing page around OpenClaw browser replacement, compounding route reuse, and contributor payout messaging
+* tighten homepage positioning around one ICP: OpenClaw agents replacing Playwright-style browser loops on real websites
+* restore explicit homepage paths into the public dashboard and contributor leaderboard so progress and earnings are easier to find
+* add dashboard and leaderboard links back into the navbar so contributor progress is reachable from every page
+* simplify the navbar again by dropping registry and moving dashboard access into a compact profile icon
 
 ## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
 
