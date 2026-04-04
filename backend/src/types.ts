@@ -48,8 +48,7 @@ export interface AgentProfile {
   first_execution_at?: string;
   last_active_at?: string;
   activity_dates?: string[];
-  // Install funnel attribution (from landing page copy-to-clipboard)
-  install_attribution?: Record<string, string>;
+  // Install funnel attribution (signed token from landing page)
   landing_token?: string;
 }
 

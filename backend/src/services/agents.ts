@@ -114,7 +114,7 @@ export async function registerAgent(
   name: string,
   tosVersion: string,
   wallet?: { wallet_address?: string; wallet_provider?: string },
-  attribution?: { install_attribution?: Record<string, string>; landing_token?: string },
+  attribution?: { landing_token?: string },
 ): Promise<{ agent_id: string; api_key: string }> {
   const trimmed = name.trim();
   if (!trimmed || trimmed.length < 2 || trimmed.length > 64) {
@@ -148,7 +148,6 @@ export async function registerAgent(
     tos_accepted_version: tosVersion,
     tos_accepted_at: new Date().toISOString(),
     activity_dates: [],
-    ...(attribution?.install_attribution ? { install_attribution: attribution.install_attribution } : {}),
     ...(attribution?.landing_token ? { landing_token: attribution.landing_token } : {}),
   };
   await statsKV(env).put(`agent:${data.keyId}`, JSON.stringify(profile));

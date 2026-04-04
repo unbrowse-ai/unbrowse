@@ -15,10 +15,6 @@ import {
   UPGRADE_CMD_MCP,
 } from "@/lib/install-command";
 import { getTokenizedInstallCommand, trackWebEvent } from "@/lib/web-telemetry";
-import {
-  decorateInstallCommandWithAttribution,
-  getInstallAttributionFromDocument,
-} from "@/lib/acquisition/install-attribution";
 
 const tabs = [
   {
@@ -135,14 +131,11 @@ export function InstallInstructions({ experimentId, variantId }: Props) {
   const tab = tabs.find((t) => t.id === active) ?? tabs[0];
 
   const handleCopy = async () => {
-    const attribution = getInstallAttributionFromDocument();
-    const attributedCommand = decorateInstallCommandWithAttribution(tab.command, attribution);
-    const tokenized = await getTokenizedInstallCommand(attributedCommand, experimentId, variantId);
+    const tokenized = await getTokenizedInstallCommand(tab.command, experimentId, variantId);
     await navigator.clipboard.writeText(tokenized.command);
     trackWebEvent("install_command_copied", {
       tab_id: tab.id,
       tokenized: tokenized.tokenized,
-      install_attribution_attached: Boolean(attribution),
     }, { experimentId, variantId });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
