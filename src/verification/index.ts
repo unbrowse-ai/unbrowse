@@ -2,7 +2,14 @@ import { executeInBrowser } from "../capture/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { listSkills, getSkill } from "../marketplace/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
+import { computeVerificationCoverage, INITIAL_MATRIX } from "./matrix.js";
+import { isAuthGatedEndpoint } from "./auth-gate.js";
+import type { VerificationMatrix } from "./matrix.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../types/index.js";
+import { selectVerificationCandidates } from "./candidates.js";
+
+const VERIFICATION_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const VERIFY_ENDPOINT_BATCH_SIZE = Math.max(1, Number(process.env.UNBROWSE_VERIFY_ENDPOINT_BATCH_SIZE ?? 3));
 
 /**
  * Verify a single endpoint by test-executing safe (GET) endpoints.
@@ -63,17 +70,34 @@ export async function verifyEndpoint(
  * Returns a map of endpoint_id -> verification status.
  */
 export async function verifySkill(
-  skill: SkillManifest
+  skill: SkillManifest,
+  options?: {
+    endpoints?: EndpointDescriptor[];
+    staleOnly?: boolean;
+    limit?: number;
+    now?: number;
+  },
 ): Promise<Record<string, VerificationStatus>> {
   const results: Record<string, VerificationStatus> = {};
-  for (const endpoint of skill.endpoints) {
+  const endpoints = options?.endpoints ?? selectVerificationCandidates(skill, options);
+  for (const endpoint of endpoints) {
     results[endpoint.endpoint_id] = await verifyEndpoint(skill, endpoint);
   }
   return results;
 }
 
-const VERIFICATION_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
-const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
+/**
+ * Verify all safe endpoints in a skill and compute verification coverage
+ * from the integration matrix. Returns endpoint results plus a coverage ratio.
+ */
+export async function verifySkillWithCoverage(
+  skill: SkillManifest,
+  matrix: VerificationMatrix = INITIAL_MATRIX,
+): Promise<{ results: Record<string, VerificationStatus>; coverage: number }> {
+  const results = await verifySkill(skill);
+  const coverage = computeVerificationCoverage(matrix);
+  return { results, coverage };
+}
 
 /**
  * Schedule periodic re-verification of stale endpoints.
@@ -81,18 +105,15 @@ const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 export function schedulePeriodicVerification(): ReturnType<typeof setInterval> {
   return setInterval(async () => {
     const skills = await listSkills();
-    const now = Date.now();
     for (const skill of skills) {
       if (skill.lifecycle !== "active") continue;
-      for (const endpoint of skill.endpoints) {
-        if (endpoint.method !== "GET") continue;
-        const isDisabled = endpoint.verification_status === "disabled";
-        const lastVerified = endpoint.last_verified_at
-          ? new Date(endpoint.last_verified_at).getTime()
-          : 0;
-        if (isDisabled || now - lastVerified > STALE_THRESHOLD_MS) {
-          await verifyEndpoint(skill, endpoint).catch(() => {});
-        }
+      const endpoints = selectVerificationCandidates(skill, {
+        staleOnly: true,
+        limit: VERIFY_ENDPOINT_BATCH_SIZE,
+      });
+      for (const endpoint of endpoints) {
+        if (isAuthGatedEndpoint(skill, endpoint)) continue;
+        await verifyEndpoint(skill, endpoint).catch(() => {});
       }
     }
   }, VERIFICATION_INTERVAL_MS);

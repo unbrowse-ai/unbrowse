@@ -1,0 +1,61 @@
+{
+  "skill_id": "7fcd1cd0-7a05-447b-b7fc-1df804641fce",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T10:15:29.312Z",
+  "updated_at": "2026-02-20T10:15:30.674Z",
+  "name": "apps-occ-gov",
+  "intent_signature": "Search and retrieve public enforcement actions",
+  "domain": "apps.occ.gov",
+  "description": "Search and retrieve public enforcement actions",
+  "owner_type": "marketplace",
+  "auth_type": "Bearer Token",
+  "service_name": "apps-occ-gov",
+  "endpoints": [
+    {
+      "endpoint_id": "20444986-9906-4873-b562-bfcda93e35eb",
+      "method": "GET",
+      "url_template": "https://apps.occ.gov/__endpoint/20444986-9906-4873-b562-bfcda93e35eb",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getWebSearchTypes",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "6aeb6367-98a0-456f-9b7d-01d5479b8334",
+      "method": "GET",
+      "url_template": "https://apps.occ.gov/__endpoint/6aeb6367-98a0-456f-9b7d-01d5479b8334",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getWebSearchSubjectMatters",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "2DcerCZkJgvjJ44a6HtQkij4gYXGMYR2fwA3wfyHaKHp",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "3e9fa6961347037a77b2fbb2e4936a7f729359c78c60a5deb813530d37caea83"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: apps-occ-gov\ndescription: Internal API for apps-occ-gov\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://apps.occ.gov\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# AppsOccGov API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /EASearch/api/WebSearch/{WebSearchId}` — Retrieve details for a specific web search.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"apps-occ-gov\", executionMode: \"backend\", endpoint: \"GET /EASearch/api/WebSearch/{WebSearchId}\" }\n```\n\nHere are a few examples to get you started using the `apps-occ-gov` API.\n\n```typescript\n// Retrieve details for a specific web search by its ID.\nasync function getWebSearchDetails(webSearchId: string) {\n  try {\n    const response = await client.get_EASearch_api_WebSearch_WebSearchId({ WebSearchId: webSearchId });\n    console.log(\"Web Search Details:\", response.data);\n    return response.data;\n  } catch (error) {\n    console.error(\"Error retrieving web search details:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example usage of retrieving a web search and handling potential errors.\nasync function processWebSearch(webSearchId: string) {\n  const searchDetails = await getWebSearchDetails(webSearchId);\n\n  if (searchDetails) {\n    console.log(\"Successfully retrieved web search. Processing...\");\n    // Perform further actions with the searchDetails\n  } else {\n    console.log(\"Failed to retrieve web search.\");\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://apps.occ.gov`\n**Captured Auth:** 3 auth headers\n\n## About This Skill\n\nThis skill provides access to Apps Occ Gov's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Apps Occ Gov data without official API access\n- Automate actions on apps.occ.gov (faster than browser automation)\n- Call the same endpoints the Apps Occ Gov frontend uses\n\n## Quick Start\n\n```typescript\nimport { AppsOccGovClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await AppsOccGovClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (authorization, x-goog-api-key, session-id)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (2)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /EASearch/api/WebSearch/SubjectMatters`\n- `GET /EASearch/api/WebSearch/Types`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /EASearch/api/WebSearch/SubjectMatters`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /EASearch/api/WebSearch/Types`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

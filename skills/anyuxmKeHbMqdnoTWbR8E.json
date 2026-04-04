@@ -1,0 +1,88 @@
+{
+  "skill_id": "anyuxmKeHbMqdnoTWbR8E",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:48:00.650Z",
+  "updated_at": "2026-02-23T07:48:00.650Z",
+  "name": "home-api.pinduoduo.com -- Interact with Pinduoduo",
+  "intent_signature": "Interact with Pinduoduo",
+  "domain": "home-api.pinduoduo.com",
+  "description": "Auto-discovered skill for: Interact with Pinduoduo",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "_EIkjxtQ8O6V6_40HyuQa",
+      "method": "GET",
+      "url_template": "https://home-api.pinduoduo.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "FHrCx4LC2v-EgKt8fJ5_M",
+      "method": "GET",
+      "url_template": "https://home-api.pinduoduo.com/sign",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://home-api.pinduoduo.com/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "*/*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "jsapi_ticket": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "nonceStr": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "timestamp": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "signature": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "appId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "jsapi_ticket",
+          "nonceStr",
+          "timestamp",
+          "url",
+          "signature",
+          "appId"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "skill_id": "af3360f6-7fed-43f8-94f4-582ce08884f4",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:10:02.395Z",
+  "updated_at": "2026-02-19T06:13:18.424Z",
+  "name": "cowbell-insure",
+  "intent_signature": "Manage cyber insurance services and widgets",
+  "domain": "cowbell.insure",
+  "description": "Manage cyber insurance services and widgets",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "cowbell-insure",
+  "endpoints": [
+    {
+      "endpoint_id": "08fb0f93-e6bf-467c-9f88-0e087f87b613",
+      "method": "GET",
+      "url_template": "https://cowbell.insure/__endpoint/08fb0f93-e6bf-467c-9f88-0e087f87b613",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getJfqpg6Djnrxehiqtj9Tw",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "69ca62de-8c86-40ee-8fa7-6796ed53a06d",
+      "method": "GET",
+      "url_template": "https://cowbell.insure/__endpoint/69ca62de-8c86-40ee-8fa7-6796ed53a06d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getGeolocate",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "acfcbe3b-67de-4a73-aafe-2d75f09c6dde",
+      "method": "GET",
+      "url_template": "https://cowbell.insure/__endpoint/acfcbe3b-67de-4a73-aafe-2d75f09c6dde",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getBusinessHours",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "52b47831-399c-48e6-a5f4-75510bb6f076",
+      "method": "GET",
+      "url_template": "https://cowbell.insure/__endpoint/52b47831-399c-48e6-a5f4-75510bb6f076",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getAttributionTrigger",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "ff538e09-db92-4dd9-8d28-a70c36f23a90",
+      "method": "GET",
+      "url_template": "https://cowbell.insure/__endpoint/ff538e09-db92-4dd9-8d28-a70c36f23a90",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEmbeddedService",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "e963b2d3-1b89-4a86-acc5-1f485f1dfad6",
+      "method": "POST",
+      "url_template": "https://cowbell.insure/__endpoint/e963b2d3-1b89-4a86-acc5-1f485f1dfad6",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createEndpoint",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "8EWikfWwCSFoLck4mwSq1VkSYo2yrMG8fZyLFgNECQ15",
+    "download_count": 0,
+    "total_versions": 4,
+    "latest_version_hash": "59b4247029fff018be2e286c629d8fdc04be3de2d37e9810f638768270be5aa6"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: cowbell-insure\ndescription: Internal API for cowbell-insure\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://cowbell.insure\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 4\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# CowbellInsure API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (3)\n- `GET /attribution_trigger` — Check if an attribution trigger is active for a user.\n- `GET /embeddedservice/v1/{v1Id}` — Retrieve configuration for an embedded service.\n- `GET /v3/geolocate/json` — Geolocate a user's location based on IP address.\n\n### Data Write (1)\n- `POST /wa/` — Submit a web accessibility request.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"cowbell-insure\", executionMode: \"backend\", endpoint: \"GET /attribution_trigger\" }\n```\n\nHere's a quick start to using the `cowbell-insure` API. These examples demonstrate common read and write operations.\n\n```typescript\n// Check for an active attribution trigger for a user.\nasync function checkAttribution() {\n  try {\n    const attributionStatus = await client.attribution_trigger();\n    if (attributionStatus.isActive) {\n      console.log(\"Attribution trigger is active.\");\n    } else {\n      console.log(\"Attribution trigger is not active.\");\n    }\n  } catch (error) {\n    console.error(\"Error checking attribution:\", error);\n  }\n}\n```\n\n```typescript\n// Submit a web accessibility request.\nasync function submitAccessibilityRequest(details: string) {\n  try {\n    const response = await client.wa({ details });\n    console.log(\"Accessibility request submitted:\", response.requestId);\n  } catch (error) {\n    console.error(\"Error submitting accessibility request:\", error);\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://cowbell.insure`\n**Captured Auth:** none captured\n\n## About This Skill\n\nThis skill provides access to Cowbell Insure's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Cowbell Insure data without official API access\n- Automate actions on cowbell.insure (faster than browser automation)\n- Call the same endpoints the Cowbell Insure frontend uses\n\n## Quick Start\n\n```typescript\nimport { CowbellInsureClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await CowbellInsureClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (12)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /attribution_trigger`\n- `GET /embeddedservice/v1/businesshours`\n- `GET /embeddedservice/v1/embedded-service-config`\n- `GET /v2/embed/321442/jfqpg6djnrxehiqtj9tw`\n- `GET /v3/geolocate/json`\n- `POST /wa/`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /attribution_trigger`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /embeddedservice/v1/businesshours`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /embeddedservice/v1/embedded-service-config`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v2/embed/321442/jfqpg6djnrxehiqtj9tw`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v3/geolocate/json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /wa/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

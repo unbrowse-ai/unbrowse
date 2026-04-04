@@ -1,0 +1,62 @@
+{
+  "skill_id": "62bc3374-55c8-402b-984c-7314c4ff2623",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-22T06:51:28.143Z",
+  "updated_at": "2026-02-22T06:51:29.502Z",
+  "name": "stripe",
+  "intent_signature": "Manage Stripe site configurations and",
+  "domain": "stripe.com",
+  "description": "Manage Stripe site configurations and",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "stripe",
+  "endpoints": [
+    {
+      "endpoint_id": "acff5171-2bf5-4a86-9c89-01815b49eb64",
+      "method": "POST",
+      "url_template": "https://stripe.com/__endpoint/acff5171-2bf5-4a86-9c89-01815b49eb64",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createChecksiteconfig",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "e17449cf-69c7-4b3d-8b05-b2e6d8e33f9c",
+      "method": "POST",
+      "url_template": "https://stripe.com/__endpoint/e17449cf-69c7-4b3d-8b05-b2e6d8e33f9c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createGetcaptchaById",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "GHr3iVZemAqW1eRY3bbGWLCfxuBjXv9YxT3KamWyEc6t",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "90ebece9810796a21188571a9dc79b2872a45820b386dadcc9f5013e01e639a6"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: stripe\ndescription: Internal API for stripe\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://stripe.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Stripe API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `POST /checksiteconfig` — Verify Stripe integration status and configuration on a website.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"stripe\", executionMode: \"backend\", endpoint: \"POST /checksiteconfig\" }\n```\n\n```typescript\n// Check the Stripe configuration for a given website URL.\n// Useful for verifying successful integration.\nconst checkSiteConfigResponse = await client.checksiteconfig({\n  url: \"https://example.com\",\n});\n\nconsole.log(\"Stripe Configuration Status:\", checkSiteConfigResponse.status);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://stripe.com`\n**Captured Auth:** 1 auth headers, 8 session cookies\n\n## About This Skill\n\nThis skill provides access to Stripe's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Stripe data without official API access\n- Automate actions on stripe.com (faster than browser automation)\n- Call the same endpoints the Stripe frontend uses\n\n## Quick Start\n\n```typescript\nimport { StripeClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await StripeClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 8\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (2)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `POST /checksiteconfig`\n- `POST /getcaptcha/5034f7f0-a742-48aa-89e2-062ece60f0d6`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `POST /checksiteconfig`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /getcaptcha/5034f7f0-a742-48aa-89e2-062ece60f0d6`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

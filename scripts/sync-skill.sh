@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync packages/skill/ into the unbrowse-skill repo (unbrowse-ai/unbrowse)
+# Sync only packages/skill/SKILL.md into the standalone skill repo
 # AND install/update the Claude Code local skill.
 #
 # Usage: bash scripts/sync-skill.sh [commit message]
@@ -9,49 +9,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MONO_ROOT="$(dirname "$SCRIPT_DIR")"
 SKILL_PKG="$MONO_ROOT/packages/skill"
+SKILL_MD="$SKILL_PKG/SKILL.md"
+DOCS_DIR="$MONO_ROOT/docs"
 TARGET_REPO="${UNBROWSE_SKILL_REPO:-$HOME/Projects/unbrowse-skill}"
-KURI_SUBMODULE="$MONO_ROOT/submodules/kuri"
 
 # --------------------------------------------------------------------------
-# 1. Install / update Claude Code local skill
+# 1. Install / update Claude + Codex local skill links
 # --------------------------------------------------------------------------
 
-CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
-AGENTS_SKILLS_DIR="$HOME/.agents/skills"
-
-echo "=== Installing Claude Code skill ==="
-
-# Ensure directories exist
-mkdir -p "$CLAUDE_SKILLS_DIR" "$AGENTS_SKILLS_DIR"
-
-# Create symlink in ~/.agents/skills/ → monorepo root (if not already pointing here)
-if [ -L "$AGENTS_SKILLS_DIR/unbrowse" ]; then
-  CURRENT_TARGET="$(readlink "$AGENTS_SKILLS_DIR/unbrowse")"
-  if [ "$CURRENT_TARGET" != "$MONO_ROOT" ]; then
-    echo "Updating ~/.agents/skills/unbrowse → $MONO_ROOT (was $CURRENT_TARGET)"
-    rm "$AGENTS_SKILLS_DIR/unbrowse"
-    ln -s "$MONO_ROOT" "$AGENTS_SKILLS_DIR/unbrowse"
-  else
-    echo "~/.agents/skills/unbrowse already points to $MONO_ROOT"
-  fi
-elif [ -e "$AGENTS_SKILLS_DIR/unbrowse" ]; then
-  echo "Warning: ~/.agents/skills/unbrowse exists but is not a symlink. Skipping."
-else
-  echo "Creating ~/.agents/skills/unbrowse → $MONO_ROOT"
-  ln -s "$MONO_ROOT" "$AGENTS_SKILLS_DIR/unbrowse"
-fi
-
-# Create symlink in ~/.claude/skills/ → ~/.agents/skills/unbrowse (Claude Code convention)
-if [ -L "$CLAUDE_SKILLS_DIR/unbrowse" ]; then
-  echo "~/.claude/skills/unbrowse already exists"
-elif [ -e "$CLAUDE_SKILLS_DIR/unbrowse" ]; then
-  echo "Warning: ~/.claude/skills/unbrowse exists but is not a symlink. Skipping."
-else
-  echo "Creating ~/.claude/skills/unbrowse → ../../.agents/skills/unbrowse"
-  ln -s "../../.agents/skills/unbrowse" "$CLAUDE_SKILLS_DIR/unbrowse"
-fi
-
-echo "Claude Code skill installed."
+echo "=== Syncing Claude + Codex skill links ==="
+bun "$SCRIPT_DIR/sync-skill-links.ts"
+echo "Claude + Codex skill links ready."
 echo ""
 
 # --------------------------------------------------------------------------
@@ -63,7 +31,7 @@ bun "$SCRIPT_DIR/sync-skill-md.ts"
 echo ""
 
 # --------------------------------------------------------------------------
-# 2. Sync to external skill repo (for publishing)
+# 2. Sync docs + SKILL.md to external skill repo (for publishing)
 # --------------------------------------------------------------------------
 
 if [ ! -d "$TARGET_REPO/.git" ]; then
@@ -72,29 +40,12 @@ if [ ! -d "$TARGET_REPO/.git" ]; then
   exit 0
 fi
 
-echo "=== Syncing $SKILL_PKG -> $TARGET_REPO ==="
+echo "=== Syncing $DOCS_DIR -> $TARGET_REPO/docs ==="
+mkdir -p "$TARGET_REPO/docs"
+rsync -a --delete "$DOCS_DIR/" "$TARGET_REPO/docs/"
 
-# Sync all files except .git, resolving symlinks (-L follows symlinks)
-rsync -avL --delete \
-  --exclude '.git' \
-  --exclude 'node_modules' \
-  --exclude '.env' \
-  --exclude 'traces' \
-  "$SKILL_PKG/" "$TARGET_REPO/"
-
-if [ -d "$KURI_SUBMODULE" ]; then
-  mkdir -p "$TARGET_REPO/vendor"
-  rsync -av --delete \
-    --exclude '.git' \
-    --exclude '.zig-cache' \
-    --exclude 'zig-out' \
-    "$KURI_SUBMODULE/" "$TARGET_REPO/vendor/kuri-src/"
-fi
-
-# Also copy root-level .env.example if it exists
-if [ -f "$MONO_ROOT/.env.example" ]; then
-  cp "$MONO_ROOT/.env.example" "$TARGET_REPO/.env.example"
-fi
+echo "=== Syncing $SKILL_MD -> $TARGET_REPO/SKILL.md ==="
+cp "$SKILL_MD" "$TARGET_REPO/SKILL.md"
 
 echo ""
 echo "Sync complete. Files in $TARGET_REPO:"
@@ -103,6 +54,13 @@ ls -la "$TARGET_REPO/"
 # Optionally commit, tag, and push
 MSG="${1:-chore: sync from monorepo}"
 cd "$TARGET_REPO"
+TARGET_BRANCH="${UNBROWSE_SKILL_REPO_BRANCH:-$(git branch --show-current || true)}"
+if [ -z "$TARGET_BRANCH" ]; then
+  TARGET_BRANCH="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
+fi
+if [ -z "$TARGET_BRANCH" ]; then
+  TARGET_BRANCH="main"
+fi
 if git diff --quiet && git diff --staged --quiet; then
   echo ""
   echo "No changes to commit."
@@ -115,13 +73,13 @@ else
   if [ "${CI:-}" = "true" ]; then
     # Non-interactive mode for CI
     git commit -m "$MSG"
-    git push origin main
+    git push origin "HEAD:$TARGET_BRANCH"
     echo "Pushed to $(git remote get-url origin)"
   else
     read -p "Commit and push with message '$MSG'? [y/N] " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
       git commit -m "$MSG"
-      git push origin main
+      git push origin "HEAD:$TARGET_BRANCH"
       echo "Pushed to $(git remote get-url origin)"
     else
       echo "Skipped commit. Changes are staged."

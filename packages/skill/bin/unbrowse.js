@@ -19,7 +19,6 @@ const cliArgs = cliEntrypoint.endsWith(".js")
       const tsxLoader = path.join(path.dirname(tsxPkg), "dist", "loader.mjs");
       return ["--import", tsxLoader, cliEntrypoint, ...process.argv.slice(2)];
     })();
-const req = createRequire(import.meta.url);
 const child = spawn(process.execPath, cliArgs, {
   stdio: "inherit",
   cwd: process.cwd(),

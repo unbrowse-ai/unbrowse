@@ -2,27 +2,84 @@
 
 This package installs the `unbrowse` CLI.
 
-Turn any website into a reusable API interface for agents. Unbrowse captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
+Unbrowse is a local Model Context Protocol (MCP) server and CLI that turns any website into a reusable API interface for agents. It captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
 
 One agent learns a site once. Every later agent gets the fast path.
 
+Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
+
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
+
+## MCP server
+
+Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the MCP server entrypoint.
+
+- Protocol: JSON-RPC 2.0 MCP over stdio
+- Handshake: `initialize`, `notifications/initialized`, `ping`
+- Capability surface today: `tools/list` and `tools/call`
+- Current MCP shape: tools only. No `resources/*` or `prompts/*` methods yet.
+- Runtime model: the MCP server fronts the local Unbrowse runtime on `http://localhost:6969`; hosts talk standard MCP, and Unbrowse uses the local HTTP runtime behind the scenes.
+
+Core MCP tools:
+
+- Discovery: `unbrowse_health`, `unbrowse_search`, `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_feedback`
+- Auth/cache: `unbrowse_login`, `unbrowse_skills`, `unbrowse_skill`, `unbrowse_sessions`
+- Browser capture: `unbrowse_go`, `unbrowse_snap`, `unbrowse_click`, `unbrowse_fill`, `unbrowse_type`, `unbrowse_press`, `unbrowse_select`, `unbrowse_scroll`, `unbrowse_submit`, `unbrowse_screenshot`, `unbrowse_text`, `unbrowse_markdown`, `unbrowse_cookies`, `unbrowse_eval`, `unbrowse_sync`, `unbrowse_close`
+
+Typical MCP host config:
+
+```json
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "npx",
+      "args": ["-y", "unbrowse", "mcp"]
+    }
+  }
+}
+```
 
 ## Quick start
 
 ```bash
-# Fastest full setup
-npx unbrowse setup
+# One-line install from the latest GitHub release
+curl -fsSL https://unbrowse.ai/install.sh | sh
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, lets you register with an email-shaped display identity, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+That installer now follows the Kuri pattern: detect platform, download the matching release tarball, install `unbrowse` into `~/.local/bin`, then run `unbrowse setup`.
 
-For daily use:
+```bash
+# Deterministic setup from a repo clone
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off
+```
+
+`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and then runs the real first-time bootstrap: ToS acceptance, agent registration + API-key caching, and wallet detection when present.
+
+If a wallet is configured, that wallet address becomes the contributor/payment truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
+
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` now encourages it, and when the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically. That wallet becomes the payout destination for contributed routes and the spending wallet for paid marketplace routes.
+
+Unbrowse supports wallet providers such as Crossmint `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
+
+For repeat npm use after a healthy publish:
 
 ```bash
 npm install -g unbrowse
 unbrowse setup
 ```
+
+The npm package is binary-first: install downloads the prebuilt Bun-compiled CLI for your platform. It does not ship the TypeScript runtime or JS fallback launcher.
+On supported platforms, install now fails fast if the matching GitHub release asset is missing or unreachable.
+
+For generic MCP hosts:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+That writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template is also published at [`/mcp.json`](https://www.unbrowse.ai/mcp.json).
 
 If your agent host uses skills:
 
@@ -34,11 +91,28 @@ npx skills add unbrowse-ai/unbrowse
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
 
-If you installed the CLI globally:
+Check the exact command for your install with:
 
 ```bash
-npm install -g unbrowse@latest
-unbrowse setup
+unbrowse upgrade
+```
+
+Codex and Claude installs now also get a session-start update hint during `unbrowse setup`, so newer releases are surfaced in the host before the CLI drifts too far behind.
+
+If you installed from a repo clone:
+
+```bash
+cd ~/unbrowse
+git pull --ff-only
+./setup --host off
+```
+
+If you installed for a generic MCP host:
+
+```bash
+cd ~/unbrowse
+git pull --ff-only
+./setup --host mcp
 ```
 
 If your agent host uses skills, rerun its skill install/update command too:
@@ -49,26 +123,43 @@ npx skills add unbrowse-ai/unbrowse
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Every CLI command auto-starts the local runtime on `http://localhost:6969` by default, and `unbrowse mcp` uses that same runtime behind the MCP stdio surface. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Public companion docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
 ## What setup does
 
-- Checks local prerequisites for the npm/npx flow.
+- Checks the local runtime/package-manager environment for the repo bootstrap or packaged CLI path.
+- Prebuilds the packaged CLI runtime and installs the stable `unbrowse` shim for the repo bootstrap path.
 - Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
 - Registers the Open Code `/unbrowse` command when Open Code is present.
+- Runs the first-use flow: ToS, agent registration/API-key caching, wallet detection, and Crossmint `lobster.cash` encouragement.
 - Starts the local Unbrowse server unless `--no-start` is passed.
 
 ## Common commands
 
 ```bash
 unbrowse health
+unbrowse mcp
 unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
 unbrowse login --url "https://calendar.google.com"
 unbrowse skills
 unbrowse search --intent "get stock prices"
 ```
+
+For most MCP hosts, the standard flow is `unbrowse_resolve` first, then `unbrowse_execute`. For JS-heavy or first-time capture workflows, use the browser tool chain: `unbrowse_go -> unbrowse_snap -> action tools -> unbrowse_submit/unbrowse_sync -> unbrowse_close`.
+
+## Dependency walk for multi-step UIs
+
+Treat each successful browser submit as a dependency boundary.
+
+- Do not jump straight to guessed downstream URLs like `/date-selection.html` or `/payment.html` unless the current session already reached them through the real page flow.
+- Use `unbrowse_submit` for the actual transition, then trust the returned `url`, `session_id`, and any next-step hints over your own assumptions.
+- `unbrowse_sync` after a good transition so the route graph records which request chain unlocked the next page.
+- If a page later returns `abandonedCart`, `session_expired`, or a wrong audience/product variant, restart from the last known good upstream step and walk forward again.
+
+The dependency graph is not just API-to-API. On JS-heavy checkout flows it also captures browser-state prerequisites: selected product, resident/non-resident audience, date, slot, auth, and cart state. Future agents should reason from those prerequisites before calling deeper steps.
 
 ## Demo notes
 
@@ -79,6 +170,21 @@ unbrowse search --intent "get stock prices"
 ## Help shape the next eval
 
 If you tried Unbrowse on a site or API and could not get it to work, add it to [Discussion #53](https://github.com/unbrowse-ai/unbrowse/discussions/53). We use that thread to collect missing or broken targets so we can turn them into requirements for the next eval pass.
+
+## Docs
+
+The synced skill repo also carries the public docs set:
+
+- [Quickstart](./docs/guides/quickstart.md)
+- [API reference](./docs/api.md)
+- [Deployment guide](./docs/deployment.md)
+- [Release checklist](./docs/RELEASING.md)
+
+Whitepaper companion docs:
+
+- [Whitepaper companion index](./docs/whitepaper/README.md)
+- [For Technical Readers](./docs/whitepaper/for-technical-readers.md)
+- [For Investors](./docs/whitepaper/for-investors.md)
 
 ## How it works
 
@@ -135,6 +241,7 @@ Non-GET endpoints (POST, PUT, DELETE) require explicit confirmation:
 
 - `dry_run: true` — preview what would execute without side effects
 - `confirm_unsafe: true` — explicit user consent to proceed
+- `confirm_third_party_terms: true` — extra explicit confirmation for policy-sensitive domains/actions such as X write endpoints
 
 GET endpoints auto-execute. Mutations never fire without opt-in.
 
@@ -156,6 +263,16 @@ See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, s
 | GET    | `/v1/skills`             | List all marketplace skills                    |
 | GET    | `/v1/stats/summary`      | Platform stats                                 |
 | GET    | `/health`                | Health check                                   |
+
+## Docs
+
+The standalone skill repo also carries the core repo docs:
+
+- [Quickstart guide](./docs/guides/quickstart.md)
+- [API notes](./docs/api.md)
+- [Codex eval harness](./docs/codex-eval-harness.md)
+- [Deployment notes](./docs/deployment.md)
+- [Release checklist](./docs/RELEASING.md)
 
 ## Configuration
 

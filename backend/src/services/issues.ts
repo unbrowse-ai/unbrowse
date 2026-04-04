@@ -1,4 +1,5 @@
 import type { Env } from "../types.js";
+import { statsKV } from "./kv.js";
 
 export type IssueCategory = "broken" | "wrong_data" | "needs_auth" | "rate_limited" | "stale_schema" | "missing_endpoint" | "other";
 export type IssueStatus = "open" | "acknowledged" | "resolved";
@@ -32,6 +33,7 @@ export async function createIssue(
   endpointId?: string,
   traceId?: string
 ): Promise<IssueReport> {
+  const kv = statsKV(env);
   const issue: IssueReport = {
     issue_id: generateId(),
     skill_id: skillId,
@@ -45,15 +47,15 @@ export async function createIssue(
   };
 
   // Store the issue
-  await env.STATS_KV.put(`issue:${skillId}:${issue.issue_id}`, JSON.stringify(issue));
+  await kv.put(`issue:${skillId}:${issue.issue_id}`, JSON.stringify(issue));
 
   // Update the index (most recent 100)
   const idxKey = `issue-idx:${skillId}`;
-  const raw = await env.STATS_KV.get(idxKey);
+  const raw = await kv.get(idxKey) as string | null;
   const ids: string[] = raw ? JSON.parse(raw) : [];
   ids.unshift(issue.issue_id);
   if (ids.length > 100) ids.length = 100;
-  await env.STATS_KV.put(idxKey, JSON.stringify(ids));
+  await kv.put(idxKey, JSON.stringify(ids));
 
   return issue;
 }
@@ -64,13 +66,14 @@ export async function listIssues(
   status?: IssueStatus,
   limit = 20
 ): Promise<IssueReport[]> {
+  const kv = statsKV(env);
   const idxKey = `issue-idx:${skillId}`;
-  const raw = await env.STATS_KV.get(idxKey);
+  const raw = await kv.get(idxKey) as string | null;
   if (!raw) return [];
 
   const ids: string[] = JSON.parse(raw);
   const issues = await Promise.all(
-    ids.slice(0, limit).map((id) => env.STATS_KV.get(`issue:${skillId}:${id}`, "json"))
+    ids.slice(0, limit).map((id) => kv.get(`issue:${skillId}:${id}`, "json"))
   );
 
   let result = issues.filter(Boolean) as IssueReport[];
@@ -84,10 +87,76 @@ export async function updateIssueStatus(
   issueId: string,
   status: IssueStatus
 ): Promise<void> {
+  const kv = statsKV(env);
   const key = `issue:${skillId}:${issueId}`;
-  const raw = await env.STATS_KV.get(key, "json");
+  const raw = await kv.get(key, "json");
   if (!raw) throw new Error("Issue not found");
   const issue = raw as IssueReport;
   issue.status = status;
-  await env.STATS_KV.put(key, JSON.stringify(issue));
+  await kv.put(key, JSON.stringify(issue));
+}
+
+// --- Telemetry-driven issue filing ---
+
+export interface ReproBundle {
+  skill_id: string;
+  endpoint_id: string;
+  intent: string;
+  error_message: string;
+  error_count: number;
+  first_seen: string;
+  last_seen: string;
+  sample_trace_ids: string[];
+}
+
+export interface IssueTemplate {
+  title: string;
+  body: string;
+  labels: string[];
+  repo: string;
+}
+
+export const ISSUE_FILING_THRESHOLD = 3;
+
+export function buildReproBundle(
+  skillId: string,
+  endpointId: string,
+  errors: Array<{ message: string; trace_id: string; timestamp: string }>,
+  intent: string,
+): ReproBundle {
+  return {
+    skill_id: skillId,
+    endpoint_id: endpointId,
+    intent,
+    error_message: errors[0]?.message ?? "unknown",
+    error_count: errors.length,
+    first_seen: errors[0]?.timestamp ?? new Date().toISOString(),
+    last_seen: errors[errors.length - 1]?.timestamp ?? new Date().toISOString(),
+    sample_trace_ids: errors.slice(0, 5).map((e) => e.trace_id),
+  };
+}
+
+export function buildIssueTemplate(bundle: ReproBundle): IssueTemplate {
+  const isBackend = bundle.error_message.includes("500") || bundle.error_message.includes("timeout");
+  return {
+    title: `[auto] ${bundle.endpoint_id}: ${bundle.error_message.slice(0, 80)}`,
+    body: [
+      "## Auto-filed from telemetry",
+      "",
+      `**Skill:** ${bundle.skill_id}`,
+      `**Endpoint:** ${bundle.endpoint_id}`,
+      `**Intent:** ${bundle.intent}`,
+      `**Error:** ${bundle.error_message}`,
+      `**Occurrences:** ${bundle.error_count}`,
+      `**First seen:** ${bundle.first_seen}`,
+      `**Last seen:** ${bundle.last_seen}`,
+      `**Sample traces:** ${bundle.sample_trace_ids.join(", ")}`,
+    ].join("\n"),
+    labels: ["auto-filed", "bug"],
+    repo: isBackend ? "unbrowse-ai/unbrowse-dev" : "unbrowse-ai/unbrowse",
+  };
+}
+
+export function shouldFileIssue(errorCount: number): boolean {
+  return errorCount >= ISSUE_FILING_THRESHOLD;
 }

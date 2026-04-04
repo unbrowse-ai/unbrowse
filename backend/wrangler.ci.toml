@@ -1,0 +1,68 @@
+name = "unbrowse-backend"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+first_party_worker = true
+
+# CI deploys with a token that can update Worker code and routes but cannot
+# re-authorize KV namespace bindings. Preserve the already-attached namespace
+# instead of re-sending its namespace_id on every release deploy.
+[unsafe.metadata]
+keep_bindings = ["kv_namespace"]
+
+[[unsafe.bindings]]
+name = "STATS_KV"
+type = "inherit"
+
+[vars]
+ENVIRONMENT = "production"
+PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
+UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
+
+# Secrets:
+# - RELEASE_MANIFEST_SIGNING_SECRET
+
+[[routes]]
+pattern = "beta-api.unbrowse.ai/*"
+zone_id = "73934a4d815fde770167414fc3ead04b"
+
+[env.staging]
+name = "unbrowse-backend-staging"
+workers_dev = true
+routes = []
+
+[env.staging.unsafe.metadata]
+keep_bindings = ["kv_namespace"]
+
+[[env.staging.unsafe.bindings]]
+name = "STATS_KV"
+type = "inherit"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
+X402_NETWORK_MODE = "mainnet"
+PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
+UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
+
+[env.experiments]
+name = "unbrowse-backend-experiments"
+workers_dev = true
+routes = []
+
+[env.experiments.unsafe.metadata]
+keep_bindings = ["kv_namespace"]
+
+[[env.experiments.unsafe.bindings]]
+name = "STATS_KV"
+type = "inherit"
+
+[env.experiments.vars]
+ENVIRONMENT = "staging"
+PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
+X402_NETWORK_MODE = "mainnet"
+PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
+UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"

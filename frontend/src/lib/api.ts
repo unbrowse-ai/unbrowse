@@ -16,6 +16,21 @@ export interface SkillManifest {
   updated_at: string;
 }
 
+export interface PopularSkillSummary {
+  skill_id: string;
+  name: string;
+  domain: string;
+  description: string;
+  version: string;
+  execution_type: "http" | "browser-capture";
+  endpoint_count: number;
+  total_executions: number;
+  successful_executions: number;
+  avg_reliability_score: number;
+  updated_at: string;
+  last_execution_at?: string;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: string;
@@ -24,6 +39,31 @@ export interface EndpointDescriptor {
   verification_status: "verified" | "unverified" | "failed" | "pending";
   reliability_score: number;
   response_schema?: unknown;
+}
+
+export interface SkillListEndpointPreview {
+  endpoint_id: string;
+  method: string;
+  verification_status: "verified" | "unverified" | "failed" | "pending" | "disabled";
+  reliability_score: number;
+}
+
+export interface SkillListItem {
+  skill_id: string;
+  version: string;
+  name: string;
+  intent_signature: string;
+  domain: string;
+  subdomain?: string;
+  description: string;
+  owner_type: "agent" | "marketplace" | "user";
+  execution_type: "http" | "browser-capture";
+  lifecycle: "active" | "deprecated" | "disabled";
+  created_at: string;
+  updated_at: string;
+  endpoint_count: number;
+  avg_reliability_score: number;
+  endpoints: SkillListEndpointPreview[];
 }
 
 export interface SearchResult {
@@ -36,9 +76,14 @@ export interface AgentProfile {
   agent_id: string;
   name: string;
   created_at: string;
+  wallet_address?: string | null;
+  wallet_provider?: string | null;
   skills_discovered: string[];
   total_executions: number;
   total_feedback_given: number;
+  tos_accepted_version?: string | null;
+  tos_accepted_at?: string | null;
+  last_active_at?: string;
 }
 
 export interface StatsSummary {
@@ -89,38 +134,158 @@ export interface EngagementMetrics {
   daily_trend: Array<{ date: string; active: number }>;
 }
 
-// --- Unauthenticated API helper ---
-
-async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-    next: { revalidate: 30 },
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({})) as { error?: string };
-    throw new Error(data.error ?? `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
+export interface LandingVariantAnalytics {
+  variant_id: string;
+  label: string;
+  status: "shadow" | "canary" | "active" | "disabled";
+  source: "human" | "auto_generated";
+  angle_family: "browser-replacement" | "speed-proof" | "reliability" | "learn-once-reuse-later";
+  weight: number;
+  rationale?: string;
+  canary_started_at?: string;
+  disabled_reason?: string;
+  generated_at?: string;
+  landing_visitors: number;
+  landing_sessions: number;
+  hero_views: number;
+  install_section_views: number;
+  install_command_copies: number;
+  install_started: number;
+  setup_completed: number;
+  registrations: number;
+  first_resolve_started: number;
+  first_resolve_succeeded: number;
+  bounce_sessions: number;
+  no_exploration_sessions: number;
+  avg_exploration_depth: number;
+  max_scroll_bucket_reached: number;
+  rates: {
+    install_copy_from_landing: number;
+    install_started_from_landing: number;
+    setup_completed_from_landing: number;
+    first_resolve_succeeded_from_landing: number;
+    first_resolve_succeeded_from_install_started: number;
+  };
+  top_referrers: Array<{ referrer: string; sessions: number }>;
+  top_campaigns: Array<{ campaign: string; sessions: number }>;
 }
 
-// --- Authenticated API helper (client-side only) ---
+export interface LandingFunnelAnalytics {
+  generated_at: string;
+  window_days: number;
+  experiment_id: string;
+  control_variant_id: string;
+  winner_variant_id?: string;
+  winner_angle_family?: LandingVariantAnalytics["angle_family"];
+  live_weights: Array<{ variant_id: string; status: LandingVariantAnalytics["status"]; weight: number }>;
+  shadow_queue: Array<{ variant_id: string; label: string; source: LandingVariantAnalytics["source"]; rationale?: string }>;
+  canaries: Array<{ variant_id: string; label: string; started_at?: string }>;
+  optimizer_runs: Array<{ ran_at: string; winner_variant_id?: string; winner_angle_family?: LandingVariantAnalytics["angle_family"]; notes?: string }>;
+  variants: LandingVariantAnalytics[];
+}
 
-export async function authApi<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-  let apiKey: string | null = null;
-  if (typeof window !== "undefined") {
-    try {
-      const stored = localStorage.getItem("unbrowse_auth");
-      if (stored) apiKey = (JSON.parse(stored) as { apiKey?: string }).apiKey ?? null;
-    } catch { /* ignore */ }
+export interface CurrentTos {
+  version: string;
+  summary: string;
+  url: string;
+}
+
+export interface DashboardTransaction {
+  transaction_id: string;
+  direction: "spent" | "earned";
+  skill_id: string;
+  endpoint_id?: string;
+  amount_usd: number;
+  platform_fee_usd: number;
+  counterparty_agent_id: string;
+  status: string;
+  created_at: string;
+}
+
+export interface DashboardData {
+  profile: AgentProfile;
+  economics: {
+    spent_usd: number;
+    creator_earned_usd: number;
+    attribution_earned_usd: number;
+    total_earned_usd: number;
+    platform_fees_paid_usd: number;
+    graph_fees_paid_usd: number;
+    skill_spend_usd: number;
+    paid_execution_usd: number;
+  };
+  savings: {
+    baseline_time_ms: number | null;
+    actual_time_ms: number | null;
+    time_saved_ms: number | null;
+    time_saved_hours: number | null;
+    speedup_ratio: number | null;
+    baseline_cost_uc: number | null;
+    baseline_cost_usd: number | null;
+    actual_cost_uc: number | null;
+    actual_cost_usd: number | null;
+    cost_saved_uc: number | null;
+    cost_saved_usd: number | null;
+  };
+  activity: {
+    total_executions: number;
+    skills_discovered: number;
+    total_feedback_given: number;
+  };
+  rank: {
+    contribution_score: number;
+    position: number | null;
+  };
+  recent_transactions: DashboardTransaction[];
+}
+
+export interface LeaderboardEntry {
+  agent_id: string;
+  name: string;
+  wallet_address?: string;
+  created_at: string;
+  contribution_score: number;
+  creator_earned_usd: number;
+  attribution_earned_usd: number;
+  total_earned_usd: number;
+  executions: number;
+  skills_discovered: number;
+  time_saved_hours: number | null;
+  cost_saved_usd: number | null;
+  score_components: {
+    earned_norm: number;
+    execution_norm: number;
+    discovery_norm: number;
+  };
+}
+
+interface StoredAuth {
+  apiKey?: string;
+}
+
+function readStoredAuth(): StoredAuth | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem("unbrowse_auth");
+    return stored ? JSON.parse(stored) as StoredAuth : null;
+  } catch {
+    return null;
   }
+}
+
+async function request<T = unknown>(
+  method: string,
+  path: string,
+  body?: unknown,
+  opts?: { apiKey?: string | null; revalidate?: number },
+): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  if (opts?.apiKey) headers.Authorization = `Bearer ${opts.apiKey}`;
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    next: opts?.revalidate != null ? { revalidate: opts.revalidate } : undefined,
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({})) as { error?: string };
@@ -129,10 +294,48 @@ export async function authApi<T = unknown>(method: string, path: string, body?: 
   return res.json() as Promise<T>;
 }
 
-// --- Skills ---
+async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+  return request<T>(method, path, body, { revalidate: 30 });
+}
+
+export async function authApi<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+  const apiKey = readStoredAuth()?.apiKey ?? null;
+  return request<T>(method, path, body, { apiKey });
+}
+
+export async function verifyAgentApiKey(apiKey: string): Promise<AgentProfile> {
+  return request<AgentProfile>("GET", "/v1/agents/me", undefined, { apiKey: apiKey.trim() });
+}
 
 export async function listSkills(): Promise<SkillManifest[]> {
   const data = await api<{ skills: SkillManifest[] }>("GET", "/v1/skills");
+  return data.skills;
+}
+
+export async function listSkillCards(opts?: {
+  limit?: number;
+  includeDeprecated?: boolean;
+  revalidate?: number;
+}): Promise<SkillListItem[]> {
+  const params = new URLSearchParams({ view: "card" });
+  if (opts?.limit != null) params.set("limit", String(opts.limit));
+  if (opts?.includeDeprecated) params.set("include_deprecated", "1");
+  const data = await request<{ skills: SkillListItem[] }>(
+    "GET",
+    `/v1/skills?${params.toString()}`,
+    undefined,
+    { revalidate: opts?.revalidate ?? 300 },
+  );
+  return data.skills;
+}
+
+export async function listPopularSkills(limit = 8, opts?: { revalidate?: number }): Promise<PopularSkillSummary[]> {
+  const data = await request<{ skills: PopularSkillSummary[] }>(
+    "GET",
+    `/v1/skills/popular?limit=${limit}`,
+    undefined,
+    { revalidate: opts?.revalidate ?? 300 },
+  );
   return data.skills;
 }
 
@@ -148,6 +351,10 @@ export async function getStatsSummary(): Promise<StatsSummary> {
   return api<StatsSummary>("GET", "/v1/stats/summary");
 }
 
+export async function getCurrentTos(): Promise<CurrentTos> {
+  return api<CurrentTos>("GET", "/v1/tos/current");
+}
+
 export async function searchSkills(intent: string, domain?: string): Promise<SearchResult[]> {
   const path = domain ? "/v1/search/domain" : "/v1/search";
   const body = domain ? { intent, domain } : { intent };
@@ -155,10 +362,11 @@ export async function searchSkills(intent: string, domain?: string): Promise<Sea
   return data.results;
 }
 
-// --- Agents ---
-
-export async function registerAgent(name: string): Promise<{ agent_id: string; api_key: string }> {
-  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", { name });
+export async function registerAgent(name: string, tosVersion?: string): Promise<{ agent_id: string; api_key: string }> {
+  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", {
+    name,
+    ...(tosVersion ? { tos_version: tosVersion } : {}),
+  });
 }
 
 export async function getAgent(agentId: string): Promise<AgentProfile> {
@@ -172,4 +380,70 @@ export async function listAgents(limit = 20): Promise<AgentProfile[]> {
 
 export async function getMyProfile(): Promise<AgentProfile> {
   return authApi<AgentProfile>("GET", "/v1/agents/me");
+}
+
+export async function getMyDashboard(): Promise<DashboardData> {
+  return authApi<DashboardData>("GET", "/v1/dashboard/me");
+}
+
+export async function getDashboardByWallet(walletAddress: string): Promise<DashboardData> {
+  return api<DashboardData>("GET", `/v1/dashboard/wallet/${encodeURIComponent(walletAddress.trim())}`);
+}
+
+export async function getLeaderboard(limit = 50): Promise<LeaderboardEntry[]> {
+  const data = await api<{ entries: LeaderboardEntry[] }>("GET", `/v1/leaderboard?limit=${limit}`);
+  return data.entries;
+}
+
+export interface DomainCoverage {
+  domain: string;
+  skills: number;
+  endpoints: number;
+  updated_at: string;
+}
+
+export interface NetworkStats {
+  total_routes: number;
+  total_skills: number;
+  total_agents: number;
+  total_executions: number;
+  total_earned_usd: number;
+  marketplace_hit_rate: number;
+  total_resolves: number;
+  total_tokens_saved: number;
+}
+
+export interface MinerBounty {
+  id: string;
+  title: string;
+  domain: string;
+  description: string;
+  reward_multiplier: number;
+  difficulty: "easy" | "medium" | "hard";
+  category: string;
+  claimed: boolean;
+}
+
+export interface MinerQuest {
+  id: string;
+  title: string;
+  description: string;
+  target_domain?: string;
+  reward_multiplier: number;
+  type: "first-indexer" | "route-count" | "domain-sprint";
+  deadline: string;
+  progress?: number;
+  goal?: number;
+}
+
+export interface MinerStats {
+  network: NetworkStats;
+  domains: DomainCoverage[];
+  leaderboard: LeaderboardEntry[];
+  bounties: MinerBounty[];
+  quests: MinerQuest[];
+}
+
+export async function getMinerStats(): Promise<MinerStats> {
+  return api<MinerStats>("GET", "/v1/miners/stats");
 }

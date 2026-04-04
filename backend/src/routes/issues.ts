@@ -1,6 +1,15 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
-import { createIssue, listIssues, updateIssueStatus, type IssueCategory, type IssueStatus } from "../services/issues.js";
+import {
+  createIssue,
+  listIssues,
+  updateIssueStatus,
+  shouldFileIssue,
+  buildReproBundle,
+  buildIssueTemplate,
+  type IssueCategory,
+  type IssueStatus,
+} from "../services/issues.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 
@@ -40,14 +49,59 @@ issueRoutes.post("/skills/:id/issues", bearerAuth, agentRateLimit({ limit: 10, w
   if (!VALID_CATEGORIES.includes(category as IssueCategory)) {
     return c.json({ error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` }, 400);
   }
+  if (!skillId || !agentId) {
+    return c.json({ error: "Missing issue context" }, 400);
+  }
 
   const issue = await createIssue(c.env, skillId, agentId, category as IssueCategory, description, endpoint_id, trace_id);
   return c.json(issue, 201);
 });
 
+// POST /v1/issues/auto-file — telemetry-driven auto issue filing
+// Accepts failure data, checks shouldFileIssue threshold, then builds a
+// ReproBundle + IssueTemplate and files via createIssue when threshold met.
+issueRoutes.post("/issues/auto-file", bearerAuth, agentRateLimit({ limit: 10, window: 60, prefix: "auto-file" }), async (c) => {
+  const body = await c.req.json<{
+    skill_id: string;
+    endpoint_id: string;
+    intent: string;
+    errors: Array<{ message: string; trace_id: string; timestamp: string }>;
+  }>();
+
+  const { skill_id, endpoint_id, intent, errors } = body;
+  if (!skill_id || !endpoint_id || !errors || !Array.isArray(errors)) {
+    return c.json({ error: "skill_id, endpoint_id, and errors[] are required" }, 400);
+  }
+
+  // Check threshold gate
+  if (!shouldFileIssue(errors.length)) {
+    return c.json({ filed: false, reason: "below_threshold", threshold: errors.length });
+  }
+
+  // Build repro bundle and issue template
+  const bundle = buildReproBundle(skill_id, endpoint_id, errors, intent ?? "");
+  const template = buildIssueTemplate(bundle);
+
+  // File the issue via the existing createIssue function
+  const agentId = c.get("agent_id");
+  const issue = await createIssue(
+    c.env,
+    skill_id,
+    agentId,
+    "broken",
+    `${template.title}\n\n${template.body}`,
+    endpoint_id,
+    errors[errors.length - 1]?.trace_id,
+  );
+
+  return c.json({ filed: true, issue, template }, 201);
+});
+
 // PATCH /v1/skills/:id/issues/:issue_id — update issue status (admin only)
 issueRoutes.patch("/skills/:id/issues/:issue_id", bearerAuth, async (c) => {
   const agentId = c.get("agent_id");
+  const skillId = c.req.param("id");
+  const issueId = c.req.param("issue_id");
   if (agentId !== "__admin__") {
     return c.json({ error: "Admin only" }, 403);
   }
@@ -55,6 +109,9 @@ issueRoutes.patch("/skills/:id/issues/:issue_id", bearerAuth, async (c) => {
   if (!["open", "acknowledged", "resolved"].includes(status)) {
     return c.json({ error: "Invalid status" }, 400);
   }
-  await updateIssueStatus(c.env, c.req.param("id"), c.req.param("issue_id"), status);
+  if (!skillId || !issueId) {
+    return c.json({ error: "Missing issue path params" }, 400);
+  }
+  await updateIssueStatus(c.env, skillId, issueId, status);
   return c.json({ ok: true });
 });

@@ -1,0 +1,153 @@
+{
+  "skill_id": "76a81532-e3a0-4801-905b-53588a29cc67",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T18:41:24.373Z",
+  "updated_at": "2026-02-21T17:47:29.734Z",
+  "name": "gmail",
+  "intent_signature": "Retrieve specific email content and message",
+  "domain": "mail.google.com",
+  "description": "Retrieve specific email content and message",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "gmail",
+  "endpoints": [
+    {
+      "endpoint_id": "94b3b587-523d-450d-bf9a-583ae5aa89fc",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/94b3b587-523d-450d-bf9a-583ae5aa89fc",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpoint94B3B587",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "a4bb2d07-251d-4105-9d94-e86359b322d6",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/a4bb2d07-251d-4105-9d94-e86359b322d6",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpointA4Bb2D07",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "230ac697-db30-4691-95fa-724259efa187",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/230ac697-db30-4691-95fa-724259efa187",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpoint230Ac697",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "0502c0e8-8730-44b1-9892-418ac39694fa",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/0502c0e8-8730-44b1-9892-418ac39694fa",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpoint0502C0E8",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "55de8503-875f-4f47-9af2-6f949bc36b29",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/55de8503-875f-4f47-9af2-6f949bc36b29",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpoint55De8503",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "16592989-8bf7-45cb-9a59-2df5c89be80c",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/16592989-8bf7-45cb-9a59-2df5c89be80c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpoint16592989",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "c19d00ab-a4df-44c3-8130-20827e9c0b41",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/c19d00ab-a4df-44c3-8130-20827e9c0b41",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpointC19D00Ab",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "a827accf-62fc-4811-9961-353bb8532a1b",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/a827accf-62fc-4811-9961-353bb8532a1b",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpointA827Accf",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "8d9448ab-af2b-415c-a5e7-54dfcc36f826",
+      "method": "GET",
+      "url_template": "https://mail.google.com/__endpoint/8d9448ab-af2b-415c-a5e7-54dfcc36f826",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpoint8D9448Ab",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "78ZTC5GPoPnAS1gm6cJ51GTqLujfWiLzakHRW9VRKyjQ",
+    "download_count": 3,
+    "total_versions": 1,
+    "latest_version_hash": "b27fa6b8d2f7e1a176b4b94896eb4521d03b826b0d4133652f7136e3979b2ea8"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: gmail\ndescription: Internal API for gmail\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://mail.google.com\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"email\"\n---\n\n# Gmail API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /{token}` — Initiate or complete the authentication flow to access Gmail.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"gmail\", executionMode: \"backend\", endpoint: \"GET /{token}\" }\n```\n\n```typescript\n// Initiate the Gmail authentication flow. The agent should direct the user to the URL returned in the response.\nconst authUrl = await client.getAuthFlow();\nconsole.log(\"Please authenticate at:\", authUrl);\n```\n\n```typescript\n// After the user authenticates, they will be redirected to a URL containing a token.\n// The agent should extract the token from the URL and use it to complete the authentication flow.\nconst token = \"YOUR_TOKEN_HERE\"; // Replace with the actual token\nconst authResult = await client.getAuthFlow(token);\nconsole.log(\"Authentication successful:\", authResult);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://mail.google.com`\n**Captured Auth:** 1 auth headers, 13 session cookies\n\n## About This Skill\n\nThis skill provides access to Mail Google's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Mail Google data without official API access\n- Automate actions on mail.google.com (faster than browser automation)\n- Call the same endpoints the Mail Google frontend uses\n\n## Quick Start\n\n```typescript\nimport { MailGoogleClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await MailGoogleClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 13\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (9)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /8cho7wayqsoobhs3pa0_7au93ucivvrzcoya6xszmd1w3tgbrqtjgrol6run_4tmiuyicwqgwlhzz4izazfcvc3q9o-eykla3vlcoa=e365-pa-nu-rw-w684`\n- `GET /br_gxtpbqrwb4atetpbyamspl_xozieccxx_5awuir3uoupswk1j-zdpzyiezaxwlo6tnx_ea_3wkanqkeyn0wj9zgnt6m4zqai=e365-pa-nu-rw-w684`\n- `GET /c83tcjd3mi2koiobne-ukr6emnq5gjrbcutg6xeoy5g3u0jwunualm51hcqyjprdckvxwtwo3ain8xxbjgfhnsbp1dmqjg9wpwfc=e365-pa-nu-rw-w566`\n- `GET /gcnrxuvuajhg9zyulig73hm1meaagseiuhpzkcrcl0zbigociad8h02-sm08ct3rzatffrqch1xlkvrurzxdqtn7pu6yy39pfdm=e365-pa-nu-rw-w684`\n- `GET /hp1yfjeevslfsdg0ws4rzrninxkhlyhw1sa_0mafcesopr1yxajbegobuqamschd93ikhlkqbitc_wlqwu9qmqp_dx9qmbpfz6e=e365-pa-nu-rw-w684`\n- `GET /j73ucrfihouz-wl-asfh7kvijvghmwyf8t8qc_ppexuxpfvbo72oh5igvugqpjp7_tbu__rmcvi7qnoy40n7ces2dratv6xl7cy=e365-pa-nu-rw-w684`\n- `GET /qvpjjvfsnsogrhwvxt5yzb8gghgvm8ofrfpq7plqlsumwuehmcfzcw7fisascfhxwzxx9dklkyabssa6g2xqye-uhv5zfzj216g=e365-pa-nu-rw-w128`\n- `GET /rfjvxgoqzwks1bvxxlqnb9w6zzy4xjt0hcvuzcklod6ej2wil4k3hyqnkzxcv3ark1zl-zaldkmo7hpdehy-ebgysm4pqxfrqm8m0w=e365-pa-nu-rw-w684`\n- `GET /tcfcwjzkzddqrfh4vjlmtwljbaiz7fcmtktfuc0abd7evcazslxbun3tx02frffjidly6n5takizdqx6yyq3l0emngedd3a9hafi=e365-pa-nu-rw-w684`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /8cho7wayqsoobhs3pa0_7au93ucivvrzcoya6xszmd1w3tgbrqtjgrol6run_4tmiuyicwqgwlhzz4izazfcvc3q9o-eykla3vlcoa=e365-pa-nu-rw-w684`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /br_gxtpbqrwb4atetpbyamspl_xozieccxx_5awuir3uoupswk1j-zdpzyiezaxwlo6tnx_ea_3wkanqkeyn0wj9zgnt6m4zqai=e365-pa-nu-rw-w684`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /c83tcjd3mi2koiobne-ukr6emnq5gjrbcutg6xeoy5g3u0jwunualm51hcqyjprdckvxwtwo3ain8xxbjgfhnsbp1dmqjg9wpwfc=e365-pa-nu-rw-w566`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /gcnrxuvuajhg9zyulig73hm1meaagseiuhpzkcrcl0zbigociad8h02-sm08ct3rzatffrqch1xlkvrurzxdqtn7pu6yy39pfdm=e365-pa-nu-rw-w684`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /hp1yfjeevslfsdg0ws4rzrninxkhlyhw1sa_0mafcesopr1yxajbegobuqamschd93ikhlkqbitc_wlqwu9qmqp_dx9qmbpfz6e=e365-pa-nu-rw-w684`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /j73ucrfihouz-wl-asfh7kvijvghmwyf8t8qc_ppexuxpfvbo72oh5igvugqpjp7_tbu__rmcvi7qnoy40n7ces2dratv6xl7cy=e365-pa-nu-rw-w684`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /qvpjjvfsnsogrhwvxt5yzb8gghgvm8ofrfpq7plqlsumwuehmcfzcw7fisascfhxwzxx9dklkyabssa6g2xqye-uhv5zfzj216g=e365-pa-nu-rw-w128`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /rfjvxgoqzwks1bvxxlqnb9w6zzy4xjt0hcvuzcklod6ej2wil4k3hyqnkzxcv3ark1zl-zaldkmo7hpdehy-ebgysm4pqxfrqm8m0w=e365-pa-nu-rw-w684`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /tcfcwjzkzddqrfh4vjlmtwljbaiz7fcmtktfuc0abd7evcazslxbun3tx02frffjidly6n5takizdqx6yyq3l0emngedd3a9hafi=e365-pa-nu-rw-w684`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

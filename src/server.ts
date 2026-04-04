@@ -6,9 +6,11 @@ import cors from "@fastify/cors";
 import { registerRoutes } from "./api/routes.js";
 import { registerRateLimiter } from "./ratelimit/index.js";
 import { schedulePeriodicVerification } from "./verification/index.js";
-import { ensureRegistered } from "./client/index.js";
+import { startBackgroundRegistration } from "./client/index.js";
 import { shutdownAllBrowsers } from "./capture/index.js";
 import * as kuri from "./kuri/client.js";
+import { schedulePeriodicStaleCleanup } from "./stale-cleanup-runner.js";
+import { CODE_HASH, PACKAGE_VERSION } from "./version.js";
 
 type StartServerOptions = {
   host?: string;
@@ -33,6 +35,8 @@ function updatePidFile(pidFile?: string, host = "127.0.0.1", port = 6969): void 
       pid: process.pid,
       base_url: `http://${host}:${port}`,
       started_at: new Date().toISOString(),
+      version: PACKAGE_VERSION,
+      code_hash: CODE_HASH,
     }, null, 2));
   } catch {
     // ignore pid-file failures
@@ -61,16 +65,11 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
     // no orphans
   }
 
-  // Pre-start Kuri (Zig-native CDP broker — replaces agent-browser/Playwright)
-  try {
-    await kuri.start();
-    const h = await kuri.health();
-    console.log(`[startup] Kuri ready — ${h.tabs ?? 0} tabs`);
-  } catch (err) {
-    console.warn(`[startup] WARNING: Kuri not available. Capture will start it on demand. ${err instanceof Error ? err.message : err}`);
-  }
-
-  await ensureRegistered();
+  // Kuri starts on demand when browse/capture commands need it.
+  // No eager start — avoids launching Chrome on every server restart.
+  // Registration is allowed to finish in the background so /health is not
+  // blocked by remote Worker latency during server bootstrap.
+  void startBackgroundRegistration();
 
   const app = Fastify({ logger: options.logger ?? true });
   await app.register(cors, { origin: true });
@@ -79,6 +78,7 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   await app.listen({ port, host });
   if (options.scheduleVerification ?? true) {
     schedulePeriodicVerification();
+    schedulePeriodicStaleCleanup();
   }
 
   return {

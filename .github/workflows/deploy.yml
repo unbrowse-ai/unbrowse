@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging, 'lewis/experiments']
   workflow_dispatch:
 
 concurrency:
@@ -15,48 +15,108 @@ permissions:
 jobs:
   deploy-backend:
     name: Deploy Backend (CF Worker)
-    runs-on: [self-hosted, Linux, X64, unbrowse-ci]
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
         working-directory: .
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
-      - run: bun run deploy
+      - name: Deploy backend worker
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            staging)
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging
+              ;;
+            lewis/experiments)
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments
+              ;;
+            *)
+              bun run deploy:ci
+              ;;
+          esac
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
-    runs-on: [self-hosted, Linux, X64, unbrowse-ci]
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
         working-directory: .
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
-      - run: bun run deploy
+      - name: Resolve frontend API target
+        id: api-url
+        env:
+          PREVIEW_API_URL_VAR: ${{ vars.PREVIEW_API_URL }}
+          PREVIEW_API_URL_SECRET: ${{ secrets.PREVIEW_API_URL }}
+          EXPERIMENTS_API_URL_VAR: ${{ vars.EXPERIMENTS_API_URL }}
+          EXPERIMENTS_API_URL_SECRET: ${{ secrets.EXPERIMENTS_API_URL }}
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            staging)
+              API_URL="${PREVIEW_API_URL_VAR:-${PREVIEW_API_URL_SECRET:-}}"
+              if [ -z "$API_URL" ]; then
+                echo "::notice::Skipping staging frontend deploy; missing PREVIEW_API_URL repo variable or secret."
+                echo "skip_frontend=1" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              ;;
+            lewis/experiments)
+              API_URL="${EXPERIMENTS_API_URL_VAR:-${EXPERIMENTS_API_URL_SECRET:-}}"
+              if [ -z "$API_URL" ]; then
+                echo "::notice::Skipping experiments frontend deploy; missing EXPERIMENTS_API_URL repo variable or secret."
+                echo "skip_frontend=1" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              ;;
+            *)
+              API_URL="https://beta-api.unbrowse.ai"
+              ;;
+          esac
+          echo "::add-mask::$API_URL"
+          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+      - name: Deploy frontend worker
+        if: steps.api-url.outputs.skip_frontend != '1'
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            staging)
+              CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare build
+              OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env staging
+              ;;
+            lewis/experiments)
+              CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare build
+              OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env experiments
+              ;;
+            *)
+              bun run deploy:ci
+              ;;
+          esac
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEXT_PUBLIC_API_URL: ${{ steps.api-url.outputs.api_url }}
 
   sync-skill:
     name: Sync Skill Repo
-    runs-on: [self-hosted, Linux, X64, unbrowse-ci]
+    runs-on: self-hosted
+    if: github.ref_name == 'main'
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"
@@ -85,6 +145,7 @@ jobs:
         with:
           repository: unbrowse-ai/unbrowse
           token: ${{ secrets.SKILL_REPO_TOKEN }}
+          ref: stable
           path: _skill-repo
 
       - name: Sync and push
@@ -92,7 +153,8 @@ jobs:
         env:
           CI: "true"
           UNBROWSE_SKILL_REPO: ${{ github.workspace }}/_skill-repo
+          UNBROWSE_SKILL_REPO_BRANCH: stable
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          bash scripts/sync-skill.sh "chore: deploy main ${GITHUB_SHA}"
+          bash scripts/sync-skill.sh "chore: sync main ${GITHUB_SHA}"

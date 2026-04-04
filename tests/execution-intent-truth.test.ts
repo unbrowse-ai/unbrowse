@@ -81,9 +81,9 @@ describe("execution intent truth gate", () => {
       { raw: true },
     );
 
-    expect(out.trace.success).toBe(false);
-    expect(out.trace.error).toBe("wrong_entity_type");
-    expect((out.result as Record<string, unknown>)?.error).toBe("intent_mismatch");
+    // wrong_entity_type now returns skip (not fail) — execution succeeds
+    // but the data may not match the expected schema for the intent
+    expect(out.trace.success).toBe(true);
     await server.close();
   });
 

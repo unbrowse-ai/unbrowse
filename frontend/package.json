@@ -8,16 +8,21 @@
 		"start": "next start",
 		"lint": "next lint",
 		"deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+		"deploy:ci": "opennextjs-cloudflare build && OPEN_NEXT_DEPLOY=true wrangler deploy",
 		"upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
 		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts"
 	},
 	"dependencies": {
+		"@gitbook/embed": "^0.4.0",
 		"@opennextjs/cloudflare": "^1.15.1",
 		"lucide-react": "^0.577.0",
+		"micromark": "^4.0.2",
+		"micromark-extension-gfm": "^3.0.0",
 		"next": "16.1.5",
 		"react": "19.1.5",
-		"react-dom": "19.1.5"
+		"react-dom": "19.1.5",
+		"server-only": "^0.0.1"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",

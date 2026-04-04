@@ -15,12 +15,21 @@ out/
 .env.local
 .env.*.local
 .env.runtime
+.env.x402
 backend/.dev.vars
 
 # Project-specific
 .vault/
 skills/
+!skills/
+!skills/worktree-issue-fix/
+!skills/worktree-issue-fix/SKILL.md
+!skills/worktree-issue-fix/references/
+!skills/worktree-issue-fix/references/agent-harness.md
+!skills/worktree-issue-fix/scripts/
+!skills/worktree-issue-fix/scripts/issue-worktree-loop.ts
 traces/
+.planning/issue-worktree/
 *.bak
 
 # Logs
@@ -74,3 +83,7 @@ tmp/
 .release-notes.md
 .release-announcement.md
 .release-announcement.json
+.gstack/
+.codex/
+codedb.snapshot
+.kuri/

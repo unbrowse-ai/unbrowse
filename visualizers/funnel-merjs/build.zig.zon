@@ -1,0 +1,22 @@
+.{
+    .name = .funnel_merjs,
+    .fingerprint = 0x2db406f75931c736,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.15.1",
+    .dependencies = .{
+        .merjs = .{
+            .url = "git+https://github.com/justrach/merjs.git#1584fa898d5fd20e76062b71288a4f2159c5bed5",
+            .hash = "merjs-0.2.2-qL9LkrAIXwCQ5D_GLWhsplFYDR2xYZ4bJVhY3g6QF4ou",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "app",
+        "api",
+        "public",
+        "README.md",
+        ".env.example",
+    },
+}

@@ -1,0 +1,149 @@
+{
+  "skill_id": "dca55d35-46b1-414b-ae8e-9b9c5d0bed9e",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T18:49:28.638Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "manifold-markets",
+  "intent_signature": "Search and interact with Manifold Markets to browse prediction markets, manage group data, and track user activity events. Access platform content such as posts and schedules through authenticated requests.",
+  "domain": "api.manifold.markets",
+  "description": "Search and interact with Manifold Markets to browse prediction markets, manage group data, and track user activity events. Access platform content such as posts and schedules through authenticated requests.",
+  "owner_type": "marketplace",
+  "auth_type": "Bearer Token",
+  "service_name": "manifold-markets",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--_next-image",
+      "method": "GET",
+      "url_template": "https://api.manifold.markets/_next/image",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--_next-static-{staticToken}-{staticToken}",
+      "method": "GET",
+      "url_template": "https://api.manifold.markets/_next/static/{staticToken}/{staticToken}",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--{id}",
+      "method": "GET",
+      "url_template": "https://api.manifold.markets/{id}",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--markets-by-ids",
+      "method": "GET",
+      "url_template": "https://api.manifold.markets/markets-by-ids",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--pagead-conversion-{conversionId}-",
+      "method": "GET",
+      "url_template": "https://api.manifold.markets/pagead/conversion/{conversionId}/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--pagead-conversion-11283624107-",
+      "method": "GET",
+      "url_template": "https://api.manifold.markets/pagead/conversion/11283624107/",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--pixels-t2_mprthln0-config",
+      "method": "GET",
+      "url_template": "https://api.manifold.markets/pixels/t2_mprthln0/config",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--search-markets-full",
+      "method": "GET",
+      "url_template": "https://api.manifold.markets/search-markets-full",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--getuserisgroupmember",
+      "method": "POST",
+      "url_template": "https://api.manifold.markets/getuserisgroupmember",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "J6bDLKcbLs1w9w7QU4tpQWbw9QGsbN9rahba8mE2e6oo",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "faf65c995c98f0e08860c00860d13d8253909be0f2b12a85fff3cb0d631e7bcf"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: manifold-markets\ndescription: Internal API for manifold-markets\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://api.manifold.markets\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 9\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# ManifoldMarkets API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /_next/static/{staticToken}/{staticToken}` — Authenticate and retrieve static resources.\n\n### Data Read (5)\n- `GET /{id}` — Retrieve data for a specific item by ID.\n- `GET /pagead/conversion/{conversionId}/` — Retrieve conversion tracking data.\n- `GET /rest/v1/{v1Id}` — Retrieve data for a specific item by ID (v1).\n- `GET /v0/get-posts` — Retrieve a list of posts.\n- `POST /getuserisgroupmember` — Check if a user is a member of a group.\n\n### Data Write (2)\n- `POST /api/send` — Send data to the server.\n- `POST /rest/v1/user_events` — Record user events.\n\n### Media (1)\n- `GET /_next/image` — Retrieve an image.\n\n## Quick Start\n\nHere are a few examples to get you started with the `manifold-markets` API.\n\n```typescript\n// Retrieve data for a specific item by ID.\n// Assumes 'itemId' is a string containing the ID.\nasync function getItemData(itemId: string) {\n  const data = await client.getById(itemId);\n  console.log(data);\n  return data;\n}\n```\n\n```typescript\n// Retrieve a list of posts.\nasync function getPosts() {\n  const posts = await client.getV0GetPosts();\n  console.log(posts);\n  return posts;\n}\n```\n\n```typescript\n// Send data to the server.\n// Assumes 'payload' is a JSON object containing the data to send.\nasync function sendData(payload: any) {\n  const response = await client.postApiSend(payload);\n  console.log(response);\n  return response;\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n\n\n### Data Read (5)\n\n\n### Data Write (2)\n\n\n### Media (1)\n\n\n## Quick Start\n\nHere are some quick examples to get you started:\n\n```typescript\n// Retrieve data for a specific item by ID.\nasync function getItemData(itemId: string) {\n  const data = await client.getById(itemId);\n  console.log(data);\n  return data;\n}\n```\n\n```typescript\n// Send data to the server.\nasync function sendData(payload: any) {\n  try {\n    const response = await client.send(payload);\n    console.log(\"Data sent successfully:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error sending data:\", error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n\n\n### Data Read (5)\n\n\n### Data Write (2)\n\n\n### Media (1)\n\n\n## Quick Start\n\nHere's a Quick Start to get you interacting with the Manifold Markets API:\n\n```typescript\n// Retrieve data for a specific market by its ID.\nasync function getMarketData(marketId: string) {\n  try {\n    const market = await client.getById(marketId);\n    console.log(`Market name: ${market.title}`);\n    return market;\n  } catch (error) {\n    console.error(\"Failed to retrieve market data:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Send data to the server, for example, creating a new bet.\nasync function sendData(data: any) {\n  try {\n    const response = await client.apiSend(data);\n    console.log(\"Data sent successfully:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to send data:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://api.manifold.markets`\n**Captured Auth:** 3 auth headers, 11 session cookies\n\n## About This Skill\n\nThis skill provides access to Manifold Markets's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Manifold Markets data without official API access\n- Automate actions on api.manifold.markets (faster than browser automation)\n- Call the same endpoints the Manifold Markets frontend uses\n\n## Quick Start\n\n```typescript\nimport { ManifoldMarketsClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await ManifoldMarketsClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (apikey, authorization, sec-fetch-storage-access)\n- **Session cookies:** 11\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (12)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /rest/v1/{v1Id}`\n- `GET /rest/v1/groups`\n- `GET /rest/v1/tv_schedule`\n- `GET /search-markets-full`\n- `GET /v0/get-posts`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /rest/v1/{v1Id}`\n- Status: `failed` | Quality: `1` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /rest/v1/groups`\n- Status: `failed` | Quality: `1` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /rest/v1/tv_schedule`\n- Status: `failed` | Quality: `1` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /search-markets-full`\n- Status: `verified` | Quality: `5` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v0/get-posts`\n- Status: `verified` | Quality: `5` | Health: `100`\n- Agentic attempts: success `1`, auth `0`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

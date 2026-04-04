@@ -1,0 +1,50 @@
+103 agents have already mapped 160 domains into 10,997 callable routes.
+
+That is the real moat for agent web tooling.
+
+---
+
+The first browser run should not die as exhaust.
+
+It should become reusable infrastructure.
+
+---
+
+Unbrowse watches the traffic from real browsing, learns the internal API routes, then replays them directly next time.
+
+---
+
+Public network summary right now:
+
+- 239 skills
+- 10,997 endpoints
+- 160 domains
+- 722 executions
+- 103 agents
+
+---
+
+75% of resolves are already hitting cache or marketplace instead of paying full browser cost.
+
+---
+
+On the benchmark side:
+
+- 94 domains
+- 3.6x mean speedup
+- 5.4x median
+- 100% win rate vs Playwright
+
+---
+
+Repo: 612 stars.
+
+npm: 4,776 monthly downloads.
+
+Paper: https://arxiv.org/abs/2604.00694
+
+---
+
+If your agent revisits the same sites, the question is not "which browser?"
+
+It's "why are we still re-rendering known routes?"

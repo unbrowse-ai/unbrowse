@@ -4,6 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { ensureDir } from "./paths.js";
 import { findKuriBinary, getKuriSourceCandidates } from "../kuri/client.js";
+import { detectHostEnvironment, type HostEnvironment } from "./browser-host.js";
+import { log } from "../logger.js";
+import { checkWalletConfigured, type WalletCheckResult } from "../payments/wallet.js";
+import { configureUpdateHintHooks, saveInstallSource, type UpdateHookStatus } from "./update-hints.js";
 
 export type SetupScope = "auto" | "global" | "project" | "off";
 
@@ -13,6 +17,7 @@ export type SetupReport = {
     release: string;
     arch: string;
   };
+  host_environment: HostEnvironment;
   package_managers: {
     npm: boolean;
     npx: boolean;
@@ -28,7 +33,10 @@ export type SetupReport = {
     detected: boolean;
     action: "installed" | "updated" | "skipped" | "not-detected";
     scope: "global" | "project" | "off";
-    command_file?: string;
+  };
+  update_hints: UpdateHookStatus[];
+  wallet: WalletCheckResult & {
+    message: string;
   };
 };
 
@@ -179,9 +187,53 @@ export async function runSetup(options?: {
   installBrowser?: boolean;
 }): Promise<SetupReport> {
   const cwd = options?.cwd || process.cwd();
+  const installSource = saveInstallSource(import.meta.url);
+
+  const hostEnv = detectHostEnvironment();
+  log("setup", `detected host environment: ${hostEnv}`);
+
   const browser = options?.installBrowser === false
     ? { installed: false, action: "skipped" as const }
     : await ensureBrowserEngineInstalled();
+  const walletCheck = checkWalletConfigured();
+  const skipWalletSetup = process.env.UNBROWSE_SKIP_WALLET_SETUP === "1";
+  const lobsterInstalled = hasBinary("lobstercash") ||
+    existsSync(path.join(os.homedir(), ".agents", "skills", "lobstercash", "SKILL.md"));
+
+  // Auto-setup Crossmint lobster.cash if the wallet tooling is already present.
+  if (!skipWalletSetup && !walletCheck.configured && lobsterInstalled) {
+    console.log("[unbrowse] Crossmint lobster.cash detected but wallet not configured — running wallet setup...");
+    try {
+      execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
+        stdio: "inherit",
+        timeout: 60_000,
+      });
+      // Re-check after setup
+      const recheck = checkWalletConfigured();
+      if (recheck.configured) {
+        console.log(`[unbrowse] wallet configured (${recheck.provider})`);
+      }
+    } catch {
+      console.warn("[unbrowse] Crossmint lobster.cash setup failed or was skipped — continuing without wallet");
+    }
+  }
+
+  // Re-check wallet state after potential setup
+  const finalWalletCheck = checkWalletConfigured();
+  const wallet = {
+    ...finalWalletCheck,
+    lobster_installed: lobsterInstalled,
+    message: finalWalletCheck.configured
+      ? `Wallet configured (${finalWalletCheck.provider}). This address is the contributor truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used for paid-route spending.`
+      : lobsterInstalled
+        ? "Crossmint lobster.cash is installed but not paired. Pair it now so this wallet address becomes your contributor payout target and your paid-route spending wallet. Run: npx @crossmint/lobster-cli setup"
+        : "No wallet configured. Recommended for new installs: set up Crossmint lobster.cash so contributor payouts have a destination address and paid-route spending can clear automatically. Without it you stay in free indexing mode only.",
+    install_hint: finalWalletCheck.configured
+      ? undefined
+      : lobsterInstalled
+        ? "npx @crossmint/lobster-cli setup"
+        : "npx @crossmint/lobster-cli setup",
+  };
 
   return {
     os: {
@@ -189,8 +241,11 @@ export async function runSetup(options?: {
       release: os.release(),
       arch: process.arch,
     },
+    host_environment: hostEnv,
     package_managers: detectPackageManagers(),
     browser_engine: browser,
     opencode: writeOpenCodeCommand(options?.opencode ?? "auto", cwd),
+    update_hints: configureUpdateHintHooks(import.meta.url, installSource),
+    wallet,
   };
 }

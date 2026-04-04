@@ -1,0 +1,639 @@
+{
+  "skill_id": "NQ0aKppCLa7NeQqcIX4jJ",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:46:54.986Z",
+  "updated_at": "2026-02-23T07:46:54.986Z",
+  "name": "www.fdic.gov -- Interact with the Federal Deposit",
+  "intent_signature": "Interact with the Federal Deposit",
+  "domain": "www.fdic.gov",
+  "description": "Auto-discovered skill for: Interact with the Federal Deposit",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "6-rky7C9XC3eFAFVKU2S1",
+      "method": "GET",
+      "url_template": "https://c.go-mpulse.net/api/config.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.fdic.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "d": "www.fdic.gov",
+        "t": "5906109",
+        "v": "1.720.0",
+        "sl": "0",
+        "si": "4db392a6-f383-4bb0-9208-3c8c7919efc1-tawiy0",
+        "plugins": "AK,ConfigOverride,Continuity,PageParams,IFrameDelay,AutoXHR,SPA,History,Angular,Backbone,Ember,RT,CrossDomain,BW,PaintTiming,NavigationTiming,ResourceTiming,Memory,CACHE_RELOAD,Errors,TPAnalytics,UserTiming,Akamai,Early,EventTiming,LOGN",
+        "acao": "",
+        "ak.ai": "1033034"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "h.key": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "h.d": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "h.t": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "h.cr": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "session_id": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "site_domain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "beacon_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "autorun": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "BW": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled"
+            ],
+            "inferred_from_samples": 1
+          },
+          "RT": {
+            "type": "object",
+            "properties": {
+              "cookie": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "session_exp": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "cookie",
+              "session_exp"
+            ],
+            "inferred_from_samples": 1
+          },
+          "ResourceTiming": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "splitAtPath": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled",
+              "splitAtPath"
+            ],
+            "inferred_from_samples": 1
+          },
+          "PageParams": {
+            "type": "object",
+            "properties": {
+              "xhr": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "pageGroups": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "customMetrics": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "customTimers": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "customDimensions": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "urlPatterns": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "params": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "xhr",
+              "pageGroups",
+              "customMetrics",
+              "customTimers",
+              "customDimensions",
+              "urlPatterns",
+              "params"
+            ],
+            "inferred_from_samples": 1
+          },
+          "Akamai": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "dns_prefetch_enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled",
+              "dns_prefetch_enabled"
+            ],
+            "inferred_from_samples": 1
+          },
+          "user_ip": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "h.key",
+          "h.d",
+          "h.t",
+          "h.cr",
+          "session_id",
+          "site_domain",
+          "beacon_url",
+          "autorun",
+          "BW",
+          "RT",
+          "ResourceTiming",
+          "PageParams",
+          "Akamai",
+          "user_ip"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "ay7mP3Z-zsWG8Ft0NJIMf",
+      "method": "GET",
+      "url_template": "https://www.fdic.gov/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "MUu3GG5iKQkIC0bxm3jME",
+      "method": "GET",
+      "url_template": "https://s.go-mpulse.net/boomerang/CUQED-YPH6N-MJ9LJ-NAC89-WQR4D",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.fdic.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ZlJJ9LreoHuRgzL-p2rKI",
+      "method": "GET",
+      "url_template": "https://fdic.122.2o7.net/b/ss/fdicgovprod/1/JS-2.1.0/s83745515925072",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.fdic.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "AQB": "1",
+        "ndh": "1",
+        "pf": "1",
+        "t": "23/1/2026 0:46:49 1 420",
+        "fid": "5A7CFF2E9A8CEB22-209978B82A3840C0",
+        "ce": "UTF-8",
+        "ns": "fdic",
+        "cl": "Session",
+        "pageName": "FDIC: Federal Deposit Insurance Corporation",
+        "g": "https://www.fdic.gov/",
+        "events": "event6",
+        "v3": "2:30AM",
+        "v4": "Monday",
+        "c8": "2:30AM",
+        "c9": "Monday",
+        "c10": "https://www.fdic.gov/",
+        "v10": "https://www.fdic.gov/",
+        "s": "1280x720",
+        "c": "24",
+        "j": "1.6",
+        "v": "N",
+        "k": "Y",
+        "bw": "1280",
+        "bh": "720",
+        "AQE": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "VrlHowaM3dJ8MXtmPPVbf",
+      "method": "GET",
+      "url_template": "https://www.fdic.gov/assets/includes/components/carousels/data-insight.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.fdic.gov/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "VQPnFNHiXSfXUII0--Ph9",
+      "method": "GET",
+      "url_template": "https://s3-us-gov-west-1.amazonaws.com/cg-7ce3a684-2bed-464c-8d1c-1a0e4cba69c6/assets/includes/components/carousels/data-insight.json",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.fdic.gov/"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "G3ucbiSx68cc42MdNZsfI",
+      "method": "GET",
+      "url_template": "https://znbesceujpuk56ypk-fdicfedramp.gov1.siteintercept.qualtrics.com/SIE/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.fdic.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "Q_ZID": "ZN_bEscEUJpuK56yPk"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "E0ayZJ2Wzwczkf3W8UNkX",
+      "method": "GET",
+      "url_template": "https://gov1.siteintercept.qualtrics.com/WRSiteInterceptEngine/Asset.php",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.fdic.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "Module": "SI_9n2z5nlldOTe1V4",
+        "Version": "3",
+        "Q_ORIGIN": "https://www.fdic.gov",
+        "Q_CLIENTVERSION": "2.42.2",
+        "Q_CLIENTTYPE": "web",
+        "Q_BrandTier": "",
+        "Q_ARCACHEVERSION": "21",
+        "Q_BRANDDC": "gov1"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "InterceptDefinition": {
+            "type": "object",
+            "properties": {
+              "BrandID": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "InterceptID": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "InterceptName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "Revision": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "DeletedDate": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "ActionSets": {
+                "type": "object",
+                "properties": {
+                  "AS_29930445": {
+                    "type": "object",
+                    "properties": {
+                      "ID": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "Creative": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "CreativeType": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "WeightedSampleRate": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "Target": {
+                        "type": "object",
+                        "properties": {
+                          "Type": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "PrimaryElement": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Type",
+                          "PrimaryElement"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "ActionOptions": {
+                        "type": "object",
+                        "properties": {
+                          "targetNewWindow": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "targetEmbedded": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "targetFullScreen": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "resizeForEmbeddedTargets": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          },
+                          "targetWidth": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "targetHeight": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "accessibilityTitle": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "displayElement": {
+                            "type": "string",
+                            "inferred_from_samples": 1
+                          },
+                          "selectedDevices": {
+                            "type": "array",
+                            "inferred_from_samples": 1
+                          },
+                          "actionSetSampleRate": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "actionSetContinueExecution": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "targetNewWindow",
+                          "targetEmbedded",
+                          "targetFullScreen",
+                          "resizeForEmbeddedTargets",
+                          "targetWidth",
+                          "targetHeight",
+                          "accessibilityTitle",
+                          "displayElement",
+                          "selectedDevices",
+                          "actionSetSampleRate",
+                          "actionSetContinueExecution"
+                        ],
+                        "inferred_from_samples": 1
+                      },
+                      "platform": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "EmbeddedData": {
+                        "type": "array",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "ID",
+                      "Creative",
+                      "CreativeType",
+                      "WeightedSampleRate",
+                      "Target",
+                      "ActionOptions",
+                      "platform",
+                      "EmbeddedData"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "AS_29930445"
+                ],
+                "inferred_from_samples": 1
+              },
+              "DisplayOptions": {
+                "type": "object",
+                "properties": {
+                  "displayRate": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "noshow": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "manualDisplay": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "displayInterceptType": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "cookieDomain": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "hasRandomization": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "useWeightedActionSets": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "hideOnCookiesDisabled": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "hideOnLocalStorageDisabled": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "linkWithXMD": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "useContactFrequencyRules": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "contactHydration": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "contactFrequencyDirectoryID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "contactFrequencyRefLocator": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "contactFrequencyRefExpression": {
+                    "type": "object",
+                    "properties": {
+                      "expression": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "guid": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "expression",
+                      "guid"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "contactFrequencyUserID": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "displayRate",
+                  "noshow",
+                  "manualDisplay",
+                  "displayInterceptType",
+                  "cookieDomain",
+                  "hasRandomization",
+                  "useWeightedActionSets",
+                  "hideOnCookiesDisabled",
+                  "hideOnLocalStorageDisabled",
+                  "linkWithXMD",
+                  "useContactFrequencyRules",
+                  "contactHydration",
+                  "contactFrequencyDirectoryID",
+                  "contactFrequencyRefLocator",
+                  "contactFrequencyRefExpression",
+                  "contactFrequencyUserID"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Logic": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "BrandID",
+              "InterceptID",
+              "InterceptName",
+              "Revision",
+              "DeletedDate",
+              "ActionSets",
+              "DisplayOptions",
+              "Logic"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "InterceptDefinition"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "www.fdic.gov-session"
+}

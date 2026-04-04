@@ -1,47 +1,61 @@
-# OpenNext Starter
+# Unbrowse Frontend
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Marketing site, docs entrypoints, blog, public wallet dashboard, and leaderboard for Unbrowse. Built with Next.js 16 and deployed to Cloudflare via OpenNext.
 
-## Getting Started
+## Read first
 
-Read the documentation at https://opennext.js.org/cloudflare.
+- public companion docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
+- frontend worker config: [wrangler.jsonc](/Users/lekt9/.codex/worktrees/c99f/unbrowse/frontend/wrangler.jsonc)
+- default API origin: [frontend/.env.production](/Users/lekt9/.codex/worktrees/c99f/unbrowse/frontend/.env.production)
 
-## Develop
+## Local development
 
-Run the Next.js development server:
-
-```bash
-npm run dev
-# or similar package manager command
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-## Preview
-
-Preview the application locally on the Cloudflare runtime:
+From repo root:
 
 ```bash
-npm run preview
-# or similar package manager command
+bun install --frozen-lockfile
+cd frontend
+bun run dev
 ```
 
-## Deploy
+App runs on `http://localhost:3000` by default.
 
-Deploy the application to Cloudflare:
+## Useful commands
 
 ```bash
-npm run deploy
-# or similar package manager command
+bun run dev
+bun run build
+bun run preview
+bun run deploy
 ```
 
-## Learn More
+- `preview` runs the OpenNext Cloudflare preview path
+- `deploy` builds with OpenNext and deploys the worker/assets to Cloudflare
+- `deploy:ci` builds with OpenNext and deploys via Wrangler without pre-populating the R2 incremental cache
 
-To learn more about Next.js, take a look at the following resources:
+## API wiring
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The frontend defaults to:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+NEXT_PUBLIC_API_URL=https://beta-api.unbrowse.ai
+```
+
+That value is used by dashboard, leaderboard, blog, and other runtime fetch surfaces unless overridden.
+
+## Main surfaces
+
+- `/` — main marketing page
+- `/search` — registry browsing
+- `/dashboard` and `/dashboard/:wallet` — public contributor/economics views
+- `/leaderboard` — contribution ranking
+- `/skill.md` — agent-facing markdown summary
+- `/llms.txt` and `/llms-full.txt` — crawler/LLM-readable discovery docs
+
+## Docs linking policy
+
+Prefer the external docs site for reader-facing documentation:
+
+- `https://docs.unbrowse.ai`
+
+Keep FE docs/navigation pointing there for canonical narrative docs. Keep `/skill.md` for agent-readable install/CLI guidance.

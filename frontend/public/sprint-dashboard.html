@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unbrowse 20x Sprint Dashboard</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0a0f;
+    --card:#12121a;
+    --card-border:#1e1e2e;
+    --text:#e4e4ef;
+    --text-dim:#6b6b80;
+    --accent:#6366f1;
+    --accent-glow:rgba(99,102,241,.15);
+    --green:#22c55e;
+    --green-dim:rgba(34,197,94,.12);
+    --amber:#f59e0b;
+    --amber-dim:rgba(245,158,11,.12);
+    --red:#ef4444;
+    --red-dim:rgba(239,68,68,.12);
+    --baseline:#2a2a3a;
+    --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+    --mono:'SF Mono','Fira Code','Cascadia Code',monospace;
+  }
+  html{font-size:16px}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  /* Subtle grid background */
+  body::before{
+    content:'';position:fixed;inset:0;
+    background:
+      linear-gradient(rgba(99,102,241,.03) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(99,102,241,.03) 1px,transparent 1px);
+    background-size:48px 48px;
+    pointer-events:none;z-index:0;
+  }
+  .container{
+    max-width:1280px;margin:0 auto;padding:32px 24px;position:relative;z-index:1;
+  }
+
+  /* Header */
+  .header{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:40px;flex-wrap:wrap;gap:16px;
+  }
+  .header-left{display:flex;align-items:center;gap:16px}
+  .logo{
+    width:40px;height:40px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),#8b5cf6);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:18px;color:#fff;
+    box-shadow:0 0 24px rgba(99,102,241,.3);
+  }
+  h1{font-size:1.5rem;font-weight:700;letter-spacing:-.02em}
+  h1 span{
+    background:linear-gradient(135deg,var(--accent),#a78bfa);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .sprint-badge{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:4px 12px;border-radius:100px;
+    background:var(--accent-glow);border:1px solid rgba(99,102,241,.25);
+    font-size:.75rem;font-weight:600;color:var(--accent);
+    letter-spacing:.04em;text-transform:uppercase;
+  }
+  .sprint-badge .dot{
+    width:6px;height:6px;border-radius:50%;background:var(--accent);
+    animation:blink 2s ease-in-out infinite;
+  }
+  .header-right{display:flex;align-items:center;gap:16px}
+  .status{font-size:.8rem;color:var(--text-dim)}
+  .status .time{color:var(--text);font-family:var(--mono);font-size:.75rem}
+
+  /* Sprint countdown */
+  .countdown-bar{
+    background:var(--card);border:1px solid var(--card-border);
+    border-radius:12px;padding:16px 24px;margin-bottom:32px;
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  }
+  .countdown-label{font-size:.8rem;color:var(--text-dim);font-weight:500}
+  .countdown-track{
+    flex:1;min-width:200px;height:6px;background:var(--baseline);
+    border-radius:3px;overflow:hidden;margin:0 20px;
+  }
+  .countdown-fill{
+    height:100%;border-radius:3px;
+    background:linear-gradient(90deg,var(--accent),#a78bfa);
+    transition:width .8s ease;
+  }
+  .countdown-days{
+    font-family:var(--mono);font-size:.9rem;font-weight:600;
+    color:var(--accent);white-space:nowrap;
+  }
+
+  /* KPI Grid */
+  .kpi-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+    gap:16px;margin-bottom:32px;
+  }
+
+  /* KPI Card */
+  .kpi-card{
+    background:var(--card);border:1px solid var(--card-border);
+    border-radius:14px;padding:20px 24px;
+    transition:border-color .3s,box-shadow .3s,transform .15s;
+    position:relative;overflow:hidden;
+  }
+  .kpi-card:hover{
+    border-color:rgba(99,102,241,.3);
+    box-shadow:0 4px 24px rgba(99,102,241,.08);
+    transform:translateY(-1px);
+  }
+  .kpi-card.pulse{animation:cardPulse .6s ease}
+  .kpi-label{
+    font-size:.75rem;font-weight:600;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--text-dim);margin-bottom:12px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .kpi-label .icon{font-size:1rem;opacity:.7}
+  .kpi-value{
+    font-size:2.25rem;font-weight:800;letter-spacing:-.03em;
+    font-family:var(--mono);line-height:1;margin-bottom:4px;
+    font-variant-numeric:tabular-nums;
+  }
+  .kpi-delta{
+    font-size:.75rem;font-weight:600;margin-bottom:16px;
+    display:inline-flex;align-items:center;gap:4px;
+    padding:2px 8px;border-radius:6px;
+  }
+  .kpi-delta.up{background:var(--green-dim);color:var(--green)}
+  .kpi-delta.flat{background:rgba(255,255,255,.05);color:var(--text-dim)}
+  .kpi-delta.down{background:var(--red-dim);color:var(--red)}
+
+  /* Progress bar */
+  .progress-wrap{margin-top:4px}
+  .progress-labels{
+    display:flex;justify-content:space-between;
+    font-size:.65rem;color:var(--text-dim);margin-bottom:6px;
+    font-family:var(--mono);
+  }
+  .progress-track{
+    position:relative;height:8px;background:var(--baseline);
+    border-radius:4px;overflow:visible;
+  }
+  .progress-baseline{
+    position:absolute;left:0;top:0;height:100%;
+    background:rgba(255,255,255,.06);border-radius:4px;
+  }
+  .progress-fill{
+    position:absolute;left:0;top:0;height:100%;
+    border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1);
+    min-width:2px;
+  }
+  .progress-fill.green{background:linear-gradient(90deg,#16a34a,var(--green))}
+  .progress-fill.amber{background:linear-gradient(90deg,#d97706,var(--amber))}
+  .progress-fill.red{background:linear-gradient(90deg,#dc2626,var(--red))}
+  .progress-fill.accent{background:linear-gradient(90deg,var(--accent),#a78bfa)}
+  /* Baseline marker */
+  .baseline-marker{
+    position:absolute;top:-3px;width:2px;height:14px;
+    background:var(--text-dim);border-radius:1px;
+    z-index:2;opacity:.6;
+  }
+  .baseline-marker::after{
+    content:attr(data-label);
+    position:absolute;top:-16px;left:50%;transform:translateX(-50%);
+    font-size:.55rem;color:var(--text-dim);white-space:nowrap;
+    font-family:var(--mono);
+  }
+
+  /* Secondary stats row */
+  .secondary-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+    gap:12px;margin-bottom:32px;
+  }
+  .stat-mini{
+    background:var(--card);border:1px solid var(--card-border);
+    border-radius:10px;padding:14px 18px;
+  }
+  .stat-mini .label{
+    font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--text-dim);font-weight:600;margin-bottom:6px;
+  }
+  .stat-mini .value{
+    font-size:1.25rem;font-weight:700;font-family:var(--mono);
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* Volume chart (CSS-only sparkline) */
+  .chart-section{
+    background:var(--card);border:1px solid var(--card-border);
+    border-radius:14px;padding:24px;margin-bottom:32px;
+  }
+  .chart-title{
+    font-size:.8rem;font-weight:600;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--text-dim);margin-bottom:16px;
+  }
+  .sparkline{
+    display:flex;align-items:flex-end;gap:3px;height:80px;
+  }
+  .spark-bar{
+    flex:1;border-radius:2px 2px 0 0;
+    background:var(--accent);opacity:.6;
+    transition:height .5s ease,opacity .3s;
+    min-width:4px;
+  }
+  .spark-bar:hover{opacity:1}
+  .spark-bar:last-child{opacity:1;background:linear-gradient(to top,var(--accent),#a78bfa)}
+  .chart-labels{
+    display:flex;justify-content:space-between;
+    font-size:.6rem;color:var(--text-dim);margin-top:6px;
+    font-family:var(--mono);
+  }
+
+  /* Geo section */
+  .geo-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+    gap:8px;
+  }
+  .geo-item{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:8px 12px;background:rgba(255,255,255,.02);border-radius:6px;
+    font-size:.75rem;
+  }
+  .geo-item .country{color:var(--text);font-weight:600}
+  .geo-item .pct{color:var(--text-dim);font-family:var(--mono)}
+
+  /* Footer */
+  .footer{
+    text-align:center;padding:24px 0;
+    font-size:.7rem;color:var(--text-dim);
+  }
+  .footer a{color:var(--accent);text-decoration:none}
+
+  /* Error banner */
+  .error-banner{
+    background:var(--red-dim);border:1px solid rgba(239,68,68,.3);
+    border-radius:8px;padding:10px 16px;margin-bottom:16px;
+    font-size:.8rem;color:var(--red);display:none;
+  }
+
+  /* Animations */
+  @keyframes blink{
+    0%,100%{opacity:1}50%{opacity:.3}
+  }
+  @keyframes cardPulse{
+    0%{box-shadow:0 0 0 0 rgba(99,102,241,.3)}
+    50%{box-shadow:0 0 20px 4px rgba(99,102,241,.15)}
+    100%{box-shadow:0 0 0 0 rgba(99,102,241,0)}
+  }
+  @keyframes fadeInUp{
+    from{opacity:0;transform:translateY(12px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  .kpi-card,.stat-mini,.chart-section{
+    animation:fadeInUp .5s ease backwards;
+  }
+  .kpi-card:nth-child(1){animation-delay:.05s}
+  .kpi-card:nth-child(2){animation-delay:.1s}
+  .kpi-card:nth-child(3){animation-delay:.15s}
+  .kpi-card:nth-child(4){animation-delay:.2s}
+  .kpi-card:nth-child(5){animation-delay:.25s}
+  .kpi-card:nth-child(6){animation-delay:.3s}
+  .kpi-card:nth-child(7){animation-delay:.35s}
+  .kpi-card:nth-child(8){animation-delay:.4s}
+
+  /* Responsive */
+  @media(max-width:640px){
+    .container{padding:16px}
+    .kpi-grid{grid-template-columns:1fr}
+    .kpi-value{font-size:1.75rem}
+    h1{font-size:1.2rem}
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">U</div>
+      <div>
+        <h1><span>Unbrowse</span> 20x Sprint</h1>
+      </div>
+      <div class="sprint-badge"><span class="dot"></span> LIVE</div>
+    </div>
+    <div class="header-right">
+      <div class="status">
+        Last updated <span class="time" id="lastUpdated">--:--:--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sprint countdown -->
+  <div class="countdown-bar">
+    <span class="countdown-label">Sprint Progress</span>
+    <div class="countdown-track">
+      <div class="countdown-fill" id="countdownFill" style="width:0%"></div>
+    </div>
+    <span class="countdown-days" id="countdownText">-- days left</span>
+  </div>
+
+  <!-- Error banner -->
+  <div class="error-banner" id="errorBanner"></div>
+
+  <!-- Hero KPIs -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- Secondary stats -->
+  <div class="secondary-grid" id="secondaryGrid"></div>
+
+  <!-- Daily verification volume chart -->
+  <div class="chart-section">
+    <div class="chart-title">Daily API Verifications (30 days)</div>
+    <div class="sparkline" id="sparkline"></div>
+    <div class="chart-labels" id="sparkLabels"></div>
+  </div>
+
+  <!-- Geo breakdown -->
+  <div class="chart-section">
+    <div class="chart-title">Traffic by Country (top 10)</div>
+    <div class="geo-grid" id="geoGrid"></div>
+  </div>
+
+  <div class="footer">
+    Unbrowse Sprint Dashboard &mdash; auto-refreshes every 30s &mdash;
+    <a href="https://unbrowse.ai" target="_blank">unbrowse.ai</a>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const POLL_INTERVAL = 30_000;
+
+const SPRINT_START = new Date('2026-04-01T00:00:00Z');
+const SPRINT_END   = new Date('2026-04-15T00:00:00Z');
+
+const BASELINES = {
+  stars:         608,
+  npm:           4734,
+  executions:    47,
+  agents:        19,
+  endpoints:     0,
+  hitRate:       0,
+  wau:           303,
+  verifications: 35010,
+};
+
+const TARGETS = {
+  stars:         3000,
+  npm:           15000,
+  executions:    500,
+  agents:        200,
+  endpoints:     10000,
+  hitRate:       50,
+  wau:           1000,
+  verifications: 100000,
+};
+
+const ENDPOINTS = {
+  summary:  'https://beta-api.unbrowse.ai/v1/stats/summary',
+  perf:     'https://beta-api.unbrowse.ai/v1/stats/perf',
+  github:   'https://api.github.com/repos/unbrowse-ai/unbrowse',
+  npm:      'https://api.npmjs.org/downloads/point/last-month/unbrowse',
+  traction: 'https://launch.unbrowse.ai/api/traction',
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let prevValues = {};
+let data = {
+  stars: BASELINES.stars,
+  forks: 0,
+  npm: BASELINES.npm,
+  executions: BASELINES.executions,
+  agents: BASELINES.agents,
+  endpoints: BASELINES.endpoints,
+  hitRate: BASELINES.hitRate,
+  wau: BASELINES.wau,
+  verifications: BASELINES.verifications,
+  totalKeys: 0,
+  weeklyRetention: 0,
+  avgResolveMs: 0,
+  p95Ms: 0,
+  totalResolves: 0,
+  totalRequests: 0,
+  uniqueVisitors: 0,
+  bandwidthGB: 0,
+  dailyVolume: [],
+  geo: [],
+};
+
+// ============================================================
+// FETCH DATA
+// ============================================================
+async function safeFetch(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${r.status}`);
+    return await r.json();
+  } catch (e) {
+    console.warn(`Fetch failed: ${url}`, e);
+    return null;
+  }
+}
+
+async function fetchAll() {
+  const [summary, perf, github, npm, traction] = await Promise.allSettled([
+    safeFetch(ENDPOINTS.summary),
+    safeFetch(ENDPOINTS.perf),
+    safeFetch(ENDPOINTS.github),
+    safeFetch(ENDPOINTS.npm),
+    safeFetch(ENDPOINTS.traction),
+  ]);
+
+  let errors = [];
+
+  // Summary
+  const s = summary.value;
+  if (s) {
+    data.executions = s.executions ?? data.executions;
+    data.agents = s.agents ?? data.agents;
+    data.endpoints = s.endpoints ?? data.endpoints;
+    data.hitRate = s.perf?.marketplace_hit_rate ?? data.hitRate;
+  } else errors.push('summary');
+
+  // Perf
+  const p = perf.value;
+  if (p) {
+    data.avgResolveMs = p.avg_total_ms ?? 0;
+    data.p95Ms = p.p95_total_ms ?? 0;
+    data.totalResolves = p.total_resolves ?? 0;
+  } else errors.push('perf');
+
+  // GitHub
+  const g = github.value;
+  if (g) {
+    data.stars = g.stargazers_count ?? data.stars;
+    data.forks = g.forks_count ?? data.forks;
+  } else errors.push('github');
+
+  // npm
+  const n = npm.value;
+  if (n) {
+    data.npm = n.downloads ?? data.npm;
+  } else errors.push('npm');
+
+  // Traction
+  const t = traction.value;
+  if (t) {
+    data.verifications = t.totalVerifications ?? data.verifications;
+    data.wau = t.wau ?? data.wau;
+    data.totalKeys = t.totalKeys ?? data.totalKeys;
+    data.weeklyRetention = t.weeklyRetention ?? data.weeklyRetention;
+    if (t.dailyVolume) data.dailyVolume = t.dailyVolume;
+    if (t.cloudflare) {
+      data.totalRequests = t.cloudflare.totalRequests ?? 0;
+      data.uniqueVisitors = t.cloudflare.uniqueVisitors ?? 0;
+      data.bandwidthGB = t.cloudflare.bandwidthGB ?? 0;
+      if (t.cloudflare.geo) data.geo = t.cloudflare.geo.slice(0, 10);
+    }
+  } else errors.push('traction');
+
+  // Show/hide error banner
+  const banner = document.getElementById('errorBanner');
+  if (errors.length) {
+    banner.textContent = `Failed to fetch: ${errors.join(', ')}. Will retry in ${POLL_INTERVAL/1000}s.`;
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+const KPI_CONFIG = [
+  { key: 'stars',         label: 'GitHub Stars',         icon: '\u2B50', format: 'num',  baseline: BASELINES.stars,         target: TARGETS.stars },
+  { key: 'npm',           label: 'npm Downloads/mo',     icon: '\uD83D\uDCE6', format: 'num',  baseline: BASELINES.npm,           target: TARGETS.npm },
+  { key: 'verifications', label: 'Total Verifications',  icon: '\u2705', format: 'num',  baseline: BASELINES.verifications, target: TARGETS.verifications },
+  { key: 'wau',           label: 'Weekly Active Users',  icon: '\uD83D\uDC64', format: 'num',  baseline: BASELINES.wau,           target: TARGETS.wau },
+  { key: 'executions',    label: 'Skill Executions',     icon: '\u26A1', format: 'num',  baseline: BASELINES.executions,    target: TARGETS.executions },
+  { key: 'agents',        label: 'Active Agents',        icon: '\uD83E\uDD16', format: 'num',  baseline: BASELINES.agents,        target: TARGETS.agents },
+  { key: 'endpoints',     label: 'Marketplace Endpoints',icon: '\uD83C\uDF10', format: 'num',  baseline: BASELINES.endpoints,     target: TARGETS.endpoints },
+  { key: 'hitRate',       label: 'Marketplace Hit Rate', icon: '\uD83C\uDFAF', format: 'pct',  baseline: BASELINES.hitRate,        target: TARGETS.hitRate },
+];
+
+function fmt(v, format) {
+  if (format === 'pct') return v.toFixed(1) + '%';
+  if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
+  if (v >= 10_000) return (v / 1_000).toFixed(1) + 'k';
+  return v.toLocaleString('en-US');
+}
+
+function fmtCompact(v) {
+  if (v >= 1_000_000) return (v/1_000_000).toFixed(1)+'M';
+  if (v >= 1_000) return (v/1_000).toFixed(1)+'k';
+  return String(v);
+}
+
+function progressColor(pct) {
+  if (pct >= 80) return 'green';
+  if (pct >= 40) return 'amber';
+  if (pct > 0) return 'red';
+  return 'accent';
+}
+
+function renderKPIs() {
+  const grid = document.getElementById('kpiGrid');
+  grid.innerHTML = '';
+
+  KPI_CONFIG.forEach((cfg, i) => {
+    const current = data[cfg.key];
+    const prev = prevValues[cfg.key];
+    const delta = prev !== undefined ? current - prev : 0;
+    const pctOfTarget = cfg.target > 0 ? Math.min((current / cfg.target) * 100, 100) : 0;
+    const baselinePct = cfg.target > 0 ? Math.min((cfg.baseline / cfg.target) * 100, 100) : 0;
+    const color = progressColor(pctOfTarget);
+
+    // Delta display
+    let deltaClass = 'flat';
+    let deltaText = 'No change';
+    if (delta > 0) { deltaClass = 'up'; deltaText = '+' + fmt(delta, cfg.format); }
+    else if (delta < 0) { deltaClass = 'down'; deltaText = fmt(delta, cfg.format); }
+
+    const card = document.createElement('div');
+    card.className = 'kpi-card';
+    if (delta !== 0 && prev !== undefined) card.classList.add('pulse');
+
+    card.innerHTML = `
+      <div class="kpi-label"><span class="icon">${cfg.icon}</span> ${cfg.label}</div>
+      <div class="kpi-value">${fmt(current, cfg.format)}</div>
+      <div class="kpi-delta ${deltaClass}">${deltaText}</div>
+      <div class="progress-wrap">
+        <div class="progress-labels">
+          <span>Baseline: ${fmt(cfg.baseline, cfg.format)}</span>
+          <span>Target: ${fmt(cfg.target, cfg.format)}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-baseline" style="width:${baselinePct}%"></div>
+          <div class="progress-fill ${color}" style="width:${pctOfTarget}%"></div>
+          ${baselinePct > 2 ? `<div class="baseline-marker" style="left:${baselinePct}%" data-label="Apr 1"></div>` : ''}
+        </div>
+      </div>
+    `;
+
+    grid.appendChild(card);
+  });
+}
+
+function renderSecondary() {
+  const grid = document.getElementById('secondaryGrid');
+  const stats = [
+    { label: 'Total API Keys',    value: data.totalKeys.toLocaleString() },
+    { label: 'Weekly Retention',   value: data.weeklyRetention + '%' },
+    { label: 'GitHub Forks',       value: data.forks.toLocaleString() },
+    { label: 'Total Resolves',     value: data.totalResolves.toLocaleString() },
+    { label: 'Avg Resolve',        value: data.avgResolveMs > 0 ? (data.avgResolveMs/1000).toFixed(1) + 's' : '--' },
+    { label: 'P95 Latency',        value: data.p95Ms > 0 ? (data.p95Ms/1000).toFixed(1) + 's' : '--' },
+    { label: 'CF Unique Visitors', value: fmtCompact(data.uniqueVisitors) },
+    { label: 'CF Bandwidth',       value: data.bandwidthGB.toFixed(1) + ' GB' },
+  ];
+
+  grid.innerHTML = stats.map(s => `
+    <div class="stat-mini">
+      <div class="label">${s.label}</div>
+      <div class="value">${s.value}</div>
+    </div>
+  `).join('');
+}
+
+function renderSparkline() {
+  const el = document.getElementById('sparkline');
+  const labels = document.getElementById('sparkLabels');
+  const vol = data.dailyVolume.slice(-30);
+  if (!vol.length) { el.innerHTML = '<span style="color:var(--text-dim);font-size:.8rem">No data</span>'; return; }
+
+  const max = Math.max(...vol.map(d => d.verifications), 1);
+  el.innerHTML = vol.map(d => {
+    const h = Math.max((d.verifications / max) * 100, 2);
+    return `<div class="spark-bar" style="height:${h}%" title="${new Date(d.day).toLocaleDateString()}: ${d.verifications.toLocaleString()}"></div>`;
+  }).join('');
+
+  const first = new Date(vol[0].day);
+  const last = new Date(vol[vol.length - 1].day);
+  labels.innerHTML = `<span>${first.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span>${last.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`;
+}
+
+function renderGeo() {
+  const el = document.getElementById('geoGrid');
+  if (!data.geo.length) { el.innerHTML = '<span style="color:var(--text-dim);font-size:.8rem">No data</span>'; return; }
+
+  const countryNames = {
+    SG:'Singapore',US:'United States',DE:'Germany',NL:'Netherlands',
+    CA:'Canada',IN:'India',FR:'France',CN:'China',PH:'Philippines',
+    SE:'Sweden',HK:'Hong Kong',GB:'United Kingdom',KR:'South Korea',
+    AU:'Australia',JP:'Japan',BR:'Brazil',
+  };
+
+  el.innerHTML = data.geo.map(g => `
+    <div class="geo-item">
+      <span class="country">${countryNames[g.country] || g.country}</span>
+      <span class="pct">${g.pct}%</span>
+    </div>
+  `).join('');
+}
+
+function renderCountdown() {
+  const now = new Date();
+  const total = SPRINT_END - SPRINT_START;
+  const elapsed = Math.min(now - SPRINT_START, total);
+  const pct = Math.max(0, Math.min((elapsed / total) * 100, 100));
+  const daysLeft = Math.max(0, Math.ceil((SPRINT_END - now) / 86400000));
+
+  document.getElementById('countdownFill').style.width = pct + '%';
+  document.getElementById('countdownText').textContent =
+    daysLeft > 0 ? `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left` : 'Sprint complete';
+}
+
+function renderTimestamp() {
+  const now = new Date();
+  document.getElementById('lastUpdated').textContent =
+    now.toLocaleTimeString('en-US', { hour12: false });
+}
+
+function renderAll() {
+  renderKPIs();
+  renderSecondary();
+  renderSparkline();
+  renderGeo();
+  renderCountdown();
+  renderTimestamp();
+}
+
+// ============================================================
+// POLL LOOP
+// ============================================================
+async function tick() {
+  // Save previous values for delta detection
+  prevValues = { ...data };
+  await fetchAll();
+  renderAll();
+}
+
+// Initial load
+tick();
+
+// Poll every 30s
+setInterval(tick, POLL_INTERVAL);
+
+// Update countdown every minute
+setInterval(renderCountdown, 60_000);
+</script>
+</body>
+</html>

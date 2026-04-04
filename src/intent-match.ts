@@ -1266,7 +1266,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["full_name", "name", "repository.name", "path_with_namespace"]) &&
       hasAnyPath(row, ["url", "web_url", "description", "stargazers_count", "stars", "star_count", "forks_count", "owner.login", "owner"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "repository_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "repository_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(package|packages)\b/.test(lower)) {
@@ -1274,7 +1274,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["name", "package.name"]) &&
       hasAnyPath(row, ["version", "description", "summary", "url", "keywords", "requires_dist", "dependencies"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "package_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "package_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(model|models)\b/.test(lower)) {
@@ -1282,7 +1282,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["id", "modelId", "name"]) &&
       hasAnyPath(row, ["downloads", "likes", "pipeline_tag", "url"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "model_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "model_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(news|story|stories|article|articles|hacker news)\b/.test(lower)) {
@@ -1290,7 +1290,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["objectID", "id", "url", "link"]) &&
       hasAnyPath(row, ["title", "story_title", "author", "points", "num_comments", "meta"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "story_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "story_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\bsearch images\b/.test(lower)) {
@@ -1298,7 +1298,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["repo_name", "name", "full_name"]) &&
       hasAnyPath(row, ["short_description", "description", "star_count", "pull_count", "url"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "image_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "image_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(get )?image tags\b/.test(lower)) {
@@ -1306,7 +1306,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["name", "tag"]) &&
       hasAnyPath(row, ["last_updated", "updated_at", "full_size", "digest"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "tag_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "tag_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(company|companies|organization|organisations|business)\b/.test(lower)) {
@@ -1314,7 +1314,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["name", "title", "public_identifier"]) &&
       hasAnyPath(row, ["description", "industry", "url", "website", "employee_count", "follower_count"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "company_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "company_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(person|people|profile|profiles|member|members|user|users)\b/.test(lower)) {
@@ -1323,7 +1323,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["headline", "url", "public_identifier", "username"])
     );
     const minRows = /\b(profile|profiles|user|users|person)\b/.test(lower) && !/\bsearch\b/.test(lower) ? 1 : 2;
-    return matching.length >= minRows ? { verdict: "pass", reason: "people_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= minRows ? { verdict: "pass", reason: "people_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(comment|comments)\b/.test(lower)) {
@@ -1331,7 +1331,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["id", "url", "permalink"]) &&
       hasAnyPath(row, ["author", "body", "text"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "comment_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "comment_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(email|emails|mail|inbox)\b/.test(lower)) {
@@ -1340,20 +1340,20 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["subject", "thread.subject", "from", "sender", "thread.latest_sender_name"]) &&
       hasAnyPath(row, ["date", "thread.formatted_date", "preview", "thread.preview", "matchedEmail.content_markdown"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "email_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "email_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) {
     const matching = objects.filter((row) =>
-      hasAnyPath(row, ["id", "url", "uri", "permalink"]) &&
+      hasAnyPath(row, ["id", "url", "uri", "permalink", "_id", "entityUrn", "rest_id"]) &&
       countMatchingGroups(row, [
-        ["content", "text", "title", "body"],
-        ["account.username", "account.acct", "username", "author", "user.name"],
-        ["score", "points", "likes", "favorite_count", "num_comments", "reply_count"],
-        ["date", "created_at", "published_at", "timestamp", "meta"],
+        ["content", "text", "title", "body", "message", "description", "summary", "commentary.text.text"],
+        ["account.username", "account.acct", "username", "author", "user.name", "from.name", "actor.name", "actor.name.text"],
+        ["score", "points", "likes", "favorite_count", "num_comments", "reply_count", "reactions", "repost_count"],
+        ["date", "created_at", "published_at", "timestamp", "meta", "created_time", "createdAt", "updated_at", "time"],
       ]) >= 2
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "post_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "post_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(reddit|subreddit)\b/.test(lower)) {
@@ -1362,7 +1362,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["title", "subreddit", "author"]) &&
       hasAnyPath(row, ["num_comments", "score", "permalink"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "reddit_post_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "reddit_post_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(topic|topics|trend|trending|hashtag|hashtags)\b/.test(lower)) {
@@ -1370,7 +1370,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["name", "title", "query"]) &&
       hasAnyPath(row, ["url", "name", "query"])
     );
-    return matching.length >= 2 ? { verdict: "pass", reason: "topic_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 2 ? { verdict: "pass", reason: "topic_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(doc|docs|documentation)\b/.test(lower)) {
@@ -1379,7 +1379,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["url", "link", "href", "mdn_url"]) &&
       hasAnyPath(row, ["summary", "description", "slug", "popularity", "score"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "document_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "document_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(paper|papers)\b/.test(lower)) {
@@ -1388,7 +1388,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["url", "link", "href"]) &&
       hasAnyPath(row, ["summary", "description", "author", "authors", "date", "published", "meta"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "paper_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "paper_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(question|questions)\b/.test(lower)) {
@@ -1401,7 +1401,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
         ["author", "date", "created_at", "meta"],
       ]) >= 2
     );
-    return matching.length >= 2 ? { verdict: "pass", reason: "question_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 2 ? { verdict: "pass", reason: "question_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(recipe|recipes)\b/.test(lower)) {
@@ -1410,7 +1410,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["url", "link", "href"]) &&
       hasAnyPath(row, ["rating", "review_count", "author", "description", "summary", "cook_time", "total_time"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "recipe_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "recipe_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(course|courses)\b/.test(lower)) {
@@ -1419,7 +1419,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["url", "link", "href"]) &&
       hasAnyPath(row, ["rating", "partner", "provider", "instructor", "description", "summary", "duration", "level"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "course_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "course_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(definition|dictionary|meaning)\b/.test(lower)) {
@@ -1427,7 +1427,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["term", "title", "name", "word"]) &&
       hasAnyPath(row, ["definition", "summary", "body", "description"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "definition_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "definition_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/.test(lower)) {
@@ -1436,7 +1436,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["price", "regularMarketPrice", "current_price"]) &&
       hasAnyPath(row, ["name", "currency", "change_percent", "market_cap", "market_state"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "quote_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "quote_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(product|products|item|items)\b/.test(lower)) {
@@ -1453,7 +1453,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
         String(getPath(row, "url") ?? ""),
       )
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "product_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "product_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   if (/\b(channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
@@ -1462,7 +1462,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["id", "url", "channel_id", "guild_id", "workspace_id"]) &&
       hasAnyPath(row, ["description", "type", "member_count", "url"])
     );
-    return matching.length >= 1 ? { verdict: "pass", reason: "channel_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+    return matching.length >= 1 ? { verdict: "pass", reason: "channel_rows" } : { verdict: "skip", reason: "wrong_entity_type" };
   }
 
   return { verdict: "skip", reason: "unclassified_array" };

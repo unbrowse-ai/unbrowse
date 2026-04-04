@@ -1,0 +1,49 @@
+{
+  "skill_id": "b15e80f1-24d1-4219-ab45-b671dd02d525",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-18T09:01:26.125Z",
+  "updated_at": "2026-02-22T09:01:25.936Z",
+  "name": "cars",
+  "intent_signature": "Search/Session Data:* `",
+  "domain": "www.cars.com",
+  "description": "Search/Session Data:* `",
+  "owner_type": "marketplace",
+  "auth_type": "Basic Auth",
+  "service_name": "cars",
+  "endpoints": [
+    {
+      "endpoint_id": "e173d365-bcc3-48f6-82e3-b3dd9c423a69",
+      "method": "POST",
+      "url_template": "https://www.cars.com/__endpoint/e173d365-bcc3-48f6-82e3-b3dd9c423a69",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "submitCarData",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "7sAeNPPSbmmyRWaXkDwXwzFjrGAnG3uqVfZEGLD4xzdx",
+    "download_count": 0,
+    "total_versions": 3,
+    "latest_version_hash": "208692bdb6be808cfe2916bc8e7c16e0c7c1fdc12048d2eeaa4333629eee271c"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: cars\ndescription: Internal API for cars\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.cars.com\"\n  authMethod: \"Basic Auth\"\n  endpointCount: 23\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Cars API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBasic Auth — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (6)\n- `GET /agrp/prod/{prodToken}` — Authenticate with product token.\n- `GET /api/identity` — Retrieve user identity via API.\n- `GET /config/com/{comToken}` — Authenticate with com token.\n- `GET /identity/` — Retrieve user identity information.\n- `GET /sid/json` — Get session ID in JSON format.\n- `PATCH /session/data` — Update session data during authentication flow.\n\n### Data Read (5)\n- `GET /a/api/fastlane.json` — Get fastlane configuration.\n- `GET /pagead/conversion/{conversionTimestamp}/` — Retrieve conversion data.\n- `GET /ups/{upId}/fed` — Retrieve fed data.\n- `GET /v2/advertiser` — Get advertiser information.\n- `GET /WRSiteInterceptEngine/Asset.php` — Retrieve asset data.\n\n### Data Write (10)\n- `POST /.well-known/private-aggregation/report-shared-storage` — Report private aggregation data.\n- `POST /{id}` — Update car details by ID.\n- `POST /hits/pageviews` — Record page view hits.\n- `POST /openrtb/pbjs` — Submit OpenRTB data.\n- `POST /p/conversions/c/j` — Post conversion data.\n- `POST /page/{pageId}/ad` — Post an ad to a specific page.\n- `POST /PVMiEVegy/jlu/ZdvaDA/iY9zSLNSzSNcX2/W2poWkgCAw/aws5Xz/trBmMB` — Update car details (complex ID).\n- `POST /ut/v3/prebid` — Submit prebid data.\n- `POST /v1/batch` — Submit data in batch.\n- `POST /WRSiteInterceptEngine/{WRSiteInterceptEngineId}` — Submit data to WRSiteInterceptEngine.\n\n### Config (1)\n- `GET /getconfig/sodar` — Fetch configuration settings.\n\n### Core API (1)\n- `GET /` — Retrieve a list of cars.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"cars\", executionMode: \"backend\", endpoint: \"GET /a/api/fastlane.json\" }\n```\n\nHere are some quick start examples to get you going with the `cars` API:\n\n```typescript\n// Example: Retrieving a list of cars.\nasync function getCars() {\n  try {\n    const cars = await client.get();\n    console.log(\"List of cars:\", cars);\n    return cars;\n  } catch (error) {\n    console.error(\"Error fetching cars:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Updating car details by ID.\nasync function updateCarDetails(id: string, data: any) {\n  try {\n    const response = await client.post({id: id}, data);\n    console.log(\"Car details updated:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error updating car details:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Example: Retrieving fastlane configuration.\nasync function getFastlaneConfig() {\n  try {\n    const config = await client.get_a_api_fastlane_json();\n    console.log(\"Fastlane configuration:\", config);\n    return config;\n  } catch (error) {\n    console.error(\"Error fetching fastlane config:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Basic Auth\n**Base URL:** `https://www.cars.com`\n**Captured Auth:** 3 auth headers, 1114 session cookies\n\n## About This Skill\n\nThis skill provides access to Cars's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Cars data without official API access\n- Automate actions on www.cars.com (faster than browser automation)\n- Call the same endpoints the Cars frontend uses\n\n## Quick Start\n\n```typescript\nimport { CarsClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await CarsClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (x-csrf-token, authorization, sec-fetch-storage-access)\n- **Session cookies:** 1114\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (46)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

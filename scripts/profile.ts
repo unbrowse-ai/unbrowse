@@ -35,6 +35,14 @@ const PRESETS: Record<string, Preset> = {
     UNBROWSE_FORCE_CAPTURE: "1",
     UNBROWSE_TRACE_DEBUG: "1",
   },
+  experiments: {
+    UNBROWSE_PROFILE: "experiments",
+    UNBROWSE_URL: "http://127.0.0.1:6969",
+    UNBROWSE_BACKEND_URL: "https://beta-api.unbrowse.ai",
+    UNBROWSE_LOCAL_ONLY: "0",
+    UNBROWSE_FORCE_CAPTURE: "0",
+    UNBROWSE_TRACE_DEBUG: "1",
+  },
 };
 
 function cleanProfileName(value: string): string {
@@ -129,6 +137,6 @@ if (command === "use") {
 } else if (command === "show") {
   showPreset();
 } else {
-  console.error("usage: bun scripts/profile.ts <show|use|clear> [prod|testing|profile]");
+  console.error("usage: bun scripts/profile.ts <show|use|clear> [prod|testing|experiments|profile]");
   process.exit(1);
 }

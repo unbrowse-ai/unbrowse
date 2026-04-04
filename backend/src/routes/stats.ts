@@ -1,70 +1,77 @@
 import { Hono } from "hono";
 import type { Env, OrchestrationTiming } from "../types.js";
+import { bearerAuth } from "../middleware/auth.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
-import { recordPerf, getPerf } from "../services/perf.js";
+import { recordPerf, getPerf, recordAgentPerf } from "../services/perf.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { recordAgentExecution, recordAgentFeedback, countAgents } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { skillsKV, statsKV } from "../services/kv.js";
-
+import { getAgentFeeLedger, getFeesSummary } from "../services/fees.js";
+import { recordAttribution, getIndexerLedger, getAttributionSummary } from "../services/attribution.js";
+import { getSkill } from "../services/marketplace.js";
+import { updateContributorDelta } from "../services/splits.js";
+import { getOrSetHttpCache } from "../services/http-cache.js";
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
 
 // GET /v1/stats/summary — aggregated counts for the landing page
 publicStatsRoutes.get("/stats/summary", async (c) => {
-  // Both lists served from index — 2 HTTP calls total instead of 150+
-  const [skillEntries, statEntries] = await Promise.all([
-    skillsKV(c.env).listWithValues("skill:"),
-    statsKV(c.env).listWithValues("stats:"),
-  ]);
+  const payload = await getOrSetHttpCache(c.env, "stats:summary", 60, async () => {
+    const [skillEntries, statEntries] = await Promise.all([
+      skillsKV(c.env).listWithValues("skill:"),
+      statsKV(c.env).listWithValues("stats:"),
+    ]);
 
-  let skillCount = 0;
-  let endpointCount = 0;
-  const domainSet = new Set<string>();
-  for (const { value } of skillEntries) {
-    try {
-      const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string; lifecycle?: string };
-      if (s.lifecycle === "deprecated" || s.lifecycle === "disabled") continue;
-      skillCount++;
-      endpointCount += s.endpoints?.length ?? 0;
-      if (s.domain) domainSet.add(s.domain);
-    } catch { /* skip malformed */ }
-  }
+    let skillCount = 0;
+    let endpointCount = 0;
+    const domainSet = new Set<string>();
+    for (const { value } of skillEntries) {
+      try {
+        const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string; lifecycle?: string };
+        if (s.lifecycle === "deprecated" || s.lifecycle === "disabled") continue;
+        skillCount++;
+        endpointCount += s.endpoints?.length ?? 0;
+        if (s.domain) domainSet.add(s.domain);
+      } catch {}
+    }
 
-  let totalExecutions = 0;
-  for (const { value } of statEntries) {
-    try {
-      const s = JSON.parse(value) as { total_executions?: number };
-      totalExecutions += s.total_executions ?? 0;
-    } catch { /* skip malformed */ }
-  }
+    let totalExecutions = 0;
+    for (const { value } of statEntries) {
+      try {
+        const s = JSON.parse(value) as { total_executions?: number };
+        totalExecutions += s.total_executions ?? 0;
+      } catch {}
+    }
 
-  const agentCount = await countAgents(c.env);
+    const agentCount = await countAgents(c.env);
+    const perfStats = await getPerf(c.env);
 
-  const perfStats = await getPerf(c.env);
-
-  c.header("Cache-Control", "public, max-age=60");
-  c.header("Access-Control-Allow-Origin", "*");
-  return c.json({
-    skills: skillCount,
-    endpoints: endpointCount,
-    domains: domainSet.size,
-    executions: totalExecutions,
-    agents: agentCount,
-    perf: {
-      total_resolves: perfStats.total_resolves,
-      marketplace_hit_rate: perfStats.total_resolves > 0
-        ? Math.round((perfStats.marketplace_hits + perfStats.cache_hits) / perfStats.total_resolves * 100)
-        : 0,
-      avg_resolve_ms: Math.round(perfStats.avg_total_ms),
-      avg_marketplace_ms: Math.round(perfStats.avg_marketplace_ms),
-      avg_cache_ms: Math.round(perfStats.avg_cache_ms),
-      p95_ms: Math.round(perfStats.p95_total_ms),
-      total_tokens_saved: perfStats.total_tokens_saved,
-      avg_time_saved_pct: Math.round(perfStats.avg_time_saved_pct),
-      avg_tokens_saved_pct: Math.round(perfStats.avg_tokens_saved_pct),
-    },
+    return {
+      skills: skillCount,
+      endpoints: endpointCount,
+      domains: domainSet.size,
+      executions: totalExecutions,
+      agents: agentCount,
+      perf: {
+        total_resolves: perfStats.total_resolves,
+        marketplace_hit_rate: perfStats.total_resolves > 0
+          ? Math.round((perfStats.marketplace_hits + perfStats.cache_hits) / perfStats.total_resolves * 100)
+          : 0,
+        avg_resolve_ms: Math.round(perfStats.avg_total_ms),
+        avg_marketplace_ms: Math.round(perfStats.avg_marketplace_ms),
+        avg_cache_ms: Math.round(perfStats.avg_cache_ms),
+        p95_ms: Math.round(perfStats.p95_total_ms),
+        total_tokens_saved: perfStats.total_tokens_saved,
+        avg_time_saved_pct: Math.round(perfStats.avg_time_saved_pct),
+        avg_tokens_saved_pct: Math.round(perfStats.avg_tokens_saved_pct),
+      },
+    };
   });
+
+  c.header("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=300");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(payload);
 });
 
 // GET /v1/stats/perf — aggregated orchestration performance
@@ -95,18 +102,38 @@ statsRoutes.use("/stats/feedback", agentRateLimit({ limit: 60, window: 60, prefi
 
 // POST /v1/stats/perf — record orchestration timing
 statsRoutes.use("/stats/perf", agentRateLimit({ limit: 120, window: 60, prefix: "perf" }));
-statsRoutes.post("/stats/perf", async (c) => {
+statsRoutes.post("/stats/perf", bearerAuth, async (c) => {
   const timing = await c.req.json<OrchestrationTiming>();
   if (!timing || typeof timing.total_ms !== "number") {
     return c.json({ error: "invalid timing data" }, 400);
   }
+  const integerFields = [
+    "baseline_total_ms",
+    "actual_total_ms",
+    "time_saved_ms",
+    "baseline_cost_uc",
+    "actual_cost_uc",
+    "cost_saved_uc",
+    "paid_search_uc",
+    "paid_execution_uc",
+  ] as const;
+  for (const field of integerFields) {
+    const value = timing[field];
+    if (value != null && (!Number.isInteger(value) || value < 0)) {
+      return c.json({ error: `${field} must be a non-negative integer` }, 400);
+    }
+  }
   await recordPerf(c.env, timing);
+  const agentId = c.get("agent_id");
+  if (agentId && agentId !== "__admin__") {
+    await recordAgentPerf(c.env, agentId, timing);
+  }
   return c.json({ ok: true });
 });
 
 // POST /v1/stats/diagnostics — agent-reported speed/accuracy diagnostics
 statsRoutes.use("/stats/diagnostics", agentRateLimit({ limit: 120, window: 60, prefix: "diagnostics" }));
-statsRoutes.post("/stats/diagnostics", async (c) => {
+statsRoutes.post("/stats/diagnostics", bearerAuth, async (c) => {
   const body = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
@@ -130,13 +157,18 @@ statsRoutes.post("/stats/diagnostics", async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /v1/stats/execution — record execution + recompute score
-statsRoutes.post("/stats/execution", async (c) => {
-  const { skill_id, endpoint_id, trace } = await c.req.json<{
+// POST /v1/stats/execution — record execution + recompute score + Tier 1 attribution
+statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
+  const body = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
     trace: import("../types.js").ExecutionTrace;
+    /** Optional: indexer who published the skill (for Tier 1 attribution). */
+    indexer_id?: string;
+    /** Optional: reliability score of the next best alternative endpoint. */
+    next_best_score?: number;
   }>();
+  const { skill_id, endpoint_id, trace } = body;
   if (!skill_id || !endpoint_id || !trace) {
     return c.json({ error: "skill_id, endpoint_id, and trace required" }, 400);
   }
@@ -146,11 +178,40 @@ statsRoutes.post("/stats/execution", async (c) => {
   if (agentId) {
     c.executionCtx.waitUntil(recordAgentExecution(c.env, agentId));
   }
+  // Tier 1 attribution: credit the indexer if execution succeeded.
+  // Derive indexer_id from: client payload > stored skill manifest > skip (#232).
+  if (trace.success) {
+    let indexerId = body.indexer_id;
+    if (!indexerId) {
+      // Server-side fallback: look up the skill's stored indexer_id
+      const storedSkill = await getSkill(c.env, skill_id);
+      indexerId = storedSkill?.indexer_id;
+    }
+    if (indexerId) {
+      const { getStats } = await import("../services/scoring.js");
+      const stats = await getStats(c.env, skill_id, endpoint_id);
+      c.executionCtx.waitUntil(
+        recordAttribution(c.env, {
+          execution_id: trace.trace_id,
+          skill_id,
+          endpoint_id,
+          indexer_id: indexerId,
+          reliability_score: stats.total_executions > 0
+            ? stats.successful_executions / stats.total_executions
+            : 0.5,
+          next_best_score: body.next_best_score ?? 0,
+        }).then((event) => {
+          // Update contributor delta scores for split share recomputation
+          return updateContributorDelta(c.env, skill_id, indexerId!, event.delta_score);
+        }),
+      );
+    }
+  }
   return c.json({ ok: true });
 });
 
 // POST /v1/stats/feedback — record feedback + recompute score
-statsRoutes.post("/stats/feedback", async (c) => {
+statsRoutes.post("/stats/feedback", bearerAuth, async (c) => {
   const { skill_id, endpoint_id, rating } = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
@@ -166,4 +227,52 @@ statsRoutes.post("/stats/feedback", async (c) => {
     c.executionCtx.waitUntil(recordAgentFeedback(c.env, agentId));
   }
   return c.json({ ok: true, avg_rating: avgRating });
+});
+
+// GET /v1/stats/fees — aggregate graph fee summary (admin)
+statsRoutes.get("/stats/fees", bearerAuth, async (c) => {
+  try {
+    const summary = await getFeesSummary(c.env);
+    return c.json(summary);
+  } catch (err) {
+    console.error("[stats/fees] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// GET /v1/stats/fees/:agentId — per-agent fee ledger (admin)
+statsRoutes.get("/stats/fees/:agentId", bearerAuth, async (c) => {
+  const agentId = c.req.param("agentId");
+  try {
+    const ledger = await getAgentFeeLedger(c.env, agentId);
+    if (!ledger) return c.json({ error: "no fee records for agent" }, 404);
+    return c.json(ledger);
+  } catch (err) {
+    console.error("[stats/fees/:agentId] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// GET /v1/stats/attribution — aggregate Tier 1 attribution summary (admin)
+statsRoutes.get("/stats/attribution", bearerAuth, async (c) => {
+  try {
+    const summary = await getAttributionSummary(c.env);
+    return c.json(summary);
+  } catch (err) {
+    console.error("[stats/attribution] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// GET /v1/stats/attribution/:indexerId — per-indexer attribution ledger (admin)
+statsRoutes.get("/stats/attribution/:indexerId", bearerAuth, async (c) => {
+  const indexerId = c.req.param("indexerId");
+  try {
+    const ledger = await getIndexerLedger(c.env, indexerId);
+    if (!ledger) return c.json({ error: "no attribution records for indexer" }, 404);
+    return c.json(ledger);
+  } catch (err) {
+    console.error("[stats/attribution/:indexerId] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
 });

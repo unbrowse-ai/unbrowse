@@ -43,12 +43,24 @@ if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|packages/skill/REA
   run_tests tests/client-registration.test.ts tests/runtime-setup.test.ts
 fi
 
+if has_match '^(src/kuri/|src/runtime/paths\.ts|packages/skill/|tests/runtime-(paths|setup)\.test\.ts|scripts/check-packaged-kuri\.sh|packages/skill/scripts/)'; then
+  echo "[pre-commit] checking packaged Kuri path"
+  bash scripts/check-packaged-kuri.sh
+fi
+
 if has_match '^(src/execution/|src/orchestrator/|src/capture/|src/intent-match\.ts|src/extraction/|src/reverse-engineer/|tests/(cli-input-payload|input-payload-ingestion|intent-match|graph-filters)\.test\.ts)$'; then
   run_tests \
     tests/cli-input-payload.test.ts \
     tests/input-payload-ingestion.test.ts \
     tests/intent-match.test.ts \
     tests/graph-filters.test.ts
+fi
+
+if has_match '^(tests/p0-p1-issues\\.json|scripts/fetch-p0-p1-issues\\.ts)$'; then
+  if [[ "${SKIP_P0_P1_TESTS:-0}" != "1" ]]; then
+    echo "[pre-commit] validating P0/P1 test cases"
+    bun test tests/p0-p1-issues.test.ts
+  fi
 fi
 
 echo "[pre-commit] fast checks passed"

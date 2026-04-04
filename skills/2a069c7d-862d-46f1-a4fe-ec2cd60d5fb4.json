@@ -1,0 +1,49 @@
+{
+  "skill_id": "2a069c7d-862d-46f1-a4fe-ec2cd60d5fb4",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-17T16:08:21.780Z",
+  "updated_at": "2026-02-17T16:37:03.935Z",
+  "name": "aiagentstore",
+  "intent_signature": "Manage and deploy AI agents",
+  "domain": "aiagentstore.ai",
+  "description": "Manage and deploy AI agents",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (x-goog-api-key)",
+  "service_name": "aiagentstore",
+  "endpoints": [
+    {
+      "endpoint_id": "18758f7e-fa8c-4d6f-b605-921da0b6e049",
+      "method": "POST",
+      "url_template": "https://aiagentstore.ai/__endpoint/18758f7e-fa8c-4d6f-b605-921da0b6e049",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createAiAgentStoreInstallation",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "7bdx8ZYCHBWJy9VknchuAMXDqb699GoQvH9FavNdodmr",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "8c1a0f6994dc74b179cbdc05f548b7aa545e7ae48f0d11123766d7bf04636bb8"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: aiagentstore\ndescription: Internal API for aiagentstore\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://aiagentstore.ai\"\n  authMethod: \"API Key (x-goog-api-key)\"\n  endpointCount: 7\n  apiType: \"internal\"\n  category: \"ecommerce\"\n---\n\n# Aiagentstore API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (x-goog-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /{id}` — Get details about a specific agent by its ID.\n\n### Data Write (1)\n- `POST /v1/projects/aiagentstore/installations` — Install the agent in a project.\n\n### Media (1)\n- `GET /sounds/notification.mp3` — Download a notification sound.\n\n### Realtime (2)\n- `GET /google.firestore.v1.firestore/listen/channel` — Listen for real-time updates from Firestore.\n- `POST /google.firestore.v1.firestore/listen/channel` — Send data to Firestore via a real-time channel.\n\n### Config (1)\n- `GET /{id}/projects/-/apps/1:622990908402:web:3d0f646f757564cf2f696b/webconfig` — Retrieve the web configuration for a specific app.\n\n### Core API (1)\n- `GET /claw/open` — Open the claw (likely for robotic agents).\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"aiagentstore\", executionMode: \"backend\", endpoint: \"GET /{id}\" }\n```\n\nHere are some quick examples to get you started interacting with the `aiagentstore` API:\n\n```typescript\n// Get details about a specific agent by its ID.\nasync function getAgentDetails(agentId: string) {\n  try {\n    const agent = await client.getAgent(agentId);\n    console.log(\"Agent Details:\", agent);\n    return agent;\n  } catch (error) {\n    console.error(\"Error fetching agent details:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Install an agent in a project.\nasync function installAgent(projectId: string, agentConfig: any) {\n  try {\n    const installationResult = await client.installAgent(projectId, agentConfig);\n    console.log(\"Agent Installation Result:\", installationResult);\n    return installationResult;\n  } catch (error) {\n    console.error(\"Error installing agent:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Angle:** stop guessing what the UI hides. This gives you an operator-grade endpoint map you can automate against.\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## What you get\n- A captured endpoint catalog for `aiagentstore.ai` (Claw Earn pages)\n- Replayable calls via `unbrowse_replay` (through a real browser fingerprint)\n- References + typed client (`scripts/api.ts`) for integration\n\n## Quickstart (Unbrowse)\n1) Capture fresh auth while browsing:\n```text\nunbrowse_capture urls=[\"https://aiagentstore.ai/claw-earn\"] intent=\"list open Claw Earn bounties\"\n```\n2) Call a verified endpoint:\n```text\nunbrowse_replay service=\"aiagentstore\" endpoint=\"GET /claw/open\"\n```\n\nPublic (no auth) alternative:\n```bash\ncurl -fsSL \"https://aiagentstore.ai/claw/open\"\n```\n\n## Security / creds\n- **No credentials are published** with this skill. Others must capture their own session.\n- Treat `auth.json` as sensitive (cookies + headers). Rotate by re-capturing if you suspect exposure.\n\n## Auth method\nAPI Key header (`x-goog-api-key`) detected from captured traffic (plus cookies).\n\n## Docs\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable)\n- `scripts/api.ts` (typed client)\n\n## Notes\n- Rate limits are unknown; start with low frequency.\n- Endpoints may break; re-capture if the site changes.\n\n## Endpoints (Auto-generated)\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /{id}`\n- `GET /{id}/projects/-/apps/1:622990908402:web:3d0f646f757564cf2f696b/webconfig`\n- `GET /claw/open`\n- `GET /google.firestore.v1.firestore/listen/channel`\n- `GET /pixels/a2_ht0xqw6nmsn6/config`\n- `GET /sounds/notification.mp3`\n- `POST /google.firestore.v1.firestore/listen/channel`\n- `POST /trackevent`\n- `POST /v1/projects/aiagentstore/installations`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /{id}`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /{id}/projects/-/apps/1:622990908402:web:3d0f646f757564cf2f696b/webconfig`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /claw/open`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /google.firestore.v1.firestore/listen/channel`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pixels/a2_ht0xqw6nmsn6/config`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /sounds/notification.mp3`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /google.firestore.v1.firestore/listen/channel`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /trackevent`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /v1/projects/aiagentstore/installations`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

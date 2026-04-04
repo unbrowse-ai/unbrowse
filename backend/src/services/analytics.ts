@@ -7,7 +7,8 @@
  */
 
 import type { Env, AgentProfile } from "../types.js";
-import { statsKV } from "./kv.js";
+import { statsKV, skillsKV } from "./kv.js";
+import { getPerf } from "./perf.js";
 
 // ─── Helpers ───
 
@@ -167,6 +168,7 @@ export interface ActivationFunnel {
   discovered_skill: number;    // discovered at least 1 skill
   repeat_user: number;         // 5+ executions
   power_user: number;          // 20+ executions
+  data_quality_warnings: string[];
   rates: {
     registration_to_first_exec: number;
     first_exec_to_discovery: number;
@@ -181,9 +183,23 @@ export async function getActivation(env: Env): Promise<ActivationFunnel> {
   const total = profiles.length;
   const recoveredProfiles = profiles.filter((p) => p.profile_origin === "recovered").length;
   const executedOnce = profiles.filter(p => p.total_executions >= 1).length;
-  const discoveredSkill = profiles.filter(p => p.skills_discovered.length >= 1).length;
-  const repeatUser = profiles.filter(p => p.total_executions >= 5).length;
-  const powerUser = profiles.filter(p => p.total_executions >= 20).length;
+  const discoveredSkillRaw = profiles.filter(p => p.skills_discovered.length >= 1).length;
+  const repeatUserRaw = profiles.filter(p => p.total_executions >= 5).length;
+  const powerUserRaw = profiles.filter(p => p.total_executions >= 20).length;
+  const discoveredSkill = Math.min(discoveredSkillRaw, executedOnce);
+  const repeatUser = Math.min(repeatUserRaw, discoveredSkill);
+  const powerUser = Math.min(powerUserRaw, repeatUser);
+  const dataQualityWarnings: string[] = [];
+
+  if (discoveredSkillRaw > executedOnce) {
+    dataQualityWarnings.push("raw_discovered_skill_exceeded_executed_once");
+  }
+  if (repeatUserRaw > discoveredSkill) {
+    dataQualityWarnings.push("raw_repeat_user_exceeded_discovered_skill");
+  }
+  if (powerUserRaw > repeatUser) {
+    dataQualityWarnings.push("raw_power_user_exceeded_repeat_user");
+  }
 
   return {
     total_registered: total,
@@ -192,6 +208,7 @@ export async function getActivation(env: Env): Promise<ActivationFunnel> {
     discovered_skill: discoveredSkill,
     repeat_user: repeatUser,
     power_user: powerUser,
+    data_quality_warnings: dataQualityWarnings,
     rates: {
       registration_to_first_exec: total > 0 ? Math.round((executedOnce / total) * 100) / 100 : 0,
       first_exec_to_discovery: executedOnce > 0 ? Math.round((discoveredSkill / executedOnce) * 100) / 100 : 0,
@@ -311,4 +328,115 @@ export async function backfillFromProfiles(env: Env): Promise<BackfillResult> {
     cohorts_seeded: new Set(profiles.map((profile) => profile.created_at.slice(0, 10))).size,
     active_days_seeded: activeDaysSeeded,
   };
+}
+
+// ─── Bottleneck metrics for break-even planning ───
+
+export interface BottleneckMetrics {
+  capture_latency_p50_ms: number;
+  capture_latency_p95_ms: number;
+  resolve_latency_p50_ms: number;
+  resolve_latency_p95_ms: number;
+  execute_latency_p50_ms: number;
+  execute_latency_p95_ms: number;
+  cache_hit_rate: number;
+  marketplace_hit_rate: number;
+  live_capture_rate: number;
+  failure_rate: number;
+  skills_per_domain: number;
+}
+
+export function computePercentile(values: number[], p: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, idx)];
+}
+
+export function computeBottleneckMetrics(
+  captures: number[],
+  resolves: number[],
+  executes: number[],
+  cacheHits: number,
+  marketplaceHits: number,
+  liveCaptures: number,
+  failures: number,
+  totalRequests: number,
+  uniqueDomains: number,
+  totalSkills: number,
+): BottleneckMetrics {
+  return {
+    capture_latency_p50_ms: computePercentile(captures, 50),
+    capture_latency_p95_ms: computePercentile(captures, 95),
+    resolve_latency_p50_ms: computePercentile(resolves, 50),
+    resolve_latency_p95_ms: computePercentile(resolves, 95),
+    execute_latency_p50_ms: computePercentile(executes, 50),
+    execute_latency_p95_ms: computePercentile(executes, 95),
+    cache_hit_rate: totalRequests > 0 ? cacheHits / totalRequests : 0,
+    marketplace_hit_rate: totalRequests > 0 ? marketplaceHits / totalRequests : 0,
+    live_capture_rate: totalRequests > 0 ? liveCaptures / totalRequests : 0,
+    failure_rate: totalRequests > 0 ? failures / totalRequests : 0,
+    skills_per_domain: uniqueDomains > 0 ? totalSkills / uniqueDomains : 0,
+  };
+}
+
+
+// ─── KV-backed bottleneck aggregation ───
+
+/**
+ * Load orchestration stats from KV and compute bottleneck metrics.
+ * Uses perf:recent timing window for latency percentiles,
+ * PerfStats for hit rates, and skillsKV for domain/skill counts.
+ */
+export async function getBottleneckMetrics(env: Env): Promise<BottleneckMetrics> {
+  const [perfStats, recentRaw, skillEntries] = await Promise.all([
+    getPerf(env),
+    statsKV(env).get("perf:recent") as Promise<string | null>,
+    skillsKV(env).listWithValues("skill:"),
+  ]);
+
+  // Parse per-phase timing windows — fall back to totals when unavailable
+  const recent: number[] = recentRaw ? (safeJsonArray(recentRaw) ?? []) : [];
+
+  const captureRaw = await statsKV(env).get("perf:recent:capture") as string | null;
+  const resolveRaw = await statsKV(env).get("perf:recent:resolve") as string | null;
+  const executeRaw = await statsKV(env).get("perf:recent:execute") as string | null;
+  const captures: number[] = captureRaw ? (safeJsonArray(captureRaw) ?? []) : [];
+  const resolves: number[] = resolveRaw ? (safeJsonArray(resolveRaw) ?? recent) : recent;
+  const executes: number[] = executeRaw ? (safeJsonArray(executeRaw) ?? []) : [];
+
+  // Count skills and unique domains
+  let totalSkills = 0;
+  const domainSet = new Set<string>();
+  for (const { value } of skillEntries) {
+    try {
+      const s = JSON.parse(value) as { domain?: string; lifecycle?: string };
+      if (s.lifecycle === "deprecated" || s.lifecycle === "disabled") continue;
+      totalSkills++;
+      if (s.domain) domainSet.add(s.domain);
+    } catch { /* skip malformed */ }
+  }
+
+  const totalRequests = perfStats.total_resolves;
+  const failures = totalRequests - (perfStats.marketplace_hits + perfStats.cache_hits + perfStats.live_captures + perfStats.dom_fallbacks);
+
+  return computeBottleneckMetrics(
+    captures,
+    resolves,
+    executes,
+    perfStats.cache_hits,
+    perfStats.marketplace_hits,
+    perfStats.live_captures,
+    Math.max(0, failures),
+    totalRequests,
+    domainSet.size,
+    totalSkills,
+  );
+}
+
+function safeJsonArray(s: string): number[] | null {
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v : null;
+  } catch { return null; }
 }

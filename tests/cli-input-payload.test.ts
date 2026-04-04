@@ -74,7 +74,7 @@ async function runCli(baseUrl: string, args: string[]): Promise<{ code: number; 
   return { code, stdout, stderr };
 }
 
-describe("CLI input payload ingestion", () => {
+describe("CLI input payload ingestion (integration)", () => {
   it("resolve merges --url and --params into the request payload", async () => {
     const server = await startJsonEchoServer({ result: { ok: true } });
 
@@ -91,6 +91,7 @@ describe("CLI input payload ingestion", () => {
       path: "/v1/intent/resolve",
       body: {
         intent: "search packages",
+        projection: { raw: true },
         params: {
           url: "https://npmjs.com/search?q=openai",
           page: 2,
@@ -98,6 +99,9 @@ describe("CLI input payload ingestion", () => {
         },
         context: {
           url: "https://npmjs.com/search?q=openai",
+        },
+        projection: {
+          raw: true,
         },
       },
     });
@@ -125,6 +129,7 @@ describe("CLI input payload ingestion", () => {
           endpoint_id: "ep-search",
           page: 2,
           query: "openai",
+          url: "https://npmjs.com/search?q=openai",
         },
         context_url: "https://npmjs.com/search?q=openai",
         intent: "search packages",
@@ -176,5 +181,63 @@ describe("CLI input payload ingestion", () => {
     expect(body._response_too_large).toBeUndefined();
     expect(body.extraction_hints).toBeUndefined();
     expect(cli.stderr).not.toContain('resolved to undefined');
+  });
+
+  it("forwards --session to browse POST commands", async () => {
+    const server = await startJsonEchoServer({ ok: true });
+
+    const cli = await runCli(server.baseUrl, [
+      "click",
+      "e5",
+      "--session", "sess-42",
+    ]);
+
+    expect(cli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "POST",
+      path: "/v1/browse/click",
+      body: {
+        ref: "e5",
+        session_id: "sess-42",
+      },
+    });
+  });
+
+  it("forwards --session to browse GET commands as a query string", async () => {
+    const server = await startJsonEchoServer({ text: "hello" });
+
+    const cli = await runCli(server.baseUrl, [
+      "text",
+      "--session", "sess-42",
+    ]);
+
+    expect(cli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "GET",
+      path: "/v1/browse/text?session_id=sess-42",
+      body: null,
+    });
+  });
+
+  it("sends publish-bundle to the foundry publish route", async () => {
+    const server = await startJsonEchoServer({ ok: true });
+
+    const cli = await runCli(server.baseUrl, [
+      "publish-bundle",
+      "--preset", "skills/x-account-operator/foundry-preset.json",
+      "--hosts", "codex,claude",
+      "--site-url", "https://www.unbrowse.ai",
+    ]);
+
+    expect(cli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "POST",
+      path: "/v1/foundry/publish-bundle",
+      body: {
+        preset_path: "skills/x-account-operator/foundry-preset.json",
+        hosts: ["codex", "claude"],
+        site_url: "https://www.unbrowse.ai",
+      },
+    });
   });
 });

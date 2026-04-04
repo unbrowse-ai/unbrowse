@@ -8,10 +8,12 @@ import { getAuthCookies } from "../src/auth/index.js";
 import { getSkillChunk, knownBindingsFromInputs, toAgentSkillChunkView } from "../src/graph/index.js";
 import { startUnbrowseServer, type RunningUnbrowseServer } from "../src/server.js";
 import type { SkillManifest } from "../src/types/index.js";
+import { readWorkflowArtifact } from "../src/workflow/artifact.js";
 import {
   buildAgentExecuteCliArgs,
   compactForArtifact,
   fallbackEndpointOrder,
+  hasCliFlag,
   normalizeHarnessCases,
   pickFreeformFollowUpUrl,
   type DeferredEndpoint,
@@ -64,6 +66,12 @@ type CandidateRecord = {
   validation_failures: string[];
   echoed_params: string[];
   side_effect_observed?: string;
+  workflow_recipe?: {
+    preferred_strategy?: string;
+    step_strategies: string[];
+    token_targets: string[];
+    selected_binding_sources: string[];
+  };
   excerpt: unknown;
 };
 
@@ -81,6 +89,11 @@ type TraceContext = {
   known_bindings: Record<string, unknown>;
   chunk?: ReturnType<typeof toAgentSkillChunkView>;
   skill_snapshot?: SkillSnapshot;
+  workflow_summary?: {
+    recipe_count: number;
+    preferred_endpoint_ids: string[];
+    captured_at?: string;
+  };
   source?: string;
   total_ms?: number;
   tokens_used?: number;
@@ -165,7 +178,7 @@ const argv = process.argv.slice(
 );
 const args = new Set(argv);
 const getArg = (flag: string) => argv.find((_, i) => argv[i - 1] === `--${flag}`) ?? "";
-const hasFlag = (flag: string) => args.has(`--${flag}`);
+const hasFlag = (flag: string) => hasCliFlag(args, flag);
 const forceCapture = hasFlag("--force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
 const restartServer = hasFlag("--restart-server");
 const maxRounds = Math.max(1, Number(getArg("max-rounds") || "6") || 6);
@@ -434,6 +447,38 @@ function buildSkillSnapshot(skill?: SkillManifest): SkillSnapshot | undefined {
   };
 }
 
+function buildWorkflowSummary(skillId?: string): TraceContext["workflow_summary"] | undefined {
+  if (!skillId) return undefined;
+  const artifact = readWorkflowArtifact(skillId);
+  if (!artifact) return undefined;
+  return {
+    recipe_count: artifact.recipes.length,
+    preferred_endpoint_ids: artifact.recipes.filter((recipe) => recipe.preferred).map((recipe) => recipe.endpoint_id),
+    captured_at: artifact.captured_at,
+  };
+}
+
+function buildWorkflowRecipeSummary(
+  skillId: string | undefined,
+  endpointId: string | undefined,
+  body?: any,
+): CandidateRecord["workflow_recipe"] | undefined {
+  if (!skillId || !endpointId) return undefined;
+  const artifact = readWorkflowArtifact(skillId);
+  const recipe = artifact?.recipes.find((entry) => entry.endpoint_id === endpointId);
+  if (!recipe) return undefined;
+  return {
+    preferred_strategy: recipe.last_successful_strategy,
+    step_strategies: recipe.steps.map((step) => step.strategy),
+    token_targets: recipe.token_bindings.map((binding) => binding.target_name),
+    selected_binding_sources: Array.isArray(body?.trace?.workflow_selected_bindings)
+      ? body.trace.workflow_selected_bindings
+          .map((entry: any) => `${entry?.source_kind ?? "unknown"}:${entry?.source_name ?? "unknown"}`)
+          .filter((value: string) => !!value)
+      : [],
+  };
+}
+
 function uniqueStrings(values: Iterable<string>): string[] {
   return [...new Set([...values].filter(Boolean))];
 }
@@ -681,6 +726,7 @@ async function evaluateCase(
         known_bindings: compactForArtifact(knownBindings) as Record<string, unknown>,
         ...(chunk ? { chunk: toAgentSkillChunkView(chunk) } : {}),
         ...(resolveSkill ? { skill_snapshot: buildSkillSnapshot(resolveSkill) } : {}),
+        ...(resolveSkill ? { workflow_summary: buildWorkflowSummary(resolveSkill.skill_id) } : {}),
         ...resolveTelemetry(resolveBody),
       },
       resolve_excerpt: compactForArtifact(resolveBody?.result ?? resolveBody),
@@ -750,6 +796,7 @@ async function evaluateCase(
       validation_failures: directReview.validation_failures,
       echoed_params: directReview.echoed_params,
       side_effect_observed: directReview.side_effect_observed,
+      workflow_recipe: buildWorkflowRecipeSummary(resolveSkillId, resolveBody?.trace?.endpoint_id, resolveBody),
       ...executeTelemetry(resolveBody),
       excerpt: compactForArtifact(directReview.projected_excerpt),
     });
@@ -843,6 +890,7 @@ async function evaluateCase(
           validation_failures: review.validation_failures,
           echoed_params: review.echoed_params,
           side_effect_observed: review.side_effect_observed,
+          workflow_recipe: buildWorkflowRecipeSummary(resolveSkillId, endpointId, execute.body),
           ...executeTelemetry(execute.body),
           excerpt: compactForArtifact(review.projected_excerpt),
         });

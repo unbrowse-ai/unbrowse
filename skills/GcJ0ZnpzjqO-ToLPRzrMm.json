@@ -1,0 +1,2990 @@
+{
+  "skill_id": "GcJ0ZnpzjqO-ToLPRzrMm",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:39:10.692Z",
+  "updated_at": "2026-02-23T07:39:10.692Z",
+  "name": "api.telnyx.com -- Manage Telnyx user profiles, authenticate",
+  "intent_signature": "Manage Telnyx user profiles, authenticate",
+  "domain": "api.telnyx.com",
+  "description": "Auto-discovered skill for: Manage Telnyx user profiles, authenticate",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "MPbEXYNU_N0rgSPIBxwJO",
+      "method": "GET",
+      "url_template": "https://api.telnyx.com/api/frontend",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://portal.telnyx.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "appName": "customer-portal-app",
+        "environment": "default"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "toggles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "inferred_from_samples": 141
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "inferred_from_samples": 141
+                },
+                "variant": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "inferred_from_samples": 141
+                    },
+                    "enabled": {
+                      "type": "boolean",
+                      "inferred_from_samples": 141
+                    },
+                    "payload": {
+                      "type": "object",
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "inferred_from_samples": 141
+                        },
+                        {
+                          "type": "null",
+                          "inferred_from_samples": 141
+                        }
+                      ],
+                      "inferred_from_samples": 141
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "enabled",
+                    "payload"
+                  ],
+                  "inferred_from_samples": 141
+                },
+                "impression_data": {
+                  "type": "boolean",
+                  "inferred_from_samples": 141
+                },
+                "impressionData": {
+                  "type": "boolean",
+                  "inferred_from_samples": 141
+                }
+              },
+              "required": [
+                "name",
+                "enabled",
+                "variant",
+                "impression_data",
+                "impressionData"
+              ],
+              "inferred_from_samples": 141
+            },
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "toggles"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "A0nYLbi_ycVw4oolfmvyP",
+      "method": "GET",
+      "url_template": "https://api.telnyx.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "q7eii5fuFdllGfwkgKJYa",
+      "method": "GET",
+      "url_template": "https://portal.telnyx.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "dNMg1VeZAiZG85545Jbon",
+      "method": "GET",
+      "url_template": "https://api.telnyx.com/v2/freemium_enabled",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://portal.telnyx.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-language": "en-US",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "-sfA5iK49hmS4tQ98RD_2",
+      "method": "GET",
+      "url_template": "https://portal.telnyx.comhttps://portal.telnyx.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "HDpgZ-3hMHGf1EOQJQb4h",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/v1/projects/ZJF0glU6NoKycjhoQqez4gAkisp7igJx/settings",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://portal.telnyx.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "_lastModified": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "integrations": {
+            "type": "object",
+            "properties": {
+              "AdWords": {
+                "type": "object",
+                "properties": {
+                  "conversionId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "eventMappings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "eventName": {
+                          "type": "string",
+                          "inferred_from_samples": 23
+                        },
+                        "label": {
+                          "type": "string",
+                          "inferred_from_samples": 23
+                        },
+                        "conversionId": {
+                          "type": "string",
+                          "inferred_from_samples": 23
+                        },
+                        "remarketing": {
+                          "type": "boolean",
+                          "inferred_from_samples": 23
+                        }
+                      },
+                      "required": [
+                        "eventName",
+                        "label",
+                        "conversionId",
+                        "remarketing"
+                      ],
+                      "inferred_from_samples": 23
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "pageRemarketing": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 2
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "conversionId",
+                  "eventMappings",
+                  "pageRemarketing",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Amazon S3": {
+                "type": "object",
+                "properties": {
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "versionSettings"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Webhooks": {
+                "type": "object",
+                "properties": {
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "versionSettings",
+                  "type"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Facebook Pixel": {
+                "type": "object",
+                "properties": {
+                  "automaticConfiguration": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "blacklistPiiProperties": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "contentTypes": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "inferred_from_samples": 1
+                  },
+                  "initWithExistingTraits": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "keyForExternalId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "legacyEvents": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "inferred_from_samples": 1
+                  },
+                  "limitedDataUse": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "pixelId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "standardEvents": {
+                    "type": "object",
+                    "properties": {
+                      "Added Funds": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "Created Account": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "Added Funds",
+                      "Created Account"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "standardEventsCustomProperties": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "userIdAsExternalId": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "valueIdentifier": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "whitelistPiiProperties": {
+                    "type": "array",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "automaticConfiguration",
+                  "blacklistPiiProperties",
+                  "contentTypes",
+                  "initWithExistingTraits",
+                  "keyForExternalId",
+                  "legacyEvents",
+                  "limitedDataUse",
+                  "pixelId",
+                  "standardEvents",
+                  "standardEventsCustomProperties",
+                  "userIdAsExternalId",
+                  "valueIdentifier",
+                  "whitelistPiiProperties",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Google Tag Manager": {
+                "type": "object",
+                "properties": {
+                  "containerId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "dataLayerName": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "environment": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "trackAllPages": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "trackCategorizedPages": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "trackNamedPages": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "containerId",
+                  "dataLayerName",
+                  "environment",
+                  "trackAllPages",
+                  "trackCategorizedPages",
+                  "trackNamedPages",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Bing Ads": {
+                "type": "object",
+                "properties": {
+                  "tagId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "tagId",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Marketo V2": {
+                "type": "object",
+                "properties": {
+                  "accountId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "anonymousActivity": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "beta": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "event": {
+                          "type": "string",
+                          "inferred_from_samples": 27
+                        },
+                        "marketoActivityId": {
+                          "type": "string",
+                          "inferred_from_samples": 27
+                        },
+                        "segmentProperty": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "segmentProperty": {
+                                "type": "string",
+                                "inferred_from_samples": 27
+                              },
+                              "marketoAttributeName": {
+                                "type": "string",
+                                "inferred_from_samples": 27
+                              },
+                              "marketoAttributeType": {
+                                "type": "string",
+                                "inferred_from_samples": 27
+                              },
+                              "primaryKey": {
+                                "type": "boolean",
+                                "inferred_from_samples": 27
+                              }
+                            },
+                            "required": [
+                              "segmentProperty",
+                              "marketoAttributeName",
+                              "marketoAttributeType",
+                              "primaryKey"
+                            ],
+                            "inferred_from_samples": 27
+                          },
+                          "inferred_from_samples": 27
+                        }
+                      },
+                      "required": [
+                        "event",
+                        "marketoActivityId",
+                        "segmentProperty"
+                      ],
+                      "inferred_from_samples": 27
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "marketoFormId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "marketoHostUrl": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "traits": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "segmentTrait": {
+                          "type": "string",
+                          "inferred_from_samples": 27
+                        },
+                        "marketoFieldName": {
+                          "type": "string",
+                          "inferred_from_samples": 27
+                        },
+                        "marketoFieldType": {
+                          "type": "string",
+                          "inferred_from_samples": 27
+                        }
+                      },
+                      "required": [
+                        "segmentTrait",
+                        "marketoFieldName",
+                        "marketoFieldType"
+                      ],
+                      "inferred_from_samples": 27
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 2
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "projectId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "accountId",
+                  "anonymousActivity",
+                  "beta",
+                  "events",
+                  "marketoFormId",
+                  "marketoHostUrl",
+                  "traits",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus",
+                  "projectId"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Zapier": {
+                "type": "object",
+                "properties": {
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "versionSettings",
+                  "type"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Survicate": {
+                "type": "object",
+                "properties": {
+                  "workspaceKey": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 3
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "bundlingStatus": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "workspaceKey",
+                  "versionSettings",
+                  "type",
+                  "bundlingStatus"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Intercom Web (Actions)": {
+                "type": "object",
+                "properties": {
+                  "activator": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "apiBase": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "appId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "richLinkProperties": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "activator",
+                  "apiBase",
+                  "appId",
+                  "richLinkProperties",
+                  "versionSettings"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Intercom Cloud Mode (Actions)": {
+                "type": "object",
+                "properties": {
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "componentTypes": {
+                        "type": "array",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "versionSettings"
+                ],
+                "inferred_from_samples": 1
+              },
+              "Segment.io": {
+                "type": "object",
+                "properties": {
+                  "apiKey": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "unbundledIntegrations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "addBundledMetadata": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  },
+                  "maybeBundledConfigIds": {
+                    "type": "object",
+                    "properties": {
+                      "Google Tag Manager": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "Survicate": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "Intercom Web (Actions)": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "Facebook Pixel": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "Marketo V2": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "AdWords": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      },
+                      "Bing Ads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "Google Tag Manager",
+                      "Survicate",
+                      "Intercom Web (Actions)",
+                      "Facebook Pixel",
+                      "Marketo V2",
+                      "AdWords",
+                      "Bing Ads"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "versionSettings": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "componentTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "componentTypes"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "retryQueue": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "apiKey",
+                  "unbundledIntegrations",
+                  "addBundledMetadata",
+                  "maybeBundledConfigIds",
+                  "versionSettings",
+                  "retryQueue"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "AdWords",
+              "Amazon S3",
+              "Webhooks",
+              "Facebook Pixel",
+              "Google Tag Manager",
+              "Bing Ads",
+              "Marketo V2",
+              "Zapier",
+              "Survicate",
+              "Intercom Web (Actions)",
+              "Intercom Cloud Mode (Actions)",
+              "Segment.io"
+            ],
+            "inferred_from_samples": 1
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "track": {
+                "type": "object",
+                "properties": {
+                  "__default": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Chose Call Control XML Auth On A Connection": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Marketo V2": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Marketo V2"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Created Application": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Marketo V2": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Marketo V2"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Created Connection": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Marketo V2": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Marketo V2"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Experienced Signup Error": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Marketo V2": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Marketo V2"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Sub - DisplayAds": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Sub - adroll": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Sub - gdn/?ads_cmpid": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Sub - ppc": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Sub - undefined": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Sub - unknown-source": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Submit - AdWords": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Submit - DisplayAds": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Form Submit - Test": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Modified Number": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Marketo V2": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Marketo V2"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Page Viewed": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "integrations": {
+                        "type": "object",
+                        "properties": {
+                          "Marketo V2": {
+                            "type": "boolean",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "Marketo V2"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "integrations"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "__default",
+                  "Chose Call Control XML Auth On A Connection",
+                  "Created Application",
+                  "Created Connection",
+                  "Experienced Signup Error",
+                  "Form Sub - DisplayAds",
+                  "Form Sub - adroll",
+                  "Form Sub - gdn/?ads_cmpid",
+                  "Form Sub - ppc",
+                  "Form Sub - undefined",
+                  "Form Sub - unknown-source",
+                  "Form Submit - AdWords",
+                  "Form Submit - DisplayAds",
+                  "Form Submit - Test",
+                  "Modified Number",
+                  "Page Viewed"
+                ],
+                "inferred_from_samples": 1
+              },
+              "identify": {
+                "type": "object",
+                "properties": {
+                  "__default": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "AccountBlocked": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "AutoRechargeEnabled": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "PaymentsAllTime": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "Portal_Sign_Up_Date": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "address": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "business_name": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_category_industry": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_category_sector": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_category_sub_industry": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_crunchbase_handle": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_domain": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_domain_aliases": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_email_provider": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_facebook_handle": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_founded_year": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_geo_city": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_geo_lat": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_geo_lng": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_geo_postal_code": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_geo_state": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_geo_sub_premise": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_linkedin_handle": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_metrics_alexa_global_rank": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_metrics_alexa_us_rank": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_metrics_employees": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_metrics_employees_range": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_metrics_market_cap": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_metrics_raised": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_company_time_zone": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "clearbit_reveal_fuzzy": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "createdAt": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "first_name": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "last_name": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "__default",
+                  "AccountBlocked",
+                  "AutoRechargeEnabled",
+                  "PaymentsAllTime",
+                  "Portal_Sign_Up_Date",
+                  "address",
+                  "business_name",
+                  "clearbit_reveal_company_category_industry",
+                  "clearbit_reveal_company_category_sector",
+                  "clearbit_reveal_company_category_sub_industry",
+                  "clearbit_reveal_company_crunchbase_handle",
+                  "clearbit_reveal_company_domain",
+                  "clearbit_reveal_company_domain_aliases",
+                  "clearbit_reveal_company_email_provider",
+                  "clearbit_reveal_company_facebook_handle",
+                  "clearbit_reveal_company_founded_year",
+                  "clearbit_reveal_company_geo_city",
+                  "clearbit_reveal_company_geo_lat",
+                  "clearbit_reveal_company_geo_lng",
+                  "clearbit_reveal_company_geo_postal_code",
+                  "clearbit_reveal_company_geo_state",
+                  "clearbit_reveal_company_geo_sub_premise",
+                  "clearbit_reveal_company_linkedin_handle",
+                  "clearbit_reveal_company_metrics_alexa_global_rank",
+                  "clearbit_reveal_company_metrics_alexa_us_rank",
+                  "clearbit_reveal_company_metrics_employees",
+                  "clearbit_reveal_company_metrics_employees_range",
+                  "clearbit_reveal_company_metrics_market_cap",
+                  "clearbit_reveal_company_metrics_raised",
+                  "clearbit_reveal_company_time_zone",
+                  "clearbit_reveal_fuzzy",
+                  "createdAt",
+                  "first_name",
+                  "last_name"
+                ],
+                "inferred_from_samples": 1
+              },
+              "group": {
+                "type": "object",
+                "properties": {
+                  "__default": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "__default"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "track",
+              "identify",
+              "group"
+            ],
+            "inferred_from_samples": 1
+          },
+          "edgeFunction": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "analyticsNextEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "middlewareSettings": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "enabledMiddleware": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "metrics": {
+            "type": "object",
+            "properties": {
+              "sampleRate": {
+                "type": "number",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "sampleRate"
+            ],
+            "inferred_from_samples": 1
+          },
+          "legacyVideoPluginsEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "remotePlugins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "creationName": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "libraryName": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "url": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "settings": {
+                  "type": "object",
+                  "properties": {
+                    "activator": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "apiBase": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "appId": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "richLinkProperties": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "versionSettings": {
+                      "type": "object",
+                      "properties": {
+                        "componentTypes": {
+                          "type": "array",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "componentTypes"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "subscriptions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "name": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "inferred_from_samples": 4
+                          },
+                          "partnerAction": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "subscribe": {
+                            "type": "string",
+                            "inferred_from_samples": 4
+                          },
+                          "mapping": {
+                            "type": "object",
+                            "properties": {
+                              "company": {
+                                "type": "object",
+                                "properties": {
+                                  "company_id": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  },
+                                  "name": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  },
+                                  "created_at": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@if": {
+                                        "type": "object",
+                                        "properties": {
+                                          "exists": {
+                                            "type": "object",
+                                            "properties": {
+                                              "@path": {
+                                                "type": "string",
+                                                "inferred_from_samples": 2
+                                              }
+                                            },
+                                            "required": [
+                                              "@path"
+                                            ],
+                                            "inferred_from_samples": 2
+                                          },
+                                          "then": {
+                                            "type": "object",
+                                            "properties": {
+                                              "@path": {
+                                                "type": "string",
+                                                "inferred_from_samples": 2
+                                              }
+                                            },
+                                            "required": [
+                                              "@path"
+                                            ],
+                                            "inferred_from_samples": 2
+                                          },
+                                          "else": {
+                                            "type": "object",
+                                            "properties": {
+                                              "@path": {
+                                                "type": "string",
+                                                "inferred_from_samples": 2
+                                              }
+                                            },
+                                            "required": [
+                                              "@path"
+                                            ],
+                                            "inferred_from_samples": 2
+                                          }
+                                        },
+                                        "required": [
+                                          "exists",
+                                          "then",
+                                          "else"
+                                        ],
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "@if"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  },
+                                  "plan": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  },
+                                  "size": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  },
+                                  "website": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  },
+                                  "industry": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  },
+                                  "monthly_spend": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  }
+                                },
+                                "required": [
+                                  "company_id",
+                                  "name",
+                                  "created_at",
+                                  "plan",
+                                  "size",
+                                  "website",
+                                  "industry",
+                                  "monthly_spend"
+                                ],
+                                "inferred_from_samples": 2
+                              },
+                              "email": {
+                                "type": "object",
+                                "properties": {
+                                  "@path": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@path"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "companies": {
+                                "type": "object",
+                                "properties": {
+                                  "@arrayPath": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "@path": {
+                                          "type": "string",
+                                          "inferred_from_samples": 1
+                                        },
+                                        "company_id": {
+                                          "type": "object",
+                                          "properties": {
+                                            "@path": {
+                                              "type": "string",
+                                              "inferred_from_samples": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "@path"
+                                          ],
+                                          "inferred_from_samples": 1
+                                        },
+                                        "name": {
+                                          "type": "object",
+                                          "properties": {
+                                            "@path": {
+                                              "type": "string",
+                                              "inferred_from_samples": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "@path"
+                                          ],
+                                          "inferred_from_samples": 1
+                                        },
+                                        "created_at": {
+                                          "type": "object",
+                                          "properties": {
+                                            "@if": {
+                                              "type": "object",
+                                              "properties": {
+                                                "exists": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "@path": {
+                                                      "type": "string",
+                                                      "inferred_from_samples": 1
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "@path"
+                                                  ],
+                                                  "inferred_from_samples": 1
+                                                },
+                                                "then": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "@path": {
+                                                      "type": "string",
+                                                      "inferred_from_samples": 1
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "@path"
+                                                  ],
+                                                  "inferred_from_samples": 1
+                                                },
+                                                "else": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "@path": {
+                                                      "type": "string",
+                                                      "inferred_from_samples": 1
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "@path"
+                                                  ],
+                                                  "inferred_from_samples": 1
+                                                }
+                                              },
+                                              "required": [
+                                                "exists",
+                                                "then",
+                                                "else"
+                                              ],
+                                              "inferred_from_samples": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "@if"
+                                          ],
+                                          "inferred_from_samples": 1
+                                        },
+                                        "plan": {
+                                          "type": "object",
+                                          "properties": {
+                                            "@path": {
+                                              "type": "string",
+                                              "inferred_from_samples": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "@path"
+                                          ],
+                                          "inferred_from_samples": 1
+                                        },
+                                        "size": {
+                                          "type": "object",
+                                          "properties": {
+                                            "@path": {
+                                              "type": "string",
+                                              "inferred_from_samples": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "@path"
+                                          ],
+                                          "inferred_from_samples": 1
+                                        },
+                                        "website": {
+                                          "type": "object",
+                                          "properties": {
+                                            "@path": {
+                                              "type": "string",
+                                              "inferred_from_samples": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "@path"
+                                          ],
+                                          "inferred_from_samples": 1
+                                        },
+                                        "industry": {
+                                          "type": "object",
+                                          "properties": {
+                                            "@path": {
+                                              "type": "string",
+                                              "inferred_from_samples": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "@path"
+                                          ],
+                                          "inferred_from_samples": 1
+                                        },
+                                        "monthly_spend": {
+                                          "type": "object",
+                                          "properties": {
+                                            "@path": {
+                                              "type": "string",
+                                              "inferred_from_samples": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "@path"
+                                          ],
+                                          "inferred_from_samples": 1
+                                        }
+                                      },
+                                      "inferred_from_samples": 2
+                                    },
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@arrayPath"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "custom_traits": {
+                                "type": "object",
+                                "properties": {
+                                  "Form_Budget__c": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  },
+                                  "Form_Company_Size__c": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  },
+                                  "Form_Currency__c": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  },
+                                  "Form_Motive__c": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  },
+                                  "Form_Phone__c": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  },
+                                  "Form_Title__c": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  },
+                                  "Form_Use_Case_Other__c": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  },
+                                  "Use_Case_Form__c": {
+                                    "type": "object",
+                                    "properties": {
+                                      "@path": {
+                                        "type": "string",
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "@path"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "Form_Budget__c",
+                                  "Form_Company_Size__c",
+                                  "Form_Currency__c",
+                                  "Form_Motive__c",
+                                  "Form_Phone__c",
+                                  "Form_Title__c",
+                                  "Form_Use_Case_Other__c",
+                                  "Use_Case_Form__c"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "user_id": {
+                                "type": "object",
+                                "properties": {
+                                  "@path": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@path"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "user_hash": {
+                                "type": "object",
+                                "properties": {
+                                  "@if": {
+                                    "type": "object",
+                                    "properties": {
+                                      "exists": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 1
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 1
+                                      },
+                                      "then": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 1
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 1
+                                      },
+                                      "else": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 1
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "exists",
+                                      "then",
+                                      "else"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@if"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "avatar_image_url": {
+                                "type": "object",
+                                "properties": {
+                                  "@path": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@path"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "name": {
+                                "type": "object",
+                                "properties": {
+                                  "@template": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@template"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "hide_default_launcher": {
+                                "type": "object",
+                                "properties": {
+                                  "@if": {
+                                    "type": "object",
+                                    "properties": {
+                                      "exists": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 2
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 2
+                                      },
+                                      "then": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 2
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 2
+                                      },
+                                      "else": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 2
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 2
+                                      }
+                                    },
+                                    "required": [
+                                      "exists",
+                                      "then",
+                                      "else"
+                                    ],
+                                    "inferred_from_samples": 2
+                                  }
+                                },
+                                "required": [
+                                  "@if"
+                                ],
+                                "inferred_from_samples": 2
+                              },
+                              "phone": {
+                                "type": "object",
+                                "properties": {
+                                  "@path": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@path"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "created_at": {
+                                "type": "object",
+                                "properties": {
+                                  "@if": {
+                                    "type": "object",
+                                    "properties": {
+                                      "exists": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 1
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 1
+                                      },
+                                      "then": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 1
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 1
+                                      },
+                                      "else": {
+                                        "type": "object",
+                                        "properties": {
+                                          "@path": {
+                                            "type": "string",
+                                            "inferred_from_samples": 1
+                                          }
+                                        },
+                                        "required": [
+                                          "@path"
+                                        ],
+                                        "inferred_from_samples": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "exists",
+                                      "then",
+                                      "else"
+                                    ],
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@if"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "event_metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "@path": {
+                                    "type": "string",
+                                    "inferred_from_samples": 2
+                                  }
+                                },
+                                "required": [
+                                  "@path"
+                                ],
+                                "inferred_from_samples": 2
+                              },
+                              "event_name": {
+                                "type": "object",
+                                "properties": {
+                                  "@template": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  },
+                                  "@path": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "inferred_from_samples": 2
+                              },
+                              "revenue": {
+                                "type": "object",
+                                "properties": {
+                                  "@path": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@path"
+                                ],
+                                "inferred_from_samples": 1
+                              },
+                              "currency": {
+                                "type": "object",
+                                "properties": {
+                                  "@path": {
+                                    "type": "string",
+                                    "inferred_from_samples": 1
+                                  }
+                                },
+                                "required": [
+                                  "@path"
+                                ],
+                                "inferred_from_samples": 1
+                              }
+                            },
+                            "inferred_from_samples": 4
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "enabled",
+                          "partnerAction",
+                          "subscribe",
+                          "mapping"
+                        ],
+                        "inferred_from_samples": 4
+                      },
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "activator",
+                    "apiBase",
+                    "appId",
+                    "richLinkProperties",
+                    "versionSettings",
+                    "subscriptions"
+                  ],
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "name",
+                "creationName",
+                "libraryName",
+                "url",
+                "settings"
+              ],
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "autoInstrumentationSettings": {
+            "type": "object",
+            "properties": {
+              "disableTraffic": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "sampleRate": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "disableTraffic",
+              "sampleRate"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "_lastModified",
+          "integrations",
+          "plan",
+          "edgeFunction",
+          "analyticsNextEnabled",
+          "middlewareSettings",
+          "enabledMiddleware",
+          "metrics",
+          "legacyVideoPluginsEnabled",
+          "remotePlugins",
+          "autoInstrumentationSettings"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "bvFvgcSjD-u38hNSewcb0",
+      "method": "GET",
+      "url_template": "https://google.com/.well-known/web-identity",
+      "headers_template": {
+        "accept": "application/json"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "provider_urls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "inferred_from_samples": 1
+          },
+          "accounts_endpoint": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "login_url": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "provider_urls",
+          "accounts_endpoint",
+          "login_url"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "rEwq3hscZAZX5rdyAAVRY",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/adwords/2.5.3/adwords.dynamic.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://portal.telnyx.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "fHt90GhvnoQ-90-5V9ELL",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/survicate/1.0.3/survicate.dynamic.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://portal.telnyx.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "t3CVVCJS7db5eJ7w5lK6d",
+      "method": "GET",
+      "url_template": "https://cdn.segment.com/next-integrations/integrations/vendor/commons.59560acdd69ed701c941.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://portal.telnyx.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "xFipMLZeRX3Z6nx8kmFIH",
+      "method": "GET",
+      "url_template": "https://challenges.cloudflare.comhttps://challenges.cloudflare.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "api.telnyx.com-session"
+}

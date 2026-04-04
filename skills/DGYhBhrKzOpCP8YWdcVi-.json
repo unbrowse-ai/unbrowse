@@ -1,0 +1,87 @@
+{
+  "skill_id": "DGYhBhrKzOpCP8YWdcVi-",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:46:59.848Z",
+  "updated_at": "2026-02-23T07:46:59.848Z",
+  "name": "oag.ca.gov -- Interact with the California Office of",
+  "intent_signature": "Interact with the California Office of",
+  "domain": "oag.ca.gov",
+  "description": "Auto-discovered skill for: Interact with the California Office of",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "t9lbP_g4gaK7C5eN-CdhP",
+      "method": "GET",
+      "url_template": "https://oag.ca.gov/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "CrY5R7PiBfrkgLndDY-0L",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://oag.ca.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Open Sans:300italic,400italic,700italic,400,300,700"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "UXU9juOFbl9JYDxiAWhs8",
+      "method": "GET",
+      "url_template": "https://translate.googleapis.com/_/translate_http/_/js/k=translate_http.tr.en_US._vNkTk9WmCE.O/am=AACA/d=1/exm=el_conf/ed=1/rs=AN8SPfqeLHSpQXwTKlEdZio4gATmdrYMJQ/m=el_main",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://oag.ca.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "k4FClNyar0OAVuKW1SsCn",
+      "method": "GET",
+      "url_template": "https://translate-pa.googleapis.com/v1/supportedLanguages",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "client": "te",
+        "display_language": "en-US",
+        "callback": "callback"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "oag.ca.gov-session"
+}

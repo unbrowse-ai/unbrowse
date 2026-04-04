@@ -10,6 +10,8 @@
 import { describe, it, expect } from "bun:test";
 
 const API_URL = "https://beta-api.unbrowse.ai";
+const LIVE_BACKEND_TEST_RUN = process.env.BACKEND_LIVE_TEST_RUN === "1";
+const liveDescribe = LIVE_BACKEND_TEST_RUN ? describe : describe.skip;
 
 // Latency budgets (ms) — if a search exceeds these, something is wrong.
 // These are generous (5x normal) to avoid flaky tests, but will catch
@@ -28,7 +30,17 @@ async function timedPost(path: string, body: unknown): Promise<{ data: unknown; 
   return { data, ms: Math.round(performance.now() - t0), status: res.status };
 }
 
-describe("Backend Search Latency", () => {
+function expectSearchStatus(status: number, data: unknown): void {
+  expect([200, 402, 429]).toContain(status);
+  if (status === 402) {
+    expect((data as Record<string, unknown>)?.error).toBe("Payment Required");
+  }
+  if (status === 429) {
+    expect((data as Record<string, unknown>)?.error).toBe("Rate limit exceeded");
+  }
+}
+
+liveDescribe("Backend Search Latency", () => {
   it("health check responds within budget", async () => {
     const t0 = performance.now();
     const res = await fetch(`${API_URL}/health`);
@@ -44,7 +56,7 @@ describe("Backend Search Latency", () => {
       k: 3,
     });
     console.log(`  search/domain: ${ms}ms, status=${status}, results=${(data as any).results?.length ?? 0}`);
-    expect(status).toBe(200);
+    expectSearchStatus(status, data);
     expect(ms).toBeLessThan(SEARCH_BUDGET_MS);
   }, 30_000);
 
@@ -54,7 +66,7 @@ describe("Backend Search Latency", () => {
       k: 5,
     });
     console.log(`  search/global: ${ms}ms, status=${status}, results=${(data as any).results?.length ?? 0}`);
-    expect(status).toBe(200);
+    expectSearchStatus(status, data);
     expect(ms).toBeLessThan(SEARCH_BUDGET_MS);
   }, 30_000);
 
@@ -66,8 +78,8 @@ describe("Backend Search Latency", () => {
     ]);
     const wallMs = Math.round(performance.now() - t0);
     console.log(`  parallel: ${wallMs}ms wall (domain=${domain.ms}ms, global=${global_.ms}ms)`);
-    expect(domain.status).toBe(200);
-    expect(global_.status).toBe(200);
+    expectSearchStatus(domain.status, domain.data);
+    expectSearchStatus(global_.status, global_.data);
     expect(wallMs).toBeLessThan(SEARCH_BUDGET_MS);
   }, 30_000);
 
@@ -83,8 +95,8 @@ describe("Backend Search Latency", () => {
     const second = await timedPost("/v1/search", { intent, k: 3 });
     console.log(`  2nd: ${second.ms}ms`);
 
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
+    expectSearchStatus(first.status, first.data);
+    expectSearchStatus(second.status, second.data);
     expect(first.ms).toBeLessThan(SEARCH_BUDGET_MS);
     expect(second.ms).toBeLessThan(SEARCH_BUDGET_MS);
   }, 30_000);

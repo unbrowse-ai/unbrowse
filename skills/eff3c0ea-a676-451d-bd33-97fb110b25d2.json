@@ -1,0 +1,58 @@
+{
+  "skill_id": "eff3c0ea-a676-451d-bd33-97fb110b25d2",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T23:17:00.610Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "osha-gov",
+  "intent_signature": "Access workplace safety regulations, compliance resources",
+  "domain": "www.osha.gov",
+  "description": "Access workplace safety regulations, compliance resources",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "osha-gov",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--9d332f2c082b-62b58020d56b-c5e3d2739209-inputs",
+      "method": "GET",
+      "url_template": "https://www.osha.gov/9d332f2c082b/62b58020d56b/c5e3d2739209/inputs",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--9d332f2c082b-62b58020d56b-c5e3d2739209-verify",
+      "method": "POST",
+      "url_template": "https://www.osha.gov/9d332f2c082b/62b58020d56b/c5e3d2739209/verify",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "5rN9vNnypouzR835yj2oRUrSXY7TbAgD8EHcwR88PeEt",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "63f320597e8f967a1f03a66ee83c7147d16030d1b5976067fbb668234617007c"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: osha-gov\ndescription: Internal API for osha-gov\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.osha.gov\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# OshaGov API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /v1/supportedLanguages` — Get supported languages\n\n## Quick Start\n\n```typescript\n// Get the list of supported languages.\nconst languages = await client.getSupportedLanguages();\nconsole.log(languages);\n```\n\n```typescript\n// Check if Spanish is supported.\nconst languages = await client.getSupportedLanguages();\nconst spanishSupported = languages.includes(\"es\");\n\nif (spanishSupported) {\n  console.log(\"Spanish is supported.\");\n} else {\n  console.log(\"Spanish is not supported.\");\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.osha.gov`\n**Captured Auth:** 1 auth headers, 15 session cookies\n\n## About This Skill\n\nThis skill provides access to Osha Gov's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Osha Gov data without official API access\n- Automate actions on www.osha.gov (faster than browser automation)\n- Call the same endpoints the Osha Gov frontend uses\n\n## Quick Start\n\n```typescript\nimport { OshaGovClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await OshaGovClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 15\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (5)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /v1/supportedLanguages`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /v1/supportedLanguages`\n- Status: `failed` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `0`, failed `1`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

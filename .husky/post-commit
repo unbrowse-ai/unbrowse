@@ -1,0 +1,18 @@
+#!/bin/sh
+# Post-commit hook: Run P0/P1 CLI tests for closed issues
+# This validates that critical fixes are still working after commits
+
+set -e
+
+# Only run if we have test analyses
+if [ ! -f "tests/p0-p1-analyses.json" ]; then
+  exit 0
+fi
+
+# Run P0 CLI tests only (quick validation, ~30s)
+# Skip if SKIP_P0_P1_TESTS env var is set
+if [ -z "$SKIP_P0_P1_TESTS" ]; then
+  echo ""
+  echo "🧪 Running P0 regression tests (CLI)..."
+  bun test:p0-p1:cli --priority P0 || true
+fi

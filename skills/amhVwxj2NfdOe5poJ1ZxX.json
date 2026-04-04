@@ -1,0 +1,33 @@
+{
+  "skill_id": "amhVwxj2NfdOe5poJ1ZxX",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:42:33.452Z",
+  "updated_at": "2026-02-23T07:42:33.452Z",
+  "name": "www.cylex.us.com -- Manage Cylex business listings by",
+  "intent_signature": "Manage Cylex business listings by",
+  "domain": "www.cylex.us.com",
+  "description": "Auto-discovered skill for: Manage Cylex business listings by",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "2z_usUR3LaLy4-s6zgBJ6",
+      "method": "GET",
+      "url_template": "https://www.cylex.us.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.cylex.us.com-session"
+}

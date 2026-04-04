@@ -1,0 +1,51 @@
+{
+  "skill_id": "649e4fd2-f631-447a-a19b-dc870d5f3afb",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T05:58:15.351Z",
+  "updated_at": "2026-02-20T05:49:37.221Z",
+  "name": "zhihu",
+  "intent_signature": "Browse content, manage social interactions, and",
+  "domain": "www.zhihu.com",
+  "description": "Browse content, manage social interactions, and",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (x-xsrftoken)",
+  "service_name": "zhihu",
+  "endpoints": [
+    {
+      "endpoint_id": "da547de8-255b-4cac-a5fb-f625386145ea",
+      "method": "POST",
+      "url_template": "https://www.zhihu.com/__endpoint/da547de8-255b-4cac-a5fb-f625386145ea",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "submitData",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "AcfEsyp7yAS3AWCkWhGmh2Fu5raeMZxN6GsDHuFXk1Vj",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "a1255ce05612e05f923b048083130904f4fe6ef9788fbf1113a187d98a31889c"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "SEQUENCES.json",
+    "TRANSFORMS.json",
+    "CORRELATIONS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: zhihu\ndescription: Internal API for zhihu\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.zhihu.com\"\n  authMethod: \"Session Token (x-xsrftoken)\"\n  endpointCount: 7\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Zhihu API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-xsrftoken) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n- `GET /api/v3/oauth/captcha/v2` — Retrieve a CAPTCHA for OAuth authentication.\n- `GET /api/v3/oauth/sms/supported_countries` — Get supported countries for SMS authentication.\n\n### Data Read (1)\n- `GET /api/v1/captcha/js` — Retrieve JavaScript code for CAPTCHA handling.\n\n### Data Write (1)\n- `POST /{id}` — Post data associated with a specific ID.\n\n### Search (1)\n- `GET /search` — Perform a search query on the platform.\n\n### Realtime (1)\n- `POST /zbst/events/r` — Send real-time event data to the server.\n\n### Config (1)\n- `GET /api/v2/getconf` — Fetch configuration settings for the application.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"zhihu\", executionMode: \"backend\", endpoint: \"GET /api/v1/captcha/js\" }\n```\n\nHere are a few quick examples to get you started using the Zhihu API:\n\n```typescript\n// Performing a search query\nasync function searchZhihu(query: string) {\n  try {\n    const results = await client.search({ q: query });\n    console.log(\"Search results:\", results);\n    return results;\n  } catch (error) {\n    console.error(\"Error searching Zhihu:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Posting data associated with a specific ID\nasync function postDataToId(id: string, data: any) {\n  try {\n    const response = await client.post({id: id, data: data});\n    console.log(\"Post successful:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error posting data:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-xsrftoken)\n**Base URL:** `https://www.zhihu.com`\n**Captured Auth:** 2 auth headers, 15 session cookies\n\n## About This Skill\n\nThis skill provides access to Zhihu's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Zhihu data without official API access\n- Automate actions on www.zhihu.com (faster than browser automation)\n- Call the same endpoints the Zhihu frontend uses\n\n## Quick Start\n\n```typescript\nimport { ZhihuClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await ZhihuClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (x-xsrftoken, sec-fetch-storage-access)\n- **Session cookies:** 15\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (14)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n"
+}

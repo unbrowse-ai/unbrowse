@@ -1,0 +1,127 @@
+{
+  "skill_id": "04866709-81cb-436a-8884-dedd8a893eba",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T21:10:46.620Z",
+  "updated_at": "2026-02-20T21:10:50.094Z",
+  "name": "gramercytavern",
+  "intent_signature": "Retrieve website alerts, promotional banners, and",
+  "domain": "www.gramercytavern.com",
+  "description": "Retrieve website alerts, promotional banners, and",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (x-inkind-session)",
+  "service_name": "gramercytavern",
+  "endpoints": [
+    {
+      "endpoint_id": "979bf616-0120-4e07-904e-cb4dedf9da8c",
+      "method": "GET",
+      "url_template": "https://www.gramercytavern.com/__endpoint/979bf616-0120-4e07-904e-cb4dedf9da8c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getBannerPublishedWebsite",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "dec56daa-06ec-4d32-ac87-6a0bfa515830",
+      "method": "GET",
+      "url_template": "https://www.gramercytavern.com/__endpoint/dec56daa-06ec-4d32-ac87-6a0bfa515830",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getOverlayPublishedWebsite",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "89f6a25a-fe87-4d6d-b515-4d55bf270e11",
+      "method": "GET",
+      "url_template": "https://www.gramercytavern.com/__endpoint/89f6a25a-fe87-4d6d-b515-4d55bf270e11",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getCaptureModals",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "7aa6d434-c47f-4a15-8c2a-1d671b75f3d9",
+      "method": "POST",
+      "url_template": "https://www.gramercytavern.com/__endpoint/7aa6d434-c47f-4a15-8c2a-1d671b75f3d9",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createEventsById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "ea7a8865-ebd8-40b1-934d-7c4c3e25ed80",
+      "method": "GET",
+      "url_template": "https://www.gramercytavern.com/__endpoint/ea7a8865-ebd8-40b1-934d-7c4c3e25ed80",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getLocalesComplianceJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "6f31c27b-0962-47a4-9dce-b2a6d1468760",
+      "method": "GET",
+      "url_template": "https://www.gramercytavern.com/__endpoint/6f31c27b-0962-47a4-9dce-b2a6d1468760",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getLocalesLauncherJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "76189a78-404b-4df0-a44a-ff3336402120",
+      "method": "POST",
+      "url_template": "https://www.gramercytavern.com/__endpoint/76189a78-404b-4df0-a44a-ff3336402120",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createSnowplowanalyticsSnowplow",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "g3mgPu94UBBtfbt8APFMuC3PsdRtWLtCaqKqW5eCPP4",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "f7b60886bf28ce328093790a4c9b411438ddc7fc438b4a779c4a421d799e152b"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: gramercytavern\ndescription: Internal API for gramercytavern\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.gramercytavern.com\"\n  authMethod: \"Session Token (x-inkind-session)\"\n  endpointCount: 5\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Gramercytavern API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-inkind-session) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (4)\n- `GET /api/alerts/banner/published_website_entity_for_page` — Get banner alerts for a specific page.\n- `GET /api/alerts/v2/overlay/published_website_entity_for_page` — Get overlay alerts for a specific page.\n- `GET /api/v4/capture_modals` — Retrieve capture modal configurations.\n- `GET /static-scripts/v2/{v2Date}/locales/en/{enId}` — Retrieve locale-specific static script.\n\n### Data Write (1)\n- `POST /com.snowplowanalytics.snowplow/tp2` — Send tracking data to Snowplow.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"gramercytavern\", executionMode: \"backend\", endpoint: \"GET /api/alerts/banner/published_website_entity_for_page\" }\n```\n\nHere are a few quick examples to get you started using the `gramercytavern` API:\n\n```typescript\n// Fetch banner alerts for the homepage.\nasync function getHomepageAlerts() {\n  const alerts = await client.getApiAlertsBannerPublished_website_entity_for_page({ page: \"homepage\" });\n  console.log(\"Homepage Alerts:\", alerts);\n  return alerts;\n}\n```\n\n```typescript\n// Send tracking data to Snowplow.\nasync function trackEvent(eventData: any) {\n  try {\n    await client.postComSnowplowanalyticsSnowplowTp2(eventData);\n    console.log(\"Event tracked successfully.\");\n  } catch (error) {\n    console.error(\"Error tracking event:\", error);\n  }\n}\n\n// Example usage:\nconst trackingData = {\n  schema: \"iglu:com.example/event/jsonschema/1-0-0\",\n  data: {\n    eventId: \"unique-event-id\",\n    eventType: \"button_click\",\n    buttonId: \"submit_button\"\n  }\n};\n\ntrackEvent(trackingData);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-inkind-session)\n**Base URL:** `https://www.gramercytavern.com`\n**Captured Auth:** 1 auth headers\n\n## About This Skill\n\nThis skill provides access to Gramercytavern's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Gramercytavern data without official API access\n- Automate actions on www.gramercytavern.com (faster than browser automation)\n- Call the same endpoints the Gramercytavern frontend uses\n\n## Quick Start\n\n```typescript\nimport { GramercytavernClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await GramercytavernClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (x-inkind-session)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (7)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/alerts/banner/published_website_entity_for_page`\n- `GET /api/alerts/v2/overlay/published_website_entity_for_page`\n- `GET /api/v4/capture_modals`\n- `GET /static-scripts/v2/2026-02-18/locales/en/compliance.json`\n- `GET /static-scripts/v2/2026-02-18/locales/en/launcher.json`\n- `POST /com.snowplowanalytics.snowplow/tp2`\n- `POST /events/8bc5e54b52be97f89742b4d6b7371fc75ecdd61a561c8aa6e65083612db1066b`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/alerts/banner/published_website_entity_for_page`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/alerts/v2/overlay/published_website_entity_for_page`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v4/capture_modals`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /static-scripts/v2/2026-02-18/locales/en/compliance.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /static-scripts/v2/2026-02-18/locales/en/launcher.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /com.snowplowanalytics.snowplow/tp2`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /events/8bc5e54b52be97f89742b4d6b7371fc75ecdd61a561c8aa6e65083612db1066b`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

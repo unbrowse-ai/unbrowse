@@ -1,0 +1,818 @@
+{
+  "skill_id": "K9aw-hEso7BSKeG6z67S7",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:51:44.550Z",
+  "updated_at": "2026-02-23T07:51:44.550Z",
+  "name": "securityscorecard.com -- user_data/...`: Fetch",
+  "intent_signature": "user_data/...`: Fetch",
+  "domain": "securityscorecard.com",
+  "description": "Auto-discovered skill for: user_data/...`: Fetch",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "_3bfRItWXI5LN9J2zLoMd",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ju8CboI6j0_wCnN2sUtrx",
+      "method": "GET",
+      "url_template": "https://securityscorecard.comhttps://securityscorecard.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "TNLxQcRYZIXI3fqratT4o",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/wp-content/themes/securityscorecard/custom/css/custom.css?ver=1.4.5",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Archivo:300,400,500,600,700,800",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "2fb5PfW_aLt_u6K2RNEwr",
+      "method": "GET",
+      "url_template": "https://client-registry.mutinycdn.com/personalize/user_data/4f6ca7fced130fc0.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "async": "false",
+        "session_token": "2432b809-090b-4537-84da-9bf3f84b13ef",
+        "visitor_token": "de182c1e-1553-4534-ae36-58c461756d15"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "random": {
+                "type": "number",
+                "inferred_from_samples": 1
+              },
+              "personalize_weight": {
+                "type": "number",
+                "inferred_from_samples": 1
+              },
+              "ip_address": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "token",
+              "random",
+              "personalize_weight",
+              "ip_address"
+            ],
+            "inferred_from_samples": 1
+          },
+          "person_identification_token": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "person": {
+            "type": "object",
+            "properties": {
+              "identify": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "identify"
+            ],
+            "inferred_from_samples": 1
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "succeeded_data_sources": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "inferred_from_samples": 12
+                },
+                "inferred_from_samples": 1
+              },
+              "receipt_id": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "failed_data_sources": {
+                "type": "array",
+                "inferred_from_samples": 1
+              },
+              "company_token": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "succeeded_data_sources",
+              "receipt_id",
+              "failed_data_sources",
+              "company_token"
+            ],
+            "inferred_from_samples": 1
+          },
+          "generated_at": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "dynamic_dom_updates": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "company": {
+            "type": "object",
+            "properties": {
+              "six_sense": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "inferred_from_samples": 1
+              },
+              "clearbit": {
+                "type": "object",
+                "properties": {
+                  "confidenceScore": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "confidenceScore"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "six_sense",
+              "clearbit"
+            ],
+            "inferred_from_samples": 1
+          },
+          "client": {
+            "type": "object",
+            "properties": {
+              "disabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "disabled"
+            ],
+            "inferred_from_samples": 1
+          },
+          "browser": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "account": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "inferred_from_samples": 1
+              },
+              "lists": {
+                "type": "array",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "properties",
+              "lists"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "user",
+          "person_identification_token",
+          "person",
+          "metadata",
+          "generated_at",
+          "dynamic_dom_updates",
+          "company",
+          "client",
+          "browser",
+          "account"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "P2R5QsWSekMEHGl6RLKPK",
+      "method": "GET",
+      "url_template": "https://client-registry.mutinycdn.com/personalize/client_data/4f6ca7fced130fc0.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "LzWhcjQaLtnwLvjf11aie",
+      "method": "GET",
+      "url_template": "https://s3-us-west-2.amazonaws.com/b2bjsstore/b/VN080H4DVX6J/VN080H4DVX6J.js.gz",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "5jBLsKb_h4LR2LkmMlLU0",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/wp-content/uploads/{id}/12/Aflac-%E2%80%94-Customer-Success-1.mp4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "eVdRrkralqclaBrp7fBV6",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/wp-content/uploads/{id}/12/SecurityScorecard-x-Avangrid-_-Core-Testimonial.mp4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "o67PsRB73LXuyu48h5rkk",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/wp-content/uploads/{id}/12/Cleveland-Clinic-%E2%80%94-Case-Study.mp4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "H6S1MEFkKt8moHOV-0qoG",
+      "method": "GET",
+      "url_template": "https://securityscorecard.com/wp-content/uploads/{id}/07/Case-Study-ADT_01.mp4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "u_6kH0c-nHoGV0X9X0m1J",
+      "method": "GET",
+      "url_template": "https://consentcdn.cookiebot.com/consentconfig/{id}/settings.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "widget": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "distanceVerticalPx": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "distanceHorizontalPx": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "position",
+                  "distanceVerticalPx",
+                  "distanceHorizontalPx"
+                ],
+                "inferred_from_samples": 1
+              },
+              "theme": {
+                "type": "object",
+                "properties": {
+                  "closed": {
+                    "type": "object",
+                    "properties": {
+                      "backgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "foregroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "backgroundColor",
+                      "foregroundColor"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "opened": {
+                    "type": "object",
+                    "properties": {
+                      "backgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "foregroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "highlightColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "shadeColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeTextColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "changeBorderColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawTextColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "withdrawBorderColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "detailsBackgroundColor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "backgroundColor",
+                      "foregroundColor",
+                      "highlightColor",
+                      "shadeColor",
+                      "changeBackgroundColor",
+                      "changeTextColor",
+                      "changeBorderColor",
+                      "withdrawBackgroundColor",
+                      "withdrawTextColor",
+                      "withdrawBorderColor",
+                      "detailsBackgroundColor"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "closed",
+                  "opened"
+                ],
+                "inferred_from_samples": 1
+              },
+              "content": {
+                "type": "object",
+                "properties": {
+                  "cultures": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "default": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "autodetectLanguage": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "cultures",
+                  "default",
+                  "autodetectLanguage"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enabled",
+              "position",
+              "theme",
+              "content"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "widget"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "S_JBqbbS67yOuua8RegpJ",
+      "method": "GET",
+      "url_template": "https://visitor.abmatic.ai/cookiePolicyCheck",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "required"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "MidlNU6zYh4rYl9NgQ-Wu",
+      "method": "GET",
+      "url_template": "https://visitor.abmatic.ai/visitor",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "clientScriptFileId": "nnHiAtYaP3fY",
+        "visitorId": "b09a2db3-b768-45bc-9c43-7c56107c9e32",
+        "pageViewId": "367a8bc4-b99b-4b8e-8a7d-168b4c66cc61",
+        "isReturningVisitor": "false",
+        "domain": "",
+        "preferredLanguage": "en",
+        "referrer": "",
+        "pageUrl": "https://securityscorecard.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "HRCiqKKTErrP7SHon5des",
+      "method": "GET",
+      "url_template": "https://js.zi-scripts.com/unified/v1/master/getSubscriptions",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "content-type": "application/json",
+        "visited_url": "https://securityscorecard.com/"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "err": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "subscriptions": {
+            "type": "object",
+            "properties": {
+              "fc": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "projectKey"
+                ],
+                "inferred_from_samples": 1
+              },
+              "ws": {
+                "type": "object",
+                "properties": {
+                  "websiteId": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "websiteId"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "fc",
+              "ws"
+            ],
+            "inferred_from_samples": 1
+          },
+          "_zitok": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "_vtok": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "evi": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "productUrls": {
+            "type": "object",
+            "properties": {
+              "sch": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fc": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "ws": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "sch",
+              "fc",
+              "ws"
+            ],
+            "inferred_from_samples": 1
+          },
+          "fcForms": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "domainId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "sessionId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "eventId": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "err",
+          "subscriptions",
+          "_zitok",
+          "_vtok",
+          "evi",
+          "productUrls",
+          "fcForms",
+          "domainId",
+          "sessionId",
+          "eventId"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "0Vml_lSTcmjAoB6dUpdwu",
+      "method": "GET",
+      "url_template": "https://ws.zoominfo.com/pixel/{id}/",
+      "headers_template": {
+        "_vtok": "MjQuMTAuMjUxLjEwNw==",
+        "visited-url": "https://securityscorecard.com/",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "event-id": "fe001b43-22e5-452b-ac46-f3d473ddcef9",
+        "sec-ch-ua-mobile": "?0",
+        "_zitok": "34f3fb65b99e85f12a2c1771833100",
+        "evi": "true",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "content-type": "text/javascript"
+      },
+      "query": {
+        "iszitag": "true"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "NiMODGhrfNxZJuT_FBWk2",
+      "method": "GET",
+      "url_template": "https://aorta.clickagy.com/channel-sync/4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://securityscorecard.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "clkgypv": "jstag",
+        "ws": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "fAsEFcGTT52i7Wiz_Ycja",
+      "method": "GET",
+      "url_template": "https://us-u.openx.net/w/1.0/cm",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://securityscorecard.com/"
+      },
+      "query": {
+        "id": "af408286-42f3-4d1c-bb48-10bd86dbcd66",
+        "r": "https://aorta.clickagy.com/pixel.gif?ch=4&cm={OPENX_ID}&redir=https%3A%2F%2Fus-u.openx.net%2Fw%2F1.0%2Fsd%3Fid%3D537073026%26val%3D%7Bvisitor_id%7D"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ytOP7V8pn0SZoWV3bdlM1",
+      "method": "GET",
+      "url_template": "https://us-u.openx.net/w/1.0/sd",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://securityscorecard.com/"
+      },
+      "query": {
+        "id": "537073026",
+        "val": "aZwHDXhbmwd8Fluo8oanuCFM"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "securityscorecard.com-session"
+}

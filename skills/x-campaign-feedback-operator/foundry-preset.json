@@ -1,0 +1,76 @@
+{
+  "bundle_id": "x-campaign-feedback-operator",
+  "title": "X Campaign Feedback Operator Bundle",
+  "fabric": {
+    "repo": "https://github.com/unbrowse-ai/foundry",
+    "skill": "foundry"
+  },
+  "repo": "https://github.com/unbrowse-ai/unbrowse",
+  "bootstrap_skill": "find-skills",
+  "skills": [
+    "x-campaign-feedback-operator"
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {
+        "skill": "foundry",
+        "provides": [
+          "workflow-bundle-fabrication",
+          "candidate-skill-discovery",
+          "host-memory-routing"
+        ],
+        "requires": [
+          "x-campaign-feedback-ops"
+        ],
+        "alternatives": []
+      },
+      {
+        "skill": "x-campaign-feedback-operator",
+        "provides": [
+          "x-campaign-feedback-ops",
+          "x-native-metric-join",
+          "content-to-activation-feedback-loop"
+        ],
+        "requires": [],
+        "alternatives": [
+          "unbrowse-acquisition-operator"
+        ]
+      }
+    ]
+  },
+  "routes": [
+    {
+      "when": "the request is about which X post, article, ad, campaign, or landing variant is actually winning",
+      "call": "x-campaign-feedback-operator"
+    },
+    {
+      "when": "the request is about joining X-native metrics to installs or first success",
+      "call": "x-campaign-feedback-operator"
+    },
+    {
+      "when": "the request is about aligning X campaigns, articles, ads, and landing variants under one id scheme",
+      "call": "x-campaign-feedback-operator"
+    }
+  ],
+  "tool_routing": {
+    "sources": [
+      "~/.codex/tool-traces.jsonl",
+      "~/.codex/tool-traces"
+    ]
+  },
+  "share": {
+    "transport": "files",
+    "manifest_path": "/.well-known/skill-bundles/x-campaign-feedback-operator/share.json"
+  },
+  "index": {
+    "slug": "x-campaign-feedback-operator",
+    "summary": "Join X-native metrics, articles, ads, landing variants, installs, and first-success into one operator loop.",
+    "tags": [
+      "unbrowse",
+      "x",
+      "campaign-feedback",
+      "attribution",
+      "foundry"
+    ]
+  }
+}

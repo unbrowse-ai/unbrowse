@@ -82,5 +82,15 @@ describe("isBlockedAppShell", () => {
     ];
     expect(sparseUrls.length).toBeLessThan(10);
     expect(richUrls.length).toBeGreaterThanOrEqual(10);
+    expect(hasUsefulCapturedResponses(sparseUrls, "https://x.com", "search tweets")).toBe(false);
+    expect(hasUsefulCapturedResponses(richUrls, "https://x.com", "search tweets")).toBe(true);
+  });
+
+  it("treats a high-volume blocked-shell capture as progress even without direct timeline hints", () => {
+    const proxseeOnlyUrls = Array.from({ length: 30 }, (_, i) =>
+      `https://proxsee.pscp.tv/api/v2/bootstrap-${i}.json`
+    );
+    expect(proxseeOnlyUrls.length).toBeGreaterThanOrEqual(25);
+    expect(hasUsefulCapturedResponses(proxseeOnlyUrls, "https://x.com", "search tweets")).toBe(false);
   });
 });
