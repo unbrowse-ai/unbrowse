@@ -41,7 +41,7 @@ Detailed release choreography lives in [docs/RELEASING.md](/Users/lekt9/.codex/w
 
 ## Release workflow behavior
 
-`.github/workflows/deploy.yml` handles `main` and `staging` pushes.
+`.github/workflows/deploy.yml` handles `main`, `staging`, and `lewis/experiments` pushes.
 `.github/workflows/release.yml` handles `v*` tag pushes.
 
 Main deploy workflow:
@@ -56,6 +56,13 @@ Staging deploy workflow:
 2. deploy frontend with `CLOUDFLARE_ENV=staging` so it publishes as `frontend-staging`
 3. skip skill-repo sync and any release/publish side effects
 4. if `PREVIEW_API_URL` is unset, skip the frontend staging deploy rather than pointing staging traffic at the wrong backend
+
+Lewis experiments deploy workflow:
+
+1. deploy backend with `cd backend && ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments`
+2. deploy frontend with `CLOUDFLARE_ENV=experiments` so it publishes as `frontend-experiments`
+3. keep the surface on `workers.dev` only; no production or staging routes are touched
+4. if `EXPERIMENTS_API_URL` is unset, skip the frontend experiments deploy rather than pointing the sandbox at the wrong backend
 
 Tag release workflow:
 
@@ -128,6 +135,13 @@ Preview deploys also expect one of:
 - or repo secret `PREVIEW_API_URL`
 
 That value should point at the shared staging backend origin used by preview builds and `staging` branch frontend deploys. Do not hardcode the staging hostname into source files.
+
+Lewis experiments branch deploys also expect one of:
+
+- repo variable `EXPERIMENTS_API_URL`
+- or repo secret `EXPERIMENTS_API_URL`
+
+That value should point at the backend origin for the `experiments` worker deploy. Keep it separate from `PREVIEW_API_URL` so the sandbox branch can drift safely without changing staging previews.
 
 Backend runtime secrets are documented in [backend/wrangler.toml](/Users/lekt9/.codex/worktrees/c99f/unbrowse/backend/wrangler.toml):
 

@@ -1141,14 +1141,24 @@ export async function interceptStart(tabId: string, state: BrokerState = default
 
 /** Get page text content. */
 export async function getText(tabId: string, state: BrokerState = defaultBrokerState): Promise<string> {
-  const result = (await kuriGet(state, "/text", { tab_id: tabId })) as { text?: string };
-  return result?.text ?? "";
+  const result = (await kuriGet(state, "/text", { tab_id: tabId })) as
+    | string
+    | { text?: string; result?: { result?: { value?: unknown } } };
+  if (typeof result === "string") return result;
+  if (typeof result?.text === "string") return result.text;
+  if (typeof result?.result?.result?.value === "string") return result.result.result.value;
+  return "";
 }
 
 /** Get page as markdown. */
 export async function getMarkdown(tabId: string, state: BrokerState = defaultBrokerState): Promise<string> {
-  const result = (await kuriGet(state, "/markdown", { tab_id: tabId })) as { markdown?: string };
-  return result?.markdown ?? "";
+  const result = (await kuriGet(state, "/markdown", { tab_id: tabId })) as
+    | string
+    | { markdown?: string; result?: { result?: { value?: unknown } } };
+  if (typeof result === "string") return result;
+  if (typeof result?.markdown === "string") return result.markdown;
+  if (typeof result?.result?.result?.value === "string") return result.result.result.value;
+  return "";
 }
 
 /** Take screenshot (returns base64 PNG). */

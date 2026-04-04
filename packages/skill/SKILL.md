@@ -148,6 +148,8 @@ The Kuri-style mapping is:
 
 Use one `session_id` through the whole flow. `snap` gives the live refs. `submit` is the important edge prover.
 
+`unbrowse go` opens a fresh Kuri-backed session by default. Only pass `--session` when you intentionally want to keep driving the same live tab.
+
 ### 2. Traversal rules
 
 - Browser-native by default. No hidden same-origin replay during ordinary page walking.

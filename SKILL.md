@@ -149,6 +149,8 @@ The Kuri-style mapping is:
 
 Use one `session_id` through the whole flow. `snap` gives the live refs. `submit` is the important edge prover.
 
+`unbrowse go` opens a fresh Kuri-backed session by default. Only pass `--session` when you intentionally want to keep driving the same live tab.
+
 ### 2. Traversal rules
 
 - Browser-native by default. No hidden same-origin replay during ordinary page walking.
@@ -309,7 +311,7 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `skill` | `<id>` | Get skill details |
 | `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
-| `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
+| `go` | `<url> [--session id]` | Open a fresh Kuri browser tab, or reuse explicit --session |
 | `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
 | `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |

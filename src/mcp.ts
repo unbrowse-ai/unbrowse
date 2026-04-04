@@ -992,7 +992,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_go",
-    description: "Open a live browser tab for capture-first workflows.",
+    description: "Open a fresh live browser tab for capture-first workflows unless session_id is provided.",
     inputSchema: {
       type: "object",
       properties: {

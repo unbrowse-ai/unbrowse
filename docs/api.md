@@ -171,6 +171,14 @@ Local publish policy lives in `~/.unbrowse/config.json` and is available over `G
 - `publish_domain_blacklist` — never auto-publish these domains; explicit `publish` requires confirmation
 - `publish_domain_promptlist` — pause auto-publish and require confirmation for explicit `publish`
 
+## Browse proxy contract
+
+Browse routes are intentionally thin over Kuri now.
+
+- `POST /v1/browse/go` opens a fresh Kuri tab/session unless you explicitly pass `session_id`.
+- Reusing a live tab is opt-in: pass the same `session_id` for `go`, `snap`, `click`, `fill`, `submit`, `sync`, and `close`.
+- Read calls like `snap`, `screenshot`, `text`, `markdown`, `cookies`, and `eval` no longer auto-reset or rebind to a replacement tab when the current session goes bad. They return the real session outcome instead.
+
 ## Browse-session dependency contract
 
 For multi-step browser flows, downstream pages depend on upstream state. Treat `POST /v1/browse/submit` as the boundary that proves the dependency edge.
