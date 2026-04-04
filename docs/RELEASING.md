@@ -17,12 +17,15 @@ Unbrowse releases are driven locally, then finished by GitHub Actions.
 Do not bump or publish only from `packages/skill/`.
 
 - `packages/skill` can still build/package locally, but direct `npm publish` there is now guarded and fails with instructions.
+- packaged installs must use the baked `vendor/kuri/*` binaries; release/pack now fail closed if the vendored Kuri manifest, hashes, or tracked `justrach/kuri` `adding-extensions` source SHA drift out of sync.
 - explicit local CLI publish path lives at repo root:
   - `bun run pack:cli`
   - `bun run publish:cli`
+  - `bun run publish:cli:preview -- --backend-url https://<preview-backend>`
 - local `bun run publish:cli` intentionally skips `--provenance`; provenance stays on the GitHub Actions release workflow, where npm supports automatic attestations.
+- `bun run publish:cli:preview` builds a timestamped preview version (for example `2.12.4-preview.20260404090807`), uploads matching prerelease binary assets to `unbrowse-ai/unbrowse`, and publishes `unbrowse@preview`. It also bakes the provided preview backend URL into the compiled binary/source fallback so preview installs default to the preview marketplace without extra env.
 - canonical path is still `bun run release`, which keeps `package.json`, `packages/skill/package.json`, and `version.json` in sync before the tag-triggered workflow publishes the CLI.
-- `release-it` is configured with `npm.ignoreVersion=true` because `@release-it/bumper` already owns the version bump across all three files. That avoids the duplicate `npm version` pass that can otherwise fail with `Version not changed`.
+- `release-it` is configured with `"npm": false` because `@release-it/bumper` already owns the version bump across the repo and the tag-triggered GitHub workflow owns the actual npm publish. That avoids the duplicate local `npm version` pass that can otherwise fail with `Version not changed`.
 
 ## Main-branch GitHub Actions
 
@@ -39,10 +42,11 @@ Pushing to `main` runs `.github/workflows/deploy.yml`, which:
 Tag pushes run `.github/workflows/release.yml`, which:
 
 1. Publishes the CLI from `packages/skill/` to npm.
-2. Deploys the backend worker via `backend/wrangler.ci.toml`, preserving the existing `STATS_KV` binding.
-3. Deploys the frontend.
-4. Syncs the external skill repo.
-5. Creates or reuses the matching tag + GitHub Release in `unbrowse-ai/unbrowse`.
+2. Uploads the packaged CLI release assets to the public `unbrowse-ai/unbrowse` GitHub release that the installer and npm fallback runtime download from.
+3. Deploys the backend worker via `backend/wrangler.ci.toml`, preserving the existing `STATS_KV` binding.
+4. Deploys the frontend.
+5. Syncs the external skill repo.
+6. Creates or reuses the matching tag + GitHub Release in `unbrowse-ai/unbrowse`.
 
 The npm publish step is idempotent. If the tagged version is already on npm, the workflow skips publish instead of failing on reruns.
 
@@ -61,6 +65,7 @@ Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync 
 `test.yml` now runs on `main` pull requests and pushes, and verifies:
 
 - `SKILL.md` is in sync with `src/cli.ts`
+- baked Kuri vendor state matches the tracked `submodules/kuri` source
 - `packages/skill` passes `npm pack --dry-run`
 - the CLI/orchestrator path still passes `tests/cli-e2e.test.ts`
 

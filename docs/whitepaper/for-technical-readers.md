@@ -138,6 +138,7 @@ Shipped today:
 - schema drift handling
 - skill lifecycle states
 - local-first auth handling
+- x402 / HTTP 402 payment lane with wallet-linked metadata and current payout routing
 
 Partial today:
 
@@ -148,13 +149,13 @@ Partial today:
 Coming soon:
 
 - the full paper-era route economy beyond the shipped payment lane
-- multi-party contributor payouts and attribution
+- multi-party contributor payouts and delta-style attribution
 - validator market
 - staking and slashing
 - signed attestations
 - TEE or E2B-backed proof layers
 
-If a claim depends on a route economy, read it as roadmap, not current product behavior.
+If a claim depends on the broader paper economy rather than the shipped x402 lane, read it as roadmap, not current product behavior.
 
 ## Recommended Reading Order
 

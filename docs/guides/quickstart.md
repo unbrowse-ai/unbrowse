@@ -5,10 +5,10 @@ Read when: first local install, first CLI run, or CI/headless setup.
 ## Install
 
 ```bash
-npx unbrowse setup
+curl -fsSL https://unbrowse.ai/install.sh | sh
 ```
 
-That is the primary install path. It is one command, not one-click.
+That is the primary install path. The installer now follows the Kuri pattern: detect platform, download the matching release tarball, install `unbrowse` into `~/.local/bin`, then run `unbrowse setup`.
 
 Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The repo-level agent contract lives in [SKILL.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/SKILL.md).
 
@@ -157,6 +157,7 @@ Repo presets are the supported runtime switch:
 bun run preset:show
 bun run preset:prod
 bun run preset:testing
+bun run preset:experiments
 ```
 
 Do not hand-edit ad hoc runtime env files unless you are intentionally changing the preset system.
