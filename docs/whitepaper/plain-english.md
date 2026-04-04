@@ -100,7 +100,7 @@ Shipped today:
 - reusable learned skills
 - marketplace-backed reuse
 - reliability scoring, verification, and drift handling
-- x402-gated marketplace payment lane for paid search/execution
+- x402-gated marketplace payment lane for paid search/execution, with wallet-linked payment metadata and current payout routing
 
 Not fully shipped today:
 

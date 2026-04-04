@@ -2,6 +2,8 @@
 
 This page lists the forward-looking parts of the whitepaper that are not yet present in the codebase, or not yet present in the full form described in the paper.
 
+It does not cover the narrower payment path that already ships today: x402 / HTTP 402 payment requirements, Solana/Base USDC payment terms, wallet-linked payment metadata, and current payout routing.
+
 ## Route Economy
 
 The paper’s richer route economy is still `coming soon`:
@@ -56,4 +58,4 @@ When the whitepaper talks about these systems, read them as:
 
 Do not read them as “already available in the current release” unless the docs explicitly move them out of `coming soon`.
 
-The shipped payment lane today is narrower: x402-gated search/execution, wallet-linked payment metadata, and current payout routing. This page is about the remaining paper-era expansion beyond that shipped baseline.
+The shipped payment lane today is narrower: x402-gated search/execution, HTTP 402 payment requirements, Solana/Base USDC terms, wallet-linked payment metadata, transaction surfaces, and current payout routing. This page is about the remaining paper-era expansion beyond that shipped baseline.

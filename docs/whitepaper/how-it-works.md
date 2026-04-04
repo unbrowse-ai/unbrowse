@@ -88,8 +88,8 @@ The old docs used language like:
 Those need a grounded read today:
 
 - practical verification exists
-- formal attestation and validator economics do not
-- billing and payouts do not
+- x402 billing, wallet-linked payment metadata, and current contributor payout routing exist
+- formal attestation, validator economics, and the fuller multi-party paper economy do not
 
 See [Paper vs Product Status](./paper-vs-product.md) and [Coming Soon](./coming-soon.md).
 

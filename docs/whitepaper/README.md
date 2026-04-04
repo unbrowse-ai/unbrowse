@@ -9,14 +9,14 @@ Implementation-aware companion docs for the Unbrowse whitepaper.
 
 > Important
 > The PDF mixes shipped product behavior, research results, and forward-looking economic design.
-> These companion docs separate those three things so readers can tell what exists in the codebase today and what is still coming soon.
+> These companion docs separate those three things so readers can tell what exists in the codebase today, what already ships in the current x402/payment lane, and what is still coming soon.
 
 ## What This Companion Covers
 
 - What Unbrowse ships today
 - Which whitepaper claims map directly to the codebase
 - Which paper sections are partial implementations
-- Which paper sections are still `coming soon`
+- Which paper sections are still `coming soon` beyond the shipped payment lane
 - Which evaluation paths are current product truth versus paper benchmark context
 
 ## The Short Hook
@@ -61,7 +61,7 @@ Unbrowse today is a local-first web capability layer for agents:
 - local credential storage and auth reuse
 - MCP server mode plus host integrations for major agent environments
 - reliability scoring, verification, and schema-drift-aware endpoint health
-- x402-gated marketplace search/execution paths with wallet-linked payment metadata
+- x402-gated marketplace search/execution paths, HTTP 402 payment requirements, wallet-linked payment metadata, and current payout routing
 - canonical product evals in this repo
 
 ## What To Read First
@@ -78,7 +78,7 @@ Read [What Is Unbrowse?](./what-is-unbrowse.md) and [How It Works](./how-it-work
 
 Read [Paper vs Product Status](./paper-vs-product.md) if you want the strict audit: shipped, partial, or `coming soon`.
 
-Read [Coming Soon](./coming-soon.md) if you care about the parts of the route economy that are still forward-looking: multi-party fee splits, richer attribution, validator attestation, and the rest of the paper beyond the shipped payment lane.
+Read [Coming Soon](./coming-soon.md) if you care about the parts of the route economy that are still forward-looking: richer multi-party fee splits, fuller attribution, validator attestation, and the rest of the paper beyond the shipped payment lane.
 
 ## Citation
 
