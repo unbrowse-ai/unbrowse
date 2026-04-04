@@ -48,6 +48,9 @@ export interface AgentProfile {
   first_execution_at?: string;
   last_active_at?: string;
   activity_dates?: string[];
+  // Install funnel attribution (from landing page copy-to-clipboard)
+  install_attribution?: Record<string, string>;
+  landing_token?: string;
 }
 
 // --- Shared types (mirrored from src/types/skill.ts) ---
