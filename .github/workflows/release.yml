@@ -65,9 +65,7 @@ jobs:
       - name: Publish CLI to npm
         if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
         working-directory: packages/skill
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
-        run: npm publish --provenance
+        run: npm publish
 
   deploy-backend:
     name: Deploy Backend (CF Worker)
