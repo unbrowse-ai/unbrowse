@@ -78,19 +78,20 @@ const manifest: ReleaseManifestPayload = {
 };
 manifest.trace_version = `${manifest.code_hash}@${manifest.git_sha}`;
 
+const signingSecret = process.env.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET?.trim();
+if (!signingSecret) {
+  console.error("[build-release-manifest] FATAL: UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET is not set. Refusing to build unsigned release.");
+  process.exit(1);
+}
+
 const manifestJson = JSON.stringify(manifest);
 const manifestBase64 = encodeBase64Url(manifestJson);
-const signature = signManifest(manifestJson, process.env.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET?.trim());
+const signature = signManifest(manifestJson, signingSecret);
 const defaultBackendUrl = process.env.UNBROWSE_BUILD_DEFAULT_BACKEND_URL?.trim() || "https://beta-api.unbrowse.ai";
 
 mkdirSync(distDir, { recursive: true });
 writeFileSync(manifestPath, `${manifestJson}\n`);
-if (signature) {
-  writeFileSync(signaturePath, `${signature}\n`);
-} else {
-  rmSync(signaturePath, { force: true });
-  writeFileSync(signaturePath, "\n");
-}
+writeFileSync(signaturePath, `${signature}\n`);
 writeGeneratedBuildInfo({
   git_sha: manifest.git_sha,
   code_hash: manifest.code_hash,

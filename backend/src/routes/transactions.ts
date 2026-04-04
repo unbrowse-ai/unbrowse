@@ -2,12 +2,13 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { recordTransaction, getConsumerTransactions, getCreatorTransactions, getTransactionSummary } from "../services/transactions.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 
 export const transactionRoutes = new Hono<{ Bindings: Env }>();
 
 transactionRoutes.use("/transactions/*", rateLimit({ limit: 30, window: 60, prefix: "transactions" }));
 // POST /v1/transactions -- record a new transaction
-transactionRoutes.post("/transactions", async (c) => {
+transactionRoutes.post("/transactions", bearerAuth, requireSignedClient, async (c) => {
   try {
     const body = await c.req.json<{
       transaction_id: string;

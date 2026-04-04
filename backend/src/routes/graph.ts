@@ -3,14 +3,8 @@ import type { Env } from "../types.js";
 import { resolveChain, predictNext, recordSession, recordNegative, checkCredits, getIntentCache, getCooccurrence, getEdges, graphProxy, upsertEdges } from "../services/graph.js";
 import type { GraphNode, GraphEdge } from "../services/graph.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { recordGraphFee, type GraphOperation } from "../services/fees.js";
-
-/** Extract agent_id from Authorization header (Bearer token) if present. */
-function extractAgentId(authHeader: string | undefined | null): string {
-  if (!authHeader) return "anonymous";
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  return token || "anonymous";
-}
 
 /** Record a graph fee in the background — never blocks or fails the response. */
 function chargeFee(env: Env, agentId: string, op: GraphOperation): void {
@@ -22,7 +16,7 @@ export const graphRoutes = new Hono<{ Bindings: Env }>();
 graphRoutes.use("/graph/*", rateLimit({ limit: 30, window: 60, prefix: "graph" }));
 
 // POST /v1/graph/edges — upsert DAG edges for a domain
-graphRoutes.post("/graph/edges", async (c) => {
+graphRoutes.post("/graph/edges", bearerAuth, requireSignedClient, async (c) => {
   const { domain, node, edges } = await c.req.json<{
     domain: string;
     node: GraphNode;
@@ -39,7 +33,7 @@ graphRoutes.post("/graph/edges", async (c) => {
 });
 
 // POST /v1/graph/chain — resolve prerequisite chain for a target endpoint
-graphRoutes.post("/graph/chain", async (c) => {
+graphRoutes.post("/graph/chain", bearerAuth, requireSignedClient, async (c) => {
   const { domain, target_endpoint_id, available_bindings } = await c.req.json<{
     domain: string;
     target_endpoint_id: string;
@@ -47,7 +41,7 @@ graphRoutes.post("/graph/chain", async (c) => {
   }>();
   if (!domain || !target_endpoint_id) return c.json({ error: "domain and target_endpoint_id required" }, 400);
   try {
-    const agentId = extractAgentId(c.req.header("Authorization"));
+    const agentId = c.get("agent_id");
     const chain = await resolveChain(c.env, domain, target_endpoint_id, available_bindings);
     chargeFee(c.env, agentId, "chain");
     return c.json(chain);
@@ -58,13 +52,13 @@ graphRoutes.post("/graph/chain", async (c) => {
 });
 
 // GET /v1/graph/predict/:domain — get co-occurrence predictions
-graphRoutes.get("/graph/predict/:domain", async (c) => {
+graphRoutes.get("/graph/predict/:domain", bearerAuth, requireSignedClient, async (c) => {
   const domain = c.req.param("domain");
   const from = c.req.query("from");
   const k = parseInt(c.req.query("k") ?? "5", 10);
   if (!from) return c.json({ error: "from query param required" }, 400);
   try {
-    const agentId = extractAgentId(c.req.header("Authorization"));
+    const agentId = c.get("agent_id");
     const predictions = await predictNext(c.env, domain, from, k);
     chargeFee(c.env, agentId, "predict");
     return c.json(predictions);
@@ -75,7 +69,7 @@ graphRoutes.get("/graph/predict/:domain", async (c) => {
 });
 
 // POST /v1/graph/session — record session action for co-occurrence learning
-graphRoutes.post("/graph/session", async (c) => {
+graphRoutes.post("/graph/session", bearerAuth, requireSignedClient, async (c) => {
   const { session_id, action } = await c.req.json<{
     session_id: string;
     action: {
@@ -90,7 +84,7 @@ graphRoutes.post("/graph/session", async (c) => {
     return c.json({ error: "session_id and action.endpoint_id required" }, 400);
   }
   try {
-    const agentId = extractAgentId(c.req.header("Authorization"));
+    const agentId = c.get("agent_id");
     await recordSession(c.env, session_id, action);
     chargeFee(c.env, agentId, "session");
     return c.json({ ok: true });
@@ -101,7 +95,7 @@ graphRoutes.post("/graph/session", async (c) => {
 });
 
 // POST /v1/graph/negative — record a negative example
-graphRoutes.post("/graph/negative", async (c) => {
+graphRoutes.post("/graph/negative", bearerAuth, requireSignedClient, async (c) => {
   const { domain, intent_pattern, endpoint_id } = await c.req.json<{
     domain: string;
     intent_pattern: string;
@@ -111,7 +105,7 @@ graphRoutes.post("/graph/negative", async (c) => {
     return c.json({ error: "domain, intent_pattern, and endpoint_id required" }, 400);
   }
   try {
-    const agentId = extractAgentId(c.req.header("Authorization"));
+    const agentId = c.get("agent_id");
     await recordNegative(c.env, domain, intent_pattern, endpoint_id);
     chargeFee(c.env, agentId, "negative");
     return c.json({ ok: true });

@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
-import { bearerAuth } from "../middleware/auth.js";
+import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { publishSkill, getSkill, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
 import { listPopularSkills } from "../services/popularity.js";
 import { validateSkillManifest } from "../services/validator.js";
@@ -148,7 +148,7 @@ skillRoutes.use("/skills", agentRateLimit({ limit: 30, window: 60, prefix: "publ
 skillRoutes.use("/skills/:id/endpoints/:eid", agentRateLimit({ limit: 60, window: 60, prefix: "ep-update" }));
 
 // POST /v1/skills -- publish/update
-skillRoutes.post("/skills", bearerAuth, async (c) => {
+skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
   const body = await c.req.json<Record<string, unknown> & {
     indexer_id?: string;
     endpoints?: unknown[];
@@ -226,7 +226,7 @@ skillRoutes.post("/skills", bearerAuth, async (c) => {
 });
 
 // PATCH /v1/skills/:id -- update skill metadata (e.g. base_price_usd)
-skillRoutes.patch("/skills/:id", bearerAuth, async (c) => {
+skillRoutes.patch("/skills/:id", bearerAuth, requireSignedClient, async (c) => {
   const skillId = c.req.param("id");
   const body = await c.req.json<{ base_price_usd?: number; split_config?: string | null }>();
 
@@ -257,7 +257,7 @@ skillRoutes.patch("/skills/:id", bearerAuth, async (c) => {
 });
 
 // PATCH /v1/skills/:id/endpoints/:eid -- update endpoint score/status/schema
-skillRoutes.patch("/skills/:id/endpoints/:eid", bearerAuth, async (c) => {
+skillRoutes.patch("/skills/:id/endpoints/:eid", bearerAuth, requireSignedClient, async (c) => {
   const { score, status, response_schema } = await c.req.json<{ score?: number; status?: string; response_schema?: import("../types.js").ResponseSchema }>();
   if (score != null || status) {
     await updateEndpointScore(c.env, c.req.param("id"), c.req.param("eid"), score ?? 0, status as any);

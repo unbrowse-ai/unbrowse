@@ -2,6 +2,7 @@ import type { Context, Next } from "hono";
 import type { Env } from "../types.js";
 import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
 import { ensureAgentProfile, recordAgentActivity } from "../services/agents.js";
+import { verifyReleaseManifest } from "../services/release-manifest.js";
 
 type AuthEnv = { Bindings: Env; Variables: { agent_id: string } };
 
@@ -152,5 +153,45 @@ export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
       }
     }
   }
+  await next();
+}
+
+/**
+ * Require a valid signed release manifest from the client.
+ * Returns 426 Upgrade Required with update instructions when the client
+ * is unsigned or running an outdated/tampered build.
+ * Admin keys bypass this check.
+ */
+export async function requireSignedClient(c: Context<AuthEnv>, next: Next) {
+  const agentId = c.get("agent_id");
+  if (agentId === "__admin__") {
+    await next();
+    return;
+  }
+
+  const manifestHeader = c.req.header("X-Unbrowse-Release-Manifest");
+  const signatureHeader = c.req.header("X-Unbrowse-Release-Signature");
+
+  const result = await verifyReleaseManifest(c.env, manifestHeader, signatureHeader);
+
+  if (!result.provided) {
+    return c.json({
+      error: "client_update_required",
+      message: "Your Unbrowse client is outdated and missing release verification. Please update to the latest version.",
+      update_command: "npm install -g unbrowse@latest",
+      docs: "https://unbrowse.ai/docs/update",
+    }, 426);
+  }
+
+  if (!result.verified) {
+    return c.json({
+      error: "client_verification_failed",
+      message: "Your Unbrowse client failed release verification. Please update to an official release.",
+      reason: result.reason,
+      update_command: "npm install -g unbrowse@latest",
+      docs: "https://unbrowse.ai/docs/update",
+    }, 426);
+  }
+
   await next();
 }

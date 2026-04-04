@@ -2,11 +2,11 @@ import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../services/discovery.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
 import { buildSkillPaymentTerms, searchPaymentsEnabled, verifyX402Proof, x402Response, x402UseTestnet } from "../middleware/x402-gate.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
-
 function schedule<T>(c: Context<{ Bindings: Env }>, task: Promise<T>): void {
   try {
     c.executionCtx.waitUntil(task);
@@ -15,11 +15,6 @@ function schedule<T>(c: Context<{ Bindings: Env }>, task: Promise<T>): void {
   }
 }
 
-function extractAgentId(authHeader: string | undefined | null): string {
-  if (!authHeader) return "anonymous";
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  return token || "anonymous";
-}
 
 function chargeSearchFee(env: Env, agentId: string): void {
   recordGraphFee(env, agentId, "search").catch(() => {});
@@ -90,13 +85,13 @@ searchRoutes.use("/search", rateLimit({ limit: 30, window: 60, prefix: "search" 
 searchRoutes.use("/search/domain", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 searchRoutes.use("/search/resolve", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 
-searchRoutes.post("/search", async (c) => {
+searchRoutes.post("/search", bearerAuth, requireSignedClient, async (c) => {
   const { intent, k } = await c.req.json<{ intent: string; k?: number }>();
   if (!intent) return c.json({ error: "intent required" }, 400);
   try {
     const gate = await requireSearchPayment(c, "search");
     if (gate) return gate;
-    const agentId = extractAgentId(c.req.header("Authorization"));
+    const agentId = c.get("agent_id") ?? "anonymous";
     const cacheTtlSeconds = 30;
     const results = shouldCacheSearch(c)
       ? await getCachedSearchPayload(c, `search:global:${normalizeSearchText(intent)}:${k ?? 5}`, cacheTtlSeconds, async () => ({
@@ -115,13 +110,13 @@ searchRoutes.post("/search", async (c) => {
   }
 });
 
-searchRoutes.post("/search/domain", async (c) => {
+searchRoutes.post("/search/domain", bearerAuth, requireSignedClient, async (c) => {
   const { intent, domain, k } = await c.req.json<{ intent: string; domain: string; k?: number }>();
   if (!intent || !domain) return c.json({ error: "intent and domain required" }, 400);
   try {
     const gate = await requireSearchPayment(c, "search-domain");
     if (gate) return gate;
-    const agentId = extractAgentId(c.req.header("Authorization"));
+    const agentId = c.get("agent_id") ?? "anonymous";
     const cacheTtlSeconds = 30;
     const results = shouldCacheSearch(c)
       ? await getCachedSearchPayload(c, `search:domain:${domain.toLowerCase()}:${normalizeSearchText(intent)}:${k ?? 5}`, cacheTtlSeconds, async () => ({
@@ -140,7 +135,7 @@ searchRoutes.post("/search/domain", async (c) => {
   }
 });
 
-searchRoutes.post("/search/resolve", async (c) => {
+searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, async (c) => {
   const { intent, domain, domain_k, global_k } = await c.req.json<{
     intent: string;
     domain?: string;
@@ -151,7 +146,7 @@ searchRoutes.post("/search/resolve", async (c) => {
   try {
     const gate = await requireSearchPayment(c, "search-resolve");
     if (gate) return gate;
-    const agentId = extractAgentId(c.req.header("Authorization"));
+    const agentId = c.get("agent_id") ?? "anonymous";
     const cacheTtlSeconds = 30;
     const results = shouldCacheSearch(c)
       ? await getCachedSearchPayload(
