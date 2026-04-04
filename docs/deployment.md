@@ -53,14 +53,14 @@ Main deploy workflow:
 Staging deploy workflow:
 
 1. deploy backend with `cd backend && ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging`
-2. deploy frontend with `CLOUDFLARE_ENV=staging` so it publishes as `frontend-staging`
+2. deploy frontend with `CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare build && OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env staging` so it publishes as `frontend-staging`
 3. skip skill-repo sync and any release/publish side effects
 4. if `PREVIEW_API_URL` is unset, skip the frontend staging deploy rather than pointing staging traffic at the wrong backend
 
 Lewis experiments deploy workflow:
 
 1. deploy backend with `cd backend && ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments`
-2. deploy frontend with `CLOUDFLARE_ENV=experiments` so it publishes as `frontend-experiments`
+2. deploy frontend with `CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare build && OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env experiments` so it publishes as `frontend-experiments`
 3. keep the surface on `workers.dev` only; no production or staging routes are touched
 4. if `EXPERIMENTS_API_URL` is unset, skip the frontend experiments deploy rather than pointing the sandbox at the wrong backend
 

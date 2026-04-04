@@ -12,3 +12,4 @@ Deprecated. Durable agent memory now lives in [AGENTS.md](/Users/lekt9/.codex/wo
 - Browse mode should stay thin: `go` opens a fresh Kuri session unless the caller explicitly passes `session_id`, and read ops should not silently reset/recover or rebind onto replacement tabs.
 - Unbrowse local/runtime uses the vendored Kuri binary under `packages/skill/vendor/kuri/...`; patching `submodules/kuri` alone is not enough for real-path verification unless the vendored binaries are rebuilt.
 - `origin/lewis/experiments` is the sandbox branch; its Cloudflare deploy should stay isolated on workers.dev and use its own `EXPERIMENTS_API_URL` secret/var instead of sharing staging preview config.
+- staging/experiments frontend deploys should use `wrangler deploy` after `opennextjs-cloudflare build`; the direct OpenNext deploy path tries to prefill R2 incremental cache and 403s under current CI credentials.
