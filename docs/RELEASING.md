@@ -21,7 +21,9 @@ Do not bump or publish only from `packages/skill/`.
 - explicit local CLI publish path lives at repo root:
   - `bun run pack:cli`
   - `bun run publish:cli`
+  - `bun run publish:cli:preview -- --backend-url https://<preview-backend>`
 - local `bun run publish:cli` intentionally skips `--provenance`; provenance stays on the GitHub Actions release workflow, where npm supports automatic attestations.
+- `bun run publish:cli:preview` builds a timestamped preview version (for example `2.12.4-preview.20260404090807`), uploads matching prerelease binary assets to `unbrowse-ai/unbrowse`, and publishes `unbrowse@preview`. It also bakes the provided preview backend URL into the compiled binary/source fallback so preview installs default to the preview marketplace without extra env.
 - canonical path is still `bun run release`, which keeps `package.json`, `packages/skill/package.json`, and `version.json` in sync before the tag-triggered workflow publishes the CLI.
 - `release-it` is configured with `"npm": false` because `@release-it/bumper` already owns the version bump across the repo and the tag-triggered GitHub workflow owns the actual npm publish. That avoids the duplicate local `npm version` pass that can otherwise fail with `Version not changed`.
 

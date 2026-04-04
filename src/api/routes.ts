@@ -12,7 +12,7 @@ import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
-import { TRACE_VERSION, CODE_HASH, GIT_SHA, PACKAGE_VERSION } from "../version.js";
+import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
@@ -54,7 +54,7 @@ import { buildEndpointReviewContext } from "../publish/review-context.js";
 import { applyWorkflowSchemaReviews } from "../publish/schema-review.js";
 import { readWorkflowArtifact, writeWorkflowArtifact } from "../workflow/artifact.js";
 
-const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
+const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 const BROWSE_BROKER_MAX = Math.max(1, Number(process.env.KURI_MULTI_BROKER_MAX ?? "2"));
@@ -1118,7 +1118,7 @@ export async function registerRoutes(app: FastifyInstance) {
     });
   });
 
-  // Catch-all proxy: forward unmatched /v1/* routes to beta-api.unbrowse.ai
+  // Catch-all proxy: forward unmatched /v1/* routes to the configured backend origin
   app.all("/v1/*", async (req, reply) => {
     const key = getApiKey();
     const upstream = `${BETA_API_URL}${req.url}`;

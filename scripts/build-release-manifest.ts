@@ -54,6 +54,7 @@ function writeGeneratedBuildInfo(build: {
   release_version: string;
   manifest_base64: string;
   signature: string;
+  default_backend_url: string;
 }) {
   const content = [
     `export const BUILD_RELEASE_VERSION = ${JSON.stringify(build.release_version)};`,
@@ -61,6 +62,7 @@ function writeGeneratedBuildInfo(build: {
     `export const BUILD_CODE_HASH = ${JSON.stringify(build.code_hash)};`,
     `export const BUILD_RELEASE_MANIFEST_BASE64 = ${JSON.stringify(build.manifest_base64)};`,
     `export const BUILD_RELEASE_MANIFEST_SIGNATURE = ${JSON.stringify(build.signature)};`,
+    `export const BUILD_DEFAULT_BACKEND_URL = ${JSON.stringify(build.default_backend_url)};`,
     "",
   ].join("\n");
   writeFileSync(generatedBuildInfoPath, content);
@@ -79,6 +81,7 @@ manifest.trace_version = `${manifest.code_hash}@${manifest.git_sha}`;
 const manifestJson = JSON.stringify(manifest);
 const manifestBase64 = encodeBase64Url(manifestJson);
 const signature = signManifest(manifestJson, process.env.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET?.trim());
+const defaultBackendUrl = process.env.UNBROWSE_BUILD_DEFAULT_BACKEND_URL?.trim() || "https://beta-api.unbrowse.ai";
 
 mkdirSync(distDir, { recursive: true });
 writeFileSync(manifestPath, `${manifestJson}\n`);
@@ -94,6 +97,7 @@ writeGeneratedBuildInfo({
   release_version: manifest.release_version,
   manifest_base64: manifestBase64,
   signature,
+  default_backend_url: defaultBackendUrl,
 });
 
 if (process.argv.includes("--shell-env")) {

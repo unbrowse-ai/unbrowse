@@ -54,6 +54,7 @@
     "check:skill-md": "bun scripts/sync-skill-md.ts --check",
     "check:kuri-vendor": "node packages/skill/scripts/assert-kuri-vendor.mjs",
     "pack:cli": "bun run check:kuri-vendor && npm pack --dry-run --workspace packages/skill",
+    "publish:cli:preview": "node scripts/publish-preview-cli.mjs",
     "pack:sdk": "npm pack --dry-run --workspace packages/sdk",
     "issue:worktree:collect": "bun skills/worktree-issue-fix/scripts/issue-worktree-loop.ts collect",
     "issue:worktree:verify": "bun skills/worktree-issue-fix/scripts/issue-worktree-loop.ts verify",

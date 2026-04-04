@@ -1,6 +1,7 @@
+import { DEFAULT_BACKEND_URL } from "../version.js";
 import { getApiKey } from "./index.js";
 
-const API_URL = process.env.UNBROWSE_BACKEND_URL ?? "https://beta-api.unbrowse.ai";
+const API_URL = process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
 const GRAPH_TIMEOUT_MS = parseInt(process.env.UNBROWSE_GRAPH_TIMEOUT_MS ?? "4000", 10);
 
 async function graphApi<T>(method: string, path: string, body?: unknown): Promise<T> {

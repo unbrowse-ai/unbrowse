@@ -15,6 +15,7 @@ import { cachePublishedSkill, getApiKey } from "../client/index.js";
 import { recordSession, recordNegative } from "../client/graph-client.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
 import type { SkillManifest, SkillOperationEdge, SkillOperationNode } from "../types/index.js";
+import { DEFAULT_BACKEND_URL } from "../version.js";
 
 /** Stable session ID — one per process lifetime. */
 const SESSION_ID = nanoid();
@@ -225,7 +226,7 @@ export function publishEdgesToBackend(
   domain: string,
   graph: { operations: SkillOperationNode[]; edges: SkillOperationEdge[] },
 ): void {
-  const backendUrl = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
+  const backendUrl = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 
   const apiKey = _getApiKeyForPublish();
 

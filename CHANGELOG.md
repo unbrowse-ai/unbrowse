@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- add `bun run publish:cli:preview` to build a prerelease npm package + GitHub binary assets against an explicit preview backend, so packaged preview installs and compiled preview binaries hit the same non-prod API by default
 - add `x-brand-banter` skill bundle for Wendy's/Ryanair/MoonPie-style X brand voice, replies, and quote-tweet banter
 - add archetype and routing references for choosing the right funny brand-account voice without drifting into generic social copy
 - add `x-account-operator` foundry bundle to route winner analysis, voice selection, queue cuts, rewrites, and Typefully scheduling into one X account workflow

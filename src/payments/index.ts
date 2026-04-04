@@ -1,3 +1,5 @@
+import { DEFAULT_BACKEND_URL } from "../version.js";
+
 /**
  * Payment integration — lobster.cash compatible.
  *
@@ -70,7 +72,7 @@ export const X402_CONFIG = {
 // ---------------------------------------------------------------------------
 
 /** Backend API base URL for pricing queries. */
-const PRICING_API_URL = process.env.UNBROWSE_BACKEND_URL ?? "https://beta-api.unbrowse.ai";
+const PRICING_API_URL = process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
 
 /** Maximum time (ms) to wait for dynamic price before falling back. */
 const PRICING_TIMEOUT_MS = 2_000;
