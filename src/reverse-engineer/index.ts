@@ -1155,7 +1155,15 @@ function templatizePathSegments(
         try {
           const contextSegments = new URL(context.pageUrl).pathname.split("/");
           const contextSeg = contextSegments[i];
+          const prevSeg = tSegments[i - 1] ?? "";
+          const prevContextSeg = contextSegments[i - 1] ?? "";
+          const nextSeg = tSegments[i + 1] ?? "";
+          const nextContextSeg = contextSegments[i + 1] ?? "";
+          const hasStructuralNeighborMatch =
+            (!!prevSeg && !!prevContextSeg && prevSeg === prevContextSeg) ||
+            (!!nextSeg && !!nextContextSeg && nextSeg === nextContextSeg);
           if (contextSeg && contextSeg !== tSeg &&
+              hasStructuralNeighborMatch &&
               !contextSeg.includes(".") &&
               contextSeg.length >= 2 && contextSeg.length <= 40 &&
               !/^(api|v\d+|www|en|es|fr|de|latest|search|i)$/i.test(contextSeg)) {

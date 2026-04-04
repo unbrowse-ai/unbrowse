@@ -14,19 +14,19 @@ AGENT_EMAIL=""
 
 usage() {
   cat <<'EOF'
-Usage: ./setup [--host auto|codex|claude|off] [--no-start] [--skip-browser] [--accept-tos] [--agent-email you@example.com] [--skip-wallet-setup] [--non-interactive] [--dry-run]
+Usage: ./setup [--host auto|codex|claude|mcp|off] [--no-start] [--skip-browser] [--accept-tos] [--agent-email you@example.com] [--skip-wallet-setup] [--non-interactive] [--dry-run]
 
 Deterministic bootstrap for the standalone skill repo:
 - installs package deps with Bun
 - prebuilds the packaged CLI runtime
 - installs a stable `unbrowse` shim
-- optionally links this clone into a supported host skill directory
+- optionally links this clone into a supported host skill directory or writes an MCP config snippet
 - runs `unbrowse setup`
 
 First-run behavior:
 - prompts for ToS acceptance unless --accept-tos or UNBROWSE_TOS_ACCEPTED=1
 - prompts for agent email/API-key registration unless --agent-email or UNBROWSE_AGENT_EMAIL is set
-- auto-detects lobster.cash wallet context unless --skip-wallet-setup
+- auto-detects wallet context and encourages Crossmint lobster.cash setup unless --skip-wallet-setup
 EOF
 }
 
@@ -86,9 +86,18 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$HOST" in
-  auto|codex|claude|off) ;;
+  auto|codex|claude|mcp|off) ;;
   *) fail "unsupported host: $HOST" ;;
 esac
+
+resolve_config_home() {
+  if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+    printf '%s\n' "$XDG_CONFIG_HOME"
+    return
+  fi
+
+  printf '%s\n' "$HOME/.config"
+}
 
 require_bin() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required binary: $1"
@@ -124,12 +133,15 @@ target_skill_dir() {
   case "$1" in
     codex) printf '%s\n' "$CODEX_HOME_DIR/skills/unbrowse" ;;
     claude) printf '%s\n' "$HOME/.claude/skills/unbrowse" ;;
+    mcp) printf '\n' ;;
     off) printf '\n' ;;
     *) fail "cannot resolve skill dir for host: $1" ;;
   esac
 }
 
 TARGET_SKILL_DIR="$(target_skill_dir "$TARGET_HOST")"
+MCP_CONFIG_DIR="$(resolve_config_home)/unbrowse/mcp"
+MCP_CONFIG_PATH="$MCP_CONFIG_DIR/unbrowse.json"
 
 pick_shim_dir() {
   local dir
@@ -156,6 +168,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log "repo root: $ROOT_DIR"
   log "host: $TARGET_HOST"
   [[ -n "$TARGET_SKILL_DIR" ]] && log "skill dir: $TARGET_SKILL_DIR"
+  [[ "$TARGET_HOST" == "mcp" ]] && log "mcp config: $MCP_CONFIG_PATH"
   log "shim path: $SHIM_PATH"
   [[ "$ACCEPT_TOS" -eq 1 ]] && log "tos: accepted via flag"
   [[ -n "$AGENT_EMAIL" ]] && log "agent email: $AGENT_EMAIL"
@@ -196,6 +209,21 @@ EOF
 chmod +x "$SHIM_PATH"
 log "installed shim: $SHIM_PATH"
 
+if [[ "$TARGET_HOST" == "mcp" ]]; then
+  mkdir -p "$MCP_CONFIG_DIR"
+  cat > "$MCP_CONFIG_PATH" <<EOF
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "$SHIM_PATH",
+      "args": ["mcp"]
+    }
+  }
+}
+EOF
+  log "wrote MCP config: $MCP_CONFIG_PATH"
+fi
+
 case ":${PATH:-}:" in
   *":$SHIM_DIR:"*) ;;
   *)
@@ -224,5 +252,5 @@ if [[ -n "$AGENT_EMAIL" ]]; then
   export UNBROWSE_AGENT_EMAIL="$AGENT_EMAIL"
 fi
 
-log "running first-time bootstrap (ToS, registration, wallet detection)"
+log "running first-time bootstrap (ToS, registration, wallet detection; Crossmint lobster.cash recommended)"
 "$SHIM_PATH" "${CLI_ARGS[@]}"
