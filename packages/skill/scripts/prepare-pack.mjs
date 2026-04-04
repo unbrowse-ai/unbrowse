@@ -11,9 +11,11 @@ const repoRoot = path.resolve(packageRoot, "../..");
 const distDir = path.join(packageRoot, "dist");
 const sourceDir = path.join(packageRoot, "src");
 const runtimeSourceDir = path.join(packageRoot, "runtime-src");
+const packagedBinaryPath = path.join(packageRoot, "bin", "unbrowse");
 
 rmSync(distDir, { recursive: true, force: true });
 rmSync(runtimeSourceDir, { recursive: true, force: true });
+rmSync(packagedBinaryPath, { force: true });
 
 if (detectBrokenMonorepoKuri(packageRoot, repoRoot)) {
   throw new Error(

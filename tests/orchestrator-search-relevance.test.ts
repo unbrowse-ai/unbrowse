@@ -171,4 +171,72 @@ describe("isCachedSkillRelevantForIntent", () => {
     ).toBe(false);
   });
 
+  it("rejects generic linkedin feed skills for messaging intents", () => {
+    const now = new Date().toISOString();
+    const skill: SkillManifest = {
+      skill_id: "skill-linkedin-feed",
+      version: "1.0.0",
+      schema_version: "1",
+      name: "www.linkedin.com",
+      intent_signature: "browse www.linkedin.com",
+      domain: "www.linkedin.com",
+      description: "API skill for www.linkedin.com",
+      owner_type: "marketplace",
+      execution_type: "http",
+      lifecycle: "active",
+      created_at: now,
+      updated_at: now,
+      endpoints: [
+        {
+          endpoint_id: "linkedin-feed",
+          method: "GET",
+          url_template: "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.abc",
+          idempotency: "safe",
+          verification_status: "verified",
+          reliability_score: 1,
+          description: "LinkedIn feed",
+          response_schema: {
+            type: "object",
+            properties: {
+              ok: { type: "boolean" },
+            },
+          },
+          semantic: {
+            action_kind: "timeline",
+            resource_kind: "post",
+            description_out: "LinkedIn feed",
+          },
+        },
+        {
+          endpoint_id: "realtime-timestamp",
+          method: "GET",
+          url_template: "https://www.linkedin.com/realtime/realtimeFrontendTimestamp",
+          idempotency: "safe",
+          verification_status: "verified",
+          reliability_score: 0.8,
+          description: "Returns resource details with timestamps",
+          response_schema: {
+            type: "object",
+            properties: {
+              timestamp: { type: "integer" },
+            },
+          },
+          semantic: {
+            action_kind: "detail",
+            resource_kind: "resource",
+            description_out: "Returns resource details with timestamps",
+          },
+        },
+      ],
+    };
+
+    expect(
+      isCachedSkillRelevantForIntent(
+        skill,
+        "get linkedin messages",
+        "https://www.linkedin.com/messaging/",
+      ),
+    ).toBe(false);
+  });
+
 });

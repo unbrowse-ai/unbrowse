@@ -479,6 +479,9 @@ function isResolveUsableEndpointForIntent(
   contextUrl?: string,
 ): boolean {
   if (endpointTargetsMismatchedLocalReplayHost(endpoint, contextUrl)) return false;
+  if (isMessagingIntent(intent, contextUrl) && !endpointMatchesMessagingContext(endpoint, contextUrl)) {
+    return false;
+  }
   if (isFeedTimelineIntent(intent, contextUrl) && endpointHasNegativeTag(endpoint, "helper")) {
     return false;
   }
@@ -838,6 +841,52 @@ function isFeedTimelineIntent(intent?: string, contextUrl?: string): boolean {
   const asksForPosts = /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/.test(text);
   if (!asksForPosts) return false;
   return /\b(feed|timeline|stream|home|for-you|for_you|latest)\b/.test(text) || /\/(feed|home)\//.test(text);
+}
+
+function isMessagingIntent(intent?: string, contextUrl?: string): boolean {
+  const text = `${intent ?? ""} ${contextUrl ?? ""}`.toLowerCase();
+  return /\b(message|messages|messaging|mailbox|inbox|conversation|conversations|chat|dm|dms|thread|threads)\b/.test(text)
+    || /\/messaging\b/.test(text);
+}
+
+function endpointMatchesMessagingContext(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  const haystack = [
+    endpoint.url_template,
+    endpoint.trigger_url ?? "",
+    endpoint.description ?? "",
+    endpoint.semantic?.action_kind ?? "",
+    endpoint.semantic?.resource_kind ?? "",
+    endpoint.semantic?.description_in ?? "",
+    endpoint.semantic?.description_out ?? "",
+    JSON.stringify(endpoint.response_schema ?? {}),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (/\b(message|messages|messaging|mailbox|inbox|conversation|conversations|chat|dm|dms|thread|threads)\b/.test(haystack)) {
+    return true;
+  }
+
+  if (!contextUrl) return false;
+  try {
+    const contextPath = new URL(contextUrl).pathname;
+    const endpointPath = new URL(endpoint.url_template).pathname;
+    if (contextPath === endpointPath && /\/messaging\b/.test(contextPath)) return true;
+  } catch {
+    // ignore malformed endpoint/template urls
+  }
+
+  try {
+    const triggerPath = endpoint.trigger_url ? new URL(endpoint.trigger_url).pathname : "";
+    if (/\/messaging\b/.test(triggerPath)) return true;
+  } catch {
+    // ignore malformed trigger urls
+  }
+
+  return false;
 }
 
 function endpointMatchesFeedTimelineContext(
