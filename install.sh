@@ -104,10 +104,15 @@ else
   if [ "$INTERACTIVE" -ne 1 ] && [ "${UNBROWSE_TOS_ACCEPTED:-0}" != "1" ]; then
     echo "Skipping interactive setup: non-interactive install requires UNBROWSE_TOS_ACCEPTED=1."
     echo "Next: UNBROWSE_TOS_ACCEPTED=1 ${UNBROWSE_AGENT_EMAIL:+UNBROWSE_AGENT_EMAIL=$UNBROWSE_AGENT_EMAIL }$INSTALL_DIR/unbrowse $SETUP_ARGS"
+    SETUP_OK=0
   else
     echo "Running unbrowse setup..."
     # shellcheck disable=SC2086
-    UNBROWSE_SETUP_METHOD="npm-global" "$INSTALL_DIR/unbrowse" $SETUP_ARGS "$@"
+    if UNBROWSE_SETUP_METHOD="npm-global" "$INSTALL_DIR/unbrowse" $SETUP_ARGS "$@"; then
+      SETUP_OK=1
+    else
+      SETUP_OK=0
+    fi
   fi
 fi
 
@@ -115,10 +120,8 @@ if [ "${UNBROWSE_SKIP_SKILLS_REGISTRY:-0}" = "1" ]; then
   exit 0
 fi
 
-if command -v npx >/dev/null 2>&1; then
-  echo "Registering install with skills.sh..."
+if [ "${SETUP_OK:-0}" = "1" ] && command -v npx >/dev/null 2>&1; then
+  echo "Registering with skills.sh..."
   npx -y skills add unbrowse-ai/unbrowse --yes >/dev/null 2>&1 || \
-    echo "Skipping skills.sh registry add (command failed)."
-else
-  echo "Skipping skills.sh registry add (npx not found)."
+    echo "Skipping skills.sh registry (command failed)."
 fi
