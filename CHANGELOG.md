@@ -4,6 +4,7 @@
 
 - drop partial release-attestation headers from local/source API calls; send manifest + signature together or neither, so dev/runtime publish no longer trips `release_manifest_incomplete` on strict backends
 - align the MCP tool surface with `SKILL.md`: make `resolve` explicitly cache-only, expose `review` + `publish` tools, and steer fresh captures through `go -> sync/close -> skill/publish -> review -> publish` instead of fake discovery via resolve
+- make the skill/docs explicit that `npx skills add ... --skill unbrowse` is instruction-only; agents should tell users to install the `unbrowse` runtime separately instead of assuming the binary exists
 - add `bun run publish:cli:preview` to build a prerelease npm package + GitHub binary assets against an explicit preview backend, so packaged preview installs and compiled preview binaries hit the same non-prod API by default
 - add `x-brand-banter` skill bundle for Wendy's/Ryanair/MoonPie-style X brand voice, replies, and quote-tweet banter
 - add archetype and routing references for choosing the right funny brand-account voice without drifting into generic social copy
