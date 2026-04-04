@@ -64,7 +64,7 @@ await unbrowse.login({
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Local server health/version surface |
-| `POST` | `/v1/intent/resolve` | Canonical product entrypoint: search, capture, defer, or execute |
+| `POST` | `/v1/intent/resolve` | Canonical product entrypoint: search cached domain routes and optionally execute a trusted hit |
 | `POST` | `/v1/skills/:id/execute` | Execute a chosen endpoint from a known skill |
 | `GET` | `/v1/skills` | List skills visible from the current runtime |
 | `GET` | `/v1/skills/:id` | Fetch one skill manifest |
@@ -73,8 +73,6 @@ await unbrowse.login({
 | `POST` | `/v1/skills` | Publish a skill manifest |
 | `POST` | `/v1/auth/login` | Headed login flow for a target site |
 | `POST` | `/v1/auth/steal` | Import cookies from browser/Electron storage |
-| `POST` | `/v1/search` | Global semantic search across skills |
-| `POST` | `/v1/search/domain` | Domain-scoped semantic search |
 | `POST` | `/v1/feedback` | Feedback loop for skill/endpoint quality |
 | `GET` | `/v1/stats/summary` | Marketplace summary stats |
 
@@ -85,10 +83,10 @@ await unbrowse.login({
 - hit route cache
 - hit domain cache / local snapshots
 - hit marketplace-backed search
-- try a lightweight first-pass browser action
-- fall back to live capture
 - return a deferred shortlist in `available_endpoints`
+- include `workflow_dag` for the relevant operation subgraph, with per-operation / per-endpoint `prefetch_get_operations` hints for safe dependent GET reads
 - execute immediately when the best route is already clear
+- return a cache miss quickly when nothing trusted is cached yet
 
 The CLI wrapper is:
 

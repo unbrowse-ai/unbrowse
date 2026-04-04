@@ -1,6 +1,9 @@
 import type {
   AgentAvailableOperation,
+  AgentPrefetchOperation,
   AgentSkillChunkView,
+  AgentWorkflowDagOperation,
+  AgentWorkflowDagView,
   EndpointDescriptor,
   OperationBinding,
   ResponseSchema,
@@ -790,6 +793,64 @@ export function isRunnable(operation: SkillOperationNode, bindings: Record<strin
   });
 }
 
+function isPrefetchableEdgeKind(kind: SkillOperationEdge["kind"]): boolean {
+  return kind === "dependency" || kind === "parent_child" || kind === "pagination";
+}
+
+function buildEffectiveBindings(
+  operation: SkillOperationNode,
+  knownBindings: Record<string, unknown>,
+): Record<string, unknown> {
+  const effectiveBindings: Record<string, unknown> = { ...knownBindings };
+  for (const binding of operation.provides) {
+    if (effectiveBindings[binding.key] == null) {
+      effectiveBindings[binding.key] = binding.example_value ?? `__from_${operation.operation_id}__`;
+    }
+  }
+  return effectiveBindings;
+}
+
+export function getOperationPrefetchTargets(
+  graph: SkillOperationGraph,
+  resolvedOperationId: string,
+  knownBindings: Record<string, unknown>,
+  limit = 3,
+): Array<{
+  operation: SkillOperationNode;
+  edge: SkillOperationEdge;
+  reason: string;
+}> {
+  const resolvedOperation = graph.operations.find((operation) => operation.operation_id === resolvedOperationId);
+  if (!resolvedOperation) return [];
+
+  const effectiveBindings = buildEffectiveBindings(resolvedOperation, knownBindings);
+  const candidates: Array<{
+    operation: SkillOperationNode;
+    edge: SkillOperationEdge;
+    reason: string;
+  }> = [];
+
+  for (const edge of graph.edges) {
+    if (edge.from_operation_id !== resolvedOperationId) continue;
+    if (!isPrefetchableEdgeKind(edge.kind)) continue;
+
+    const targetOperation = graph.operations.find((operation) => operation.operation_id === edge.to_operation_id);
+    if (!targetOperation) continue;
+    if (targetOperation.method !== "GET") continue;
+    if (!isRunnable(targetOperation, effectiveBindings)) continue;
+
+    candidates.push({
+      operation: targetOperation,
+      edge,
+      reason: `${resolvedOperation.action_kind} ${resolvedOperation.resource_kind} -> ${targetOperation.action_kind} ${targetOperation.resource_kind} via ${edge.binding_key}`,
+    });
+  }
+
+  return candidates
+    .sort((a, b) => b.edge.confidence - a.edge.confidence)
+    .slice(0, Math.max(0, limit));
+}
+
 /**
  * Compute the set of reachable operation IDs given current known bindings.
  *
@@ -860,13 +921,16 @@ export function getSkillChunk(
     seed_operation_id?: string;
     known_bindings?: Record<string, unknown>;
     max_operations?: number;
+    include_full_relevant_graph?: boolean;
   },
 ): SkillChunk {
   const graph = ensureSkillOperationGraph(skill);
   const known = opts?.known_bindings ?? {};
-  const maxOperations = opts?.max_operations ?? 6;
   const filtered = graph.operations.filter((operation) => !isOperationHardExcluded(operation, opts?.intent));
   const candidateOps = filtered.length > 0 ? filtered : graph.operations;
+  const maxOperations = opts?.include_full_relevant_graph
+    ? Math.max(1, candidateOps.length)
+    : (opts?.max_operations ?? 6);
   const scored = [...candidateOps].sort((a, b) => operationScore(b, opts?.intent) - operationScore(a, opts?.intent));
   const seedIds = opts?.seed_operation_id
     ? [opts.seed_operation_id]
@@ -935,6 +999,62 @@ function toAgentAvailableOperation(operation: SkillOperationNode): AgentAvailabl
     yields,
     example_request: operation.example_request,
     example_response_compact: operation.example_response_compact,
+  };
+}
+
+function toAgentPrefetchOperation(
+  target: { operation: SkillOperationNode; edge: SkillOperationEdge; reason: string },
+): AgentPrefetchOperation {
+  return {
+    operation_id: target.operation.operation_id,
+    endpoint_id: target.operation.endpoint_id,
+    method: target.operation.method,
+    action_kind: target.operation.action_kind,
+    resource_kind: target.operation.resource_kind,
+    reason: target.reason,
+    binding_key: target.edge.binding_key,
+    edge_kind: target.edge.kind,
+    confidence: target.edge.confidence,
+  };
+}
+
+export function toAgentWorkflowDagView(
+  chunk: SkillChunk,
+  graph: SkillOperationGraph,
+  knownBindings: Record<string, unknown> = {},
+): AgentWorkflowDagView {
+  const runnableOperationIds = new Set(chunk.available_operation_ids);
+  const operations: AgentWorkflowDagOperation[] = chunk.operations.map((operation) => ({
+    operation_id: operation.operation_id,
+    endpoint_id: operation.endpoint_id,
+    method: operation.method,
+    action_kind: operation.action_kind,
+    resource_kind: operation.resource_kind,
+    title: readableOperationTitle(operation),
+    url_template: operation.url_template,
+    description_out: operation.description_out,
+    requires: summarizeBindingKeys(operation.requires),
+    yields: summarizeBindingKeys(operation.provides),
+    runnable: runnableOperationIds.has(operation.operation_id),
+    prefetch_get_operations: getOperationPrefetchTargets(graph, operation.operation_id, knownBindings)
+      .filter((target) => chunk.operations.some((candidate) => candidate.operation_id === target.operation.operation_id))
+      .map(toAgentPrefetchOperation),
+  }));
+
+  return {
+    skill_id: chunk.skill_id,
+    intent: chunk.intent,
+    missing_bindings: chunk.missing_bindings,
+    suggested_next_operation_id: chunk.available_operation_ids[0],
+    operations,
+    edges: chunk.edges.map((edge) => ({
+      edge_id: edge.edge_id,
+      from_operation_id: edge.from_operation_id,
+      to_operation_id: edge.to_operation_id,
+      binding_key: edge.binding_key,
+      kind: edge.kind,
+      confidence: edge.confidence,
+    })),
   };
 }
 

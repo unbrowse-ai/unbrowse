@@ -118,14 +118,8 @@ function resolveLoginUrl(result: Record<string, unknown>, fallbackUrl?: string):
     ?? "";
 }
 
-function hasIndexingFallback(result: Record<string, unknown>): boolean {
-  return (result.result as Record<string, unknown> | undefined)?.indexing_fallback_available === true;
-}
-
 function isResolveSuccessResult(result: Record<string, unknown>): boolean {
-  const resultObj = result.result as Record<string, unknown> | undefined;
   if (resolveResultError(result)) return false;
-  if (resultObj?.status === "browse_session_open") return false;
   return !!result.result || Array.isArray(result.available_endpoints);
 }
 
@@ -306,7 +300,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     }
 
     const startedAt = Date.now();
-    async function resolveOnce(message = "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back."): Promise<Record<string, unknown>> {
+    async function resolveOnce(message = "Still working. Searching cached routes..."): Promise<Record<string, unknown>> {
       return withPendingNotice(
         api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
         message,
@@ -314,55 +308,10 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     }
 
     let result = await resolveOnce();
-    let attemptedForceCapture = !!body.force_capture;
-    let attemptedCookieImport = false;
-    let attemptedInteractiveLogin = false;
-
-    while (true) {
-      const resultError = resolveResultError(result);
-      if (resultError === "payment_required" && hasIndexingFallback(result) && url && !attemptedForceCapture) {
-        attemptedForceCapture = true;
-        body.force_capture = true;
-        info("Marketplace search is paid here. Falling back to free live capture on the exact URL...");
-        result = await resolveOnce("Running free live capture...");
-        continue;
-      }
-
-      if (resultError === "auth_required") {
-        const loginUrl = resolveLoginUrl(result, url);
-        if (!loginUrl) break;
-
-        if (!attemptedCookieImport) {
-          attemptedCookieImport = true;
-          info("Site requires authentication. Trying browser cookie import first...");
-          const stealResult = await api("POST", "/v1/auth/steal", { url: loginUrl }) as Record<string, unknown>;
-          const cookiesStored = typeof stealResult.cookies_stored === "number"
-            ? stealResult.cookies_stored
-            : Number(stealResult.cookies_stored ?? 0);
-          if (stealResult.success === true && cookiesStored > 0) {
-            info(`Imported ${cookiesStored} browser cookies. Retrying...`);
-            result = await resolveOnce("Retrying after browser cookie import...");
-            continue;
-          }
-        }
-
-        if (!attemptedInteractiveLogin) {
-          attemptedInteractiveLogin = true;
-          info("Site requires authentication. Opening browser for login...");
-          const loginResult = await api("POST", "/v1/auth/login", { url: loginUrl }) as Record<string, unknown>;
-          if (loginResult.error || loginResult.success === false) {
-            const message = typeof loginResult.error === "string"
-              ? loginResult.error
-              : "interactive login did not produce a reusable session";
-            throw new Error(`Login failed: ${message}. Run: unbrowse login --url "${loginUrl}"`);
-          }
-          info("Login complete. Retrying...");
-          result = await resolveOnce("Retrying after login...");
-          continue;
-        }
-      }
-
-      break;
+    const resultError = resolveResultError(result);
+    if (resultError === "auth_required") {
+      const loginUrl = resolveLoginUrl(result, url);
+      if (loginUrl) info(`Authentication required. Run: unbrowse login --url "${loginUrl}"`);
     }
 
     // When agent explicitly picked an endpoint but resolve deferred, execute it directly
@@ -397,39 +346,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
           "Executing best endpoint...",
         );
       }
-    }
-
-    // Browse session handoff
-    const resultObj = result.result as Record<string, unknown> | undefined;
-    if (resultObj?.status === "browse_session_open") {
-      info(`No cached API. Browser session open on ${resultObj.domain ?? resultObj.url}.`);
-      info(`Preferred flow: snap -> click/fill/eval -> submit -> sync -> close.`);
-      info(`Use these commands to get your data:`);
-      const commands = resultObj.commands as string[] ?? [
-        resultObj.session_id
-          ? `unbrowse snap --session ${resultObj.session_id} --filter interactive`
-          : "unbrowse snap --filter interactive",
-        resultObj.session_id
-          ? `unbrowse click --session ${resultObj.session_id} <ref>`
-          : "unbrowse click <ref>",
-        resultObj.session_id
-          ? `unbrowse fill --session ${resultObj.session_id} <ref> <value>`
-          : "unbrowse fill <ref> <value>",
-        resultObj.session_id
-          ? `unbrowse submit --session ${resultObj.session_id} --wait-for \"/next-step\"`
-          : "unbrowse submit --wait-for \"/next-step\"",
-        resultObj.session_id
-          ? `unbrowse sync --session ${resultObj.session_id}`
-          : "unbrowse sync",
-        resultObj.session_id
-          ? `unbrowse close --session ${resultObj.session_id}`
-          : "unbrowse close",
-      ];
-      for (const cmd of commands) info(`  ${cmd}`);
-      info(`For JS-heavy forms: prefer real date/time clicks first, inspect hidden inputs with eval when needed, then submit.`);
-      info(`All traffic is being passively captured. Run "unbrowse close" when done.`);
-      output(slimTrace(result), !!flags.pretty);
-      return;
     }
 
     if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
@@ -836,59 +752,7 @@ async function cmdCleanupStale(flags: Record<string, string | boolean>): Promise
 }
 
 async function cmdSearch(flags: Record<string, string | boolean>): Promise<void> {
-  const intent = flags.intent as string;
-  if (!intent) die("--intent is required");
-  const domain = flags.domain as string | undefined;
-  const path = domain ? "/v1/search/domain" : "/v1/search";
-  const body: Record<string, unknown> = { intent, k: Number(flags.k) || 5 };
-  if (domain) body.domain = domain;
-  const hostType = detectTelemetryHostType();
-  await ensureCliInstallTracked(hostType);
-  await recordFunnelTelemetryEvent("cli_invoked", {
-    source: "cli",
-    hostType,
-    properties: { command: "search" },
-  });
-  await recordFunnelTelemetryEvent("search_started", {
-    source: "cli",
-    hostType,
-    properties: {
-      command: "search",
-      intent,
-      domain: domain ?? null,
-      k: body.k,
-    },
-  });
-  try {
-    const result = await api("POST", path, body) as Record<string, unknown>;
-    const results = Array.isArray(result.results) ? result.results : [];
-    await recordFunnelTelemetryEvent("search_completed", {
-      source: "cli",
-      hostType,
-      properties: {
-        command: "search",
-        intent,
-        domain: domain ?? null,
-        k: body.k,
-        result_count: results.length,
-      },
-    });
-    output(result, !!flags.pretty);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await recordFunnelTelemetryEvent("search_failed", {
-      source: "cli",
-      hostType,
-      properties: {
-        command: "search",
-        intent,
-        domain: domain ?? null,
-        failure_stage: "search",
-        failure_reason: message,
-      },
-    });
-    throw error;
-  }
+  await cmdResolve(flags);
 }
 
 async function cmdSessions(flags: Record<string, string | boolean>): Promise<void> {
@@ -1005,7 +869,7 @@ export const CLI_REFERENCE = {
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
-    { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent → search/capture/execute" },
+    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Search cached domain routes and optionally execute the top trusted endpoint" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/metadata back to skill" },
@@ -1016,7 +880,6 @@ export const CLI_REFERENCE = {
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills and evict stale cached endpoints" },
-    { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
     { name: "go", usage: '<url> [--session id]', desc: "Open a live Kuri browser tab for capture-first workflows" },
     { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]", desc: "Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins" },
@@ -1045,19 +908,19 @@ export const CLI_REFERENCE = {
     { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
   ],
   resolveExecuteFlags: [
+    { flag: "--execute", desc: "Auto-execute the top trusted endpoint from resolve" },
     { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
     { flag: '--path "data.items[]"', desc: "Drill into result before extract/output" },
     { flag: '--extract "field1,alias:deep.path.to.val"', desc: "Pick specific fields (no piping needed)" },
     { flag: "--limit N", desc: "Cap array output to N items" },
     { flag: "--endpoint-id ID", desc: "Pick a specific endpoint" },
     { flag: "--dry-run", desc: "Preview mutations" },
-    { flag: "--force-capture", desc: "Bypass caches, re-capture" },
     { flag: "--params '{...}'", desc: "Extra params as JSON" },
   ],
   examples: [
     "unbrowse setup",
     "unbrowse mcp",
-    'unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute',
+    'unbrowse resolve --intent "top stories" --domain "news.ycombinator.com" --url "https://news.ycombinator.com" --execute',
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
     'unbrowse go "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html"',
     'unbrowse snap --filter interactive',

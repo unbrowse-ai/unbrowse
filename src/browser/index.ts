@@ -214,7 +214,10 @@ export class Page {
         { intent },
       );
 
-      if (result.trace.success && result.result) {
+      const status = typeof result.result === "object" && result.result
+        ? (result.result as Record<string, unknown>).status
+        : undefined;
+      if (result.trace.success && result.result && status !== "no_cached_match" && !Array.isArray((result as { available_endpoints?: unknown }).available_endpoints)) {
         this._skillResult = {
           skill: result.skill,
           trace: result.trace,

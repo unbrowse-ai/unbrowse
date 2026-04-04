@@ -10,6 +10,8 @@
 
 * **browser/kuri**: lazily allocate Kuri tabs in the browser wrapper so cache-hit `goto()` calls stop spawning stray blank tabs before a real browser fallback is needed
 * **resolve/search**: reject cached marketplace skills for exact-URL search tasks when they do not expose the active search binding, so obvious misses fall through to live capture without needing `--force-capture`
+* **resolve/runtime**: make `resolve` read-only again by returning a fast `no_cached_match` on misses, shortening search timeout, and keeping browser/login/capture flows explicit instead of side effects of resolve
+* **resolve/dag**: return the full relevant workflow DAG slice from `resolve`, attach safe dependent GET prefetch hints to DAG operations and endpoint candidates, and fix endpoint-vs-operation graph filtering during auto-exec
 
 ## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
 

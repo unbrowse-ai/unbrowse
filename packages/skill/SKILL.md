@@ -215,7 +215,7 @@ Use `--path`, `--extract`, and `--limit` instead of shell post-processing. Execu
 
 This resolve/execute pair is the router/meta surface for indexed/published contracts:
 
-- `resolve` searches the indexed/published contract graph
+- `resolve` is the single public primitive: search the indexed/published contract graph and optionally execute a trusted hit
 - `execute` runs one explicit replay contract
 - `skill` / `skills` let you inspect the indexed/published contract inventory
 
@@ -277,6 +277,8 @@ Resolve returns `available_endpoints` sorted by score. Look at:
 | `dom_extraction` | `false` preferred for replay; `true` means DOM-derived artifact |
 | `score` | Ranking hint only — not stronger than obvious route truth |
 
+Resolve now also returns `workflow_dag` for the relevant subgraph, plus `prefetch_get_operations` hints on DAG operations / endpoint candidates for safe dependent GET reads.
+
 For simple sites with one clear endpoint, `resolve` may return direct data in `result`. Then skip `execute`.
 
 ### 7. Direct Kuri escape hatch
@@ -305,7 +307,7 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 |---------|-------|-------------|
 | `health` |  | Server health check |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
-| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
+| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Search cached domain routes and optionally execute the top trusted endpoint |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
@@ -316,7 +318,6 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
 | `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
-| `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
 | `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
@@ -351,13 +352,13 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 
 | Flag | Description |
 |------|-------------|
+| `--execute` | Auto-execute the top trusted endpoint from resolve |
 | `--schema` | Show response schema + extraction hints only (no data) |
 | `--path "data.items[]"` | Drill into result before extract/output |
 | `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
 | `--limit N` | Cap array output to N items |
 | `--endpoint-id ID` | Pick a specific endpoint |
 | `--dry-run` | Preview mutations |
-| `--force-capture` | Bypass caches, re-capture |
 | `--params '{...}'` | Extra params as JSON |
 <!-- CLI_REFERENCE_END -->
 
@@ -376,13 +377,11 @@ unbrowse feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5
 
 
 
-### First-time domains — browse to checkpoint
+### First-time domains — explicit browse flow
 
-When resolve has no cached skill for a domain, it either:
-1. **Auto-captures** — opens a Kuri browser session, navigates, captures traffic, checkpoints it, and returns endpoints (20-80s, transparent)
-2. **Returns `browse_session_open`** — the site needs interaction (login, search, navigation) before APIs appear
+When resolve has no trusted cached route for a domain, it returns a cache miss. If you want to learn the site, start a browser session explicitly with `go` and then checkpoint it with `sync` / `close`.
 
-If you get `browse_session_open`, drive the browser with Kuri primitives:
+Use Kuri primitives directly:
 
 ```bash
 # Browser is already open on the site. Navigate, interact, checkpoint progress:
@@ -395,7 +394,7 @@ unbrowse sync                          # Mid-flow checkpoint
 unbrowse close                         # Final checkpoint + close session
 ```
 
-All traffic is passively captured during the browse session. `sync` and `close` checkpoint that capture and queue the background `index -> publish` pipeline. Local `index` can also recompute the DAG/contracts/export without remote share. The next time you (or any agent) resolves the same domain, it hits the cache in <200ms instead of browsing again.
+All traffic is passively captured during the browse session. `sync` and `close` checkpoint that capture and queue the background `index -> publish` pipeline. Local `index` can also recompute the DAG/contracts/export without remote share. The next time you (or any agent) resolves the same domain, it hits the cache instead of browsing again.
 
 ### Dependency walk for multi-step sites
 
@@ -405,7 +404,7 @@ All traffic is passively captured during the browse session. `sync` and `close` 
 - If a later page falls back to `abandonedCart`, `session_expired`, wrong audience, or wrong product, resume from the last known good upstream page and walk forward again.
 - Use `sync` after successful transitions so the checkpointed capture queues the background `index -> publish` pipeline and future resolve/execute runs inherit the working dependency chain instead of only the terminal page.
 
-**If auth is needed**, the CLI detects `auth_required` and auto-opens a login window:
+**If auth is needed**, run login explicitly:
 ```bash
 unbrowse login --url "https://example.com/login"
 ```
@@ -426,12 +425,12 @@ unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 
 **How to pick:** Match `action_kind` to your intent (`timeline`, `list`, `detail`, `search`). Prefer `dom_extraction: false` (real API) over `true` (page scrape). Check the `url` for recognizable API paths (e.g. `HomeTimeline`, `UserTweets`).
 
-### Domain skills have many endpoints — use search or description matching
+### Domain skills have many endpoints — use resolve or description matching
 
 After domain convergence, a single skill (e.g. `linkedin.com`) may have 40+ endpoints. Filter by intent:
 
 ```bash
-unbrowse search --intent "get my notifications" --domain "www.linkedin.com"
+unbrowse resolve --intent "get my notifications" --domain "www.linkedin.com" --pretty
 ```
 
 Or filter `available_endpoints` by `action_kind`, URL pattern, or description in the resolve response.
@@ -458,7 +457,6 @@ User completes login in the browser window. Cookies are stored and reused automa
 ```bash
 unbrowse skills                                    # List all skills
 unbrowse skill {id}                                # Get skill details
-unbrowse search --intent "..." --domain "..."      # Search marketplace
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse health                                    # Server health check
 ```
@@ -635,13 +633,11 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 
 | Method | Endpoint | Description | Tier |
 |--------|----------|-------------|------|
-| POST | `/v1/intent/resolve` | Resolve intent -> search/capture/execute | Free (local) or Tier 3 (graph) |
+| POST | `/v1/intent/resolve` | Canonical entrypoint: search cached graph, optionally execute trusted hit | Free (local) or Tier 3 (graph) |
 | POST | `/v1/skills/:id/execute` | Execute a specific skill | Free (cached) or Tier 2 (opt-in site) |
 | POST | `/v1/auth/login` | Interactive browser login | Free |
 | POST | `/v1/auth/steal` | Import cookies from browser/Electron storage | Free |
 | POST | `/v1/feedback` | Submit feedback with diagnostics | Free |
-| POST | `/v1/search` | Search marketplace globally | Tier 3 |
-| POST | `/v1/search/domain` | Search marketplace by domain | Tier 3 |
 | POST | `/v1/graph/edges` | Publish endpoint graph edges | Free |
 | POST | `/v1/transactions` | Record a payment transaction | Free |
 | POST | `/v1/issues/auto-file` | Auto-file a GitHub issue from error context | Free |
@@ -655,7 +651,7 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 ## Rules
 
 1. **Always use the CLI** — never pipe to `node -e`, `python -c`, or `jq`. Use `--path`/`--extract`/`--limit` instead.
-2. Always try `resolve` first — it handles the full marketplace search -> capture pipeline
+2. Always try `resolve` first — it is the single public routing primitive and should stay fast
 3. **Don't blindly trust auto-extraction** — for normalized APIs (LinkedIn, Facebook) auto-extraction often grabs wrong fields from mixed-type arrays. If you know the domain's extraction pattern (see Examples), use `--extract` directly. If auto-extraction fires, validate the result — mostly-null rows mean it picked the wrong fields.
 4. **NEVER guess paths by trial-and-error** — use `--schema` to see the full response structure, or read `_auto_extracted.all_fields` / `extraction_hints.schema_tree`
 5. Use `--raw` if you need the unprocessed full response
@@ -670,7 +666,7 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 When Unbrowse fails on a site, file a GitHub issue so the team can fix it. This is **mandatory** when:
 - A site returns empty data after browse + index + resolve + execute
 - Auth/cookies fail (HTTP 400/401/403 after cookie injection)
-- Resolve returns `browse_session_open` for a site that should have cached endpoints
+- Resolve misses too often for a site that should have cached endpoints
 - Execute returns wrong or stale data consistently
 - A site that previously worked stops working
 
