@@ -672,6 +672,77 @@ function resolveSkillId(value: Record<string, unknown>): string | undefined {
   return typeof value.skill_id === "string" ? value.skill_id : undefined;
 }
 
+export function addResolveMissGuidance(
+  result: Record<string, unknown>,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  const nested = isPlainObject(result.result) ? result.result : undefined;
+  const status = typeof nested?.status === "string" ? nested.status : undefined;
+  const error = resolveNestedError(result);
+  if (status !== "no_cached_match" && error !== "no_cached_match") return result;
+
+  const url = typeof args.url === "string" ? args.url : (typeof nested?.url === "string" ? nested.url : undefined);
+  const domain = typeof args.domain === "string" ? args.domain : (typeof nested?.domain === "string" ? nested.domain : undefined);
+  const target = url ?? domain ?? "<exact page url>";
+  const relevant_options = [
+    {
+      mode: "browse_only",
+      when: "You just need to inspect or manually use the live site right now.",
+      next_tools: [
+        "unbrowse_go",
+        "unbrowse_snap",
+        "unbrowse_click/unbrowse_fill/unbrowse_select/unbrowse_eval",
+      ],
+    },
+    {
+      mode: "capture_for_reuse",
+      when: "You want Unbrowse to learn the site and turn the workflow into a reusable contract.",
+      next_tools: [
+        "unbrowse_go",
+        "unbrowse_snap",
+        "unbrowse_click/unbrowse_fill/unbrowse_select/unbrowse_eval",
+        "unbrowse_submit",
+        "unbrowse_sync or unbrowse_close",
+        "unbrowse_skill or unbrowse_publish",
+        "unbrowse_review",
+        "unbrowse_publish",
+      ],
+    },
+    {
+      mode: "auth_then_retry",
+      when: "The site is gated and the browser flow needs a logged-in session first.",
+      next_tools: [
+        "unbrowse_login",
+        "unbrowse_go",
+        "unbrowse_snap",
+      ],
+    },
+  ];
+  return {
+    ...result,
+    result: {
+      ...(nested ?? {}),
+      next_step:
+        `No cached route yet. Start live browser discovery on ${target}: `
+        + `unbrowse_go -> unbrowse_snap -> interact -> unbrowse_submit if needed -> unbrowse_sync/unbrowse_close -> `
+        + `unbrowse_skill or unbrowse_publish -> unbrowse_review -> unbrowse_publish.`,
+      suggested_tool_sequence: [
+        "unbrowse_go",
+        "unbrowse_snap",
+        "unbrowse_click/unbrowse_fill/unbrowse_select/unbrowse_eval",
+        "unbrowse_submit",
+        "unbrowse_sync or unbrowse_close",
+        "unbrowse_skill or unbrowse_publish",
+        "unbrowse_review",
+        "unbrowse_publish",
+      ],
+      relevant_options,
+      discovery_mode: "browser_first",
+      resolve_mode: "cache_only",
+    },
+  };
+}
+
 async function executeResolvedEndpoint(result: Record<string, unknown>, args: Record<string, unknown>, endpointId?: string): Promise<Record<string, unknown>> {
   const skillId = resolveSkillId(result);
   if (!skillId) return { error: "resolve returned endpoints but no skill_id" };
@@ -788,6 +859,7 @@ const tools: ToolDefinition[] = [
         result = await executeResolvedEndpoint(result, args, typeof args.endpoint_id === "string" ? args.endpoint_id : undefined);
       }
 
+      result = addResolveMissGuidance(result, args);
       const nestedError = resolveNestedError(result);
       return nestedError ? errorResult(nestedError, result) : successResult(maybePostProcessResult(result, args), "Resolve result.");
     },
