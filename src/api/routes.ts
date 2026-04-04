@@ -7,7 +7,7 @@ import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgrou
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
-import { buildSkillOperationGraph } from "../graph/index.js";
+import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
@@ -25,7 +25,6 @@ import {
 } from "../auth/index.js";
 import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
-import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
 import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
@@ -51,6 +50,7 @@ import {
   updateCapturePipelineSettings,
 } from "../settings.js";
 import { publishFoundryBundle } from "../foundry/publish-bundle.js";
+import { buildEndpointReviewContext } from "../publish/review-context.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
@@ -703,27 +703,34 @@ export async function registerRoutes(app: FastifyInstance) {
 
     const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
     const ranked = rankEndpoints(indexed.skill.endpoints, indexed.skill.intent_signature, indexed.skill.domain);
-    const endpoints_to_describe = ranked.map((r) => ({
-      endpoint_id: r.endpoint.endpoint_id,
-      method: r.endpoint.method,
-      url: r.endpoint.url_template.length > 120
-        ? r.endpoint.url_template.slice(0, 120) + "..."
-        : r.endpoint.url_template,
-      current_description: r.endpoint.description ?? "",
-      schema_summary: r.endpoint.response_schema
-        ? summarizeSchema(r.endpoint.response_schema)
-        : null,
-      sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
-      input_params: r.endpoint.semantic?.requires?.map((b) => ({
-        key: b.key,
-        type: b.type ?? b.semantic_type,
-        required: b.required ?? false,
-        example: b.example_value,
-      })) ?? [],
-      dom_extraction: !!r.endpoint.dom_extraction,
-      _fill_description:
-        "DESCRIBE THIS ENDPOINT — what it returns, key params, action type, and any audience/eligibility/pricing/validity constraints",
-    }));
+    const endpoints_to_describe = ranked.map((r) => {
+      const descriptionMeta = getEndpointDescriptionMetadata(r.endpoint);
+      return {
+        endpoint_id: r.endpoint.endpoint_id,
+        method: r.endpoint.method,
+        url: r.endpoint.url_template.length > 120
+          ? r.endpoint.url_template.slice(0, 120) + "..."
+          : r.endpoint.url_template,
+        current_description: descriptionMeta.display,
+        description_source: descriptionMeta.source,
+        description_needs_review: descriptionMeta.needs_review,
+        ...(descriptionMeta.warning ? { description_warning: descriptionMeta.warning } : {}),
+        schema_summary: r.endpoint.response_schema
+          ? summarizeSchema(r.endpoint.response_schema)
+          : null,
+        sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
+        input_params: r.endpoint.semantic?.requires?.map((b) => ({
+          key: b.key,
+          type: b.type ?? b.semantic_type,
+          required: b.required ?? false,
+          example: b.example_value,
+        })) ?? [],
+        dom_extraction: !!r.endpoint.dom_extraction,
+        review_context: buildEndpointReviewContext(indexed.skill, r.endpoint.endpoint_id),
+        _fill_description:
+          "DESCRIBE THIS ENDPOINT — what it returns, key params, action type, and any audience/eligibility/pricing/validity constraints",
+      };
+    });
 
     return reply.send({
       skill_id: indexed.skill.skill_id,
@@ -733,9 +740,9 @@ export async function registerRoutes(app: FastifyInstance) {
       endpoint_count: indexed.skill.endpoints.length,
       endpoints_to_describe,
       next_step:
-        `Fill each endpoint's description with what it returns plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
+        `Fill each endpoint's description using review_context (deps, yields, provenance, trigger page) plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
       _next_step:
-        `Fill each endpoint's description with what it returns plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
+        `Fill each endpoint's description using review_context (deps, yields, provenance, trigger page) plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
     });
   });
 

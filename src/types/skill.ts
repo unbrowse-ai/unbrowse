@@ -97,6 +97,9 @@ export interface EndpointSemanticDescriptor {
   resource_kind: string;
   description_in?: string;
   description_out?: string;
+  description_source?: "agent" | "auto" | "missing";
+  description_needs_review?: boolean;
+  description_warning?: string;
   response_summary?: string;
   example_request?: unknown;
   example_response_compact?: unknown;

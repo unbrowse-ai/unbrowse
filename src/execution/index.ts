@@ -18,7 +18,7 @@ import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOp
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
-import { buildSkillOperationGraph, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
+import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -3080,6 +3080,10 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     let contextLeaf = "";
     let contextQueryKeys = new Set<string>();
     const semantic = resolveEndpointSemantic(ep);
+    const descriptionMeta = getEndpointDescriptionMetadata({
+      description: ep.description,
+      semantic,
+    });
     try {
       const u = new URL(ep.url_template);
       pathname = u.pathname;
@@ -3104,9 +3108,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // When an endpoint has a description, compute direct token overlap with RAW intent
     // (not synonym-expanded, to avoid dilution). Each matching core intent token gives a
     // massive bonus that overrides structural noise from schema richness.
-    if (ep.description && rawTokens.length > 0) {
+    if (descriptionMeta.source === "agent" && descriptionMeta.display && rawTokens.length > 0) {
       const descTokens = new Set(
-        ep.description.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/)
+        descriptionMeta.display.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/)
           .filter((w) => w.length > 1 && !STOPWORDS.has(w))
           .map((w) => stem(w))
       );
@@ -3123,6 +3127,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     // === Structural bonuses ===
     if (ep.dom_extraction) score += 25;
+    if (descriptionMeta.needs_review && ep.dom_extraction) score -= 140;
     if (isCanonicalReplayEndpoint(ep)) score += 160;
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 180;
@@ -3217,7 +3222,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(ep.url_template);
     const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
-    const isCapturedPageArtifact = /captured page artifact/i.test(ep.description ?? "");
+    const isCapturedPageArtifact = /captured (?:search form |page )?artifact/i.test(ep.description ?? "");
     const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
     const triggerPath = (() => {
@@ -3325,6 +3330,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     }
     if (hasCanonicalReplaySibling && ep.dom_extraction && !isCanonicalReplayEndpoint(ep)) {
       score -= 260;
+    }
+    if (descriptionMeta.needs_review && isCapturedPageArtifact) {
+      score -= 120;
     }
 
     return { endpoint: ep, score };

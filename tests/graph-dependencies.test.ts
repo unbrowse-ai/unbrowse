@@ -219,6 +219,62 @@ describe("graph dependency inference", () => {
     expect(graph.edges).toHaveLength(0);
   });
 
+  it("creates hint edges for alias-linked identifier families across surfaces", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "people-dom-search",
+        method: "GET",
+        url_template: "https://www.linkedin.com/search/results/people/?keywords={keywords}",
+        description: "Captured page artifact for search people",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+        semantic: {
+          action_kind: "search",
+          resource_kind: "profile",
+          description_out: "Returns people search rows",
+          response_summary: "public_identifier, name, headline",
+          example_fields: ["elements[].public_identifier", "elements[].name"],
+          requires: [{ key: "keywords", required: false, source: "query", semantic_type: "query_text" }],
+          provides: [{ key: "public_identifier", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "member-api-detail",
+        method: "GET",
+        url_template: "https://www.linkedin.com/voyager/api/identity/profiles/{member_id}",
+        description: "Returns member profile detail",
+        path_params: { member_id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "member",
+          description_out: "Returns member profile detail",
+          response_summary: "member_id, headline",
+          example_fields: ["id", "headline"],
+          requires: [{ key: "member_id", required: true, source: "path_params", semantic_type: "member_identifier" }],
+          provides: [{ key: "member_id", source: "response", semantic_type: "member_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const edge = graph.edges.find((candidate) => candidate.edge_id === "people-dom-search:member-api-detail:member_id");
+
+    expect(edge).toBeDefined();
+    expect(edge?.kind).toBe("hint");
+    expect(edge?.confidence).toBeGreaterThan(0.6);
+  });
+
   it("infers dropdown bindings from DOM-extracted form nodes and links them into downstream api steps", () => {
     const formEndpoint: EndpointDescriptor = {
       endpoint_id: "jobs-form-options",

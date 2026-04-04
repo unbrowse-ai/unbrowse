@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildSkillOperationGraph, getSkillChunk, inferEndpointSemantic, isOperationHardExcluded, operationSoftPenalty } from "../src/graph/index.js";
+import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, inferEndpointSemantic, isOperationHardExcluded, operationSoftPenalty } from "../src/graph/index.js";
 import type { EndpointDescriptor, SkillManifest } from "../src/types/index.js";
 
 function endpoint(
@@ -78,6 +78,74 @@ describe("graph filter mechanism", () => {
     expect(semantic.description_out).toContain("referral");
     expect(semantic.description_out).not.toContain("message");
     expect(semantic.negative_tags).toContain("adjacent");
+    expect(semantic.description_source).toBe("auto");
+    expect(semantic.description_needs_review).toBe(true);
+  });
+
+  it("marks captured artifact descriptions as auto and surfaces the generated display description", () => {
+    const endpoint = {
+      endpoint_id: "feed-page",
+      method: "GET",
+      url_template: "https://www.linkedin.com/feed/",
+      description: "Captured search form artifact for get linkedin feed posts",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.9,
+      response_schema: {
+        type: "array",
+        inferred_from_samples: 1,
+        items: {
+          type: "object",
+          inferred_from_samples: 1,
+          properties: {
+            text: { type: "string", inferred_from_samples: 1 },
+            url: { type: "string", inferred_from_samples: 1 },
+          },
+        },
+      },
+      dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+    } as any;
+    const semantic = inferEndpointSemantic(endpoint);
+    const meta = getEndpointDescriptionMetadata({ ...endpoint, semantic });
+
+    expect(meta.source).toBe("auto");
+    expect(meta.needs_review).toBe(true);
+    expect(meta.display).not.toContain("Captured search form artifact");
+    expect(meta.warning).toContain("captured page artifact");
+  });
+
+  it("treats local DOM fallback descriptions as auto-generated", () => {
+    const endpoint = {
+      endpoint_id: "feed-form",
+      method: "GET",
+      url_template: "https://www.linkedin.com/feed/",
+      description: "Search form for www.linkedin.com",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.385,
+      response_schema: {
+        type: "array",
+        inferred_from_samples: 1,
+        items: {
+          type: "object",
+          inferred_from_samples: 1,
+          properties: {
+            type: { type: "string", inferred_from_samples: 1 },
+            data: { type: "array", inferred_from_samples: 1, items: { type: "string", inferred_from_samples: 1 } },
+            relevance_score: { type: "number", inferred_from_samples: 1 },
+          },
+        },
+      },
+      dom_extraction: { extraction_method: "multiple", confidence: 0.385 },
+    } as any;
+    const semantic = inferEndpointSemantic(endpoint);
+    const meta = getEndpointDescriptionMetadata({ ...endpoint, semantic });
+
+    expect(semantic.description_source).toBe("auto");
+    expect(semantic.description_needs_review).toBe(true);
+    expect(meta.source).toBe("auto");
+    expect(meta.needs_review).toBe(true);
+    expect(meta.display).not.toBe("Search form for www.linkedin.com");
   });
 
   it("does not treat linkedin feed pagination tokens as auth-only", () => {
