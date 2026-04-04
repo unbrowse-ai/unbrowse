@@ -52,6 +52,7 @@ import {
   getCapturePipelineSettings,
   updateCapturePipelineSettings,
 } from "../settings.js";
+import { publishFoundryBundle } from "../foundry/publish-bundle.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
@@ -738,6 +739,36 @@ export async function registerRoutes(app: FastifyInstance) {
       _next_step:
         `Fill each endpoint's description with what it returns plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${indexed.skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
     });
+  });
+
+  // POST /v1/foundry/publish-bundle — derive bundle/share/host artifacts from one preset
+  app.post("/v1/foundry/publish-bundle", async (req, reply) => {
+    const { preset_path, site_url, hosts } = (req.body as {
+      preset_path?: string;
+      site_url?: string;
+      hosts?: string[];
+    }) ?? {};
+
+    if (!preset_path?.trim()) {
+      return reply.code(400).send({ error: "preset_path is required" });
+    }
+
+    try {
+      const result = publishFoundryBundle({
+        presetPath: preset_path,
+        ...(site_url?.trim() ? { siteUrl: site_url } : {}),
+        ...(Array.isArray(hosts) && hosts.length > 0 ? {
+          hosts: hosts.filter((host): host is "codex" | "claude" | "openclaw" =>
+            host === "codex" || host === "claude" || host === "openclaw",
+          ),
+        } : {}),
+      });
+      return reply.send(result);
+    } catch (error) {
+      return reply.code(400).send({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
   // POST /v1/skills/:skill_id/chunk — dynamic subgraph load for the current intent/bindings
   app.post("/v1/skills/:skill_id/chunk", async (req, reply) => {
