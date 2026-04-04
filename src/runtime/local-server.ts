@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
 import { LocalSupervisor } from "./supervisor.js";
-import { CODE_HASH } from "../version.js";
+import { CODE_HASH, PACKAGE_VERSION } from "../version.js";
 
 type PidState = {
   pid: number;
@@ -86,17 +86,6 @@ function deriveListenEnv(baseUrl: string): Record<string, string> {
   return { HOST: host, PORT: port, UNBROWSE_URL: baseUrl };
 }
 
-/** Read package version from the nearest package.json. */
-function getVersion(metaUrl: string): string {
-  try {
-    const root = getPackageRoot(metaUrl);
-    const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf-8"));
-    return pkg.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
-}
-
 function isCompiledBinary(): boolean {
   return !!(process.versions.bun && !process.argv[1]?.match(/\.(ts|js|mjs)$/));
 }
@@ -161,7 +150,7 @@ function spawnServer(
     base_url: baseUrl,
     started_at: new Date().toISOString(),
     entrypoint: spawnSpec.recordedEntrypoint,
-    version: getVersion(metaUrl),
+    version: PACKAGE_VERSION,
     code_hash: CODE_HASH,
     restart_count: restartCount,
   };
@@ -175,7 +164,7 @@ const supervisor = new LocalSupervisor();
 export { supervisor };
 
 export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, metaUrl: string): Promise<void> {
-  const installedVersion = getVersion(metaUrl);
+  const installedVersion = PACKAGE_VERSION;
   const initialHealth = await fetchServerHealth(baseUrl);
   if (initialHealth) {
     const runningVersion = initialHealth.package_version;
@@ -279,7 +268,7 @@ export function checkServerVersion(
   const pidFile = getServerPidFile(baseUrl);
   const state = readPidState(pidFile);
   if (!state) return null;
-  const installed = getVersion(metaUrl);
+  const installed = PACKAGE_VERSION;
   const running = healthOverride?.runningVersion ?? state.version ?? "unknown";
   const runningCodeHash = healthOverride?.runningCodeHash ?? state.code_hash;
   return {

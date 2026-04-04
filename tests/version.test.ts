@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { computeCodeHashForDir, resolveCodeHashSourceDir } from "../src/version.js";
+import { computeCodeHashForDir, getEmbeddedReleaseVersion, getPackageVersionForModuleDir, resolveCodeHashSourceDir } from "../src/version.js";
 
 describe("version code hash resolution", () => {
   it("falls back from dist to sibling runtime-src for packaged installs", () => {
@@ -21,5 +21,23 @@ describe("version code hash resolution", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("walks upward to find package.json for packaged dist/runtime layouts", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "unbrowse-version-"));
+
+    try {
+      const distDir = path.join(root, "dist");
+      mkdirSync(path.join(distDir, "nested"), { recursive: true });
+      writeFileSync(path.join(root, "package.json"), JSON.stringify({ version: "9.9.9" }));
+
+      expect(getPackageVersionForModuleDir(path.join(distDir, "nested"))).toBe("9.9.9");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to the embedded release manifest version for compiled binaries", () => {
+    expect(getEmbeddedReleaseVersion()).toBe("2.12.4");
   });
 });

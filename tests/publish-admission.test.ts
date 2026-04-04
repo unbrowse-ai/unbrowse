@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatMarketplacePublishSelection, selectMarketplacePublishEndpoints } from "../src/publish-admission.js";
+import { formatMarketplacePublishSelection, selectMarketplacePublishClosure, selectMarketplacePublishEndpoints } from "../src/publish-admission.js";
 import type { EndpointDescriptor, SkillManifest } from "../src/types/index.js";
 
 function makeEndpoint(overrides: Partial<EndpointDescriptor> = {}): EndpointDescriptor {
@@ -125,5 +125,127 @@ describe("selectMarketplacePublishEndpoints", () => {
       "durable-graphql",
     ]);
     expect(selection.stats.by_reason.fragile_graphql).toBe(0);
+  });
+
+  test("expands admitted roots into DAG-linked standalone publish steps", () => {
+    const search = makeEndpoint({
+      endpoint_id: "search-items",
+      description: "Search items",
+      url_template: "https://www.example.com/api/items/search?q={q}",
+      semantic: { action_kind: "search", resource_kind: "item", example_fields: ["items[].id"] },
+    });
+    const detail = makeEndpoint({
+      endpoint_id: "item-detail",
+      description: "Get item detail",
+      url_template: "https://www.example.com/api/items/{item_id}",
+      semantic: { action_kind: "detail", resource_kind: "item", example_fields: ["id"] },
+    });
+    const submit = makeEndpoint({
+      endpoint_id: "item-submit",
+      method: "POST",
+      description: "Submit item update",
+      url_template: "https://www.example.com/api/items/{item_id}/submit",
+      semantic: { action_kind: "update", resource_kind: "item", example_fields: ["ok"] },
+    });
+    const noise = makeEndpoint({
+      endpoint_id: "analytics-noise",
+      description: "Analytics beacon",
+      url_template: "https://www.example.com/api/analytics/beacon",
+    });
+    const skill = makeSkill({
+      endpoints: [search, detail, submit, noise],
+      operation_graph: {
+        generated_at: new Date().toISOString(),
+        entry_operation_ids: ["search-items"],
+        operations: [
+          {
+            operation_id: "search-items",
+            endpoint_id: "search-items",
+            method: "GET",
+            url_template: search.url_template,
+            action_kind: "search",
+            resource_kind: "item",
+            requires: [],
+            provides: [],
+            confidence: 0.99,
+          },
+          {
+            operation_id: "item-detail",
+            endpoint_id: "item-detail",
+            method: "GET",
+            url_template: detail.url_template,
+            action_kind: "detail",
+            resource_kind: "item",
+            requires: [],
+            provides: [],
+            confidence: 0.99,
+          },
+          {
+            operation_id: "item-submit",
+            endpoint_id: "item-submit",
+            method: "POST",
+            url_template: submit.url_template,
+            action_kind: "update",
+            resource_kind: "item",
+            requires: [],
+            provides: [],
+            confidence: 0.99,
+          },
+          {
+            operation_id: "analytics-noise",
+            endpoint_id: "analytics-noise",
+            method: "GET",
+            url_template: noise.url_template,
+            action_kind: "fetch",
+            resource_kind: "config",
+            requires: [],
+            provides: [],
+            confidence: 0.5,
+          },
+        ],
+        edges: [
+          {
+            edge_id: "search-items:item-detail:item_id",
+            from_operation_id: "search-items",
+            to_operation_id: "item-detail",
+            binding_key: "item_id",
+            kind: "dependency",
+            confidence: 0.9,
+          },
+          {
+            edge_id: "item-detail:item-submit:item_id",
+            from_operation_id: "item-detail",
+            to_operation_id: "item-submit",
+            binding_key: "item_id",
+            kind: "dependency",
+            confidence: 0.9,
+          },
+          {
+            edge_id: "analytics-noise:item-submit:beacon_id",
+            from_operation_id: "analytics-noise",
+            to_operation_id: "item-submit",
+            binding_key: "beacon_id",
+            kind: "hint",
+            confidence: 0.2,
+          },
+        ],
+      },
+    });
+
+    const selection = selectMarketplacePublishClosure(skill, { limit: 1 });
+
+    expect(selection.root_endpoint_ids).toHaveLength(1);
+    expect(selection.endpoints.map((endpoint) => endpoint.endpoint_id)).toEqual([
+      "item-detail",
+      "search-items",
+      "item-submit",
+    ]);
+    expect(selection.closure_operation_ids.sort()).toEqual([
+      "item-detail",
+      "item-submit",
+      "search-items",
+    ]);
+    expect(selection.closure_edge_count).toBe(2);
+    expect(selection.endpoints.map((endpoint) => endpoint.endpoint_id)).not.toContain("analytics-noise");
   });
 });

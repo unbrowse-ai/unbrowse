@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main, staging]
+    branches: [main, staging, 'lewis/experiments']
   workflow_dispatch:
 
 concurrency:
@@ -29,11 +29,17 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Deploy backend worker
         run: |
-          if [ "${GITHUB_REF_NAME}" = "staging" ]; then
-            ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging
-          else
-            bun run deploy:ci
-          fi
+          case "${GITHUB_REF_NAME}" in
+            staging)
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging
+              ;;
+            lewis/experiments)
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments
+              ;;
+            *)
+              bun run deploy:ci
+              ;;
+          esac
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -57,28 +63,48 @@ jobs:
         env:
           PREVIEW_API_URL_VAR: ${{ vars.PREVIEW_API_URL }}
           PREVIEW_API_URL_SECRET: ${{ secrets.PREVIEW_API_URL }}
+          EXPERIMENTS_API_URL_VAR: ${{ vars.EXPERIMENTS_API_URL }}
+          EXPERIMENTS_API_URL_SECRET: ${{ secrets.EXPERIMENTS_API_URL }}
         run: |
-          if [ "${GITHUB_REF_NAME}" = "staging" ]; then
-            API_URL="${PREVIEW_API_URL_VAR:-${PREVIEW_API_URL_SECRET:-}}"
-            if [ -z "$API_URL" ]; then
-              echo "::notice::Skipping staging frontend deploy; missing PREVIEW_API_URL repo variable or secret."
-              echo "skip_frontend=1" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          else
-            API_URL="https://beta-api.unbrowse.ai"
-          fi
+          case "${GITHUB_REF_NAME}" in
+            staging)
+              API_URL="${PREVIEW_API_URL_VAR:-${PREVIEW_API_URL_SECRET:-}}"
+              if [ -z "$API_URL" ]; then
+                echo "::notice::Skipping staging frontend deploy; missing PREVIEW_API_URL repo variable or secret."
+                echo "skip_frontend=1" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              ;;
+            lewis/experiments)
+              API_URL="${EXPERIMENTS_API_URL_VAR:-${EXPERIMENTS_API_URL_SECRET:-}}"
+              if [ -z "$API_URL" ]; then
+                echo "::notice::Skipping experiments frontend deploy; missing EXPERIMENTS_API_URL repo variable or secret."
+                echo "skip_frontend=1" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              ;;
+            *)
+              API_URL="https://beta-api.unbrowse.ai"
+              ;;
+          esac
           echo "::add-mask::$API_URL"
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
       - name: Deploy frontend worker
         if: steps.api-url.outputs.skip_frontend != '1'
         run: |
-          if [ "${GITHUB_REF_NAME}" = "staging" ]; then
-            CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare build
-            CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare deploy
-          else
-            bun run deploy:ci
-          fi
+          case "${GITHUB_REF_NAME}" in
+            staging)
+              CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare build
+              CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare deploy
+              ;;
+            lewis/experiments)
+              CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare build
+              CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare deploy
+              ;;
+            *)
+              bun run deploy:ci
+              ;;
+          esac
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

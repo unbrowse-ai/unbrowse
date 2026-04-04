@@ -51,10 +51,12 @@ function signManifest(manifestJson: string, secret: string | undefined): string 
 function writeGeneratedBuildInfo(build: {
   git_sha: string;
   code_hash: string;
+  release_version: string;
   manifest_base64: string;
   signature: string;
 }) {
   const content = [
+    `export const BUILD_RELEASE_VERSION = ${JSON.stringify(build.release_version)};`,
     `export const BUILD_GIT_SHA = ${JSON.stringify(build.git_sha)};`,
     `export const BUILD_CODE_HASH = ${JSON.stringify(build.code_hash)};`,
     `export const BUILD_RELEASE_MANIFEST_BASE64 = ${JSON.stringify(build.manifest_base64)};`,
@@ -89,6 +91,7 @@ if (signature) {
 writeGeneratedBuildInfo({
   git_sha: manifest.git_sha,
   code_hash: manifest.code_hash,
+  release_version: manifest.release_version,
   manifest_base64: manifestBase64,
   signature,
 });

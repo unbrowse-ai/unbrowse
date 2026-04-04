@@ -1,12 +1,49 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SkillManifest, WorkflowArtifact, WorkflowPublishArtifact } from "../src/types/index.js";
-import { writeWorkflowArtifact } from "../src/workflow/artifact.js";
-import { buildWorkflowPublishArtifact, readWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../src/workflow/publish.js";
-import { queuePassiveSkillPublish, resetPassivePublishQueueForTests } from "../src/orchestrator/passive-publish.js";
-import { indexSkillLocally, publishIndexedSkill } from "../src/indexer/index.js";
+
+mock.module("nanoid", () => ({
+  nanoid: () => "test-nanoid",
+}));
+
+mock.module("../src/client/index.js", () => ({
+  validateManifest: async () => ({ valid: true, hardErrors: [], softWarnings: [] }),
+  publishSkill: async (draft: SkillManifest) => ({
+    ...draft,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    version: draft.version ?? "1.0.0",
+  }),
+  cachePublishedSkill: () => {},
+  publishGraphEdges: async () => {},
+}));
+
+mock.module("../src/marketplace/index.js", () => ({
+  mergeEndpoints: (_existing: unknown, incoming: unknown) => incoming,
+  publishSkill: async (draft: SkillManifest) => ({
+    ...draft,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    version: draft.version ?? "1.0.0",
+  }),
+}));
+
+mock.module("../src/orchestrator/index.js", () => ({
+  writeSkillSnapshot: () => {},
+  domainSkillCache: new Map(),
+  persistDomainCache: () => {},
+  getDomainReuseKey: (value?: string) => value ?? "",
+  scopedCacheKey: (_scope: string, key: string) => key,
+  snapshotPathForCacheKey: (key: string) => `/tmp/${key}.json`,
+  generateLocalDescription: () => "generated description",
+}));
+
+const { writeWorkflowArtifact } = await import("../src/workflow/artifact.js");
+const { buildWorkflowPublishArtifact, readWorkflowPublishArtifact, writeWorkflowPublishArtifact } = await import("../src/workflow/publish.js");
+const { queuePassiveSkillPublish, resetPassivePublishQueueForTests } = await import("../src/orchestrator/passive-publish.js");
+const { indexSkillLocally, publishIndexedSkill } = await import("../src/indexer/index.js");
 
 const tempDirs: string[] = [];
 const originalConfigDir = process.env.UNBROWSE_CONFIG_DIR;
@@ -211,7 +248,114 @@ describe("workflow publish export", () => {
     });
     expect(artifact.recipes[0]?.usage_notes.some((note) => note.includes("payment: x402 0.001 USDC"))).toBe(true);
     expect(artifact.recipes[0]?.usage_notes.some((note) => note.includes("replay: explicit only"))).toBe(true);
+    expect(artifact.workflow_summary.included_endpoint_count).toBe(1);
+    expect(artifact.workflow_summary.root_endpoint_ids).toEqual([]);
+    expect(artifact.workflow_summary.closure_added_count).toBe(0);
     expect(JSON.stringify(artifact)).not.toContain("super-secret-token");
+  });
+
+  it("filters publish export to the selected DAG closure", () => {
+    const now = new Date().toISOString();
+    const skill = makeSkill();
+    skill.endpoints.push({
+      endpoint_id: "checkout-status",
+      method: "GET",
+      url_template: "https://example.com/api/checkout/status/{item_id}",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.95,
+      description: "Get checkout status",
+      response_schema: {
+        type: "object",
+        properties: { ok: { type: "boolean", inferred_from_samples: 1 } },
+        inferred_from_samples: 1,
+      },
+    } as SkillManifest["endpoints"][number]);
+    skill.operation_graph = {
+      generated_at: now,
+      entry_operation_ids: ["checkout-submit"],
+      operations: [
+        {
+          operation_id: "checkout-submit",
+          endpoint_id: "checkout-submit",
+          method: "POST",
+          url_template: "https://example.com/api/checkout",
+          action_kind: "create",
+          resource_kind: "checkout",
+          requires: [],
+          provides: [],
+          confidence: 0.99,
+        },
+        {
+          operation_id: "checkout-status",
+          endpoint_id: "checkout-status",
+          method: "GET",
+          url_template: "https://example.com/api/checkout/status/{item_id}",
+          action_kind: "detail",
+          resource_kind: "checkout",
+          requires: [],
+          provides: [],
+          confidence: 0.99,
+        },
+      ],
+      edges: [
+        {
+          edge_id: "checkout-submit:checkout-status:item_id",
+          from_operation_id: "checkout-submit",
+          to_operation_id: "checkout-status",
+          binding_key: "item_id",
+          kind: "dependency",
+          confidence: 0.9,
+        },
+      ],
+    };
+
+    const workflowArtifact = makeWorkflowArtifact();
+    workflowArtifact.recipes.push({
+      ...workflowArtifact.recipes[0]!,
+      recipe_id: "recipe-2",
+      endpoint_id: "checkout-status",
+      preferred: false,
+      mutation_guard: {
+        confirm_unsafe_required: false,
+        provenance_backed: true,
+        auth_required: true,
+        parameter_mapping_confident: true,
+      },
+      replay_contract: {
+        ...workflowArtifact.recipes[0]!.replay_contract,
+        parameter_specs: [
+          {
+            name: "item_id",
+            location: "path",
+            description: "Observed path parameter for GET https://example.com/api/checkout/status/{item_id}.",
+            type: "string",
+            required: true,
+            user_supplied: false,
+            derived_from: ["response:checkout-submit.item_id"],
+            source_hints: [{ source_kind: "response_header", source_name: "item_id", confidence: 0.9 }],
+          },
+        ],
+      },
+    });
+
+    const artifact = buildWorkflowPublishArtifact(skill, workflowArtifact, {
+      publishStatus: "published",
+      endpointIds: ["checkout-submit", "checkout-status"],
+      rootEndpointIds: ["checkout-submit"],
+    });
+
+    expect(artifact.sanitized_endpoints.map((endpoint) => endpoint.endpoint_id)).toEqual([
+      "checkout-submit",
+      "checkout-status",
+    ]);
+    expect(artifact.recipes.map((recipe) => recipe.endpoint_id)).toEqual([
+      "checkout-submit",
+      "checkout-status",
+    ]);
+    expect(artifact.workflow_summary.root_endpoint_ids).toEqual(["checkout-submit"]);
+    expect(artifact.workflow_summary.closure_added_count).toBe(1);
+    expect(artifact.docs.bullets.some((bullet) => bullet.includes("publish closure: 1 root step + 1 DAG-linked dependent step"))).toBe(true);
   });
 
   it("persists a publish export and upgrades status on passive publish", async () => {
@@ -254,7 +398,86 @@ describe("workflow publish export", () => {
     process.env.UNBROWSE_CONFIG_DIR = tmp;
 
     const skill = makeSkill();
+    skill.endpoints.push({
+      endpoint_id: "checkout-status",
+      method: "GET",
+      url_template: "https://example.com/api/checkout/status/{item_id}",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.95,
+      description: "Get checkout status",
+      response_schema: {
+        type: "object",
+        properties: { ok: { type: "boolean", inferred_from_samples: 1 } },
+        inferred_from_samples: 1,
+      },
+    } as SkillManifest["endpoints"][number]);
+    skill.operation_graph = {
+      generated_at: new Date().toISOString(),
+      entry_operation_ids: ["checkout-submit"],
+      operations: [
+        {
+          operation_id: "checkout-submit",
+          endpoint_id: "checkout-submit",
+          method: "POST",
+          url_template: "https://example.com/api/checkout",
+          action_kind: "create",
+          resource_kind: "checkout",
+          requires: [],
+          provides: [],
+          confidence: 0.99,
+        },
+        {
+          operation_id: "checkout-status",
+          endpoint_id: "checkout-status",
+          method: "GET",
+          url_template: "https://example.com/api/checkout/status/{item_id}",
+          action_kind: "detail",
+          resource_kind: "checkout",
+          requires: [],
+          provides: [],
+          confidence: 0.99,
+        },
+      ],
+      edges: [
+        {
+          edge_id: "checkout-submit:checkout-status:item_id",
+          from_operation_id: "checkout-submit",
+          to_operation_id: "checkout-status",
+          binding_key: "item_id",
+          kind: "dependency",
+          confidence: 0.9,
+        },
+      ],
+    };
     const workflowArtifact = makeWorkflowArtifact();
+    workflowArtifact.recipes.push({
+      ...workflowArtifact.recipes[0]!,
+      recipe_id: "recipe-2",
+      endpoint_id: "checkout-status",
+      preferred: false,
+      mutation_guard: {
+        confirm_unsafe_required: false,
+        provenance_backed: true,
+        auth_required: true,
+        parameter_mapping_confident: true,
+      },
+      replay_contract: {
+        ...workflowArtifact.recipes[0]!.replay_contract,
+        parameter_specs: [
+          {
+            name: "item_id",
+            location: "path",
+            description: "Observed path parameter for GET https://example.com/api/checkout/status/{item_id}.",
+            type: "string",
+            required: true,
+            user_supplied: false,
+            derived_from: ["response:checkout-submit.item_id"],
+            source_hints: [{ source_kind: "response_header", source_name: "item_id", confidence: 0.9 }],
+          },
+        ],
+      },
+    });
     writeWorkflowArtifact(workflowArtifact);
 
     const indexed = await indexSkillLocally({
@@ -268,20 +491,22 @@ describe("workflow publish export", () => {
     expect(exported.publish_status).toBe("indexed");
     expect(exported.published_at).toBeUndefined();
 
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () => { throw new Error("offline"); };
-    try {
-      const published = await publishIndexedSkill(indexed);
-      expect(published.published).toBe(false);
-      expect(published.publishStatus).toBe("blocked-validation");
-      expect(published.validationErrors).toContain("offline");
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    const published = await publishIndexedSkill(indexed);
+    expect(published.published).toBe(true);
+    expect(published.publishStatus).toBe("published");
 
     exported = readWorkflowPublishArtifact(skill.skill_id) as WorkflowPublishArtifact;
-    expect(exported.publish_status).toBe("blocked-validation");
-    expect(exported.published_at).toBeUndefined();
-    expect(exported.validation_errors).toContain("offline");
+    expect(exported.publish_status).toBe("published");
+    expect(exported.published_at).toBeDefined();
+    expect(exported.workflow_summary.included_endpoint_count).toBe(2);
+    expect(exported.workflow_summary.root_endpoint_ids).toEqual([
+      "checkout-status",
+      "checkout-submit",
+    ]);
+    expect(exported.workflow_summary.closure_added_count).toBe(0);
+    expect(exported.recipes.map((recipe) => recipe.endpoint_id)).toEqual([
+      "checkout-submit",
+      "checkout-status",
+    ]);
   });
 });

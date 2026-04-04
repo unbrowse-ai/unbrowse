@@ -170,6 +170,24 @@ export class Page {
   /** The raw Kuri tab ID, for direct kuri API calls */
   get tabId(): string | null { return this._tabId; }
 
+  private async ensureLiveTab(): Promise<string | null> {
+    if (this._tabId) return this._tabId;
+    try {
+      const tabId = await kuri.newTab();
+      if (!tabId) return null;
+      this._tabId = tabId;
+      try {
+        await kuri.harStart(tabId);
+        this._harActive = true;
+      } catch {
+        this._harActive = false;
+      }
+      return tabId;
+    } catch {
+      return null;
+    }
+  }
+
   // ── Navigation ──────────────────────────────────────────────────────
 
   /**
@@ -196,7 +214,10 @@ export class Page {
         { intent },
       );
 
-      if (result.trace.success && result.result) {
+      const status = typeof result.result === "object" && result.result
+        ? (result.result as Record<string, unknown>).status
+        : undefined;
+      if (result.trace.success && result.result && status !== "no_cached_match" && !Array.isArray((result as { available_endpoints?: unknown }).available_endpoints)) {
         this._skillResult = {
           skill: result.skill,
           trace: result.trace,
@@ -216,14 +237,15 @@ export class Page {
     }
 
     // Cache miss or resolve failure — navigate via Kuri directly.
-    if (this._tabId) {
+    const liveTabId = await this.ensureLiveTab();
+    if (liveTabId) {
       const newDomain = new URL(url).hostname.replace(/^www\./, "");
       const oldDomain = previousUrl !== "about:blank" ? (() => { try { return new URL(previousUrl).hostname.replace(/^www\./, ""); } catch { return ""; } })() : "";
 
       // Flush any prior HAR entries before navigating to a new page
       if (this._harActive && previousUrl !== "about:blank") {
         try {
-          const { entries } = await kuri.harStop(this._tabId);
+          const { entries } = await kuri.harStop(liveTabId);
           passiveIndexHar(entries, previousUrl);
         } catch { /* non-fatal */ }
         this._harActive = false;
@@ -232,26 +254,26 @@ export class Page {
       // Auto-save auth profile for old domain, then restore fresh browser cookies
       // before any saved auth profile for the new domain.
       if (oldDomain && oldDomain !== newDomain) {
-        await saveAuthProfileBestEffort(this._tabId, oldDomain, "browser_goto");
+        await saveAuthProfileBestEffort(liveTabId, oldDomain, "browser_goto");
       }
       if (newDomain && newDomain !== oldDomain) {
-        await importBrowserCookiesIntoTab(this._tabId, newDomain);
-        await loadAuthProfileBestEffort(this._tabId, newDomain, "browser_goto");
+        await importBrowserCookiesIntoTab(liveTabId, newDomain);
+        await loadAuthProfileBestEffort(liveTabId, newDomain, "browser_goto");
       }
 
-      await kuri.navigate(this._tabId, url);
-      const finalUrl = await kuri.getCurrentUrl(this._tabId).catch(() => url);
+      await kuri.navigate(liveTabId, url);
+      const finalUrl = await kuri.getCurrentUrl(liveTabId).catch(() => url);
       if (typeof finalUrl === "string" && finalUrl.startsWith("http")) {
         this._url = finalUrl;
       }
 
       // Restart HAR recording for the new page
       if (!this._harActive) {
-        kuri.harStart(this._tabId).then(() => { this._harActive = true; }).catch(() => {});
+        kuri.harStart(liveTabId).then(() => { this._harActive = true; }).catch(() => {});
       }
 
       try {
-        const html = await kuri.getPageHtml(this._tabId);
+        const html = await kuri.getPageHtml(liveTabId);
         if (typeof html === "string" && html.startsWith("<")) {
           this._html = html;
         }
@@ -613,13 +635,7 @@ export class Browser {
 
   /** Create a new page (tab) */
   async newPage(): Promise<Page> {
-    let tabId: string | null = null;
-    try {
-      tabId = await kuri.newTab();
-    } catch {
-      // kuri may not be available — Page works without a tab for skill-resolved navigation
-    }
-    const page = new Page(tabId, this._defaultIntent);
+    const page = new Page(null, this._defaultIntent);
     this._pages.push(page);
     return page;
   }

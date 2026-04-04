@@ -149,6 +149,8 @@ The Kuri-style mapping is:
 
 Use one `session_id` through the whole flow. `snap` gives the live refs. `submit` is the important edge prover.
 
+`unbrowse go` opens a fresh Kuri-backed session by default. Only pass `--session` when you intentionally want to keep driving the same live tab.
+
 ### 2. Traversal rules
 
 - Browser-native by default. No hidden same-origin replay during ordinary page walking.
@@ -213,7 +215,7 @@ Resolve finds candidate endpoints. Execute is explicit replay, not ad-hoc traver
 
 This resolve/execute pair is the router/meta surface for indexed/published contracts:
 
-- `resolve` searches the indexed/published contract graph
+- `resolve` is the single public primitive: search the indexed/published contract graph and optionally execute a trusted hit
 - `execute` runs one explicit replay contract
 - `skill` / `skills` let you inspect the indexed/published contract inventory
 
@@ -265,6 +267,8 @@ Resolve returns `available_endpoints` sorted by score. Look at:
 | `dom_extraction` | `false` preferred for replay; `true` means DOM-derived artifact |
 | `score` | Ranking hint only — do not override obvious route truth |
 
+Resolve now also returns `workflow_dag` for the relevant subgraph, plus `prefetch_get_operations` hints on DAG operations / endpoint candidates for safe dependent GET reads.
+
 For simple sites with one clear endpoint, `resolve` may return direct data in `result`. Then skip `execute`.
 
 ### 7. Direct Kuri escape hatch
@@ -295,7 +299,7 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
 | `upgrade` |  | Check latest release and print the right upgrade command |
-| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
+| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Search cached domain routes and optionally execute the top trusted endpoint |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
@@ -307,9 +311,8 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
 | `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
-| `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
-| `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
+| `go` | `<url> [--session id]` | Open a fresh Kuri browser tab, or reuse explicit --session |
 | `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
 | `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
@@ -342,13 +345,13 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 
 | Flag | Description |
 |------|-------------|
+| `--execute` | Auto-execute the top trusted endpoint from resolve |
 | `--schema` | Show response schema + extraction hints only (no data) |
 | `--path "data.items[]"` | Drill into result before extract/output |
 | `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
 | `--limit N` | Cap array output to N items |
 | `--endpoint-id ID` | Pick a specific endpoint |
 | `--dry-run` | Preview mutations |
-| `--force-capture` | Bypass caches, re-capture |
 | `--params '{...}'` | Extra params as JSON |
 <!-- CLI_REFERENCE_END -->
 
@@ -384,7 +387,7 @@ unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 
 ### Browser-first workflow for JS-heavy sites
 
-When a cached API is missing or the site is clearly a multi-step UI flow, stay inside Unbrowse's browser path instead of falling out to curl or ad-hoc scraping.
+When a cached API is missing or the site is clearly a multi-step UI flow, start browser traversal explicitly with `go` instead of expecting `resolve` to open a browser for you.
 
 ```bash
 # 1. open the real page
@@ -434,12 +437,12 @@ Preferred order:
 - Use `sync` after important transitions so the checkpointed capture queues the background `index -> publish` pipeline before the tab is closed.
 - Do not switch to external browser tools or raw HTTP unless the user explicitly authorizes fallback.
 
-### Domain skills have many endpoints — use search or description matching
+### Domain skills have many endpoints — use resolve or description matching
 
 After domain convergence, a single skill (e.g. `linkedin.com`) may have 40+ endpoints. Filter by intent:
 
 ```bash
-unbrowse search --intent "get my notifications" --domain "www.linkedin.com"
+unbrowse resolve --intent "get my notifications" --domain "www.linkedin.com" --pretty
 ```
 
 Or filter `available_endpoints` by `action_kind`, URL pattern, or description in the resolve response.
@@ -466,7 +469,6 @@ User completes login in the browser window. Cookies are stored and reused automa
 ```bash
 unbrowse skills                                    # List all skills
 unbrowse skill {id}                                # Get skill details
-unbrowse search --intent "..." --domain "..."      # Search marketplace
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse go "https://example.com/form"             # Open a live capture tab
 unbrowse submit --wait-for "/next-step"            # Thin browser-native submit
@@ -642,13 +644,11 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 
 | Method | Endpoint | Description | Tier |
 |--------|----------|-------------|------|
-| POST | `/v1/intent/resolve` | Resolve intent -> search/capture/execute | Free (local) or Tier 3 (graph) |
+| POST | `/v1/intent/resolve` | Resolve intent -> cached route search + optional execute | Free (local) or Tier 3 (graph) |
 | POST | `/v1/skills/:id/execute` | Execute a specific skill | Free (cached) or Tier 2 (opt-in site) |
 | POST | `/v1/auth/login` | Interactive browser login | Free |
 | POST | `/v1/auth/steal` | Import cookies from browser/Electron storage | Free |
 | POST | `/v1/feedback` | Submit feedback with diagnostics | Free |
-| POST | `/v1/search` | Search marketplace globally | Tier 3 |
-| POST | `/v1/search/domain` | Search marketplace by domain | Tier 3 |
 | POST | `/v1/graph/edges` | Publish endpoint graph edges | Free |
 | POST | `/v1/transactions` | Record a payment transaction | Free |
 | POST | `/v1/issues/auto-file` | Auto-file a GitHub issue from error context | Free |
@@ -662,7 +662,7 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 ## Rules
 
 1. **Always use the CLI** — never pipe to `node -e`, `python -c`, or `jq`. Use `--path`/`--extract`/`--limit` instead.
-2. Always try `resolve` first — it handles the full marketplace search -> capture pipeline
+2. Always try `resolve` first — it is the single public routing primitive and should stay fast
 3. **Don't blindly trust auto-extraction** — for normalized APIs (LinkedIn, Facebook) auto-extraction often grabs wrong fields from mixed-type arrays. If you know the domain's extraction pattern (see Examples), use `--extract` directly. If auto-extraction fires, validate the result — mostly-null rows mean it picked the wrong fields.
 4. **NEVER guess paths by trial-and-error** — use `--schema` to see the full response structure, or read `_auto_extracted.all_fields` / `extraction_hints.schema_tree`
 5. Use `--raw` if you need the unprocessed full response

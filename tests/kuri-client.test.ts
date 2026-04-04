@@ -195,6 +195,38 @@ exit 1
     expect(third.getPort()).toBe(7812);
   });
 
+  it("unwraps broker Runtime.evaluate envelopes for text and markdown helpers", async () => {
+    globalThis.fetch = (async (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.startsWith("http://127.0.0.1:7700/text")) {
+        return jsonResponse({
+          id: 1,
+          result: {
+            result: {
+              type: "string",
+              value: "hello from text",
+            },
+          },
+        });
+      }
+      if (url.startsWith("http://127.0.0.1:7700/markdown")) {
+        return jsonResponse({
+          id: 2,
+          result: {
+            result: {
+              type: "string",
+              value: "# hello from markdown",
+            },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    await expect(kuri.getText("tab-1")).resolves.toBe("hello from text");
+    await expect(kuri.getMarkdown("tab-1")).resolves.toBe("# hello from markdown");
+  });
+
   it("drops a cached broker client after stop so the next lookup gets a fresh state object", async () => {
     const first = kuri.getKuriClient(7813);
     await first.stop();
