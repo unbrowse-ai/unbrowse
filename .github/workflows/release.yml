@@ -145,6 +145,8 @@ jobs:
         if: steps.npm-auth.outputs.skip_publish != '1'
         working-directory: packages/skill
         run: npm pack --dry-run
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
 
       - name: Smoke packaged global install
         if: steps.npm-auth.outputs.skip_publish != '1'
@@ -169,6 +171,8 @@ jobs:
         id: npm-publish
         if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
         working-directory: packages/skill
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
         run: |
           PUBLISH_LOG="$(mktemp)"
           set +e
