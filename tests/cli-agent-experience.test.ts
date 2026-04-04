@@ -147,7 +147,7 @@ describe("cli agent experience", () => {
     });
   });
 
-  it("falls back from payment_required to free live capture on resolve", async () => {
+  it("does not force-capture after payment_required on resolve", async () => {
     let resolveCalls = 0;
 
     await withStubServer(async (req, requests) => {
@@ -155,26 +155,15 @@ describe("cli agent experience", () => {
       if (path === "/v1/intent/resolve") {
         resolveCalls += 1;
         const body = requests.at(-1)?.body ?? {};
-        if (resolveCalls === 1) {
-          expect(body.force_capture).toBeUndefined();
-          return Response.json({
-            trace: { trace_id: "t1", skill_id: "marketplace-search", endpoint_id: "search", success: false, status_code: 402 },
-            result: {
-              error: "payment_required",
-              indexing_fallback_available: true,
-              next_step: "Pay or force capture",
-            },
-            source: "marketplace",
-          });
-        }
-
-        expect(body.force_capture).toBe(true);
+        expect(body.force_capture).toBeUndefined();
         return Response.json({
-          trace: { trace_id: "t2", skill_id: "local-skill", endpoint_id: "", success: true },
-          result: { skill_id: "local-skill", message: "captured" },
-          available_endpoints: [{ endpoint_id: "ep-live", score: 10 }],
-          source: "live-capture",
-          skill: { skill_id: "local-skill" },
+          trace: { trace_id: "t1", skill_id: "marketplace-search", endpoint_id: "search", success: false, status_code: 402 },
+          result: {
+            error: "payment_required",
+            indexing_fallback_available: true,
+            next_step: "Pay or force capture",
+          },
+          source: "marketplace",
         });
       }
       if (path === "/health") return Response.json({ status: "ok" });
@@ -187,44 +176,25 @@ describe("cli agent experience", () => {
       ]);
 
       expect(out.code).toBe(0);
-      expect(out.body.source).toBe("live-capture");
-      expect(resolveCalls).toBe(2);
-      expect(out.stderr).toContain("Falling back to free live capture");
+      expect(out.body.result.error).toBe("payment_required");
+      expect(resolveCalls).toBe(1);
+      expect(out.stderr).not.toContain("free live capture");
     });
   });
 
-  it("tries browser cookie import before interactive login on auth_required", async () => {
+  it("surfaces auth_required without auto-login side effects", async () => {
     let resolveCalls = 0;
-    let loginCalls = 0;
-    let stealCalls = 0;
 
     await withStubServer(async (req) => {
       const path = new URL(req.url).pathname;
       if (path === "/v1/intent/resolve") {
         resolveCalls += 1;
-        if (resolveCalls === 1) {
-          return Response.json({
-            result: {
-              error: "auth_required",
-              login_url: "https://x.com/home",
-            },
-          });
-        }
         return Response.json({
-          trace: { trace_id: "t2", skill_id: "x-skill", endpoint_id: "", success: true },
-          result: { skill_id: "x-skill", message: "ready" },
-          available_endpoints: [{ endpoint_id: "ep-x", score: 10 }],
-          skill: { skill_id: "x-skill" },
-          source: "live-capture",
+          result: {
+            error: "auth_required",
+            login_url: "https://x.com/home",
+          },
         });
-      }
-      if (path === "/v1/auth/steal") {
-        stealCalls += 1;
-        return Response.json({ success: true, cookies_stored: 3 });
-      }
-      if (path === "/v1/auth/login") {
-        loginCalls += 1;
-        return Response.json({ success: true, cookies_stored: 2 });
       }
       if (path === "/health") return Response.json({ status: "ok" });
       return new Response("not found", { status: 404 });
@@ -236,59 +206,9 @@ describe("cli agent experience", () => {
       ]);
 
       expect(out.code).toBe(0);
-      expect(out.body.source).toBe("live-capture");
-      expect(resolveCalls).toBe(2);
-      expect(stealCalls).toBe(1);
-      expect(loginCalls).toBe(0);
-      expect(out.stderr).toContain("Trying browser cookie import first");
-    });
-  });
-
-  it("falls back to interactive login when browser cookie import has nothing reusable", async () => {
-    let resolveCalls = 0;
-    let loginCalls = 0;
-
-    await withStubServer(async (req) => {
-      const path = new URL(req.url).pathname;
-      if (path === "/v1/intent/resolve") {
-        resolveCalls += 1;
-        if (resolveCalls === 1) {
-          return Response.json({
-            result: {
-              error: "auth_required",
-              login_url: "https://x.com/home",
-            },
-          });
-        }
-        return Response.json({
-          trace: { trace_id: "t2", skill_id: "x-skill", endpoint_id: "", success: true },
-          result: { skill_id: "x-skill", message: "ready" },
-          available_endpoints: [{ endpoint_id: "ep-x", score: 10 }],
-          skill: { skill_id: "x-skill" },
-          source: "live-capture",
-        });
-      }
-      if (path === "/v1/auth/steal") {
-        return Response.json({ success: false, cookies_stored: 0 });
-      }
-      if (path === "/v1/auth/login") {
-        loginCalls += 1;
-        return Response.json({ success: true, cookies_stored: 2 });
-      }
-      if (path === "/health") return Response.json({ status: "ok" });
-      return new Response("not found", { status: 404 });
-    }, async (baseUrl) => {
-      const out = await runCli(baseUrl, [
-        "resolve",
-        "--intent", "get timeline",
-        "--url", "https://x.com/home",
-      ]);
-
-      expect(out.code).toBe(0);
-      expect(out.body.source).toBe("live-capture");
-      expect(resolveCalls).toBe(2);
-      expect(loginCalls).toBe(1);
-      expect(out.stderr).toContain("Opening browser for login");
+      expect(out.body.result.error).toBe("auth_required");
+      expect(resolveCalls).toBe(1);
+      expect(out.stderr).toContain('unbrowse login --url "https://x.com/home"');
     });
   });
 

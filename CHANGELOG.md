@@ -8,6 +8,22 @@
 - add local `publish-bundle` CLI/API flow so one foundry preset writes bundle artifacts, host snippets, and the public share manifest in one step
 - replace the repo-local `skills/foundry` symlink with a real `unbrowse-ai/foundry` git submodule
 
+### Features
+
+* **publish/dag**: publish admitted root endpoints together with DAG-linked callable workflow steps so future agents can invoke individual readable or mutable steps from the same skill
+* **deploy/experiments**: add a dedicated Cloudflare `experiments` env for backend/frontend and wire `lewis/experiments` branch pushes to that isolated workers.dev sandbox with its own API URL secret
+
+### Bug Fixes
+
+* **browser/kuri**: lazily allocate Kuri tabs in the browser wrapper so cache-hit `goto()` calls stop spawning stray blank tabs before a real browser fallback is needed
+* **browser/kuri-proxy**: reconnect stale broker-side CDP sockets before retrying read commands, rebuild the vendored Kuri binary from the patched source, and unwrap broker `Runtime.evaluate` envelopes for `text`/`markdown`, so LinkedIn messaging `go`/`snap`/`text`/`eval` work through Unbrowse instead of only through raw `kuri-agent`
+* **browse/proxy**: make `go` open a fresh Kuri-backed session unless `session_id` is explicitly provided, stop auto-resetting `snap`/`text`/`markdown`/`cookies`/`eval` reads behind the user's back, and remove replacement-tab rebinding so browse mode behaves like a thin Kuri proxy
+* **browse/go**: treat Kuri warmup and transient connectivity aborts as recoverable browse-session failures so explicit `go` flows like LinkedIn messaging can recover instead of dying during startup/rebind
+* **install/runtime**: resolve packaged versions from the nearest `package.json` when present and fall back to the embedded release manifest in compiled binaries, so `health` reports the real release version instead of `unknown`
+* **resolve/search**: reject cached marketplace skills for exact-URL search tasks when they do not expose the active search binding, and reject generic feed skills for messaging intents, so obvious misses stop pretending to be good cached hits
+* **resolve/runtime**: make `resolve` read-only again by returning a fast `no_cached_match` on misses, shortening search timeout, and keeping browser/login/capture flows explicit instead of side effects of resolve
+* **resolve/dag**: return the full relevant workflow DAG slice from `resolve`, attach safe dependent GET prefetch hints to DAG operations and endpoint candidates, and fix endpoint-vs-operation graph filtering during auto-exec
+
 ## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
 
 ### Bug Fixes

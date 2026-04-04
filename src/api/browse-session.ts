@@ -50,6 +50,10 @@ const RECOVERABLE_BROWSE_FAILURES = [
   "target closed",
   "tab not found",
   "session closed",
+  "connection refused",
+  "unable to connect",
+  "operation was aborted",
+  "aborterror",
   "execution context was destroyed",
   "cannot find context with specified id",
   "no such target",
@@ -139,47 +143,6 @@ function isPlaceholderBrowseUrl(url: string | undefined): boolean {
 
 function hasMeaningfulBrowseUrl(url: string | undefined): boolean {
   return hasKnownBrowseUrl(url) && !isPlaceholderBrowseUrl(url);
-}
-
-function pickLiveBrowseTab(
-  tabs: BrowseTabRef[],
-  sessionTabId: string,
-  preferredUrl: string | undefined,
-  fallbackUrl: string | undefined,
-): BrowseTabRef | undefined {
-  const exact = tabs.find((tab) => tab.id === sessionTabId);
-  if (exact && !isPlaceholderBrowseUrl(exact.url)) return exact;
-
-  const preferredReal = tabs.find((tab) => {
-    if (isPlaceholderBrowseUrl(tab.url)) return false;
-    return matchesPreferredBrowseTab(tab.url, preferredUrl)
-      || matchesPreferredBrowseTab(tab.url, fallbackUrl);
-  });
-  if (preferredReal) return preferredReal;
-
-  const sameDomainReal = tabs.filter((tab) => {
-    if (isPlaceholderBrowseUrl(tab.url)) return false;
-    return matchesPreferredBrowseDomain(tab.url, preferredUrl)
-      || matchesPreferredBrowseDomain(tab.url, fallbackUrl);
-  });
-  if (exact && isPlaceholderBrowseUrl(exact.url) && sameDomainReal.length === 1) {
-    return sameDomainReal[0];
-  }
-
-  if (exact) return exact;
-
-  return tabs.find((tab) => matchesPreferredBrowseTab(tab.url, preferredUrl)
-    || matchesPreferredBrowseTab(tab.url, fallbackUrl));
-}
-
-async function closeStalePlaceholderBrowseTab(
-  client: BrowseSessionClient,
-  staleTab: BrowseTabRef | undefined,
-  activeTabId: string,
-): Promise<void> {
-  if (!staleTab?.id || staleTab.id === activeTabId) return;
-  if (!isPlaceholderBrowseUrl(staleTab.url)) return;
-  await client.closeTab(staleTab.id).catch(() => {});
 }
 
 function cleanupSessionQueue(sessionId: string): void {
@@ -313,33 +276,6 @@ async function adoptExistingBrowseTab(
   }
 }
 
-export async function rebindBrowseSessionToMatchingTab(
-  sessions: Map<string, BrowseSession>,
-  client: BrowseSessionClient,
-  injectInterceptor: (tabId: string) => Promise<unknown>,
-  sessionId: string,
-  preferredUrl?: string,
-): Promise<BrowseSession | null> {
-  const existing = sessions.get(sessionId);
-  if (!existing) return null;
-  const rebound = await adoptExistingBrowseTab(
-    sessions,
-    resolveSessionClient(existing, client),
-    injectInterceptor,
-    preferredUrl ?? existing.url,
-    sessionId,
-  );
-  if (!rebound) return null;
-  existing.tabId = rebound.tabId;
-  existing.url = rebound.url;
-  existing.domain = rebound.domain;
-  existing.harActive = rebound.harActive;
-  existing.brokerPort = rebound.brokerPort;
-  existing.client = rebound.client;
-  sessions.set(sessionId, existing);
-  return existing;
-}
-
 async function dropBrowseSession(
   sessions: Map<string, BrowseSession>,
   client: BrowseSessionClient,
@@ -356,8 +292,6 @@ export async function isBrowseSessionLive(
 ): Promise<boolean> {
   if (!session.tabId) return false;
   const sessionClient = resolveSessionClient(session, client);
-  let tabSeen = false;
-  let lastKnownUrl = session.url;
 
   try {
     await sessionClient.start();
@@ -370,24 +304,19 @@ export async function isBrowseSessionLive(
     try {
       const tabs = await sessionClient.discoverTabs();
       const exactTab = tabs.find((tab) => tab.id === session.tabId);
-      const liveTab = pickLiveBrowseTab(tabs, session.tabId, session.url, lastKnownUrl);
-      if (!liveTab) {
+      if (!exactTab) {
         if (attempt < LIVE_CHECK_RETRIES - 1) {
           await sleep(LIVE_CHECK_RETRY_DELAY_MS);
           continue;
         }
         return false;
       }
-      if (liveTab.id !== session.tabId) {
-        session.tabId = liveTab.id;
-        session.url = liveTab.url ?? session.url;
+      session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
+      session.client = sessionClient;
+      if (hasMeaningfulBrowseUrl(exactTab.url)) {
+        session.url = exactTab.url!;
         session.domain = extractDomain(session.url);
-        session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
-        session.client = sessionClient;
-        await closeStalePlaceholderBrowseTab(sessionClient, exactTab, liveTab.id);
       }
-      tabSeen = true;
-      if (hasMeaningfulBrowseUrl(liveTab.url)) lastKnownUrl = liveTab.url!;
 
       try {
         const currentUrl = await sessionClient.getCurrentUrl(session.tabId);
@@ -399,12 +328,11 @@ export async function isBrowseSessionLive(
           return true;
         }
         if (
-          liveTab.id === session.tabId
-          && isPlaceholderBrowseUrl(currentUrl)
-          && isPlaceholderBrowseUrl(liveTab.url)
+          isPlaceholderBrowseUrl(currentUrl)
+          && isPlaceholderBrowseUrl(exactTab.url)
           && isPlaceholderBrowseUrl(session.url)
         ) {
-          session.url = currentUrl || liveTab.url || session.url;
+          session.url = currentUrl || exactTab.url || session.url;
           session.domain = extractDomain(session.url);
           session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
           session.client = sessionClient;
@@ -414,11 +342,11 @@ export async function isBrowseSessionLive(
         if (!isRecoverableBrowseFailure(error)) return false;
       }
 
-      if (hasMeaningfulBrowseUrl(lastKnownUrl)) {
-        session.url = lastKnownUrl;
-        session.domain = extractDomain(lastKnownUrl);
-        session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
-        session.client = sessionClient;
+      if (hasMeaningfulBrowseUrl(session.url) || hasMeaningfulBrowseUrl(exactTab.url)) {
+        if (hasMeaningfulBrowseUrl(exactTab.url)) {
+          session.url = exactTab.url!;
+          session.domain = extractDomain(session.url);
+        }
         return true;
       }
     } catch (error) {
@@ -428,7 +356,7 @@ export async function isBrowseSessionLive(
     if (attempt < LIVE_CHECK_RETRIES - 1) await sleep(LIVE_CHECK_RETRY_DELAY_MS);
   }
 
-  return tabSeen && hasMeaningfulBrowseUrl(lastKnownUrl);
+  return false;
 }
 
 async function listLiveBrowseSessions(
@@ -640,9 +568,5 @@ export async function getOrCreateNavigateBrowseSession(
     if (!session) throw new BrowseSessionError("session_not_found");
     return session;
   }
-
-  const live = await listLiveBrowseSessions(sessions, client);
-  if (live.length === 0) return createBrowseSession(sessions, client, injectInterceptor);
-  if (live.length > 1) throw new BrowseSessionError("session_id_required");
-  return live[0];
+  return createBrowseSession(sessions, client, injectInterceptor);
 }

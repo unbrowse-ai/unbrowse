@@ -240,6 +240,49 @@ export interface AgentAvailableOperation {
   example_response_compact?: unknown;
 }
 
+export interface AgentPrefetchOperation {
+  operation_id: string;
+  endpoint_id: string;
+  method: EndpointDescriptor["method"];
+  action_kind: string;
+  resource_kind: string;
+  reason: string;
+  binding_key: string;
+  edge_kind: SkillOperationEdge["kind"];
+  confidence: number;
+}
+
+export interface AgentWorkflowDagOperation {
+  operation_id: string;
+  endpoint_id: string;
+  method: EndpointDescriptor["method"];
+  action_kind: string;
+  resource_kind: string;
+  title: string;
+  url_template: string;
+  description_out?: string;
+  requires: string[];
+  yields: string[];
+  runnable: boolean;
+  prefetch_get_operations: AgentPrefetchOperation[];
+}
+
+export interface AgentWorkflowDagView {
+  skill_id: string;
+  intent?: string;
+  missing_bindings: string[];
+  suggested_next_operation_id?: string;
+  operations: AgentWorkflowDagOperation[];
+  edges: Array<{
+    edge_id: string;
+    from_operation_id: string;
+    to_operation_id: string;
+    binding_key: string;
+    kind: SkillOperationEdge["kind"];
+    confidence: number;
+  }>;
+}
+
 export interface AgentSkillChunkView {
   skill_id: string;
   intent?: string;
@@ -809,6 +852,9 @@ export interface WorkflowPublishArtifact {
     authenticated_capture: boolean;
     token_binding_count: number;
     trigger_url_count: number;
+    included_endpoint_count: number;
+    root_endpoint_ids: string[];
+    closure_added_count: number;
   };
   auth_summary: WorkflowArtifact["auth_state"];
   recipes: WorkflowPublishRecipe[];

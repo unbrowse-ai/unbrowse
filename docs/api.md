@@ -64,7 +64,7 @@ await unbrowse.login({
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Local server health/version surface |
-| `POST` | `/v1/intent/resolve` | Canonical product entrypoint: search, capture, defer, or execute |
+| `POST` | `/v1/intent/resolve` | Canonical product entrypoint: search cached domain routes and optionally execute a trusted hit |
 | `POST` | `/v1/skills/:id/execute` | Execute a chosen endpoint from a known skill |
 | `GET` | `/v1/skills` | List skills visible from the current runtime |
 | `GET` | `/v1/skills/:id` | Fetch one skill manifest |
@@ -73,8 +73,6 @@ await unbrowse.login({
 | `POST` | `/v1/skills` | Publish a skill manifest |
 | `POST` | `/v1/auth/login` | Headed login flow for a target site |
 | `POST` | `/v1/auth/steal` | Import cookies from browser/Electron storage |
-| `POST` | `/v1/search` | Global semantic search across skills |
-| `POST` | `/v1/search/domain` | Domain-scoped semantic search |
 | `POST` | `/v1/feedback` | Feedback loop for skill/endpoint quality |
 | `GET` | `/v1/stats/summary` | Marketplace summary stats |
 
@@ -85,10 +83,10 @@ await unbrowse.login({
 - hit route cache
 - hit domain cache / local snapshots
 - hit marketplace-backed search
-- try a lightweight first-pass browser action
-- fall back to live capture
 - return a deferred shortlist in `available_endpoints`
+- include `workflow_dag` for the relevant operation subgraph, with per-operation / per-endpoint `prefetch_get_operations` hints for safe dependent GET reads
 - execute immediately when the best route is already clear
+- return a cache miss quickly when nothing trusted is cached yet
 
 The CLI wrapper is:
 
@@ -152,6 +150,8 @@ The checkpoint pipeline is explicit:
 - `publish` — rerun local index, then perform explicit remote share/re-publish
 - `settings` — inspect or update local auto-publish policy, blacklist, and prompt-list domains
 
+Publish now shares the admitted root endpoints plus their DAG-linked callable closure for the same workflow component, so future agents can invoke an individual readable or mutable step directly instead of only the top-ranked route.
+
 Workflow exports now move through:
 
 - `captured` — raw local evidence exists
@@ -170,6 +170,14 @@ Local publish policy lives in `~/.unbrowse/config.json` and is available over `G
 - `auto_publish_checkpoints` — enable/disable automatic remote publish after `sync` / `close`
 - `publish_domain_blacklist` — never auto-publish these domains; explicit `publish` requires confirmation
 - `publish_domain_promptlist` — pause auto-publish and require confirmation for explicit `publish`
+
+## Browse proxy contract
+
+Browse routes are intentionally thin over Kuri now.
+
+- `POST /v1/browse/go` opens a fresh Kuri tab/session unless you explicitly pass `session_id`.
+- Reusing a live tab is opt-in: pass the same `session_id` for `go`, `snap`, `click`, `fill`, `submit`, `sync`, and `close`.
+- Read calls like `snap`, `screenshot`, `text`, `markdown`, `cookies`, and `eval` no longer auto-reset or rebind to a replacement tab when the current session goes bad. They return the real session outcome instead.
 
 ## Browse-session dependency contract
 

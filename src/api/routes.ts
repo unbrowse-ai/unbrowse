@@ -37,9 +37,7 @@ import {
   getOrCreateNavigateBrowseSession,
   isBrowseSessionLive,
   isRecoverableBrowseFailure,
-  rebindBrowseSessionToMatchingTab,
   type BrowseSession,
-  withSerializedRecoveredBrowseSession,
   withSerializedStrictBrowseSession,
   removeBrowseSession,
 } from "./browse-session.js";
@@ -1309,52 +1307,60 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const sessionId = requestedSessionId(req);
       const browseClient = selectBrowseBrokerClient(sessionId);
-      const targetSession = await getOrCreateNavigateBrowseSession(
-        browseSessions,
-        browseClient,
-        injectInterceptor,
-        sessionId,
-      );
-      const { session, result } = await withSerializedRecoveredBrowseSession(
-        browseSessions,
-        browseClient,
-        injectInterceptor,
-        targetSession.sessionId,
-        async (session) => {
-          const broker = brokerForSession(session);
-          const newDomain = profileName(url);
+      const navigateSession = async (session: BrowseSession) => {
+        const broker = brokerForSession(session);
+        const newDomain = profileName(url);
 
-          if (session.harActive && session.url !== "about:blank") {
-            try {
-              const { entries } = await broker.harStop(session.tabId);
+        if (session.harActive && session.url !== "about:blank") {
+          try {
+            const { entries } = await broker.harStop(session.tabId);
             passiveIndexHar(entries, session.url, { publishAfterIndex: false });
-            } catch { /* non-fatal */ }
-            session.harActive = false;
-          }
+          } catch { /* non-fatal */ }
+          session.harActive = false;
+        }
 
-          if (session.domain && session.domain !== newDomain) {
-            await saveAuthProfileBestEffort(session.tabId, session.domain, "browse_go");
-          }
+        if (session.domain && session.domain !== newDomain) {
+          await saveAuthProfileBestEffort(session.tabId, session.domain, "browse_go");
+        }
 
-          let cookiesInjected = 0;
-          if (newDomain && newDomain !== session.domain) {
-            cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
-            await loadAuthProfileBestEffort(session.tabId, newDomain, "browse_go");
-          }
+        let cookiesInjected = 0;
+        if (newDomain && newDomain !== session.domain) {
+          cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
+          await loadAuthProfileBestEffort(session.tabId, newDomain, "browse_go");
+        }
 
-          await restartBrowseCapture(session);
+        await restartBrowseCapture(session);
 
-          await broker.navigate(session.tabId, url);
-          const finalUrl = await broker.getCurrentUrl(session.tabId).catch(() => url);
-          session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
-          session.domain = profileName(session.url);
-          await injectInterceptor(session.tabId);
-          const stillLive = await isBrowseSessionLive(session, browseClient).catch(() => false);
-          if (!stillLive) throw { error: "CDP command failed" };
+        await broker.navigate(session.tabId, url);
+        const finalUrl = await broker.getCurrentUrl(session.tabId).catch(() => url);
+        session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
+        session.domain = profileName(session.url);
+        await injectInterceptor(session.tabId);
+        const stillLive = await isBrowseSessionLive(session, browseClient).catch(() => false);
+        if (!stillLive) throw { error: "CDP command failed" };
 
-          return { cookiesInjected };
-        },
-      );
+        return { cookiesInjected };
+      };
+
+      let session: BrowseSession;
+      let result: { cookiesInjected: number };
+      if (sessionId) {
+        const navigated = await withSerializedStrictBrowseSession(
+          browseSessions,
+          browseClient,
+          sessionId,
+          navigateSession,
+        );
+        session = navigated.session;
+        result = navigated.result;
+      } else {
+        session = await getOrCreateNavigateBrowseSession(
+          browseSessions,
+          browseClient,
+          injectInterceptor,
+        );
+        result = await navigateSession(session);
+      }
 
       return reply.send({
         ok: true,
@@ -1425,19 +1431,9 @@ export async function registerRoutes(app: FastifyInstance) {
       }
       activeSession.domain = profileName(activeSession.url);
       const stillLive = await isBrowseSessionLive(activeSession, browseClient).catch(() => false);
-      if (!stillLive && activeSession.url) {
-        const rebound = await rebindBrowseSessionToMatchingTab(
-          browseSessions,
-          browseClient,
-          injectInterceptor,
-          activeSession.sessionId,
-          hintedDestination ?? activeSession.url,
-        );
-        if (rebound) {
-          activeSession = rebound;
-          if (hintedDestination) activeSession.url = hintedDestination;
-          activeSession.domain = profileName(activeSession.url);
-        }
+      if (!stillLive) {
+        removeBrowseSession(browseSessions, activeSession.sessionId);
+        throw new BrowseSessionError("session_expired");
       }
 
       const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
@@ -1463,13 +1459,11 @@ export async function registerRoutes(app: FastifyInstance) {
     const { filter } = (req.body as { filter?: string; session_id?: string }) ?? {};
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: snapshot } = await withSerializedRecoveredBrowseSession(
+      const { session, result: snapshot } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
-        injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).snapshot(session.tabId, filter),
-        (snapshot) => typeof snapshot !== "string" || snapshot.trim().length === 0,
       );
       return reply.send({ snapshot, session_id: session.sessionId, tab_id: session.tabId });
     } catch (error) {
@@ -1607,13 +1601,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/v1/browse/screenshot", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: data } = await withSerializedRecoveredBrowseSession(
+      const { session, result: data } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
-        injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).screenshot(session.tabId),
-        (data) => typeof data !== "string" || data.trim().length === 0,
       );
       return reply.send({ screenshot: data, session_id: session.sessionId, tab_id: session.tabId });
     } catch (error) {
@@ -1625,13 +1617,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/v1/browse/text", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: text } = await withSerializedRecoveredBrowseSession(
+      const { session, result: text } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
-        injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).getText(session.tabId),
-        (text) => typeof text !== "string" || text.trim().length === 0,
       );
       return reply.send({ text, session_id: session.sessionId, tab_id: session.tabId });
     } catch (error) {
@@ -1643,13 +1633,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/v1/browse/markdown", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: markdown } = await withSerializedRecoveredBrowseSession(
+      const { session, result: markdown } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
-        injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).getMarkdown(session.tabId),
-        (markdown) => typeof markdown !== "string" || markdown.trim().length === 0,
       );
       return reply.send({ markdown, session_id: session.sessionId, tab_id: session.tabId });
     } catch (error) {
@@ -1661,10 +1649,9 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/v1/browse/cookies", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: cookies } = await withSerializedRecoveredBrowseSession(
+      const { session, result: cookies } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
-        injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).getCookies(session.tabId),
       );
@@ -1680,13 +1667,11 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!expression) return reply.code(400).send({ error: "expression required" });
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result } = await withSerializedRecoveredBrowseSession(
+      const { session, result } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
-        injectInterceptor,
         requestedSessionId(req),
         async (session) => brokerForSession(session).evaluate(session.tabId, expression),
-        (result) => isRecoverableBrowseFailure(result),
       );
       return reply.send({ result, session_id: session.sessionId, tab_id: session.tabId });
     } catch (error) {
