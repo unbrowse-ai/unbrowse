@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { getSkillChunk, toAgentSkillChunkView } from "../src/graph/index.js";
+import { ensureSkillOperationGraph, getSkillChunk, toAgentSkillChunkView, toAgentWorkflowDagView } from "../src/graph/index.js";
 import { buildLocalHarnessFixtures } from "../src/graph/local-fixtures.js";
 
 describe("agent skill chunk view", () => {
@@ -46,5 +46,39 @@ describe("agent skill chunk view", () => {
     expect(view.available_operations[0]?.yields).toContain("department");
     expect(view.available_operations[0]?.yields).toContain("location");
     expect(view.missing_bindings).toEqual(["department", "location", "job_id"]);
+  });
+
+  it("can surface the full relevant DAG for resolve planning", () => {
+    if (!discord) throw new Error("fixture-discord missing");
+    const chunk = getSkillChunk(discord, {
+      intent: "get guild channels",
+      known_bindings: {},
+      include_full_relevant_graph: true,
+    });
+    const dag = toAgentWorkflowDagView(chunk, ensureSkillOperationGraph(discord), {});
+
+    expect(dag.operations.map((operation) => operation.operation_id)).toEqual([
+      "discord-guilds",
+      "discord-channels",
+      "discord-messages",
+    ]);
+    expect(dag.edges.some((edge) => edge.from_operation_id === "discord-guilds" && edge.to_operation_id === "discord-channels")).toBe(true);
+    expect(dag.edges.some((edge) => edge.from_operation_id === "discord-channels" && edge.to_operation_id === "discord-messages")).toBe(true);
+  });
+
+  it("adds GET prefetch hints for dependent DAG reads", () => {
+    if (!discord) throw new Error("fixture-discord missing");
+    const chunk = getSkillChunk(discord, {
+      intent: "get guild channels",
+      known_bindings: {},
+      include_full_relevant_graph: true,
+    });
+    const dag = toAgentWorkflowDagView(chunk, ensureSkillOperationGraph(discord), {});
+
+    const guilds = dag.operations.find((operation) => operation.operation_id === "discord-guilds");
+    const channels = dag.operations.find((operation) => operation.operation_id === "discord-channels");
+
+    expect(guilds?.prefetch_get_operations.map((operation) => operation.operation_id)).toEqual(["discord-channels"]);
+    expect(channels?.prefetch_get_operations.map((operation) => operation.operation_id)).toEqual(["discord-messages"]);
   });
 });

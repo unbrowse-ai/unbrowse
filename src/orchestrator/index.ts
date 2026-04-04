@@ -11,7 +11,13 @@ import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
-import { getSkillChunk, knownBindingsFromInputs, computeReachableEndpoints, ensureSkillOperationGraph } from "../graph/index.js";
+import {
+  getSkillChunk,
+  knownBindingsFromInputs,
+  computeReachableEndpoints,
+  ensureSkillOperationGraph,
+  toAgentWorkflowDagView,
+} from "../graph/index.js";
 import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
 import { getRegistrableDomain } from "../domain.js";
 import { extractTemplateQueryBindings, mergeContextTemplateParams, normalizeQueryBindingKey } from "../template-params.js";
@@ -22,7 +28,6 @@ import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js
 import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
-import { tryFirstPassBrowserAction } from "./first-pass-action.js";
 import { DEFAULT_CAPTURE_TOKENS, computeTimingEconomics } from "./timing-economics.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { checkWalletConfigured } from "../payments/wallet.js";
@@ -442,6 +447,44 @@ function endpointMatchesContextOrigin(
   }
 }
 
+function endpointTargetsMismatchedLocalReplayHost(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  if (!contextUrl) return false;
+  try {
+    const context = new URL(contextUrl);
+    if (isPortSensitiveHostname(context.hostname)) return false;
+    const endpointUrl = new URL(endpoint.url_template);
+    if (!/^https?:$/i.test(endpointUrl.protocol)) return false;
+    if (!isPortSensitiveHostname(endpointUrl.hostname)) return false;
+    return endpointUrl.origin !== context.origin;
+  } catch {
+    return false;
+  }
+}
+
+function endpointHasNegativeTag(
+  endpoint: SkillManifest["endpoints"][number],
+  tag: string,
+): boolean {
+  return (endpoint.semantic?.negative_tags ?? []).some(
+    (candidate) => candidate.trim().toLowerCase() === tag.trim().toLowerCase(),
+  );
+}
+
+function isResolveUsableEndpointForIntent(
+  endpoint: SkillManifest["endpoints"][number],
+  intent?: string,
+  contextUrl?: string,
+): boolean {
+  if (endpointTargetsMismatchedLocalReplayHost(endpoint, contextUrl)) return false;
+  if (isFeedTimelineIntent(intent, contextUrl) && endpointHasNegativeTag(endpoint, "helper")) {
+    return false;
+  }
+  return true;
+}
+
 function normalizeRouteContext(url?: string): string {
   if (!url) return "root";
   try {
@@ -670,17 +713,25 @@ export function isCachedSkillRelevantForIntent(
     return false;
   }
   if (!intent || intent.trim().length === 0) return true;
+  const resolvedSkill = withContextReplayEndpoint(skill, intent, contextUrl);
+  const usableEndpoints = resolvedSkill.endpoints.filter((endpoint) =>
+    isResolveUsableEndpointForIntent(endpoint, intent, contextUrl),
+  );
+  if (usableEndpoints.length === 0) return false;
+  const candidateSkill =
+    usableEndpoints.length === resolvedSkill.endpoints.length
+      ? resolvedSkill
+      : { ...resolvedSkill, endpoints: usableEndpoints };
   if (isFeedTimelineIntent(intent, contextUrl)) {
-    const hasFeedLikeEndpoint = skill.endpoints.some((endpoint) =>
+    const hasFeedLikeEndpoint = candidateSkill.endpoints.some((endpoint) =>
       endpointMatchesFeedTimelineContext(endpoint, contextUrl),
     );
     if (!hasFeedLikeEndpoint) return false;
   }
-  const resolvedSkill = withContextReplayEndpoint(skill, intent, contextUrl);
   const ranked = rankEndpoints(
-    resolvedSkill.endpoints,
+    candidateSkill.endpoints,
     intent,
-    resolvedSkill.domain,
+    candidateSkill.domain,
     contextUrl,
   );
   const top = ranked[0];
@@ -694,9 +745,9 @@ export function isCachedSkillRelevantForIntent(
     top.endpoint.url_template === contextUrl &&
     !skillHasBetterStructuredSearchEndpoint(
       resolvedSkill,
-      top.endpoint.endpoint_id,
-      intent,
-      contextUrl,
+        top.endpoint.endpoint_id,
+        intent,
+        contextUrl,
     )
   ) {
     return false;
@@ -711,7 +762,7 @@ export function isCachedSkillRelevantForIntent(
     return false;
   }
   if (isSearchIntent) {
-    const hasStructuredSearchEndpoint = resolvedSkill.endpoints.some((endpoint) =>
+    const hasStructuredSearchEndpoint = candidateSkill.endpoints.some((endpoint) =>
       endpointHasSearchBindings(endpoint) &&
       (!!endpoint.dom_extraction || !!endpoint.response_schema) &&
       endpointMatchesContextOrigin(endpoint, contextUrl) &&
@@ -910,6 +961,7 @@ function skillHasBetterStructuredSearchEndpoint(
   if (!isSearchLikeIntent(intent, contextUrl)) return false;
   return rankEndpoints(skill.endpoints, intent, skill.domain, contextUrl).some((candidate) =>
     candidate.endpoint.endpoint_id !== currentEndpointId &&
+    isResolveUsableEndpointForIntent(candidate.endpoint, intent, contextUrl) &&
     endpointHasSearchBindings(candidate.endpoint) &&
     (!!candidate.endpoint.dom_extraction || !!candidate.endpoint.response_schema) &&
     endpointMatchesExplicitSearchContext(candidate.endpoint, contextUrl) &&
@@ -2089,22 +2141,38 @@ export async function resolveAndExecute(
     extraFields?: Record<string, unknown>,
   ): OrchestratorResult {
     const resolvedSkill = withContextReplayEndpoint(skill, queryIntent, context?.url);
-    const chunk = getSkillChunk(resolvedSkill, {
+    const usableEndpoints = resolvedSkill.endpoints.filter((endpoint) =>
+      isResolveUsableEndpointForIntent(endpoint, queryIntent, context?.url),
+    );
+    const endpointScopedSkill =
+      usableEndpoints.length === resolvedSkill.endpoints.length
+        ? resolvedSkill
+        : { ...resolvedSkill, endpoints: usableEndpoints };
+    const knownBindings = knownBindingsFromInputs(params, context?.url);
+    const chunk = getSkillChunk(endpointScopedSkill, {
       intent: queryIntent,
-      known_bindings: knownBindingsFromInputs(params, context?.url),
-      max_operations: 8,
+      known_bindings: knownBindings,
+      include_full_relevant_graph: true,
     });
-    let epRanked = rankEndpoints(resolvedSkill.endpoints, queryIntent, resolvedSkill.domain, context?.url);
+    let epRanked = rankEndpoints(endpointScopedSkill.endpoints, queryIntent, endpointScopedSkill.domain, context?.url);
     // Graph-aware reachability filter
-    const known = knownBindingsFromInputs(params, context?.url);
-    const deferGraph = ensureSkillOperationGraph(resolvedSkill);
-    const reachableIds = computeReachableEndpoints(deferGraph, known);
+    const deferGraph = ensureSkillOperationGraph(endpointScopedSkill);
+    const reachableIds = computeReachableEndpoints(deferGraph, knownBindings);
     if (reachableIds.size > 0) {
-      epRanked = epRanked.filter(r => reachableIds.has(r.endpoint.endpoint_id));
+      const reachableEndpointIds = new Set(
+        [...reachableIds]
+          .map((operationId) => deferGraph.operations.find((operation) => operation.operation_id === operationId)?.endpoint_id)
+          .filter((endpointId): endpointId is string => !!endpointId),
+      );
+      epRanked = epRanked.filter((ranked) => reachableEndpointIds.has(ranked.endpoint.endpoint_id));
     }
+    const workflowDag = toAgentWorkflowDagView(chunk, deferGraph, knownBindings);
+    const dagOperationByEndpointId = new Map(
+      workflowDag.operations.map((operation) => [operation.endpoint_id, operation] as const),
+    );
     const deferTrace: ExecutionTrace = {
       trace_id: nanoid(),
-      skill_id: resolvedSkill.skill_id,
+      skill_id: endpointScopedSkill.skill_id,
       endpoint_id: "",
       started_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
@@ -2114,7 +2182,7 @@ export async function resolveAndExecute(
       ...decisionTrace,
       outcome: "deferral",
       source,
-      skill_id: resolvedSkill.skill_id,
+      skill_id: endpointScopedSkill.skill_id,
       available_endpoints: epRanked.slice(0, 10).map((r) => ({
         endpoint_id: r.endpoint.endpoint_id,
         score: Math.round(r.score * 10) / 10,
@@ -2123,8 +2191,8 @@ export async function resolveAndExecute(
       })),
       extra: extraFields ?? null,
     });
-    const deferStepIndex = recordRoutingCandidates(resolvedSkill, epRanked, source);
-    recordRoutingStep("defer", resolvedSkill, deferTrace, null, {
+    const deferStepIndex = recordRoutingCandidates(endpointScopedSkill, epRanked, source);
+    recordRoutingStep("defer", endpointScopedSkill, deferTrace, null, {
       stepIndex: deferStepIndex,
       candidateCount: epRanked.length,
       userOverride: false,
@@ -2133,18 +2201,10 @@ export async function resolveAndExecute(
     });
     return {
       result: {
-        message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${resolvedSkill.skill_id}/execute with params.endpoint_id.`,
-        skill_id: resolvedSkill.skill_id,
-        available_operations: chunk.operations.map((operation) => ({
-          operation_id: operation.operation_id,
-          endpoint_id: operation.endpoint_id,
-          action_kind: operation.action_kind,
-          resource_kind: operation.resource_kind,
-          description_out: operation.description_out,
-          requires: operation.requires.map((binding) => binding.key),
-          provides: operation.provides.map((binding) => binding.key),
-          runnable: chunk.available_operation_ids.includes(operation.operation_id),
-        })),
+        message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${endpointScopedSkill.skill_id}/execute with params.endpoint_id.`,
+        skill_id: endpointScopedSkill.skill_id,
+        available_operations: workflowDag.operations,
+        workflow_dag: workflowDag,
         missing_bindings: chunk.missing_bindings,
         available_endpoints: epRanked.slice(0, 10).map((r) => ({
           endpoint_id: r.endpoint.endpoint_id,
@@ -2170,13 +2230,47 @@ export async function resolveAndExecute(
           dom_extraction: !!r.endpoint.dom_extraction,
           trigger_url: r.endpoint.trigger_url,
           needs_params: r.endpoint.semantic?.requires?.some((b) => b.required) ?? false,
+          prefetch_get_operations: dagOperationByEndpointId.get(r.endpoint.endpoint_id)?.prefetch_get_operations ?? [],
         })),
         ...extraFields,
       },
       trace: deferTrace,
       source,
-      skill: resolvedSkill,
-      timing: finalize(source, null, resolvedSkill.skill_id, resolvedSkill, deferTrace),
+      skill: endpointScopedSkill,
+      timing: finalize(source, null, endpointScopedSkill.skill_id, endpointScopedSkill, deferTrace),
+    };
+  }
+
+  function buildNoCachedMatch(reason = "No cached endpoint matched this intent yet."): OrchestratorResult {
+    const missTrace: ExecutionTrace = {
+      trace_id: nanoid(),
+      skill_id: "",
+      endpoint_id: "",
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "no_cached_match",
+    };
+    writeDebugTrace("resolve", {
+      ...decisionTrace,
+      outcome: "no-cached-match",
+      source: "marketplace",
+      requested_domain: requestedDomain ?? null,
+      context_url: context?.url ?? null,
+      intent: queryIntent,
+    });
+    return {
+      result: {
+        status: "no_cached_match",
+        message: reason,
+        intent: queryIntent,
+        domain: requestedDomain ?? null,
+        url: context?.url ?? null,
+      },
+      trace: missTrace,
+      source: "marketplace",
+      skill: undefined as any,
+      timing: finalize("marketplace", null, undefined, undefined, missTrace),
     };
   }
 
@@ -2431,8 +2525,13 @@ export async function resolveAndExecute(
     );
     const graphEndpointIds = new Set(
       chunk.available_operation_ids.length > 0
-        ? [...chunk.available_operation_ids, ...preferredAutoexecIds]
-        : [...chunk.operations.map((operation) => operation.operation_id), ...preferredAutoexecIds],
+        ? [
+            ...chunk.available_operation_ids
+              .map((operationId) => skill.operation_graph?.operations.find((operation) => operation.operation_id === operationId)?.endpoint_id)
+              .filter((endpointId): endpointId is string => !!endpointId),
+            ...preferredAutoexecIds,
+          ]
+        : [...chunk.operations.map((operation) => operation.endpoint_id), ...preferredAutoexecIds],
     );
     if (graphEndpointIds.size > 0) {
       epRanked = epRanked.filter((ranked) => graphEndpointIds.has(ranked.endpoint.endpoint_id));
@@ -3170,6 +3269,13 @@ export async function resolveAndExecute(
       }
       const skill = cached.skill;
       if (skill) {
+        const selectedEndpoint = skill.endpoints.find(
+          (endpoint) => endpoint.endpoint_id === (params.endpoint_id ?? cached.entry.endpointId),
+        );
+        if (selectedEndpoint && !isResolveUsableEndpointForIntent(selectedEndpoint, queryIntent, context?.url)) {
+          skillRouteCache.delete(cached.scopedKey);
+          persistRouteCache();
+        } else {
         const te0 = Date.now();
         try {
           const execOut = await executeSkill(
@@ -3219,6 +3325,7 @@ export async function resolveAndExecute(
         } catch {
           timing.execute_ms = Date.now() - te0;
         }
+        }
       }
       skillRouteCache.delete(cached.scopedKey);
     }
@@ -3248,72 +3355,12 @@ export async function resolveAndExecute(
 
   const shouldBypassBrowserFirstPass = shouldBypassLiveCaptureQueue(context?.url);
 
-  // --- Fast path: URL given, no local cache → skip marketplace, go straight to browser ---
-  // Marketplace search can take 10-60s+ and blocks the agent. When we have a URL,
-  // the browser can achieve the goal via UI immediately while indexing passively.
-  // Marketplace search runs in the background to populate cache for next time.
-  if (context?.url && !agentChoseEndpoint && !forceCapture && !shouldBypassBrowserFirstPass) {
-    console.log(`[fast-path] no local cache for ${requestedDomain} — skipping marketplace, going to browser`);
-
-    // Fire-and-forget: marketplace search populates cache for future resolves
-    void (async () => {
-      try {
-        const { domain_results, global_results } = await searchIntentResolve(
-          queryIntent, requestedDomain ?? undefined,
-          MARKETPLACE_DOMAIN_SEARCH_K, MARKETPLACE_GLOBAL_SEARCH_K,
-        );
-        const totalResults = domain_results.length + global_results.length;
-        if (totalResults > 0) {
-          console.log(`[fast-path:bg] marketplace found ${totalResults} candidates — will be cached for next resolve`);
-        }
-      } catch { /* marketplace down — doesn't matter, browser is working */ }
-    })();
-
-    // Jump straight to first-pass browser action (8s) then browse session handoff
-    const firstPassResult = await tryFirstPassBrowserAction(
-      intent, params, context.url,
-      { signal: options?.signal, clientScope: options?.client_scope },
-    );
-    decisionTrace.first_pass = {
-      intentClass: firstPassResult.intentClass,
-      actionTaken: firstPassResult.actionTaken,
-      hit: firstPassResult.hit,
-      interceptedCount: firstPassResult.interceptedEntries.length,
-      timeMs: firstPassResult.timeMs,
-      fast_path: true,
-    };
-    if (firstPassResult.hit && firstPassResult.miniSkill) {
-      const fpNow = new Date().toISOString();
-      const trace: ExecutionTrace = {
-        trace_id: nanoid(),
-        skill_id: firstPassResult.miniSkill.skill_id,
-        endpoint_id: firstPassResult.miniSkill.endpoints[0]?.endpoint_id ?? "",
-        started_at: fpNow,
-        completed_at: fpNow,
-        success: true,
-        network_events: firstPassResult.interceptedEntries,
-      };
-      return {
-        result: firstPassResult.result,
-        trace,
-        source: "first-pass",
-        skill: firstPassResult.miniSkill,
-        timing: finalize("first-pass", firstPassResult.result, firstPassResult.miniSkill.skill_id, firstPassResult.miniSkill, trace),
-      };
-    }
-    console.log(`[fast-path] first-pass miss — opening browse session for agent`);
-
-    // Browse session handoff — agent drives with snap/click/fill/close
-    if (firstPassResult.tabId && context.url) {
-      const browseSession = await openBrowseSessionHandoff(context.url, firstPassResult.tabId);
-      if (browseSession) return browseSession;
-    }
-  }
-
 
   // --- Marketplace search with hard timeout ---
   // When a URL is available, cap marketplace search at 5s. Beyond that, browser is faster.
-  const MARKETPLACE_TIMEOUT_MS = context?.url ? 5_000 : 30_000;
+  const MARKETPLACE_TIMEOUT_MS = Number(
+    process.env.UNBROWSE_RESOLVE_SEARCH_TIMEOUT_MS ?? (context?.url ? "2500" : "10000"),
+  );
 
   if (!forceCapture) {
     // 1. Search marketplace — single remote call, capped by timeout when URL available
@@ -3335,7 +3382,7 @@ export async function resolveAndExecute(
         ),
         new Promise<{ domain_results: SearchResult[]; global_results: SearchResult[]; skipped_global: boolean; actual_cost_uc?: number }>((resolve) =>
           setTimeout(() => {
-            console.log(`[marketplace] timeout after ${MARKETPLACE_TIMEOUT_MS}ms — falling through to browser`);
+            console.log(`[marketplace] timeout after ${MARKETPLACE_TIMEOUT_MS}ms — returning cache miss`);
             resolve({ domain_results: [], global_results: [], skipped_global: true });
           }, MARKETPLACE_TIMEOUT_MS),
         ),
@@ -3592,54 +3639,11 @@ export async function resolveAndExecute(
     } catch { /* not a direct JSON API — continue to browser */ }
   }
 
-  // 1.5 First-pass browser action: lightweight 8s attempt before full capture
-  if (context?.url && !forceCapture && !shouldBypassBrowserFirstPass) {
-    const firstPassResult = await tryFirstPassBrowserAction(
-      intent, params, context.url,
-      { signal: options?.signal, clientScope: options?.client_scope },
-    );
-    decisionTrace.first_pass = {
-      intentClass: firstPassResult.intentClass,
-      actionTaken: firstPassResult.actionTaken,
-      hit: firstPassResult.hit,
-      interceptedCount: firstPassResult.interceptedEntries.length,
-      timeMs: firstPassResult.timeMs,
-    };
-    if (firstPassResult.hit && firstPassResult.miniSkill) {
-      const fpNow = new Date().toISOString();
-      const trace: ExecutionTrace = {
-        trace_id: nanoid(),
-        skill_id: firstPassResult.miniSkill.skill_id,
-        endpoint_id: firstPassResult.miniSkill.endpoints[0]?.endpoint_id ?? "",
-        started_at: fpNow,
-        completed_at: fpNow,
-        success: true,
-        network_events: firstPassResult.interceptedEntries,
-      };
-      const t = finalize(
-        "first-pass", firstPassResult.result,
-        firstPassResult.miniSkill.skill_id,
-        firstPassResult.miniSkill, trace,
-      );
-      return {
-        result: firstPassResult.result,
-        trace,
-        source: "first-pass",
-        skill: firstPassResult.miniSkill,
-        timing: t,
-      };
-    }
-    console.log(`[first-pass] miss (${firstPassResult.intentClass}/${firstPassResult.actionTaken}) — opening browse session for agent`);
-
-    // Phase 4: Browse session handoff — open a browser session with auth,
-    // interceptor, and HAR, then tell the calling agent to drive it.
-    // The agent uses snap/click/fill/close. All traffic is passively indexed.
-    if (firstPassResult.tabId && context?.url) {
-      const browseSession = await openBrowseSessionHandoff(context.url, firstPassResult.tabId);
-      if (browseSession) return browseSession;
-    }
+  if (context?.url && !forceCapture) {
+    return buildNoCachedMatch();
   }
-  // 2. No match (or force_capture) — invoke browser-capture skill
+
+  // 2. force_capture only — invoke browser-capture skill
   if (!context?.url) {
     throw new Error(
       "No matching skill found. Pass context.url to trigger live capture and discovery.",
@@ -3655,6 +3659,12 @@ export async function resolveAndExecute(
       capturedDomainCache.delete(cacheKey);
     } else {
       if (agentChoseEndpoint) {
+        const selectedEndpoint = domainHit.skill.endpoints.find(
+          (endpoint) => endpoint.endpoint_id === (params.endpoint_id ?? domainHit.endpointId),
+        );
+        if (selectedEndpoint && !isResolveUsableEndpointForIntent(selectedEndpoint, queryIntent, context?.url)) {
+          invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
+        } else {
         const execOut = await executeSkill(
           domainHit.skill,
           { ...params, endpoint_id: params.endpoint_id ?? domainHit.endpointId, ...(queryIntent !== intent ? { intent: queryIntent } : {}) },
@@ -3703,6 +3713,7 @@ export async function resolveAndExecute(
           };
         }
         invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
+        }
       }
       const deferred = await buildDeferralWithAutoExec(domainHit.skill, "marketplace");
       if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {

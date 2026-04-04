@@ -5,7 +5,7 @@
  * GET endpoints and prefetch them so the agent gets list + detail in one call.
  */
 import type { SkillManifest, SkillOperationGraph, SkillOperationNode, SkillOperationEdge } from "../types/index.js";
-import { isRunnable } from "../graph/index.js";
+import { getOperationPrefetchTargets } from "../graph/index.js";
 import { executeSkill } from "../execution/index.js";
 
 export const PREFETCH_MAX = 3;
@@ -39,34 +39,7 @@ export function getPrefetchTargets(
   resolvedOperationId: string,
   knownBindings: Record<string, unknown>,
 ): PrefetchTarget[] {
-  const resolvedOp = graph.operations.find(op => op.operation_id === resolvedOperationId);
-  if (!resolvedOp) return [];
-
-  const effectiveBindings: Record<string, unknown> = { ...knownBindings };
-  for (const binding of resolvedOp.provides) {
-    if (effectiveBindings[binding.key] == null) {
-      effectiveBindings[binding.key] = binding.example_value ?? `__from_${resolvedOperationId}__`;
-    }
-  }
-
-  const candidates: PrefetchTarget[] = [];
-  for (const edge of graph.edges) {
-    if (edge.from_operation_id !== resolvedOperationId) continue;
-    if (edge.kind !== "parent_child") continue;
-
-    const targetOp = graph.operations.find(op => op.operation_id === edge.to_operation_id);
-    if (!targetOp) continue;
-    if (targetOp.method !== "GET") continue;
-    if (!isRunnable(targetOp, effectiveBindings)) continue;
-
-    candidates.push({
-      operation: targetOp,
-      edge,
-      reason: `${resolvedOp.action_kind} ${resolvedOp.resource_kind} -> ${targetOp.action_kind} ${targetOp.resource_kind} via ${edge.binding_key}`,
-    });
-  }
-
-  return candidates.sort((a, b) => b.edge.confidence - a.edge.confidence).slice(0, PREFETCH_MAX);
+  return getOperationPrefetchTargets(graph, resolvedOperationId, knownBindings, PREFETCH_MAX);
 }
 
 /**

@@ -139,8 +139,8 @@ export async function tryFirstPassBrowserAction(
     domain = "unknown";
   }
 
-  // Hard 8s timeout for the entire operation
-  const timeoutMs = 8_000;
+  // Keep resolve misses fast: this is a short probe, not a full capture.
+  const timeoutMs = Number(process.env.UNBROWSE_FIRST_PASS_TIMEOUT_MS ?? "5000");
   const deadline = t0 + timeoutMs;
   const externalSignal = options?.signal;
 

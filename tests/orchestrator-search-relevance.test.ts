@@ -115,4 +115,60 @@ describe("isCachedSkillRelevantForIntent", () => {
       ),
     ).toBe(true);
   });
+
+  it("rejects public feed skills whose top replay endpoint points at a local runtime host", () => {
+    const skill = makeSkill([
+      {
+        endpoint_id: "linkedin-feed",
+        method: "GET",
+        url_template: "http://127.0.0.1:52235/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.abc",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 1,
+        description: "LinkedIn feed",
+        response_schema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean" },
+          },
+        },
+        semantic: {
+          action_kind: "timeline",
+          resource_kind: "post",
+          description_out: "LinkedIn feed",
+        },
+      },
+      {
+        endpoint_id: "voyager-helper",
+        method: "GET",
+        url_template: "https://platform.linkedin.com/litms/allowlist/voyager-web-feed",
+        idempotency: "safe",
+        verification_status: "unverified",
+        reliability_score: 0.5,
+        description: "Returns posts timeline with pagekey and controlurn",
+        response_schema: {
+          type: "object",
+          properties: {
+            pageKey: { type: "array", items: { type: "string" } },
+            controlUrn: { type: "array", items: { type: "string" } },
+          },
+        },
+        semantic: {
+          action_kind: "timeline",
+          resource_kind: "post",
+          description_out: "Returns posts timeline with pagekey and controlurn",
+          negative_tags: ["helper"],
+        },
+      },
+    ]);
+
+    expect(
+      isCachedSkillRelevantForIntent(
+        skill,
+        "get linkedin feed posts",
+        "https://www.linkedin.com/feed/",
+      ),
+    ).toBe(false);
+  });
+
 });

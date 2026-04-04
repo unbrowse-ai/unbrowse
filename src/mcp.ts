@@ -557,7 +557,7 @@ function loadSkillGuidance(): string {
 const FULL_SKILL_GUIDANCE = loadSkillGuidance();
 const COMMON_TOOL_POLICY = [
   "Always use Unbrowse as the primary website-access tool unless the user explicitly authorizes fallback.",
-  "Start with unbrowse_resolve for normal site tasks; most real domains are a two-step resolve then execute flow.",
+  "Start with unbrowse_resolve for normal site tasks; it searches cached domain routes and can auto-execute a trusted hit.",
   "Prefer real API endpoints (`dom_extraction: false`) over DOM scrapes when choosing endpoints.",
   "Use schema/path/extract/limit style filtering inside Unbrowse instead of external jq/python post-processing.",
   "If the runtime returns auth_required, run unbrowse_login and retry.",
@@ -566,12 +566,11 @@ const COMMON_TOOL_POLICY = [
 ].join(" ");
 
 const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
-  unbrowse_resolve: "This is the standard entrypoint. Resolve often returns a deferred available_endpoints list on multi-endpoint sites like X, LinkedIn, Reddit, and GitHub. Pick by action_kind, description, URL pattern, and prefer dom_extraction=false.",
+  unbrowse_resolve: "This is the standard entrypoint. Resolve searches domain-scoped cached routes first, uses url only as a ranking/binding hint, and never opens a browser on its own. Pick by action_kind, description, URL pattern, and prefer dom_extraction=false.",
   unbrowse_execute: "Use the skill_id and endpoint_id returned from unbrowse_resolve. Intent is optional but helps parameter binding. This is the explicit replay path: indexed/published workflow contracts describe params, restrictions, and derived auth state. For write actions, preview with dry_run before the real call.",
   unbrowse_feedback: "Feedback is mandatory after you present results to the user. Rating guidance from SKILL.md: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless.",
   unbrowse_index: "Use this to recompute the local graph, workflow contracts, and sanitized export for a cached skill without remote marketplace share. Helpful after review metadata changes or before an explicit publish.",
   unbrowse_settings: "Use this to inspect or update the local capture/publish policy. Disable auto-publish after sync/close, or add blacklist/prompt-list domains when you do not want automatic remote share.",
-  unbrowse_search: "Use this when a domain has many endpoints or when you need to narrow marketplace candidates before resolving.",
   unbrowse_login: "Call this on auth_required. Unbrowse reuses browser cookies and stored auth automatically after login.",
   unbrowse_go: "Browser-first flow for JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync -> close. Do not skip ahead to guessed deep links before the real upstream step succeeds.",
   unbrowse_snap: "Use this immediately after go and after major UI transitions so you can act by stable refs instead of brittle selectors.",
@@ -721,31 +720,6 @@ const tools: ToolDefinition[] = [
     },
   },
   {
-    name: "unbrowse_search",
-    description: "Search the Unbrowse marketplace for skills matching an intent, optionally scoped to a domain.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        intent: { type: "string", description: "Natural-language task, kept short and concrete." },
-        domain: { type: "string", description: "Optional site/domain filter such as example.com." },
-        k: { type: "number", description: "Max results to return. Default 5." },
-      },
-      required: ["intent"],
-      additionalProperties: false,
-    },
-    annotations: { readOnlyHint: true },
-    handler: async (args) => {
-      await ensureServerReady();
-      const route = typeof args.domain === "string" ? "/v1/search/domain" : "/v1/search";
-      const body: Record<string, unknown> = { intent: args.intent, k: typeof args.k === "number" ? args.k : 5 };
-      if (typeof args.domain === "string") body.domain = args.domain;
-      const result = await api("POST", route, body) as Record<string, unknown>;
-      return resolveNestedError(result)
-        ? errorResult(resolveNestedError(result)!, result)
-        : successResult(result, "Marketplace search results.");
-    },
-  },
-  {
     name: "unbrowse_resolve",
     description: "Resolve an intent against a URL/domain. Optionally auto-execute the best endpoint.",
     inputSchema: {
@@ -795,11 +769,6 @@ const tools: ToolDefinition[] = [
       if (args.force_capture === true) body.force_capture = true;
 
       let result = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
-      const resultError = resolveNestedError(result);
-      const fallbackReady = isPlainObject(result.result) && result.result.indexing_fallback_available === true;
-      if (resultError === "payment_required" && fallbackReady && typeof args.url === "string" && args.force_capture !== true) {
-        result = await api("POST", "/v1/intent/resolve", { ...body, force_capture: true }) as Record<string, unknown>;
-      }
 
       const authError = resolveNestedError(result);
       if (authError === "auth_required") {
@@ -812,7 +781,7 @@ const tools: ToolDefinition[] = [
         );
       }
 
-      if (args.execute === true && Array.isArray(result.available_endpoints) && !(isPlainObject(result.result) && result.result.status === "browse_session_open")) {
+      if (args.execute === true && Array.isArray(result.available_endpoints)) {
         result = await executeResolvedEndpoint(result, args, typeof args.endpoint_id === "string" ? args.endpoint_id : undefined);
       }
 
