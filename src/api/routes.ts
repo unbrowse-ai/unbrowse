@@ -432,6 +432,14 @@ export async function registerRoutes(app: FastifyInstance) {
       : `unbrowse publish --skill <skill_id>${confirmPublish ? " --confirm-publish" : ""}`;
   }
 
+  function buildPublishFailureNextStep(skillId: string, validationErrors?: string[]): string {
+    const reviewErrors = (validationErrors ?? []).filter((error) => error.startsWith("review_required:"));
+    if (reviewErrors.length > 0) {
+      return `Remote share blocked: ${reviewErrors.length} endpoint(s) still need review. Re-run ${checkpointPublishCommand(skillId)} to inspect review_context, then publish again with reviewed endpoints.`;
+    }
+    return `Remote share did not complete. Inspect validation_errors, adjust the contract locally, then retry ${checkpointPublishCommand(skillId, true)}.`;
+  }
+
   function buildCheckpointNextStep(
     action: "sync" | "close",
     result: {
@@ -697,7 +705,7 @@ export async function registerRoutes(app: FastifyInstance) {
         ...(publishResult.validationErrors ? { validation_errors: publishResult.validationErrors } : {}),
         next_step: publishResult.publishStatus === "published"
           ? "Remote share completed. Re-run resolve/skill inspection to use the published contract."
-          : `Remote share did not complete. Inspect validation_errors, adjust the contract locally, then retry ${checkpointPublishCommand(skill.skill_id, true)}.`,
+          : buildPublishFailureNextStep(skill.skill_id, publishResult.validationErrors),
       });
     }
 
