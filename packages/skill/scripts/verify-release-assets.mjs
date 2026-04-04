@@ -15,16 +15,19 @@ const assets = [...SUPPORTED_TARGETS.map((target) => `unbrowse-${target}`), ...R
 
 async function assertReachable(assetName) {
   const url = buildReleaseAssetUrl(baseUrl, tag, assetName);
-  const res = await fetch(url, {
+  const verifyUrl = `${url}${url.includes("?") ? "&" : "?"}verify=${Date.now()}`;
+  const res = await fetch(verifyUrl, {
     method: "GET",
     headers: {
       Range: "bytes=0-0",
       "User-Agent": "unbrowse-release-asset-check",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
     },
     redirect: "follow",
   });
   if (res.status !== 200 && res.status !== 206) {
-    throw new Error(`${assetName} returned HTTP ${res.status} from ${url}`);
+    throw new Error(`${assetName} returned HTTP ${res.status} from ${verifyUrl}`);
   }
 }
 

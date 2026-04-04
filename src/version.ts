@@ -4,6 +4,7 @@ import { dirname, join, parse } from "path";
 import { fileURLToPath } from "url";
 import {
   BUILD_CODE_HASH,
+  BUILD_DEFAULT_BACKEND_URL,
   BUILD_GIT_SHA,
   BUILD_RELEASE_MANIFEST_BASE64,
   BUILD_RELEASE_MANIFEST_SIGNATURE,
@@ -135,6 +136,9 @@ export const GIT_SHA: string = getGitSha();
 
 /** package.json version for CLI/runtime mismatch checks */
 export const PACKAGE_VERSION: string = getPackageVersion();
+
+/** Embedded default backend target; preview binaries override this at build time. */
+export const DEFAULT_BACKEND_URL: string = BUILD_DEFAULT_BACKEND_URL?.trim() || "https://beta-api.unbrowse.ai";
 
 /** Combined version: "{code_hash}@{git_sha}" — stamped on every trace */
 export const TRACE_VERSION: string = `${CODE_HASH}@${GIT_SHA}`;

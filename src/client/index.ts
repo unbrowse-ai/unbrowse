@@ -14,6 +14,7 @@ import type {
 } from "../types/index.js";
 import {
   CODE_HASH,
+  DEFAULT_BACKEND_URL,
   GIT_SHA,
   RELEASE_MANIFEST_BASE64,
   RELEASE_MANIFEST_SIGNATURE,
@@ -31,7 +32,7 @@ import {
   type TelemetryAttribution,
 } from "../telemetry-attribution.js";
 
-const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
+const API_URL = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
 const recentLocalSkills = new Map<string, SkillManifest>();
 const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
