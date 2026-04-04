@@ -24,11 +24,13 @@ publicAgentRoutes.get("/tos/current", (c) => {
 
 // POST /v1/agents/register — self-register and get an API key (requires ToS acceptance)
 publicAgentRoutes.post("/agents/register", async (c) => {
-  const { name, tos_version, wallet_address, wallet_provider } = await c.req.json<{
+  const { name, tos_version, wallet_address, wallet_provider, install_attribution, landing_token } = await c.req.json<{
     name: string;
     tos_version?: string;
     wallet_address?: string;
     wallet_provider?: string;
+    install_attribution?: Record<string, string>;
+    landing_token?: string;
   }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
@@ -50,7 +52,7 @@ publicAgentRoutes.post("/agents/register", async (c) => {
     }, 400);
   }
   try {
-    const result = await registerAgent(c.env, name, tos_version, { wallet_address, wallet_provider });
+    const result = await registerAgent(c.env, name, tos_version, { wallet_address, wallet_provider }, { install_attribution, landing_token });
     return c.json(result, 201);
   } catch (err) {
     const msg = (err as Error).message;

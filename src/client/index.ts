@@ -526,8 +526,23 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
   return data;
 }
 
-// --- ToS acceptance ---
+// --- Install attribution ---
 
+function parseInstallAttribution(): { install_attribution?: Record<string, string>; landing_token?: string } {
+  const result: { install_attribution?: Record<string, string>; landing_token?: string } = {};
+  const b64 = process.env.UNBROWSE_ATTRIBUTION_B64;
+  if (b64) {
+    try {
+      const decoded = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+      if (decoded && typeof decoded === "object") result.install_attribution = decoded;
+    } catch { /* malformed — ignore */ }
+  }
+  const token = process.env.UNBROWSE_LANDING_TOKEN;
+  if (token && token.length < 2048) result.landing_token = token;
+  return result;
+}
+
+// --- ToS acceptance ---
 async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boolean> {
   // Non-interactive mode: skip the readline prompt, return false.
   // The calling agent is expected to show the ToS to the user and ask for consent,
@@ -677,8 +692,9 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
 
   try {
     const wallet = getLocalWalletContext();
+    const attribution = parseInstallAttribution();
     const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...wallet }
+      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...wallet, ...attribution }
     );
 
     process.env.UNBROWSE_API_KEY = api_key;
