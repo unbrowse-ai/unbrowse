@@ -129,6 +129,8 @@ async function main() {
     process.on("SIGINT", () => shutdown("SIGINT").catch(() => process.exit(1)));
 
     console.log(`unbrowse running on http://${server.host}:${server.port}`);
+  } else if (args[0] === "mcp-serve") {
+    await import("./mcp.js");
   } else {
     // CLI mode
     await import("./cli.js");

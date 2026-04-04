@@ -557,27 +557,29 @@ function loadSkillGuidance(): string {
 const FULL_SKILL_GUIDANCE = loadSkillGuidance();
 const COMMON_TOOL_POLICY = [
   "Always use Unbrowse as the primary website-access tool unless the user explicitly authorizes fallback.",
-  "Start with unbrowse_resolve for normal site tasks when you want an already indexed/published route; it searches cached domain routes and can auto-execute a trusted hit.",
+  "Start with unbrowse_resolve only when you want an already indexed/published route. If the site or workflow is new, uncached, JS-heavy, or the user wants discovery/reverse engineering, start with unbrowse_go and stay browser-first.",
   "Prefer real API endpoints (`dom_extraction: false`) over DOM scrapes when choosing endpoints.",
   "Use schema/path/extract/limit style filtering inside Unbrowse instead of external jq/python post-processing.",
   "If the runtime returns auth_required, run unbrowse_login and retry.",
   "For JS-heavy multi-step sites, treat a successful unbrowse_submit as the dependency gate for deeper pages; do not jump to guessed downstream URLs unless the current session already unlocked them.",
-  "After fresh live capture (`sync`/`close`), inspect with unbrowse_skill or unbrowse_publish --pretty, then review/publish. Do not treat fresh captured endpoints as resolve-ready until that publish/review step exists.",
+  "After fresh live capture (`sync`/`close`), inspect with unbrowse_skill or unbrowse_publish, then unbrowse_review/unbrowse_publish. Do not treat fresh captured endpoints as resolve-ready until that publish/review step exists.",
   "For mutations, dry-run first and only confirm unsafe actions with clear user intent.",
 ].join(" ");
 
 const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
-  unbrowse_resolve: "This is the standard entrypoint for already indexed/published routes. Resolve searches domain-scoped cached routes first, uses url only as a ranking/binding hint, and never opens a browser on its own. Pick by action_kind, description, URL pattern, and prefer dom_extraction=false. Do not use resolve as the first validation step for a just-captured live browse session.",
+  unbrowse_resolve: "This is only for already indexed/published routes. Resolve searches cached routes, uses url only as a ranking/binding hint, and never opens a browser on its own. If there is no cached skill, move to unbrowse_go and capture the site live. Do not use resolve as discovery, and do not use it as the first validation step for a just-captured live browse session.",
   unbrowse_execute: "Use the skill_id and endpoint_id returned from unbrowse_resolve. Intent is optional but helps parameter binding. This is the explicit replay path: indexed/published workflow contracts describe params, restrictions, and derived auth state. For write actions, preview with dry_run before the real call.",
   unbrowse_feedback: "Feedback is mandatory after you present results to the user. Rating guidance from SKILL.md: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless.",
   unbrowse_index: "Use this to recompute the local graph, workflow contracts, and sanitized export for a cached skill without remote marketplace share. Helpful after review metadata changes or before an explicit publish.",
+  unbrowse_review: "Use this after sync/close when a fresh capture needs contract-writing. Submit reviewed descriptions, action/resource kinds, and optional request/response schema notes so the captured endpoint becomes a reusable contract before publish.",
+  unbrowse_publish: "This is the publish choke-point. Phase 1 with just skill_id returns the publish-review surface for a captured skill. Phase 2 with endpoints writes reviewed metadata; add confirm_publish=true only when you explicitly want remote share/re-publish.",
   unbrowse_settings: "Use this to inspect or update the local capture/publish policy. Disable auto-publish after sync/close, or add blacklist/prompt-list domains when you do not want automatic remote share.",
   unbrowse_login: "Call this on auth_required. Unbrowse reuses browser cookies and stored auth automatically after login.",
-  unbrowse_go: "Browser-first flow for JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync -> close. Do not skip ahead to guessed deep links before the real upstream step succeeds.",
+  unbrowse_go: "Browser-first discovery flow for uncached or JS-heavy sites: go -> snap -> click/fill/select/eval -> submit -> sync/close -> skill/publish -> review -> publish. Do not skip ahead to guessed deep links before the real upstream step succeeds.",
   unbrowse_snap: "Use this immediately after go and after major UI transitions so you can act by stable refs instead of brittle selectors.",
   unbrowse_submit: "Prefer real page submit before hidden-field hacks. Traversal stays browser-native and thin by default; passive request observation is recorded for publish-time linking, not executed during click-around. Only enable assist_site_state or same_origin_fetch_fallback when you explicitly want extra recovery/help. After submit, trust the returned url/session_id/next-step hints as the proven dependency chain.",
   unbrowse_sync: "Explicit checkpoint. Run after important successful transitions to flush current capture, keep the tab open, and queue the background index -> publish pipeline. The next step is inspect/review/publish the captured skill state, not resolve.",
-  unbrowse_close: "Final checkpoint. Close at the end of the browser-first workflow so capture flushes, auth saves, and the background index -> publish pipeline is queued before the tab closes. After close, inspect with skill/publish review and then publish; resolve is for later reuse.",
+  unbrowse_close: "Final checkpoint. Close at the end of the browser-first workflow so capture flushes, auth saves, and the background index -> publish pipeline is queued before the tab closes. After close, inspect with unbrowse_skill/unbrowse_publish, then unbrowse_review/unbrowse_publish; resolve is for later reuse.",
   unbrowse_eval: "Use sparingly, mainly to inspect or patch hidden state the page already depends on.",
   unbrowse_sessions: "Use this for debugging when a site is slow, wrong, or unstable and you need the captured session trace.",
 };
@@ -722,7 +724,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_resolve",
-    description: "Resolve an intent against indexed/published routes for a URL/domain. Optionally auto-execute the best endpoint.",
+    description: "Resolve an intent against already indexed/published routes for a URL/domain. Optionally auto-execute the best endpoint. This is not the discovery path for a new live capture.",
     inputSchema: {
       type: "object",
       properties: {
@@ -876,6 +878,138 @@ const tools: ToolDefinition[] = [
     handler: async (args) => {
       await ensureServerReady();
       return successResult(await api("POST", `/v1/skills/${args.skill}/index`, {}), "Local index recomputed.");
+    },
+  },
+  {
+    name: "unbrowse_review",
+    description: "Write reviewed endpoint contract metadata back into a captured skill after sync/close: descriptions, action/resource kinds, and optional request/response schema notes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill: { type: "string", description: "Skill id to review." },
+        endpoints: {
+          type: "array",
+          description: "Endpoint review payloads.",
+          items: {
+            type: "object",
+            properties: {
+              endpoint_id: { type: "string", description: "Endpoint id to review." },
+              description: { type: "string", description: "Reviewed human description of what the endpoint returns and key constraints." },
+              action_kind: { type: "string", description: "Reviewed action kind, e.g. search/detail/create/list." },
+              resource_kind: { type: "string", description: "Reviewed resource kind, e.g. book/post/order." },
+              parameter_reviews: {
+                type: "array",
+                description: "Optional request parameter schema review entries.",
+                items: {
+                  type: "object",
+                  properties: {
+                    location: { type: "string", description: "One of path/query/body/header." },
+                    name: { type: "string", description: "Parameter name." },
+                    description: { type: "string", description: "Reviewed parameter description." },
+                    type: { type: "string", description: "Reviewed type." },
+                    required: { type: "boolean", description: "Whether the parameter is required." },
+                    user_supplied: { type: "boolean", description: "Whether the parameter should be user supplied." },
+                    format: { type: "string", description: "Optional semantic format, e.g. date." },
+                  },
+                  additionalProperties: false,
+                },
+              },
+              response_reviews: {
+                type: "array",
+                description: "Optional response field schema review entries.",
+                items: {
+                  type: "object",
+                  properties: {
+                    path: { type: "string", description: "Field path, e.g. items[].title." },
+                    description: { type: "string", description: "Reviewed field description." },
+                    type: { type: "string", description: "Reviewed field type." },
+                  },
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ["endpoint_id"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["skill", "endpoints"],
+      additionalProperties: false,
+    },
+    annotations: { destructiveHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      return successResult(
+        await api("POST", `/v1/skills/${args.skill}/review`, { endpoints: args.endpoints }),
+        "Review metadata applied and local contracts re-indexed.",
+      );
+    },
+  },
+  {
+    name: "unbrowse_publish",
+    description: "Inspect or publish a captured skill. Call with only skill_id first to get the publish-review surface; call again with reviewed endpoints, and set confirm_publish=true only for explicit remote share.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill: { type: "string", description: "Skill id." },
+        confirm_publish: { type: "boolean", description: "Explicitly confirm remote share/re-publish. Omit for inspection-only." },
+        endpoints: {
+          type: "array",
+          description: "Optional reviewed endpoint payloads to merge before publish.",
+          items: {
+            type: "object",
+            properties: {
+              endpoint_id: { type: "string", description: "Endpoint id to publish/review." },
+              description: { type: "string", description: "Reviewed endpoint description." },
+              action_kind: { type: "string", description: "Reviewed action kind." },
+              resource_kind: { type: "string", description: "Reviewed resource kind." },
+              parameter_reviews: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    location: { type: "string", description: "One of path/query/body/header." },
+                    name: { type: "string", description: "Parameter name." },
+                    description: { type: "string", description: "Reviewed parameter description." },
+                    type: { type: "string", description: "Reviewed type." },
+                    required: { type: "boolean", description: "Whether the parameter is required." },
+                  },
+                  additionalProperties: false,
+                },
+              },
+              response_reviews: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    path: { type: "string", description: "Field path, e.g. items[].title." },
+                    description: { type: "string", description: "Reviewed field description." },
+                    type: { type: "string", description: "Reviewed field type." },
+                  },
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ["endpoint_id"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["skill"],
+      additionalProperties: false,
+    },
+    annotations: { destructiveHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      const body: Record<string, unknown> = {};
+      if (args.confirm_publish === true) body.confirm_publish = true;
+      if (Array.isArray(args.endpoints)) body.endpoints = args.endpoints;
+      return successResult(
+        await api("POST", `/v1/skills/${args.skill}/publish`, body),
+        Array.isArray(args.endpoints)
+          ? "Publish step applied."
+          : "Publish review surface.",
+      );
     },
   },
   {

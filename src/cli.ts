@@ -19,7 +19,7 @@ import {
 } from "./client/index.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
 import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
-import { isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
+import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
@@ -1067,9 +1067,12 @@ async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void
 
 async function cmdMcp(flags: Record<string, string | boolean>): Promise<void> {
   const entrypoint = resolveSiblingEntrypoint(import.meta.url, "mcp");
+  const childArgs = isBundledVirtualEntrypoint(entrypoint)
+    ? ["mcp-serve", ...(flags["no-auto-start"] ? ["--no-auto-start"] : [])]
+    : [...runtimeArgsForEntrypoint(import.meta.url, entrypoint), ...(flags["no-auto-start"] ? ["--no-auto-start"] : [])];
   const child = spawn(
     process.execPath,
-    [...runtimeArgsForEntrypoint(import.meta.url, entrypoint), ...(flags["no-auto-start"] ? ["--no-auto-start"] : [])],
+    childArgs,
     {
       cwd: process.cwd(),
       stdio: "inherit",
