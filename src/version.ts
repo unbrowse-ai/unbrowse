@@ -1,12 +1,13 @@
 import { createHash } from "crypto";
 import { existsSync, readFileSync, readdirSync } from "fs";
-import { dirname, join } from "path";
+import { dirname, join, parse } from "path";
 import { fileURLToPath } from "url";
 import {
   BUILD_CODE_HASH,
   BUILD_GIT_SHA,
   BUILD_RELEASE_MANIFEST_BASE64,
   BUILD_RELEASE_MANIFEST_SIGNATURE,
+  BUILD_RELEASE_VERSION,
 } from "./build-info.generated.js";
 
 // Deterministic version hash of all src/*.ts files.
@@ -86,13 +87,44 @@ function getGitSha(): string {
   return BUILD_GIT_SHA?.trim() || "unknown";
 }
 
-function getPackageVersion(): string {
+function decodeBase64UrlJson<T>(value: string): T | null {
   try {
-    const pkg = JSON.parse(readFileSync(join(MODULE_DIR, "..", "package.json"), "utf-8"));
-    return typeof pkg.version === "string" ? pkg.version : "unknown";
+    if (!value) return null;
+    return JSON.parse(Buffer.from(value, "base64url").toString("utf-8")) as T;
   } catch {
-    return "unknown";
+    return null;
   }
+}
+
+export function getEmbeddedReleaseVersion(): string | null {
+  if (BUILD_RELEASE_VERSION?.trim()) return BUILD_RELEASE_VERSION.trim();
+  const manifest = decodeBase64UrlJson<{ release_version?: string }>(BUILD_RELEASE_MANIFEST_BASE64?.trim() || "");
+  return typeof manifest?.release_version === "string" && manifest.release_version.trim()
+    ? manifest.release_version.trim()
+    : null;
+}
+
+export function getPackageVersionForModuleDir(moduleDir: string): string {
+  let dir = moduleDir;
+  const root = parse(dir).root;
+
+  while (true) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf-8")) as { version?: string };
+      return typeof pkg.version === "string" ? pkg.version : "unknown";
+    } catch {
+      // keep walking
+    }
+
+    if (dir === root) return "unknown";
+    dir = dirname(dir);
+  }
+}
+
+function getPackageVersion(): string {
+  const packageVersion = getPackageVersionForModuleDir(MODULE_DIR);
+  if (packageVersion !== "unknown") return packageVersion;
+  return getEmbeddedReleaseVersion() ?? "unknown";
 }
 
 /** 12-char hex hash of all source file contents */

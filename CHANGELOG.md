@@ -9,7 +9,8 @@
 ### Bug Fixes
 
 * **browser/kuri**: lazily allocate Kuri tabs in the browser wrapper so cache-hit `goto()` calls stop spawning stray blank tabs before a real browser fallback is needed
-* **resolve/search**: reject cached marketplace skills for exact-URL search tasks when they do not expose the active search binding, so obvious misses fall through to live capture without needing `--force-capture`
+* **install/runtime**: resolve packaged versions from the nearest `package.json` when present and fall back to the embedded release manifest in compiled binaries, so `health` reports the real release version instead of `unknown`
+* **resolve/search**: reject cached marketplace skills for exact-URL search tasks when they do not expose the active search binding, and reject generic feed skills for messaging intents, so obvious misses stop pretending to be good cached hits
 * **resolve/runtime**: make `resolve` read-only again by returning a fast `no_cached_match` on misses, shortening search timeout, and keeping browser/login/capture flows explicit instead of side effects of resolve
 * **resolve/dag**: return the full relevant workflow DAG slice from `resolve`, attach safe dependent GET prefetch hints to DAG operations and endpoint candidates, and fix endpoint-vs-operation graph filtering during auto-exec
 

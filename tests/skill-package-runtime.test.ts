@@ -7,6 +7,7 @@ const SKILL_PACKAGE_JSON = path.join(ROOT, "packages", "skill", "package.json");
 const SKILL_WRAPPER = path.join(ROOT, "packages", "skill", "bin", "unbrowse-wrapper.mjs");
 const CLIENT_SRC = path.join(ROOT, "src", "client", "index.ts");
 const SKILL_POSTINSTALL = path.join(ROOT, "packages", "skill", "scripts", "postinstall.mjs");
+const SKILL_PREPARE_PACK = path.join(ROOT, "packages", "skill", "scripts", "prepare-pack.mjs");
 
 describe("standalone skill package runtime", () => {
   it("ships the binary download and fallback runtime files required by the packaged CLI", () => {
@@ -50,6 +51,13 @@ describe("standalone skill package runtime", () => {
     expect(postinstall).toContain("const localBinaryPath = process.env.UNBROWSE_INSTALL_BINARY_PATH;");
     expect(postinstall).toContain("await download(url, binaryPath);");
     expect(postinstall).toContain("Falling back to source mode");
+  });
+
+  it("clears any stray local packaged binary before npm pack runs", () => {
+    const preparePack = readFileSync(SKILL_PREPARE_PACK, "utf8");
+
+    expect(preparePack).toContain('const packagedBinaryPath = path.join(packageRoot, "bin", "unbrowse");');
+    expect(preparePack).toContain("rmSync(packagedBinaryPath, { force: true });");
   });
 
   it("does not ship duplicate analytics session exports that break packaged tsx runtime", () => {
