@@ -87,7 +87,10 @@ html {
 }
 
 body {
-  background: var(--surface);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--orange-500) 11%, transparent) 0, transparent 28%),
+    radial-gradient(circle at 85% 10%, color-mix(in srgb, white 8%, transparent) 0, transparent 24%),
+    var(--surface);
   color: var(--text-primary);
   font-family: var(--font-google-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -207,6 +210,14 @@ h1, h2, .font-display {
     display: none;
 }
 .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
 }

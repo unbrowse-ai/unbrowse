@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+* simplify the homepage around one install-first landing flow with cleaner proof, demo, and activation sections
+* trim primary navigation so the landing page stops fighting itself
+* tune the landing background and tab scrolling utilities for a calmer presentation
+* sharpen the landing page around OpenClaw browser replacement, compounding route reuse, and contributor payout messaging
+
 ## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
 
 ### Bug Fixes
