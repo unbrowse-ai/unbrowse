@@ -10,6 +10,7 @@ const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(packageRoot, "../..");
 const vendorRoot = path.join(packageRoot, "vendor", "kuri");
 const binaryName = process.platform === "win32" ? "kuri.exe" : "kuri";
+const forceRebuild = process.env.UNBROWSE_FORCE_KURI_REBUILD === "1";
 
 const supportedTargets = [
   { id: "darwin-arm64", zigTarget: "aarch64-macos" },
@@ -39,6 +40,10 @@ function resolveSourceDir() {
 
 function hasVendoredBinaries() {
   return supportedTargets.every((target) => existsSync(path.join(vendorRoot, target.id, binaryName)));
+}
+
+if (hasVendoredBinaries() && !forceRebuild) {
+  process.exit(0);
 }
 
 const sourceDir = resolveSourceDir();
