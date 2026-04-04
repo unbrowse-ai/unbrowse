@@ -13,6 +13,7 @@ import { publishSkill, getSkill } from "../marketplace/index.js";
 import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
 import {
   getSkillChunk,
+  getEndpointDescriptionMetadata,
   knownBindingsFromInputs,
   computeReachableEndpoints,
   ensureSkillOperationGraph,
@@ -2232,12 +2233,18 @@ export async function resolveAndExecute(
       outcome: "deferral",
       source,
       skill_id: endpointScopedSkill.skill_id,
-      available_endpoints: epRanked.slice(0, 10).map((r) => ({
-        endpoint_id: r.endpoint.endpoint_id,
-        score: Math.round(r.score * 10) / 10,
-        description: r.endpoint.description,
-        url: r.endpoint.url_template,
-      })),
+      available_endpoints: epRanked.slice(0, 10).map((r) => {
+        const descriptionMeta = getEndpointDescriptionMetadata(r.endpoint);
+        return {
+          endpoint_id: r.endpoint.endpoint_id,
+          score: Math.round(r.score * 10) / 10,
+          description: descriptionMeta.display,
+          description_source: descriptionMeta.source,
+          description_needs_review: descriptionMeta.needs_review,
+          ...(descriptionMeta.warning ? { description_warning: descriptionMeta.warning } : {}),
+          url: r.endpoint.url_template,
+        };
+      }),
       extra: extraFields ?? null,
     });
     const deferStepIndex = recordRoutingCandidates(endpointScopedSkill, epRanked, source);
@@ -2255,32 +2262,38 @@ export async function resolveAndExecute(
         available_operations: workflowDag.operations,
         workflow_dag: workflowDag,
         missing_bindings: chunk.missing_bindings,
-        available_endpoints: epRanked.slice(0, 10).map((r) => ({
-          endpoint_id: r.endpoint.endpoint_id,
-          method: r.endpoint.method,
-          description: r.endpoint.description,
-          url:
-            r.endpoint.url_template.length > 120
-              ? r.endpoint.url_template.slice(0, 120) + "..."
-              : r.endpoint.url_template,
-          score: Math.round(r.score * 10) / 10,
-          schema_summary: r.endpoint.response_schema
-            ? summarizeSchema(r.endpoint.response_schema)
-            : null,
-          input_params: r.endpoint.semantic?.requires?.map((b) => ({
-            key: b.key,
-            type: b.type ?? b.semantic_type,
-            required: b.required ?? false,
-            example: b.example_value,
-          })) ?? [],
-          description_in: r.endpoint.semantic?.description_in,
-          example_fields: r.endpoint.semantic?.example_fields?.slice(0, 12),
-          sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
-          dom_extraction: !!r.endpoint.dom_extraction,
-          trigger_url: r.endpoint.trigger_url,
-          needs_params: r.endpoint.semantic?.requires?.some((b) => b.required) ?? false,
-          prefetch_get_operations: dagOperationByEndpointId.get(r.endpoint.endpoint_id)?.prefetch_get_operations ?? [],
-        })),
+        available_endpoints: epRanked.slice(0, 10).map((r) => {
+          const descriptionMeta = getEndpointDescriptionMetadata(r.endpoint);
+          return {
+            endpoint_id: r.endpoint.endpoint_id,
+            method: r.endpoint.method,
+            description: descriptionMeta.display,
+            description_source: descriptionMeta.source,
+            description_needs_review: descriptionMeta.needs_review,
+            ...(descriptionMeta.warning ? { description_warning: descriptionMeta.warning } : {}),
+            url:
+              r.endpoint.url_template.length > 120
+                ? r.endpoint.url_template.slice(0, 120) + "..."
+                : r.endpoint.url_template,
+            score: Math.round(r.score * 10) / 10,
+            schema_summary: r.endpoint.response_schema
+              ? summarizeSchema(r.endpoint.response_schema)
+              : null,
+            input_params: r.endpoint.semantic?.requires?.map((b) => ({
+              key: b.key,
+              type: b.type ?? b.semantic_type,
+              required: b.required ?? false,
+              example: b.example_value,
+            })) ?? [],
+            description_in: r.endpoint.semantic?.description_in,
+            example_fields: r.endpoint.semantic?.example_fields?.slice(0, 12),
+            sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
+            dom_extraction: !!r.endpoint.dom_extraction,
+            trigger_url: r.endpoint.trigger_url,
+            needs_params: r.endpoint.semantic?.requires?.some((b) => b.required) ?? false,
+            prefetch_get_operations: dagOperationByEndpointId.get(r.endpoint.endpoint_id)?.prefetch_get_operations ?? [],
+          };
+        }),
         ...extraFields,
       },
       trace: deferTrace,

@@ -5,6 +5,7 @@ import type {
   AgentWorkflowDagOperation,
   AgentWorkflowDagView,
   EndpointDescriptor,
+  EndpointSemanticDescriptor,
   OperationBinding,
   ResponseSchema,
   SkillChunk,
@@ -229,15 +230,69 @@ function descriptionSubject(resourceKind: string, actionKind: string, text: stri
   return ["search", "list", "timeline", "trending"].includes(actionKind) ? pluralize(normalized) : normalized;
 }
 
+function isCapturedArtifactDescription(description?: string): boolean {
+  const normalized = normalizeTokenText(description ?? "").toLowerCase().trim();
+  return /^captured (?:search form |page )?artifact for\b/.test(normalized);
+}
+
 function isGenericDescription(description?: string): boolean {
   const normalized = normalizeTokenText(description ?? "").toLowerCase().trim();
   if (!normalized) return true;
+  if (isCapturedArtifactDescription(normalized)) return true;
+  if (/^(search form|page content) for\b/.test(normalized)) return true;
   if (/^returns details for\b/.test(normalized)) return true;
   if (/^returns [a-z0-9 ]+ data\b/.test(normalized)) return true;
   if (/\bwith data\b/.test(normalized)) return true;
   if (/\busing (?:variables|queryid|decorationid)\b/.test(normalized)) return true;
   if (/^searches [a-z0-9 ]+ with\b/.test(normalized) && /\b(elements|data|queryid)\b/.test(normalized)) return true;
   return false;
+}
+
+function classifyDescriptionInput(description?: string): {
+  source: "agent" | "auto" | "missing";
+  warning?: string;
+} {
+  const normalized = normalizeTokenText(description ?? "").trim();
+  if (!normalized) {
+    return {
+      source: "missing",
+      warning: "Description missing. Review before trusting or publishing.",
+    };
+  }
+  if (isCapturedArtifactDescription(normalized)) {
+    return {
+      source: "auto",
+      warning: "Auto-generated from a captured page artifact. Review before trusting or publishing.",
+    };
+  }
+  if (isGenericDescription(normalized)) {
+    return {
+      source: "auto",
+      warning: "Auto-generated description. Review before trusting or publishing.",
+    };
+  }
+  return { source: "agent" };
+}
+
+export function getEndpointDescriptionMetadata(endpoint: Pick<EndpointDescriptor, "description" | "semantic">): {
+  display: string;
+  source: "agent" | "auto" | "missing";
+  needs_review: boolean;
+  warning?: string;
+} {
+  const input = classifyDescriptionInput(endpoint.description);
+  const display = (input.source === "agent"
+    ? endpoint.description ?? ""
+    : endpoint.semantic?.description_out ?? endpoint.description ?? "").trim();
+  const source = display ? (input.source === "agent" ? "agent" : "auto") : "missing";
+  return {
+    display,
+    source,
+    needs_review: source !== "agent",
+    ...(source !== "agent"
+      ? { warning: input.warning ?? "Auto-generated description. Review before trusting or publishing." }
+      : {}),
+  };
 }
 
 function buildSemanticDescription(
@@ -409,6 +464,34 @@ function bindingIdentity(binding: OperationBinding): string {
   ].join("|");
 }
 
+const BINDING_ENTITY_ALIASES: Record<string, string> = {
+  repo: "repository",
+  repository: "repository",
+  owner: "repository",
+  profile: "profile",
+  person: "profile",
+  member: "profile",
+  user: "profile",
+  account: "profile",
+  org: "company",
+  organization: "company",
+  company: "company",
+  listing: "listing",
+  item: "listing",
+  product: "listing",
+  guild: "guild",
+  server: "guild",
+  channel: "channel",
+  conversation: "channel",
+  thread: "channel",
+  post: "post",
+  tweet: "post",
+  status: "post",
+  update: "post",
+  topic: "topic",
+  trend: "topic",
+};
+
 function isGenericBindingKey(key: string | undefined): boolean {
   if (!key) return true;
   return /^(id|ids|url|urls|page|cursor|offset|limit|slug(?:_\d+)?|pathname|domain|query|q|type|name)$/.test(key);
@@ -431,6 +514,100 @@ function classifyEdgeKind(source: SkillOperationNode, target: SkillOperationNode
 function isGenericSemanticType(type: string | undefined): boolean {
   if (!type) return true;
   return /^(identifier|input|resource|value|string|number|flag)$/.test(type);
+}
+
+function canonicalBindingEntity(entity?: string): string | undefined {
+  if (!entity) return undefined;
+  const normalized = singularize(entity.toLowerCase().replace(/[^a-z0-9_]+/g, "_"));
+  return BINDING_ENTITY_ALIASES[normalized] ?? normalized;
+}
+
+function bindingValueKind(binding: OperationBinding): string | undefined {
+  const semanticType = binding.semantic_type?.toLowerCase();
+  const key = binding.key.toLowerCase();
+  if (semanticType === "query_text" || /^(q|query|keyword|keywords|search_term)$/.test(key)) return "query";
+  if (
+    semanticType === "identifier" ||
+    /_identifier$/.test(semanticType ?? "") ||
+    /(^|_)(id|identifier|urn)$/.test(key) ||
+    /^(public_identifier|entity_urn|rest_id)$/.test(key)
+  ) return "identifier";
+  if (/_name$/.test(semanticType ?? "") || /^(name|full_name|title)$/.test(key)) return "name";
+  if (/_url$/.test(semanticType ?? "") || /^(url|link|canonical_url|path)$/.test(key)) return "url";
+  if (/_option_value$/.test(semanticType ?? "") || /_value$/.test(key)) return "option_value";
+  if (/_option$/.test(semanticType ?? "")) return "option";
+  if (/_owner$/.test(semanticType ?? "") || /^(owner|owner_login|author|author_username|author_screen_name)$/.test(key)) return "owner";
+  return undefined;
+}
+
+function bindingEntityKind(binding: OperationBinding): string | undefined {
+  const semanticType = binding.semantic_type?.toLowerCase();
+  if (semanticType && !isGenericSemanticType(semanticType)) {
+    const semanticMatch = semanticType.match(/^(.*)_(identifier|name|url|owner|option|option_value)$/);
+    if (semanticMatch) return canonicalBindingEntity(semanticMatch[1]);
+    if (semanticType === "query_text") return "query";
+  }
+
+  const key = binding.key.toLowerCase();
+  if (/^(public_identifier|profile_id|member_id|person_id|user_id|account_id|screen_name|username|handle)$/.test(key)) {
+    return "profile";
+  }
+  if (/^(repo|repo_id|repository|repository_id|repository_name|owner|owner_login)$/.test(key)) {
+    return "repository";
+  }
+  if (/^(company_id|organization_id|org_id|company_name|organization_name)$/.test(key)) {
+    return "company";
+  }
+  if (/^(listing_id|item_id|product_id|listing_name|product_name)$/.test(key)) {
+    return "listing";
+  }
+  if (/^(channel_id|conversation_id|thread_id|channel_name)$/.test(key)) {
+    return "channel";
+  }
+  if (/^(guild_id|server_id|guild_name|server_name)$/.test(key)) {
+    return "guild";
+  }
+  if (/^(post_id|tweet_id|status_id|update_id|post_url)$/.test(key)) {
+    return "post";
+  }
+  if (/^(topic_id|topic_name|trend_id|trend_name)$/.test(key)) {
+    return "topic";
+  }
+
+  const stripped = key
+    .replace(/^(public|entity|canonical|selected|current)_/, "")
+    .replace(/_(id|identifier|name|url|slug|urn|value|option|owner)$/, "");
+  if (!stripped || isGenericBindingKey(stripped)) return undefined;
+  return canonicalBindingEntity(stripped);
+}
+
+function bindingFamilyKey(binding: OperationBinding): string | undefined {
+  const entity = bindingEntityKind(binding);
+  const valueKind = bindingValueKind(binding);
+  if (!entity || !valueKind) return undefined;
+  return `${entity}:${valueKind}`;
+}
+
+function potentialBindingMatchConfidence(
+  source: SkillOperationNode,
+  target: SkillOperationNode,
+  provided: OperationBinding,
+  required: OperationBinding,
+): number {
+  const providedFamily = bindingFamilyKey(provided);
+  const requiredFamily = bindingFamilyKey(required);
+  if (!providedFamily || !requiredFamily || providedFamily !== requiredFamily) return 0;
+
+  const entity = bindingEntityKind(required);
+  const valueKind = bindingValueKind(required);
+  if (!entity || !valueKind) return 0;
+  if (isGenericBindingKey(required.key) && isGenericBindingKey(provided.key)) return 0;
+
+  let confidence = 0.62;
+  if (source.resource_kind === target.resource_kind && source.resource_kind !== "resource") confidence += 0.08;
+  if (source.resource_kind === entity || target.resource_kind === entity) confidence += 0.05;
+  if (source.method === "GET" && target.method === "GET") confidence += 0.03;
+  return Math.min(confidence, 0.78);
 }
 
 function mergeBindings(primary: OperationBinding[] = [], secondary: OperationBinding[] = []): OperationBinding[] {
@@ -491,7 +668,7 @@ export function inferEndpointSemantic(
     observedAt?: string;
     sampleRequestUrl?: string;
   },
-): EndpointDescriptor["semantic"] {
+): EndpointSemanticDescriptor {
   const fields = unique([
     ...summarizeSchemaFields(endpoint.response_schema),
     ...flattenFields(compactExample(opts?.sampleResponse ?? endpoint.semantic?.example_response_compact)),
@@ -503,18 +680,28 @@ export function inferEndpointSemantic(
   const provides = inferProvidesFromFields(fields, resourceKind);
   const negativeTags = inferNegativeTags(text);
   const generatedDescription = buildSemanticDescription(endpoint, actionKind, resourceKind, fields);
-  const descriptionOut = endpoint.description && !isGenericDescription(endpoint.description)
+  const descriptionInput = classifyDescriptionInput(endpoint.description);
+  const descriptionOut = descriptionInput.source === "agent"
     ? endpoint.description
     : generatedDescription;
   const descriptionIn = requires.length > 0
     ? `Requires ${requires.map((binding) => binding.key).join(", ")}`
     : "No additional inputs required";
+  const descriptionSource: "agent" | "auto" | "missing" =
+    descriptionInput.source === "agent"
+      ? "agent"
+      : (descriptionOut ? "auto" : "missing");
 
   return {
     action_kind: actionKind,
     resource_kind: resourceKind,
     description_in: descriptionIn,
     description_out: descriptionOut,
+    description_source: descriptionSource,
+    description_needs_review: descriptionSource !== "agent",
+    ...(descriptionSource !== "agent"
+      ? { description_warning: descriptionInput.warning ?? "Auto-generated description. Review before trusting or publishing." }
+      : {}),
     response_summary: fields.slice(0, 8).join(", "),
     example_request: compactExample(opts?.sampleRequest),
     example_response_compact: compactExample(opts?.sampleResponse ?? endpoint.semantic?.example_response_compact),
@@ -536,7 +723,7 @@ export function resolveEndpointSemantic(
     observedAt?: string;
     sampleRequestUrl?: string;
   },
-): EndpointDescriptor["semantic"] {
+): EndpointSemanticDescriptor {
   const existing = endpoint.semantic;
   const inferred = inferEndpointSemantic(endpoint, {
     sampleResponse: opts?.sampleResponse ?? existing?.example_response_compact,
@@ -563,6 +750,9 @@ export function resolveEndpointSemantic(
     resource_kind: chooseSemanticKind(existing?.resource_kind, inferred.resource_kind, supportText, new Set(["resource"])),
     description_in: inferred.description_in || existing?.description_in,
     description_out: inferred.description_out || existing?.description_out,
+    description_source: inferred.description_source || existing?.description_source,
+    description_needs_review: inferred.description_needs_review ?? existing?.description_needs_review,
+    description_warning: inferred.description_warning || existing?.description_warning,
     response_summary: inferred.response_summary || existing?.response_summary,
     example_request: opts?.sampleRequest ?? existing?.example_request ?? inferred.example_request,
     example_response_compact: opts?.sampleResponse ?? existing?.example_response_compact ?? inferred.example_response_compact,
@@ -698,7 +888,7 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
     for (const required of target.requires) {
       for (const source of operations) {
         if (source.operation_id === target.operation_id && !isPaginationBindingKey(required.key)) continue;
-        const match = source.provides.find((provided) => {
+        const directMatch = source.provides.find((provided) => {
           const exactKeyMatch = provided.key === required.key && !isGenericBindingKey(required.key);
           const semanticMatch =
             !!provided.semantic_type &&
@@ -711,18 +901,33 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
             isPaginationBindingKey(required.key);
           return exactKeyMatch || semanticMatch || paginationSelfMatch;
         });
-        if (!match) continue;
         if (source.operation_id !== target.operation_id && !isBefore(source.observed_at, target.observed_at)) continue;
+        const potentialMatch = !directMatch
+          ? source.provides
+            .map((provided) => ({
+              provided,
+              confidence: potentialBindingMatchConfidence(source, target, provided, required),
+            }))
+            .filter((candidate) => candidate.confidence > 0)
+            .sort((a, b) => b.confidence - a.confidence)[0]
+          : undefined;
+        const match = directMatch ?? potentialMatch?.provided;
+        if (!match) continue;
         const edgeId = `${source.operation_id}:${target.operation_id}:${required.key}`;
         if (seenEdges.has(edgeId)) continue;
         seenEdges.add(edgeId);
+        const exactMatch = match.key === required.key;
         edges.push({
           edge_id: edgeId,
           from_operation_id: source.operation_id,
           to_operation_id: target.operation_id,
           binding_key: required.key,
-          kind: match.key === required.key ? classifyEdgeKind(source, target, required.key) : "hint",
-          confidence: match.key === required.key ? 0.9 : 0.6,
+          kind: directMatch
+            ? (exactMatch ? classifyEdgeKind(source, target, required.key) : "hint")
+            : "hint",
+          confidence: directMatch
+            ? (exactMatch ? 0.9 : 0.6)
+            : (potentialMatch?.confidence ?? 0.6),
         });
       }
     }
