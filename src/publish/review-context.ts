@@ -85,6 +85,7 @@ export function buildEndpointReviewContext(skill: SkillManifest, endpointId: str
     prerequisites: recipe?.replay_contract.prerequisite_specs ?? [],
     token_bindings: recipe?.token_bindings ?? [],
     next_state: recipe?.replay_contract.next_state ?? [],
+    path_binding_candidates: endpoint._path_binding_candidates ?? [],
     dependencies,
     unlocks,
     trigger_siblings: triggerSiblings,

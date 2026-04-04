@@ -1,9 +1,9 @@
 import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
-import type { CsrfPlan, EndpointDescriptor, WsMessage } from "../types/index.js";
+import type { CsrfPlan, EndpointDescriptor, EndpointPathBindingCandidate, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
-import { inferEndpointSemantic } from "../graph/index.js";
+import { inferEndpointSemantic, resolveEndpointPathBindings } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
 import { buildDescriptionPrompt, groundedDescription, extractResponseKeys, inferDescriptionParams } from "./description-prompt.js";
@@ -769,7 +769,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       : null;
 
     // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)
-    const { url: templatizedPath, pathParams } = templatizePathSegments(pathTemplate, req.url, context);
+    const { url: templatizedPath, pathParams, pathBindingCandidates } = templatizePathSegments(pathTemplate, req.url, context);
     pathTemplate = templatizedPath;
 
     const parsedRequestBody = !isGet && req.request_body ? tryParseBody(req.request_body) : undefined;
@@ -785,7 +785,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     });
     const csrfPlan = inferCsrfPlan(req, parsedRequestBody);
 
-    const endpoint: EndpointDescriptor = {
+    let endpoint: EndpointDescriptor = {
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
       url_template: qTemplateStr ? `${pathTemplate}?${qTemplateStr}` : pathTemplate,
@@ -802,7 +802,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       response_schema,
       // Record which page triggered this API call — used for trigger-and-intercept execution
       trigger_url: context?.pageUrl,
+      ...(pathBindingCandidates.length > 0 ? { _path_binding_candidates: pathBindingCandidates } : {}),
     };
+    endpoint = resolveEndpointPathBindings(endpoint);
     endpoint.semantic = inferEndpointSemantic(endpoint, {
       sampleResponse: compactForSemanticExample(sampleResponse),
       sampleRequest,
@@ -951,13 +953,17 @@ function normalizeUrl(rawUrl: string): string {
   try {
     const u = new URL(rawUrl);
     const path = u.pathname
-      .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{id}")
-      .replace(/\/\d{4,}/g, "/{id}")
-      .replace(/\/[a-f0-9]{24,}/gi, "/{id}")
-      // URN identifiers (e.g. urn:li:fsd_profile:ACoAAB3fei4B...)
-      .replace(/\/urn:[a-zA-Z0-9._-]+(?::[a-zA-Z0-9._-]+)+/g, "/{urn}")
-      // BUG-006: Comma-separated values are lists of identifiers (e.g. SPY,QQQ)
-      .replace(/\/([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+)(?=\/|$)/g, "/{list}");
+      .split("/")
+      .map((segment) => {
+        if (!segment) return segment;
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)) return "{id}";
+        if (/^\d{4,}$/.test(segment)) return "{id}";
+        if (/^[a-f0-9]{24,}$/i.test(segment)) return "{id}";
+        if (/^urn:[a-zA-Z0-9._-]+(?::[a-zA-Z0-9._-]+)+$/.test(segment)) return "{urn}";
+        if (/^[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+$/.test(segment)) return "{list}";
+        return segment;
+      })
+      .join("/");
     // Preserve queryId param for GraphQL endpoints so different queries aren't deduplicated
     const queryId = u.searchParams.get("queryId");
     if (queryId && path.includes("graphql")) {
@@ -1071,22 +1077,41 @@ function extractEntityHints(context?: ExtractionContext): Set<string> {
       if (/^(en|es|fr|de|ja|zh|ko|api|v\d+|www|static|assets|public|pages|app)$/i.test(seg)) continue;
       if (seg.length > 40 || seg.length < 2) continue;
       hints.add(seg.toLowerCase());
+      const fileBase = stripFileExtension(seg);
+      if (fileBase !== seg && fileBase.length >= 2) hints.add(fileBase.toLowerCase());
     }
   } catch { /* skip */ }
   return hints;
+}
+
+function stripFileExtension(segment: string): string {
+  return segment.replace(/\.[a-z0-9]{1,8}$/i, "");
+}
+
+function looksLikeAcademicYear(segment: string): boolean {
+  return /^\d{4}-\d{4}$/.test(segment);
+}
+
+function looksLikeCodeIdentifier(segment: string): boolean {
+  return /^[A-Z]{2,}\d[A-Z0-9]*$/i.test(segment) && /[A-Z]/.test(segment) && /\d/.test(segment);
 }
 
 /**
  * Infer a meaningful param name from the preceding path segment.
  * e.g. /quote/{?} → {quote}, /coins/{?} → {coin}, /price_charts/{?} → {price_chart}
  */
-function inferParamName(segments: string[], index: number, fallback: string, usedNames: Set<string>): string {
+function inferParamName(
+  segments: string[],
+  index: number,
+  fallback: string,
+  usedNames: Set<string>,
+): string {
   let name = fallback;
   const prev = segments[index - 1];
   if (prev && !prev.startsWith("{") && prev.length > 1) {
     // Naive singularize: "coins" → "coin", "charts" → "chart"
     const base = prev.endsWith("s") && prev.length > 3 ? prev.slice(0, -1) : prev;
-    name = base.replace(/[^a-zA-Z0-9_]/g, "_");
+    name = base.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
   }
   // Ensure uniqueness
   let unique = name;
@@ -1094,6 +1119,15 @@ function inferParamName(segments: string[], index: number, fallback: string, use
   while (usedNames.has(unique)) {
     unique = `${name}_${counter++}`;
   }
+  usedNames.add(unique);
+  return unique;
+}
+
+function nextPathPlaceholder(index: number, usedNames: Set<string>): string {
+  const base = `path_${index}`;
+  let unique = base;
+  let counter = 2;
+  while (usedNames.has(unique)) unique = `${base}_${counter++}`;
   usedNames.add(unique);
   return unique;
 }
@@ -1112,8 +1146,9 @@ function templatizePathSegments(
   templateUrl: string,
   originalUrl: string,
   context?: ExtractionContext,
-): { url: string; pathParams: Record<string, string> } {
+): { url: string; pathParams: Record<string, string>; pathBindingCandidates: EndpointPathBindingCandidate[] } {
   const pathParams: Record<string, string> = {};
+  const pathBindingCandidates: EndpointPathBindingCandidate[] = [];
 
   try {
     // Parse templateUrl manually to avoid encoding {braces}
@@ -1133,15 +1168,50 @@ function templatizePathSegments(
     for (let i = 0; i < tSegments.length; i++) {
       const tSeg = tSegments[i];
       const oSeg = oSegments[i] ?? tSeg;
+      const prevSeg = tSegments[i - 1];
+      const fileBase = stripFileExtension(tSeg);
+      const originalFileBase = stripFileExtension(oSeg);
 
       if (!tSeg) continue;
 
-      // Pattern 1: Already parameterized by normalizeUrl ({id}, {list}, {urn}) — capture defaults & rename
-      if (tSeg === "{id}" || tSeg === "{list}" || tSeg === "{urn}") {
-        const fallback = tSeg === "{list}" ? "list" : tSeg === "{urn}" ? "urn" : "id";
-        const paramName = inferParamName(tSegments, i, fallback, usedNames);
-        tSegments[i] = `{${paramName}}`;
-        pathParams[paramName] = oSeg;
+      // Pattern 1: Already parameterized by normalizeUrl — capture defaults & rename
+      const placeholderMatch = tSeg.match(/^\{([^}]+)\}$/);
+      if (placeholderMatch) {
+        const placeholder = nextPathPlaceholder(i, usedNames);
+        tSegments[i] = `{${placeholder}}`;
+        pathParams[placeholder] = oSeg;
+        pathBindingCandidates.push({
+          placeholder,
+          observed_value: oSeg,
+          segment_index: i,
+          source: "normalized_placeholder",
+          placeholder_hint: placeholderMatch[1] || "value",
+          preceding_segment: prevSeg,
+        });
+        continue;
+      }
+
+      const shouldTemplatizeFileBase =
+        fileBase !== tSeg &&
+        (
+          looksLikeCodeIdentifier(originalFileBase) ||
+          looksLikeAcademicYear(originalFileBase)
+        );
+
+      if (shouldTemplatizeFileBase) {
+        const placeholder = nextPathPlaceholder(i, usedNames);
+        const suffix = tSeg.slice(fileBase.length);
+        tSegments[i] = `{${placeholder}}${suffix}`;
+        pathParams[placeholder] = originalFileBase;
+        pathBindingCandidates.push({
+          placeholder,
+          observed_value: originalFileBase,
+          segment_index: i,
+          source: "file_basename",
+          preceding_segment: prevSeg,
+          filename_suffix: suffix,
+          matched_page_hint: hints.has(fileBase.toLowerCase()),
+        });
         continue;
       }
 
@@ -1151,11 +1221,33 @@ function templatizePathSegments(
       if (/^(api|v\d+|www|en|es|fr|de|latest|dex|search)$/i.test(tSeg)) continue;
       if (/^@?me$/i.test(tSeg) || /^self$/i.test(tSeg)) continue;
 
+      if (looksLikeAcademicYear(oSeg) || (/^(semesters?)$/i.test(prevSeg ?? "") && /^\d{1,2}$/.test(oSeg))) {
+        const placeholder = nextPathPlaceholder(i, usedNames);
+        tSegments[i] = `{${placeholder}}`;
+        pathParams[placeholder] = oSeg;
+        pathBindingCandidates.push({
+          placeholder,
+          observed_value: oSeg,
+          segment_index: i,
+          source: "segment_pattern",
+          preceding_segment: prevSeg,
+        });
+        continue;
+      }
+
       // Pattern 2: Segment matches a page URL entity hint (case-insensitive)
-      if (hints.size > 0 && hints.has(tSeg.toLowerCase())) {
+      if (hints.size > 0 && (hints.has(tSeg.toLowerCase()) || hints.has(fileBase.toLowerCase()))) {
         const paramName = inferParamName(tSegments, i, "slug", usedNames);
         tSegments[i] = `{${paramName}}`;
         pathParams[paramName] = oSeg;
+        pathBindingCandidates.push({
+          placeholder: paramName,
+          observed_value: oSeg,
+          segment_index: i,
+          source: "page_hint",
+          preceding_segment: prevSeg,
+          matched_page_hint: true,
+        });
         continue;
       }
 
@@ -1181,15 +1273,22 @@ function templatizePathSegments(
             const paramName = inferParamName(tSegments, i, "slug", usedNames);
             tSegments[i] = `{${paramName}}`;
             pathParams[paramName] = contextSeg; // use context URL value as default
+            pathBindingCandidates.push({
+              placeholder: paramName,
+              observed_value: contextSeg,
+              segment_index: i,
+              source: "context_diff",
+              preceding_segment: prevSeg,
+            });
             continue;
           }
         } catch { /* skip */ }
       }
     }
 
-    return { url: `${tOrigin}${tSegments.join("/")}`, pathParams };
+    return { url: `${tOrigin}${tSegments.join("/")}`, pathParams, pathBindingCandidates };
   } catch {
-    return { url: templateUrl, pathParams };
+    return { url: templateUrl, pathParams, pathBindingCandidates };
   }
 }
 

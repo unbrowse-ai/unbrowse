@@ -53,6 +53,98 @@ function humanizeToken(token: string): string {
   return normalizeTokenText(token.replace(/[{}]/g, "").replace(/[_-]+/g, " ")).toLowerCase().trim();
 }
 
+function stripFileExtension(segment: string): string {
+  return segment.replace(/\.[a-z0-9]{1,8}$/i, "");
+}
+
+function sanitizeBindingName(raw: string): string {
+  return raw
+    .replace(/[^a-zA-Z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_")
+    .toLowerCase();
+}
+
+function isStructuralPathSegment(segment?: string): boolean {
+  if (!segment) return true;
+  return /^(api|v\d+|www|en|es|fr|de|ja|zh|ko|latest|dex|search)$/i.test(segment);
+}
+
+function looksLikeAcademicYear(segment: string): boolean {
+  return /^\d{4}-\d{4}$/.test(segment);
+}
+
+function looksLikeCodeIdentifier(segment: string): boolean {
+  return /^[A-Z]{2,}\d[A-Z0-9]*$/i.test(segment) && /[A-Z]/.test(segment) && /\d/.test(segment);
+}
+
+function inferPathBindingName(candidate: NonNullable<EndpointDescriptor["_path_binding_candidates"]>[number]): string {
+  const value = stripFileExtension(candidate.observed_value);
+  const prev = sanitizeBindingName(candidate.preceding_segment ?? "");
+
+  if (looksLikeAcademicYear(value)) return "academic_year";
+  if ((prev === "semester" || prev === "semesters") && /^\d{1,2}$/.test(value)) return "semester";
+  if ((prev === "module" || prev === "modules") && looksLikeCodeIdentifier(value)) return "module_code";
+  if ((prev === "course" || prev === "courses") && looksLikeCodeIdentifier(value)) return "course_code";
+  if ((prev === "class" || prev === "classes") && looksLikeCodeIdentifier(value)) return "class_code";
+
+  if (!isStructuralPathSegment(prev)) {
+    const singular = sanitizeBindingName(singularize(prev));
+    if (singular) return singular;
+  }
+
+  if (candidate.placeholder_hint === "urn") return "urn";
+  if (candidate.placeholder_hint === "list") return "list";
+  return "id";
+}
+
+function ensureUniqueBindingName(name: string, usedNames: Set<string>): string {
+  const base = sanitizeBindingName(name) || "id";
+  let unique = base;
+  let counter = 2;
+  while (usedNames.has(unique)) unique = `${base}_${counter++}`;
+  usedNames.add(unique);
+  return unique;
+}
+
+function replaceTemplateBinding(urlTemplate: string, from: string, to: string): string {
+  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return urlTemplate.replace(new RegExp(`\\{${escaped}\\}`, "g"), `{${to}}`);
+}
+
+export function resolveEndpointPathBindings(endpoint: EndpointDescriptor): EndpointDescriptor {
+  const candidates = endpoint._path_binding_candidates ?? [];
+  if (candidates.length === 0) return endpoint;
+
+  let urlTemplate = endpoint.url_template;
+  const nextPathParams = { ...(endpoint.path_params ?? {}) };
+  const candidatePlaceholders = new Set(candidates.map((candidate) => candidate.placeholder));
+  const usedNames = new Set<string>([
+    ...Object.keys(nextPathParams).filter((key) => !candidatePlaceholders.has(key) && !/^path_\d+$/.test(key)),
+    ...Array.from(urlTemplate.matchAll(/\{([^}]+)\}/g)).map((match) => match[1]).filter((key) => !candidatePlaceholders.has(key) && !/^path_\d+$/.test(key)),
+  ]);
+
+  for (const candidate of candidates) {
+    const oldKey = candidate.placeholder;
+    const newKey = ensureUniqueBindingName(inferPathBindingName(candidate), usedNames);
+    if (oldKey === newKey) {
+      usedNames.add(newKey);
+      continue;
+    }
+    urlTemplate = replaceTemplateBinding(urlTemplate, oldKey, newKey);
+    if (Object.prototype.hasOwnProperty.call(nextPathParams, oldKey)) {
+      nextPathParams[newKey] = nextPathParams[oldKey];
+      delete nextPathParams[oldKey];
+    }
+  }
+
+  return {
+    ...endpoint,
+    url_template: urlTemplate,
+    ...(Object.keys(nextPathParams).length > 0 ? { path_params: nextPathParams } : { path_params: undefined }),
+  };
+}
+
 function compactExample(value: unknown, depth = 0): unknown {
   if (depth > 2 || value == null) return value;
   if (Array.isArray(value)) {
@@ -336,6 +428,14 @@ function buildSemanticDescription(
   return fieldLabels.length > 0 ? `${description} with ${joinLabels(fieldLabels)}` : description;
 }
 
+function inferBindingSemanticType(key: string): string {
+  if (key === "academic_year") return "academic_year";
+  if (key === "semester") return "semester";
+  if (/^(module|course|class)_code$/.test(key)) return key;
+  if (key.endsWith("_id") || key === "id" || key === "urn") return "identifier";
+  return "input";
+}
+
 function inferRequires(endpoint: EndpointDescriptor): OperationBinding[] {
   const requires: OperationBinding[] = [];
   const seen = new Set<string>();
@@ -346,7 +446,7 @@ function inferRequires(endpoint: EndpointDescriptor): OperationBinding[] {
       key,
       required,
       source,
-      semantic_type: key.endsWith("_id") || key === "id" ? "identifier" : "input",
+      semantic_type: inferBindingSemanticType(key),
     });
   };
   for (const key of Object.keys(endpoint.path_params ?? {})) add(key, "path_params", false);
