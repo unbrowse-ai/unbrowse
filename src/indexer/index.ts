@@ -22,6 +22,7 @@ import { sanitizeForPublish } from "../publish/sanitize.js";
 import { readWorkflowArtifact } from "../workflow/artifact.js";
 import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
 import { getUnbrowseConfigPath } from "../settings.js";
+import { getEndpointDescriptionMetadata } from "../graph/index.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
@@ -310,6 +311,22 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
   console.log(
     `[capture-pipeline] remote publish ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${domain} (${selection.root_endpoint_ids.length} roots, ${selection.endpoints.length - selection.root_endpoint_ids.length} closure) (${formatMarketplacePublishSelection(selection)})`,
   );
+
+  const unreviewedSelection = selection.endpoints
+    .map((endpoint) => ({
+      endpoint,
+      descriptionMeta: getEndpointDescriptionMetadata(endpoint),
+    }))
+    .filter(({ descriptionMeta }) => descriptionMeta.needs_review);
+  if (unreviewedSelection.length > 0) {
+    const errors = unreviewedSelection.map(({ endpoint, descriptionMeta }) =>
+      `review_required:${endpoint.endpoint_id}:${descriptionMeta.display || "missing_description"}`,
+    );
+    console.warn(
+      `[capture-pipeline] remote publish blocked for ${domain}: ${unreviewedSelection.length} endpoint(s) still need review`,
+    );
+    return markBlockedValidation(errors);
+  }
 
   const sanitized = sanitizeForPublish(selection.endpoints);
 

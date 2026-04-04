@@ -509,4 +509,65 @@ describe("workflow publish export", () => {
       "checkout-status",
     ]);
   });
+
+  it("blocks remote publish until selected endpoints are reviewed", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "unbrowse-workflow-review-gate-"));
+    tempDirs.push(tmp);
+    process.env.UNBROWSE_CONFIG_DIR = tmp;
+
+    const skill = makeSkill();
+    skill.endpoints[0] = {
+      ...skill.endpoints[0]!,
+      description: "Search form for example.com",
+      response_schema: {
+        type: "array",
+        inferred_from_samples: 1,
+        items: {
+          type: "object",
+          inferred_from_samples: 1,
+          properties: {
+            type: { type: "string", inferred_from_samples: 1 },
+            data: { type: "array", inferred_from_samples: 1, items: { type: "string", inferred_from_samples: 1 } },
+            relevance_score: { type: "number", inferred_from_samples: 1 },
+          },
+        },
+      },
+      semantic: {
+        action_kind: "timeline",
+        resource_kind: "form",
+        description_in: "No additional inputs required",
+        description_out: "Returns forms timeline with relevance score",
+        description_source: "auto",
+        description_needs_review: true,
+        description_warning: "Auto-generated description. Review before trusting or publishing.",
+        response_summary: "[].type, [].data, [].relevance_score, [].data[]",
+        example_fields: ["[].type", "[].data", "[].relevance_score"],
+        requires: [],
+        provides: [],
+        negative_tags: [],
+        confidence: 0.8,
+        observed_at: new Date().toISOString(),
+      },
+    };
+
+    const indexed = await indexSkillLocally({
+      skill,
+      domain: skill.domain,
+      intent: skill.intent_signature,
+      cacheKey: `test:${skill.domain}:needs-review`,
+    });
+
+    const published = await publishIndexedSkill(indexed);
+    expect(published.published).toBe(false);
+    expect(published.publishStatus).toBe("blocked-validation");
+    expect(published.validationErrors).toEqual([
+      "review_required:checkout-submit:Returns forms timeline with relevance score",
+    ]);
+
+    const exported = readWorkflowPublishArtifact(skill.skill_id) as WorkflowPublishArtifact;
+    expect(exported.publish_status).toBe("blocked-validation");
+    expect(exported.validation_errors).toEqual([
+      "review_required:checkout-submit:Returns forms timeline with relevance score",
+    ]);
+  });
 });
