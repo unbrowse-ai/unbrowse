@@ -3,13 +3,132 @@ import { storeCredential, getCredential, deleteCredential } from "../vault/index
 import { nanoid } from "nanoid";
 import { isDomainMatch, getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
+import type { ExtractBrowserCookiesOptions } from "./browser-cookies.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
+import { getDefaultLoginConfig } from "../runtime/supervisor.js";
 
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
 const MIN_WAIT_MS = 15_000;
+const LOGIN_PATHS = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/i;
+const CLOUDFLARE_TEXT = /just a moment|attention required|verify you are human|cloudflare/i;
+const DISABLE_BROWSER_COOKIE_IMPORT = /^(0|false|no|off)$/i;
+const GENERIC_AUTH_COOKIE_NAMES = /(^|[_\-.])(sess(?:ion)?(?:id)?|auth|token|csrf|xsrf|jwt|sid|sso|remember|logged[_-]?in|connect\.sid)([_\-.]|$)/i;
+const DOMAIN_AUTH_COOKIE_NAMES: Record<string, string[]> = {
+  "linkedin.com": ["li_at"],
+};
+
+type CookieLike = Pick<kuri.KuriCookie, "name" | "domain" | "httpOnly" | "secure" | "expires">;
+
+function formatAuthError(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function normalizeAuthDomain(domain: string): string {
+  return domain.toLowerCase().replace(/^www\./, "");
+}
+
+export function shouldImportBrowserCookies(): boolean {
+  const raw = process.env.UNBROWSE_IMPORT_BROWSER_COOKIES?.trim();
+  if (!raw) return true;
+  return !DISABLE_BROWSER_COOKIE_IMPORT.test(raw);
+}
+
+export function isLikelyAuthenticatedCookie(targetDomain: string, cookie: Pick<CookieLike, "name">): boolean {
+  const cookieName = cookie.name.toLowerCase();
+  const registrableDomain = getRegistrableDomain(normalizeAuthDomain(targetDomain));
+  const requiredCookieNames = DOMAIN_AUTH_COOKIE_NAMES[registrableDomain];
+  if (requiredCookieNames) return requiredCookieNames.includes(cookieName);
+  return GENERIC_AUTH_COOKIE_NAMES.test(cookieName);
+}
+
+export function getAuthenticatedCookiesForDomain(
+  targetDomain: string,
+  cookies: CookieLike[],
+): CookieLike[] {
+  return cookies.filter((cookie) =>
+    isDomainMatch(cookie.domain, targetDomain) && isLikelyAuthenticatedCookie(targetDomain, cookie)
+  );
+}
+
+export async function importBrowserCookiesIntoTab(tabId: string, domain: string): Promise<number> {
+  if (!shouldImportBrowserCookies()) return 0;
+
+  try {
+    const { extractBrowserCookies } = await import("./browser-cookies.js");
+    const { cookies } = extractBrowserCookies(domain);
+    let imported = 0;
+
+    for (const cookie of cookies) {
+      try {
+        await kuri.setCookie(tabId, cookie);
+        imported += 1;
+      } catch (error) {
+        log(
+          "auth",
+          `browser_cookie_import_failed domain=${normalizeAuthDomain(domain)} tab_id=${tabId} cookie=${cookie.name} error=${formatAuthError(error)}`,
+        );
+      }
+    }
+
+    if (imported > 0) {
+      log("auth", `browser_cookie_imported domain=${normalizeAuthDomain(domain)} tab_id=${tabId} count=${imported}`);
+    }
+    return imported;
+  } catch (error) {
+    log(
+      "auth",
+      `browser_cookie_extract_failed domain=${normalizeAuthDomain(domain)} tab_id=${tabId} error=${formatAuthError(error)}`,
+    );
+    return 0;
+  }
+}
+
+export async function saveAuthProfileBestEffort(
+  tabId: string,
+  domain: string,
+  context = "auth",
+): Promise<boolean> {
+  const profileName = normalizeAuthDomain(domain);
+  if (!profileName || profileName === "unknown") return false;
+  try {
+    await kuri.authProfileSave(tabId, profileName);
+    return true;
+  } catch (error) {
+    log(
+      "auth",
+      `${context} auth_profile_failed op=save domain=${profileName} tab_id=${tabId} error=${formatAuthError(error)}`,
+    );
+    return false;
+  }
+}
+
+export async function loadAuthProfileBestEffort(
+  tabId: string,
+  domain: string,
+  context = "auth",
+): Promise<boolean> {
+  const profileName = normalizeAuthDomain(domain);
+  if (!profileName || profileName === "unknown") return false;
+  try {
+    await kuri.authProfileLoad(tabId, profileName);
+    return true;
+  } catch (error) {
+    log(
+      "auth",
+      `${context} auth_profile_failed op=load domain=${profileName} tab_id=${tabId} error=${formatAuthError(error)}`,
+    );
+    return false;
+  }
+}
 
 /**
  * Returns the persistent profile directory for a given domain.
@@ -26,6 +145,79 @@ export interface LoginResult {
   error?: string;
 }
 
+export type BrowserAuthImportOptions = ExtractBrowserCookiesOptions;
+
+export interface BrowserAuthSourceMeta {
+  family?: string;
+  userDataDir?: string;
+  cookieDbPath?: string;
+}
+
+export interface StoredAuthBundle {
+  cookies: AuthCookie[];
+  headers: Record<string, string>;
+  source_keys: string[];
+  source_meta?: BrowserAuthSourceMeta | null;
+}
+
+export type InteractiveLoginAssessment =
+  | { status: "pending"; reason: string }
+  | { status: "authenticated"; reason: string }
+  | { status: "blocked"; reason: string };
+
+export function assessInteractiveLoginState(input: {
+  currentUrl: string;
+  targetDomain: string;
+  initialCookieCount: number;
+  currentCookieCount: number;
+  currentCookies?: CookieLike[];
+  hasCloudflareChallenge?: boolean;
+  pageText?: string;
+}): InteractiveLoginAssessment {
+  let parsed: URL;
+  try {
+    parsed = new URL(input.currentUrl);
+  } catch {
+    return { status: "pending", reason: "invalid_url" };
+  }
+
+  const currentDomain = parsed.hostname.toLowerCase();
+  const targetNorm = input.targetDomain.toLowerCase();
+  const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith(`.${targetNorm}`);
+  if (!isOnTarget) return { status: "pending", reason: "off_target_domain" };
+
+  if (input.hasCloudflareChallenge) return { status: "blocked", reason: "cloudflare_challenge" };
+  if (input.pageText && CLOUDFLARE_TEXT.test(input.pageText)) return { status: "blocked", reason: "cloudflare_text" };
+  if (LOGIN_PATHS.test(parsed.pathname)) return { status: "pending", reason: "still_on_login_path" };
+
+  const authCookies = getAuthenticatedCookiesForDomain(targetNorm, input.currentCookies ?? []);
+  if (authCookies.length > 0) {
+    return { status: "authenticated", reason: "auth_cookies_present_on_target" };
+  }
+  if ((input.currentCookies?.length ?? 0) > 0) {
+    return { status: "pending", reason: "non_auth_cookies_only" };
+  }
+
+  if (!input.currentCookies && input.currentCookieCount > input.initialCookieCount) {
+    return { status: "authenticated", reason: "new_cookies_on_target" };
+  }
+  if (!input.currentCookies && input.currentCookieCount > 0) {
+    return { status: "authenticated", reason: "cookies_present_on_target" };
+  }
+
+  return { status: "pending", reason: "no_session_cookies" };
+}
+
+export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | undefined): boolean {
+  if (!bundle) return true;
+  if (bundle.cookies.length === 0 && Object.keys(bundle.headers).length === 0) return true;
+  const sourceMeta = bundle.source_meta;
+  if (!sourceMeta) return true;
+  if (sourceMeta.family === "chromium" && !sourceMeta.userDataDir && !sourceMeta.cookieDbPath) {
+    return true;
+  }
+  return false;
+}
 /**
  * Open a visible browser for the user to complete login.
  * Uses Kuri to manage the browser tab, polls for login completion via cookies.
@@ -40,10 +232,19 @@ export async function interactiveLogin(
   const targetDomain = domain ?? new URL(url).hostname;
   const profileDir = getProfilePath(targetDomain);
 
-  log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}`);
+  const isHeadless = process.env.HEADLESS === "true" || process.env.HEADLESS === "1";
+  const loginConfig = getDefaultLoginConfig(isHeadless);
+  log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}, interactive: ${loginConfig.interactive}, timeout: ${loginConfig.timeout_ms}ms`);
+
+  // Login requires a visible browser — disable headless for this flow
+  const prevHeadless = process.env.HEADLESS;
+  process.env.HEADLESS = "false";
 
   try {
     fs.mkdirSync(profileDir, { recursive: true });
+
+    // Stop any existing headless Kuri so it restarts with HEADLESS=false
+    try { await kuri.stop(); } catch { /* may not be running */ }
 
     // Start Kuri and get a tab
     await kuri.start();
@@ -62,16 +263,15 @@ export async function interactiveLogin(
 
     // Wait for user to complete login — detect via cookie changes + URL change
     let loggedIn = false;
+    let blockedReason: string | null = null;
     let lastLoggedUrl = "";
-    while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
+    const effectiveTimeout = loginConfig.interactive ? LOGIN_TIMEOUT_MS : loginConfig.timeout_ms;
+    while (Date.now() - startTime < effectiveTimeout) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       const elapsed = Date.now() - startTime;
 
       try {
         const currentUrl = await kuri.getCurrentUrl(tabId);
-        const currentDomain = new URL(currentUrl).hostname.toLowerCase();
-        const targetNorm = targetDomain.toLowerCase();
-
         if (currentUrl !== lastLoggedUrl) {
           log("auth", `navigated to: ${currentUrl}`);
           lastLoggedUrl = currentUrl;
@@ -79,31 +279,47 @@ export async function interactiveLogin(
 
         if (elapsed < MIN_WAIT_MS) continue;
 
-        const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith("." + targetNorm);
-        if (isOnTarget) {
-          const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/.test(new URL(currentUrl).pathname);
+        const currentCookies = await kuri.getCookies(tabId);
+        const domainCookies = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain));
+        const currentCookieCount = domainCookies.length;
+        const hasCloudflareChallenge = await kuri.hasCloudflareChallenge(tabId).catch(() => false);
+        const pageText = hasCloudflareChallenge ? await kuri.getText(tabId).catch(() => "") : "";
+        const assessment = assessInteractiveLoginState({
+          currentUrl,
+          targetDomain,
+          initialCookieCount,
+          currentCookieCount,
+          currentCookies: domainCookies,
+          hasCloudflareChallenge,
+          pageText,
+        });
 
-          const currentCookies = await kuri.getCookies(tabId);
-          const currentCookieCount = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
-          const gotNewCookies = currentCookieCount > initialCookieCount;
+        if (assessment.status === "authenticated") {
+          loggedIn = true;
+          log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount}; ${assessment.reason})`);
+          break;
+        }
 
-          if (!isStillLogin && gotNewCookies) {
-            loggedIn = true;
-            log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount})`);
-            break;
-          }
-
-          if (!isStillLogin && currentCookieCount > 0) {
-            loggedIn = true;
-            log("auth", `already logged in — ${currentUrl} (${currentCookieCount} cookies present)`);
-            break;
-          }
+        if (assessment.status === "blocked") {
+          blockedReason = assessment.reason;
+          log("auth", `login blocked — ${currentUrl} (${assessment.reason})`);
         }
       } catch { /* page navigating */ }
     }
 
     if (!loggedIn) {
-      log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — capturing cookies anyway`);
+      log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — fallback: ${loginConfig.fallback_strategy}`);
+      if (loginConfig.fallback_strategy === "fail") {
+        const error = blockedReason
+          ? `Login blocked (${blockedReason})`
+          : "Login timed out (fallback: fail)";
+        return { success: false, domain: targetDomain, cookies_stored: 0, error };
+      }
+      if (loginConfig.fallback_strategy === "skip") {
+        log("auth", `skipping cookie capture per fallback_strategy`);
+        return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login skipped (headless)" };
+      }
+      // fallback_strategy === "prompt" — continue to capture cookies anyway
     }
 
     // Extract and store cookies
@@ -123,9 +339,16 @@ export async function interactiveLogin(
     await storeCredential(vaultKey, JSON.stringify({ cookies: storableCookies }));
     log("auth", `stored ${storableCookies.length} cookies under ${vaultKey}`);
 
+    // Also save as Kuri auth profile so browse commands (go/snap/click) have auth
+    if (await saveAuthProfileBestEffort(tabId, targetDomain, "interactive_login")) {
+      log("auth", `saved Kuri auth profile for ${targetDomain}`);
+    }
+
     return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
   } finally {
-    // Cleanup handled by Kuri's tab management
+    // Restore headless setting so subsequent captures run headless
+    if (prevHeadless !== undefined) process.env.HEADLESS = prevHeadless;
+    else delete process.env.HEADLESS;
   }
 }
 
@@ -135,7 +358,7 @@ export async function interactiveLogin(
  */
 export async function extractBrowserAuth(
   domain: string,
-  opts?: { chromeProfile?: string; firefoxProfile?: string }
+  opts?: BrowserAuthImportOptions
 ): Promise<LoginResult> {
   const { extractBrowserCookies } = await import("./browser-cookies.js");
 
@@ -171,6 +394,31 @@ export async function extractBrowserAuth(
   return { success: true, domain, cookies_stored: storableCookies.length };
 }
 
+export async function loginWithBrowserFallback(
+  url: string,
+  opts?: BrowserAuthImportOptions,
+  deps: {
+    extractBrowserAuth?: typeof extractBrowserAuth;
+    interactiveLogin?: typeof interactiveLogin;
+  } = {},
+): Promise<LoginResult> {
+  const extract = deps.extractBrowserAuth ?? extractBrowserAuth;
+  const login = deps.interactiveLogin ?? interactiveLogin;
+  const domain = new URL(url).hostname;
+
+  const extracted = await extract(domain, opts);
+  if (extracted.success && extracted.cookies_stored > 0) {
+    log("auth", `login_with_browser_fallback domain=${domain} source=browser_cookies cookies=${extracted.cookies_stored}`);
+    return extracted;
+  }
+
+  log(
+    "auth",
+    `login_with_browser_fallback domain=${domain} source=interactive reason=${extracted.error ?? "no_browser_cookies"}`,
+  );
+  return login(url);
+}
+
 type AuthCookie = {
   name: string;
   value: string;
@@ -198,6 +446,17 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
 export async function getStoredAuth(
   domain: string
 ): Promise<AuthCookie[] | null> {
+  const bundle = await getStoredAuthBundle(domain);
+  return bundle?.cookies?.length ? bundle.cookies : null;
+}
+
+/**
+ * Retrieve the stored auth bundle for a domain from the vault.
+ * Preserves headers/source metadata while filtering expired cookies.
+ */
+export async function getStoredAuthBundle(
+  domain: string
+): Promise<StoredAuthBundle | null> {
   const regDomain = getRegistrableDomain(domain);
   const keysToTry = [`auth:${regDomain}`];
   if (domain !== regDomain) keysToTry.push(`auth:${domain}`);
@@ -206,12 +465,10 @@ export async function getStoredAuth(
     const stored = await getCredential(key);
     if (!stored) continue;
     try {
-      const parsed = JSON.parse(stored) as { cookies?: AuthCookie[] };
-      const cookies = parsed.cookies;
-      if (!cookies || cookies.length === 0) continue;
-
+      const parsed = JSON.parse(stored) as Partial<StoredAuthBundle> & { cookies?: AuthCookie[] };
+      const cookies = parsed.cookies ?? [];
       const valid = filterExpired(cookies);
-      if (valid.length === 0) {
+      if (cookies.length > 0 && valid.length === 0 && Object.keys(parsed.headers ?? {}).length === 0) {
         log("auth", `all ${cookies.length} cookies for ${domain} (key: ${key}) are expired — deleting`);
         await deleteCredential(key);
         continue;
@@ -219,11 +476,17 @@ export async function getStoredAuth(
       if (valid.length < cookies.length) {
         log("auth", `filtered ${cookies.length - valid.length} expired cookies for ${domain}`);
       }
-      return valid;
+      return {
+        cookies: valid,
+        headers: parsed.headers ?? {},
+        source_keys: parsed.source_keys ?? [],
+        source_meta: parsed.source_meta ?? null,
+      };
     } catch {
       continue;
     }
   }
+
   return null;
 }
 

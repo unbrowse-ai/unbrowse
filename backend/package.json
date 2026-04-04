@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:ci": "wrangler deploy --config wrangler.ci.toml",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
     "hono": "^4.7.0",
     "nanoid": "^5.1.6"
   },

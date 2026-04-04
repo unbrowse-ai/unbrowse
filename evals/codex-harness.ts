@@ -6,7 +6,8 @@ import { readFileSync, writeFileSync } from "fs";
 import { spawn } from "node:child_process";
 import { assessIntentResult } from "../src/intent-match.js";
 import { getAuthCookies } from "../src/auth/index.js";
-import { buildAgentExecuteCliArgs, compactForArtifact, deriveEndpointSignals, fallbackEndpointOrder, normalizeHarnessCases, type DeferredEndpoint, type HarnessCase, type ReviewQueueCandidate } from "./codex-harness-lib.js";
+import { buildAgentExecuteCliArgs, compactForArtifact, deriveEndpointSignals, fallbackEndpointOrder, hasCliFlag, normalizeHarnessCases, type DeferredEndpoint, type HarnessCase, type ReviewQueueCandidate } from "./codex-harness-lib.js";
+import { isRepeatableEval, type EvalResult } from "./eval-types.js";
 import { buildLocalHarnessFixtures } from "../src/graph/local-fixtures.js";
 import { evaluateDependencyWalks, evaluateLocalHarness, type DependencyWalkCase } from "../src/graph/local-harness.js";
 import { startUnbrowseServer, type RunningUnbrowseServer } from "../src/server.js";
@@ -127,7 +128,7 @@ const argv = process.argv.slice(
 );
 const args = new Set(argv);
 const getArg = (flag: string) => argv.find((_, i) => argv[i - 1] === `--${flag}`) ?? "";
-const hasFlag = (flag: string) => args.has(`--${flag}`);
+const hasFlag = (flag: string) => hasCliFlag(args, flag);
 const forceCapture = hasFlag("--force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
 const restartServer = hasFlag("--restart-server");
 const maxReviewCandidates = Math.max(1, Number(getArg("max-candidates") || getArg("max-attempts") || "3") || 3);
@@ -631,6 +632,23 @@ export async function runHarnessCli(): Promise<void> {
       results.push(result);
       writeResults(results, graph);
       console.log(`[codex-harness] ${i + 1}/${cases.length} ${result.id} status=${result.collector_status} mode=${result.selection_mode} reason=${result.collector_reason}`);
+    }
+
+    // Repeatability check: flag any case_id that appears more than once with different statuses
+    const caseToEvalResult = (r: CaseRecord): EvalResult => ({
+      case_id: r.id,
+      status: r.collector_status === "ready_for_review" ? "pass" : r.collector_status,
+      duration_ms: r.resolve_ms,
+    });
+    const byId = new Map<string, EvalResult[]>();
+    for (const r of results) {
+      const er = caseToEvalResult(r);
+      const existing = byId.get(er.case_id) ?? [];
+      byId.set(er.case_id, [...existing, er]);
+    }
+    const flaky = [...byId.entries()].filter(([, runs]) => runs.length > 1 && !isRepeatableEval(runs));
+    if (flaky.length > 0) {
+      console.log(`[codex-harness] flaky cases: ${flaky.map(([id]) => id).join(", ")}`);
     }
     const failed = results.some((result) => result.collector_status === "fail") ||
       graph.selection_summary.failed > 0 ||

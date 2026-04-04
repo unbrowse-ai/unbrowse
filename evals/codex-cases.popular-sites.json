@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "id": "beatsaver-search-maps",
+      "intent": "search beat saber maps",
+      "url": "https://beatsaver.com/?q=camellia",
+      "expected_fields": ["metadata.songName", "metadata.bpm", "stats.score"]
+    },
+    {
+      "id": "nusmods-module-list",
+      "intent": "list all modules",
+      "url": "https://nusmods.com/modules",
+      "expected_fields": ["moduleCode", "title"]
+    },
+    {
+      "id": "hackernews-top-stories",
+      "intent": "get top stories",
+      "url": "https://news.ycombinator.com",
+      "expected_fields": ["title", "url"]
+    },
+    {
+      "id": "wikipedia-search",
+      "intent": "search articles about quantum computing",
+      "url": "https://en.wikipedia.org/w/index.php?search=quantum+computing",
+      "expected_fields": ["title", "url"]
+    },
+    {
+      "id": "crates-io-search",
+      "intent": "search rust crates",
+      "url": "https://crates.io/search?q=serde",
+      "expected_fields": ["name", "version", "description"]
+    }
+  ]
+}

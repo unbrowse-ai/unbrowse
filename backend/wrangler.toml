@@ -1,10 +1,26 @@
 name = "unbrowse-backend"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+# Wrangler v3 routes module workers with KV bindings through the newer
+# /versions API, which currently rejects our CI token without KV write perms.
+# `first_party_worker` disables that code path in Wrangler v3 and keeps deploys
+# on the legacy PUT /workers/scripts/:name endpoint instead.
+first_party_worker = true
+
+[triggers]
+crons = ["17 */6 * * *"]
 
 [vars]
 ENVIRONMENT = "production"
+PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
+
+[[kv_namespaces]]
+binding = "STATS_KV"
+id = "1d315d7cda1742b785cf5d23c892c5d7"
+preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
 [[routes]]
 pattern = "beta-api.unbrowse.ai/*"
@@ -13,8 +29,16 @@ zone_id = "73934a4d815fde770167414fc3ead04b"
 # Secrets (set via `wrangler secret put`):
 # - API_KEY
 # - UNKEY_ROOT_KEY
+# - DATABASE_URL
 # - EMERGENTDB_API_KEY
 # - NEBIUS_API_KEY
+# - GITHUB_WEBHOOK_SECRET
+# - GITHUB_PR_BOT_TOKEN
+# - GITHUB_PR_AGENT_WORKFLOW
+# - GITHUB_PR_AGENT_WORKFLOW_REF
+# - TELEGRAM_BOT_TOKEN
+# - TELEGRAM_CHAT_ID
+# - RELEASE_MANIFEST_SIGNING_SECRET
 
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
@@ -25,6 +49,37 @@ name = "unbrowse-backend-staging"
 workers_dev = true
 routes = []
 
+[[env.staging.kv_namespaces]]
+binding = "STATS_KV"
+id = "1d315d7cda1742b785cf5d23c892c5d7"
+preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
+
 [env.staging.vars]
 ENVIRONMENT = "staging"
+PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
+X402_NETWORK_MODE = "mainnet"
+PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
+UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
+
+# --- Lewis experiments environment ---
+# Deploy: wrangler deploy --env experiments
+# Secrets: wrangler secret put EMERGENTDB_API_KEY --env experiments (etc.)
+# Public surface stays on workers.dev so this branch can be used as an isolated sandbox.
+[env.experiments]
+name = "unbrowse-backend-experiments"
+workers_dev = true
+routes = []
+
+[[env.experiments.kv_namespaces]]
+binding = "STATS_KV"
+id = "1d315d7cda1742b785cf5d23c892c5d7"
+preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
+
+[env.experiments.vars]
+ENVIRONMENT = "staging"
+PAYMENTS_ENABLED = "true"
+X402_SEARCH_ENABLED = "false"
+X402_NETWORK_MODE = "mainnet"
+PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"

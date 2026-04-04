@@ -1,0 +1,37 @@
+{
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T15:14:23.400Z",
+  "updated_at": "2026-02-20T23:15:04.115Z",
+  "name": "en.wikipedia.org -- get article content from Wikipedia API",
+  "intent_signature": "get article content from Wikipedia API",
+  "domain": "en.wikipedia.org",
+  "description": "Auto-discovered skill for: get article content from Wikipedia API",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "VZye76jM39RuQmTDECKnN",
+      "method": "GET",
+      "url_template": "https://en.wikipedia.org/w/load.php",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://en.wikipedia.org/wiki/Main_Page",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "lang": "en",
+        "modules": "ext.uls.interlanguage|ext.visualEditor.desktopArticleTarget.noscript|ext.wikimediamessages.styles|skins.vector.icons,styles|skins.vector.search.codex.styles|wikibase.client.init",
+        "only": "styles",
+        "skin": "vector-2022"
+      },
+      "idempotency": "safe",
+      "verification_status": "failed",
+      "reliability_score": 1
+    }
+  ],
+  "skill_id": "g-XJ-XNQb5mAk1qQHiBxE"
+}

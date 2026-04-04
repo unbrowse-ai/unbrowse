@@ -73,7 +73,10 @@ describe("rankEndpoints semantic intent adjustment", () => {
     ], "get company info", "www.linkedin.com", "https://www.linkedin.com/company/openai/about/");
 
     expect(ranked[0]?.endpoint.endpoint_id).toBe("company-api");
-    expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("mailbox");
+    expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("page-artifact");
+    expect(ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "company-api")).toBeLessThan(
+      ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "page-artifact"),
+    );
   });
 
   test("prefers direct profile api over page artifact and sidebar recommendations for user profile", () => {
@@ -119,7 +122,7 @@ describe("rankEndpoints semantic intent adjustment", () => {
     ], "get user profile", "x.com", "https://x.com/OpenAI");
 
     expect(ranked[0]?.endpoint.endpoint_id).toBe("profile-api");
-    expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("sidebar");
+    expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("page-artifact");
     expect(ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "users-by-rest-ids")).toBeLessThan(
       ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "sidebar"),
     );
@@ -188,7 +191,10 @@ describe("rankEndpoints semantic intent adjustment", () => {
     expect(ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "timeline-api")).toBeLessThan(
       ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "page-artifact"),
     );
-    expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("users-by-rest-ids");
+    expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("page-artifact");
+    expect(ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "users-by-rest-ids")).toBeLessThan(
+      ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "page-artifact"),
+    );
   });
 
   test("prefers linkedin main feed over profile and storyline endpoints for get feed posts", () => {
@@ -245,6 +251,58 @@ describe("rankEndpoints semantic intent adjustment", () => {
     expect(ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "feed-api")).toBeLessThan(
       ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "notices"),
     );
+  });
+
+  test("does not let generic captured feed descriptions beat reviewed api endpoints", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "captured-feed-page",
+        method: "GET",
+        url_template: "https://www.linkedin.com/feed/",
+        trigger_url: "https://www.linkedin.com/feed/",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.95,
+        description: "Captured search form artifact for get linkedin feed posts",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.92 },
+        response_schema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              text: { type: "string" },
+              url: { type: "string" },
+            },
+          },
+        },
+      } as any,
+      {
+        endpoint_id: "feed-api",
+        method: "GET",
+        url_template: "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.923020905727c01516495a0ac90bb475",
+        trigger_url: "https://www.linkedin.com/feed/",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Returns the main member feed updates",
+        response_schema: {
+          type: "object",
+          properties: {
+            data: { type: "object" },
+          },
+        },
+        semantic: {
+          action_kind: "timeline",
+          resource_kind: "post",
+          description_out: "Returns the main member feed updates",
+          description_source: "agent",
+          description_needs_review: false,
+        },
+      } as any,
+    ], "get linkedin feed posts", "www.linkedin.com", "https://www.linkedin.com/feed/");
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("feed-api");
+    expect(ranked[1]?.endpoint.endpoint_id).toBe("captured-feed-page");
   });
 
   test("penalizes linkedin sharebox ui payloads even when they mention search-like fields", () => {

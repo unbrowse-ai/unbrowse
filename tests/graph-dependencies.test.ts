@@ -219,6 +219,181 @@ describe("graph dependency inference", () => {
     expect(graph.edges).toHaveLength(0);
   });
 
+  it("creates hint edges for alias-linked identifier families across surfaces", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "people-dom-search",
+        method: "GET",
+        url_template: "https://www.linkedin.com/search/results/people/?keywords={keywords}",
+        description: "Captured page artifact for search people",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+        semantic: {
+          action_kind: "search",
+          resource_kind: "profile",
+          description_out: "Returns people search rows",
+          response_summary: "public_identifier, name, headline",
+          example_fields: ["elements[].public_identifier", "elements[].name"],
+          requires: [{ key: "keywords", required: false, source: "query", semantic_type: "query_text" }],
+          provides: [{ key: "public_identifier", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "member-api-detail",
+        method: "GET",
+        url_template: "https://www.linkedin.com/voyager/api/identity/profiles/{member_id}",
+        description: "Returns member profile detail",
+        path_params: { member_id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "member",
+          description_out: "Returns member profile detail",
+          response_summary: "member_id, headline",
+          example_fields: ["id", "headline"],
+          requires: [{ key: "member_id", required: true, source: "path_params", semantic_type: "member_identifier" }],
+          provides: [{ key: "member_id", source: "response", semantic_type: "member_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const edge = graph.edges.find((candidate) => candidate.edge_id === "people-dom-search:member-api-detail:member_id");
+
+    expect(edge).toBeDefined();
+    expect(edge?.kind).toBe("hint");
+    expect(edge?.confidence).toBeGreaterThan(0.6);
+  });
+
+  it("accepts unix timestamp strings when ordering dependency hints", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "profile-search-unix",
+        method: "GET",
+        url_template: "https://api.example.com/search/people?q={q}",
+        description: "Search people",
+        query: { q: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "search",
+          resource_kind: "profile",
+          description_out: "Returns people search rows",
+          response_summary: "public_identifier, name",
+          example_fields: ["elements[].public_identifier", "elements[].name"],
+          requires: [{ key: "q", required: false, source: "query", semantic_type: "query_text" }],
+          provides: [{ key: "public_identifier", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "1775299755",
+        },
+      },
+      {
+        endpoint_id: "member-detail-unix",
+        method: "GET",
+        url_template: "https://api.example.com/profile/{member_id}",
+        description: "Returns member profile detail",
+        path_params: { member_id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "member",
+          description_out: "Returns member profile detail",
+          response_summary: "member_id, headline",
+          example_fields: ["id", "headline"],
+          requires: [{ key: "member_id", required: true, source: "path_params", semantic_type: "member_identifier" }],
+          provides: [{ key: "member_id", source: "response", semantic_type: "member_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "1775299756",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const edge = graph.edges.find((candidate) => candidate.edge_id === "profile-search-unix:member-detail-unix:member_id");
+
+    expect(edge).toBeDefined();
+    expect(edge?.kind).toBe("hint");
+  });
+
+  it("raises hint confidence when source response values overlap downstream request values", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "ads-account-context",
+        method: "GET",
+        url_template: "https://ads.example.com/api/context",
+        description: "Returns current ads account context",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "profile",
+          description_out: "Returns selected ads account context",
+          response_summary: "selected profile, account name",
+          example_request: {},
+          example_response_compact: {
+            selected_profile: "18ce55s5sqj",
+            account_name: "Lewis Ads",
+          },
+          example_fields: ["selected_profile", "account_name"],
+          requires: [],
+          provides: [{ key: "selected_profile", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "ads-campaign-draft",
+        method: "POST",
+        url_template: "https://ads.example.com/api/campaigns",
+        description: "Creates campaign draft",
+        idempotency: "unsafe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "create",
+          resource_kind: "campaign",
+          description_in: "Requires user_id",
+          description_out: "Creates campaign draft",
+          response_summary: "campaign_id, state",
+          example_request: {
+            user_id: "18ce55s5sqj",
+            objective: "reach",
+          },
+          example_fields: ["campaign_id", "state"],
+          requires: [{ key: "user_id", required: true, source: "body", semantic_type: "profile_identifier" }],
+          provides: [{ key: "campaign_id", source: "response", semantic_type: "identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const edge = graph.edges.find((candidate) => candidate.edge_id === "ads-account-context:ads-campaign-draft:user_id");
+
+    expect(edge).toBeDefined();
+    expect(edge?.kind).toBe("hint");
+    expect(edge?.confidence).toBeGreaterThan(0.72);
+  });
+
   it("infers dropdown bindings from DOM-extracted form nodes and links them into downstream api steps", () => {
     const formEndpoint: EndpointDescriptor = {
       endpoint_id: "jobs-form-options",

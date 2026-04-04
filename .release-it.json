@@ -1,7 +1,7 @@
 {
   "plugins": {
     "@release-it/bumper": {
-      "out": ["package.json", "packages/skill/package.json", "version.json"]
+      "out": ["package.json", "packages/skill/package.json", "packages/sdk/package.json", "version.json"]
     },
     "@release-it/conventional-changelog": {
       "preset": {
@@ -22,10 +22,7 @@
     "tagAnnotation": "Release v${version}",
     "push": true
   },
-  "npm": {
-    "publish": false,
-    "ignoreVersion": true
-  },
+  "npm": false,
   "github": {
     "release": true,
     "releaseName": "v${version}",

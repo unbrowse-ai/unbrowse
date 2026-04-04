@@ -1,0 +1,1120 @@
+{
+  "skill_id": "ujqqpr1QRrD6Nhps08NmK",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:42:38.152Z",
+  "updated_at": "2026-02-23T07:42:38.152Z",
+  "name": "foursquare.com -- Manage business profiles and sign",
+  "intent_signature": "Manage business profiles and sign",
+  "domain": "foursquare.com",
+  "description": "Auto-discovered skill for: Manage business profiles and sign",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "SkjaB4YS2HDH_aZZSjo2f",
+      "method": "GET",
+      "url_template": "https://foursquare.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "zFyGNeZOqs3xafD9rPsxT",
+      "method": "GET",
+      "url_template": "https://foursquare.com/_static/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://foursquare.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "?-eJydzEESgjAMBdALGYOi05XjWUobRqQ0tT9FvL2sXbp7q8fvQkGzSTa2hywCHrVVvJqvwh4QAw9tSpGfO5KGGVyqxhYMZH5g2CcJTTnKdgzAgf8ZUcTPZEqyFalGa//73pfbybnOdZdrf/4C8jFDmQ": "="
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "lZTPAPIBba2pVUJGcM7Pr",
+      "method": "GET",
+      "url_template": "https://track.trakkr.ai/pixel",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://foursquare.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "tracking_id": "1748012248845x135975712221822980",
+        "url": "https://foursquare.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "cHp66S-ifbu7m9uwKmyO8",
+      "method": "GET",
+      "url_template": "https://foursquare.com/wp-content/uploads/sites/2/{id}/07/Hero_Map-Static-2-4.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://foursquare.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "nm": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "h": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "w": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "g": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "tc": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "g",
+              "tc"
+            ],
+            "inferred_from_samples": 1
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ty": {
+                  "type": "integer",
+                  "inferred_from_samples": 4
+                },
+                "nm": {
+                  "type": "string",
+                  "inferred_from_samples": 4
+                },
+                "sr": {
+                  "type": "integer",
+                  "inferred_from_samples": 4
+                },
+                "st": {
+                  "type": "integer",
+                  "inferred_from_samples": 4
+                },
+                "op": {
+                  "type": "integer",
+                  "inferred_from_samples": 4
+                },
+                "ip": {
+                  "type": "integer",
+                  "inferred_from_samples": 4
+                },
+                "ln": {
+                  "type": "string",
+                  "inferred_from_samples": 4
+                },
+                "hasMask": {
+                  "type": "boolean",
+                  "inferred_from_samples": 4
+                },
+                "ao": {
+                  "type": "integer",
+                  "inferred_from_samples": 4
+                },
+                "ks": {
+                  "type": "object",
+                  "properties": {
+                    "a": {
+                      "type": "object",
+                      "properties": {
+                        "a": {
+                          "type": "integer",
+                          "inferred_from_samples": 4
+                        },
+                        "k": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "inferred_from_samples": 4
+                          },
+                          "inferred_from_samples": 4
+                        }
+                      },
+                      "required": [
+                        "a",
+                        "k"
+                      ],
+                      "inferred_from_samples": 4
+                    },
+                    "s": {
+                      "type": "object",
+                      "properties": {
+                        "a": {
+                          "type": "integer",
+                          "inferred_from_samples": 4
+                        },
+                        "k": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "inferred_from_samples": 4
+                              },
+                              {
+                                "type": "number",
+                                "inferred_from_samples": 4
+                              }
+                            ],
+                            "inferred_from_samples": 4
+                          },
+                          "inferred_from_samples": 4
+                        }
+                      },
+                      "required": [
+                        "a",
+                        "k"
+                      ],
+                      "inferred_from_samples": 4
+                    },
+                    "p": {
+                      "type": "object",
+                      "properties": {
+                        "a": {
+                          "type": "integer",
+                          "inferred_from_samples": 4
+                        },
+                        "k": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "inferred_from_samples": 4
+                          },
+                          "inferred_from_samples": 4
+                        }
+                      },
+                      "required": [
+                        "a",
+                        "k"
+                      ],
+                      "inferred_from_samples": 4
+                    },
+                    "r": {
+                      "type": "object",
+                      "properties": {
+                        "a": {
+                          "type": "integer",
+                          "inferred_from_samples": 4
+                        },
+                        "k": {
+                          "type": "integer",
+                          "inferred_from_samples": 4
+                        }
+                      },
+                      "required": [
+                        "a",
+                        "k"
+                      ],
+                      "inferred_from_samples": 4
+                    },
+                    "o": {
+                      "type": "object",
+                      "properties": {
+                        "a": {
+                          "type": "integer",
+                          "inferred_from_samples": 4
+                        },
+                        "k": {
+                          "type": "integer",
+                          "inferred_from_samples": 4
+                        }
+                      },
+                      "required": [
+                        "a",
+                        "k"
+                      ],
+                      "inferred_from_samples": 4
+                    }
+                  },
+                  "required": [
+                    "a",
+                    "s",
+                    "p",
+                    "r",
+                    "o"
+                  ],
+                  "inferred_from_samples": 4
+                },
+                "w": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "h": {
+                  "type": "integer",
+                  "inferred_from_samples": 1
+                },
+                "refId": {
+                  "type": "string",
+                  "inferred_from_samples": 4
+                },
+                "ind": {
+                  "type": "integer",
+                  "inferred_from_samples": 4
+                }
+              },
+              "required": [
+                "ty",
+                "nm",
+                "sr",
+                "st",
+                "op",
+                "ip",
+                "ln",
+                "hasMask",
+                "ao",
+                "ks",
+                "refId",
+                "ind"
+              ],
+              "inferred_from_samples": 4
+            },
+            "inferred_from_samples": 1
+          },
+          "v": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "fr": {
+            "type": "number",
+            "inferred_from_samples": 1
+          },
+          "op": {
+            "type": "number",
+            "inferred_from_samples": 1
+          },
+          "ip": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nm": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "id": {
+                  "type": "string",
+                  "inferred_from_samples": 8
+                },
+                "layers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "ty": {
+                        "type": "integer",
+                        "inferred_from_samples": 4
+                      },
+                      "nm": {
+                        "type": "string",
+                        "inferred_from_samples": 4
+                      },
+                      "sr": {
+                        "type": "integer",
+                        "inferred_from_samples": 4
+                      },
+                      "st": {
+                        "type": "integer",
+                        "inferred_from_samples": 4
+                      },
+                      "op": {
+                        "type": "integer",
+                        "inferred_from_samples": 4
+                      },
+                      "ip": {
+                        "type": "integer",
+                        "inferred_from_samples": 4
+                      },
+                      "ln": {
+                        "type": "string",
+                        "inferred_from_samples": 4
+                      },
+                      "hasMask": {
+                        "type": "boolean",
+                        "inferred_from_samples": 4
+                      },
+                      "ao": {
+                        "type": "integer",
+                        "inferred_from_samples": 4
+                      },
+                      "ks": {
+                        "type": "object",
+                        "properties": {
+                          "a": {
+                            "type": "object",
+                            "properties": {
+                              "a": {
+                                "type": "integer",
+                                "inferred_from_samples": 4
+                              },
+                              "k": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number",
+                                  "anyOf": [
+                                    {
+                                      "type": "number",
+                                      "inferred_from_samples": 4
+                                    },
+                                    {
+                                      "type": "integer",
+                                      "inferred_from_samples": 4
+                                    }
+                                  ],
+                                  "inferred_from_samples": 4
+                                },
+                                "inferred_from_samples": 4
+                              }
+                            },
+                            "required": [
+                              "a",
+                              "k"
+                            ],
+                            "inferred_from_samples": 4
+                          },
+                          "s": {
+                            "type": "object",
+                            "properties": {
+                              "a": {
+                                "type": "integer",
+                                "inferred_from_samples": 4
+                              },
+                              "k": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "inferred_from_samples": 4
+                                    },
+                                    {
+                                      "type": "integer",
+                                      "inferred_from_samples": 4
+                                    }
+                                  ],
+                                  "inferred_from_samples": 4
+                                },
+                                "inferred_from_samples": 4
+                              }
+                            },
+                            "required": [
+                              "a",
+                              "k"
+                            ],
+                            "inferred_from_samples": 4
+                          },
+                          "p": {
+                            "type": "object",
+                            "properties": {
+                              "a": {
+                                "type": "integer",
+                                "inferred_from_samples": 4
+                              },
+                              "k": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number",
+                                  "anyOf": [
+                                    {
+                                      "type": "number",
+                                      "inferred_from_samples": 4
+                                    },
+                                    {
+                                      "type": "object",
+                                      "inferred_from_samples": 4
+                                    }
+                                  ],
+                                  "inferred_from_samples": 4
+                                },
+                                "inferred_from_samples": 4
+                              }
+                            },
+                            "required": [
+                              "a",
+                              "k"
+                            ],
+                            "inferred_from_samples": 4
+                          },
+                          "r": {
+                            "type": "object",
+                            "properties": {
+                              "a": {
+                                "type": "integer",
+                                "inferred_from_samples": 4
+                              },
+                              "k": {
+                                "type": "integer",
+                                "inferred_from_samples": 4
+                              }
+                            },
+                            "required": [
+                              "a",
+                              "k"
+                            ],
+                            "inferred_from_samples": 4
+                          },
+                          "o": {
+                            "type": "object",
+                            "properties": {
+                              "a": {
+                                "type": "integer",
+                                "inferred_from_samples": 4
+                              },
+                              "k": {
+                                "type": "integer",
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "inferred_from_samples": 4
+                                  },
+                                  {
+                                    "type": "array",
+                                    "inferred_from_samples": 4
+                                  }
+                                ],
+                                "inferred_from_samples": 4
+                              }
+                            },
+                            "required": [
+                              "a",
+                              "k"
+                            ],
+                            "inferred_from_samples": 4
+                          }
+                        },
+                        "required": [
+                          "a",
+                          "s",
+                          "p",
+                          "r",
+                          "o"
+                        ],
+                        "inferred_from_samples": 4
+                      },
+                      "refId": {
+                        "type": "string",
+                        "inferred_from_samples": 4
+                      },
+                      "ind": {
+                        "type": "integer",
+                        "inferred_from_samples": 4
+                      }
+                    },
+                    "required": [
+                      "ty",
+                      "nm",
+                      "sr",
+                      "st",
+                      "op",
+                      "ip",
+                      "ln",
+                      "hasMask",
+                      "ao",
+                      "ks",
+                      "refId",
+                      "ind"
+                    ],
+                    "inferred_from_samples": 4
+                  },
+                  "inferred_from_samples": 1
+                },
+                "e": {
+                  "type": "integer",
+                  "inferred_from_samples": 7
+                },
+                "w": {
+                  "type": "integer",
+                  "inferred_from_samples": 7
+                },
+                "h": {
+                  "type": "integer",
+                  "inferred_from_samples": 7
+                },
+                "p": {
+                  "type": "string",
+                  "inferred_from_samples": 7
+                },
+                "u": {
+                  "type": "string",
+                  "inferred_from_samples": 7
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "inferred_from_samples": 8
+            },
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "nm",
+          "h",
+          "w",
+          "meta",
+          "layers",
+          "v",
+          "fr",
+          "op",
+          "ip",
+          "assets"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "1HkOH9QeBTz8Ilmz-LSBY",
+      "method": "GET",
+      "url_template": "https://forms-eu1.hsforms.com/embed/v3/form/{id}/{id}/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://foursquare.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "hs_static_app": "forms-embed",
+        "hs_static_app_version": "1.10590",
+        "X-HubSpot-Static-App-Info": "forms-embed-1.10590"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "properties": {
+              "portalId": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "guid": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cssClass": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "inlineMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "redirectUrl": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "submitText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "formFieldGroups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "label": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "type": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "fieldType": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "description": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "groupName": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "displayOrder": {
+                            "type": "integer",
+                            "inferred_from_samples": 11
+                          },
+                          "required": {
+                            "type": "boolean",
+                            "inferred_from_samples": 11
+                          },
+                          "selectedOptions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "inferred_from_samples": 1
+                            },
+                            "inferred_from_samples": 11
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string",
+                                  "inferred_from_samples": 3
+                                },
+                                "value": {
+                                  "type": "string",
+                                  "inferred_from_samples": 3
+                                },
+                                "displayOrder": {
+                                  "type": "integer",
+                                  "inferred_from_samples": 3
+                                },
+                                "doubleData": {
+                                  "type": "integer",
+                                  "inferred_from_samples": 3
+                                },
+                                "hidden": {
+                                  "type": "boolean",
+                                  "inferred_from_samples": 3
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "inferred_from_samples": 3
+                                },
+                                "readOnly": {
+                                  "type": "boolean",
+                                  "inferred_from_samples": 3
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "value",
+                                "displayOrder",
+                                "doubleData",
+                                "hidden",
+                                "description",
+                                "readOnly"
+                              ],
+                              "inferred_from_samples": 3
+                            },
+                            "inferred_from_samples": 11
+                          },
+                          "validation": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "inferred_from_samples": 11
+                              },
+                              "message": {
+                                "type": "string",
+                                "inferred_from_samples": 11
+                              },
+                              "data": {
+                                "type": "string",
+                                "inferred_from_samples": 11
+                              },
+                              "useDefaultBlockList": {
+                                "type": "boolean",
+                                "inferred_from_samples": 11
+                              },
+                              "blockedEmailAddresses": {
+                                "type": "array",
+                                "inferred_from_samples": 11
+                              },
+                              "checkPhoneFormat": {
+                                "type": "boolean",
+                                "inferred_from_samples": 11
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "message",
+                              "data",
+                              "useDefaultBlockList",
+                              "blockedEmailAddresses",
+                              "checkPhoneFormat"
+                            ],
+                            "inferred_from_samples": 11
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "inferred_from_samples": 11
+                          },
+                          "hidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 11
+                          },
+                          "defaultValue": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "isSmartField": {
+                            "type": "boolean",
+                            "inferred_from_samples": 11
+                          },
+                          "unselectedLabel": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "placeholder": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "dependentFieldFilters": {
+                            "type": "array",
+                            "inferred_from_samples": 11
+                          },
+                          "labelHidden": {
+                            "type": "boolean",
+                            "inferred_from_samples": 11
+                          },
+                          "propertyObjectType": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          },
+                          "metaData": {
+                            "type": "array",
+                            "inferred_from_samples": 11
+                          },
+                          "objectTypeId": {
+                            "type": "string",
+                            "inferred_from_samples": 11
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "label",
+                          "type",
+                          "fieldType",
+                          "description",
+                          "groupName",
+                          "displayOrder",
+                          "required",
+                          "selectedOptions",
+                          "options",
+                          "validation",
+                          "enabled",
+                          "hidden",
+                          "defaultValue",
+                          "isSmartField",
+                          "unselectedLabel",
+                          "placeholder",
+                          "dependentFieldFilters",
+                          "labelHidden",
+                          "propertyObjectType",
+                          "metaData",
+                          "objectTypeId"
+                        ],
+                        "inferred_from_samples": 11
+                      },
+                      "inferred_from_samples": 11
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "inferred_from_samples": 11
+                    },
+                    "isSmartGroup": {
+                      "type": "boolean",
+                      "inferred_from_samples": 11
+                    },
+                    "richText": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "inferred_from_samples": 11
+                        },
+                        "type": {
+                          "type": "string",
+                          "inferred_from_samples": 11
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "type"
+                      ],
+                      "inferred_from_samples": 11
+                    },
+                    "isPageBreak": {
+                      "type": "boolean",
+                      "inferred_from_samples": 11
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "default",
+                    "isSmartGroup",
+                    "richText",
+                    "isPageBreak"
+                  ],
+                  "inferred_from_samples": 11
+                },
+                "inferred_from_samples": 1
+              },
+              "metaData": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "inferred_from_samples": 6
+                    },
+                    "value": {
+                      "type": "string",
+                      "inferred_from_samples": 6
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "inferred_from_samples": 6
+                },
+                "inferred_from_samples": 1
+              },
+              "captchaEnabled": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "formTypeNumber": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "thankYouMessageJson": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeColor": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "themeName": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "style": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "variantId": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "isPublished": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "embedVersion": {
+                "type": "null",
+                "inferred_from_samples": 1
+              },
+              "captchaVersion": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "portalId",
+              "guid",
+              "cssClass",
+              "inlineMessage",
+              "redirectUrl",
+              "submitText",
+              "formFieldGroups",
+              "metaData",
+              "captchaEnabled",
+              "formTypeNumber",
+              "thankYouMessageJson",
+              "themeColor",
+              "themeName",
+              "style",
+              "variantId",
+              "isPublished",
+              "embedVersion",
+              "captchaVersion"
+            ],
+            "inferred_from_samples": 1
+          },
+          "properties": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          },
+          "knownSmartFields": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "object",
+            "properties": {
+              "ServiceHub:Feedback:TrellisSmileys": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ServiceHub:Feedback:TrellisSmileys"
+            ],
+            "inferred_from_samples": 1
+          },
+          "scopes": {
+            "type": "object",
+            "properties": {
+              "noBranding": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "renderShell": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "rawHtmlAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "customStyleAccess": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "noBranding",
+              "renderShell",
+              "rawHtmlAccess",
+              "customStyleAccess"
+            ],
+            "inferred_from_samples": 1
+          },
+          "time": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "themeCss": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "globalStyle": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "countryCode": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "portalSetting": {
+            "type": "object",
+            "properties": {
+              "enableLiveValidation": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "enableLiveValidation"
+            ],
+            "inferred_from_samples": 1
+          },
+          "errorCode": {
+            "type": "null",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "form",
+          "properties",
+          "knownSmartFields",
+          "gates",
+          "scopes",
+          "time",
+          "themeCss",
+          "globalStyle",
+          "countryCode",
+          "portalSetting",
+          "errorCode"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "oQ6ZqBxJVQrUzvTF-d9g5",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://foursquare.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Sometype Mono:wght@400;500;700",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "foursquare.com-session"
+}

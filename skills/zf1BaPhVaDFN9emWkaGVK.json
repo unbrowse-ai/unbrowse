@@ -1,0 +1,460 @@
+{
+  "skill_id": "zf1BaPhVaDFN9emWkaGVK",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:46:13.439Z",
+  "updated_at": "2026-02-23T07:46:13.439Z",
+  "name": "attack.mitre.org -- Search the MITRE ATT&CK database",
+  "intent_signature": "Search the MITRE ATT&CK database",
+  "domain": "attack.mitre.org",
+  "description": "Auto-discovered skill for: Search the MITRE ATT&CK database",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "kjKrCIry8qBsVEcIY5n4D",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/campaigns.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "inferred_from_samples": 56
+            },
+            "title": {
+              "type": "string",
+              "inferred_from_samples": 56
+            },
+            "path": {
+              "type": "string",
+              "inferred_from_samples": 56
+            },
+            "content": {
+              "type": "string",
+              "inferred_from_samples": 56
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "path",
+            "content"
+          ],
+          "inferred_from_samples": 56
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "tSRs-zSENiWcUM4JxZx6c",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/assets.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "inferred_from_samples": 19
+            },
+            "title": {
+              "type": "string",
+              "inferred_from_samples": 19
+            },
+            "path": {
+              "type": "string",
+              "inferred_from_samples": 19
+            },
+            "content": {
+              "type": "string",
+              "inferred_from_samples": 19
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "path",
+            "content"
+          ],
+          "inferred_from_samples": 19
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "bpcXTq_xmyeFl0yGdqb0r",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/datacomponents.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "nbYFVZsoKiLRjlCwrfZjk",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/groups.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "jTAeK7kM4rf7vZ4UOxzxQ",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/matrices.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "inferred_from_samples": 17
+            },
+            "title": {
+              "type": "string",
+              "inferred_from_samples": 17
+            },
+            "path": {
+              "type": "string",
+              "inferred_from_samples": 17
+            },
+            "content": {
+              "type": "string",
+              "inferred_from_samples": 17
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "path",
+            "content"
+          ],
+          "inferred_from_samples": 17
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "OBjqUIQDnB9fBKtcGbJ5p",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/misc.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "eOlX6GGdIv-2RC_0t4ru2",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/mitigations.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "N24XXfwl2XUWbwl4m5kqK",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/software.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "jA6RcIhGO20uyHE1iv_vC",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/tactics.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "KdgAjeR_wUdcD4tut4Oyn",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/techniques.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "HMmEhsrsm-14YJYjo3Ql3",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/detectionstrategies.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "HRxfa68z_4k8xaOA8xXTx",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/search/analytics.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "EXg-X0CTTvh88bLAeOpzY",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "mrSqTU1yYvENyYHLL9BfA",
+      "method": "GET",
+      "url_template": "https://attack.mitre.orghttps://attack.mitre.org/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "fuZtIXeWRnP8tIXm87E4Q",
+      "method": "GET",
+      "url_template": "https://attack.mitre.org/random_page.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://attack.mitre.org/",
+        "x-requested-with": "XMLHttpRequest",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "Data Source": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "Group": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 176
+            },
+            "inferred_from_samples": 1
+          },
+          "Matrix": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 18
+            },
+            "inferred_from_samples": 1
+          },
+          "Mitigation": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 108
+            },
+            "inferred_from_samples": 1
+          },
+          "Software": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 910
+            },
+            "inferred_from_samples": 1
+          },
+          "Tactic": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 38
+            },
+            "inferred_from_samples": 1
+          },
+          "Technique": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 898
+            },
+            "inferred_from_samples": 1
+          },
+          "Campaign": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 55
+            },
+            "inferred_from_samples": 1
+          },
+          "Asset": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "inferred_from_samples": 18
+            },
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "Data Source",
+          "Group",
+          "Matrix",
+          "Mitigation",
+          "Software",
+          "Tactic",
+          "Technique",
+          "Campaign",
+          "Asset"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ]
+}

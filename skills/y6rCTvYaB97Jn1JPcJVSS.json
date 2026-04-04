@@ -1,0 +1,1121 @@
+{
+  "skill_id": "y6rCTvYaB97Jn1JPcJVSS",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:44:41.879Z",
+  "updated_at": "2026-02-23T07:44:41.879Z",
+  "name": "www.randstad.nl -- Retrieve job summaries, manage localized content",
+  "intent_signature": "Retrieve job summaries, manage localized content",
+  "domain": "www.randstad.nl",
+  "description": "Auto-discovered skill for: Retrieve job summaries, manage localized content",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "VSA_DFz2KXwzZ3nEF5JQH",
+      "method": "GET",
+      "url_template": "https://api.seamly-app.com/channels/api/v2/client/{id}/translations/4/nl-informal.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.randstad.nl/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "translations": {
+            "type": "object",
+            "properties": {
+              "translations.divider.restartButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "input.inputLabelText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.openButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "suggestions.footerText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "message.srTextUnreadCount": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "faq.srUpdatedText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.contentHint": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.status.stopText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.sendTranscript.label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmBusinessMessaging.whatsapp.listButton": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "faq.srAvailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.unavailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.general.buttonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "suggestions.srUnavailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "carousel.controls.previous": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.openButton.srContinue": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.openButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "input.inputPlaceholderText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.status.label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.seamlyUnavailable.message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.proposal.srDismissButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "faq.headingText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.srAvailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.cancelButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.seamlyUnavailable.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.inputLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "toggleButton.subtitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.menu.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.sendTranscript.noEmailText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.srTexts.onOpen": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "suggestions.srUpdatedText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "lightbox.heading": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "faq.srUnavailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.sendTranscript.menuTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.seamlyUnavailable.buttonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.seamlyOffline.srText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.divider.startText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "carousel.slide.label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "disclaimer.content": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.toggle.hideButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.info.implicitStart": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.chat.continue": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.general.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "chat.srLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.divider.startBodyText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.srProgressLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.sendTranscript.description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "dateTime.today": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mfa.abortTransaction.topicFallbackMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "suggestions.headingText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.proposal.buttonLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "carousel.controls.next": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "input.sendMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.fileUnavailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.sendTranscript.sendButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "idleDetachWarning.srCountDownStoppedText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "message.image.srTextEnlargeButtonLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mfa.codePromptPlaceholder": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "resumeConversationPrompt.continueButton": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.cancelButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.srModalLayoutLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "header.collapseApp": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.original": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "idleDetachWarning.countdownTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "header.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.divider.stopText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "suggestions.srAvailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.srTexts.onClose": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "resumeConversationPrompt.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "lightbox.closeLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.srTexts.onLoad": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "resumeConversationPrompt.detachButton": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.general.message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "rewrite.agentFeedbackMessage": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "dateTime.srText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.errors.noFile": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.unavailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.srCompleteText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "info.sendTranscript.accepted": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.currentTranslationLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "dividerKeys.newTopic": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.menu.description": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.srFileUnavailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "input.inputLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.srTexts.onHistoryLoad": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.configError.srText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.srCollapseButton": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mfa.sms.codePromptText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "idleDetachWarning.detachButton": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.noLocaleText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "disclaimer.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "typing.srText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "idleDetachWarning.continueButton": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mfa.sms.message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.settings.startButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.toggle.showButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "input.srCharacterLimitText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.seamlyOffline.message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.general.srText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.cancelButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.srFileUploadedText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "participants.user.name": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "toggleButton.resumeTitle": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "dateTime.yesterday": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "message.srNewEventCount": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "participants.agent.name": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.labelText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.srFileDownloadText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "mfa.abortTransaction.label": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "input.inputPlaceholder": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "idleDetachWarning.countdownText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.errors.wrongType": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.erredText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.proposal.titleLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "message.choicePrompts.chooseAgain": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.errors.general": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "idleDetachWarning.notifyTransferText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.errors.tooLarge": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "skiplinkText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "toggleButton.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.toggleButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.uploadButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.configError.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.srUnavailableText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.seamlyOffline.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.sendTranscript.title": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.selectedText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.configError.message": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.errors.virusFound": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.toggle.showTranslationsButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "idleDetachWarning.countdownTimer": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.sendTranscript.invalidEmailText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "message.unreadMessagesCount": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "options.saveButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "account.preChatText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "cmBusinessMessaging.appleBusinessChat.listpickerLabel": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.errors.unavailable": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "fileUpload.srStartedText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "errors.seamlyUnavailable.srText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "message.choicePrompts.cancelChooseAgain": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "window.openButton.srStart": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "translations.toggle.hideTranslationsButtonText": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "translations.divider.restartButtonText",
+              "input.inputLabelText",
+              "options.openButtonText",
+              "suggestions.footerText",
+              "translations.settings.description",
+              "message.srTextUnreadCount",
+              "faq.srUpdatedText",
+              "fileUpload.contentHint",
+              "translations.status.stopText",
+              "options.sendTranscript.label",
+              "cmBusinessMessaging.whatsapp.listButton",
+              "faq.srAvailableText",
+              "options.unavailableText",
+              "errors.general.buttonText",
+              "suggestions.srUnavailableText",
+              "carousel.controls.previous",
+              "window.openButton.srContinue",
+              "translations.settings.openButtonText",
+              "input.inputPlaceholderText",
+              "translations.status.label",
+              "errors.seamlyUnavailable.message",
+              "translations.proposal.srDismissButtonText",
+              "faq.headingText",
+              "fileUpload.srAvailableText",
+              "fileUpload.cancelButtonText",
+              "errors.seamlyUnavailable.title",
+              "translations.settings.inputLabel",
+              "toggleButton.subtitle",
+              "translations.menu.title",
+              "options.sendTranscript.noEmailText",
+              "window.srTexts.onOpen",
+              "suggestions.srUpdatedText",
+              "lightbox.heading",
+              "faq.srUnavailableText",
+              "options.sendTranscript.menuTitle",
+              "errors.seamlyUnavailable.buttonText",
+              "errors.seamlyOffline.srText",
+              "translations.divider.startText",
+              "carousel.slide.label",
+              "disclaimer.content",
+              "translations.toggle.hideButtonText",
+              "translations.info.implicitStart",
+              "window.chat.continue",
+              "errors.general.title",
+              "chat.srLabel",
+              "translations.divider.startBodyText",
+              "fileUpload.srProgressLabel",
+              "options.sendTranscript.description",
+              "dateTime.today",
+              "mfa.abortTransaction.topicFallbackMessage",
+              "suggestions.headingText",
+              "translations.proposal.buttonLabel",
+              "carousel.controls.next",
+              "input.sendMessage",
+              "fileUpload.fileUnavailableText",
+              "options.sendTranscript.sendButtonText",
+              "idleDetachWarning.srCountDownStoppedText",
+              "message.image.srTextEnlargeButtonLabel",
+              "mfa.codePromptPlaceholder",
+              "resumeConversationPrompt.continueButton",
+              "translations.settings.cancelButtonText",
+              "window.srModalLayoutLabel",
+              "header.collapseApp",
+              "translations.settings.original",
+              "idleDetachWarning.countdownTitle",
+              "header.title",
+              "translations.divider.stopText",
+              "suggestions.srAvailableText",
+              "window.srTexts.onClose",
+              "resumeConversationPrompt.title",
+              "translations.settings.title",
+              "lightbox.closeLabel",
+              "window.srTexts.onLoad",
+              "resumeConversationPrompt.detachButton",
+              "errors.general.message",
+              "rewrite.agentFeedbackMessage",
+              "dateTime.srText",
+              "fileUpload.errors.noFile",
+              "fileUpload.unavailableText",
+              "fileUpload.srCompleteText",
+              "info.sendTranscript.accepted",
+              "translations.settings.currentTranslationLabel",
+              "dividerKeys.newTopic",
+              "translations.menu.description",
+              "fileUpload.srFileUnavailableText",
+              "input.inputLabel",
+              "window.srTexts.onHistoryLoad",
+              "errors.configError.srText",
+              "window.srCollapseButton",
+              "mfa.sms.codePromptText",
+              "idleDetachWarning.detachButton",
+              "translations.settings.noLocaleText",
+              "disclaimer.title",
+              "typing.srText",
+              "idleDetachWarning.continueButton",
+              "mfa.sms.message",
+              "translations.settings.startButtonText",
+              "translations.toggle.showButtonText",
+              "input.srCharacterLimitText",
+              "errors.seamlyOffline.message",
+              "errors.general.srText",
+              "options.cancelButtonText",
+              "fileUpload.srFileUploadedText",
+              "participants.user.name",
+              "toggleButton.resumeTitle",
+              "dateTime.yesterday",
+              "message.srNewEventCount",
+              "participants.agent.name",
+              "fileUpload.labelText",
+              "fileUpload.srFileDownloadText",
+              "mfa.abortTransaction.label",
+              "input.inputPlaceholder",
+              "idleDetachWarning.countdownText",
+              "fileUpload.errors.wrongType",
+              "fileUpload.erredText",
+              "translations.proposal.titleLabel",
+              "message.choicePrompts.chooseAgain",
+              "fileUpload.errors.general",
+              "idleDetachWarning.notifyTransferText",
+              "fileUpload.errors.tooLarge",
+              "skiplinkText",
+              "toggleButton.title",
+              "fileUpload.toggleButtonText",
+              "fileUpload.uploadButtonText",
+              "errors.configError.title",
+              "fileUpload.srUnavailableText",
+              "errors.seamlyOffline.title",
+              "options.sendTranscript.title",
+              "fileUpload.selectedText",
+              "errors.configError.message",
+              "fileUpload.errors.virusFound",
+              "translations.toggle.showTranslationsButtonText",
+              "idleDetachWarning.countdownTimer",
+              "options.sendTranscript.invalidEmailText",
+              "message.unreadMessagesCount",
+              "options.saveButtonText",
+              "account.preChatText",
+              "cmBusinessMessaging.appleBusinessChat.listpickerLabel",
+              "fileUpload.errors.unavailable",
+              "fileUpload.srStartedText",
+              "errors.seamlyUnavailable.srText",
+              "message.choicePrompts.cancelChooseAgain",
+              "window.openButton.srStart",
+              "translations.toggle.hideTranslationsButtonText"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "translations"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "-aMfgOGTO4SV04Hlh9IkC",
+      "method": "POST",
+      "url_template": "https://api.seamly-app.com/channels/api/v2/client/{id}/configs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.randstad.nl/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "object",
+                "properties": {
+                  "translation": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "languages": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "locale": {
+                              "type": "string",
+                              "inferred_from_samples": 5
+                            },
+                            "nativeName": {
+                              "type": "string",
+                              "inferred_from_samples": 5
+                            }
+                          },
+                          "required": [
+                            "locale",
+                            "nativeName"
+                          ],
+                          "inferred_from_samples": 5
+                        },
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "languages"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "typingPeekahead": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "webNotifications": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "enabled"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "translation",
+                  "typingPeekahead",
+                  "webNotifications"
+                ],
+                "inferred_from_samples": 1
+              },
+              "defaultContentLocale": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "defaultUserLocale": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "agentParticipant": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "avatar": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "name",
+                  "avatar"
+                ],
+                "inferred_from_samples": 1
+              },
+              "preChat": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "body": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "inferred_from_samples": 1
+                        }
+                      },
+                      "required": [
+                        "text"
+                      ],
+                      "inferred_from_samples": 1
+                    },
+                    "translation": {
+                      "type": "null",
+                      "inferred_from_samples": 1
+                    },
+                    "fromClient": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "translatedBody": {
+                      "type": "null",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "body",
+                    "translation",
+                    "fromClient",
+                    "translatedBody"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              },
+              "startChatIcon": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "userParticipant": {
+                "type": "object",
+                "properties": {
+                  "avatar": {
+                    "type": "null",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "avatar"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "features",
+              "defaultContentLocale",
+              "defaultUserLocale",
+              "agentParticipant",
+              "preChat",
+              "startChatIcon",
+              "userParticipant"
+            ],
+            "inferred_from_samples": 1
+          },
+          "_links": {
+            "type": "object",
+            "properties": {
+              "self": {
+                "type": "object",
+                "properties": {
+                  "href": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "href"
+                ],
+                "inferred_from_samples": 1
+              },
+              "translations": {
+                "type": "object",
+                "properties": {
+                  "href": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "templated": {
+                    "type": "boolean",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "href",
+                  "templated"
+                ],
+                "inferred_from_samples": 1
+              },
+              "conversations": {
+                "type": "object",
+                "properties": {
+                  "href": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "href"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "self",
+              "translations",
+              "conversations"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "config",
+          "_links"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "pa7vgta56waLfj6TrScx-",
+      "method": "GET",
+      "url_template": "https://www.randstad.nl/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "HlxEbGW9xSHlkAKijxPcN",
+      "method": "GET",
+      "url_template": "https://tdn.r42tag.com/tags-356/prod",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.randstad.nl/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "s": "hippo|home",
+        "u": "https://www.randstad.nl/",
+        "r": "",
+        "cb": "1771832675748"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "aNROPfTzDnFybdkec48eW",
+      "method": "GET",
+      "url_template": "https://tdn.r42tag.com/data/segment/356/{id}/356_438,356_448,356_446,356_445",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.randstad.nl/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "p-zFw2GZa9XdOXt0fkQ3W",
+      "method": "GET",
+      "url_template": "https://tdn.r42tag.com/data/segment/356/{id}/356_198,356_234,356_235,356_250,356_260,356_265,356_231,356_274,356_278,356_279,356_280,356_271,356_289,356_337",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.randstad.nl/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "ougvPQS36BaunxoEZRSng",
+      "method": "GET",
+      "url_template": "https://t.svtrd.com/t-356",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.randstad.nl/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "i": "64c94868-bf54-4b7c-8d6d-89cb06317893",
+        "f": "true",
+        "ft": "cookie_optin",
+        "fttl": "157680000",
+        "cup": "level:0",
+        "ffi": "true",
+        "cb": "1771832676387"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.randstad.nl-session"
+}

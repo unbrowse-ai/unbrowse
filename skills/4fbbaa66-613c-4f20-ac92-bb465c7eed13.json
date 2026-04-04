@@ -1,0 +1,88 @@
+{
+  "skill_id": "4fbbaa66-613c-4f20-ac92-bb465c7eed13",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:35:54.081Z",
+  "updated_at": "2026-02-19T06:37:45.787Z",
+  "name": "news-sophos",
+  "intent_signature": "Retrieve and read cybersecurity articles, blog posts",
+  "domain": "news.sophos.com",
+  "description": "Retrieve and read cybersecurity articles, blog posts",
+  "owner_type": "marketplace",
+  "auth_type": "Bearer Token",
+  "service_name": "news-sophos",
+  "endpoints": [
+    {
+      "endpoint_id": "5c4d032b-56ee-4b8f-bd6e-31cf93e8cb3f",
+      "method": "GET",
+      "url_template": "https://news.sophos.com/__endpoint/5c4d032b-56ee-4b8f-bd6e-31cf93e8cb3f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getBlogById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "b2cd236d-0e05-4beb-ad88-fd4386653f9f",
+      "method": "GET",
+      "url_template": "https://news.sophos.com/__endpoint/b2cd236d-0e05-4beb-ad88-fd4386653f9f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getConfigJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "1b4f8fa8-7922-4d88-ba2a-71273729aee2",
+      "method": "POST",
+      "url_template": "https://news.sophos.com/__endpoint/1b4f8fa8-7922-4d88-ba2a-71273729aee2",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createAkamPixel187Be855",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "b3a6e14a-8ea2-4a64-8df3-16ca81d010a0",
+      "method": "POST",
+      "url_template": "https://news.sophos.com/__endpoint/b3a6e14a-8ea2-4a64-8df3-16ca81d010a0",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createSxxAr5QusCfed7N6VisitorEvents",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "8EWikfWwCSFoLck4mwSq1VkSYo2yrMG8fZyLFgNECQ15",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "b69fade2ef984552748dd50b3a621b86d7f03de7eefa69c99f8b6b1ec40c8c08"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: news-sophos\ndescription: Internal API for news-sophos\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://news.sophos.com\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 2\n  apiType: \"internal\"\n  category: \"content\"\n---\n\n# NewsSophos API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `GET /en-us/blog/{blogToken}/` — Fetch paginated blog post feed.\n\n### Config (1)\n- `GET /api/config.json` — Retrieve configuration settings.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"news-sophos\", executionMode: \"backend\", endpoint: \"GET /en-us/blog/{blogToken}/\" }\n```\n\nHere's a quick start to using the `news-sophos` API:\n\n**Fetching the latest blog posts:**\n\n```typescript\n// Fetch the first page of blog posts from a specific blog.\nasync function getLatestBlogPosts(blogToken: string) {\n  const response = await client.en_us.blog[blogToken].get({\n    params: {\n      page: 1,\n      pageSize: 10,\n    },\n  });\n  return response.data;\n}\n```\n\n**Retrieving configuration settings:**\n\n```typescript\n// Retrieve the API configuration.\nasync function getConfig() {\n  const response = await client.api.config_json.get();\n  return response.data;\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://news.sophos.com`\n**Captured Auth:** 3 auth headers\n\n## About This Skill\n\nThis skill provides access to News Sophos's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access News Sophos data without official API access\n- Automate actions on news.sophos.com (faster than browser automation)\n- Call the same endpoints the News Sophos frontend uses\n\n## Quick Start\n\n```typescript\nimport { NewsSophosClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await NewsSophosClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (authorization, session-id, x-goog-api-key)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (7)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/config.json`\n- `GET /en-us/blog/the-state-of-ransomware-2025/`\n- `POST /akam/13/pixel_187be855`\n- `POST /w/1/SxxAr5qUsCFed7N6/visitor_events`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/config.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /en-us/blog/the-state-of-ransomware-2025/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /akam/13/pixel_187be855`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /w/1/SxxAr5qUsCFed7N6/visitor_events`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -1,0 +1,282 @@
+{
+  "skill_id": "49ljP33EmcP0jw34xSEez",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:53:51.435Z",
+  "updated_at": "2026-02-23T07:53:51.435Z",
+  "name": "www.cisa.gov -- Access CISA data to retrieve system configurations",
+  "intent_signature": "Access CISA data to retrieve system configurations",
+  "domain": "www.cisa.gov",
+  "description": "Auto-discovered skill for: Access CISA data to retrieve system configurations",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "Dbvg8aulg-fjg50_7LT53",
+      "method": "GET",
+      "url_template": "https://c.go-mpulse.net/api/config.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.dhs.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "d": "www.dhs.gov",
+        "t": "5906111",
+        "v": "1.815.0",
+        "if": "",
+        "sl": "0",
+        "si": "609028a1-816c-4127-9fa3-3b125707eeb3-tawj9m",
+        "plugins": "AK,ConfigOverride,Continuity,PageParams,IFrameDelay,AutoXHR,SPA,History,Angular,Backbone,Ember,RT,CrossDomain,BW,PaintTiming,NavigationTiming,ResourceTiming,Memory,CACHE_RELOAD,Errors,TPAnalytics,UserTiming,Akamai,Early,EventTiming,BFCache,LOGN",
+        "acao": "",
+        "ak.ai": "102510"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "site_domain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "rate_limited": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "site_domain",
+          "rate_limited"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "juhABPix7Z-Xfhwk2cni4",
+      "method": "GET",
+      "url_template": "https://www.cisa.gov/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "8LOlKAGBOS0zjID2pQDYU",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cisa.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Public Sans:wght@400;500;600;700",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "zs1n9x__yJz_Owq3fSaaP",
+      "method": "GET",
+      "url_template": "https://www.dhs.gov/ntas/",
+      "headers_template": {
+        "referer": "https://www.cisa.gov/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "VFllAsRYWhW470Hvme0Vj",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/iframe_api",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cisa.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "HI7MaC8Ql54DeCs1ZgFdw",
+      "method": "GET",
+      "url_template": "https://6342107.global.r2.siteimproveanalytics.io/image.aspx",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cisa.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "url": "https://www.cisa.gov/",
+        "title": "Home Page | CISA",
+        "res": "1280x720",
+        "accountid": "6342107",
+        "rt": "796",
+        "prev": "d2e0fd4e-4408-e17e-1475-6870eca45f6e",
+        "luid": "25afe092-6c77-39a7-4433-294c319ce8b2",
+        "rnd": "32445"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "XqOqb3PhHwiGTwZVecX6-",
+      "method": "GET",
+      "url_template": "https://www.dhs.gov/ntas",
+      "headers_template": {
+        "referer": "https://www.cisa.gov/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "OA6QtwjJnEvcEyr7Yr9fb",
+      "method": "GET",
+      "url_template": "https://s.go-mpulse.net/boomerang/A3WTK-PERZP-2W77L-XJ2AR-542NX",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.dhs.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "pODarN8mloBM-uzcf34yV",
+      "method": "GET",
+      "url_template": "https://clients1.google.com/generate_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cisa.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "37WIf--hy-Tji446_npc0",
+      "method": "GET",
+      "url_template": "https://ep1.adtrafficquality.google/getconfig/sodar",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.cisa.gov/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "sv": "200",
+        "tid": "afs",
+        "tv": "1234567890",
+        "st": "env",
+        "sjk": "kRV7SsldS2u/gdiN2KR5EQ==",
+        "sde": "1"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "sodar_query_id": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "injector_basename": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "bg_hash_basename": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "bg_binary": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "bg_snapshot_delay_ms": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "is_gen_204": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "sodar_query_id",
+          "injector_basename",
+          "bg_hash_basename",
+          "bg_binary",
+          "bg_snapshot_delay_ms",
+          "is_gen_204"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "DrSqpf3RAQu9vniQHggd8",
+      "method": "GET",
+      "url_template": "https://ep2.adtrafficquality.google/generate_204",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://ep2.adtrafficquality.google/sodar/sodar2/237/runner.html",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "aVbJ9g": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.cisa.gov-session"
+}

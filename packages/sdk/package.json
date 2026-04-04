@@ -1,0 +1,27 @@
+{
+  "name": "@unbrowse/sdk",
+  "version": "2.12.4",
+  "description": "Thin TypeScript SDK for the canonical Unbrowse local server API.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}

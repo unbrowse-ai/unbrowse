@@ -1,0 +1,32 @@
+{
+  "skill_id": "X4aNQiJI-ISkQrbcsFDEb",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:43:45.751Z",
+  "updated_at": "2026-02-23T07:43:45.751Z",
+  "name": "api.midtrans.com -- Process online payments, monitor transaction",
+  "intent_signature": "Process online payments, monitor transaction",
+  "domain": "api.midtrans.com",
+  "description": "Auto-discovered skill for: Process online payments, monitor transaction",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "a1u1dcj4NRo_ay5hVPYNj",
+      "method": "GET",
+      "url_template": "https://api.midtrans.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ]
+}

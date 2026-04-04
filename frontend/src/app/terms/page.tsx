@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Terms of Service — unbrowse",
-  description: "Terms of Service for unbrowse, operated by Unreel AI Pte Ltd.",
+  description: "Terms of Service for unbrowse, operated by Unbrowse AI Pte. Ltd..",
 };
 
 export default function TermsPage() {
@@ -22,7 +22,7 @@ export default function TermsPage() {
         Terms of Service
       </h1>
       <p className="text-text-secondary text-lg mb-12 animate-fade-up stagger-1">
-        Effective date: 22 February 2026
+        Effective date: 3 April 2026
       </p>
 
       <div className="space-y-12 animate-fade-up stagger-2">
@@ -30,12 +30,12 @@ export default function TermsPage() {
         <Section title="1. Who you&apos;re agreeing with">
           <p>
             These Terms of Service (&quot;Terms&quot;) are a legally binding agreement between
-            you (&quot;you&quot; or &quot;User&quot;) and <strong>Unreel AI Pte Ltd</strong>, a
+            you (&quot;you&quot; or &quot;User&quot;) and <strong>Unbrowse AI Pte. Ltd.</strong>, a
             company incorporated in Singapore (UEN 202425961N)
             (&quot;Company&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).
           </p>
           <p>
-            Unbrowse is a product owned and operated by Unreel AI Pte Ltd. By
+            Unbrowse is a product owned and operated by Unbrowse AI Pte. Ltd.. By
             accessing or using unbrowse — including the website at unbrowse.ai, the
             CLI tool, the API, and the collective skill registry (collectively, the
             &quot;Service&quot;) — you agree to be bound by these Terms. If you do not agree,
@@ -90,6 +90,15 @@ export default function TermsPage() {
             Unbrowse indexes publicly observable API structure; it does not grant you
             rights to use those APIs beyond what the target site permits.
           </p>
+          <p>
+            You are solely responsible for determining whether your access to,
+            capture of, extraction from, or use of any third-party website, API,
+            data, or service is authorized and complies with that third party&apos;s
+            terms, policies, robots rules, rate limits, and applicable law.
+            Unbrowse does not grant you any right to access or use any third-party
+            service, and we are not responsible for third-party restrictions,
+            enforcement decisions, or changes.
+          </p>
         </Section>
 
         <Section title="5. Contributions to the collective registry">
@@ -113,7 +122,7 @@ export default function TermsPage() {
         <Section title="6. Intellectual property">
           <p>
             The Service, including all software, designs, trademarks, and
-            documentation, is owned by Unreel AI Pte Ltd and protected by
+            documentation, is owned by Unbrowse AI Pte. Ltd. and protected by
             intellectual property laws. Nothing in these Terms grants you ownership
             of any part of the Service.
           </p>
@@ -141,11 +150,19 @@ export default function TermsPage() {
 
         <Section title="8. Limitation of liability">
           <p>
-            TO THE MAXIMUM EXTENT PERMITTED BY LAW, UNREEL AI PTE LTD AND ITS
+            TO THE MAXIMUM EXTENT PERMITTED BY LAW, UNBROWSE AI PTE. LTD. AND ITS
             OFFICERS, DIRECTORS, EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE FOR ANY
             INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR
             ANY LOSS OF PROFITS, DATA, USE, OR GOODWILL, ARISING OUT OF OR IN
             CONNECTION WITH YOUR USE OF THE SERVICE.
+          </p>
+          <p>
+            TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE ARE NOT LIABLE FOR ANY
+            CLAIM, LOSS, PENALTY, ENFORCEMENT ACTION, ACCOUNT SUSPENSION, OR DAMAGE
+            ARISING FROM OR RELATING TO YOUR ACCESS TO, CAPTURE OF, EXTRACTION
+            FROM, OR USE OF ANY THIRD-PARTY WEBSITE, API, DATA, OR SERVICE, OR
+            YOUR BREACH OR ALLEGED BREACH OF ANY THIRD-PARTY TERMS, POLICIES, OR
+            RIGHTS.
           </p>
           <p>
             OUR TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS ARISING OUT OF THESE TERMS
@@ -157,11 +174,13 @@ export default function TermsPage() {
 
         <Section title="9. Indemnification">
           <p>
-            You agree to indemnify and hold harmless Unreel AI Pte Ltd, its officers,
+            You agree to indemnify and hold harmless Unbrowse AI Pte. Ltd., its officers,
             directors, employees, and agents from any claims, damages, losses, or
             expenses (including reasonable legal fees) arising out of your use of the
-            Service, violation of these Terms, or infringement of any third-party
-            rights.
+            Service, violation of these Terms, infringement of any third-party
+            rights, or your access to or use of any third-party website, API, data,
+            or service, including any breach or alleged breach of third-party terms
+            or policies.
           </p>
         </Section>
 
@@ -217,7 +236,7 @@ export default function TermsPage() {
             </a>.
           </p>
           <p className="text-sm text-text-muted mt-4">
-            Unreel AI Pte Ltd
+            Unbrowse AI Pte. Ltd.
             <br />
             Singapore
           </p>
@@ -226,7 +245,7 @@ export default function TermsPage() {
       </div>
 
       <div className="mt-16 pt-8 border-t border-border text-sm text-text-muted">
-        Last updated: 22 February 2026
+        Last updated: 3 April 2026
       </div>
     </div>
   );

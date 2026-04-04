@@ -34,9 +34,12 @@ describe("kv listWithValues", () => {
   const store = new Map<string, string>();
   const originalFetch = globalThis.fetch;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    // Clear module-level KV cache to prevent cross-test pollution
+    const kv = new EdbKV("test", "stats");
+    await kv.resetSplitIndex();
   });
 
   afterEach(() => {

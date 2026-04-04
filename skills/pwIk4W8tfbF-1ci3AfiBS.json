@@ -1,0 +1,32 @@
+{
+  "skill_id": "pwIk4W8tfbF-1ci3AfiBS",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:54:07.528Z",
+  "updated_at": "2026-02-23T07:54:07.528Z",
+  "name": "strapi.weshop.ai -- Manage user accounts, track",
+  "intent_signature": "Manage user accounts, track",
+  "domain": "strapi.weshop.ai",
+  "description": "Auto-discovered skill for: Manage user accounts, track",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "QI_5zxTVUw5ga9OLlT7PM",
+      "method": "GET",
+      "url_template": "https://strapi.weshop.ai/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ]
+}

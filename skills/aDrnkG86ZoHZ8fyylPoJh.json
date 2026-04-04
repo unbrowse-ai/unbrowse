@@ -1,0 +1,921 @@
+{
+  "skill_id": "aDrnkG86ZoHZ8fyylPoJh",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:41:19.153Z",
+  "updated_at": "2026-02-23T07:41:19.153Z",
+  "name": "www.threads.net -- Interact with Threads to publish content, retrieve",
+  "intent_signature": "Interact with Threads to publish content, retrieve",
+  "domain": "www.threads.net",
+  "description": "Auto-discovered skill for: Interact with Threads to publish content, retrieve",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "KwwtbmOB8Pxzr9Grs_igo",
+      "method": "POST",
+      "url_template": "https://www.threads.com/graphql/query",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "x-root-field-name": "xdt_threads_logged_out_feed",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "x-ig-app-id": "238260118697367",
+        "x-fb-lsd": "AdTEWolkfBQW8TxXVst3okvDspw",
+        "x-logged-out-threads-migrated-request": "true",
+        "content-type": "application/x-www-form-urlencoded",
+        "referer": "https://www.threads.com/",
+        "x-fb-friendly-name": "BarcelonaLoggedOutFeedPaginationQuery",
+        "x-bloks-version-id": "8b4290268c7dc7dba207f69b978b0daca0f8e0f116e23805320991c2fe51356b",
+        "x-asbd-id": "359341",
+        "sec-ch-prefers-color-scheme": "light",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "feedData": {
+                "type": "object",
+                "properties": {
+                  "edges": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "text_post_app_thread": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "inferred_from_samples": 10
+                            },
+                            "thread_items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "post": {
+                                    "type": "object",
+                                    "properties": {
+                                      "pk": {
+                                        "type": "string",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "logging_info_token": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "user": {
+                                        "type": "object",
+                                        "properties": {
+                                          "pk": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "friendship_status": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "profile_pic_url": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "username": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "full_name": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "transparency_label": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "transparency_product": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "transparency_product_enabled": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "is_verified": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "text_post_app_is_private": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "has_onboarded_to_text_post_app": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          }
+                                        },
+                                        "required": [
+                                          "pk",
+                                          "friendship_status",
+                                          "profile_pic_url",
+                                          "username",
+                                          "id",
+                                          "full_name",
+                                          "transparency_label",
+                                          "transparency_product",
+                                          "transparency_product_enabled",
+                                          "is_verified",
+                                          "text_post_app_is_private",
+                                          "has_onboarded_to_text_post_app"
+                                        ],
+                                        "inferred_from_samples": 10
+                                      },
+                                      "text_post_app_info": {
+                                        "type": "object",
+                                        "properties": {
+                                          "show_header_follow": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "self_thread_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "is_spoiler_media": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "is_markup": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "ghost_post_exp_time_ms": {
+                                            "type": "null",
+                                            "anyOf": [
+                                              {
+                                                "type": "null",
+                                                "inferred_from_samples": 10
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "inferred_from_samples": 10
+                                              }
+                                            ],
+                                            "inferred_from_samples": 10
+                                          },
+                                          "ghost_post_approximate_like_count_str": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "ghost_post_reply_type": {
+                                            "type": "null",
+                                            "anyOf": [
+                                              {
+                                                "type": "null",
+                                                "inferred_from_samples": 10
+                                              },
+                                              {
+                                                "type": "string",
+                                                "inferred_from_samples": 10
+                                              }
+                                            ],
+                                            "inferred_from_samples": 10
+                                          },
+                                          "ghost_post_approximate_reply_count_str": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "is_ghost_post": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "direct_reply_count": {
+                                            "type": "integer",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "repost_count": {
+                                            "type": "integer",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "quote_count": {
+                                            "type": "integer",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "reshare_count": {
+                                            "type": "null",
+                                            "anyOf": [
+                                              {
+                                                "type": "null",
+                                                "inferred_from_samples": 10
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "inferred_from_samples": 10
+                                              }
+                                            ],
+                                            "inferred_from_samples": 10
+                                          },
+                                          "custom_feed_preview_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "platform_podcast_episode_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "platform_podcast_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "link_preview_attachment": {
+                                            "type": "null",
+                                            "anyOf": [
+                                              {
+                                                "type": "null",
+                                                "inferred_from_samples": 10
+                                              },
+                                              {
+                                                "type": "object",
+                                                "inferred_from_samples": 10
+                                              }
+                                            ],
+                                            "inferred_from_samples": 10
+                                          },
+                                          "link_preview_response": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "linked_inline_media": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "snippet_attachment_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "special_effects_enabled_str": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "algo_tweaks_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "text_fragments": {
+                                            "type": "object",
+                                            "properties": {
+                                              "fragments": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "fragment_type": {
+                                                      "type": "string",
+                                                      "inferred_from_samples": 10
+                                                    },
+                                                    "link_fragment": {
+                                                      "type": "null",
+                                                      "inferred_from_samples": 10
+                                                    },
+                                                    "mention_fragment": {
+                                                      "type": "null",
+                                                      "inferred_from_samples": 10
+                                                    },
+                                                    "plaintext": {
+                                                      "type": "string",
+                                                      "inferred_from_samples": 10
+                                                    },
+                                                    "linkified_web_url": {
+                                                      "type": "null",
+                                                      "inferred_from_samples": 10
+                                                    },
+                                                    "linkified_in_app_url": {
+                                                      "type": "null",
+                                                      "inferred_from_samples": 10
+                                                    },
+                                                    "styling_info": {
+                                                      "type": "null",
+                                                      "inferred_from_samples": 10
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "fragment_type",
+                                                    "link_fragment",
+                                                    "mention_fragment",
+                                                    "plaintext",
+                                                    "linkified_web_url",
+                                                    "linkified_in_app_url",
+                                                    "styling_info"
+                                                  ],
+                                                  "inferred_from_samples": 10
+                                                },
+                                                "inferred_from_samples": 10
+                                              }
+                                            },
+                                            "required": [
+                                              "fragments"
+                                            ],
+                                            "inferred_from_samples": 10
+                                          },
+                                          "share_info": {
+                                            "type": "object",
+                                            "properties": {
+                                              "quoted_attachment_author_attribution_allowed": {
+                                                "type": "boolean",
+                                                "inferred_from_samples": 10
+                                              },
+                                              "quoted_attachment_post_unavailable": {
+                                                "type": "boolean",
+                                                "inferred_from_samples": 10
+                                              },
+                                              "quoted_attachment_post": {
+                                                "type": "null",
+                                                "inferred_from_samples": 10
+                                              },
+                                              "quoted_post": {
+                                                "type": "null",
+                                                "inferred_from_samples": 10
+                                              },
+                                              "reposted_post": {
+                                                "type": "null",
+                                                "inferred_from_samples": 10
+                                              }
+                                            },
+                                            "required": [
+                                              "quoted_attachment_author_attribution_allowed",
+                                              "quoted_attachment_post_unavailable",
+                                              "quoted_attachment_post",
+                                              "quoted_post",
+                                              "reposted_post"
+                                            ],
+                                            "inferred_from_samples": 10
+                                          },
+                                          "is_reply": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "reply_to_author": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "system_status_message": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "reply_control": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "private_reply_partner": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "self_thread_count": {
+                                            "type": "integer",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "tag_header": {
+                                            "type": "null",
+                                            "anyOf": [
+                                              {
+                                                "type": "null",
+                                                "inferred_from_samples": 10
+                                              },
+                                              {
+                                                "type": "object",
+                                                "inferred_from_samples": 10
+                                              }
+                                            ],
+                                            "inferred_from_samples": 10
+                                          },
+                                          "root_post_author": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "is_liked_by_root_author": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "pinned_post_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "related_trends_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "is_post_unavailable": {
+                                            "type": "boolean",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "post_unavailable_reason": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "post_tombstone_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "hush_info": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          }
+                                        },
+                                        "required": [
+                                          "show_header_follow",
+                                          "id",
+                                          "self_thread_info",
+                                          "is_spoiler_media",
+                                          "is_markup",
+                                          "ghost_post_exp_time_ms",
+                                          "ghost_post_approximate_like_count_str",
+                                          "ghost_post_reply_type",
+                                          "ghost_post_approximate_reply_count_str",
+                                          "is_ghost_post",
+                                          "direct_reply_count",
+                                          "repost_count",
+                                          "quote_count",
+                                          "reshare_count",
+                                          "custom_feed_preview_info",
+                                          "platform_podcast_episode_info",
+                                          "platform_podcast_info",
+                                          "link_preview_attachment",
+                                          "link_preview_response",
+                                          "linked_inline_media",
+                                          "snippet_attachment_info",
+                                          "special_effects_enabled_str",
+                                          "algo_tweaks_info",
+                                          "text_fragments",
+                                          "share_info",
+                                          "is_reply",
+                                          "reply_to_author",
+                                          "system_status_message",
+                                          "reply_control",
+                                          "private_reply_partner",
+                                          "self_thread_count",
+                                          "tag_header",
+                                          "root_post_author",
+                                          "is_liked_by_root_author",
+                                          "pinned_post_info",
+                                          "related_trends_info",
+                                          "is_post_unavailable",
+                                          "post_unavailable_reason",
+                                          "post_tombstone_info",
+                                          "hush_info"
+                                        ],
+                                        "inferred_from_samples": 10
+                                      },
+                                      "is_paid_partnership": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "audio": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "caption": {
+                                        "type": "object",
+                                        "properties": {
+                                          "text": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "pk": {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          },
+                                          "has_translation": {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          }
+                                        },
+                                        "required": [
+                                          "text",
+                                          "pk",
+                                          "has_translation"
+                                        ],
+                                        "inferred_from_samples": 10
+                                      },
+                                      "caption_is_edited": {
+                                        "type": "boolean",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "transcription_data": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "carousel_media": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "code": {
+                                        "type": "string",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "image_versions2": {
+                                        "type": "object",
+                                        "properties": {
+                                          "candidates": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "height": {
+                                                  "type": "integer",
+                                                  "inferred_from_samples": 13
+                                                },
+                                                "url": {
+                                                  "type": "string",
+                                                  "inferred_from_samples": 13
+                                                },
+                                                "width": {
+                                                  "type": "integer",
+                                                  "inferred_from_samples": 13
+                                                }
+                                              },
+                                              "required": [
+                                                "height",
+                                                "url",
+                                                "width"
+                                              ],
+                                              "inferred_from_samples": 13
+                                            },
+                                            "inferred_from_samples": 10
+                                          }
+                                        },
+                                        "required": [
+                                          "candidates"
+                                        ],
+                                        "inferred_from_samples": 10
+                                      },
+                                      "original_height": {
+                                        "type": "integer",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "original_width": {
+                                        "type": "integer",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "accessibility_caption": {
+                                        "type": "null",
+                                        "anyOf": [
+                                          {
+                                            "type": "null",
+                                            "inferred_from_samples": 10
+                                          },
+                                          {
+                                            "type": "string",
+                                            "inferred_from_samples": 10
+                                          }
+                                        ],
+                                        "inferred_from_samples": 10
+                                      },
+                                      "usertags": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "video_versions": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "has_audio": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "media_type": {
+                                        "type": "integer",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "caption_add_on": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "like_count": {
+                                        "type": "integer",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "giphy_media_info": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "media_overlay_info": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "metaPlace": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "meta_place": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "gen_ai_detection_method": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "taken_at": {
+                                        "type": "integer",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "organic_tracking_token": {
+                                        "type": "string",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "canonical_url": {
+                                        "type": "null",
+                                        "inferred_from_samples": 10
+                                      },
+                                      "like_and_view_counts_disabled": {
+                                        "type": "boolean",
+                                        "inferred_from_samples": 10
+                                      }
+                                    },
+                                    "required": [
+                                      "pk",
+                                      "id",
+                                      "logging_info_token",
+                                      "user",
+                                      "text_post_app_info",
+                                      "is_paid_partnership",
+                                      "audio",
+                                      "caption",
+                                      "caption_is_edited",
+                                      "transcription_data",
+                                      "carousel_media",
+                                      "code",
+                                      "image_versions2",
+                                      "original_height",
+                                      "original_width",
+                                      "accessibility_caption",
+                                      "usertags",
+                                      "video_versions",
+                                      "has_audio",
+                                      "media_type",
+                                      "caption_add_on",
+                                      "like_count",
+                                      "giphy_media_info",
+                                      "media_overlay_info",
+                                      "metaPlace",
+                                      "meta_place",
+                                      "gen_ai_detection_method",
+                                      "taken_at",
+                                      "organic_tracking_token",
+                                      "canonical_url",
+                                      "like_and_view_counts_disabled"
+                                    ],
+                                    "inferred_from_samples": 10
+                                  }
+                                },
+                                "required": [
+                                  "post"
+                                ],
+                                "inferred_from_samples": 10
+                              },
+                              "inferred_from_samples": 10
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "thread_items"
+                          ],
+                          "inferred_from_samples": 10
+                        },
+                        "cursor": {
+                          "type": "string",
+                          "inferred_from_samples": 10
+                        },
+                        "node": {
+                          "type": "object",
+                          "properties": {
+                            "__typename": {
+                              "type": "string",
+                              "inferred_from_samples": 10
+                            },
+                            "id": {
+                              "type": "string",
+                              "inferred_from_samples": 10
+                            }
+                          },
+                          "required": [
+                            "__typename",
+                            "id"
+                          ],
+                          "inferred_from_samples": 10
+                        }
+                      },
+                      "required": [
+                        "text_post_app_thread",
+                        "cursor",
+                        "node"
+                      ],
+                      "inferred_from_samples": 10
+                    },
+                    "inferred_from_samples": 1
+                  },
+                  "page_info": {
+                    "type": "object",
+                    "properties": {
+                      "end_cursor": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "has_next_page": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "has_previous_page": {
+                        "type": "boolean",
+                        "inferred_from_samples": 1
+                      },
+                      "start_cursor": {
+                        "type": "null",
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "end_cursor",
+                      "has_next_page",
+                      "has_previous_page",
+                      "start_cursor"
+                    ],
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "edges",
+                  "page_info"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "feedData"
+            ],
+            "inferred_from_samples": 1
+          },
+          "extensions": {
+            "type": "object",
+            "properties": {
+              "is_final": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              },
+              "server_metadata": {
+                "type": "object",
+                "properties": {
+                  "request_start_time_ms": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  },
+                  "time_at_flush_ms": {
+                    "type": "integer",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "request_start_time_ms",
+                  "time_at_flush_ms"
+                ],
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "is_final",
+              "server_metadata"
+            ],
+            "inferred_from_samples": 1
+          },
+          "status": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "data",
+          "extensions",
+          "status"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "rNuPGYx949pZgdtzJYB_O",
+      "method": "POST",
+      "url_template": "https://www.threads.com/ajax/bz",
+      "headers_template": {
+        "sec-ch-ua-full-version-list": "\"Not:A-Brand\";v=\"99.0.0.0\", \"HeadlessChrome\";v=\"145.0.7632.6\", \"Chromium\";v=\"145.0.7632.6\"",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.threads.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-model": "\"\"",
+        "sec-ch-ua-mobile": "?0",
+        "x-asbd-id": "359341",
+        "x-fb-lsd": "AdTEWolkfBQW8TxXVst3okvDspw",
+        "sec-ch-prefers-color-scheme": "light",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "content-type": "multipart/form-data; boundary=----WebKitFormBoundarysUep23fHdSEj2R6Z",
+        "sec-ch-ua-platform-version": "\"10_15_7\""
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "wVC6dU2qQjLqsk4y0y2TM",
+      "method": "GET",
+      "url_template": "https://www.threads.net/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "EHlCC5BCfI9UDpv_wleuW",
+      "method": "GET",
+      "url_template": "https://www.threads.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "hr6vIDQAwPvIs0ctqgT0o",
+      "method": "GET",
+      "url_template": "https://www.instagram.com/accounts/xusername/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.threads.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "SAq-Z6j7ThUMbQ-R454oT",
+      "method": "GET",
+      "url_template": "https://external.fslc3-2.fna.fbcdn.net/emg1/v/t13/{id}",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.threads.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "url": "https://www.youtube.com/s/desktop/a719cc08/img/favicon_144x144.png",
+        "utld": "youtube.com",
+        "stp": "dst-png_s42x42",
+        "_nc_gid": "GnxYDPAiujjN3HhwD6zDdw",
+        "_nc_oc": "AdkIlmcITVycypcOW5gE8Sar5yEImI1tUmaRLjX2m4_b8XTbjFTfmfdTuuH2Yx9L9RV5dQ3IiVDryqqonmiML6R8",
+        "ccb": "13-1",
+        "oh": "06_Q3-8AXgOs1uefuaO_rmA-rXl5jmNaRJ4B3PVAoZ6xHQYkyL2",
+        "oe": "699DCBEA",
+        "_nc_sid": "1d65fc"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.threads.net-session"
+}

@@ -1,0 +1,149 @@
+{
+  "skill_id": "01f562fa-6e1f-46f6-826a-e26c8b5445d7",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-17T11:26:34.717Z",
+  "updated_at": "2026-02-17T14:17:05.379Z",
+  "name": "olx-in",
+  "intent_signature": "Interact with OLX India to navigate product",
+  "domain": "www.olx.in",
+  "description": "Interact with OLX India to navigate product",
+  "owner_type": "marketplace",
+  "auth_type": "Bearer Token",
+  "service_name": "olx-in",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--_bm-get_params",
+      "method": "GET",
+      "url_template": "https://www.olx.in/_bm/get_params",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--getconfig-sodar",
+      "method": "GET",
+      "url_template": "https://www.olx.in/getconfig/sodar",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--sid",
+      "method": "GET",
+      "url_template": "https://www.olx.in/sid",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "GET--translations",
+      "method": "GET",
+      "url_template": "https://www.olx.in/translations",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--.well-known-private-aggregation-report-shared-storage",
+      "method": "POST",
+      "url_template": "https://www.olx.in/.well-known/private-aggregation/report-shared-storage",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--akam-13-pixel_3feed3d7",
+      "method": "POST",
+      "url_template": "https://www.olx.in/akam/13/pixel_3feed3d7",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--events",
+      "method": "POST",
+      "url_template": "https://www.olx.in/events",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--SO-hgbHe7-G-B-WVJQyawKIQZ_ZQ_k-7tEaXGXzkthSVh3h-bgAfAQ-HDl-3LDMkXGYB",
+      "method": "POST",
+      "url_template": "https://www.olx.in/SO-hgbHe7/G/B/WVJQyawKIQZ_ZQ_k/7tEaXGXzkthSVh3h/bgAfAQ/HDl/3LDMkXGYB",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    },
+    {
+      "endpoint_id": "POST--xmfXF-wG-TL--Mkw-yEwKhP9-uD9fD2b9E1X7wL-IhkYIg-D3-kiCERnAAkB",
+      "method": "POST",
+      "url_template": "https://www.olx.in/xmfXF/wG/TL/-Mkw/yEwKhP9/uD9fD2b9E1X7wL/IhkYIg/D3/kiCERnAAkB",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "AF1LVx2EE9DgpNgQLiLJdDepFDWtERJ7Zu3rpDumaV42",
+    "download_count": 0,
+    "total_versions": 7,
+    "latest_version_hash": "b73308821dd76c4b6c0e265003377f4544dd04f85db5d977ee1b19112992c82a"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: olx-in\ndescription: Internal API for olx-in\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.olx.in\"\n  authMethod: \"Bearer Token\"\n  endpointCount: 14\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# OlxIn API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nBearer Token — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (5)\n- `GET /{id}` — Retrieve details of a specific listing by ID.\n- `GET /api/bxp/bundles` — Get available bundles for listings.\n- `GET /api/bxp/v2/navigation-trees/default` — Fetch the default navigation tree.\n- `GET /api/locations/popular` — Retrieve popular locations for listings.\n- `GET /widgets/livechat/assets/i18n/start/en.json` — Get live chat translation data.\n\n### Data Write (4)\n- `POST /.well-known/private-aggregation/report-shared-storage` — Report shared storage data.\n- `POST /prebid/v1` — Submit prebid data (v1).\n- `POST /ut/v3/prebid` — Submit prebid data.\n- `POST /xmfXF/wG/TL/-Mkw/yEwKhP9/uD9fD2b9E1X7wL/IhkYIg/D3/kiCERnAAkB` — Submit data (purpose unclear).\n\n### Realtime (1)\n- `POST /events` — Post events (likely listing updates).\n\n### Config (4)\n- `GET /_bm/get_params` — Retrieve parameters.\n- `GET /api/config/event_house` — Get configuration for event houses.\n- `GET /getconfig/sodar` — Get SODAR configuration.\n- `GET /ng-public/versions.json` — Get the current application versions.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"olx-in\", executionMode: \"backend\", endpoint: \"GET /{id}\" }\n```\n\nHere are a few examples to get you started using the `olx-in` API.\n\n```typescript\n// Retrieve details for a specific listing by its ID.\nasync function getListingDetails(listingId: string) {\n  try {\n    const listing = await client.getListingById(listingId);\n    console.log(\"Listing Details:\", listing);\n    return listing;\n  } catch (error) {\n    console.error(\"Error fetching listing details:\", error);\n    return null;\n  }\n}\n\nconst listingId = \"1234567890\"; // Replace with a valid listing ID\ngetListingDetails(listingId);\n```\n\n```typescript\n// Fetch popular locations for listings.\nasync function getPopularLocations() {\n  try {\n    const locations = await client.getPopularLocations();\n    console.log(\"Popular Locations:\", locations);\n    return locations;\n  } catch (error) {\n    console.error(\"Error fetching popular locations:\", error);\n    return null;\n  }\n}\n\ngetPopularLocations();\n```\n\n```typescript\n// Post an event (likely a listing update).\nasync function postListingEvent(eventData: any) {\n  try {\n    const response = await client.postEvent(eventData);\n    console.log(\"Event Post Response:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error posting event:\", error);\n    return null;\n  }\n}\n\nconst eventData = {\n  listingId: \"1234567890\",\n  status: \"updated\",\n  price: 15000\n};\n\npostListingEvent(eventData);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Bearer Token\n**Base URL:** `https://www.olx.in`\n**Captured Auth:** 4 auth headers\n\n## About This Skill\n\nThis skill provides access to Olx In's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Olx In data without official API access\n- Automate actions on www.olx.in (faster than browser automation)\n- Call the same endpoints the Olx In frontend uses\n\n## Quick Start\n\n```typescript\nimport { OlxInClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await OlxInClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 4 (authorization, x-csrf-token, livepipeline-session, x-twitter-auth-type)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (23)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /_bm/get_params`\n- `GET /api/bxp/bundles`\n- `GET /api/bxp/v2/navigation-trees/default`\n- `GET /api/config/event_house`\n- `GET /api/locations/popular`\n- `GET /getconfig/sodar`\n- `GET /ng-public/versions.json`\n- `GET /sid`\n- `GET /translations`\n- `GET /widgets/livechat/assets/i18n/start/en.json`\n- `POST /.well-known/private-aggregation/report-shared-storage`\n- `POST /akam/13/pixel_3feed3d7`\n- `POST /events`\n- `POST /prebid/v1`\n- `POST /SO-hgbHe7/G/B/WVJQyawKIQZ_ZQ_k/7tEaXGXzkthSVh3h/bgAfAQ/HDl/3LDMkXGYB`\n- `POST /ut/v3/prebid`\n- `POST /xmfXF/wG/TL/-Mkw/yEwKhP9/uD9fD2b9E1X7wL/IhkYIg/D3/kiCERnAAkB`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /_bm/get_params`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/bxp/bundles`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/bxp/v2/navigation-trees/default`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/config/event_house`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/locations/popular`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /getconfig/sodar`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /ng-public/versions.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /sid`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /translations`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /widgets/livechat/assets/i18n/start/en.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /.well-known/private-aggregation/report-shared-storage`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /akam/13/pixel_3feed3d7`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /events`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /prebid/v1`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /SO-hgbHe7/G/B/WVJQyawKIQZ_ZQ_k/7tEaXGXzkthSVh3h/bgAfAQ/HDl/3LDMkXGYB`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /ut/v3/prebid`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /xmfXF/wG/TL/-Mkw/yEwKhP9/uD9fD2b9E1X7wL/IhkYIg/D3/kiCERnAAkB`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

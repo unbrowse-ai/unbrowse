@@ -1,0 +1,75 @@
+{
+  "skill_id": "a0f34bad-1238-483d-bfab-52bbd8118778",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T14:18:59.234Z",
+  "updated_at": "2026-02-19T14:19:01.557Z",
+  "name": "bellingram-co-uk",
+  "intent_signature": "Interact with Bell Ingram's",
+  "domain": "www.bellingram.co.uk",
+  "description": "Interact with Bell Ingram's",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "bellingram-co-uk",
+  "endpoints": [
+    {
+      "endpoint_id": "453c6be1-86de-435b-8191-020aa3fa82ba",
+      "method": "GET",
+      "url_template": "https://www.bellingram.co.uk/__endpoint/453c6be1-86de-435b-8191-020aa3fa82ba",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEndpointById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "97219685-c910-4202-adb1-77f32778dead",
+      "method": "GET",
+      "url_template": "https://www.bellingram.co.uk/__endpoint/97219685-c910-4202-adb1-77f32778dead",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getFeedbackSchema",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "26dea494-4c4a-4bd0-86db-7ba8ea80da3d",
+      "method": "POST",
+      "url_template": "https://www.bellingram.co.uk/__endpoint/26dea494-4c4a-4bd0-86db-7ba8ea80da3d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createEvents",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "EuBoRYJjVzDWftRmeuYmEceQDbGWLGmtzBixBCyQwWNM",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "6eeecab79a9ec622fb802d109b7171b806a4701013bf056f4389a8e59da208dd"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: bellingram-co-uk\ndescription: Internal API for bellingram-co-uk\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.bellingram.co.uk\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 2\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# BellingramCoUk API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /wp-json/contact-form-7/v1/contact-forms/{contact-formId}/feedback/schema` — Get the schema for a specific Contact Form 7 form.\n\n### Realtime (1)\n- `POST /events` — Receive real-time event notifications.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"bellingram-co-uk\", executionMode: \"backend\", endpoint: \"GET /wp-json/contact-form-7/v1/contact-forms/{contact-formId}/feedback/schema\" }\n```\n\nHere's a quick start to using the `bellingram-co-uk` API with an AI agent.\n\nGet the schema for a Contact Form 7 form:\n\n```typescript\n// Retrieve the schema for form ID 5.\nasync function getSchema() {\n  const schema = await client.get_wp_json_contact_form_7_v1_contact_forms_contact_formId_feedback_schema({ contact_formId: 5 });\n  console.log(schema);\n  return schema;\n}\n\ngetSchema();\n```\n\nSubscribe to real-time events:\n\n```typescript\n// Subscribe to receive real-time event notifications.\nasync function subscribeToEvents() {\n  client.post_events({\n    // Define your event subscription criteria here.\n    // Example: Subscribe to all events.\n  });\n  console.log(\"Subscribed to events.\");\n}\n\nsubscribeToEvents();\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.bellingram.co.uk`\n**Captured Auth:** 1 auth headers, 5 session cookies\n\n## About This Skill\n\nThis skill provides access to Bellingram Co Uk's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Bellingram Co Uk data without official API access\n- Automate actions on www.bellingram.co.uk (faster than browser automation)\n- Call the same endpoints the Bellingram Co Uk frontend uses\n\n## Quick Start\n\n```typescript\nimport { BellingramCoUkClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await BellingramCoUkClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 5\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (3)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /0f23125d-2161-4458-baa7-7ecc8051e5db`\n- `GET /wp-json/contact-form-7/v1/contact-forms/2955/feedback/schema`\n- `POST /events`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /0f23125d-2161-4458-baa7-7ecc8051e5db`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /wp-json/contact-form-7/v1/contact-forms/2955/feedback/schema`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /events`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

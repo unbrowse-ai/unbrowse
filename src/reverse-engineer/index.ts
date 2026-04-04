@@ -1,12 +1,13 @@
 import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
-import type { CsrfPlan, EndpointDescriptor, WsMessage } from "../types/index.js";
+import type { CsrfPlan, EndpointDescriptor, EndpointPathBindingCandidate, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
-import { inferEndpointSemantic } from "../graph/index.js";
+import { inferEndpointSemantic, resolveEndpointPathBindings } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
-
+import { buildDescriptionPrompt, groundedDescription, extractResponseKeys, inferDescriptionParams } from "./description-prompt.js";
+import { isRscPayload, extractRscDataEndpoints } from "../capture/rsc.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
 const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
@@ -53,6 +54,19 @@ const STRIP_HEADER_PREFIXES = [
   "x-stripe-",        // Stripe API headers
   "x-firebase-",      // Firebase auth headers
 ];
+
+// Browser-captured headers that are not secrets themselves, but are still
+// required to replay authenticated requests after publish-time header redaction.
+const REPLAY_HEADER_PREFIXES = [
+  "x-li-",
+];
+const REPLAY_HEADER_EXACT = new Set([
+  "accept",
+  "csrf-token",
+  "origin",
+  "x-requested-with",
+  "x-restli-protocol-version",
+]);
 
 // Headers known to be safe (non-sensitive) — used by the catch-all filter below
 const SAFE_HEADERS = new Set([
@@ -164,23 +178,47 @@ function buildEndpointDescription(
   sampleResponse: unknown,
 ): string {
   const url = new URL(req.url);
-  const pathTail = url.pathname.split("/").filter(Boolean).slice(-2).join(" ");
-  const requestKeys = Object.keys(sampleRequest).slice(0, 4);
-  const response = summarizeResponseExample(sampleResponse);
-  const action = requestKeys.some((key) => /^(q|query|search|term)$/i.test(key)) || /search|find|lookup/.test(url.pathname)
-    ? "Searches"
-    : /status|health|incident|maintenance/.test(url.pathname)
-      ? "Returns status for"
-      : url.pathname.match(/\{[^}]+\}|\/[0-9A-Za-z_-]{4,}(\/|$)/)
-        ? "Returns details for"
-        : "Returns";
-  const subjectSource = new Set(["response", "data", "result", "results", "item", "items"]).has(response.subject.toLowerCase())
-    ? inferPathSubject(url.pathname)
-    : response.subject;
-  const subject = titleCase(subjectSource === "response" ? (pathTail || url.hostname) : subjectSource);
-  const fieldText = response.fields.length > 0 ? ` with ${response.fields.join(", ")}` : "";
-  const inputText = requestKeys.length > 0 ? ` using ${requestKeys.join(", ")}` : "";
-  return `${action} ${subject}${fieldText}${inputText}`;
+
+  // Build param descriptors from the flattened sample request so the
+  // description is grounded in the actual parameters observed at capture time.
+  const locationHints = Object.fromEntries(
+    Object.keys(sampleRequest).map((key) => [
+      key,
+      url.searchParams.has(key) ? "query"
+        : url.pathname.includes(`{${key}}`) ? "path"
+        : "body",
+    ]),
+  );
+  const params = inferDescriptionParams(sampleRequest, locationHints);
+
+  const responseKeys = extractResponseKeys(sampleResponse);
+  const dependencyBindings = Array.from(new Set([
+    ...Object.keys(sampleRequest),
+    ...responseKeys.filter((key) => /(id|slug|cursor|page|date|token|status|type|name)/i.test(key)),
+  ]));
+  const searchTerms = Array.from(new Set([
+    ...url.pathname.split("/").filter(Boolean),
+    ...Object.keys(sampleRequest),
+    ...responseKeys,
+  ])).slice(0, 24);
+
+  const ctx = {
+    url_template: req.url,
+    method: req.method,
+    params,
+    sample_response_keys: responseKeys.length > 0 ? responseKeys : undefined,
+    domain: url.hostname,
+    dependency_bindings: dependencyBindings,
+    search_terms: searchTerms,
+  };
+
+  // Build the grounding prompt (available for optional LLM polish in
+  // backend/services/descriptions.ts) and the deterministic description.
+  const _prompt = buildDescriptionPrompt(ctx);
+
+  // Use the grounded description builder from description-prompt.ts so
+  // every description references real params and response fields.
+  return groundedDescription(ctx);
 }
 
 function looksLikeAdResponse(body: string | undefined): boolean {
@@ -381,8 +419,8 @@ function inferCsrfPlan(req: RawRequest, parsedBody?: unknown): CsrfPlan | undefi
     Object.entries(req.request_headers).map(([key, value]) => [key.toLowerCase(), value]),
   );
   const cookies = parseCookieHeader(headers["cookie"]);
-  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf)$/i.test(name));
-  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
+  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf|jsessionid)$/i.test(name));
+  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken", "csrf-token"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
   if (headerName && csrfCookieNames.length > 0) {
     return {
       source: "cookie",
@@ -548,6 +586,8 @@ function scoreRequest(req: RawRequest): number {
   // Penalise Next.js RSC navigation requests — framework wire format, not data
   if (req.url.includes("_rsc=")) score -= 3;
   if (ct.includes("text/x-component")) score -= 10; // RSC wire format
+  // #227: Structural RSC body detection — catches payloads without URL/content-type hints
+  if (isRscPayload(req.response_body ?? "")) score -= 15;
   // Penalise on-domain noise (framework plumbing, recaptcha, consent, ad bids)
   try { if (ON_DOMAIN_NOISE.test(new URL(req.url).pathname)) score -= 15; } catch {}
   // Reward rich JSON responses (data endpoints have deep objects, noise has shallow)
@@ -600,7 +640,46 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       continue;
     }
     if (!hasAdmissibleParsedBody(req.response_body)) {
-      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
+      // API endpoints may have large/truncated/missing response bodies.
+      // Admit them anyway if the URL pattern is clearly an API endpoint.
+      const urlPath = (() => { try { return new URL(req.url).pathname; } catch { return ""; } })();
+      const isApiUrl = /\/(api|graphql)\b/i.test(urlPath) || /\.(json)(\?|$)/.test(req.url);
+
+      // For GraphQL: extract operationName from request body or URL
+      let graphqlOpName: string | undefined;
+      if (/graphql/i.test(req.url)) {
+        if (req.request_body) {
+          try {
+            const body = JSON.parse(req.request_body);
+            graphqlOpName = body.operationName ?? body.query?.match(/(?:query|mutation)\s+(\w+)/)?.[1];
+          } catch { /* not JSON */ }
+        }
+        // Also try extracting from URL query (GET GraphQL endpoints encode operationName in URL)
+        if (!graphqlOpName) {
+          const urlMatch = req.url.match(/\/graphql\/\w+\/(\w+)/);
+          if (urlMatch) graphqlOpName = urlMatch[1];
+        }
+      }
+
+      // For .json endpoints: use the last path segment as description
+      const jsonEndpointName = /\.(json)(\?|$)/.test(req.url) ? urlPath.split("/").pop()?.replace(".json", "") : undefined;
+
+      if (!isApiUrl) {
+        traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
+        continue;
+      }
+
+      // Inject a synthetic response body so downstream processing works
+      const syntheticName = graphqlOpName ?? jsonEndpointName ?? "api_endpoint";
+      req.response_body = JSON.stringify({ data: { __typename: syntheticName } });
+      req.response_headers = { ...req.response_headers, "content-type": "application/json" };
+    }
+    // #227: Reject React Server Components wire format payloads — they are framework
+    // rendering wire format, not data APIs. Use the proper RSC parser instead of
+    // relying solely on URL heuristics (_rsc=) or content-type (text/x-component).
+    if (isRscPayload(req.response_body ?? "")) {
+      const rscUrls = extractRscDataEndpoints(req.response_body ?? "");
+      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "rsc_payload", rsc_embedded_urls: rscUrls.length > 0 ? rscUrls : undefined });
       continue;
     }
     if (affinityDomains.size > 0) {
@@ -620,6 +699,16 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     scored.push({ req, score });
   }
   scored.sort((a, b) => b.score - a.score);
+
+  // For passive captures (no context page URL), pre-compute path templates across
+  // all candidate paths so individual endpoints can be annotated without needing
+  // collapseEndpoints' sibling grouping.
+  const minedTemplateMap = !context?.pageUrl
+    ? minePathTemplates(scored.map(({ req }) => {
+        try { return new URL(req.url).pathname; } catch { return ""; }
+      }).filter(Boolean))
+    : new Map<string, string>();
+
 
   for (const { req } of scored) {
     const normalized = normalizeUrl(req.url);
@@ -680,7 +769,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       : null;
 
     // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)
-    const { url: templatizedPath, pathParams } = templatizePathSegments(pathTemplate, req.url, context);
+    const { url: templatizedPath, pathParams, pathBindingCandidates } = templatizePathSegments(pathTemplate, req.url, context);
     pathTemplate = templatizedPath;
 
     const parsedRequestBody = !isGet && req.request_body ? tryParseBody(req.request_body) : undefined;
@@ -696,7 +785,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     });
     const csrfPlan = inferCsrfPlan(req, parsedRequestBody);
 
-    const endpoint: EndpointDescriptor = {
+    let endpoint: EndpointDescriptor = {
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
       url_template: qTemplateStr ? `${pathTemplate}?${qTemplateStr}` : pathTemplate,
@@ -713,7 +802,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       response_schema,
       // Record which page triggered this API call — used for trigger-and-intercept execution
       trigger_url: context?.pageUrl,
+      ...(pathBindingCandidates.length > 0 ? { _path_binding_candidates: pathBindingCandidates } : {}),
     };
+    endpoint = resolveEndpointPathBindings(endpoint);
     endpoint.semantic = inferEndpointSemantic(endpoint, {
       sampleResponse: compactForSemanticExample(sampleResponse),
       sampleRequest,
@@ -749,6 +840,12 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       action_kind: endpoint.semantic?.action_kind,
       resource_kind: endpoint.semantic?.resource_kind,
     });
+    // Annotate with mined template when available (passive capture, no page context)
+    try {
+      const pathname = new URL(req.url).pathname;
+      const mined = minedTemplateMap.get(pathname);
+      if (mined) endpoint._minedTemplate = mined;
+    } catch { /* ignore bad URLs */ }
     endpoints.push(endpoint);
   }
 
@@ -856,13 +953,17 @@ function normalizeUrl(rawUrl: string): string {
   try {
     const u = new URL(rawUrl);
     const path = u.pathname
-      .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{id}")
-      .replace(/\/\d{4,}/g, "/{id}")
-      .replace(/\/[a-f0-9]{24,}/gi, "/{id}")
-      // URN identifiers (e.g. urn:li:fsd_profile:ACoAAB3fei4B...)
-      .replace(/\/urn:[a-zA-Z0-9._-]+(?::[a-zA-Z0-9._-]+)+/g, "/{urn}")
-      // BUG-006: Comma-separated values are lists of identifiers (e.g. SPY,QQQ)
-      .replace(/\/([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+)(?=\/|$)/g, "/{list}");
+      .split("/")
+      .map((segment) => {
+        if (!segment) return segment;
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)) return "{id}";
+        if (/^\d{4,}$/.test(segment)) return "{id}";
+        if (/^[a-f0-9]{24,}$/i.test(segment)) return "{id}";
+        if (/^urn:[a-zA-Z0-9._-]+(?::[a-zA-Z0-9._-]+)+$/.test(segment)) return "{urn}";
+        if (/^[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+$/.test(segment)) return "{list}";
+        return segment;
+      })
+      .join("/");
     // Preserve queryId param for GraphQL endpoints so different queries aren't deduplicated
     const queryId = u.searchParams.get("queryId");
     if (queryId && path.includes("graphql")) {
@@ -897,6 +998,15 @@ function isSensitiveHeader(name: string): boolean {
   return false;
 }
 
+function isReplayCriticalHeader(name: string, value: string): boolean {
+  const lower = name.toLowerCase();
+  if (REPLAY_HEADER_EXACT.has(lower)) {
+    if (lower !== "accept") return true;
+    return /application\/vnd\./i.test(value);
+  }
+  return REPLAY_HEADER_PREFIXES.some((prefix) => lower.startsWith(prefix));
+}
+
 function sanitizeHeaders(headers: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(headers ?? {}).filter(([k]) => {
@@ -918,7 +1028,7 @@ export function extractAuthHeaders(requests: RawRequest[]): Record<string, strin
     for (const [k, v] of Object.entries(req.request_headers)) {
       const lower = k.toLowerCase();
       if (lower === "cookie" || lower === "content-length" || lower === "host") continue;
-      if (isSensitiveHeader(k) && !authHeaders[lower]) {
+      if ((isSensitiveHeader(k) || isReplayCriticalHeader(k, v)) && !authHeaders[lower]) {
         authHeaders[lower] = v;
       }
     }
@@ -967,22 +1077,41 @@ function extractEntityHints(context?: ExtractionContext): Set<string> {
       if (/^(en|es|fr|de|ja|zh|ko|api|v\d+|www|static|assets|public|pages|app)$/i.test(seg)) continue;
       if (seg.length > 40 || seg.length < 2) continue;
       hints.add(seg.toLowerCase());
+      const fileBase = stripFileExtension(seg);
+      if (fileBase !== seg && fileBase.length >= 2) hints.add(fileBase.toLowerCase());
     }
   } catch { /* skip */ }
   return hints;
+}
+
+function stripFileExtension(segment: string): string {
+  return segment.replace(/\.[a-z0-9]{1,8}$/i, "");
+}
+
+function looksLikeAcademicYear(segment: string): boolean {
+  return /^\d{4}-\d{4}$/.test(segment);
+}
+
+function looksLikeCodeIdentifier(segment: string): boolean {
+  return /^[A-Z]{2,}\d[A-Z0-9]*$/i.test(segment) && /[A-Z]/.test(segment) && /\d/.test(segment);
 }
 
 /**
  * Infer a meaningful param name from the preceding path segment.
  * e.g. /quote/{?} → {quote}, /coins/{?} → {coin}, /price_charts/{?} → {price_chart}
  */
-function inferParamName(segments: string[], index: number, fallback: string, usedNames: Set<string>): string {
+function inferParamName(
+  segments: string[],
+  index: number,
+  fallback: string,
+  usedNames: Set<string>,
+): string {
   let name = fallback;
   const prev = segments[index - 1];
   if (prev && !prev.startsWith("{") && prev.length > 1) {
     // Naive singularize: "coins" → "coin", "charts" → "chart"
     const base = prev.endsWith("s") && prev.length > 3 ? prev.slice(0, -1) : prev;
-    name = base.replace(/[^a-zA-Z0-9_]/g, "_");
+    name = base.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
   }
   // Ensure uniqueness
   let unique = name;
@@ -990,6 +1119,15 @@ function inferParamName(segments: string[], index: number, fallback: string, use
   while (usedNames.has(unique)) {
     unique = `${name}_${counter++}`;
   }
+  usedNames.add(unique);
+  return unique;
+}
+
+function nextPathPlaceholder(index: number, usedNames: Set<string>): string {
+  const base = `path_${index}`;
+  let unique = base;
+  let counter = 2;
+  while (usedNames.has(unique)) unique = `${base}_${counter++}`;
   usedNames.add(unique);
   return unique;
 }
@@ -1008,8 +1146,9 @@ function templatizePathSegments(
   templateUrl: string,
   originalUrl: string,
   context?: ExtractionContext,
-): { url: string; pathParams: Record<string, string> } {
+): { url: string; pathParams: Record<string, string>; pathBindingCandidates: EndpointPathBindingCandidate[] } {
   const pathParams: Record<string, string> = {};
+  const pathBindingCandidates: EndpointPathBindingCandidate[] = [];
 
   try {
     // Parse templateUrl manually to avoid encoding {braces}
@@ -1029,15 +1168,50 @@ function templatizePathSegments(
     for (let i = 0; i < tSegments.length; i++) {
       const tSeg = tSegments[i];
       const oSeg = oSegments[i] ?? tSeg;
+      const prevSeg = tSegments[i - 1];
+      const fileBase = stripFileExtension(tSeg);
+      const originalFileBase = stripFileExtension(oSeg);
 
       if (!tSeg) continue;
 
-      // Pattern 1: Already parameterized by normalizeUrl ({id}, {list}, {urn}) — capture defaults & rename
-      if (tSeg === "{id}" || tSeg === "{list}" || tSeg === "{urn}") {
-        const fallback = tSeg === "{list}" ? "list" : tSeg === "{urn}" ? "urn" : "id";
-        const paramName = inferParamName(tSegments, i, fallback, usedNames);
-        tSegments[i] = `{${paramName}}`;
-        pathParams[paramName] = oSeg;
+      // Pattern 1: Already parameterized by normalizeUrl — capture defaults & rename
+      const placeholderMatch = tSeg.match(/^\{([^}]+)\}$/);
+      if (placeholderMatch) {
+        const placeholder = nextPathPlaceholder(i, usedNames);
+        tSegments[i] = `{${placeholder}}`;
+        pathParams[placeholder] = oSeg;
+        pathBindingCandidates.push({
+          placeholder,
+          observed_value: oSeg,
+          segment_index: i,
+          source: "normalized_placeholder",
+          placeholder_hint: placeholderMatch[1] || "value",
+          preceding_segment: prevSeg,
+        });
+        continue;
+      }
+
+      const shouldTemplatizeFileBase =
+        fileBase !== tSeg &&
+        (
+          looksLikeCodeIdentifier(originalFileBase) ||
+          looksLikeAcademicYear(originalFileBase)
+        );
+
+      if (shouldTemplatizeFileBase) {
+        const placeholder = nextPathPlaceholder(i, usedNames);
+        const suffix = tSeg.slice(fileBase.length);
+        tSegments[i] = `{${placeholder}}${suffix}`;
+        pathParams[placeholder] = originalFileBase;
+        pathBindingCandidates.push({
+          placeholder,
+          observed_value: originalFileBase,
+          segment_index: i,
+          source: "file_basename",
+          preceding_segment: prevSeg,
+          filename_suffix: suffix,
+          matched_page_hint: hints.has(fileBase.toLowerCase()),
+        });
         continue;
       }
 
@@ -1047,18 +1221,74 @@ function templatizePathSegments(
       if (/^(api|v\d+|www|en|es|fr|de|latest|dex|search)$/i.test(tSeg)) continue;
       if (/^@?me$/i.test(tSeg) || /^self$/i.test(tSeg)) continue;
 
+      if (looksLikeAcademicYear(oSeg) || (/^(semesters?)$/i.test(prevSeg ?? "") && /^\d{1,2}$/.test(oSeg))) {
+        const placeholder = nextPathPlaceholder(i, usedNames);
+        tSegments[i] = `{${placeholder}}`;
+        pathParams[placeholder] = oSeg;
+        pathBindingCandidates.push({
+          placeholder,
+          observed_value: oSeg,
+          segment_index: i,
+          source: "segment_pattern",
+          preceding_segment: prevSeg,
+        });
+        continue;
+      }
+
       // Pattern 2: Segment matches a page URL entity hint (case-insensitive)
-      if (hints.size > 0 && hints.has(tSeg.toLowerCase())) {
+      if (hints.size > 0 && (hints.has(tSeg.toLowerCase()) || hints.has(fileBase.toLowerCase()))) {
         const paramName = inferParamName(tSegments, i, "slug", usedNames);
         tSegments[i] = `{${paramName}}`;
         pathParams[paramName] = oSeg;
+        pathBindingCandidates.push({
+          placeholder: paramName,
+          observed_value: oSeg,
+          segment_index: i,
+          source: "page_hint",
+          preceding_segment: prevSeg,
+          matched_page_hint: true,
+        });
         continue;
+      }
+
+      // Pattern 3: Context-diff — endpoint URL segment differs from page URL at same position.
+      // If the page URL has a different value at this position, this segment is likely an entity
+      // that should be parameterized. e.g. page=/r/singularity/ endpoint=/r/programming/.json
+      if (context?.pageUrl) {
+        try {
+          const contextSegments = new URL(context.pageUrl).pathname.split("/");
+          const contextSeg = contextSegments[i];
+          const prevSeg = tSegments[i - 1] ?? "";
+          const prevContextSeg = contextSegments[i - 1] ?? "";
+          const nextSeg = tSegments[i + 1] ?? "";
+          const nextContextSeg = contextSegments[i + 1] ?? "";
+          const hasStructuralNeighborMatch =
+            (!!prevSeg && !!prevContextSeg && prevSeg === prevContextSeg) ||
+            (!!nextSeg && !!nextContextSeg && nextSeg === nextContextSeg);
+          if (contextSeg && contextSeg !== tSeg &&
+              hasStructuralNeighborMatch &&
+              !contextSeg.includes(".") &&
+              contextSeg.length >= 2 && contextSeg.length <= 40 &&
+              !/^(api|v\d+|www|en|es|fr|de|latest|search|i)$/i.test(contextSeg)) {
+            const paramName = inferParamName(tSegments, i, "slug", usedNames);
+            tSegments[i] = `{${paramName}}`;
+            pathParams[paramName] = contextSeg; // use context URL value as default
+            pathBindingCandidates.push({
+              placeholder: paramName,
+              observed_value: contextSeg,
+              segment_index: i,
+              source: "context_diff",
+              preceding_segment: prevSeg,
+            });
+            continue;
+          }
+        } catch { /* skip */ }
       }
     }
 
-    return { url: `${tOrigin}${tSegments.join("/")}`, pathParams };
+    return { url: `${tOrigin}${tSegments.join("/")}`, pathParams, pathBindingCandidates };
   } catch {
-    return { url: templateUrl, pathParams };
+    return { url: templateUrl, pathParams, pathBindingCandidates };
   }
 }
 
@@ -1098,6 +1328,18 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
  * Used by collapseEndpoints to avoid merging distinct API actions
  * like /relationships/connectionsSummary + /relationships/invitationsSummary.
  */
+/** Compute Shannon entropy (bits per character) for a string. */
+function computeEntropy(s: string): number {
+  const freq = new Map<string, number>();
+  for (const ch of s) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  let h = 0;
+  for (const count of freq.values()) {
+    const p = count / s.length;
+    h -= p * Math.log2(p);
+  }
+  return h;
+}
+
 function looksLikeEntityId(segment: string): boolean {
   if (segment.startsWith("{")) return true;
   // UUID (with or without dashes)
@@ -1112,6 +1354,12 @@ function looksLikeEntityId(segment: string): boolean {
   if (/^[A-Z]{1,5}(\.[A-Z])?$/.test(segment)) return true;
   // Comma-separated lists
   if (segment.includes(",")) return true;
+  // Base64-encoded IDs: mixed case with = padding
+  if (/^[A-Za-z0-9+/]{6,}={1,2}$/.test(segment)) return true;
+
+  // High-entropy strings are likely encoded IDs (tokens, hashes, opaque cursors, etc.)
+  const entropy = computeEntropy(segment);
+  if (entropy > 3.5 && segment.length > 5) return true;
 
   // === NOT an entity ID — these are action/resource names ===
   // camelCase: lowercase letter followed by uppercase (e.g., connectionsSummary)
@@ -1120,6 +1368,9 @@ function looksLikeEntityId(segment: string): boolean {
   if (/[a-z][_-][a-z]/i.test(segment)) return false;
   // Pure lowercase alphabetic word 3+ chars (REST resource: "connections", "settings")
   if (/^[a-z]{3,}$/.test(segment)) return false;
+
+  // Low-entropy strings are likely readable names, not IDs
+  if (entropy < 2.5 && segment.length > 3) return false;
 
   // Ambiguous — allow collapsing (conservative)
   return true;
@@ -1139,6 +1390,71 @@ function looksLikeEntityId(segment: string): boolean {
  * Only collapses when the majority (>50%) of varying segments look like entity
  * IDs, NOT distinct action/resource names (camelCase, REST words).
  */
+
+/**
+ * Mine path templates from a batch of URL paths that lack a context page URL.
+ * Builds a prefix trie and identifies positions where enough distinct children
+ * look like entity IDs, replacing them with `{id}` placeholders.
+ *
+ * @param paths - Array of URL pathnames (e.g. "/api/users/123/posts")
+ * @param maxChildren - Minimum distinct values at a position to trigger wildcarding (default 4)
+ * @returns Map from original path to templated path (only paths that changed are included)
+ */
+export function minePathTemplates(
+  paths: string[],
+  maxChildren = 4,
+): Map<string, string> {
+  // Build a prefix trie: prefix → Map<segment, count>
+  const trie = new Map<string, Map<string, number>>();
+
+  for (const path of paths) {
+    const segments = path.split("/").filter(Boolean);
+    for (let i = 0; i < segments.length; i++) {
+      const prefix = "/" + segments.slice(0, i).join("/");
+      const children = trie.get(prefix) ?? new Map<string, number>();
+      const seg = segments[i];
+      children.set(seg, (children.get(seg) ?? 0) + 1);
+      trie.set(prefix, children);
+    }
+  }
+
+  // Identify wildcard prefixes: positions where distinct children >= maxChildren
+  // AND more than 50% of those children look like entity IDs.
+  const wildcardPrefixes = new Set<string>();
+  for (const [prefix, children] of trie) {
+    if (children.size < maxChildren) continue;
+    const segs = Array.from(children.keys());
+    const entityCount = segs.filter((s) => looksLikeEntityId(s)).length;
+    if (entityCount / segs.length > 0.5) {
+      wildcardPrefixes.add(prefix);
+    }
+  }
+
+  if (wildcardPrefixes.size === 0) return new Map();
+
+  // Build original → template map for paths that contain wildcarded positions.
+  const result = new Map<string, string>();
+  for (const path of paths) {
+    const segments = path.split("/").filter(Boolean);
+    const templated: string[] = [];
+    let changed = false;
+    for (let i = 0; i < segments.length; i++) {
+      const prefix = "/" + segments.slice(0, i).join("/");
+      if (wildcardPrefixes.has(prefix)) {
+        templated.push("{id}");
+        changed = true;
+      } else {
+        templated.push(segments[i]);
+      }
+    }
+    if (changed) {
+      result.set(path, "/" + templated.join("/"));
+    }
+  }
+
+  return result;
+}
+
 function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
   // Group by method + origin + all-but-last path segment
   const groups = new Map<string, EndpointDescriptor[]>();

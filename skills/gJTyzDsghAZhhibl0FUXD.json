@@ -1,0 +1,477 @@
+{
+  "skill_id": "gJTyzDsghAZhhibl0FUXD",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:52:17.174Z",
+  "updated_at": "2026-02-23T07:52:17.174Z",
+  "name": "cyberresilience.com -- Manage Cyber Resilience web configurations",
+  "intent_signature": "Manage Cyber Resilience web configurations",
+  "domain": "cyberresilience.com",
+  "description": "Auto-discovered skill for: Manage Cyber Resilience web configurations",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "b_G25kFECZ9hy0MoqZqez",
+      "method": "GET",
+      "url_template": "https://cyberresilience.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "faSFqUL4W0nn8NTKlpDnt",
+      "method": "GET",
+      "url_template": "https://dev.visualwebsiteoptimizer.com/j.php",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "a": "840025",
+        "u": "https://cyberresilience.com/",
+        "vn": "2.2",
+        "ph": "1",
+        "p": "web",
+        "st": "365.5",
+        "x": "true"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "mL5h23eWQijzZQwRzEoXJ",
+      "method": "GET",
+      "url_template": "https://www.youtube.com/iframe_api",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "QjRRrDrcuSWqU8ZshpzDo",
+      "method": "GET",
+      "url_template": "https://cyberresilience.com/wp-json/complianz/v1/banner",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "lang": "en",
+        "locale": "en_US"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "consenttype": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "region": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "forceEnableStats": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "banner_version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "consenttype",
+          "region",
+          "version",
+          "forceEnableStats",
+          "banner_version"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "bX1uT3eYOWT_Dehgt2TvB",
+      "method": "GET",
+      "url_template": "https://cyberresilience.comhttps://cyberresilience.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "UrwXxziBctuX5MbyI5HN7",
+      "method": "GET",
+      "url_template": "https://pixel-config.reddit.com/pixels/a2_gs1fbdmd84p4/config",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "aam": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "boolean",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "email"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "aam"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "sWNAFf0tl2ywRgztXq1zy",
+      "method": "GET",
+      "url_template": "https://forms.hscollectedforms.net/collected-forms/v1/config/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "4526209",
+        "utk": ""
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "portalId": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          },
+          "submissionsApiDomain": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "reportScraperTest": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "formCaptureEnabled": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "token": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "portalId",
+          "submissionsApiDomain",
+          "reportScraperTest",
+          "formCaptureEnabled",
+          "token"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "EmgDUs7lvslkFGYB0GfpV",
+      "method": "GET",
+      "url_template": "https://cta-service-cms2.hubspot.com/web-interactives/public/v1/embed/combinedConfigs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "4526209",
+        "currentUrl": "https://cyberresilience.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "sortedAudienceConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "requestedConfigs": {
+            "type": "array",
+            "inferred_from_samples": 1
+          },
+          "gates": {
+            "type": "array",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "sortedAudienceConfigs",
+          "requestedConfigs",
+          "gates"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "y-NmGQsO7Y2qPdQLqHRy3",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Lato:ital,wght@0,400;0,700;1,400",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "NQ2b9kjgQzb8m18GQ5ENk",
+      "method": "GET",
+      "url_template": "https://api.hubapi.com/hs-script-loader-public/v2/config/pixels-and-events/json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "portalId": "4526209"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "pixels": {
+            "type": "object",
+            "properties": {
+              "ADWORDS": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pixelId": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "limitedDataUseEnabled": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "pixelInitializer": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "pixelId",
+                    "limitedDataUseEnabled",
+                    "pixelInitializer"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              },
+              "LINKEDIN": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pixelId": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    },
+                    "limitedDataUseEnabled": {
+                      "type": "boolean",
+                      "inferred_from_samples": 1
+                    },
+                    "pixelInitializer": {
+                      "type": "string",
+                      "inferred_from_samples": 1
+                    }
+                  },
+                  "required": [
+                    "pixelId",
+                    "limitedDataUseEnabled",
+                    "pixelInitializer"
+                  ],
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "ADWORDS",
+              "LINKEDIN"
+            ],
+            "inferred_from_samples": 1
+          },
+          "enhancedConversionEventSettings": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "pixels",
+          "enhancedConversionEventSettings"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "8z3DCozVl2MjbQo732_UJ",
+      "method": "GET",
+      "url_template": "https://px.ads.linkedin.com/attribution_trigger",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "accept": "*",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "pid": "4015572",
+        "time": "1771833132455",
+        "url": "https://cyberresilience.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "Oa_kElBxw6D2r2h_GFLvl",
+      "method": "GET",
+      "url_template": "https://px.ads.linkedin.com/collect",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://cyberresilience.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "v": "2",
+        "fmt": "js",
+        "pid": "4015572",
+        "time": "1771833132455",
+        "li_adsId": "dad2a1f4-7825-4158-83c1-ff33df80c336",
+        "url": "https://cyberresilience.com/"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "grGtw8_n81sC46aEU7a_5",
+      "method": "GET",
+      "url_template": "https://www.linkedin.com/px/li_sync",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://cyberresilience.com/"
+      },
+      "query": {
+        "redirect": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=4015572&time=1771833132455&li_adsId=dad2a1f4-7825-4158-83c1-ff33df80c336&url=https%3A%2F%2Fcyberresilience.com%2F&cookiesTest=true&liSync=true"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "OYBgQUx3i45-c1kwT0fu7",
+      "method": "GET",
+      "url_template": "https://px4.ads.linkedin.com/collect",
+      "headers_template": {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://cyberresilience.com/"
+      },
+      "query": {
+        "v": "2",
+        "fmt": "js",
+        "pid": "4015572",
+        "time": "1771833132455",
+        "li_adsId": "dad2a1f4-7825-4158-83c1-ff33df80c336",
+        "url": "https://cyberresilience.com/",
+        "cookiesTest": "true",
+        "liSync": "true",
+        "e_ipv6": "AQLOGyn2sxMvsAAAAZyJfAiby-RvL93YNrFrbQX6J-gOXoqSVQamacjEZNT8WvPxm-0LW4GEnx_5ytYNG-o_IEClfxEQc_7H"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "cyberresilience.com-session"
+}

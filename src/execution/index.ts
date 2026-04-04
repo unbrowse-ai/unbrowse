@@ -1,28 +1,60 @@
 import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
+import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
+import { resolvePreExecutionAuth } from "../auth/dependency-runtime.js";
+import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
-import { generateExtractionHints } from "../transform/schema-hints.js";
-import { recordExecution, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
+import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
-import { buildSkillOperationGraph, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
+import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
 import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
-
+import { isStructuredSearchForm, detectSearchForms, type SearchFormSpec } from "./search-forms.js";
+import { attributeLifecycle, type LifecycleEvent, type LifecyclePhase } from "../runtime/lifecycle.js";
+import { queueBackgroundIndex } from "../indexer/index.js";
+import {
+  writeSkillSnapshot,
+  domainSkillCache,
+  persistDomainCache,
+  getDomainReuseKey,
+  scopedCacheKey,
+  buildResolveCacheKey,
+  snapshotPathForCacheKey,
+  generateLocalDescription,
+} from "../orchestrator/index.js";
+import { checkPaymentRequirement } from "../payments/index.js";
+import { isAllowedByRobots } from "./robots.js";
+import { annotateEndpointPolicy, endpointRequiresThirdPartyTermsConfirmation, getEndpointPolicy } from "../site-policy.js";
+import {
+  mergeWorkflowArtifacts,
+  readWorkflowArtifact,
+  recordWorkflowRecipeOutcome,
+  writeWorkflowArtifact,
+} from "../workflow/artifact.js";
+import { buildWorkflowArtifactFromCapture } from "../workflow/compile.js";
+import {
+  needsWorkflowTokenRefresh,
+  pickWorkflowRecipe,
+  resolveWorkflowBindings,
+  translateWorkflowStrategy,
+  validateWorkflowReplayParams,
+} from "../workflow/runtime.js";
+import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
@@ -31,6 +63,112 @@ function stampTrace(trace: ExecutionTrace): ExecutionTrace {
 
 const DEFAULT_BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+
+function cloneReplayBody(body: unknown): unknown {
+  if (!body || typeof body !== "object") return body;
+  if (Array.isArray(body)) return body.map((entry) => cloneReplayBody(entry));
+  return { ...(body as Record<string, unknown>) };
+}
+
+function serializeReplayBody(body: unknown, headers: Record<string, string>): BodyInit | undefined {
+  if (body == null) return undefined;
+  if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  if (body instanceof FormData) return body;
+  const contentType = headers["content-type"] ?? headers["Content-Type"] ?? "";
+  if (/application\/x-www-form-urlencoded/i.test(contentType) && body && typeof body === "object" && !Array.isArray(body)) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+      if (value == null) continue;
+      params.set(key, String(value));
+    }
+    return params.toString();
+  }
+  return JSON.stringify(body);
+}
+
+async function reloadExecutionAuthState(
+  skill: SkillManifest,
+  epDomain: string,
+  authHeaders: Record<string, string>,
+  cookies: Array<{ name: string; value: string; domain: string }>,
+): Promise<void> {
+  for (const key of Object.keys(authHeaders)) delete authHeaders[key];
+  cookies.splice(0, cookies.length);
+
+  if (skill.auth_profile_ref) {
+    const stored = await getCredential(skill.auth_profile_ref);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as {
+          headers?: Record<string, string>;
+          cookies?: Array<{ name: string; value: string; domain: string }>;
+        };
+        Object.assign(authHeaders, parsed.headers ?? {});
+        cookies.push(...(parsed.cookies ?? []));
+      } catch {
+        /* ignore malformed auth state */
+      }
+    }
+  }
+
+  if (cookies.length === 0) {
+    try {
+      const resolved = await getAuthCookies(epDomain, {
+        autoExtract: !!skill.auth_profile_ref,
+      });
+      if (resolved?.length) cookies.push(...resolved);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (Object.keys(authHeaders).length === 0) {
+    try {
+      const sessionKey = `${getRegistrableDomain(epDomain)}-session`;
+      const sessionData = await getCredential(sessionKey);
+      if (sessionData) {
+        const parsed = JSON.parse(sessionData) as { headers?: Record<string, string>; cookies?: typeof cookies };
+        if (parsed.headers) Object.assign(authHeaders, parsed.headers);
+        if (parsed.cookies && cookies.length === 0) cookies.push(...parsed.cookies);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function persistWorkflowArtifactForCapture(
+  artifactSkill: SkillManifest,
+  captured: Pick<CaptureResult, "requests" | "har_lineage_id" | "final_url" | "html" | "js_bundles" | "cookies">,
+  capturedAuthHeaders?: Record<string, string>,
+): void {
+  try {
+    if (process.env.UNBROWSE_DEBUG_WORKFLOW === "1") {
+      log(
+        "workflow",
+        `capture artifact attempt skill=${artifactSkill.skill_id} requests=${captured.requests.length} final_url=${captured.final_url}`,
+      );
+    }
+    const nextArtifact = mergeWorkflowArtifacts(
+      buildWorkflowArtifactFromCapture(artifactSkill, captured, { authHeaders: capturedAuthHeaders }),
+      readWorkflowArtifact(artifactSkill.skill_id),
+    );
+    const writtenPath = writeWorkflowArtifact(nextArtifact);
+    const exportPath = writeWorkflowPublishArtifact(buildWorkflowPublishArtifact(artifactSkill, nextArtifact, {
+      publishStatus: "captured",
+    }));
+    if (process.env.UNBROWSE_DEBUG_WORKFLOW === "1") {
+      log(
+        "workflow",
+        `capture persisted skill=${artifactSkill.skill_id} requests=${captured.requests.length} path=${writtenPath ?? "write-failed"} export=${exportPath ?? "write-failed"}`,
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log("workflow", `capture persistence failed for ${artifactSkill.skill_id}: ${message}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Quality gate — validate extracted data before marketplace publishing
@@ -177,10 +315,6 @@ export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
   learned_skill?: SkillManifest;
-  /** Inferred JSON schema of the endpoint's response, for agent-side extraction */
-  response_schema?: import("../types/index.js").ResponseSchema;
-  /** Ready-to-use extraction hints derived from response_schema */
-  extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
 }
 
 export function projectResultForIntent(data: unknown, intent?: string): unknown {
@@ -206,7 +340,9 @@ function sanitizeNavigationQueryParams(url: URL): URL {
 }
 
 function restoreTemplatePlaceholderEncoding(url: string): string {
-  return url.replace(/%7B/gi, "{").replace(/%7D/gi, "}");
+  // Only restore template placeholders like {variable_name}, not arbitrary JSON braces.
+  // Template placeholders: %7Bword_chars%7D (no spaces, no quotes, no colons inside)
+  return url.replace(/%7B(\w+)%7D/gi, "{$1}");
 }
 
 function compactSchemaSample(value: unknown, depth = 0): unknown {
@@ -562,6 +698,21 @@ export function buildStructuredReplayHeaders(
   return headers;
 }
 
+function normalizeReplayHeaders(
+  ...bags: Array<Record<string, string> | undefined>
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  for (const bag of bags) {
+    for (const [key, value] of Object.entries(bag ?? {})) {
+      if (typeof value !== "string") continue;
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      normalized[key.toLowerCase()] = trimmed;
+    }
+  }
+  return normalized;
+}
+
 function shouldFallbackToBrowserReplay(
   data: unknown,
   endpoint: EndpointDescriptor,
@@ -592,6 +743,7 @@ export function buildPageArtifactCapture(
   endpoint?: EndpointDescriptor;
   result?: { data: unknown; _extraction: Record<string, unknown> };
   quality_note?: string;
+  search_form?: SearchFormSpec;
 } {
   const extracted = extractFromDOM(html, intent);
   if (!extracted.data || extracted.confidence <= 0.2) return {};
@@ -603,6 +755,11 @@ export function buildPageArtifactCapture(
   if (semanticAssessment.verdict === "fail") {
     return { quality_note: semanticAssessment.reason };
   }
+
+  // Detect structured search forms from the captured HTML
+  const searchForms = detectSearchForms(html);
+  const validSearchForm = searchForms.find((spec: SearchFormSpec) => isStructuredSearchForm(spec));
+
   const response_schema = inferSchema([extracted.data]);
   const endpoint: EndpointDescriptor = {
     endpoint_id: nanoid(),
@@ -611,12 +768,15 @@ export function buildPageArtifactCapture(
     idempotency: "safe" as const,
     verification_status: "verified" as const,
     reliability_score: extracted.confidence,
-    description: `Captured page artifact for ${intent}`,
+    description: validSearchForm
+      ? `Captured search form artifact for ${intent}`
+      : `Captured page artifact for ${intent}`,
     response_schema,
     dom_extraction: {
       extraction_method: extracted.extraction_method,
       confidence: extracted.confidence,
       ...(extracted.selector ? { selector: extracted.selector } : {}),
+      ...(validSearchForm ? { search_form: validSearchForm } : {}),
     },
     trigger_url: url,
   };
@@ -629,6 +789,14 @@ export function buildPageArtifactCapture(
     }),
     ...(authRequired ? { auth_required: true } : {}),
   };
+  if (validSearchForm && endpoint.semantic) {
+    endpoint.semantic.action_kind = "search";
+  }
+
+  if (validSearchForm) {
+    log("execution", `detected structured search form: ${validSearchForm.form_selector} with ${validSearchForm.fields.length} fields`);
+  }
+
   return {
     endpoint,
     result: {
@@ -637,8 +805,10 @@ export function buildPageArtifactCapture(
         method: extracted.extraction_method,
         confidence: extracted.confidence,
         source: "dom-fallback",
+        ...(validSearchForm ? { search_form_detected: true } : {}),
       },
     },
+    ...(validSearchForm ? { search_form: validSearchForm } : {}),
   };
 }
 
@@ -710,6 +880,7 @@ async function trySeedStructuredDocumentSkill(
 
   let data: unknown;
   let passed = false;
+  let successfulReplayUrl = replayUrls[0] ?? url;
   for (const replayUrl of replayUrls) {
     const res = await fetch(replayUrl, {
       method: "GET",
@@ -722,6 +893,7 @@ async function trySeedStructuredDocumentSkill(
     const assessment = assessIntentResult(data, intent);
     if (assessment.verdict === "pass") {
       passed = true;
+      successfulReplayUrl = replayUrl;
       break;
     }
   }
@@ -786,6 +958,28 @@ async function trySeedStructuredDocumentSkill(
     }
   }
   try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+  const seededRequest: RawRequest = {
+    url: successfulReplayUrl,
+    method: "GET",
+    request_headers: headers,
+    response_status: 200,
+    response_headers: {
+      "content-type": typeof data === "string" ? "text/plain" : "application/json",
+    },
+    response_body: typeof data === "string" ? data : JSON.stringify(data),
+    timestamp: new Date().toISOString(),
+  };
+  persistWorkflowArtifactForCapture(
+    learned,
+    {
+      requests: [seededRequest],
+      har_lineage_id: `seeded:${learned.skill_id}:canonical-document`,
+      final_url: successfulReplayUrl,
+      cookies: cookies ?? [],
+      js_bundles: new Map(),
+    },
+    authHeaders,
+  );
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: nanoid(),
@@ -885,6 +1079,27 @@ async function trySeedPublicDocumentFetchSkill(
     }
   }
   try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+  const seededRequest: RawRequest = {
+    url,
+    method: "GET",
+    request_headers: headers,
+    response_status: response.status,
+    response_headers: Object.fromEntries(response.headers.entries()),
+    response_body: html,
+    timestamp: new Date().toISOString(),
+  };
+  persistWorkflowArtifactForCapture(
+    learned,
+    {
+      requests: [seededRequest],
+      har_lineage_id: `seeded:${learned.skill_id}:document-fetch`,
+      final_url: response.url || url,
+      html,
+      cookies: cookies ?? [],
+      js_bundles: new Map(),
+    },
+    authHeaders,
+  );
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: nanoid(),
@@ -913,16 +1128,35 @@ export async function executeSkill(
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
   if (skill.execution_type === "browser-capture") {
-    return executeBrowserCapture(skill, params);
+    return executeBrowserCapture(skill, params, options);
   }
 
-  // Allow targeting a specific endpoint by ID
+  // Allow targeting a specific endpoint by ID — never silently fall back
   if (params.endpoint_id) {
     const target = skill.endpoints.find((e) => e.endpoint_id === params.endpoint_id);
     if (target) {
       const { endpoint_id: _, ...cleanParams } = params;
       return executeEndpoint(skill, target, cleanParams, projection, options);
     }
+    // Agent explicitly chose this endpoint — don't silently swap to a different one
+    log("exec", `endpoint ${params.endpoint_id} not found in skill ${skill.skill_id} (${skill.endpoints.length} endpoints: ${skill.endpoints.map(e => e.endpoint_id).join(", ")})`);
+    const trace: ExecutionTrace = {
+      trace_id: nanoid(),
+      skill_id: skill.skill_id,
+      endpoint_id: String(params.endpoint_id),
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: `endpoint_not_found: ${params.endpoint_id} not in skill ${skill.skill_id}`,
+    };
+    return {
+      trace,
+      result: {
+        error: "endpoint_not_found",
+        message: `Endpoint ${params.endpoint_id} not found in skill ${skill.skill_id}. Available: ${skill.endpoints.map(e => `${e.endpoint_id} (${e.description?.slice(0, 50)})`).join(", ")}`,
+        available_endpoints: skill.endpoints.map(e => ({ endpoint_id: e.endpoint_id, description: e.description })),
+      },
+    };
   }
 
   // Use the caller's intent for ranking when available, fall back to skill's original intent
@@ -932,7 +1166,8 @@ export async function executeSkill(
 
 async function executeBrowserCapture(
   skill: SkillManifest,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  options?: ExecutionOptions,
 ): Promise<ExecutionResult> {
   const fallbackUrl =
     (typeof params.context_url === "string" && params.context_url) ||
@@ -952,9 +1187,9 @@ async function executeBrowserCapture(
   let cookies = params.cookies as Array<{ name: string; value: string; domain: string }> | undefined;
   let usedStoredAuth = !!(cookies && cookies.length > 0) || !!(authHeaders && Object.keys(authHeaders).length > 0);
 
-  // Bird-style: auto-resolve cookies from vault → browser fallback
+  // Auto-resolve cookies from vault, falling back to browser extraction
   if (!cookies || cookies.length === 0) {
-    const resolved = await getAuthCookies(targetDomain, { autoExtract: false });
+    const resolved = await getAuthCookies(targetDomain, { autoExtract: true });
     if (resolved && resolved.length > 0) {
       cookies = resolved;
       usedStoredAuth = true;
@@ -1006,7 +1241,28 @@ async function executeBrowserCapture(
         },
       };
     }
-    throw captureErr;
+    const message = captureErr instanceof Error ? captureErr.message : String(captureErr);
+    const normalizedError = /unable to connect/i.test(message)
+      ? "connection_failed"
+      : /timed out/i.test(message)
+        ? "capture_timeout"
+        : "capture_failed";
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: normalizedError,
+    });
+    return {
+      trace,
+      result: {
+        error: normalizedError,
+        message,
+      },
+    };
   }
 
   const finalDomain = (() => {
@@ -1040,6 +1296,22 @@ async function executeBrowserCapture(
   }
 
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent });
+
+  // Detect structured search forms from captured HTML and attach to search-like endpoints
+  if (captured.html) {
+    const detectedForms = detectSearchForms(captured.html);
+    if (detectedForms.length > 0) {
+      for (const ep of endpoints) {
+        if (!ep.search_form && ep.method === "GET") {
+          const matchingForm = detectedForms.find((f) => isStructuredSearchForm(f));
+          if (matchingForm) {
+            ep.search_form = matchingForm;
+            break; // attach the best form to the first search-like GET endpoint
+          }
+        }
+      }
+    }
+  }
 
   // JS bundle scanning: discover API routes not seen in network traffic
   if (captured.js_bundles && captured.js_bundles.size > 0) {
@@ -1230,6 +1502,7 @@ async function executeBrowserCapture(
         } catch { /* publish failure is non-fatal */ }
         if (learned) {
           try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
+          persistWorkflowArtifactForCapture(learned, captured, capturedAuthHeaders);
         }
 
         const trace: ExecutionTrace = stampTrace({
@@ -1331,32 +1604,61 @@ async function executeBrowserCapture(
     description: `API skill for ${domain}`,
     owner_type: "agent" as const,
     endpoints: localEndpoints,
-    operation_graph: buildSkillOperationGraph(localEndpoints),
     intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
-  let learned: SkillManifest = localDraft;
-  if (publishableEndpoints.length > 0) {
-    const { operation_graph: _graph, ...publishBase } = localDraft;
-    const publishDraft: SkillManifest = { ...publishBase, endpoints: publishableEndpoints };
-    const validation = await validateManifest({ ...publishDraft, skill_id: "__validate__" });
-    if (!validation.valid) throw new Error(`Skill validation failed: ${validation.hardErrors.join("; ")}`);
-    const published = await publishSkill(publishDraft);
-    learned = {
-      ...published,
-      endpoints: localEndpoints,
-      operation_graph: localDraft.operation_graph,
-      ...(auth_profile_ref ? { auth_profile_ref } : {}),
-    };
+  // Generate local descriptions immediately so BM25 ranking works on first cache hit
+  for (const ep of localDraft.endpoints) {
+    if (!ep.description) {
+      ep.description = generateLocalDescription(ep);
+    }
   }
-  try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
+
+  // PHASE 2: Write local cache IMMEDIATELY (~1ms) — populates cache before auto-exec
+  const bgCacheKey = buildResolveCacheKey(domain, intent, url);
+  const bgScopedKey = scopedCacheKey(options?.client_scope ?? "global", bgCacheKey);
+  writeSkillSnapshot(bgScopedKey, localDraft);
+  const bgDomainKey = getDomainReuseKey(url ?? domain);
+  if (bgDomainKey) {
+    domainSkillCache.set(bgDomainKey, {
+      skillId: localDraft.skill_id,
+      localSkillPath: snapshotPathForCacheKey(bgScopedKey),
+      ts: Date.now(),
+    });
+    persistDomainCache();
+  }
+
+  // PHASE 2: Queue heavy work for background (graph + validate + publish)
+  queueBackgroundIndex({
+    skill: { ...localDraft },
+    domain,
+    intent,
+    contextUrl: url,
+    clientScope: options?.client_scope,
+    cacheKey: bgCacheKey,
+  });
+
+  // Return the local draft as learned_skill — no blocking on marketplace publish
+  let learned: SkillManifest = localDraft;
+  try { cachePublishedSkill(localDraft, options?.client_scope); } catch { /* best-effort */ }
+  persistWorkflowArtifactForCapture(localDraft, captured, capturedAuthHeaders);
+
+  // Attribute lifecycle phases for this capture-to-publish flow
+  const completedAt = new Date().toISOString();
+  const captureDurationMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
+  const lifecycleEvents: LifecycleEvent[] = [
+    { phase: "capture", skill_id: learned.skill_id, timestamp: startedAt, duration_ms: captureDurationMs, source: "live-capture" },
+    { phase: "publish", skill_id: learned.skill_id, timestamp: completedAt, duration_ms: 0, source: publishableEndpoints.length > 0 ? "marketplace" : "cache" },
+  ];
+  const lifecycleAttribution = attributeLifecycle(lifecycleEvents);
+  log("execution", `lifecycle attribution: capture=${lifecycleAttribution.get("capture") ?? 0}ms, publish=${lifecycleAttribution.get("publish") ?? 0}ms`);
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: traceId,
     skill_id: learned.skill_id,
     endpoint_id: "browser-capture",
     started_at: startedAt,
-    completed_at: new Date().toISOString(),
+    completed_at: completedAt,
     success: true,
     result: { learned_skill_id: learned.skill_id, endpoints_discovered: cleanEndpoints.length },
   });
@@ -1416,6 +1718,16 @@ async function tryHttpFetch(
   }
 }
 
+/** When extraction returns "multiple" candidates, pick the best one's data to avoid duplicates */
+function flattenExtracted(data: unknown): unknown {
+  if (!Array.isArray(data)) return data;
+  const first = data[0];
+  if (first && typeof first === "object" && "type" in first && "data" in first && "relevance_score" in first) {
+    return data.reduce((best: any, cur: any) => (cur.relevance_score ?? 0) > (best.relevance_score ?? 0) ? cur : best).data;
+  }
+  return data;
+}
+
 async function executeDomExtractionEndpoint(
   endpoint: EndpointDescriptor,
   url: string,
@@ -1434,16 +1746,7 @@ async function executeDomExtractionEndpoint(
         if (ssrSemantic.verdict !== "fail") {
           console.log(`[ssr-fast] hit — extracted via HTTP fetch`);
           return {
-            data: {
-              data: ssrExtracted.data,
-              _extraction: {
-                method: ssrExtracted.extraction_method,
-                confidence: ssrExtracted.confidence,
-                source: "ssr-fast",
-                final_url: ssrResult.final_url,
-                ...(ssrExtracted.selector ? { selector: ssrExtracted.selector } : {}),
-              },
-            },
+            data: flattenExtracted(ssrExtracted.data),
             status: 200,
             trace_id: nanoid(),
           };
@@ -1455,8 +1758,33 @@ async function executeDomExtractionEndpoint(
     console.log(`[ssr-fast] miss, falling back to browser`);
   }
 
-  // Browser fallback
+  // Browser fallback — captures both intercepted API requests AND page HTML
   const captured = await captureSession(url, authHeaders, cookies, intent);
+
+  // Check intercepted requests first — if the site's JS made API calls,
+  // those have the actual filtered data (not the initial HTML page load)
+  if (captured.requests.length > 0) {
+    const { extractEndpoints: extractEps } = await import("../reverse-engineer/index.js");
+    const apiEndpoints = extractEps(captured.requests, undefined, { pageUrl: url, finalUrl: captured.final_url });
+    const jsonEndpoints = apiEndpoints.filter(ep => ep.response_schema && !ep.dom_extraction);
+    if (jsonEndpoints.length > 0) {
+      // Found real API responses — return the best one's data
+      const best = jsonEndpoints[0];
+      const matchingReq = captured.requests.find(r =>
+        r.url.includes(best.url_template.split("?")[0].split("{")[0]) &&
+        r.response_body && r.response_status >= 200 && r.response_status < 400
+      );
+      if (matchingReq?.response_body) {
+        try {
+          const data = JSON.parse(matchingReq.response_body);
+          console.log(`[dom-exec] found API response from browser capture: ${matchingReq.url.substring(0, 80)}`);
+          return { data, status: matchingReq.response_status, trace_id: nanoid() };
+        } catch { /* not JSON, fall through to DOM extraction */ }
+      }
+    }
+  }
+
+  // Fall back to DOM extraction from rendered HTML
   const html = captured.html ?? "";
   const extracted = extractFromDOMWithHint(html, intent, endpoint.dom_extraction);
   if (extracted.data) {
@@ -1483,16 +1811,7 @@ async function executeDomExtractionEndpoint(
       };
     }
     return {
-      data: {
-        data: extracted.data,
-        _extraction: {
-          method: extracted.extraction_method,
-          confidence: extracted.confidence,
-          source: "rendered-dom",
-          final_url: captured.final_url,
-          ...(extracted.selector ? { selector: extracted.selector } : {}),
-        },
-      },
+      data: flattenExtracted(extracted.data),
       status: 200,
       trace_id: nanoid(),
     };
@@ -1512,6 +1831,9 @@ export async function executeEndpoint(
   projection?: ProjectionOptions,
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
+  endpoint = annotateEndpointPolicy(endpoint);
+  const workflowArtifact = readWorkflowArtifact(skill.skill_id);
+  const workflowRecipe = pickWorkflowRecipe(workflowArtifact, endpoint.endpoint_id);
   const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
   // WebSocket endpoint: connect, collect messages, return
   if (endpoint.method === "WS") {
@@ -1542,8 +1864,6 @@ export async function executeEndpoint(
       }
       return {
         trace, result: resultData,
-        ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
-        ...(endpoint.response_schema ? { extraction_hints: generateExtractionHints(endpoint.response_schema, skill.intent_signature) ?? undefined } : {}),
       };
     } catch (err) {
       const trace: ExecutionTrace = stampTrace({
@@ -1555,8 +1875,57 @@ export async function executeEndpoint(
     }
   }
 
-  // Mutation safety gate
-  if (endpoint.method !== "GET" && endpoint.idempotency === "unsafe") {
+  // Payment gate — check if marketplace skill requires payment before executing
+  if (!skill.skill_id.startsWith("local:") && skill.execution_type === "http" && skill.owner_type !== "agent") {
+    const wallet = getLocalWalletContext();
+    const gate = await checkPaymentRequirement(skill.skill_id, endpoint.endpoint_id, {
+      wallet_configured: !!wallet.wallet_address,
+    });
+    if (gate.status === "payment_required" || gate.status === "wallet_not_configured" || gate.status === "insufficient_balance") {
+      const trace: ExecutionTrace = stampTrace({
+        trace_id: nanoid(),
+        skill_id: skill.skill_id,
+        endpoint_id: endpoint.endpoint_id,
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        success: false,
+        status_code: 402,
+        error: "payment_required",
+      });
+      return {
+        trace,
+        result: {
+          error: "payment_required",
+          price_usd: gate.requirement?.amount,
+          payment_status: gate.status,
+          message: gate.message,
+          wallet_provider: wallet.wallet_provider ?? "lobster.cash",
+          wallet_address: wallet.wallet_address,
+          indexing_fallback_available: true,
+        },
+      };
+    }
+  }
+
+  // Mutation safety / policy gate
+  if (endpoint.method !== "GET") {
+    if (workflowRecipe?.mutation_guard.block_reason) {
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "workflow_blocked",
+        }),
+        result: {
+          error: "workflow_blocked",
+          message: workflowRecipe.mutation_guard.block_reason,
+        },
+      };
+    }
     if (options?.dry_run) {
       // Merge path_params defaults for dry_run preview too
       const dryParams = { ...params };
@@ -1584,11 +1953,32 @@ export async function executeEndpoint(
         }),
         result: {
           dry_run: true,
+          ...(endpoint.policy ? { site_policy: endpoint.policy } : {}),
           would_execute: { method: endpoint.method, url, body },
         },
       };
     }
-    if (!options?.confirm_unsafe) {
+    if (endpointRequiresThirdPartyTermsConfirmation(endpoint) && !options?.confirm_third_party_terms) {
+      const policy = getEndpointPolicy(endpoint)!;
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "third_party_terms_confirmation_required",
+        }),
+        result: {
+          error: "third_party_terms_confirmation_required",
+          message: `This endpoint may violate third-party site terms for ${policy.policy_domain}. Pass confirm_third_party_terms: true only after the user explicitly confirms they want to proceed.`,
+          policy_domain: policy.policy_domain,
+          policy_reason: policy.reason,
+        },
+      };
+    }
+    if (endpoint.idempotency === "unsafe" && !options?.confirm_unsafe) {
       return {
         trace: stampTrace({
           trace_id: nanoid(),
@@ -1611,52 +2001,9 @@ export async function executeEndpoint(
   const authHeaders: Record<string, string> = {};
   const cookies: Array<{ name: string; value: string; domain: string }> = [];
 
-  if (skill.auth_profile_ref) {
-    const stored = await getCredential(skill.auth_profile_ref);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as {
-          headers?: Record<string, string>;
-          cookies?: typeof cookies;
-        };
-        Object.assign(authHeaders, parsed.headers ?? {});
-        cookies.push(...(parsed.cookies ?? []));
-      } catch {
-        // malformed stored cred — skip
-      }
-    }
-  }
-
   // Endpoint domain — used for cookie resolution, strategy caching, auth refresh
   const epDomain = (() => { try { return new URL(endpoint.url_template).hostname; } catch { return skill.domain; } })();
-
-  // Bird-style: auto-resolve cookies from vault → browser fallback
-  if (cookies.length === 0) {
-    try {
-      const resolved = await getAuthCookies(epDomain, {
-        autoExtract: !!skill.auth_profile_ref || endpoint.semantic?.auth_required === true,
-      });
-      if (resolved && resolved.length > 0) {
-        cookies.push(...resolved);
-      }
-    } catch {
-      // URL parse failure — skip cookie resolution
-    }
-  }
-
-  // Also check the domain-session vault for stored auth headers (authorization, api keys, etc.)
-  // These are captured during browser-capture and stored alongside cookies.
-  if (Object.keys(authHeaders).length === 0) {
-    try {
-      const sessionKey = `${getRegistrableDomain(epDomain)}-session`;
-      const sessionData = await getCredential(sessionKey);
-      if (sessionData) {
-        const parsed = JSON.parse(sessionData) as { headers?: Record<string, string>; cookies?: typeof cookies };
-        if (parsed.headers) Object.assign(authHeaders, parsed.headers);
-        if (parsed.cookies && cookies.length === 0) cookies.push(...parsed.cookies);
-      }
-    } catch { /* skip */ }
-  }
+  await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
 
   log("exec", `endpoint ${endpoint.endpoint_id}: cookies=${cookies.length} authHeaders=${Object.keys(authHeaders).length} hasAuth=${cookies.length > 0 || Object.keys(authHeaders).length > 0}`);
 
@@ -1700,9 +2047,43 @@ export async function executeEndpoint(
     }
   }
   let url = interpolate(urlTemplate, mergedParams);
-  const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
+  let body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
+
+  if (workflowRecipe) {
+    const validationErrors = validateWorkflowReplayParams(workflowRecipe, mergedParams);
+    if (validationErrors.length > 0) {
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "invalid_replay_params",
+        }),
+        result: {
+          error: "invalid_replay_params",
+          message: "Replay parameters did not satisfy the published workflow contract.",
+          validation_errors: validationErrors,
+          replay_contract: workflowRecipe.replay_contract,
+        },
+      };
+    }
+  }
 
   const isSafe = endpoint.method === "GET";
+  let workflowBindings = workflowRecipe && workflowArtifact
+    ? resolveWorkflowBindings(workflowRecipe, {
+        cookies,
+        authHeaders,
+        body,
+        artifact: workflowArtifact,
+      })
+    : null;
+  if (workflowBindings?.bodyOverride !== undefined) {
+    body = workflowBindings.bodyOverride;
+  }
 
   // Append leftover params as query string on GET requests.
   // Params already consumed by path_params, endpoint.query, or {template} vars are skipped.
@@ -1741,18 +2122,54 @@ export async function executeEndpoint(
     }
   }
 
+  const hasAuthContext =
+    cookies.length > 0 ||
+    Object.keys(authHeaders).length > 0 ||
+    !!skill.auth_profile_ref ||
+    endpoint.semantic?.auth_required === true;
+
+  // robots.txt compliance gate — block disallowed paths before any network call.
+  if (!options?.skip_robots_check && !hasAuthContext) {
+    const allowed = await isAllowedByRobots(url);
+    if (!allowed) {
+      const traceId = nanoid();
+      log("exec", `robots.txt blocked ${url}`);
+      return {
+        trace: stampTrace({
+          trace_id: traceId,
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "robots_txt_disallowed",
+        }),
+        result: {
+          error: "robots_txt_disallowed",
+          message: `robots.txt disallows access to ${url} for the Unbrowse user-agent.`,
+        },
+      };
+    }
+  }
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
 
-  const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
+  const serverFetch = async (
+    extraHeaders: Record<string, string> = {},
+    bodyOverride: unknown = body,
+  ): Promise<{ data: unknown; status: number; trace_id: string }> => {
+    const endpointHeaders = normalizeReplayHeaders(endpoint.headers_template);
+    const sessionHeaders = normalizeReplayHeaders(authHeaders);
+
     // Default accept to JSON, but never overwrite the endpoint's own accept header
     // (e.g. LinkedIn uses "application/vnd.linkedin.normalized+json+2.1")
-    const defaultAccept: Record<string, string> = (!endpoint.dom_extraction && !endpoint.headers_template?.["accept"])
+    const defaultAccept: Record<string, string> = (!endpoint.dom_extraction && !endpointHeaders["accept"] && !sessionHeaders["accept"])
       ? { "accept": "application/json" } : {};
     const headers: Record<string, string> = {
       ...defaultAccept,
-      ...endpoint.headers_template,
-      ...authHeaders,
+      ...endpointHeaders,
+      ...sessionHeaders,
+      ...normalizeReplayHeaders(extraHeaders),
     };
     // Strip browser-only headers that cause issues server-side
     delete headers["sec-ch-ua"];
@@ -1771,15 +2188,15 @@ export async function executeEndpoint(
       headers["cookie"] = cookieStr;
 
       // CSRF token auto-detection (bird pattern): many sites require CSRF tokens
-      // as both a cookie AND a header. Detect common patterns and replay them.
-      if (!headers["x-csrf-token"] && !headers["x-xsrf-token"]) {
-        const csrfCookie = cookies.find((c) =>
-          /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|_xsrf)$/i.test(c.name)
-        );
-        if (csrfCookie) {
-          const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
-          headers["x-csrf-token"] = v;
-        }
+      // as both a cookie AND a header. The cookie value is always fresher than
+      // any stored vault header, so it ALWAYS overrides.
+      const csrfCookie = cookies.find((c) =>
+        /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|_xsrf)$/i.test(c.name)
+      );
+      if (csrfCookie) {
+        const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
+        headers["x-csrf-token"] = v;
+        headers["x-xsrf-token"] = v;
       }
     }
 
@@ -1790,7 +2207,7 @@ export async function executeEndpoint(
       if (csrfCookie) {
         const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
         if (endpoint.csrf_plan.source === "cookie" || endpoint.csrf_plan.source === "header") {
-          headers[endpoint.csrf_plan.param_name.toLowerCase()] ??= v;
+          headers[endpoint.csrf_plan.param_name.toLowerCase()] = v;
         } else if (endpoint.csrf_plan.source === "form" && body && typeof body === "object" && !Array.isArray(body)) {
           (body as Record<string, unknown>)[endpoint.csrf_plan.param_name] ??= v;
         }
@@ -1802,10 +2219,11 @@ export async function executeEndpoint(
 
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
+      log("exec", `server-fetch: ${endpoint.method} ${replayUrl.substring(0, 80)} csrf=${replayHeaders["x-csrf-token"]?.substring(0, 10)}... cookies=${(replayHeaders["cookie"]?.length ?? 0)}chars`);
       const res = await fetch(replayUrl, {
         method: endpoint.method,
         headers: replayHeaders,
-        body: body ? JSON.stringify(body) : undefined,
+        body: serializeReplayBody(bodyOverride, replayHeaders),
         redirect: "follow",
       });
       let data: unknown;
@@ -1831,10 +2249,14 @@ export async function executeEndpoint(
 
   let result: { data: unknown; status: number; trace_id: string };
   const hasAuth = cookies.length > 0 || Object.keys(authHeaders).length > 0;
+  const preferredWorkflowStrategy = workflowRecipe?.steps[0]?.strategy
+    ? translateWorkflowStrategy(workflowRecipe.steps[0].strategy)
+    : undefined;
+  let workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy;
 
   if (endpoint.dom_extraction && isSafe) {
     if (hasStructuredReplay) {
-      result = await serverFetch();
+      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
       if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         result = await executeDomExtractionEndpoint(
           endpoint,
@@ -1863,73 +2285,122 @@ export async function executeEndpoint(
     // Endpoint-level learned strategy (strong signal — proven for this specific endpoint).
     // Domain-level prediction is only used as a tiebreaker, never to skip server-fetch entirely,
     // because different endpoints on the same domain may have different requirements.
-    const endpointStrategy = endpoint.exec_strategy;
+    const endpointStrategy = preferredWorkflowStrategy ?? endpoint.exec_strategy;
 
     if (hasStructuredReplay) {
-      result = await serverFetch();
+      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
       if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         strategy = "server";
+        workflowChosenStrategy = "server";
       } else if (endpoint.trigger_url && isSafe) {
-        result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+        // Build trigger URL with agent's params applied — don't replay original captured search
+        let triggerUrl = endpoint.trigger_url;
+        if (Object.keys(mergedParams).length > 0) {
+          try {
+            const tu = new URL(endpoint.trigger_url);
+            for (const [k, v] of Object.entries(mergedParams)) {
+              if (v != null && !reservedMetaParams.has(k)) {
+                tu.searchParams.set(k, String(v));
+              }
+            }
+            triggerUrl = tu.toString();
+          } catch { /* keep original trigger_url */ }
+        }
+        result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
         strategy = "trigger-intercept";
+        workflowChosenStrategy = "trigger-intercept";
       } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
+        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       }
     } else if (endpointStrategy === "server") {
       // Proven: server-fetch works for this endpoint
-      result = await serverFetch();
+      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
       if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
+        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       } else {
         strategy = "server";
+        workflowChosenStrategy = "server";
       }
     } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
       // Proven: this endpoint needs trigger-intercept
-      log("exec", `using learned strategy trigger-intercept via ${endpoint.trigger_url}`);
-      result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+      let triggerUrl = endpoint.trigger_url;
+      if (Object.keys(mergedParams).length > 0) {
+        try {
+          const tu = new URL(endpoint.trigger_url);
+          for (const [k, v] of Object.entries(mergedParams)) {
+            if (v != null && !reservedMetaParams.has(k)) tu.searchParams.set(k, String(v));
+          }
+          triggerUrl = tu.toString();
+        } catch { /* keep original */ }
+      }
+      log("exec", `using learned strategy trigger-intercept via ${triggerUrl}`);
+      result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
       strategy = "trigger-intercept";
+      workflowChosenStrategy = "trigger-intercept";
     } else if (endpointStrategy === "browser") {
       if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
-        result = await serverFetch();
+        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
         if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
           strategy = "server";
+          workflowChosenStrategy = "server";
         } else {
           log("exec", `server replay rejected stale learned browser strategy for ${endpoint.endpoint_id}; falling back to browser`);
           result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
           strategy = "browser";
+          workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
         }
       } else {
         log("exec", `using learned strategy browser`);
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
+        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       }
     } else {
       // No endpoint-level strategy — always try server-fetch first (fastest path).
       // Fall back to trigger-intercept or browser if server returns 4xx.
       try {
-        result = await serverFetch();
+        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
         if (result.status >= 200 && result.status < 400) {
-          if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+          // For API endpoints, trust the server response — no fallback to browser
+          const isApiEndpoint = /\/(api|graphql)\b/i.test(endpoint.url_template) || /\.(json)(\?|$)/.test(endpoint.url_template);
+          if (!isApiEndpoint && shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
             strategy = "browser";
+            workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
           } else {
             strategy = "server";
+            workflowChosenStrategy = "server";
           }
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
           if (endpoint.trigger_url && isSafe) {
-            result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+            let triggerUrl = endpoint.trigger_url;
+            if (Object.keys(mergedParams).length > 0) {
+              try {
+                const tu = new URL(endpoint.trigger_url);
+                for (const [k, v] of Object.entries(mergedParams)) {
+                  if (v != null && !reservedMetaParams.has(k)) tu.searchParams.set(k, String(v));
+                }
+                triggerUrl = tu.toString();
+              } catch { /* keep original */ }
+            }
+            result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
             strategy = "trigger-intercept";
+            workflowChosenStrategy = "trigger-intercept";
           } else {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
             strategy = "browser";
+            workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
           }
         }
       } catch {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
+        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       }
     }
 
@@ -1944,7 +2415,7 @@ export async function executeEndpoint(
   } else if (isSafe) {
     // No auth: fetch-first for safe GETs — fall back to browser if SPA shell or error
     try {
-      result = await withRetry(serverFetch, (r) => isRetryableStatus(r.status));
+      result = await withRetry(() => serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride), (r) => isRetryableStatus(r.status));
       if (typeof result.data === "string" && isHtml(result.data)) {
         if (isSpaShell(result.data)) {
           result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
@@ -1955,7 +2426,24 @@ export async function executeEndpoint(
     }
   } else {
     // No auth, non-GET: server fetch
-    result = await serverFetch();
+    result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+  }
+
+  if (workflowRecipe && workflowArtifact && needsWorkflowTokenRefresh(result.status)) {
+    const refreshed = await refreshAuthFromBrowser(epDomain);
+    if (refreshed) {
+      await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
+      workflowBindings = resolveWorkflowBindings(workflowRecipe, {
+        cookies,
+        authHeaders,
+        body,
+        artifact: workflowArtifact,
+      });
+      result = await serverFetch(workflowBindings.extraHeaders, workflowBindings.bodyOverride);
+      if (result.status >= 200 && result.status < 400) {
+        workflowChosenStrategy = workflowChosenStrategy ?? "server";
+      }
+    }
   }
   const { status, trace_id } = result;
   let data = result.data;
@@ -1978,15 +2466,41 @@ export async function executeEndpoint(
     trace.result = data;
   }
 
-  // Stale credential detection: on 401/403, try refreshing from browser (bird pattern)
-  // instead of just deleting. Next request will use fresh cookies.
+  // Stale credential detection: on 401/403, attempt auth recovery before giving up.
+  // Chain: authRuntime.refreshSession (lightweight) → refreshAuthFromBrowser (re-extract)
+  //        → authRuntime.loginIfNeeded (full interactive login)
   if (status === 401 || status === 403) {
+    let authRecovered = false;
     try {
-      const refreshed = await refreshAuthFromBrowser(epDomain);
-      if (refreshed) {
-        trace.error = `${trace.error} (credentials refreshed from browser — retry should succeed)`;
+      // 1. Lightweight session refresh via authRuntime
+      const sessionRefreshed = await authRuntime.refreshSession(epDomain);
+      if (sessionRefreshed) {
+        log("auth", `session refreshed via authRuntime for ${epDomain} — retry should succeed`);
+        authRecovered = true;
+      }
+
+      // 2. Re-extract cookies from browser SQLite (bird pattern)
+      if (!authRecovered) {
+        const browserRefreshed = await refreshAuthFromBrowser(epDomain);
+        if (browserRefreshed) {
+          log("auth", `credentials refreshed from browser for ${epDomain}`);
+          authRecovered = true;
+        }
+      }
+
+      // 3. Full login flow via authRuntime as last resort
+      if (!authRecovered) {
+        const loginResult = await authRuntime.loginIfNeeded(epDomain);
+        if (loginResult) {
+          log("auth", `loginIfNeeded succeeded for ${epDomain}`);
+          authRecovered = true;
+        }
+      }
+
+      if (authRecovered) {
+        trace.error = `${trace.error} (credentials refreshed — retry should succeed)`;
       } else {
-        // No fresh cookies available — delete stale ones
+        // No recovery path worked — delete stale credentials
         if (skill.auth_profile_ref) {
           await deleteCredential(skill.auth_profile_ref);
         }
@@ -2079,8 +2593,27 @@ export async function executeEndpoint(
   }
 
   // Record execution for reliability scoring (fire-and-forget — don't block response)
-  recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
+  recordExecution(skill.skill_id, endpoint.endpoint_id, trace, skill).catch(() => {});
 
+  // Record transaction if this was a paid execution (fire-and-forget)
+  if (trace.success && options?.payment_verified === true && skill.base_price_usd && skill.base_price_usd > 0) {
+    const consumerConfig = (() => {
+      try { return JSON.parse(require("fs").readFileSync(require("os").homedir() + "/.unbrowse/config.json", "utf-8")); }
+      catch { return {}; }
+    })();
+    if (consumerConfig.agent_id) {
+      const wallet = getLocalWalletContext();
+      recordTransaction({
+        transaction_id: trace.trace_id,
+        consumer_id: consumerConfig.agent_id,
+        creator_id: skill.indexer_id,
+        skill_id: skill.skill_id,
+        endpoint_id: endpoint.endpoint_id,
+        price_usd: skill.base_price_usd,
+        payment_proof: wallet.wallet_address ? `wallet:${wallet.wallet_address}` : undefined,
+      }).catch(() => {});
+    }
+  }
   // Apply field projection
   let resultData = data;
   if (projection?.raw) {
@@ -2091,14 +2624,32 @@ export async function executeEndpoint(
     resultData = projectResultForIntent(data, effectiveIntent);
   }
 
-  const rawResultShape = resultData === data;
+  if (workflowArtifact && workflowRecipe && workflowChosenStrategy) {
+    const updatedWorkflow = recordWorkflowRecipeOutcome(
+      workflowArtifact,
+      endpoint.endpoint_id,
+      workflowChosenStrategy,
+      {
+        success: trace.success,
+        status,
+        error: trace.error,
+        selectedBindings: workflowBindings?.selectedBindings,
+      },
+    );
+    const writtenPath = writeWorkflowArtifact(updatedWorkflow);
+    if (process.env.UNBROWSE_DEBUG_WORKFLOW === "1") {
+      log(
+        "workflow",
+        `execution persisted skill=${skill.skill_id} endpoint=${endpoint.endpoint_id} strategy=${workflowChosenStrategy} path=${writtenPath ?? "write-failed"}`,
+      );
+    }
+    trace.result = trace.result;
+    (trace as ExecutionTrace & { workflow_selected_bindings?: unknown; workflow_strategy?: string }).workflow_selected_bindings = workflowBindings?.selectedBindings;
+    (trace as ExecutionTrace & { workflow_selected_bindings?: unknown; workflow_strategy?: string }).workflow_strategy = workflowChosenStrategy;
+  }
 
   return {
     trace, result: resultData,
-    ...(endpoint.response_schema && rawResultShape ? { response_schema: endpoint.response_schema } : {}),
-    ...(endpoint.response_schema && rawResultShape
-      ? { extraction_hints: generateExtractionHints(endpoint.response_schema, effectiveIntent) ?? undefined }
-      : {}),
   };
 }
 
@@ -2107,7 +2658,7 @@ export async function executeEndpoint(
  * e.g. /search?q=books&page=1 → /search?q={q}&page={page}
  * Path stays untouched — only query string is templatized.
  */
-function templatizeQueryParams(url: string): string {
+export function templatizeQueryParams(url: string): string {
   try {
     const u = sanitizeNavigationQueryParams(new URL(url));
     if (u.search.length <= 1) return url; // no query params
@@ -2529,6 +3080,10 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     let contextLeaf = "";
     let contextQueryKeys = new Set<string>();
     const semantic = resolveEndpointSemantic(ep);
+    const descriptionMeta = getEndpointDescriptionMetadata({
+      description: ep.description,
+      semantic,
+    });
     try {
       const u = new URL(ep.url_template);
       pathname = u.pathname;
@@ -2553,9 +3108,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // When an endpoint has a description, compute direct token overlap with RAW intent
     // (not synonym-expanded, to avoid dilution). Each matching core intent token gives a
     // massive bonus that overrides structural noise from schema richness.
-    if (ep.description && rawTokens.length > 0) {
+    if (descriptionMeta.source === "agent" && descriptionMeta.display && rawTokens.length > 0) {
       const descTokens = new Set(
-        ep.description.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/)
+        descriptionMeta.display.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/)
           .filter((w) => w.length > 1 && !STOPWORDS.has(w))
           .map((w) => stem(w))
       );
@@ -2572,6 +3127,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     // === Structural bonuses ===
     if (ep.dom_extraction) score += 25;
+    if (descriptionMeta.needs_review && ep.dom_extraction) score -= 140;
     if (isCanonicalReplayEndpoint(ep)) score += 160;
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 180;
@@ -2666,7 +3222,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(ep.url_template);
     const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
-    const isCapturedPageArtifact = /captured page artifact/i.test(ep.description ?? "");
+    const isCapturedPageArtifact = /captured (?:search form |page )?artifact/i.test(ep.description ?? "");
     const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
     const triggerPath = (() => {
@@ -2774,6 +3330,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     }
     if (hasCanonicalReplaySibling && ep.dom_extraction && !isCanonicalReplayEndpoint(ep)) {
       score -= 260;
+    }
+    if (descriptionMeta.needs_review && isCapturedPageArtifact) {
+      score -= 120;
     }
 
     return { endpoint: ep, score };

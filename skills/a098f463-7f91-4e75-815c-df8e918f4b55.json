@@ -1,0 +1,49 @@
+{
+  "skill_id": "a098f463-7f91-4e75-815c-df8e918f4b55",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T13:57:24.227Z",
+  "updated_at": "2026-02-20T13:57:25.687Z",
+  "name": "randstad-nl",
+  "intent_signature": "Retrieve job summaries, manage localized content",
+  "domain": "www.randstad.nl",
+  "description": "Retrieve job summaries, manage localized content",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (sessionid)",
+  "service_name": "randstad-nl",
+  "endpoints": [
+    {
+      "endpoint_id": "d6d2fefe-3cfa-446e-945a-9be7a54f58d0",
+      "method": "POST",
+      "url_template": "https://www.randstad.nl/__endpoint/d6d2fefe-3cfa-446e-945a-9be7a54f58d0",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createStructureCollection",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "9fm6xxBshuEjNq3MZPT21C5CUmkXXVY8USRcmBRWqdae",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "0ba5bb12630ae72560585555b8cb68f68ef6d1a8985661178b5fa83bac1178ce"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: randstad-nl\ndescription: Internal API for randstad-nl\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.randstad.nl\"\n  authMethod: \"Cookie-based (sessionid)\"\n  endpointCount: 6\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# RandstadNl API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCookie-based (sessionid) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (3)\n- `GET /api/v1/summary` — Get a summary of relevant data.\n- `GET /channels/api/v2/client/{clientId}/translations/4/nl-informal.json` — Get informal Dutch translations for a client.\n- `GET /tags-356/prod` — Retrieve available tags.\n\n### Data Write (1)\n- `POST /structure-collection` — Create or update a structure collection.\n\n### Config (2)\n- `GET /__manifest` — Retrieve application manifest information.\n- `POST /channels/api/v2/client/{clientId}/configs` — Configure settings for a specific client.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"randstad-nl\", executionMode: \"backend\", endpoint: \"GET /api/v1/summary\" }\n```\n\nHere are some quick examples to get you started interacting with the Randstad NL API.\n\n```typescript\n// Retrieve a data summary.  This is a common read operation.\nasync function getSummary() {\n  try {\n    const summary = await client.getApiV1Summary();\n    console.log(\"Summary data:\", summary);\n    return summary;\n  } catch (error) {\n    console.error(\"Failed to retrieve summary:\", error);\n    throw error;\n  }\n}\n```\n\n```typescript\n// Create or update a structure collection.  This is a common write operation.\nasync function updateStructureCollection(data: any) {\n  try {\n    const response = await client.postStructureCollection(data);\n    console.log(\"Structure collection updated:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Failed to update structure collection:\", error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Cookie-based (sessionid)\n**Base URL:** `https://www.randstad.nl`\n**Captured Auth:** 1 auth headers, 14 session cookies\n\n## About This Skill\n\nThis skill provides access to Randstad Nl's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Randstad Nl data without official API access\n- Automate actions on www.randstad.nl (faster than browser automation)\n- Call the same endpoints the Randstad Nl frontend uses\n\n## Quick Start\n\n```typescript\nimport { RandstadNlClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await RandstadNlClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 14\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (8)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /__manifest`\n- `GET /api/v1/summary`\n- `GET /channels/api/v2/client/7f2ceefd-2e81-4067-a930-c039dc811d25/translations/4/nl-informal.json`\n- `GET /data/segment/356/64e59567-bd02-4ad3-9fb1-84181b061649/356_198,356_234,356_235,356_250,356_260,356_265,356_231,356_274,356_278,356_279,356_280,356_271,356_289,356_337`\n- `GET /data/segment/356/64e59567-bd02-4ad3-9fb1-84181b061649/356_438,356_448,356_446,356_445`\n- `GET /tags-356/prod`\n- `POST /channels/api/v2/client/7f2ceefd-2e81-4067-a930-c039dc811d25/configs`\n- `POST /structure-collection`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /__manifest`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/v1/summary`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /channels/api/v2/client/7f2ceefd-2e81-4067-a930-c039dc811d25/translations/4/nl-informal.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /data/segment/356/64e59567-bd02-4ad3-9fb1-84181b061649/356_198,356_234,356_235,356_250,356_260,356_265,356_231,356_274,356_278,356_279,356_280,356_271,356_289,356_337`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /data/segment/356/64e59567-bd02-4ad3-9fb1-84181b061649/356_438,356_448,356_446,356_445`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /tags-356/prod`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /channels/api/v2/client/7f2ceefd-2e81-4067-a930-c039dc811d25/configs`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /structure-collection`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

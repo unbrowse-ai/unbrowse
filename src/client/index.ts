@@ -1,14 +1,74 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
 import { homedir, hostname } from "os";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
-import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
+import type {
+  AgentSkillChunkView,
+  EndpointStats,
+  ExecutionTrace,
+  OrchestrationTiming,
+  RoutingTelemetryEvent,
+  SkillManifest,
+  ValidationResult,
+} from "../types/index.js";
+import {
+  CODE_HASH,
+  DEFAULT_BACKEND_URL,
+  GIT_SHA,
+  RELEASE_MANIFEST_BASE64,
+  RELEASE_MANIFEST_SIGNATURE,
+  TRACE_VERSION,
+} from "../version.js";
+import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
+import { getWalletContext } from "../payments/wallet.js";
+import { attributeLifecycle } from "../runtime/lifecycle.js";
+import type { LifecycleEvent } from "../runtime/lifecycle.js";
+import { detectHostEnvironment } from "../runtime/browser-host.js";
+import {
+  decodeTelemetryAttribution,
+  mergeTelemetryAttribution,
+  mergeTelemetryProperties,
+  type TelemetryAttribution,
+} from "../telemetry-attribution.js";
 
-const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
+const API_URL = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
 const recentLocalSkills = new Map<string, SkillManifest>();
 const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
+
+export function buildReleaseAttestationHeaders(
+  manifestBase64: string,
+  signature: string,
+): Record<string, string> {
+  const manifest = manifestBase64.trim();
+  const sig = signature.trim();
+  if (!manifest || !sig) return {};
+  return {
+    "X-Unbrowse-Release-Manifest": manifest,
+    "X-Unbrowse-Release-Signature": sig,
+  };
+}
+
+function decodeBase64Json(value: string): unknown {
+  try {
+    if (typeof globalThis !== "undefined" && typeof globalThis.atob === "function") {
+      const binary = globalThis.atob(value);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return JSON.parse(new TextDecoder("utf-8").decode(bytes));
+    }
+    return JSON.parse(Buffer.from(value, "base64").toString("utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+export function isX402Error(err: unknown): err is Error & { x402: true; terms?: unknown; status?: number } {
+  return !!err && typeof err === "object" && (err as { x402?: unknown }).x402 === true;
+}
 
 function scopedSkillKey(skillId: string, scopeId?: string): string {
   return scopeId ? `${scopeId}:${skillId}` : skillId;
@@ -27,6 +87,15 @@ function getConfigDir(): string {
 
 function getConfigPath(): string {
   return join(getConfigDir(), "config.json");
+}
+
+function getInstallTelemetryPath(): string {
+  return join(getConfigDir(), "install-state.json");
+}
+
+function getLandingToken(): string | undefined {
+  const token = process.env.UNBROWSE_LANDING_TOKEN?.trim();
+  return token ? token : undefined;
 }
 
 function sanitizeProfileName(value: string): string {
@@ -48,7 +117,20 @@ interface UnbrowseConfig {
   registered_at: string;
   tos_accepted_version: string | null;
   tos_accepted_at: string | null;
+  wallet_address?: string;
+  wallet_provider?: string;
 }
+
+interface InstallTelemetryState {
+  install_id: string;
+  first_seen_at: string;
+  cli_first_seen_reported_at?: string;
+  attribution?: TelemetryAttribution;
+}
+
+type TelemetryHostType = "cli" | "codex" | "openclaw" | "mcp" | "native" | "unknown";
+type InstallTelemetrySource = "host" | "setup" | "cli-first-seen";
+type FunnelTelemetrySource = "host" | "setup" | "cli-first-seen" | "cli" | "agent" | "server";
 
 type ApiKeySource = "env" | "config";
 type ApiKeyValidationStatus = "ok" | "missing_profile" | "invalid" | "offline";
@@ -75,6 +157,179 @@ function saveConfig(config: UnbrowseConfig): void {
   writeFileSync(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
+function loadInstallTelemetryState(): InstallTelemetryState | null {
+  try {
+    const statePath = getInstallTelemetryPath();
+    if (existsSync(statePath)) {
+      return JSON.parse(readFileSync(statePath, "utf-8")) as InstallTelemetryState;
+    }
+  } catch {}
+  return null;
+}
+
+function saveInstallTelemetryState(state: InstallTelemetryState): void {
+  const configDir = getConfigDir();
+  const statePath = getInstallTelemetryPath();
+  if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
+  writeFileSync(statePath, JSON.stringify(state, null, 2), { mode: 0o600 });
+}
+
+function createInstallTelemetryState(): InstallTelemetryState {
+  return {
+    install_id: `install_${randomBytes(8).toString("hex")}`,
+    first_seen_at: new Date().toISOString(),
+  };
+}
+
+function readInstallAttributionFromEnv(): TelemetryAttribution | undefined {
+  return decodeTelemetryAttribution(process.env.UNBROWSE_ATTRIBUTION_B64);
+}
+
+function getOrCreateInstallTelemetryState(): InstallTelemetryState {
+  const existing = loadInstallTelemetryState();
+  const incomingAttribution = readInstallAttributionFromEnv();
+
+  if (existing?.install_id) {
+    const mergedAttribution = mergeTelemetryAttribution(existing.attribution, incomingAttribution);
+    if (JSON.stringify(mergedAttribution ?? null) !== JSON.stringify(existing.attribution ?? null)) {
+      const nextState: InstallTelemetryState = {
+        ...existing,
+        attribution: mergedAttribution,
+      };
+      saveInstallTelemetryState(nextState);
+      return nextState;
+    }
+    return existing;
+  }
+
+  const created = createInstallTelemetryState();
+  const nextState: InstallTelemetryState = {
+    ...created,
+    attribution: incomingAttribution,
+  };
+  saveInstallTelemetryState(nextState);
+  return nextState;
+}
+
+export function getInstallId(): string {
+  return getOrCreateInstallTelemetryState().install_id;
+}
+
+export function getTelemetryAttribution(): TelemetryAttribution | undefined {
+  return getOrCreateInstallTelemetryState().attribution;
+}
+
+export function detectTelemetryHostType(): TelemetryHostType {
+  switch (detectHostEnvironment()) {
+    case "openai":
+      return "codex";
+    case "openclaw":
+      return "openclaw";
+    case "mcp":
+      return "mcp";
+    case "native":
+      return "native";
+    case "unknown":
+    default:
+      return "cli";
+  }
+}
+
+async function postTelemetry(path: string, body: Record<string, unknown>): Promise<boolean> {
+  if (LOCAL_ONLY) return false;
+
+  try {
+    const key = getApiKey();
+    const res = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function ensureCliInstallTracked(hostType = detectTelemetryHostType()): Promise<void> {
+  const state = getOrCreateInstallTelemetryState();
+  if (state.cli_first_seen_reported_at) return;
+
+  const createdAt = new Date().toISOString();
+  const landingToken = getLandingToken();
+  const ok = await postTelemetry("/v1/telemetry/install", {
+    install_id: state.install_id,
+    landing_token: landingToken,
+    source: "cli-first-seen",
+    host_type: hostType,
+    skill: "unbrowse",
+    status: "installed",
+    created_at: createdAt,
+    properties: mergeTelemetryProperties({
+      profile: getActiveProfile(),
+      first_seen_at: state.first_seen_at,
+    }, state.attribution),
+  });
+
+  if (!ok) return;
+  state.cli_first_seen_reported_at = createdAt;
+  saveInstallTelemetryState(state);
+}
+
+export async function recordInstallTelemetryEvent(
+  source: InstallTelemetrySource,
+  options?: {
+    hostType?: TelemetryHostType;
+    status?: string;
+    createdAt?: string;
+    properties?: Record<string, unknown>;
+    skill?: string;
+    skillVersion?: string;
+  },
+): Promise<void> {
+  const createdAt = options?.createdAt ?? new Date().toISOString();
+  const landingToken = getLandingToken();
+  await postTelemetry("/v1/telemetry/install", {
+    install_id: getInstallId(),
+    landing_token: landingToken,
+    source,
+    host_type: options?.hostType ?? detectTelemetryHostType(),
+    skill: options?.skill ?? "unbrowse",
+    skill_version: options?.skillVersion,
+    status: options?.status ?? "installed",
+    created_at: createdAt,
+    properties: mergeTelemetryProperties(options?.properties, getTelemetryAttribution()),
+  });
+}
+
+export async function recordFunnelTelemetryEvent(
+  name: string,
+  options?: {
+    source?: FunnelTelemetrySource;
+    hostType?: TelemetryHostType;
+    createdAt?: string;
+    sessionId?: string;
+    properties?: Record<string, unknown>;
+  },
+): Promise<void> {
+  const createdAt = options?.createdAt ?? new Date().toISOString();
+  const landingToken = getLandingToken();
+  await postTelemetry("/v1/telemetry/events", {
+    install_id: getInstallId(),
+    session_id: options?.sessionId,
+    landing_token: landingToken,
+    name,
+    source: options?.source ?? "cli",
+    host_type: options?.hostType ?? detectTelemetryHostType(),
+    created_at: createdAt,
+    properties: mergeTelemetryProperties(options?.properties, getTelemetryAttribution()),
+  });
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export function normalizeAgentEmail(value: string): string {
@@ -94,6 +349,10 @@ export function resolveAgentName(preferredEmail: string | undefined, fallbackNam
   return isValidAgentEmail(normalized) ? normalized : fallbackName;
 }
 
+export function getLocalWalletContext(): { wallet_address?: string; wallet_provider?: string } {
+  return getWalletContext();
+}
+
 export function getApiKey(): string {
   if (LOCAL_ONLY) return "local-only";
   // Env var takes priority, then cached config
@@ -106,7 +365,27 @@ export function getApiKey(): string {
   return "";
 }
 
+/**
+* Derive a stable, privacy-safe indexer identifier from the raw API key.
+ * Returns a hex SHA-256 hash, or "" for empty / local-only keys.
+ */
+export function hashApiKey(key: string): string {
+  if (!key || key === "local-only") return "";
+  return createHash("sha256").update(key).digest("hex");
+}
+
+/**
+ * Return the locally registered agent_id, or null if not registered.
+ * Used as the default indexer_id for Tier 1 attribution when the skill
+ * manifest doesn't already carry one.
+ */
+export function getAgentId(): string | null {
+  const config = loadConfig();
+  return config?.agent_id ?? null;
+}
+
 const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
+const PUBLISH_TIMEOUT_MS = parseInt(process.env.UNBROWSE_PUBLISH_TIMEOUT ?? "30000", 10);
 
 async function validateApiKey(key: string): Promise<ApiKeyValidationResult> {
   const controller = new AbortController();
@@ -169,10 +448,19 @@ async function findUsableApiKey(): Promise<{ key: string; source: ApiKeySource }
   return null;
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean }): Promise<T> {
+async function apiRequest<T = unknown>(
+  method: string,
+  path: string,
+  body?: unknown,
+  opts?: { noAuth?: boolean; timeoutMs?: number },
+): Promise<{ data: T; headers: Headers }> {
   const key = opts?.noAuth ? "" : getApiKey();
+  const releaseAttestationHeaders = buildReleaseAttestationHeaders(
+    RELEASE_MANIFEST_BASE64,
+    RELEASE_MANIFEST_SIGNATURE,
+  );
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? API_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
@@ -182,6 +470,10 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
         // Bun + Cloudflare Brotli bug: chunked br responses hang for ~40s.
         // Force identity encoding to avoid the issue.
         "Accept-Encoding": "gzip, deflate",
+        "X-Unbrowse-Trace-Version": TRACE_VERSION,
+        "X-Unbrowse-Code-Hash": CODE_HASH,
+        "X-Unbrowse-Git-Sha": GIT_SHA,
+        ...releaseAttestationHeaders,
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -205,11 +497,32 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
     throw new Error("ToS update required. Restart unbrowse to accept new terms.");
   }
 
+  // Handle x402 payment required — surface payment terms to the caller
+  if (res.status === 402) {
+    const paymentRequired = res.headers.get("PAYMENT-REQUIRED");
+    const legacyPaymentTerms = res.headers.get("X-Payment-Required");
+    const terms = paymentRequired
+      ? decodeBase64Json(paymentRequired)
+      : legacyPaymentTerms
+        ? JSON.parse(legacyPaymentTerms)
+        : (data as Record<string, unknown>).terms;
+    const err = new Error(`Payment required: ${(data as Record<string, unknown>).error ?? "This skill requires payment"}`);
+    (err as Error & { x402: boolean; terms: unknown; status: number }).x402 = true;
+    (err as Error & { terms: unknown }).terms = terms;
+    (err as Error & { status: number }).status = 402;
+    throw err;
+  }
+
   if (!res.ok) {
     const errData = data as { error?: string; details?: string[] };
     const msg = errData.details?.length ? `${errData.error}: ${errData.details.join("; ")}` : errData.error ?? `API HTTP ${res.status}`;
     throw new Error(msg);
   }
+  return { data: data as T, headers: res.headers };
+}
+
+async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean; timeoutMs?: number }): Promise<T> {
+  const { data } = await apiRequest<T>(method, path, body, opts);
   return data;
 }
 
@@ -274,7 +587,8 @@ async function promptAgentEmail(defaultName: string): Promise<string> {
   }
 }
 
-async function checkTosStatus(): Promise<void> {
+async function checkTosStatus(options?: { exitOnFailure?: boolean }): Promise<boolean> {
+  const exitOnFailure = options?.exitOnFailure ?? true;
   const config = loadConfig();
 
   let tosInfo: { version: string; summary: string; url: string };
@@ -283,11 +597,11 @@ async function checkTosStatus(): Promise<void> {
   } catch {
     // Offline — allow usage with whatever ToS was previously accepted.
     // Backend will enforce on next actual API call anyway.
-    return;
+    return true;
   }
 
   if (config?.tos_accepted_version === tosInfo.version) {
-    return; // Already accepted current version
+    return true; // Already accepted current version
   }
 
   // Need re-acceptance
@@ -295,7 +609,8 @@ async function checkTosStatus(): Promise<void> {
   const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
   if (!accepted) {
     console.log("You must accept the updated Terms of Service to continue using Unbrowse.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
+    return false;
   }
 
   // Call accept-tos endpoint
@@ -313,17 +628,27 @@ async function checkTosStatus(): Promise<void> {
     console.warn(`Failed to record ToS acceptance: ${(err as Error).message}`);
     // Don't block — backend will enforce on next call
   }
+  return true;
 }
 
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
-export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
+export async function ensureRegistered(options?: { promptForEmail?: boolean; exitOnFailure?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
+  const exitOnFailure = options?.exitOnFailure ?? true;
   const usableKey = await findUsableApiKey();
   if (usableKey) {
     if (usableKey.source === "config") {
       console.log("[unbrowse] Restored saved registration.");
     }
-    await checkTosStatus();
+    const accepted = await checkTosStatus({ exitOnFailure });
+    if (!accepted) return;
+    try {
+      const profile = await getMyProfile();
+      const wallet = getLocalWalletContext();
+      if (wallet.wallet_address && profile.wallet_address !== wallet.wallet_address) {
+        await syncAgentWallet(wallet);
+      }
+    } catch { /* non-fatal */ }
     return;
   }
 
@@ -341,7 +666,8 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
   if (!accepted) {
     console.log("You must accept the Terms of Service to use Unbrowse.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
+    return;
   }
 
   // Step 3: Register with ToS version
@@ -350,8 +676,9 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   console.log(`Registering as "${name}"...`);
 
   try {
+    const wallet = getLocalWalletContext();
     const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version }
+      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...wallet }
     );
 
     process.env.UNBROWSE_API_KEY = api_key;
@@ -362,14 +689,52 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
       registered_at: new Date().toISOString(),
       tos_accepted_version: tosInfo.version,
       tos_accepted_at: new Date().toISOString(),
+      ...wallet,
+    });
+
+    await recordFunnelTelemetryEvent("registration_succeeded", {
+      source: "cli",
+      properties: {
+        prompt_for_email: options?.promptForEmail === true,
+      },
     });
 
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);
     console.warn("Set UNBROWSE_API_KEY manually or try again.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
   }
+}
+
+let backgroundRegistrationPromise: Promise<void> | null = null;
+
+export function startBackgroundRegistration(options?: { promptForEmail?: boolean }): Promise<void> {
+  if (LOCAL_ONLY) return Promise.resolve();
+  if (backgroundRegistrationPromise) return backgroundRegistrationPromise;
+  backgroundRegistrationPromise = ensureRegistered({
+    promptForEmail: options?.promptForEmail,
+    exitOnFailure: false,
+  })
+    .catch((err) => {
+      console.warn(`[unbrowse] Background registration failed: ${(err as Error).message}`);
+    })
+    .finally(() => {
+      backgroundRegistrationPromise = null;
+    });
+  return backgroundRegistrationPromise;
+}
+
+export async function waitForBackgroundRegistration(timeoutMs = 0): Promise<void> {
+  if (!backgroundRegistrationPromise) return;
+  if (timeoutMs <= 0) {
+    await backgroundRegistrationPromise;
+    return;
+  }
+  await Promise.race([
+    backgroundRegistrationPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 // --- Skill CRUD ---
@@ -484,7 +849,16 @@ export async function getSkill(skillId: string, scopeId?: string): Promise<Skill
     writeSkillCache(skill, scopeId);
     return skill;
   } catch {
-    return null;
+    try {
+      const skills = await listSkills();
+      const listed = skills.find((skill) => skill.skill_id === skillId) ?? null;
+      if (listed) {
+        writeSkillCache(listed, scopeId);
+      }
+      return listed;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -538,7 +912,29 @@ export async function publishSkill(
     } as SkillManifest & { warnings: string[] };
   }
   if (LOCAL_ONLY) throw new Error("local-only mode");
-  return api("POST", "/v1/skills", draft);
+  const wallet = getLocalWalletContext();
+  const published = await api<SkillManifest & { warnings: string[] }>("POST", "/v1/skills", {
+    ...draft,
+    ...(wallet.wallet_address ? wallet : {}),
+  }, { timeoutMs: PUBLISH_TIMEOUT_MS });
+
+  const cascade = await ensureCascadeSplitForSkill(published).catch((err) => ({
+    warning: `cascade_split_failed:${(err as Error).message}`,
+  }));
+  const warnings = [...(published.warnings ?? [])];
+  if (cascade.warning) warnings.push(cascade.warning);
+
+  if (cascade.split_config && cascade.split_config !== published.split_config) {
+    const updated = await api<SkillManifest>("PATCH", `/v1/skills/${published.skill_id}`, {
+      split_config: cascade.split_config,
+    });
+    return {
+      ...updated,
+      warnings,
+    };
+  }
+
+  return { ...published, warnings };
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
@@ -611,10 +1007,11 @@ export async function searchIntentResolve(
   domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   skipped_global: boolean;
+  actual_cost_uc?: number;
 }> {
   if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
   try {
-    return await api<{
+    const { data, headers } = await apiRequest<{
       domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
       global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
       skipped_global: boolean;
@@ -624,12 +1021,24 @@ export async function searchIntentResolve(
       domain_k: domainK,
       global_k: globalK,
     });
-  } catch {
+    const actualCostHeader = headers.get("X-Unbrowse-Cost-Uc");
+    const actualCostUc = actualCostHeader && /^\d+$/.test(actualCostHeader)
+      ? Number(actualCostHeader)
+      : undefined;
+    return actualCostUc != null ? { ...data, actual_cost_uc: actualCostUc } : data;
+  } catch (err) {
+    if (isX402Error(err)) throw err;
     const [domain_results, global_results] = await Promise.all([
       domain
-        ? searchIntentInDomain(intent, domain, domainK).catch(() => [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>)
+        ? searchIntentInDomain(intent, domain, domainK).catch((fallbackErr) => {
+            if (isX402Error(fallbackErr)) throw fallbackErr;
+            return [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+          })
         : Promise.resolve([] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>),
-      searchIntent(intent, globalK).catch(() => [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>),
+      searchIntent(intent, globalK).catch((fallbackErr) => {
+        if (isX402Error(fallbackErr)) throw fallbackErr;
+        return [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+      }),
     ]);
     return { domain_results, global_results, skipped_global: false };
   }
@@ -637,21 +1046,89 @@ export async function searchIntentResolve(
 
 // --- Stats ---
 
-export async function recordExecution(
+/** Execution payload sent to POST /v1/stats/execution */
+export interface ExecutionPayload {
+  skill_id: string;
+  endpoint_id: string;
+  trace: Omit<ExecutionTrace, "result">;
+  indexer_id?: string;
+}
+
+export interface AnalyticsSessionPayload {
+  session_id: string;
+  started_at: string;
+  completed_at?: string;
+  trace_version?: string;
+  api_calls: number;
+  discovery_queries?: number;
+  cached_skill_calls?: number;
+  fresh_index_calls?: number;
+  browser_mode?: "default" | "replaced" | "manual" | "unknown";
+}
+
+/**
+ * Build the POST body for /v1/stats/execution.
+ * Pure function — no I/O, fully testable.
+ *
+ * Derives indexer_id from:
+ *   1. Explicit override (opts.indexer_id)
+ *   2. skill.indexer_id (set by the backend at publish time)
+ *   3. undefined (backend will fall back to its own lookup)
+ */
+export function buildExecutionPayload(
   skillId: string,
   endpointId: string,
-  trace: ExecutionTrace
-): Promise<void> {
-  if (LOCAL_ONLY) return;
-  // Strip actual API response data — only send metadata for scoring
+  trace: ExecutionTrace,
+  skill?: Pick<SkillManifest, "indexer_id"> | null,
+  opts?: { indexer_id?: string },
+): ExecutionPayload {
   const { result: _result, ...metadata } = trace;
-  await api("POST", "/v1/stats/execution", {
+  const indexer_id = opts?.indexer_id ?? skill?.indexer_id ?? (hashApiKey(getApiKey()) || undefined);
+  const payload: ExecutionPayload = {
     skill_id: skillId,
     endpoint_id: endpointId,
     trace: metadata,
+  };
+  if (indexer_id) payload.indexer_id = indexer_id;
+  return payload;
+}
+export async function recordExecution(
+  skillId: string,
+  endpointId: string,
+  trace: ExecutionTrace,
+  skill?: Pick<SkillManifest, "indexer_id"> | null,
+): Promise<void> {
+  if (LOCAL_ONLY) return;
+  const payload = buildExecutionPayload(skillId, endpointId, trace, skill);
+  await api("POST", "/v1/stats/execution", payload);
+}
+
+export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): Promise<void> {
+  if (LOCAL_ONLY) return;
+  await api("POST", "/v1/analytics/sessions", {
+    ...getTelemetryAttribution(),
+    ...payload,
   });
 }
 
+export async function recordRoutingTelemetry(events: RoutingTelemetryEvent[]): Promise<void> {
+  if (LOCAL_ONLY || events.length === 0) return;
+  await postTelemetry("/v1/telemetry/routing", { events });
+}
+
+/** Record a payment transaction for a paid skill execution. Fire-and-forget. */
+export async function recordTransaction(params: {
+  transaction_id: string;
+  consumer_id: string;
+  creator_id?: string;
+  skill_id: string;
+  endpoint_id?: string;
+  price_usd: number;
+  payment_proof?: string;
+}): Promise<void> {
+  if (LOCAL_ONLY) return;
+  await api("POST", "/v1/transactions", params);
+}
 export async function recordFeedback(
   skillId: string,
   endpointId: string,
@@ -685,7 +1162,23 @@ export async function recordDiagnostics(
 
 export async function recordOrchestrationPerf(timing: OrchestrationTiming): Promise<void> {
   if (LOCAL_ONLY) return;
-  await api("POST", "/v1/stats/perf", timing);
+  const lifecycleSource: LifecycleEvent["source"] =
+    timing.source === "marketplace" ? "marketplace"
+    : timing.source === "live-capture" ? "live-capture"
+    : "cache";
+  const now = new Date().toISOString();
+  const events: LifecycleEvent[] = [];
+  if (timing.search_ms > 0) {
+    events.push({ phase: "discover", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.search_ms, source: lifecycleSource });
+  }
+  if (timing.get_skill_ms > 0) {
+    events.push({ phase: "resolve", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.get_skill_ms, source: lifecycleSource });
+  }
+  if (timing.execute_ms > 0) {
+    events.push({ phase: "execute", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.execute_ms, source: lifecycleSource });
+  }
+  const phaseTotals = Object.fromEntries(attributeLifecycle(events));
+  await api("POST", "/v1/stats/perf", { ...timing, phase_totals_ms: phaseTotals });
 }
 
 // --- Validation ---
@@ -695,13 +1188,121 @@ export async function validateManifest(manifest: unknown): Promise<ValidationRes
   return api<ValidationResult>("POST", "/v1/validate", manifest);
 }
 
-// --- Agent Registration ---
+// --- Graph Edge Publishing ---
 
-export async function registerAgent(name: string): Promise<{ agent_id: string; api_key: string }> {
-  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", { name });
+/**
+ * Publish operation graph edges to the dedicated graph endpoint.
+ * Fire-and-forget: logs errors but does not throw.
+ */
+export async function publishGraphEdges(
+  domain: string,
+  node: { endpoint_id: string; method: string; url_template: string },
+  edges: Array<{ target_endpoint_id: string; kind: string; confidence: number }>
+): Promise<void> {
+  if (LOCAL_ONLY) return;
+  try {
+    await api("POST", "/v1/graph/edges", { domain, node, edges });
+  } catch (err) {
+    console.error(`[graph] failed to publish edges for ${domain}: ${(err as Error).message}`);
+  }
 }
 
-export async function getAgent(agentId: string): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number } | null> {
+// ---------------------------------------------------------------------------
+// Auto-file GitHub issues from accumulated agent errors
+// ---------------------------------------------------------------------------
+
+export interface AutoFilePayload {
+  skill_id: string;
+  endpoint_id: string;
+  domain: string;
+  intent: string;
+  url?: string;
+  error: string;
+  failure_count: number;
+  first_seen: string;
+  last_seen: string;
+  kuri_version: string;
+}
+
+/**
+ * Auto-file a GitHub issue via the backend. Fire-and-forget — failures
+ * are logged but never thrown.
+ */
+export async function autoFileIssue(payload: AutoFilePayload): Promise<void> {
+  if (isLocalOnlyMode()) {
+    console.log(`[auto-file] skipped (local-only mode): ${payload.skill_id}:${payload.endpoint_id}`);
+    return;
+  }
+  try {
+    await api("POST", "/v1/issues/auto-file", payload);
+    console.log(`[auto-file] issue filed for ${payload.skill_id}:${payload.endpoint_id} (${payload.failure_count} failures)`);
+  } catch (err) {
+    console.warn(`[auto-file] failed: ${(err as Error).message}`);
+  }
+}
+
+// --- Cross-Agent Discovery Diagnostics ---
+
+/**
+ * Diagnostic function: polls marketplace search to verify a skill is discoverable.
+ * Not called in production flow -- used for verifying cross-agent discovery within 60s.
+ */
+export async function verifyMarketplaceDiscovery(
+  skillId: string,
+  intent: string,
+  maxWaitMs = 60000
+): Promise<{ found: boolean; latency_ms: number }> {
+  const start = Date.now();
+  const pollInterval = 2000;
+
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const results = await searchIntent(intent, 10);
+      for (const result of results) {
+        const meta = result.metadata ?? {};
+        let foundId: string | undefined;
+        // Check metadata.skill_id directly
+        if (typeof meta.skill_id === "string") {
+          foundId = meta.skill_id;
+        }
+        // Try parsing metadata.content as JSON for skill_id
+        if (!foundId && typeof meta.content === "string") {
+          try {
+            const parsed = JSON.parse(meta.content);
+            if (typeof parsed.skill_id === "string") foundId = parsed.skill_id;
+          } catch { /* not JSON */ }
+        }
+        if (foundId === skillId) {
+          return { found: true, latency_ms: Date.now() - start };
+        }
+      }
+    } catch { /* search failed, retry */ }
+
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+
+  return { found: false, latency_ms: Date.now() - start };
+}
+
+// --- Agent Registration ---
+
+export async function registerAgent(
+  name: string,
+  wallet: { wallet_address?: string; wallet_provider?: string } = getLocalWalletContext(),
+): Promise<{ agent_id: string; api_key: string }> {
+  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", { name, ...wallet });
+}
+
+export async function getAgent(agentId: string): Promise<{
+  agent_id: string;
+  name: string;
+  created_at: string;
+  wallet_address?: string | null;
+  wallet_provider?: string | null;
+  skills_discovered: string[];
+  total_executions: number;
+  total_feedback_given: number;
+} | null> {
   try {
     return await api("GET", `/v1/agents/${agentId}`);
   } catch {
@@ -709,6 +1310,84 @@ export async function getAgent(agentId: string): Promise<{ agent_id: string; nam
   }
 }
 
-export async function getMyProfile(): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number }> {
+export async function getMyProfile(): Promise<{
+  agent_id: string;
+  name: string;
+  created_at: string;
+  wallet_address?: string | null;
+  wallet_provider?: string | null;
+  skills_discovered: string[];
+  total_executions: number;
+  total_feedback_given: number;
+}> {
   return api("GET", "/v1/agents/me", undefined);
+}
+
+export async function syncAgentWallet(wallet = getLocalWalletContext()): Promise<void> {
+  if (!wallet.wallet_address) return;
+  await api("POST", "/v1/agents/wallet", wallet);
+  const config = loadConfig();
+  if (!config) return;
+  saveConfig({ ...config, ...wallet });
+}
+
+
+// --- Transaction Visibility ---
+
+/** Get consumer payment history for an agent. */
+export async function getTransactionHistory(agentId: string): Promise<{
+  ledger: {
+    agent_id: string;
+    total_spent_uc: number;
+    total_spent_usd: number;
+    transaction_count: number;
+    first_transaction_at: string;
+    last_transaction_at: string;
+  } | null;
+  transactions: Array<{
+    transaction_id: string;
+    consumer_id: string;
+    creator_id: string;
+    skill_id: string;
+    price_usd: number;
+    price_uc: number;
+    status: string;
+    created_at: string;
+  }>;
+}> {
+  return api("GET", `/v1/transactions/consumer/${agentId}`);
+}
+
+/** Get creator earnings history for an agent/indexer. */
+export async function getCreatorEarnings(agentId: string): Promise<{
+  ledger: {
+    agent_id: string;
+    total_earned_uc: number;
+    total_earned_usd: number;
+    total_fees_uc: number;
+    transaction_count: number;
+    first_transaction_at: string;
+    last_transaction_at: string;
+  } | null;
+  transactions: Array<{
+    transaction_id: string;
+    consumer_id: string;
+    creator_id: string;
+    skill_id: string;
+    price_usd: number;
+    creator_payout_uc: number;
+    status: string;
+    created_at: string;
+  }>;
+}> {
+  return api("GET", `/v1/transactions/creator/${agentId}`);
+}
+
+/** Set the base price for a skill (requires auth as skill owner). */
+export async function setSkillPrice(skillId: string, priceUsd: number): Promise<unknown> {
+  return api("PATCH", `/v1/skills/${skillId}`, { base_price_usd: priceUsd });
+}
+
+export async function setSkillSplitConfig(skillId: string, splitConfig: string | null): Promise<unknown> {
+  return api("PATCH", `/v1/skills/${skillId}`, { split_config: splitConfig });
 }

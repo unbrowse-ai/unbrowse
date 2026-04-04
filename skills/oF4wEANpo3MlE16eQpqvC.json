@@ -1,0 +1,88 @@
+{
+  "skill_id": "oF4wEANpo3MlE16eQpqvC",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:41:52.014Z",
+  "updated_at": "2026-02-23T07:41:52.014Z",
+  "name": "optionstrat.com -- Access OptionStrat to retrieve delayed option chains",
+  "intent_signature": "Access OptionStrat to retrieve delayed option chains",
+  "domain": "optionstrat.com",
+  "description": "Auto-discovered skill for: Access OptionStrat to retrieve delayed option chains",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "y_RKjhR18GoAmS4M7Penk",
+      "method": "POST",
+      "url_template": "https://optionstrat.com/api/mp/track/",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://optionstrat.com/",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "baggage": "sentry-environment=production,sentry-release=1.2.58,sentry-public_key=acbf9e20c6aa47b689f6f3025e30a517,sentry-trace_id=1ab7d793c7ee983fbc3398c280e721f6,sentry-sampled=false,sentry-sample_rand=0.8487278099976172,sentry-sample_rate=0.0025",
+        "sentry-trace": "1ab7d793c7ee983fbc3398c280e721f6-90d705ec699d4d2c-0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "null",
+            "inferred_from_samples": 1
+          },
+          "status": {
+            "type": "integer",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "error",
+          "status"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "hFLJ0GeUrWbZipyqFz0cs",
+      "method": "GET",
+      "url_template": "https://optionstrat.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "iS6VafwB-76isVPWfx0G4",
+      "method": "GET",
+      "url_template": "https://fonts.googleapis.com/css2",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://optionstrat.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "family": "Montserrat:wght@400;600",
+        "display": "swap"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "optionstrat.com-session"
+}

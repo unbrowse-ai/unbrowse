@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export function getModuleDir(metaUrl: string): string {
   return path.dirname(fileURLToPath(metaUrl));
@@ -10,14 +10,22 @@ export function getModuleDir(metaUrl: string): string {
 
 export function getPackageRoot(metaUrl: string): string {
   if (process.env.UNBROWSE_PACKAGE_ROOT) return process.env.UNBROWSE_PACKAGE_ROOT;
-  const dir = getModuleDir(metaUrl);
-  const base = path.basename(dir);
-  return base === "src" || base === "dist" ? path.dirname(dir) : dir;
+  let dir = getModuleDir(metaUrl);
+  const root = path.parse(dir).root;
+  while (dir !== root) {
+    if (existsSync(path.join(dir, "package.json"))) return dir;
+    dir = path.dirname(dir);
+  }
+  return getModuleDir(metaUrl);
 }
 
 export function resolveSiblingEntrypoint(metaUrl: string, basename: string): string {
   const file = fileURLToPath(metaUrl);
   return path.join(path.dirname(file), `${basename}${path.extname(file) || ".js"}`);
+}
+
+export function isBundledVirtualEntrypoint(entrypoint: string): boolean {
+  return entrypoint.startsWith("/$bunfs/");
 }
 
 export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): string[] {
@@ -28,7 +36,7 @@ export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): s
     const req = createRequire(metaUrl);
     const tsxPkg = req.resolve("tsx/package.json");
     const tsxLoader = path.join(path.dirname(tsxPkg), "dist", "loader.mjs");
-    if (existsSync(tsxLoader)) return ["--import", tsxLoader, entrypoint];
+    if (existsSync(tsxLoader)) return ["--import", pathToFileURL(tsxLoader).href, entrypoint];
   } catch {
     // fall through to bare specifier
   }

@@ -1,0 +1,140 @@
+{
+  "skill_id": "d018975b-caa1-4505-a0e1-91c70a7b57fa",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-21T03:58:51.417Z",
+  "updated_at": "2026-02-21T03:58:56.192Z",
+  "name": "dash-ezlocal",
+  "intent_signature": "Manage local business data and generate content",
+  "domain": "dash.ezlocal.com",
+  "description": "Manage local business data and generate content",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (x-goog-api-key)",
+  "service_name": "dash-ezlocal",
+  "endpoints": [
+    {
+      "endpoint_id": "b9e3fc48-ccc3-47b2-a1ab-b04eb5aa2ab1",
+      "method": "GET",
+      "url_template": "https://dash.ezlocal.com/__endpoint/b9e3fc48-ccc3-47b2-a1ab-b04eb5aa2ab1",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getTranslations",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "0e2a2693-fa70-404c-9c07-fca7c98729c5",
+      "method": "POST",
+      "url_template": "https://dash.ezlocal.com/__endpoint/0e2a2693-fa70-404c-9c07-fca7c98729c5",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createLexiconLexiconGetTranslations",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "b780ed65-4c46-4923-ac04-1d976d6dc794",
+      "method": "POST",
+      "url_template": "https://dash.ezlocal.com/__endpoint/b780ed65-4c46-4923-ac04-1d976d6dc794",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createConversationConversationServiceGetWidgetConfig",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "28538430-f440-4a70-b56b-a51b1034012f",
+      "method": "GET",
+      "url_template": "https://dash.ezlocal.com/__endpoint/28538430-f440-4a70-b56b-a51b1034012f",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getAnimationHomecityJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "49938fbd-e683-4310-bda1-b1da24eb57c5",
+      "method": "GET",
+      "url_template": "https://dash.ezlocal.com/__endpoint/49938fbd-e683-4310-bda1-b1da24eb57c5",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getDataDistributionJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "2debd3d5-ce72-42cb-b19f-197c5318013a",
+      "method": "POST",
+      "url_template": "https://dash.ezlocal.com/__endpoint/2debd3d5-ce72-42cb-b19f-197c5318013a",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createGoogleGenerateIt",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "211adc7c-9180-4859-9b5d-7a7d50475070",
+      "method": "POST",
+      "url_template": "https://dash.ezlocal.com/__endpoint/211adc7c-9180-4859-9b5d-7a7d50475070",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createYoutubeiEvent",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "39cbc3e5-0f7d-4829-8673-6d1b1fd52d34",
+      "method": "POST",
+      "url_template": "https://dash.ezlocal.com/__endpoint/39cbc3e5-0f7d-4829-8673-6d1b1fd52d34",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createStats",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "CXwshJhYAErqjCxqiZMbKRnUcVckjs2mxkyFMGpp7nWi",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "bfad148e8af73c908f4383a9f2108dee41b2eea43fc3fc9b5c9018072ceace14"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: dash-ezlocal\ndescription: Internal API for dash-ezlocal\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://dash.ezlocal.com\"\n  authMethod: \"API Key (x-goog-api-key)\"\n  endpointCount: 6\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# DashEzlocal API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (x-goog-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (2)\n- `POST /{token}/{id}` — Authenticate and authorize the agent.\n- `POST /$rpc/{$rpcToken}/GenerateIT` — Generate an IT request using an RPC token.\n\n### Data Read (2)\n- `GET /get-translations` — Get translated text for the application.\n- `GET /s/i/h/data-distribution.json` — Download data distribution configuration.\n\n### Data Write (1)\n- `POST /api/stats/atr` — Report agent activity tracking (ATR) statistics.\n\n### Media (1)\n- `GET /s/i/animation/homecity.json` — Retrieve animation media.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"dash-ezlocal\", executionMode: \"backend\", endpoint: \"GET /get-translations\" }\n```\n\nHere are a few examples to get you started with the `dash-ezlocal` API.\n\n```typescript\n// Example: Retrieving translated text for the application.\n// This is a common read operation to ensure the agent is localized.\nasync function getTranslations() {\n  const translations = await client.get_translations();\n  console.log(\"Available translations:\", translations);\n  return translations;\n}\n```\n\n```typescript\n// Example: Reporting agent activity tracking (ATR) statistics.\n// This is a common write operation to track agent usage.\nasync function reportAgentActivity(activityData: any) {\n  try {\n    await client.api_stats_atr(activityData);\n    console.log(\"Agent activity reported successfully.\");\n  } catch (error) {\n    console.error(\"Failed to report agent activity:\", error);\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (x-goog-api-key)\n**Base URL:** `https://dash.ezlocal.com`\n**Captured Auth:** 3 auth headers, 26 session cookies\n\n## About This Skill\n\nThis skill provides access to Dash Ezlocal's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Dash Ezlocal data without official API access\n- Automate actions on dash.ezlocal.com (faster than browser automation)\n- Call the same endpoints the Dash Ezlocal frontend uses\n\n## Quick Start\n\n```typescript\nimport { DashEzlocalClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await DashEzlocalClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 3 (sec-fetch-storage-access, x-goog-api-key, x-youtube-ad-signals)\n- **Session cookies:** 26\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (8)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /get-translations`\n- `GET /s/i/animation/homecity.json`\n- `GET /s/i/h/data-distribution.json`\n- `POST /$rpc/google.internal.waa.v1.Waa/GenerateIT`\n- `POST /api/stats/atr`\n- `POST /conversation.v1.ConversationService/GetWidgetConfig`\n- `POST /lexicon.v1.Lexicon/GetTranslations`\n- `POST /youtubei/v1/log_event`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /get-translations`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /s/i/animation/homecity.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /s/i/h/data-distribution.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /$rpc/google.internal.waa.v1.Waa/GenerateIT`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /api/stats/atr`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /conversation.v1.ConversationService/GetWidgetConfig`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /lexicon.v1.Lexicon/GetTranslations`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /youtubei/v1/log_event`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

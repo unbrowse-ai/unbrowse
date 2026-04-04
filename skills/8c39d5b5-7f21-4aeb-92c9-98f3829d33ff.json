@@ -1,0 +1,152 @@
+{
+  "skill_id": "8c39d5b5-7f21-4aeb-92c9-98f3829d33ff",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-19T06:12:33.168Z",
+  "updated_at": "2026-02-19T06:14:06.223Z",
+  "name": "njleg-state-nj-us",
+  "intent_signature": "Search for New Jersey legislative",
+  "domain": "www.njleg.state.nj.us",
+  "description": "Search for New Jersey legislative",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "njleg-state-nj-us",
+  "endpoints": [
+    {
+      "endpoint_id": "0c164665-3d24-4a9a-8772-1c8545c34d1c",
+      "method": "POST",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/0c164665-3d24-4a9a-8772-1c8545c34d1c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createUsersValidateUser",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "428416ad-a8ca-489e-8cee-ff99685be521",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/428416ad-a8ca-489e-8cee-ff99685be521",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getS27492024",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "83376b4c-aaec-4ee4-909f-a57893937ecd",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/83376b4c-aaec-4ee4-909f-a57893937ecd",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEmergencyBanner",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "cb4d8f26-ea20-4c9c-933a-04bae09a2289",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/cb4d8f26-ea20-4c9c-933a-04bae09a2289",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getS274920242",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "748522e1-61df-4338-a2b4-9073ad2ce7f9",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/748522e1-61df-4338-a2b4-9073ad2ce7f9",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getS274920243",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "c400d23a-2a0d-4fc5-840c-32d9d245141c",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/c400d23a-2a0d-4fc5-840c-32d9d245141c",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getS274920244",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "2bc1f2d9-f961-473e-8d23-31cbf798c335",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/2bc1f2d9-f961-473e-8d23-31cbf798c335",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getS274920245",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "6c25af96-9381-483c-b02b-11dd56049c10",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/6c25af96-9381-483c-b02b-11dd56049c10",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getBillSearchSessions",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "281caadf-227a-45d5-a482-ab419e3795b6",
+      "method": "GET",
+      "url_template": "https://www.njleg.state.nj.us/__endpoint/281caadf-227a-45d5-a482-ab419e3795b6",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getBillSearchExportFilter",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "8EWikfWwCSFoLck4mwSq1VkSYo2yrMG8fZyLFgNECQ15",
+    "download_count": 0,
+    "total_versions": 2,
+    "latest_version_hash": "ba8c698ef85976ada2fc1823768f890f6bfc2e3662d5792d320d24b991c86da9"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: njleg-state-nj-us\ndescription: Internal API for njleg-state-nj-us\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.njleg.state.nj.us\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 4\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# NjlegStateNjUs API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Auth Flow (1)\n- `POST /api/users/validateUser` — Validate user credentials.\n\n### Data Read (3)\n- `GET /api/billDetailHist/{billDetailHistId}/S2749/{S2749Id}` — Get historical details for a specific bill.\n- `GET /api/billSearch/{billSearchId}` — Retrieve a specific bill search result.\n- `GET /api/emergencyBanner` — Get emergency banner information.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"njleg-state-nj-us\", executionMode: \"backend\", endpoint: \"GET /api/billDetailHist/{billDetailHistId}/S2749/{S2749Id}\" }\n```\n\nHere are a few examples to get you started with the `njleg-state-nj-us` API:\n\n```typescript\n// Example: Authenticating a user to obtain a session token (assuming the client handles token storage).\nasync function authenticateUser(username: string, password: string) {\n  try {\n    const response = await client.validateUser({ username, password });\n    if (response.success) {\n      console.log(\"Authentication successful.\");\n      // The client is assumed to handle token storage after a successful login.\n      return true;\n    } else {\n      console.error(\"Authentication failed:\", response.message);\n      return false;\n    }\n  } catch (error) {\n    console.error(\"Error during authentication:\", error);\n    return false;\n  }\n}\n```\n\n```typescript\n// Example: Retrieving details for a specific bill.\nasync function getBillDetails(billDetailHistId: number, S2749Id: number) {\n  try {\n    const billDetails = await client.getBillDetailHist_billDetailHistId_S2749_S2749Id({ billDetailHistId, S2749Id });\n    console.log(\"Bill Details:\", billDetails);\n    return billDetails;\n  } catch (error) {\n    console.error(\"Error fetching bill details:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.njleg.state.nj.us`\n**Captured Auth:** none captured\n\n## About This Skill\n\nThis skill provides access to Njleg State Nj Us's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Njleg State Nj Us data without official API access\n- Automate actions on www.njleg.state.nj.us (faster than browser automation)\n- Call the same endpoints the Njleg State Nj Us frontend uses\n\n## Quick Start\n\n```typescript\nimport { NjlegStateNjUsClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await NjlegStateNjUsClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (11)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /api/billDetailHist/billDescription/S2749/2024`\n- `GET /api/billDetailHist/billHistory/S2749/2024`\n- `GET /api/billDetailHist/billSponsors/S2749/2024`\n- `GET /api/billDetailHist/billText/S2749/2024`\n- `GET /api/billDetailHist/sessionVotes/S2749/2024`\n- `GET /api/billSearch/exportFilter`\n- `GET /api/billSearch/sessions`\n- `GET /api/emergencyBanner`\n- `POST /api/users/validateUser`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /api/billDetailHist/billDescription/S2749/2024`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/billDetailHist/billHistory/S2749/2024`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/billDetailHist/billSponsors/S2749/2024`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/billDetailHist/billText/S2749/2024`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/billDetailHist/sessionVotes/S2749/2024`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/billSearch/exportFilter`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/billSearch/sessions`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /api/emergencyBanner`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /api/users/validateUser`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

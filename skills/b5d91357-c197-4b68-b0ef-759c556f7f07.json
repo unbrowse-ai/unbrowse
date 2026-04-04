@@ -1,0 +1,75 @@
+{
+  "skill_id": "b5d91357-c197-4b68-b0ef-759c556f7f07",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-17T16:29:42.313Z",
+  "updated_at": "2026-02-17T16:34:19.766Z",
+  "name": "partners-shopify",
+  "intent_signature": "Manage Shopify Partner account data,",
+  "domain": "partners.shopify.com",
+  "description": "Manage Shopify Partner account data,",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (bugsnag-api-key)",
+  "service_name": "partners-shopify",
+  "endpoints": [
+    {
+      "endpoint_id": "4276b0cc-31d5-44f6-8f8c-543c9c31ed4d",
+      "method": "POST",
+      "url_template": "https://partners.shopify.com/__endpoint/4276b0cc-31d5-44f6-8f8c-543c9c31ed4d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createWellKnown",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "f5e6090f-e88a-47b1-9a78-e63a350d2c63",
+      "method": "POST",
+      "url_template": "https://partners.shopify.com/__endpoint/f5e6090f-e88a-47b1-9a78-e63a350d2c63",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createSubmit",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "af0ee78b-57b6-460c-ab84-0f0dcf5a4acf",
+      "method": "POST",
+      "url_template": "https://partners.shopify.com/__endpoint/af0ee78b-57b6-460c-ab84-0f0dcf5a4acf",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "createEndpoint",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "D79W7Cf5Bs7Z4cxnu4vjCbRN9seLogbfyZV8J5EPLYMx",
+    "download_count": 0,
+    "total_versions": 3,
+    "latest_version_hash": "b73bfe45a258988a334fef1e458fa0a93e0e43b6fa38fb640aaf8a063ce21af9"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: partners-shopify\ndescription: Internal API for partners-shopify\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://partners.shopify.com\"\n  authMethod: \"API Key (bugsnag-api-key)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"ecommerce\"\n---\n\n# PartnersShopify API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (bugsnag-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Write (1)\n- `POST /dfp/submit` — Submit data to the Data Forwarding Platform (DFP).\n\n### Config (1)\n- `POST /.well-known/dux` — Configure the DUX integration for a partner.\n\n### Core API (1)\n- `POST /` — Access core partner API functionality.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"partners-shopify\", executionMode: \"backend\", endpoint: \"POST /.well-known/dux\" }\n```\n\nHere are a few examples to get you started using the `partners-shopify` API:\n\n```typescript\n// Configure the DUX integration for a partner.\n// This example assumes you have a valid configuration object.\nasync function configureDux(config: any) {\n  try {\n    const response = await client.well_known_dux(config);\n    console.log(\"DUX configuration successful:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error configuring DUX:\", error);\n    throw error;\n  }\n}\n```\n\n```typescript\n// Submit data to the Data Forwarding Platform (DFP).\n// This example assumes you have a valid data payload.\nasync function submitDfpData(data: any) {\n  try {\n    const response = await client.dfp_submit(data);\n    console.log(\"DFP data submission successful:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error submitting DFP data:\", error);\n    throw error;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (bugsnag-api-key)\n**Base URL:** `https://partners.shopify.com`\n**Captured Auth:** 2 auth headers\n\n## About This Skill\n\nThis skill provides access to Partners Shopify's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Partners Shopify data without official API access\n- Automate actions on partners.shopify.com (faster than browser automation)\n- Call the same endpoints the Partners Shopify frontend uses\n\n## Quick Start\n\n```typescript\nimport { PartnersShopifyClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await PartnersShopifyClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (bugsnag-api-key, x-csrf-token)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (5)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `POST /`\n- `POST /.well-known/dux`\n- `POST /dfp/submit`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `POST /`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /.well-known/dux`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /dfp/submit`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

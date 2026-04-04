@@ -1,0 +1,428 @@
+{
+  "skill_id": "K_O2eZzlysqT-3_D1nbxm",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:52:18.010Z",
+  "updated_at": "2026-02-23T07:52:18.010Z",
+  "name": "www.indeed.com -- Indeed API skill for OpenClaw. Capabilities: get frontendlogging, get log, create tp2, create initialLog, get what. Service: www.indeed.com. Auth: Cookie-based (INDEED_CSRF_TOKEN).",
+  "intent_signature": "Indeed API skill for OpenClaw. Capabilities: get frontendlogging, get log, create tp2, create initialLog, get what. Service: www.indeed.com. Auth: Cookie-based (INDEED_CSRF_TOKEN).",
+  "domain": "www.indeed.com",
+  "description": "Auto-discovered skill for: Indeed API skill for OpenClaw. Capabilities: get frontendlogging, get log, create tp2, create initialLog, get what. Service: www.indeed.com. Auth: Cookie-based (INDEED_CSRF_TOKEN).",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "PIzHM_FXw9-_ogBS0rRRj",
+      "method": "GET",
+      "url_template": "https://www.indeed.com/hp/rpc/frontendlogging",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.indeed.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "logType": "trackEvent",
+        "moduleName": "event",
+        "application": "indeedmobile",
+        "pageId": "homepage",
+        "data": "{\"eventName\":\"mobPageLoadInfo\",\"type\":\"mobPageLoadInfo\",\"pageId\":\"homepage\",\"mobtk\":\"1ji4no039jcfn800\",\"pageName\":\"hp\",\"pixelRatio\":1,\"scrWidth\":1280,\"scrHeight\":720,\"scrOrientation\":\"landscape\"}"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "YR-QplpGNpYuCYEYj1pEj",
+      "method": "GET",
+      "url_template": "https://autocomplete.indeed.com/api/v0/suggestions/cmp-what-with-top-companies",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.indeed.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "country": "US",
+        "language": "en",
+        "count": "10",
+        "types": "cmp-what-with-top-companies",
+        "counts": "10",
+        "formatted": "1",
+        "query": "",
+        "useEachWord": "false",
+        "seqId": "1",
+        "page": "homepage",
+        "pageSessionId": "1ji4no039jcfn800",
+        "ctk": "1ji0fl5j9200s000",
+        "accountKey": "",
+        "showAlternateSuggestions": "false",
+        "merged": "true",
+        "grouped": "false",
+        "rich": "true",
+        "where": "New York"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "end": {
+                    "type": "integer",
+                    "inferred_from_samples": 10
+                  },
+                  "start": {
+                    "type": "integer",
+                    "inferred_from_samples": 10
+                  }
+                },
+                "required": [
+                  "end",
+                  "start"
+                ],
+                "inferred_from_samples": 10
+              },
+              "inferred_from_samples": 10
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "employerKey": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                },
+                "intentConfidence": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                },
+                "score": {
+                  "type": "integer",
+                  "inferred_from_samples": 10
+                },
+                "squareLogo": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                },
+                "squareLogo64": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                },
+                "subQuery": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                },
+                "suggestion": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                },
+                "url": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                }
+              },
+              "required": [
+                "employerKey",
+                "intentConfidence",
+                "score",
+                "squareLogo",
+                "squareLogo64",
+                "subQuery",
+                "suggestion",
+                "url"
+              ],
+              "inferred_from_samples": 10
+            },
+            "suggestion": {
+              "type": "string",
+              "inferred_from_samples": 10
+            }
+          },
+          "required": [
+            "matches",
+            "payload",
+            "suggestion"
+          ],
+          "inferred_from_samples": 10
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "LdY3JjXLptSejOaNKb4Eo",
+      "method": "GET",
+      "url_template": "https://autocomplete.indeed.com/api/v0/suggestions/location",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.indeed.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "country": "US",
+        "language": "en",
+        "count": "10",
+        "formatted": "1",
+        "query": "New York",
+        "useEachWord": "false",
+        "seqId": "1",
+        "page": "homepage",
+        "pageSessionId": "1ji4no039jcfn800",
+        "ctk": "1ji0fl5j9200s000",
+        "accountKey": "",
+        "showAlternateSuggestions": "false",
+        "rich": "true"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "end": {
+                    "type": "integer",
+                    "inferred_from_samples": 10
+                  },
+                  "start": {
+                    "type": "integer",
+                    "inferred_from_samples": 10
+                  }
+                },
+                "required": [
+                  "end",
+                  "start"
+                ],
+                "inferred_from_samples": 10
+              },
+              "inferred_from_samples": 10
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "latitude": {
+                  "type": "number",
+                  "inferred_from_samples": 10
+                },
+                "locationType": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                },
+                "longitude": {
+                  "type": "number",
+                  "inferred_from_samples": 10
+                },
+                "popularity": {
+                  "type": "integer",
+                  "inferred_from_samples": 10
+                },
+                "population": {
+                  "type": "integer",
+                  "inferred_from_samples": 10
+                },
+                "suggestion": {
+                  "type": "string",
+                  "inferred_from_samples": 10
+                }
+              },
+              "required": [
+                "latitude",
+                "locationType",
+                "longitude",
+                "popularity",
+                "population",
+                "suggestion"
+              ],
+              "inferred_from_samples": 10
+            },
+            "suggestion": {
+              "type": "string",
+              "inferred_from_samples": 10
+            }
+          },
+          "required": [
+            "matches",
+            "payload",
+            "suggestion"
+          ],
+          "inferred_from_samples": 10
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "nBvWpqXAcx3RV2TVqZ2Hq",
+      "method": "POST",
+      "url_template": "https://www.indeed.com/hp/rpc/frontendlogging",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.indeed.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+        "content-type": "multipart/form-data; boundary=----WebKitFormBoundarysx4APFOKxNZkCzZp",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "1kP1E9AeInLbP8I3hSvLl",
+      "method": "POST",
+      "url_template": "https://autocomplete.indeed.com/api/v0/initialLog",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.indeed.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+        "content-type": "text/plain;charset=UTF-8",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "idempotency": "unsafe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "inferred_from_samples": 1
+        },
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "_KBstlVNXa0p80YHmI5oQ",
+      "method": "GET",
+      "url_template": "https://www.indeed.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "4TeFgdIB_jj5uY8P-Y8VC",
+      "method": "GET",
+      "url_template": "https://www.indeed.com/m/newjobs",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.indeed.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "q": "software engineer",
+        "l": "New York",
+        "ts": "1771690432129",
+        "mobtk": "1ji4no039jcfn800",
+        "fromage": "last"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "newCount": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "newCountFormattedNumber": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "newFormatted": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "totalCount": {
+                "type": "integer",
+                "inferred_from_samples": 1
+              },
+              "totalCountFormattedNumber": {
+                "type": "string",
+                "inferred_from_samples": 1
+              },
+              "totalFormatted": {
+                "type": "string",
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "key",
+              "newCount",
+              "newCountFormattedNumber",
+              "newFormatted",
+              "totalCount",
+              "totalCountFormattedNumber",
+              "totalFormatted"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "status",
+          "body"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "xFbRX7xGue8yncB4XuTOm",
+      "method": "GET",
+      "url_template": "https://sgtm.indeed.com/gtag/js",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://www.indeed.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "id": "G-LYNT3BTHPG",
+        "cx": "c",
+        "gtm": "4e62i1",
+        "sign": "fe91e5214c67ecadc99ed25c5a9da4b063a7908781f3e3079ef0f0120903d810_20260223"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    }
+  ],
+  "auth_profile_ref": "www.indeed.com-session"
+}

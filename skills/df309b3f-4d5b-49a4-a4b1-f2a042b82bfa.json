@@ -1,0 +1,49 @@
+{
+  "skill_id": "df309b3f-4d5b-49a4-a4b1-f2a042b82bfa",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T15:10:17.917Z",
+  "updated_at": "2026-02-20T15:10:19.394Z",
+  "name": "dashboard-midtrans",
+  "intent_signature": "Manage Midtrans merchant dashboard activities by tracking",
+  "domain": "dashboard.midtrans.com",
+  "description": "Manage Midtrans merchant dashboard activities by tracking",
+  "owner_type": "marketplace",
+  "auth_type": "Session Token (x-xsrf-token)",
+  "service_name": "dashboard-midtrans",
+  "endpoints": [
+    {
+      "endpoint_id": "73b4dca8-4a91-4e03-8b73-d6740f001a8a",
+      "method": "POST",
+      "url_template": "https://dashboard.midtrans.com/__endpoint/73b4dca8-4a91-4e03-8b73-d6740f001a8a",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "unsafe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "sendWhatsAppMessage",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "CsbtaQJAmzC2UuVEZH9g6K7gBAv6vufy9ZVp99QosXFJ",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "ba2402fc5d19eeb93ca386aa026008c46311d833281eccb1e578e9135f541e53"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: dashboard-midtrans\ndescription: Internal API for dashboard-midtrans\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://dashboard.midtrans.com\"\n  authMethod: \"Session Token (x-xsrf-token)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# DashboardMidtrans API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nSession Token (x-xsrf-token) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (1)\n- `GET /attribution_trigger` — Retrieve attribution trigger data for analysis.\n\n### Data Write (2)\n- `POST /midtrans-docs/api-next/v2/versions/1.0/metrics-proxy/create/pageview` — Record page view metrics for documentation.\n- `POST /wa/` — Send WhatsApp messages to customers.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"dashboard-midtrans\", executionMode: \"backend\", endpoint: \"GET /attribution_trigger\" }\n```\n\nHere are a few examples to get you started using the `dashboard-midtrans` API:\n\n```typescript\n// Retrieve attribution trigger data for analysis.\n// Useful for understanding marketing campaign performance.\nasync function getAttributionData() {\n  try {\n    const attributionData = await client.get_attribution_trigger();\n    console.log(\"Attribution Data:\", attributionData);\n    return attributionData;\n  } catch (error) {\n    console.error(\"Error fetching attribution data:\", error);\n    return null;\n  }\n}\n```\n\n```typescript\n// Record a page view event for the API documentation.\n// Helps track documentation usage and identify popular pages.\nasync function recordPageView(pageTitle: string, pageUrl: string) {\n  try {\n    const response = await client.post_midtrans_docs_api_next_v2_versions_1_0_metrics_proxy_create_pageview({\n      title: pageTitle,\n      url: pageUrl,\n    });\n    console.log(\"Page view recorded:\", response);\n    return response;\n  } catch (error) {\n    console.error(\"Error recording page view:\", error);\n    return null;\n  }\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Session Token (x-xsrf-token)\n**Base URL:** `https://dashboard.midtrans.com`\n**Captured Auth:** 2 auth headers, 28 session cookies\n\n## About This Skill\n\nThis skill provides access to Dashboard Midtrans's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Dashboard Midtrans data without official API access\n- Automate actions on dashboard.midtrans.com (faster than browser automation)\n- Call the same endpoints the Dashboard Midtrans frontend uses\n\n## Quick Start\n\n```typescript\nimport { DashboardMidtransClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await DashboardMidtransClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (sec-fetch-storage-access, x-xsrf-token)\n- **Session cookies:** 28\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (8)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /assets/Poppins-Medium-e554db189b5d944ef0e6f98ee0e4e8c75f69e95315dc9f4ae0c616a8756a2ba4.ttf`\n- `GET /assets/Poppins-Regular-78f127277756ae464f4eb665ce214cb6315746f6f4193e95b31f18f4b3e97527.ttf`\n- `GET /assets/Poppins-SemiBold-bf9c1ff640acc8bb5441a9b564360943f9db90969742aa33a36329b2828d2759.ttf`\n- `GET /attribution_trigger`\n- `GET /collect`\n- `GET /opd/opd-bridge/fc2b5060f7accec5cf74.ttf`\n- `POST /midtrans-docs/api-next/v2/versions/1.0/metrics-proxy/create/pageview`\n- `POST /wa/`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /assets/Poppins-Medium-e554db189b5d944ef0e6f98ee0e4e8c75f69e95315dc9f4ae0c616a8756a2ba4.ttf`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /assets/Poppins-Regular-78f127277756ae464f4eb665ce214cb6315746f6f4193e95b31f18f4b3e97527.ttf`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /assets/Poppins-SemiBold-bf9c1ff640acc8bb5441a9b564360943f9db90969742aa33a36329b2828d2759.ttf`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /attribution_trigger`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /collect`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /opd/opd-bridge/fc2b5060f7accec5cf74.ttf`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /midtrans-docs/api-next/v2/versions/1.0/metrics-proxy/create/pageview`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `POST /wa/`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

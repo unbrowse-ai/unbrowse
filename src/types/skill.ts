@@ -2,6 +2,40 @@ export type SkillLifecycle = "active" | "deprecated" | "disabled";
 export type OwnerType = "agent" | "marketplace" | "user";
 export type Idempotency = "safe" | "unsafe";
 export type VerificationStatus = "verified" | "unverified" | "failed" | "pending" | "disabled";
+export type GraphVisibility = "shadow" | "public";
+
+export interface SkillSubmissionProvenance {
+  submitted_at: string;
+  submitter_agent_id?: string;
+  client_trace_version?: string;
+  client_code_hash?: string;
+  client_git_sha?: string;
+  transport?: string;
+  release_manifest_version?: string;
+  release_manifest_verified?: boolean;
+  release_manifest_reason?: string;
+}
+
+export interface SkillTrustMetadata {
+  graph_visibility: GraphVisibility;
+  promotion_reason: string;
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  verified_ratio: number;
+  last_submission_at: string;
+}
+
+export interface EndpointCorroboration {
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  last_submission_at: string;
+  submitter_agent_ids?: string[];
+  verified_release_submitter_ids?: string[];
+}
 
 export interface AuthProfile {
   oauth_type?: string;
@@ -50,6 +84,7 @@ export interface WsMessage {
 
 export interface OperationBinding {
   key: string;
+  description?: string;
   type?: string;
   semantic_type?: string;
   required?: boolean;
@@ -62,6 +97,9 @@ export interface EndpointSemanticDescriptor {
   resource_kind: string;
   description_in?: string;
   description_out?: string;
+  description_source?: "agent" | "auto" | "missing";
+  description_needs_review?: boolean;
+  description_warning?: string;
   response_summary?: string;
   example_request?: unknown;
   example_response_compact?: unknown;
@@ -73,6 +111,23 @@ export interface EndpointSemanticDescriptor {
   observed_at?: string;
   sample_request_url?: string;
   auth_required?: boolean;
+}
+
+export interface EndpointPolicyDescriptor {
+  requires_third_party_terms_confirmation: boolean;
+  policy_domain: string;
+  reason: string;
+}
+
+export interface EndpointPathBindingCandidate {
+  placeholder: string;
+  observed_value: string;
+  segment_index: number;
+  source: "normalized_placeholder" | "file_basename" | "page_hint" | "context_diff" | "segment_pattern";
+  placeholder_hint?: string;
+  preceding_segment?: string;
+  filename_suffix?: string;
+  matched_page_hint?: boolean;
 }
 
 export interface EndpointDescriptor {
@@ -111,8 +166,23 @@ export interface EndpointDescriptor {
   /** Learned execution strategy — set after first successful execution.
    *  Skips doomed server-fetch on sites that need browser execution (e.g. LinkedIn). */
   exec_strategy?: "server" | "trigger-intercept" | "browser";
+  /** Server-owned graph visibility. Shadow endpoints are persisted but not indexed. */
+  graph_visibility?: GraphVisibility;
+  /** Server-owned corroboration counters used for staged promotion. */
+  corroboration?: EndpointCorroboration;
   /** Semantic v2 metadata for endpoint-level retrieval and DAG planning */
   semantic?: EndpointSemanticDescriptor;
+  /** Path template inferred by batch mining (passive captures without a context page URL).
+   *  Internal annotation — not persisted to the skill manifest. */
+  _minedTemplate?: string;
+  /** Raw path binding evidence captured before semantic naming rewrites placeholders. */
+  _path_binding_candidates?: EndpointPathBindingCandidate[];
+  /** Structured search form spec — when present, indicates this endpoint can be driven
+   *  by filling a DOM form rather than a direct API call. Used by isStructuredSearchForm
+   *  to gate search-form execution paths. */
+  search_form?: import("../execution/search-forms.js").SearchFormSpec;
+  /** Optional third-party policy metadata surfaced to callers and enforced at execute time. */
+  policy?: EndpointPolicyDescriptor;
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -152,7 +222,7 @@ export interface SkillOperationEdge {
   from_operation_id: string;
   to_operation_id: string;
   binding_key: string;
-  kind: "dependency" | "hint";
+  kind: "dependency" | "hint" | "parent_child" | "pagination" | "auth";
   confidence: number;
 }
 
@@ -186,6 +256,49 @@ export interface AgentAvailableOperation {
   example_response_compact?: unknown;
 }
 
+export interface AgentPrefetchOperation {
+  operation_id: string;
+  endpoint_id: string;
+  method: EndpointDescriptor["method"];
+  action_kind: string;
+  resource_kind: string;
+  reason: string;
+  binding_key: string;
+  edge_kind: SkillOperationEdge["kind"];
+  confidence: number;
+}
+
+export interface AgentWorkflowDagOperation {
+  operation_id: string;
+  endpoint_id: string;
+  method: EndpointDescriptor["method"];
+  action_kind: string;
+  resource_kind: string;
+  title: string;
+  url_template: string;
+  description_out?: string;
+  requires: string[];
+  yields: string[];
+  runnable: boolean;
+  prefetch_get_operations: AgentPrefetchOperation[];
+}
+
+export interface AgentWorkflowDagView {
+  skill_id: string;
+  intent?: string;
+  missing_bindings: string[];
+  suggested_next_operation_id?: string;
+  operations: AgentWorkflowDagOperation[];
+  edges: Array<{
+    edge_id: string;
+    from_operation_id: string;
+    to_operation_id: string;
+    binding_key: string;
+    kind: SkillOperationEdge["kind"];
+    confidence: number;
+  }>;
+}
+
 export interface AgentSkillChunkView {
   skill_id: string;
   intent?: string;
@@ -216,8 +329,30 @@ export interface SkillManifest {
   discovery_cost?: DiscoveryCost;
   /** Intent strings that contributed endpoints to this domain-level skill */
   intents?: string[];
+  /** Agent ID of the indexer who published this skill - used for Tier 1 attribution */
+  indexer_id?: string;
+  /** All agents who contributed endpoints to this skill */
+  contributors?: Array<{
+    agent_id: string;
+    wallet_address?: string;
+    endpoints_contributed: number;
+    cumulative_delta: number;
+    share: number;
+    first_contributed_at: string;
+    last_contributed_at: string;
+  }>;
+  /** Cascade Split address — x402 payments route here for multi-contributor skills */
+  split_config?: string;
   /** Graph v2: endpoint dependencies, semantic summaries, and dynamic availability */
   operation_graph?: SkillOperationGraph;
+  /** Price in USD per execution; undefined or 0 = free */
+  base_price_usd?: number;
+  /** Whether the skill owner has opted into compensation */
+  owner_compensation_opt_in?: boolean;
+  /** Server-owned submission provenance for staged promotion and abuse analysis. */
+  provenance_events?: SkillSubmissionProvenance[];
+  /** Server-owned graph trust state. */
+  trust?: SkillTrustMetadata;
 }
 
 export interface ExecutionTrace {
@@ -227,6 +362,13 @@ export interface ExecutionTrace {
   started_at: string;
   completed_at: string;
   success: boolean;
+  session_id?: string;
+  step_index?: number;
+  state_hash?: string;
+  candidate_count?: number;
+  selected_operation_id?: string;
+  reachable_operation_count?: number;
+  api_call_count?: number;
   status_code?: number;
   error?: string;
   result?: unknown;
@@ -256,6 +398,8 @@ export interface DiscoveryCandidate {
 
 export interface ResponseSchema {
   type: string;
+  description?: string;
+  enum_values?: Array<string | number | boolean>;
   properties?: Record<string, ResponseSchema>;
   items?: ResponseSchema;
   required?: string[];
@@ -292,6 +436,8 @@ export interface EndpointStats {
 
 export interface ExecutionOptions {
   confirm_unsafe?: boolean;
+  /** Explicit user confirmation for domains/actions that may violate third-party site terms. */
+  confirm_third_party_terms?: boolean;
   dry_run?: boolean;
   /** User's request intent — used for endpoint ranking instead of skill.intent_signature */
   intent?: string;
@@ -301,6 +447,10 @@ export interface ExecutionOptions {
   force_capture?: boolean;
   /** Request/client namespace for isolating local server state across concurrent CLI users */
   client_scope?: string;
+  /** Set only when the caller has already completed payment verification for a paid run */
+  payment_verified?: boolean;
+  /** Skip robots.txt compliance check (e.g. for testing or trusted internal domains) */
+  skip_robots_check?: boolean;
 }
 
 export interface ValidationResult {
@@ -315,7 +465,7 @@ export interface OrchestrationTiming {
   get_skill_ms: number;
   execute_ms: number;
   total_ms: number;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache" | "browser-action";
   cache_hit: boolean;
   candidates_found: number;
   candidates_tried: number;
@@ -328,6 +478,435 @@ export interface OrchestrationTiming {
   time_saved_pct: number;
   /** Percentage token saved vs estimated full-page browsing cost */
   tokens_saved_pct: number;
+  /** Real capture baseline in ms when known */
+  baseline_total_ms?: number;
+  /** Actual runtime latency in ms for this resolve */
+  actual_total_ms?: number;
+  /** Real time saved in ms when baseline is known */
+  time_saved_ms?: number;
+  /** Real baseline cost in micro-cents when known */
+  baseline_cost_uc?: number;
+  /** Real amount charged for this run in micro-cents */
+  actual_cost_uc?: number;
+  /** Real cost saved in micro-cents when baseline is known */
+  cost_saved_uc?: number;
+  /** Tier 3 search fee charged during this resolve */
+  paid_search_uc?: number;
+  /** Paid execution fee charged during this resolve */
+  paid_execution_uc?: number;
   /** Code version hash + git SHA — tracks which code produced this timing */
   trace_version?: string;
+}
+
+export type RoutingRunType = "single_shot" | "long_running";
+export type RoutingTelemetrySource =
+  | "route-cache"
+  | "marketplace"
+  | "graph"
+  | "live-capture"
+  | "browser-action"
+  | "defer";
+export type RoutingSessionOutcome = "success" | "failure" | "defer" | "abandon";
+
+export interface RoutingContextBuckets {
+  role: "general" | "developer" | "researcher" | "analyst" | "operator" | "unknown";
+  cost_sensitivity: "low" | "medium" | "high" | "unknown";
+  latency_sensitivity: "low" | "medium" | "high" | "unknown";
+  output_preference: "structured" | "raw" | "mixed" | "unknown";
+  task_horizon: "short" | "long" | "unknown";
+  has_prior_history: boolean;
+}
+
+export interface RoutingCandidateSnapshot {
+  candidate_id: string;
+  rank: number;
+  skill_id?: string;
+  endpoint_id: string;
+  operation_id?: string;
+  route_fingerprint: string;
+  score: number;
+  chosen: boolean;
+  reachable: boolean;
+  rejection_reason?: string;
+  feature_snapshot: {
+    method?: string;
+    has_response_schema: boolean;
+    dom_extraction: boolean;
+    verification_status?: string;
+    reliability_score?: number;
+    unsafe_action_score?: number;
+  };
+}
+
+export interface RoutingTelemetryBaseEvent {
+  event_id: string;
+  event_type:
+    | "routing_session_started"
+    | "routing_candidates_ranked"
+    | "routing_step_executed"
+    | "routing_session_completed";
+  session_id: string;
+  created_at: string;
+  trace_version?: string;
+  anonymized_agent_id?: string;
+  top_level_intent: string;
+  normalized_domains: string[];
+  run_type: RoutingRunType;
+}
+
+export interface RoutingSessionEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_session_started";
+  context_buckets: RoutingContextBuckets;
+}
+
+export interface RoutingCandidateEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_candidates_ranked";
+  step_id: string;
+  step_index: number;
+  source: RoutingTelemetrySource;
+  state_hash_before: string;
+  candidate_count: number;
+  reachable_operation_count?: number;
+  available_binding_count?: number;
+  missing_binding_count?: number;
+  selected_endpoint_id?: string;
+  selected_operation_id?: string;
+  candidates: RoutingCandidateSnapshot[];
+}
+
+export interface RoutingStepEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_step_executed";
+  step_id: string;
+  step_index: number;
+  source: RoutingTelemetrySource;
+  state_hash_before: string;
+  state_hash_after: string;
+  selected_skill_id?: string;
+  selected_endpoint_id?: string;
+  selected_operation_id?: string;
+  reachable_operation_count?: number;
+  available_binding_count?: number;
+  missing_binding_count?: number;
+  candidate_count: number;
+  execution_latency_ms?: number;
+  status_code?: number;
+  success?: boolean;
+  failure_reason?: string;
+  schema_fingerprint?: string;
+  response_hash?: string;
+  cross_domain_transition: boolean;
+  retry_count: number;
+  user_override: boolean;
+  did_step_unlock_next_step: boolean;
+  required_recovery: boolean;
+}
+
+export interface RoutingSessionCompletedEvent extends RoutingTelemetryBaseEvent {
+  event_type: "routing_session_completed";
+  completed_at: string;
+  final_outcome: RoutingSessionOutcome;
+  final_success: boolean;
+  total_steps: number;
+  total_candidates_ranked: number;
+  total_api_calls: number;
+  retry_count: number;
+  user_override: boolean;
+  required_recovery: boolean;
+}
+
+export type RoutingTelemetryEvent =
+  | RoutingSessionEvent
+  | RoutingCandidateEvent
+  | RoutingStepEvent
+  | RoutingSessionCompletedEvent;
+
+export type WorkflowStepStrategy = "server" | "trigger-intercept" | "browser-action" | "browser-fetch";
+
+export interface WorkflowActionStep {
+  action: string;
+  selector?: string;
+  value?: string;
+  ref?: string;
+  step_index?: number;
+}
+
+export interface WorkflowTokenCandidate {
+  source_kind: "cookie" | "request_header" | "response_header" | "request_body" | "hidden_input" | "meta" | "bootstrap_json";
+  source_name: string;
+  source_path?: string;
+  observed_value?: string;
+  confidence: number;
+}
+
+export interface TokenBinding {
+  binding_id: string;
+  target_location: "header" | "body";
+  target_name: string;
+  refresh_on_statuses: number[];
+  candidates: WorkflowTokenCandidate[];
+  selected_source_kind?: WorkflowTokenCandidate["source_kind"];
+  selected_source_name?: string;
+}
+
+export interface MutationGuard {
+  confirm_unsafe_required: boolean;
+  provenance_backed: boolean;
+  auth_required: boolean;
+  parameter_mapping_confident: boolean;
+  block_reason?: string;
+}
+
+export interface WorkflowStep {
+  step_id: string;
+  strategy: WorkflowStepStrategy;
+  provenance: "observed-request" | "bundle-inferred" | "dom-form" | "trigger-url" | "learned-runtime";
+  trigger_url?: string;
+  action_sequence?: WorkflowActionStep[];
+  success_count?: number;
+  failure_count?: number;
+  last_status?: number;
+  last_error?: string;
+  last_used_at?: string;
+}
+
+export interface WorkflowRecipe {
+  recipe_id: string;
+  endpoint_id: string;
+  operation_id?: string;
+  preferred: boolean;
+  provenance_backed: boolean;
+  steps: WorkflowStep[];
+  token_bindings: TokenBinding[];
+  mutation_guard: MutationGuard;
+  replay_contract: WorkflowReplayContract;
+  last_successful_strategy?: WorkflowStepStrategy;
+  last_used_at?: string;
+}
+
+export interface WorkflowDomFieldHint {
+  form_selector?: string;
+  field_name: string;
+  value?: string;
+  field_type?: string;
+  selector?: string;
+  required?: boolean;
+  pattern?: string;
+  min?: string;
+  max?: string;
+}
+
+export interface WorkflowMetaHint {
+  key: string;
+  value: string;
+}
+
+export interface WorkflowBootstrapHint {
+  path: string;
+  value: string;
+}
+
+export interface WorkflowDomOptionHint {
+  form_selector?: string;
+  field_name: string;
+  values: string[];
+  labels?: string[];
+  field_type?: string;
+}
+
+export interface WorkflowParameterSourceHint {
+  source_kind:
+    | WorkflowTokenCandidate["source_kind"]
+    | "path_template"
+    | "query_default"
+    | "body_default"
+    | "observed_query"
+    | "observed_body"
+    | "semantic_requires";
+  source_name: string;
+  source_path?: string;
+  confidence?: number;
+}
+
+export interface WorkflowParameterConstraint {
+  kind: "enum" | "format" | "pattern" | "min" | "max";
+  value?: string | number | boolean;
+  description?: string;
+}
+
+export interface WorkflowParameterSpec {
+  name: string;
+  location: "path" | "query" | "body" | "header";
+  description?: string;
+  type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+  required: boolean;
+  user_supplied: boolean;
+  default_value?: unknown;
+  example_value?: unknown;
+  format?: string;
+  enum_values?: Array<string | number | boolean>;
+  derived_from?: string[];
+  constraints?: WorkflowParameterConstraint[];
+  source_hints: WorkflowParameterSourceHint[];
+}
+
+export interface EndpointParameterReview {
+  name: string;
+  location: "path" | "query" | "body" | "header";
+  description?: string;
+  type?: "string" | "number" | "integer" | "boolean" | "object" | "array";
+  required?: boolean;
+  user_supplied?: boolean;
+  format?: string;
+  enum_values?: Array<string | number | boolean>;
+  derived_from?: string[];
+}
+
+export interface EndpointResponseFieldReview {
+  path: string;
+  description?: string;
+  type?: string;
+  enum_values?: Array<string | number | boolean>;
+}
+
+export interface EndpointReviewPayload {
+  endpoint_id: string;
+  description?: string;
+  action_kind?: string;
+  resource_kind?: string;
+  example_request?: unknown;
+  example_response?: unknown;
+  parameter_reviews?: EndpointParameterReview[];
+  response_reviews?: EndpointResponseFieldReview[];
+}
+
+export interface WorkflowPrerequisiteSpec {
+  prerequisite_id: string;
+  kind: "authenticated-session" | "token-binding" | "hidden-field" | "page-context" | "browser-action" | "submit-blocker";
+  name: string;
+  description?: string;
+  required: boolean;
+  selector?: string;
+  source_kind?: string;
+  source_name?: string;
+  derived_from?: string;
+}
+
+export interface WorkflowNextStateSpec {
+  kind: "page_url" | "response_schema" | "dom_selector";
+  value: string;
+  description?: string;
+}
+
+export interface WorkflowPaymentRequirementSpec {
+  status: "free" | "x402_optional" | "x402_required";
+  price_usd?: string;
+  currency?: string;
+  wallet_required: boolean;
+  provider_hint?: string;
+  confirmation_field?: "payment_verified";
+  reason?: string;
+}
+
+export interface WorkflowReplayContract {
+  explicit_replay_only: boolean;
+  exposure_stage: "publish";
+  dependency_bindings: string[];
+  search_terms: string[];
+  parameter_specs: WorkflowParameterSpec[];
+  prerequisite_specs: WorkflowPrerequisiteSpec[];
+  next_state: WorkflowNextStateSpec[];
+  payment_requirement: WorkflowPaymentRequirementSpec;
+}
+
+export interface WorkflowEvidence {
+  observed_request_count: number;
+  observed_request_urls: string[];
+  har_lineage_ids: Array<string | undefined>;
+  trigger_urls: string[];
+  js_bundle_urls: string[];
+  dom_form_hints: WorkflowDomFieldHint[];
+  dom_option_hints: WorkflowDomOptionHint[];
+  meta_hints: WorkflowMetaHint[];
+  bootstrap_hints: WorkflowBootstrapHint[];
+}
+
+export interface WorkflowArtifact {
+  artifact_version: string;
+  skill_id: string;
+  domain: string;
+  intent_signature: string;
+  captured_at: string;
+  final_url: string;
+  auth_state: {
+    auth_profile_ref?: string;
+    cookie_names: string[];
+    header_names: string[];
+    authenticated: boolean;
+  };
+  evidence: WorkflowEvidence;
+  recipes: WorkflowRecipe[];
+}
+
+export type WorkflowPublishStatus = "captured" | "indexed" | "blocked-validation" | "published";
+
+export interface WorkflowPublishBindingSource {
+  source_kind: WorkflowTokenCandidate["source_kind"];
+  source_name: string;
+  source_path?: string;
+  confidence: number;
+}
+
+export interface WorkflowPublishBinding {
+  target_location: TokenBinding["target_location"];
+  target_name: string;
+  refresh_on_statuses: number[];
+  selected_source_kind?: TokenBinding["selected_source_kind"];
+  selected_source_name?: string;
+  candidates: WorkflowPublishBindingSource[];
+}
+
+export interface WorkflowPublishRecipe {
+  endpoint_id: string;
+  operation_id?: string;
+  preferred: boolean;
+  provenance_backed: boolean;
+  last_successful_strategy?: WorkflowStepStrategy;
+  steps: Array<{
+    strategy: WorkflowStepStrategy;
+    provenance: WorkflowStep["provenance"];
+    trigger_url?: string;
+    action_count: number;
+  }>;
+  mutation_guard: MutationGuard;
+  token_bindings: WorkflowPublishBinding[];
+  replay_contract: WorkflowReplayContract;
+  usage_notes: string[];
+}
+
+export interface WorkflowPublishArtifact {
+  export_version: string;
+  generated_at: string;
+  publish_status: WorkflowPublishStatus;
+  published_at?: string;
+  validation_errors?: string[];
+  skill_id: string;
+  domain: string;
+  intent_signature: string;
+  sanitized_endpoints: EndpointDescriptor[];
+  workflow_summary: {
+    recipe_count: number;
+    preferred_endpoint_ids: string[];
+    authenticated_capture: boolean;
+    token_binding_count: number;
+    trigger_url_count: number;
+    included_endpoint_count: number;
+    root_endpoint_ids: string[];
+    closure_added_count: number;
+  };
+  auth_summary: WorkflowArtifact["auth_state"];
+  recipes: WorkflowPublishRecipe[];
+  docs: {
+    headline: string;
+    bullets: string[];
+  };
 }

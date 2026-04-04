@@ -1,0 +1,45 @@
+{
+  "skill_id": "6e7afe66-1825-4314-ad30-92be69aafd5c",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-13T19:09:08.902Z",
+  "updated_at": "2026-02-20T14:03:29.977Z",
+  "name": "sec-gov",
+  "intent_signature": "Access financial filings and public",
+  "domain": "www.sec.gov",
+  "description": "Access financial filings and public",
+  "owner_type": "marketplace",
+  "auth_type": "Unknown (may need login)",
+  "service_name": "sec-gov",
+  "endpoints": [
+    {
+      "endpoint_id": "GET--boomerang-NPLYJ-LHJA8-NDLXF-QZGTT-DGVDZ",
+      "method": "GET",
+      "url_template": "https://www.sec.gov/boomerang/NPLYJ-LHJA8-NDLXF-QZGTT-DGVDZ",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "",
+      "transform_code": "(data) => {\n  /*__unbrowse_auto_ssr__*/ \n  if (typeof data !== 'string') return data;\n  const t = data.trimStart().slice(0, 500).toLowerCase();\n  const looksHtml = t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<body') || t.includes('<head');\n  if (!looksHtml) return data;\n  return summarizeHtml(data);\n}"
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "9BQVyMLue8jhKjmCV4bvDj2vVUXbYRj2SxGyVEyhcCwm",
+    "download_count": 4,
+    "total_versions": 2,
+    "latest_version_hash": "6c1c2e43f2220d397f3bacba8b133a539f2b96efcc56ed68bae7d45a4faae1c0"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "TRANSFORMS.json"
+  ],
+  "_has_scripts": [
+    "api.ts"
+  ],
+  "_skill_md": "---\nname: sec-gov\ndescription: Internal API for sec-gov\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://www.sec.gov\"\n  authMethod: \"Unknown (may need login)\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# SecGov API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nUnknown (may need login) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Config (1)\n- `GET /api/config.json` — Get configuration settings for the SEC Gov API.\n\n## Quick Start\n\nHere are a few examples to get you started using the `sec-gov` API:\n\n```typescript\n// Get the API configuration settings.  This is useful for understanding rate limits and available parameters.\nconst config = await client.config();\nconsole.log(config);\n```\n\n```typescript\n// Example of handling a potential error.\ntry {\n  const config = await client.config();\n  console.log(config);\n} catch (error: any) {\n  console.error(\"Failed to fetch configuration:\", error.message);\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Unknown (may need login)\n**Base URL:** `https://www.sec.gov`\n**Captured Auth:** 1 auth headers, 3 session cookies\n\n## About This Skill\n\nThis skill provides access to Sec Gov's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Sec Gov data without official API access\n- Automate actions on www.sec.gov (faster than browser automation)\n- Call the same endpoints the Sec Gov frontend uses\n\n## Quick Start\n\n```typescript\nimport { SecGovClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await SecGovClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 1 (sec-fetch-storage-access)\n- **Session cookies:** 3\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (2)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /boomerang/NPLYJ-LHJA8-NDLXF-QZGTT-DGVDZ`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /boomerang/NPLYJ-LHJA8-NDLXF-QZGTT-DGVDZ`\n- Status: `auth_required` | Quality: `0` | Health: `100`\n- Agentic attempts: success `0`, auth `1`, failed `0`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -8,10 +8,22 @@
  */
 
 import { config as loadEnv } from "dotenv";
-import { ensureRegistered, getApiKey } from "./client/index.js";
-import { ensureLocalServer } from "./runtime/local-server.js";
-import { isMainModule } from "./runtime/paths.js";
+import { spawn } from "node:child_process";
+import {
+  detectTelemetryHostType,
+  ensureCliInstallTracked,
+  ensureRegistered,
+  getApiKey,
+  recordFunnelTelemetryEvent,
+  recordInstallTelemetryEvent,
+} from "./client/index.js";
+import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
+import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
+import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
+import { drainPendingIndexJobs } from "./indexer/index.js";
+import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
+import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -52,13 +64,26 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
 // ---------------------------------------------------------------------------
 
 async function api(method: string, path: string, body?: unknown): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  let target = `${BASE_URL}${path}`;
+  let requestBody = body;
+  if (method === "GET" && body && typeof body === "object") {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        params.set(key, String(value));
+      }
+    }
+    const query = params.toString();
+    if (query) target += `${target.includes("?") ? "&" : "?"}${query}`;
+    requestBody = undefined;
+  }
+  const res = await fetch(target, {
     method,
     headers: {
-      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(requestBody ? { "Content-Type": "application/json" } : {}),
       "x-unbrowse-client-id": CLI_CLIENT_ID,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: requestBody ? JSON.stringify(requestBody) : undefined,
   });
   if (!res.ok && res.headers.get("content-type")?.includes("json")) {
     return res.json();
@@ -82,6 +107,22 @@ function info(msg: string): void {
   process.stderr.write(`[unbrowse] ${msg}\n`);
 }
 
+function resolveResultError(result: Record<string, unknown>): string | undefined {
+  return (result.result as Record<string, unknown> | undefined)?.error as string | undefined
+    ?? result.error as string | undefined;
+}
+
+function resolveLoginUrl(result: Record<string, unknown>, fallbackUrl?: string): string {
+  return (result.result as Record<string, unknown> | undefined)?.login_url as string
+    ?? fallbackUrl
+    ?? "";
+}
+
+function isResolveSuccessResult(result: Record<string, unknown>): boolean {
+  if (resolveResultError(result)) return false;
+  return !!result.result || Array.isArray(result.available_endpoints);
+}
+
 async function withPendingNotice<T>(promise: Promise<T>, message: string, delayMs = 3_000): Promise<T> {
   let done = false;
   const timer = setTimeout(() => {
@@ -103,210 +144,9 @@ function normalizeSetupScope(value: string | boolean | undefined): SetupScope {
 }
 
 // ---------------------------------------------------------------------------
-// Path resolution — drill into nested structures with [] array expansion
+// Slim output — keep only essential trace metadata + result
 // ---------------------------------------------------------------------------
 
-/** Build entityUrn → object index for normalized APIs (LinkedIn, Facebook, etc.) */
-function buildEntityIndex(items: unknown[]): Map<string, unknown> {
-  const index = new Map<string, unknown>();
-  for (const item of items) {
-    if (item != null && typeof item === "object") {
-      const urn = (item as Record<string, unknown>).entityUrn;
-      if (typeof urn === "string") index.set(urn, item);
-    }
-  }
-  return index;
-}
-
-/** Detect if an object contains a normalized entity array and build the index.
- *  Searches all top-level and one-level-nested arrays for entityUrn-keyed items,
- *  picking the largest qualifying array. Works for any normalized API shape. */
-function detectEntityIndex(data: unknown): Map<string, unknown> | null {
-  if (data == null || typeof data !== "object") return null;
-
-  let best: unknown[] | null = null;
-
-  const check = (arr: unknown[]) => {
-    if (arr.length < 2) return;
-    const sample = arr.slice(0, 10);
-    const withUrn = sample.filter(
-      (i) => i != null && typeof i === "object" && typeof (i as Record<string, unknown>).entityUrn === "string"
-    ).length;
-    if (withUrn >= sample.length * 0.5 && (!best || arr.length > best.length)) {
-      best = arr;
-    }
-  };
-
-  const obj = data as Record<string, unknown>;
-  for (const val of Object.values(obj)) {
-    if (Array.isArray(val)) {
-      check(val);
-    } else if (val != null && typeof val === "object" && !Array.isArray(val)) {
-      // One level deep: { data: { included: [...] } }, { response: { entities: [...] } }, etc.
-      for (const nested of Object.values(val as Record<string, unknown>)) {
-        if (Array.isArray(nested)) check(nested);
-      }
-    }
-  }
-
-  return best ? buildEntityIndex(best) : null;
-}
-
-/** Resolve a dot-path like "data.items[].name" against an object.
- *  When entityIndex is provided, transparently follows *-prefixed URN references. */
-function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unknown> | null): unknown {
-  if (!path || obj == null) return obj;
-  const segments = path.split(".");
-  let cur: unknown = obj;
-  for (let i = 0; i < segments.length; i++) {
-    if (cur == null) return undefined;
-    const seg = segments[i];
-    if (seg.endsWith("[]")) {
-      const key = seg.slice(0, -2);
-      const arr = key ? (cur as Record<string, unknown>)[key] : cur;
-      if (!Array.isArray(arr)) return undefined;
-      const remaining = segments.slice(i + 1).join(".");
-      if (!remaining) return arr;
-      return arr.flatMap((item) => {
-        const v = resolvePath(item, remaining, entityIndex);
-        return v === undefined ? [] : Array.isArray(v) ? v : [v];
-      });
-    }
-    const rec = cur as Record<string, unknown>;
-    let val = rec[seg];
-
-    // URN reference resolution: if direct lookup fails (or is null), check for "*key" reference.
-    // Normalized APIs (LinkedIn Voyager, Facebook Graph) set inline fields to null when
-    // the value is stored as a URN reference: e.g. socialDetail: null + *socialDetail: "urn:li:..."
-    if (val == null && entityIndex) {
-      const ref = rec[`*${seg}`];
-      if (typeof ref === "string") {
-        val = entityIndex.get(ref);
-      }
-    }
-
-    cur = val;
-  }
-  return cur;
-}
-
-/** Apply --extract fields to data. Each field is "alias:deep.path" or just "field".
- *  When processing arrays, rows where ALL extracted fields are null/undefined/empty are dropped.
- *  This handles decorator-pattern APIs (e.g. LinkedIn included[]) where heterogeneous
- *  item types coexist and only some items match the requested fields. */
-function extractFields(data: unknown, fields: string[], entityIndex?: Map<string, unknown> | null): unknown {
-  if (data == null) return data;
-
-  function mapItem(item: unknown): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const f of fields) {
-      const colonIdx = f.indexOf(":");
-      const alias = colonIdx >= 0 ? f.slice(0, colonIdx) : f.split(".").pop()!;
-      const path = colonIdx >= 0 ? f.slice(colonIdx + 1) : f;
-      const resolved = resolvePath(item, path, entityIndex ?? undefined) ?? [];
-      // Unwrap single-element arrays to scalar values
-      out[alias] = Array.isArray(resolved)
-        ? resolved.length === 0
-          ? null
-          : resolved.length === 1
-            ? resolved[0]
-            : resolved
-        : resolved;
-    }
-    return out;
-  }
-
-  /** Check if a value is "present" (non-null, non-empty) */
-  function hasValue(v: unknown): boolean {
-    if (v == null) return false;
-    if (Array.isArray(v)) return v.length > 0;
-    return true;
-  }
-
-  if (Array.isArray(data)) {
-    return data.map(mapItem).filter((row) => Object.values(row).some(hasValue));
-  }
-  return mapItem(data);
-}
-
-function hasMeaningfulValue(value: unknown): boolean {
-  if (value == null) return false;
-  if (typeof value === "string") return value.trim().length > 0;
-  if (typeof value === "number" || typeof value === "boolean") return true;
-  if (Array.isArray(value)) return value.some((item) => hasMeaningfulValue(item));
-  if (typeof value === "object") return Object.values(value as Record<string, unknown>).some((item) => hasMeaningfulValue(item));
-  return false;
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === "object" && !Array.isArray(value);
-}
-
-function isScalarLike(value: unknown): boolean {
-  if (value == null) return false;
-  if (typeof value === "string") return value.trim().length > 0;
-  if (typeof value === "number" || typeof value === "boolean") return true;
-  if (Array.isArray(value)) {
-    return value.length > 0 && value.every((item) => item == null || typeof item === "string" || typeof item === "number" || typeof item === "boolean");
-  }
-  return false;
-}
-
-function looksStructuredForDirectOutput(value: unknown): boolean {
-  if (Array.isArray(value)) {
-    const sample = value.filter(isPlainRecord).slice(0, 3);
-    if (sample.length === 0) return false;
-    const simpleRows = sample.filter((row) => {
-      const keys = Object.keys(row);
-      const scalarFields = Object.values(row).filter(isScalarLike).length;
-      return keys.length > 0 && keys.length <= 20 && scalarFields >= 2;
-    });
-    return simpleRows.length >= Math.ceil(sample.length / 2);
-  }
-
-  if (!isPlainRecord(value)) return false;
-  const keys = Object.keys(value);
-  if (keys.length === 0 || keys.length > 20) return false;
-  const scalarFields = Object.values(value).filter(isScalarLike).length;
-  return scalarFields >= 2;
-}
-
-/** Apply --path, --extract, --limit to a result object. */
-function applyTransforms(result: unknown, flags: Record<string, string | boolean>): unknown {
-  let data = result;
-
-  // Build entity index from the full response before drilling into it
-  const entityIndex = detectEntityIndex(result);
-
-  // --path: drill into nested structure
-  const pathFlag = flags.path as string | undefined;
-  if (pathFlag) {
-    data = resolvePath(data, pathFlag, entityIndex);
-    if (data === undefined) {
-      // Path didn't match — warn so the user knows to fix it
-      process.stderr.write(`[unbrowse] warning: --path "${pathFlag}" resolved to undefined. Check path against response structure.\n`);
-      return [];
-    }
-  }
-
-  // --extract: pick specific fields (with entity index for URN resolution)
-  const extractFlag = flags.extract as string | undefined;
-  if (extractFlag) {
-    const fields = extractFlag.split(",").map((f) => f.trim());
-    data = extractFields(data, fields, entityIndex);
-  }
-
-  // --limit: cap array output
-  const limitFlag = flags.limit as string | undefined;
-  if (limitFlag && Array.isArray(data)) {
-    data = data.slice(0, Number(limitFlag));
-  }
-
-  return data;
-}
-
-/** Slim down output when transforms are applied — keep only essential trace metadata
- *  and drop the response_schema (it's noise once extraction is done). */
 function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   const trace = obj.trace as Record<string, unknown> | undefined;
   const out: Record<string, unknown> = {
@@ -322,207 +162,481 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
         }
       : undefined,
   };
-  // Carry over result (even if empty array — don't silently drop it)
+  if (typeof obj.error === "string") out.error = obj.error;
+  if (typeof obj.message === "string") out.message = obj.message;
+  if (typeof obj.hint === "string") out.hint = obj.hint;
+  if (typeof obj.login_url === "string") out.login_url = obj.login_url;
+  if (typeof obj.provider === "string") out.provider = obj.provider;
   if ("result" in obj) out.result = obj.result;
-  // Keep extraction_hints — agents need them for --path/--extract guidance
-  if (obj.extraction_hints) out.extraction_hints = obj.extraction_hints;
+  if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
+  if (obj.impact) out.impact = obj.impact;
+  if (obj.next_actions) out.next_actions = obj.next_actions;
+  if (obj.next_step) out.next_step = obj.next_step;
+  if (obj.source) out.source = obj.source;
+  if (obj.skill) out.skill = obj.skill;
   return out;
 }
 
-/** When a response is large and has extraction_hints, replace the full result
- *  with a compact summary + the hints so agents know how to extract. */
-function wrapWithHints(obj: Record<string, unknown>): Record<string, unknown> {
-  const hints = obj.extraction_hints as { path: string; fields: string[]; item_field_count: number; confidence: string; cli_args?: string; schema_tree?: Record<string, string> } | undefined;
-  if (!hints) return obj;
-
-  const resultStr = JSON.stringify(obj.result ?? "");
-  // Only wrap when response is large enough that raw output would overwhelm context
-  if (resultStr.length < 2000) return obj;
-
-  const trace = obj.trace as Record<string, unknown> | undefined;
-
-  return {
-    trace: trace
-      ? {
-          trace_id: trace.trace_id,
-          skill_id: trace.skill_id,
-          endpoint_id: trace.endpoint_id,
-          success: trace.success,
-          status_code: trace.status_code,
-        }
-      : undefined,
-    _response_too_large: `${resultStr.length} bytes — use extraction flags below to get structured data`,
-    extraction_hints: hints,
-  };
+function formatSavedDuration(ms: number): string {
+  if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
+  if (ms >= 10_000) return `${Math.round(ms / 1000)}s`;
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${ms}ms`;
 }
 
-/** When --schema is used, return only the schema tree + extraction hints */
-function schemaOnly(obj: Record<string, unknown>): Record<string, unknown> {
-  const trace = obj.trace as Record<string, unknown> | undefined;
-  return {
-    trace: trace
-      ? { trace_id: trace.trace_id, skill_id: trace.skill_id, endpoint_id: trace.endpoint_id, success: trace.success }
-      : undefined,
-    extraction_hints: obj.extraction_hints ?? null,
-    response_schema: obj.response_schema ?? null,
-  };
+function emitImpactSummary(result: Record<string, unknown>): void {
+  const impact = result.impact as Record<string, unknown> | undefined;
+  if (!impact) return;
+
+  const timeSavedMs = typeof impact.time_saved_ms === "number" ? impact.time_saved_ms : 0;
+  const tokensSaved = typeof impact.tokens_saved === "number" ? impact.tokens_saved : 0;
+  const timeSavedPct = typeof impact.time_saved_pct === "number" ? impact.time_saved_pct : 0;
+  const tokensSavedPct = typeof impact.tokens_saved_pct === "number" ? impact.tokens_saved_pct : 0;
+  const browserAvoided = impact.browser_avoided === true;
+  if (timeSavedMs <= 0 && tokensSaved <= 0 && !browserAvoided) return;
+
+  const parts: string[] = [];
+  if (timeSavedMs > 0) parts.push(`${formatSavedDuration(timeSavedMs)} saved (${timeSavedPct}% faster)`);
+  if (tokensSaved > 0) parts.push(`${tokensSaved.toLocaleString("en-US")} tokens saved (${tokensSavedPct}% less context)`);
+  if (browserAvoided) parts.push("browser avoided");
+  info(parts.join(" • "));
 }
 
-/** Auto-extract when hints have high confidence, otherwise wrap with hints.
- *  This is the "right first try" path — agents get clean data without a second call. */
-function autoExtractOrWrap(obj: Record<string, unknown>): Record<string, unknown> {
-  const hints = obj.extraction_hints as { path: string; fields: string[]; confidence: string; cli_args?: string; schema_tree?: Record<string, string> } | undefined;
-  const resultStr = JSON.stringify(obj.result ?? "");
-
-  // Small responses: return as-is
-  if (resultStr.length < 2000) return obj;
-
-  // Server-side intent projection can already return clean rows while raw endpoint
-  // hints still describe the pre-projection payload. Preserve the structured rows.
-  if (looksStructuredForDirectOutput(obj.result)) {
-    return slimTrace({ ...obj, extraction_hints: undefined, response_schema: undefined });
+function emitNextActionSummary(result: Record<string, unknown>): void {
+  const nextActions = Array.isArray(result.next_actions)
+    ? result.next_actions as Array<Record<string, unknown>>
+    : [];
+  if (nextActions.length === 0) return;
+  info("Likely next actions:");
+  for (const action of nextActions.slice(0, 3)) {
+    const command = typeof action.command === "string" ? action.command : "";
+    const title = typeof action.title === "string" ? action.title : (action.endpoint_id as string | undefined) ?? "next step";
+    const why = typeof action.why === "string" ? action.why : "";
+    info(`  ${command || title}${why ? `  # ${why}` : ""}`);
   }
-
-  // No hints: can't auto-extract, return as-is (raw will be big but we have no better option)
-  if (!hints) return obj;
-
-  // High confidence only: medium confidence still too error-prone for first-try correctness.
-  if (hints.confidence === "high") {
-    const syntheticFlags: Record<string, string | boolean> = {};
-    if (hints.path) syntheticFlags.path = hints.path;
-    if (hints.fields.length > 0) syntheticFlags.extract = hints.fields.join(",");
-    syntheticFlags.limit = "20";
-
-    const extracted = applyTransforms(obj.result, syntheticFlags);
-    if (!hasMeaningfulValue(extracted)) return wrapWithHints(obj);
-    const slimmed = slimTrace({ ...obj, result: extracted });
-
-    // Include the hints so the agent knows what was auto-applied and can adjust
-    (slimmed as Record<string, unknown>)._auto_extracted = {
-      applied: hints.cli_args,
-      confidence: hints.confidence,
-      all_fields: hints.schema_tree,
-      note: "Auto-extracted using response_schema. Add/remove fields with --extract, change array with --path, or use --raw for full response.",
-    };
-    return slimmed;
-  }
-
-  // Low confidence: wrap with hints, let agent decide
-  return wrapWithHints(obj);
 }
 
-// ---------------------------------------------------------------------------
-// Server lifecycle
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Commands
-// ---------------------------------------------------------------------------
 
 async function cmdHealth(flags: Record<string, string | boolean>): Promise<void> {
   output(await api("GET", "/health"), !!flags.pretty);
 }
 
+function telemetryDomainFromInput(domain?: string, url?: string): string | null {
+  if (domain?.trim()) return domain.trim().replace(/^www\./, "");
+  if (!url?.trim()) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = flags.intent as string;
   if (!intent) die("--intent is required");
+  const hostType = detectTelemetryHostType();
+  await ensureCliInstallTracked(hostType);
+  await recordFunnelTelemetryEvent("cli_invoked", {
+    source: "cli",
+    hostType,
+    properties: { command: "resolve" },
+  });
+  await recordFunnelTelemetryEvent("resolve_started", {
+    source: "cli",
+    hostType,
+    properties: {
+      command: "resolve",
+      intent,
+      domain: telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined),
+      url: typeof flags.url === "string" ? flags.url : null,
+      has_url: typeof flags.url === "string",
+      has_domain: typeof flags.domain === "string",
+      auto_execute: !!flags.execute,
+    },
+  });
 
-  const body: Record<string, unknown> = { intent };
-  const url = flags.url as string | undefined;
-  const domain = flags.domain as string | undefined;
+  try {
+    const body: Record<string, unknown> = { intent };
+    const url = flags.url as string | undefined;
+    const domain = flags.domain as string | undefined;
+    const explicitEndpointId = flags["endpoint-id"] as string | undefined;
+    const autoExecute = !!flags.execute;
+    const extraParams = flags.params ? JSON.parse(flags.params as string) : {};
 
-  if (url) {
-    body.params = { url };
-    body.context = { url };
-  }
-  if (domain) {
-    body.context = { ...(body.context as Record<string, unknown> ?? {}), domain };
-  }
-  if (flags["endpoint-id"]) {
-    body.params = { ...(body.params as Record<string, unknown> ?? {}), endpoint_id: flags["endpoint-id"] };
-  }
-  if (flags.params) {
-    body.params = { ...(body.params as Record<string, unknown> ?? {}), ...JSON.parse(flags.params as string) };
-  }
-  if (flags["dry-run"]) body.dry_run = true;
-  if (flags["force-capture"]) body.force_capture = true;
-  // When explicit CLI transforms are present, get raw data for client-side extraction
-  const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || hasTransforms) body.projection = { raw: true };
+    if (url) {
+      body.params = { url };
+      body.context = { url };
+    }
+    if (domain) {
+      body.context = { ...(body.context as Record<string, unknown> ?? {}), domain };
+    }
+    if (explicitEndpointId) {
+      body.params = { ...(body.params as Record<string, unknown> ?? {}), endpoint_id: explicitEndpointId };
+    }
+    if (flags.params) {
+      body.params = { ...(body.params as Record<string, unknown> ?? {}), ...extraParams };
+    }
+    if (flags["dry-run"]) body.dry_run = true;
+    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
+    if (flags["force-capture"]) body.force_capture = true;
+    body.projection = { raw: true };
 
-  const startedAt = Date.now();
-  let result = await withPendingNotice(
-    api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
-    "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back.",
-  );
+    function execBody(endpointId: string): Record<string, unknown> {
+      return {
+        params: { endpoint_id: endpointId, ...extraParams },
+        intent,
+        projection: { raw: true },
+        ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
+      };
+    }
 
-  // --schema: return only schema + extraction hints (no data)
-  if (flags.schema) {
-    output(schemaOnly(result), !!flags.pretty);
-    return;
+    function endpointNeedsThirdPartyTermsConfirmation(endpoint: Record<string, unknown>): boolean {
+      return endpoint.requires_third_party_terms_confirmation === true;
+    }
+
+    function resolveSkillId(): string | undefined {
+      return (result.skill as Record<string, unknown>)?.skill_id as string
+        ?? (result as Record<string, unknown>).skill_id as string;
+    }
+
+    const startedAt = Date.now();
+    async function resolveOnce(message = "Still working. Searching cached routes..."): Promise<Record<string, unknown>> {
+      return withPendingNotice(
+        api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+        message,
+      );
+    }
+
+    let result = await resolveOnce();
+    const resultError = resolveResultError(result);
+    if (resultError === "auth_required") {
+      const loginUrl = resolveLoginUrl(result, url);
+      if (loginUrl) info(`Authentication required. Run: unbrowse login --url "${loginUrl}"`);
+    }
+
+    // When agent explicitly picked an endpoint but resolve deferred, execute it directly
+    if (explicitEndpointId && result.available_endpoints) {
+      const skillId = resolveSkillId();
+      if (skillId) {
+        result = await withPendingNotice(
+          api("POST", `/v1/skills/${skillId}/execute`, execBody(explicitEndpointId)) as Promise<Record<string, unknown>>,
+          "Executing selected endpoint...",
+        );
+      }
+    }
+
+    // --execute: auto-pick best endpoint and return data in one step
+    if (autoExecute && result.available_endpoints && !result.result) {
+      const endpoints = result.available_endpoints as Array<Record<string, unknown>>;
+      const skillId = resolveSkillId();
+      if (skillId && endpoints.length > 0) {
+        const bestEndpoint = endpoints[0];
+        if (endpointNeedsThirdPartyTermsConfirmation(bestEndpoint) && !flags["confirm-third-party-terms"]) {
+          info(
+            `Auto-execute skipped: ${bestEndpoint.description ?? bestEndpoint.endpoint_id} requires explicit third-party terms confirmation`
+            + (typeof bestEndpoint.third_party_terms_policy_domain === "string" ? ` for ${bestEndpoint.third_party_terms_policy_domain}` : "")
+            + ". Re-run with --confirm-third-party-terms only after the user explicitly confirms.",
+          );
+          output(result, !!flags.pretty);
+          return;
+        }
+        info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
+        result = await withPendingNotice(
+          api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
+          "Executing best endpoint...",
+        );
+      }
+    }
+
+    if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
+      info("Live capture finished. Future runs against this site should be much faster.");
+    }
+
+    if (isResolveSuccessResult(result)) {
+      await recordFunnelTelemetryEvent("resolve_completed", {
+        source: "cli",
+        hostType,
+        properties: {
+          command: "resolve",
+          intent,
+          domain: telemetryDomainFromInput(domain, url),
+          url: url ?? null,
+          source: result.source,
+          auto_execute: autoExecute,
+          explicit_endpoint: explicitEndpointId ?? null,
+        },
+      });
+    }
+
+    result = slimTrace(result);
+    emitImpactSummary(result);
+    emitNextActionSummary(result);
+
+    const skill = result.skill as Record<string, unknown> | undefined;
+    const trace = result.trace as Record<string, unknown> | undefined;
+    if (skill?.skill_id && trace) {
+      (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
+    }
+
+    output(result, !!flags.pretty);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordFunnelTelemetryEvent("resolve_failed", {
+      source: "cli",
+      hostType,
+      properties: {
+        command: "resolve",
+        intent,
+        domain: telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined),
+        url: typeof flags.url === "string" ? flags.url : null,
+        failure_stage: "resolve",
+        failure_reason: message,
+      },
+    });
+    throw error;
   }
+}
 
-  // --path / --extract / --limit: transform .result in-place
-  if (hasTransforms && result.result != null) {
-    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  } else if (!flags.raw && result.result != null) {
-    // No transforms requested — try auto-extraction from hints
-    result = autoExtractOrWrap(result);
+// ---------------------------------------------------------------------------
+// Post-processing helpers for --path, --extract, --limit, --schema
+// ---------------------------------------------------------------------------
+
+/** Drill into a value using a dot-path like "data.items[].name".
+ *  `[]` flattens arrays at that level so nested arrays become flat collections. */
+function drillPath(data: unknown, path: string): unknown {
+  const segments = path.split(/\./).flatMap((s) => {
+    // "items[]" → ["items", "[]"]
+    const m = s.match(/^(.+)\[\]$/);
+    return m ? [m[1], "[]"] : [s];
+  });
+  // Work with an array of "current values" to handle multi-level flattening
+  let values: unknown[] = [data];
+  for (const seg of segments) {
+    if (values.length === 0) return [];
+    if (seg === "[]") {
+      // Flatten: each value that is an array gets its elements spread out
+      values = values.flatMap((v) => (Array.isArray(v) ? v : [v]));
+      continue;
+    }
+    // Drill into each value
+    values = values.flatMap((v) => {
+      if (v == null) return [];
+      if (Array.isArray(v)) {
+        // Auto-flatten arrays even without explicit []
+        return v.map((item) => (item as Record<string, unknown>)?.[seg]).filter((x) => x !== undefined);
+      }
+      if (typeof v === "object") {
+        const val = (v as Record<string, unknown>)[seg];
+        return val !== undefined ? [val] : [];
+      }
+      return [];
+    });
   }
+  return values;
+}
 
-  // Append CLI hint for feedback
-  const skill = result.skill as Record<string, unknown> | undefined;
-  const trace = result.trace as Record<string, unknown> | undefined;
-  if (skill?.skill_id && trace) {
-    (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
+/** Resolve a dot-path on a single object, e.g. "core.user_results.result.core.screen_name" */
+function resolveDotPath(obj: unknown, path: string): unknown {
+  let cur = obj;
+  for (const key of path.split(".")) {
+    if (cur == null || typeof cur !== "object") return undefined;
+    cur = (cur as Record<string, unknown>)[key];
   }
+  return cur;
+}
 
-  if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
-    info("Live capture finished. Future runs against this site should be much faster.");
+/** Apply --extract field spec: "alias:deep.path,field2,alias2:path" */
+function applyExtract(items: unknown[], extractSpec: string): unknown[] {
+  const fields = extractSpec.split(",").map((f) => {
+    const colon = f.indexOf(":");
+    if (colon > 0) return { alias: f.slice(0, colon), path: f.slice(colon + 1) };
+    return { alias: f, path: f };
+  });
+  return items
+    .map((item) => {
+      const row: Record<string, unknown> = {};
+      let hasValue = false;
+      for (const { alias, path } of fields) {
+        const val = resolveDotPath(item, path);
+        row[alias] = val ?? null;
+        if (val != null) hasValue = true;
+      }
+      return hasValue ? row : null;
+    })
+    .filter((row): row is Record<string, unknown> => row !== null);
+}
+
+/** Build a compact schema tree from a value (depth-limited). */
+function schemaOf(value: unknown, depth = 4): unknown {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return ["unknown"];
+    return [schemaOf(value[0], depth - 1)];
   }
-
-  output(result, !!flags.pretty);
+  if (typeof value === "object") {
+    if (depth <= 0) return "object";
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = schemaOf(v, depth - 1);
+    }
+    return out;
+  }
+  return typeof value;
 }
 
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
   const skillId = flags.skill as string;
   if (!skillId) die("--skill is required");
+  const hostType = detectTelemetryHostType();
+  await ensureCliInstallTracked(hostType);
+  await recordFunnelTelemetryEvent("cli_invoked", {
+    source: "cli",
+    hostType,
+    properties: { command: "execute" },
+  });
+  await recordFunnelTelemetryEvent("resolve_started", {
+    source: "cli",
+    hostType,
+    properties: {
+      command: "execute",
+      intent: typeof flags.intent === "string" ? flags.intent : null,
+      domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
+      url: typeof flags.url === "string" ? flags.url : null,
+      skill_id: skillId,
+      endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
+    },
+  });
 
-  const body: Record<string, unknown> = { params: {} };
-  if (flags.endpoint) {
-    (body.params as Record<string, unknown>).endpoint_id = flags.endpoint;
+  try {
+    const body: Record<string, unknown> = { params: {} };
+    if (flags.endpoint) {
+      (body.params as Record<string, unknown>).endpoint_id = flags.endpoint;
+    }
+    if (flags.params) {
+      body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
+    }
+    if (flags.url) {
+      body.context_url = flags.url;
+      (body.params as Record<string, unknown>).url = flags.url;
+    }
+    if (flags.intent) body.intent = flags.intent;
+    if (flags["dry-run"]) body.dry_run = true;
+    if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
+    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
+    body.projection = { raw: true };
+
+    let result = await withPendingNotice(
+      api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
+      "Still working. This endpoint may require browser replay or first-time auth/capture setup.",
+    );
+
+    if (isResolveSuccessResult(result)) {
+      await recordFunnelTelemetryEvent("resolve_completed", {
+        source: "cli",
+        hostType,
+        properties: {
+          command: "execute",
+          intent: typeof flags.intent === "string" ? flags.intent : null,
+          domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
+          url: typeof flags.url === "string" ? flags.url : null,
+          skill_id: skillId,
+          endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
+        },
+      });
+    }
+
+    // Strip metadata bloat
+    result = slimTrace(result);
+    emitImpactSummary(result);
+    emitNextActionSummary(result);
+
+    const pathFlag = flags.path as string | undefined;
+    const extractFlag = flags.extract as string | undefined;
+    const limitFlag = flags.limit ? Number(flags.limit) : undefined;
+    const schemaFlag = !!flags.schema;
+    const rawFlag = !!flags.raw;
+
+    // --schema: show response structure without data
+    if (schemaFlag && !rawFlag) {
+      const data = result.result;
+      output({
+        trace: result.trace,
+        schema: schemaOf(data),
+        ...(result.impact ? { impact: result.impact } : {}),
+        ...(result.next_actions ? { next_actions: result.next_actions } : {}),
+      }, !!flags.pretty);
+      return;
+    }
+
+    // Apply --path, --extract, --limit when not --raw
+    if (!rawFlag && (pathFlag || extractFlag || limitFlag)) {
+      const data = pathFlag ? drillPath(result.result, pathFlag) : result.result;
+
+      // Ensure array for extract/limit
+      const items = Array.isArray(data) ? data : data != null ? [data] : [];
+
+      // Apply --extract
+      const extracted = extractFlag ? applyExtract(items, extractFlag) : items;
+
+      // Apply --limit
+      const limited = limitFlag ? extracted.slice(0, limitFlag) : extracted;
+
+      const trace = result.trace as Record<string, unknown> | undefined;
+      const out: Record<string, unknown> = {
+        trace: result.trace,
+        data: limited,
+        count: limited.length,
+        ...(result.impact ? { impact: result.impact } : {}),
+        ...(result.next_actions ? { next_actions: result.next_actions } : {}),
+      };
+
+      // Prompt agent to review when this is likely a first-time execute
+      if (trace?.skill_id && trace?.endpoint_id && limited.length > 0) {
+        out._review_hint =
+          `After presenting results, review this endpoint's contract: description plus request/response schema notes where needed. Example: unbrowse review --skill ${trace.skill_id} --endpoints '[{"endpoint_id":"${trace.endpoint_id}","description":"DESCRIBE WHAT THIS RETURNS AND ANY IMPORTANT CONSTRAINTS","action_kind":"ACTION","resource_kind":"RESOURCE","parameter_reviews":[{"location":"query","name":"q","description":"Search query text","type":"string","required":true}],"response_reviews":[{"path":"items[].url","description":"Canonical result URL","type":"string"}]}]'`;
+      }
+
+      output(out, !!flags.pretty);
+      return;
+    }
+
+    // Auto-wrap large responses with extraction_hints when no flags given
+    if (!rawFlag && !pathFlag && !extractFlag && !schemaFlag) {
+      const raw = JSON.stringify(result.result);
+      if (raw && raw.length > 2048) {
+        const schema = schemaOf(result.result);
+        output({
+          trace: result.trace,
+          ...(result.impact ? { impact: result.impact } : {}),
+          ...(result.next_actions ? { next_actions: result.next_actions } : {}),
+          extraction_hints: {
+            message: "Response is large. Use --path/--extract/--limit to filter, or --schema to see structure, or --raw for full response.",
+            schema_tree: schema,
+            response_bytes: raw.length,
+          },
+        }, !!flags.pretty);
+        return;
+      }
+    }
+
+    output(result, !!flags.pretty);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordFunnelTelemetryEvent("resolve_failed", {
+      source: "cli",
+      hostType,
+      properties: {
+        command: "execute",
+        intent: typeof flags.intent === "string" ? flags.intent : null,
+        domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
+        url: typeof flags.url === "string" ? flags.url : null,
+        skill_id: skillId,
+        failure_stage: "execute",
+        failure_reason: message,
+      },
+    });
+    throw error;
   }
-  if (flags.params) {
-    body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
-  }
-  if (flags.url) body.context_url = flags.url;
-  if (flags.intent) body.intent = flags.intent;
-  if (flags["dry-run"]) body.dry_run = true;
-  if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  // When explicit CLI transforms are present, get raw data for client-side extraction
-  const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || hasTransforms) body.projection = { raw: true };
-
-  let result = await withPendingNotice(
-    api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
-    "Still working. This endpoint may require browser replay or first-time auth/capture setup.",
-  );
-
-  // --schema: return only schema + extraction hints (no data)
-  if (flags.schema) {
-    output(schemaOnly(result), !!flags.pretty);
-    return;
-  }
-
-  // --path / --extract / --limit: transform .result in-place
-  if (hasTransforms && result.result != null) {
-    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  } else if (!flags.raw && result.result != null) {
-    // No transforms requested — try auto-extraction from hints
-    result = autoExtractOrWrap(result);
-  }
-
-  output(result, !!flags.pretty);
 }
 
 async function cmdFeedback(flags: Record<string, string | boolean>): Promise<void> {
@@ -542,6 +656,87 @@ async function cmdFeedback(flags: Record<string, string | boolean>): Promise<voi
   output(await api("POST", "/v1/feedback", body), !!flags.pretty);
 }
 
+async function cmdReview(flags: Record<string, string | boolean>): Promise<void> {
+  const skillId = flags.skill as string;
+  if (!skillId) die("--skill is required");
+  const endpointsJson = flags.endpoints as string;
+  if (!endpointsJson) die("--endpoints is required (JSON array of {endpoint_id, description?, action_kind?, resource_kind?, parameter_reviews?, response_reviews?})");
+  const endpoints = JSON.parse(endpointsJson) as Array<Record<string, unknown>>;
+  if (!Array.isArray(endpoints) || endpoints.length === 0) die("--endpoints must be a non-empty JSON array");
+  output(await api("POST", `/v1/skills/${skillId}/review`, { endpoints }), !!flags.pretty);
+}
+
+function parseCsvFlag(value: string | boolean | undefined): string[] | undefined {
+  if (typeof value !== "string") return undefined;
+  const parts = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : [];
+}
+
+async function cmdIndex(flags: Record<string, string | boolean>): Promise<void> {
+  const skillId = flags.skill as string;
+  if (!skillId) die("--skill is required");
+  output(await api("POST", `/v1/skills/${skillId}/index`, {}), !!flags.pretty);
+}
+
+async function cmdPublish(flags: Record<string, string | boolean>): Promise<void> {
+  const skillId = flags.skill as string;
+  if (!skillId) die("--skill is required");
+  const endpointsJson = flags.endpoints as string | undefined;
+  const confirmPublish = flags["confirm-publish"] === true;
+  if (endpointsJson) {
+    // Phase 2: merge descriptions + publish
+    const endpoints = JSON.parse(endpointsJson) as Array<Record<string, unknown>>;
+    if (!Array.isArray(endpoints) || endpoints.length === 0) die("--endpoints must be a non-empty JSON array");
+    output(await api("POST", `/v1/skills/${skillId}/publish`, {
+      endpoints,
+      ...(confirmPublish ? { confirm_publish: true } : {}),
+    }), !!flags.pretty);
+  } else {
+    // Phase 1: return endpoints needing descriptions
+    output(await api("POST", `/v1/skills/${skillId}/publish`, {
+      ...(confirmPublish ? { confirm_publish: true } : {}),
+    }), !!flags.pretty);
+  }
+}
+
+async function cmdPublishBundle(flags: Record<string, string | boolean>): Promise<void> {
+  const presetPath = flags.preset as string;
+  if (!presetPath) die("--preset is required");
+  const hosts = typeof flags.hosts === "string"
+    ? flags.hosts.split(",").map((host) => host.trim()).filter(Boolean)
+    : undefined;
+  output(await api("POST", "/v1/foundry/publish-bundle", {
+    preset_path: presetPath,
+    ...(typeof flags["site-url"] === "string" ? { site_url: flags["site-url"] } : {}),
+    ...(hosts?.length ? { hosts } : {}),
+  }), !!flags.pretty);
+}
+
+async function cmdSettings(flags: Record<string, string | boolean>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (typeof flags["auto-publish"] === "string") {
+    const normalized = String(flags["auto-publish"]).trim().toLowerCase();
+    if (normalized !== "on" && normalized !== "off") die("--auto-publish must be on or off");
+    body.auto_publish_checkpoints = normalized === "on";
+  }
+
+  const blacklist = parseCsvFlag(flags["publish-blacklist"]);
+  if (blacklist) body.publish_domain_blacklist = blacklist;
+  const promptlist = parseCsvFlag(flags["publish-promptlist"]);
+  if (promptlist) body.publish_domain_promptlist = promptlist;
+  if (flags["clear-publish-blacklist"] === true) body.clear_publish_domain_blacklist = true;
+  if (flags["clear-publish-promptlist"] === true) body.clear_publish_domain_promptlist = true;
+
+  const hasMutation = Object.keys(body).length > 0;
+  output(
+    await api(hasMutation ? "POST" : "GET", "/v1/settings", hasMutation ? body : undefined),
+    !!flags.pretty,
+  );
+}
+
 async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
   const url = flags.url as string;
   if (!url) die("--url is required");
@@ -558,14 +753,19 @@ async function cmdSkill(args: string[], flags: Record<string, string | boolean>)
   output(await api("GET", `/v1/skills/${id}`), !!flags.pretty);
 }
 
+async function cmdCleanupStale(flags: Record<string, string | boolean>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (typeof flags.skill === "string") body.skill_id = flags.skill;
+  if (typeof flags.domain === "string") body.domain = flags.domain;
+  if (typeof flags.limit === "string") body.limit = Number(flags.limit);
+  output(
+    await withPendingNotice(api("POST", "/v1/stale/cleanup", body), "Cleaning stale endpoints..."),
+    !!flags.pretty,
+  );
+}
+
 async function cmdSearch(flags: Record<string, string | boolean>): Promise<void> {
-  const intent = flags.intent as string;
-  if (!intent) die("--intent is required");
-  const domain = flags.domain as string | undefined;
-  const path = domain ? "/v1/search/domain" : "/v1/search";
-  const body: Record<string, unknown> = { intent, k: Number(flags.k) || 5 };
-  if (domain) body.domain = domain;
-  output(await api("POST", path, body), !!flags.pretty);
+  await cmdResolve(flags);
 }
 
 async function cmdSessions(flags: Record<string, string | boolean>): Promise<void> {
@@ -576,6 +776,13 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
 }
 
 async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> {
+  const hostType = detectTelemetryHostType();
+  await ensureCliInstallTracked(hostType);
+  await recordFunnelTelemetryEvent("cli_invoked", {
+    source: "setup",
+    hostType,
+    properties: { command: "setup" },
+  });
   info("Running setup checks");
   const report = await runSetup({
     cwd: process.cwd(),
@@ -599,6 +806,31 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
   if (report.opencode.action === "installed" || report.opencode.action === "updated") {
     info(`Open Code command installed at ${report.opencode.command_file}`);
   }
+  for (const hook of report.update_hints) {
+    if (hook.action === "installed" || hook.action === "updated") {
+      info(`${hook.host} update hint hook ${hook.action} at ${hook.config_file}`);
+    }
+  }
+
+  await recordInstallTelemetryEvent("setup", {
+    hostType,
+    status: report.browser_engine.action === "failed" ? "failed" : "installed",
+    properties: {
+      browser_engine_action: report.browser_engine.action,
+      opencode_action: report.opencode.action,
+      no_start: !!flags["no-start"],
+      skip_browser: !!flags["skip-browser"],
+    },
+  });
+  await recordFunnelTelemetryEvent("setup_completed", {
+    source: "setup",
+    hostType,
+    properties: {
+      browser_engine_action: report.browser_engine.action,
+      opencode_action: report.opencode.action,
+      no_start: !!flags["no-start"],
+    },
+  });
 
   if (flags["no-start"]) {
     report.server = { started: false, skipped: true, base_url: BASE_URL };
@@ -614,8 +846,23 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
   try {
     await ensureLocalServer(BASE_URL, false, import.meta.url);
     report.server = { started: true, base_url: BASE_URL };
+    await recordFunnelTelemetryEvent("server_autostart_succeeded", {
+      source: "setup",
+      hostType,
+      properties: {
+        base_url: BASE_URL,
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    await recordFunnelTelemetryEvent("server_autostart_failed", {
+      source: "setup",
+      hostType,
+      properties: {
+        failure_stage: "server_autostart",
+        failure_reason: message,
+      },
+    });
     report.server = { started: false, error: message, base_url: BASE_URL };
     output(report, true);
     process.exit(1);
@@ -632,15 +879,40 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 export const CLI_REFERENCE = {
   commands: [
     { name: "health", usage: "", desc: "Server health check" },
+    { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
-    { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
+    { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
+    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Search cached indexed/published routes and optionally execute the top trusted endpoint" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
+    { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/schema metadata back to a captured skill before publish" },
+    { name: "index", usage: "--skill ID", desc: "Recompute local graph/contracts/export from cached skill state only" },
+    { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Re-index locally, inspect publish-review metadata, then publish/share from cached skill state" },
+    { name: "publish-bundle", usage: "--preset path [--hosts codex,claude,openclaw] [--site-url https://www.unbrowse.ai]", desc: "Derive foundry bundle/share/host artifacts from one preset and write the public share manifest" },
+    { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]", desc: "Show or update local capture/publish policy settings" },
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
-    { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
+    { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills and evict stale cached endpoints" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
+    { name: "go", usage: '<url> [--session id]', desc: "Open a fresh Kuri browser tab, or reuse explicit --session" },
+    { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]", desc: "Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins" },
+    { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs" },
+    { name: "click", usage: "[--session id] <ref>", desc: "Click element by ref (e.g. e5)" },
+    { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by ref" },
+    { name: "type", usage: "<text>", desc: "Type text with key events" },
+    { name: "press", usage: "<key>", desc: "Press key (Enter, Tab, Escape)" },
+    { name: "select", usage: "<ref> <value>", desc: "Select option by ref" },
+    { name: "scroll", usage: "[up|down|left|right]", desc: "Scroll the page" },
+    { name: "screenshot", usage: "[--session id]", desc: "Capture screenshot (base64 PNG)" },
+    { name: "text", usage: "[--session id]", desc: "Get page text content" },
+    { name: "markdown", usage: "[--session id]", desc: "Get page as Markdown" },
+    { name: "cookies", usage: "[--session id]", desc: "Get page cookies" },
+    { name: "eval", usage: "[--session id] <expression>", desc: "Evaluate JavaScript" },
+    { name: "back", usage: "[--session id]", desc: "Navigate back" },
+    { name: "forward", usage: "[--session id]", desc: "Navigate forward" },
+    { name: "sync", usage: "[--session id]", desc: "Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review" },
+    { name: "close", usage: "[--session id]", desc: "Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review" },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -650,22 +922,35 @@ export const CLI_REFERENCE = {
     { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
   ],
   resolveExecuteFlags: [
+    { flag: "--execute", desc: "Auto-execute the top trusted endpoint from resolve" },
     { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
     { flag: '--path "data.items[]"', desc: "Drill into result before extract/output" },
     { flag: '--extract "field1,alias:deep.path.to.val"', desc: "Pick specific fields (no piping needed)" },
     { flag: "--limit N", desc: "Cap array output to N items" },
     { flag: "--endpoint-id ID", desc: "Pick a specific endpoint" },
     { flag: "--dry-run", desc: "Preview mutations" },
-    { flag: "--force-capture", desc: "Bypass caches, re-capture" },
     { flag: "--params '{...}'", desc: "Extra params as JSON" },
   ],
   examples: [
     "unbrowse setup",
+    "unbrowse mcp",
+    'unbrowse resolve --intent "top stories" --domain "news.ycombinator.com" --url "https://news.ycombinator.com" --execute',
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
+    'unbrowse go "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html"',
+    'unbrowse snap --filter interactive',
+    'unbrowse submit --wait-for "/time-selection.html"',
+    'unbrowse sync',
     "unbrowse execute --skill abc --endpoint def --pretty",
-    'unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10',
-    'unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20',
+    "unbrowse execute --skill abc --endpoint def --schema --pretty",
+    'unbrowse execute --skill abc --endpoint def --path "data.items[]" --extract "name,url" --limit 10 --pretty',
     "unbrowse feedback --skill abc --endpoint def --rating 5",
+    'unbrowse review --skill abc --endpoints \'[{"endpoint_id":"def","description":"...","parameter_reviews":[{"location":"query","name":"q","description":"Search query","type":"string","required":true}],"response_reviews":[{"path":"items[].title","description":"Listing title","type":"string"}]}]\'',
+    "unbrowse index --skill abc --pretty",
+    "unbrowse publish --skill abc --pretty",
+    "unbrowse publish --skill abc --confirm-publish --pretty",
+    "unbrowse publish-bundle --preset skills/x-account-operator/foundry-preset.json --pretty",
+    'unbrowse settings --auto-publish off --publish-blacklist "linkedin.com,x.com" --publish-promptlist "github.com" --pretty',
+    'unbrowse publish --skill abc --endpoints \'[{"endpoint_id":"def","description":"Search court judgments by keywords","action_kind":"search","resource_kind":"judgment"}]\'',
   ],
 };
 
@@ -701,14 +986,462 @@ function printHelp(): void {
     lines.push(`  ${e}`);
   }
 
+  lines.push(
+    "",
+    "Browser workflow:",
+    "  1. go -> open the live tab you want to work in",
+    "  2. snap -> inspect refs and confirm the page state",
+    "  3. click/fill/eval -> set real page state",
+    "  4. submit -> prefer DOM submit; keep traversal browser-native; opt into same-origin rehydrate only for explicit replay/recovery debugging",
+    "  5. sync -> checkpoint the current step and queue background index + publish",
+    "  6. close -> final checkpoint + queue background index + publish, then close the session",
+    "  7. skill/publish --pretty -> inspect the fresh captured endpoints and review context",
+    "  8. review/publish -> annotate and share the contract; resolve is for later reuse, not first-pass capture validation",
+  );
+
+  lines.push(
+    "",
+    "JS-heavy forms:",
+    "  Prefer real calendar/time clicks before submit.",
+    "  If the UI is flaky, inspect hidden inputs/cookies with eval, then submit the real form.",
+  );
+
   lines.push("");
   process.stderr.write(lines.join("\n"));
+}
+
+// ---------------------------------------------------------------------------
+// Server lifecycle commands
+// ---------------------------------------------------------------------------
+
+async function cmdStatus(flags: Record<string, string | boolean>): Promise<void> {
+  const healthy = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(2_000) })
+    .then((r) => r.ok).catch(() => false);
+  const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
+  output({
+    server: healthy ? "running" : "stopped",
+    url: BASE_URL,
+    ...(versionInfo ?? {}),
+  }, !!flags.pretty);
+}
+
+async function cmdRestart(flags: Record<string, string | boolean>): Promise<void> {
+  info("Restarting server...");
+  await restartServer(BASE_URL, import.meta.url);
+  info("Server restarted.");
+  await cmdStatus(flags);
+}
+
+function cmdStop(flags: Record<string, string | boolean>): void {
+  const stopped = stopServer(BASE_URL);
+  if (stopped) info("Server stopped.");
+  else info("No server running.");
+}
+
+async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void> {
+  const hintOnly = !!flags["hint-only"];
+  if (!hintOnly) info("Checking for updates...");
+
+  try {
+    const result = await checkForUpdates(import.meta.url, { force: !hintOnly });
+    if (!result.latest) {
+      if (!hintOnly) info("Could not check for updates right now.");
+      return;
+    }
+
+    if (!result.has_update) {
+      if (!hintOnly) info(`Already at latest version: ${result.installed}`);
+      return;
+    }
+
+    info(`Update available: ${result.installed} -> ${result.latest}`);
+    info(`Run: ${result.command}`);
+    if (!hintOnly) {
+      info("Tip: `unbrowse setup` now installs session-start update hints for Codex and Claude when those hosts are present.");
+    }
+    recordUpdateHint(result.latest);
+  } catch (err) {
+    if (!hintOnly) info(`Could not check for updates: ${(err as Error).message}`);
+  }
+}
+
+async function cmdMcp(flags: Record<string, string | boolean>): Promise<void> {
+  const entrypoint = resolveSiblingEntrypoint(import.meta.url, "mcp");
+  const childArgs = isBundledVirtualEntrypoint(entrypoint)
+    ? ["mcp-serve", ...(flags["no-auto-start"] ? ["--no-auto-start"] : [])]
+    : [...runtimeArgsForEntrypoint(import.meta.url, entrypoint), ...(flags["no-auto-start"] ? ["--no-auto-start"] : [])];
+  const child = spawn(
+    process.execPath,
+    childArgs,
+    {
+      cwd: process.cwd(),
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        MCP_SERVER_MODE: "1",
+      },
+    },
+  );
+
+  const code = await new Promise<number>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (exitCode, signal) => {
+      if (signal) {
+        process.kill(process.pid, signal);
+        return;
+      }
+      resolve(exitCode ?? 1);
+    });
+  });
+
+  if (code !== 0) process.exit(code);
+}
+
+// ---------------------------------------------------------------------------
+// Site/task shortcut commands
+// ---------------------------------------------------------------------------
+
+async function cmdSiteHelp(pack: SitePack, flags: Record<string, string | boolean>): Promise<void> {
+  // --deps: return dependency graph as JSON
+  if (flags.deps) {
+    const graph = buildDepsGraph(pack);
+    output({ site: pack.site, tasks: graph }, !!flags.pretty);
+    return;
+  }
+  // --plan: return execution plan for a set of tasks
+  if (flags.plan) {
+    const taskNames = (flags.plan as string).split(",").map((s) => s.trim());
+    const waves = planExecution(pack, taskNames);
+    output({ site: pack.site, waves }, !!flags.pretty);
+    return;
+  }
+  // Default: human-readable help
+  const lines: string[] = [
+    `unbrowse ${pack.site} — ${pack.description}`,
+    "",
+    "Tasks:",
+  ];
+  for (const t of pack.tasks) {
+    const aliases = t.match.length > 1 ? ` (${t.match.slice(1).join(", ")})` : "";
+    const auth = t.needs_auth ? " [auth]" : "";
+    lines.push(`  ${t.match[0]}${aliases}${auth}  ${t.description}`);
+  }
+  lines.push(
+    "",
+    "Examples:",
+    `  unbrowse ${pack.site} login`,
+    `  unbrowse ${pack.site} ${pack.tasks.find((t) => t.match[0] !== "login")?.match[0] || "help"} --pretty`,
+    `  unbrowse ${pack.site} --batch ${pack.tasks.filter((t) => t.parallel_safe).map((t) => t.match[0]).join(",")}`,
+    `  unbrowse ${pack.site} help --deps`,
+    `  unbrowse ${pack.site} help --plan feed,notifications`,
+    "",
+    "Flags: --pretty --raw --path --extract --limit --force-capture --dry-run --batch --deps --plan",
+  );
+  process.stderr.write(lines.join("\n") + "\n");
+}
+
+async function cmdSiteLogin(pack: SitePack, flags: Record<string, string | boolean>): Promise<void> {
+  const result = await api("POST", "/v1/auth/login", { url: pack.login_url });
+  const deps = buildDepsMetadata(pack, "login");
+  output({ ...result as Record<string, unknown>, _deps: deps, _shortcut: `${pack.site} login` }, !!flags.pretty);
+}
+
+async function cmdSiteTask(pack: SitePack, taskName: string, flags: Record<string, string | boolean>): Promise<void> {
+  const task = findTask(pack, taskName);
+  if (!task) {
+    info(`Unknown task "${taskName}" for ${pack.site}. Run: unbrowse ${pack.site} help`);
+    process.exit(1);
+  }
+
+  // Compile to resolve call
+  const body: Record<string, unknown> = {
+    intent: task.intent,
+    params: { url: task.url },
+    context: { url: task.url },
+  };
+  if (flags.params) {
+    body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
+  }
+  if (flags["dry-run"]) body.dry_run = true;
+  if (flags["force-capture"]) body.force_capture = true;
+  body.projection = { raw: true };
+
+  const startedAt = Date.now();
+  let result = await withPendingNotice(
+    api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+    "Still working. First-time capture/indexing for a site can take 20-80s.",
+  );
+
+  // Check for auth-required response
+  if (result && typeof result === "object" && (result as Record<string, unknown>).error === "auth_required") {
+    info(`Authentication required. Run: unbrowse ${pack.site} login`);
+    const deps = buildDepsMetadata(pack, taskName);
+    output({ ...(result as Record<string, unknown>), _deps: { ...deps, requires: ["login"] }, _next: [`unbrowse ${pack.site} login`] }, !!flags.pretty);
+    process.exit(2);
+  }
+
+  // Strip metadata bloat
+  result = slimTrace(result);
+
+  const deps = buildDepsMetadata(pack, taskName);
+  (result as Record<string, unknown>)._deps = deps;
+  (result as Record<string, unknown>)._shortcut = `${pack.site} ${taskName}`;
+
+  if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
+    info("Live capture finished. Future runs should be much faster.");
+  }
+
+  output(result, !!flags.pretty);
+}
+
+async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<string, string | boolean>): Promise<void> {
+  const taskNames = batchArg.split(",").map((s) => s.trim());
+  const waves = planExecution(pack, taskNames);
+  const results: Record<string, unknown> = { site: pack.site, waves: [], _deps: { parallel_safe: true } };
+  const waveResults: unknown[] = [];
+
+  for (const wave of waves) {
+    const waveStart = Date.now();
+    const promises = wave.commands.map(async (cmd) => {
+      const parts = cmd.split(" ");
+      const task = parts[parts.length - 1];
+      const taskDef = findTask(pack, task);
+      if (!taskDef) return { task, error: "unknown task" };
+
+      if (task === "login") {
+        return { task, result: await api("POST", "/v1/auth/login", { url: pack.login_url }) };
+      }
+      const body: Record<string, unknown> = {
+        intent: taskDef.intent,
+        params: { url: taskDef.url },
+        context: { url: taskDef.url },
+      };
+      if (flags["force-capture"]) body.force_capture = true;
+      body.projection = { raw: true };
+      const res = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
+      return { task, result: slimTrace(res) };
+    });
+
+    const waveResult = await Promise.all(promises);
+    waveResults.push({
+      wave: wave.wave,
+      reason: wave.reason,
+      elapsed_ms: Date.now() - waveStart,
+      tasks: waveResult,
+    });
+  }
+
+  (results as Record<string, unknown>).waves = waveResults;
+  output(results, !!flags.pretty);
 }
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Browse commands — Kuri browser actions with passive indexing via server
+// ---------------------------------------------------------------------------
+
+async function cmdGo(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const url = args[0] ?? flags.url as string;
+  if (!url) die("Usage: unbrowse go <url>");
+  output(await api("POST", "/v1/browse/go", {
+    url,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), !!flags.pretty);
+}
+
+async function cmdSubmit(flags: Record<string, string | boolean>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (typeof flags.session === "string") body.session_id = flags.session;
+  if (typeof flags["form-selector"] === "string") body.form_selector = flags["form-selector"];
+  if (typeof flags["submit-selector"] === "string") body.submit_selector = flags["submit-selector"];
+  if (typeof flags["wait-for"] === "string") body.wait_for = flags["wait-for"];
+  if (typeof flags["timeout-ms"] === "string") body.timeout_ms = Number(flags["timeout-ms"]);
+  if (flags["assist-site-state"] !== undefined) {
+    body.assist_site_state = flags["assist-site-state"] !== "false";
+  }
+  if (flags["same-origin-fetch-fallback"] !== undefined) {
+    body.same_origin_fetch_fallback = flags["same-origin-fetch-fallback"] !== "false";
+  }
+  output(await api("POST", "/v1/browse/submit", body), !!flags.pretty);
+}
+
+async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
+  const filter = flags.filter as string | undefined;
+  const result = await api("POST", "/v1/browse/snap", {
+    ...(filter ? { filter } : {}),
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }) as { snapshot?: string };
+  if (result.snapshot && !flags.pretty) {
+    console.log(result.snapshot);
+  } else {
+    output(result, !!flags.pretty);
+  }
+}
+
+async function cmdClick(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const ref = args[0];
+  if (!ref) die("Usage: unbrowse click <ref>");
+  output(await api("POST", "/v1/browse/click", {
+    ref,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
+}
+
+async function cmdFill(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const ref = args[0];
+  const value = args.slice(1).join(" ");
+  if (!ref || !value) die("Usage: unbrowse fill <ref> <value>");
+  output(await api("POST", "/v1/browse/fill", {
+    ref,
+    value,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
+}
+
+async function cmdType(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const text = args.join(" ");
+  if (!text) die("Usage: unbrowse type <text>");
+  output(await api("POST", "/v1/browse/type", {
+    text,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
+}
+
+async function cmdPress(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const key = args[0];
+  if (!key) die("Usage: unbrowse press <key>");
+  output(await api("POST", "/v1/browse/press", {
+    key,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
+}
+
+async function cmdSelect(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const ref = args[0];
+  const value = args.slice(1).join(" ");
+  if (!ref || !value) die("Usage: unbrowse select <ref> <value>");
+  output(await api("POST", "/v1/browse/select", {
+    ref,
+    value,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
+}
+
+async function cmdScroll(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const direction = args[0] ?? "down";
+  output(await api("POST", "/v1/browse/scroll", {
+    direction,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), false);
+}
+
+async function cmdScreenshot(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("GET", "/v1/browse/screenshot", typeof flags.session === "string" ? { session_id: flags.session } : undefined), !!flags.pretty);
+}
+
+async function cmdText(flags: Record<string, string | boolean>): Promise<void> {
+  const result = await api("GET", "/v1/browse/text", typeof flags.session === "string" ? { session_id: flags.session } : undefined) as { text?: string };
+  if (result.text && !flags.pretty) {
+    console.log(result.text);
+  } else {
+    output(result, !!flags.pretty);
+  }
+}
+
+async function cmdMarkdown(flags: Record<string, string | boolean>): Promise<void> {
+  const result = await api("GET", "/v1/browse/markdown", typeof flags.session === "string" ? { session_id: flags.session } : undefined) as { markdown?: string };
+  if (result.markdown && !flags.pretty) {
+    console.log(result.markdown);
+  } else {
+    output(result, !!flags.pretty);
+  }
+}
+
+async function cmdCookies(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("GET", "/v1/browse/cookies", typeof flags.session === "string" ? { session_id: flags.session } : undefined), !!flags.pretty);
+}
+
+async function cmdEval(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const expression = args.join(" ");
+  if (!expression) die("Usage: unbrowse eval <expression>");
+  output(await api("POST", "/v1/browse/eval", {
+    expression,
+    ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
+  }), !!flags.pretty);
+}
+
+async function cmdBack(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/back", typeof flags.session === "string" ? { session_id: flags.session } : undefined), false);
+}
+
+async function cmdForward(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/forward", typeof flags.session === "string" ? { session_id: flags.session } : undefined), false);
+}
+
+async function cmdSync(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/sync", typeof flags.session === "string" ? { session_id: flags.session } : undefined), !!flags.pretty);
+}
+
+async function cmdClose(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/close", typeof flags.session === "string" ? { session_id: flags.session } : undefined), false);
+}
+
+async function cmdConnectChrome(): Promise<void> {
+  const { execSync, spawn: spawnProc } = require("child_process");
+  
+  // Check if Chrome already has CDP
+  try {
+    const res = await fetch("http://127.0.0.1:9222/json/version", { signal: AbortSignal.timeout(1000) });
+    if (res.ok) {
+      const data = await res.json() as { "User-Agent"?: string };
+      if (!data["User-Agent"]?.includes("Headless")) {
+        console.log("Your Chrome is already connected with CDP on port 9222.");
+        console.log("Browse commands will use your real browser with all your sessions.");
+        return;
+      }
+    }
+  } catch { /* not running */ }
+
+  // Kill any Kuri-managed Chrome
+  try { execSync("pkill -f kuri/chrome-profile", { stdio: "ignore" }); } catch {}
+
+  // Quit Chrome fully — can't add debugging port to running instance
+  console.log("Quitting Chrome to relaunch with remote debugging...");
+  if (process.platform === "darwin") {
+    try { execSync('osascript -e "quit app \\"Google Chrome\\""', { stdio: "ignore", timeout: 5000 }); } catch {}
+  } else {
+    try { execSync("pkill -f chrome", { stdio: "ignore" }); } catch {}
+  }
+  await new Promise(r => setTimeout(r, 2000));
+
+  console.log("Launching Chrome with remote debugging on port 9222...");
+  if (process.platform === "darwin") {
+    spawnProc("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", 
+      ["--remote-debugging-port=9222", "--no-first-run", "--no-default-browser-check"],
+      { stdio: "ignore", detached: true }).unref();
+  } else {
+    spawnProc("google-chrome", ["--remote-debugging-port=9222"], { stdio: "ignore", detached: true }).unref();
+  }
+
+  // Wait for CDP
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch("http://127.0.0.1:9222/json/version", { signal: AbortSignal.timeout(500) });
+      if (res.ok) {
+        console.log("Connected. Your real Chrome is now available for browse commands.");
+        console.log("All your logged-in sessions (LinkedIn, X, etc.) will work.");
+        console.log('Run: unbrowse go "https://linkedin.com/feed/"');
+        return;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 500));
+  }
+  console.error("Could not connect to Chrome. Make sure all Chrome windows are closed and try again.");
+}
 async function main(): Promise<void> {
   const { command, args, flags } = parseArgs(process.argv);
   const noAutoStart = !!flags["no-auto-start"];
@@ -723,26 +1456,91 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Server lifecycle commands (don't need ensureLocalServer)
+  if (command === "mcp") return cmdMcp(flags);
+  if (command === "status") return cmdStatus(flags);
+  if (command === "stop") { cmdStop(flags); return; }
+  if (command === "restart") return cmdRestart(flags);
+  if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
+  if (command === "connect-chrome") return cmdConnectChrome();
+
+  // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
+  const KNOWN_COMMANDS = new Set([
+    "health", "mcp", "setup", "resolve", "execute", "exec",
+    "feedback", "fb", "review", "index", "publish", "publish-bundle", "settings", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
+    "status", "stop", "restart", "upgrade", "update",
+    "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
+    "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
+    "connect-chrome",
+  ]);
+
+  if (!KNOWN_COMMANDS.has(command)) {
+    const pack = findSitePack(command);
+    if (pack) {
+      await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
+      const taskName = args[0];
+      if (!taskName || taskName === "help") {
+        return cmdSiteHelp(pack, flags);
+      }
+      if (taskName === "login") {
+        return cmdSiteLogin(pack, flags);
+      }
+      const batchArg = flags.batch as string | undefined;
+      if (batchArg) {
+        return cmdSiteBatch(pack, batchArg, flags);
+      }
+      return cmdSiteTask(pack, taskName, flags);
+    }
+  }
+
   await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
 
   switch (command) {
     case "health": return cmdHealth(flags);
+    case "mcp": return cmdMcp(flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
+    case "review": return cmdReview(flags);
+    case "index": return cmdIndex(flags);
+    case "publish": return cmdPublish(flags);
+    case "publish-bundle": return cmdPublishBundle(flags);
+    case "settings": return cmdSettings(flags);
     case "login": return cmdLogin(flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
+    case "cleanup-stale": return cmdCleanupStale(flags);
     case "search": return cmdSearch(flags);
     case "sessions": return cmdSessions(flags);
+    // Browse commands — Kuri browser actions with passive indexing
+    case "go": return cmdGo(args, flags);
+    case "submit": return cmdSubmit(flags);
+    case "snap": return cmdSnap(flags);
+    case "click": return cmdClick(args, flags);
+    case "fill": return cmdFill(args, flags);
+    case "type": return cmdType(args, flags);
+    case "press": return cmdPress(args, flags);
+    case "select": return cmdSelect(args, flags);
+    case "scroll": return cmdScroll(args, flags);
+    case "screenshot": return cmdScreenshot(flags);
+    case "text": return cmdText(flags);
+    case "markdown": return cmdMarkdown(flags);
+    case "cookies": return cmdCookies(flags);
+    case "eval": return cmdEval(args, flags);
+    case "back": return cmdBack(flags);
+    case "forward": return cmdForward(flags);
+    case "sync": return cmdSync(flags);
+    case "close": return cmdClose(flags);
+    case "connect-chrome": return cmdConnectChrome();
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
 
-// Only run when this file is the entry point (not when imported by sync script etc.)
 if (isMainModule(import.meta.url)) {
-  main().catch((err) => {
-    die((err as Error).message);
-  });
+  main()
+    .then(() => Promise.all([drainPendingIndexJobs(), drainPendingPassivePublishes()]))
+    .catch((err) => {
+      die((err as Error).message);
+    });
 }

@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased
+
+- drop partial release-attestation headers from local/source API calls; send manifest + signature together or neither, so dev/runtime publish no longer trips `release_manifest_incomplete` on strict backends
+- align the MCP tool surface with `SKILL.md`: make `resolve` explicitly cache-only, expose `review` + `publish` tools, and steer fresh captures through `go -> sync/close -> skill/publish -> review -> publish` instead of fake discovery via resolve
+- make the skill/docs explicit that `npx skills add ... --skill unbrowse` is instruction-only; agents should tell users to install the `unbrowse` runtime separately instead of assuming the binary exists
+- add browser-first MCP miss guidance on `unbrowse_resolve` cache misses, so agents are told to switch into `go -> snap -> ... -> review -> publish` instead of stalling on uncached sites
+- expand `unbrowse_resolve` MCP miss guidance to return relevant option sets too (`browse_only`, `capture_for_reuse`, `auth_then_retry`), so agents can choose the right live path instead of only seeing one generic next step
+- add `bun run publish:cli:preview` to build a prerelease npm package + GitHub binary assets against an explicit preview backend, so packaged preview installs and compiled preview binaries hit the same non-prod API by default
+- make DAG hint inference value-aware too: recover unix-string `observed_at` ordering and lift likely edges when observed response values overlap downstream request values, so weak key matches stop dropping real workflow links
+- widen passive browse capture harvest to include replayable API-style Performance API preloads and synthesize request stubs for them, so NusMods-style `api.*/*.json` resources survive checkpointing even when page-slug hints do not match
+- keep raw path-binding evidence from reverse-engineering and defer semantic naming until the graph/review layer, so compound values like `2025-2026`, `semesters/2`, and `modules/ABM5001.json` stop collapsing into junk `{id}` templates while still surfacing reviewable candidate metadata
+- add `x-brand-banter` skill bundle for Wendy's/Ryanair/MoonPie-style X brand voice, replies, and quote-tweet banter
+- add archetype and routing references for choosing the right funny brand-account voice without drifting into generic social copy
+- add `x-account-operator` foundry bundle to route winner analysis, voice selection, queue cuts, rewrites, and Typefully scheduling into one X account workflow
+- add local `publish-bundle` CLI/API flow so one foundry preset writes bundle artifacts, host snippets, and the public share manifest in one step
+- replace the repo-local `skills/foundry` symlink with a real `unbrowse-ai/foundry` git submodule
+
+### Features
+
+* **publish/dag**: publish admitted root endpoints together with DAG-linked callable workflow steps so future agents can invoke individual readable or mutable steps from the same skill
+* **deploy/experiments**: add a dedicated Cloudflare `experiments` env for backend/frontend and wire `lewis/experiments` branch pushes to that isolated workers.dev sandbox with its own API URL secret
+* **runtime/experiments**: add an `experiments` runtime preset with its own local profile, remote publish enabled, and beta backend wiring so branch-side publish tests do not reuse `prod`
+
+### Bug Fixes
+
+* **browser/kuri**: lazily allocate Kuri tabs in the browser wrapper so cache-hit `goto()` calls stop spawning stray blank tabs before a real browser fallback is needed
+* **browser/kuri-proxy**: reconnect stale broker-side CDP sockets before retrying read commands, rebuild the vendored Kuri binary from the patched source, and unwrap broker `Runtime.evaluate` envelopes for `text`/`markdown`, so LinkedIn messaging `go`/`snap`/`text`/`eval` work through Unbrowse instead of only through raw `kuri-agent`
+* **browse/proxy**: make `go` open a fresh Kuri-backed session unless `session_id` is explicitly provided, stop auto-resetting `snap`/`text`/`markdown`/`cookies`/`eval` reads behind the user's back, and remove replacement-tab rebinding so browse mode behaves like a thin Kuri proxy
+* **browse/go**: treat Kuri warmup and transient connectivity aborts as recoverable browse-session failures so explicit `go` flows like LinkedIn messaging can recover instead of dying during startup/rebind
+* **deploy/frontend-preview**: deploy staging and experiments frontends through Wrangler after the OpenNext build, so preview branches skip the CI-hostile R2 cache pre-upload path that was failing with `403 Forbidden`
+* **install/runtime**: resolve packaged versions from the nearest `package.json` when present and fall back to the embedded release manifest in compiled binaries, so `health` reports the real release version instead of `unknown`
+* **resolve/search**: reject cached marketplace skills for exact-URL search tasks when they do not expose the active search binding, and reject generic feed skills for messaging intents, so obvious misses stop pretending to be good cached hits
+* **resolve/descriptions**: stop giving huge rank wins to generic auto descriptions like captured page artifacts, mark auto-vs-agent description provenance in resolve/publish output, and surface review warnings so agents stop trusting unreviewed DOM fallbacks as if they were reviewed API contracts
+* **resolve/descriptions**: classify fresh local DOM fallback labels like `Search form for <domain>` and `Page content from <domain>` as auto-generated too, so clean-state browse/index runs stop mislabeling them as reviewed agent descriptions
+* **publish/review**: make `publish --pretty` return per-endpoint review context from the operation graph, including deps, unlocks, provenance, trigger-page siblings, and current binding summaries, and stamp reviewed descriptions as agent-authored when the review step writes them back
+* **publish/review**: block remote publish, including background auto-publish after `sync`/`close`, whenever any selected endpoint still has an auto/missing description, and return a review-required next step instead of silently sharing unreviewed contracts
+* **publish/review**: surface safe request schema, response field schema, prerequisites, token bindings, and replay next-state in review context, and let `/review` persist agent-authored request/response schema annotations back into workflow artifacts
+* **graph/linkage**: teach DAG inference to add low-confidence hint edges for alias-linked binding families across DOM/HTML/API surfaces (for example profile/member/public-identifier style links), so publish review can reason over likely dependencies even when names do not match exactly
+ 
 ## [2.12.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.6...v2.12.7) (2026-04-04)
 
 ## [2.12.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.5...v2.12.6) (2026-04-04)
@@ -19,7 +58,685 @@
 * skip kuri zig cache during skill sync ([eb1d883](https://github.com/unbrowse-ai/unbrowse-dev/commit/eb1d88354fb6181339846a964a77d93714eec9e2))
 * update kuri submodule — CDP async network event capture for HAR ([0976d55](https://github.com/unbrowse-ai/unbrowse-dev/commit/0976d550f446306ef3389801c6224d9db7a329a4))
 * update kuri submodule — HAR recorder now returns entries correctly ([1f8d194](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f8d194efbca0cd0502071529ece96344f07eded))
+* **browse/capture**: make browse checkpointing reuse the richer passive-capture recovery path (Performance API replay plus HAR replay) and defer zero-evidence DOM form artifacts, so empty LinkedIn-style feed sessions stop poisoning the cache with fake DOM skills
+* **resolve/runtime**: make `resolve` read-only again by returning a fast `no_cached_match` on misses, shortening search timeout, and keeping browser/login/capture flows explicit instead of side effects of resolve
+* **resolve/dag**: return the full relevant workflow DAG slice from `resolve`, attach safe dependent GET prefetch hints to DAG operations and endpoint candidates, and fix endpoint-vs-operation graph filtering during auto-exec
 
+## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
+
+### Bug Fixes
+
+* publish release assets to public repo ([f69e97a](https://github.com/unbrowse-ai/unbrowse-dev/commit/f69e97a01a3ce3f18014bb1bc684ac65d4c5a7e5))
+
+## [2.12.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.3...v2.12.4) (2026-04-03)
+
+### Bug Fixes
+
+* publish release assets to public repo ([f69e97a](https://github.com/unbrowse-ai/unbrowse-dev/commit/f69e97a01a3ce3f18014bb1bc684ac65d4c5a7e5))
+
+## [2.12.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-04-03)
+
+### Features
+
+* **#100:** implement robots.txt directive checking before route execution ([b319f75](https://github.com/unbrowse-ai/unbrowse-dev/commit/b319f750ee1737c1c958af3350e1e0d78f7383ce)), closes [#100](https://github.com/unbrowse-ai/unbrowse-dev/issues/100) [#100](https://github.com/unbrowse-ai/unbrowse-dev/issues/100)
+* **#103:** add composite search scoring to backend ([#196](https://github.com/unbrowse-ai/unbrowse-dev/issues/196)) ([202af76](https://github.com/unbrowse-ai/unbrowse-dev/commit/202af768f8c9d8cf1e1c6e888ad3cf6bbad607eb)), closes [#103](https://github.com/unbrowse-ai/unbrowse-dev/issues/103)
+* **#115:** add DAG advisory execution planner ([0923565](https://github.com/unbrowse-ai/unbrowse-dev/commit/09235655d934e24ce05882b87b0e3b1eda28e487)), closes [#115](https://github.com/unbrowse-ai/unbrowse-dev/issues/115) [#115](https://github.com/unbrowse-ai/unbrowse-dev/issues/115)
+* **#116:** add auth dependency runtime with LocalAuthRuntime ([#186](https://github.com/unbrowse-ai/unbrowse-dev/issues/186)) ([c2e9158](https://github.com/unbrowse-ai/unbrowse-dev/commit/c2e9158ea353bea353fad9eabdfc61ceecd13522)), closes [#116](https://github.com/unbrowse-ai/unbrowse-dev/issues/116)
+* **#117:** add telemetry-driven issue filing with repro bundles ([#187](https://github.com/unbrowse-ai/unbrowse-dev/issues/187)) ([f237060](https://github.com/unbrowse-ai/unbrowse-dev/commit/f2370608aa1daa9b257f5a579ab3dfd721cb1f1a)), closes [#117](https://github.com/unbrowse-ai/unbrowse-dev/issues/117)
+* **#117:** add telemetry-driven issue filing with repro bundles ([#197](https://github.com/unbrowse-ai/unbrowse-dev/issues/197)) ([0b5c641](https://github.com/unbrowse-ai/unbrowse-dev/commit/0b5c6417d2753af374491f30b098ed74af42492c)), closes [#117](https://github.com/unbrowse-ai/unbrowse-dev/issues/117)
+* **#121:** browser host path for OpenAI/native ([#191](https://github.com/unbrowse-ai/unbrowse-dev/issues/191)) ([69c18d5](https://github.com/unbrowse-ai/unbrowse-dev/commit/69c18d5c33e87a5eaff4529d9e90563cb963fff8)), closes [#121](https://github.com/unbrowse-ai/unbrowse-dev/issues/121) [#121](https://github.com/unbrowse-ai/unbrowse-dev/issues/121) [#91](https://github.com/unbrowse-ai/unbrowse-dev/issues/91) [#112](https://github.com/unbrowse-ai/unbrowse-dev/issues/112) [#90](https://github.com/unbrowse-ai/unbrowse-dev/issues/90)
+* **#123:** analytics bottleneck metrics ([#198](https://github.com/unbrowse-ai/unbrowse-dev/issues/198)) ([99c848e](https://github.com/unbrowse-ai/unbrowse-dev/commit/99c848e8e9e1360331c8812946210662a63506b8)), closes [#123](https://github.com/unbrowse-ai/unbrowse-dev/issues/123) [#32](https://github.com/unbrowse-ai/unbrowse-dev/issues/32) [#34](https://github.com/unbrowse-ai/unbrowse-dev/issues/34) [#70](https://github.com/unbrowse-ai/unbrowse-dev/issues/70) [#32](https://github.com/unbrowse-ai/unbrowse-dev/issues/32) [#34](https://github.com/unbrowse-ai/unbrowse-dev/issues/34) [#70](https://github.com/unbrowse-ai/unbrowse-dev/issues/70) [#125](https://github.com/unbrowse-ai/unbrowse-dev/issues/125) [#123](https://github.com/unbrowse-ai/unbrowse-dev/issues/123)
+* **#144:** add batch path template mining for passive captures ([9c30cd7](https://github.com/unbrowse-ai/unbrowse-dev/commit/9c30cd722665c54fb7e18d54bef4b0288c09b3e4)), closes [#144](https://github.com/unbrowse-ai/unbrowse-dev/issues/144) [#144](https://github.com/unbrowse-ai/unbrowse-dev/issues/144)
+* **#144:** batch path template mining for captures without context URLs ([#204](https://github.com/unbrowse-ai/unbrowse-dev/issues/204)) ([07d3461](https://github.com/unbrowse-ai/unbrowse-dev/commit/07d3461f5f46217991fa52cd78dccca600d78171)), closes [#144](https://github.com/unbrowse-ai/unbrowse-dev/issues/144)
+* **#155:** add BM25 lexical search with RRF fusion ([fc0ce39](https://github.com/unbrowse-ai/unbrowse-dev/commit/fc0ce39a4707bb414f9c075dd39f06061697aa89)), closes [#155](https://github.com/unbrowse-ai/unbrowse-dev/issues/155)
+* **#155:** add BM25 lexical search with RRF fusion ([#202](https://github.com/unbrowse-ai/unbrowse-dev/issues/202)) ([a68b84a](https://github.com/unbrowse-ai/unbrowse-dev/commit/a68b84a711d6def5fadbeed31de2381db9a5b309)), closes [#155](https://github.com/unbrowse-ai/unbrowse-dev/issues/155)
+* **#165:** ground LLM descriptions in params and responses ([#189](https://github.com/unbrowse-ai/unbrowse-dev/issues/189)) ([0558c6c](https://github.com/unbrowse-ai/unbrowse-dev/commit/0558c6cfb12df655f6be922d284548b27443bfeb)), closes [#165](https://github.com/unbrowse-ai/unbrowse-dev/issues/165) [#165](https://github.com/unbrowse-ai/unbrowse-dev/issues/165) [#103](https://github.com/unbrowse-ai/unbrowse-dev/issues/103)
+* **#175:** RSC wire format support in capture ([#188](https://github.com/unbrowse-ai/unbrowse-dev/issues/188)) ([0956633](https://github.com/unbrowse-ai/unbrowse-dev/commit/0956633ac7a344fa53d6d7cf5c329dfe3fe5b898)), closes [#175](https://github.com/unbrowse-ai/unbrowse-dev/issues/175) [#103](https://github.com/unbrowse-ai/unbrowse-dev/issues/103) [#165](https://github.com/unbrowse-ai/unbrowse-dev/issues/165)
+* **#213,#90,#214:** domain/task CLI, server supervisor, action provenance ([#215](https://github.com/unbrowse-ai/unbrowse-dev/issues/215)) ([a9bec5c](https://github.com/unbrowse-ai/unbrowse-dev/commit/a9bec5c83030fc006b5ca23e2b3d41a20a04fa5b)), closes [#213](https://github.com/unbrowse-ai/unbrowse-dev/issues/213) [#90](https://github.com/unbrowse-ai/unbrowse-dev/issues/90) [#214](https://github.com/unbrowse-ai/unbrowse-dev/issues/214) [#213](https://github.com/unbrowse-ai/unbrowse-dev/issues/213) [#90](https://github.com/unbrowse-ai/unbrowse-dev/issues/90)
+* **#218:** wire runtime DAG to backend EmergentDB graph ([5035a82](https://github.com/unbrowse-ai/unbrowse-dev/commit/5035a8209fca45e1eed3d35d4bbb69f31564c93f)), closes [#218](https://github.com/unbrowse-ai/unbrowse-dev/issues/218)
+* **#28:** anonymized route trace telemetry pipeline ([#206](https://github.com/unbrowse-ai/unbrowse-dev/issues/206)) ([624ec47](https://github.com/unbrowse-ai/unbrowse-dev/commit/624ec4793ff2f40753efd982ca19b8f946308698)), closes [#28](https://github.com/unbrowse-ai/unbrowse-dev/issues/28)
+* **#32,#33:** lobster.cash-compatible payment integration ([#216](https://github.com/unbrowse-ai/unbrowse-dev/issues/216)) ([b38deba](https://github.com/unbrowse-ai/unbrowse-dev/commit/b38deba9df342906b6ad209d6efbc01e7417ff98)), closes [#32](https://github.com/unbrowse-ai/unbrowse-dev/issues/32) [#33](https://github.com/unbrowse-ai/unbrowse-dev/issues/33)
+* **#33:** add x402 payment lane stub with PaymentGate interface ([#184](https://github.com/unbrowse-ai/unbrowse-dev/issues/184)) ([c50e973](https://github.com/unbrowse-ai/unbrowse-dev/commit/c50e973204b4475a26676f7752404d676a854459)), closes [#33](https://github.com/unbrowse-ai/unbrowse-dev/issues/33)
+* **#33:** wire payment gate into runtime orchestrator ([08a3bf7](https://github.com/unbrowse-ai/unbrowse-dev/commit/08a3bf7674f8dc9929a57de89f4028a368332a90)), closes [#33](https://github.com/unbrowse-ai/unbrowse-dev/issues/33)
+* **#33:** wire x402 payment gating and fee recording into backend routes ([3bce394](https://github.com/unbrowse-ai/unbrowse-dev/commit/3bce3941c1295799807ba4aa3a8bc1f3f38f6b15)), closes [#33](https://github.com/unbrowse-ai/unbrowse-dev/issues/33)
+* **#40:** dynamic route pricing and site-owner opt-in compensation ([#210](https://github.com/unbrowse-ai/unbrowse-dev/issues/210)) ([1a50d5f](https://github.com/unbrowse-ai/unbrowse-dev/commit/1a50d5f8145ea2fa8d360779f637451cf47708a3)), closes [#40](https://github.com/unbrowse-ai/unbrowse-dev/issues/40)
+* **#87:** wire unsafe action score gate into auto-execution ([#199](https://github.com/unbrowse-ai/unbrowse-dev/issues/199)) ([30885dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/30885dd54ee1ebd16cd72e20bd6ccf9019814061)), closes [#87](https://github.com/unbrowse-ai/unbrowse-dev/issues/87)
+* **#87:** wire unsafe action score gate into canAutoExecuteEndpoint ([#182](https://github.com/unbrowse-ai/unbrowse-dev/issues/182)) ([d5bbf64](https://github.com/unbrowse-ai/unbrowse-dev/commit/d5bbf647c6ace8b5af79337e3ba1c55bb229b64e)), closes [#87](https://github.com/unbrowse-ai/unbrowse-dev/issues/87)
+* **#91,#112,#90:** add host integrations, login UX config, runtime supervisor ([#195](https://github.com/unbrowse-ai/unbrowse-dev/issues/195)) ([966ec32](https://github.com/unbrowse-ai/unbrowse-dev/commit/966ec3249b81ef8b03e62e67ccde843d8c81ac61)), closes [#91](https://github.com/unbrowse-ai/unbrowse-dev/issues/91) [#112](https://github.com/unbrowse-ai/unbrowse-dev/issues/112) [#90](https://github.com/unbrowse-ai/unbrowse-dev/issues/90)
+* **#92,#93,#95,#96:** search forms, eval types, lifecycle attribution ([#194](https://github.com/unbrowse-ai/unbrowse-dev/issues/194)) ([b394ea2](https://github.com/unbrowse-ai/unbrowse-dev/commit/b394ea240a178ff0236dfad227323743c01c91ab)), closes [#92](https://github.com/unbrowse-ai/unbrowse-dev/issues/92) [#93](https://github.com/unbrowse-ai/unbrowse-dev/issues/93) [#95](https://github.com/unbrowse-ai/unbrowse-dev/issues/95) [#96](https://github.com/unbrowse-ai/unbrowse-dev/issues/96) [#92](https://github.com/unbrowse-ai/unbrowse-dev/issues/92) [#93](https://github.com/unbrowse-ai/unbrowse-dev/issues/93) [#95](https://github.com/unbrowse-ai/unbrowse-dev/issues/95)
+* **#98:** delta-based contribution attribution for Tier 1 fee splits ([#209](https://github.com/unbrowse-ai/unbrowse-dev/issues/209)) ([92aa403](https://github.com/unbrowse-ai/unbrowse-dev/commit/92aa4032c28964d0f0f19589364f7ba7ea9cb597)), closes [#98](https://github.com/unbrowse-ai/unbrowse-dev/issues/98)
+* **#99,#101:** wire consecutive failures and schema drift to auto-deprecation ([#192](https://github.com/unbrowse-ai/unbrowse-dev/issues/192)) ([129e8e4](https://github.com/unbrowse-ai/unbrowse-dev/commit/129e8e47b0901645b0c6ad1168d16e2861063140)), closes [#99](https://github.com/unbrowse-ai/unbrowse-dev/issues/99) [#101](https://github.com/unbrowse-ai/unbrowse-dev/issues/101)
+* add curl-based install script served from unbrowse.ai ([adbc3f1](https://github.com/unbrowse-ai/unbrowse-dev/commit/adbc3f13d6671f08940118a95ee93cf893121e78))
+* add GraphSession for passive request indexing against operation graph ([20bd110](https://github.com/unbrowse-ai/unbrowse-dev/commit/20bd110186507016de4c286965759b02fe3a1d54))
+* add gstack-style ./setup script for one-liner installation ([8223b8b](https://github.com/unbrowse-ai/unbrowse-dev/commit/8223b8b769e521ee4946aaa6f7fd339d89b92926))
+* add P0/P1 automated regression testing framework ([2993299](https://github.com/unbrowse-ai/unbrowse-dev/commit/299329931f6688baca7ef29c9da543e12ae7c6eb))
+* add routing analytics summaries ([1c22fc7](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c22fc733ce34f0fa5e653c1e71a460ae85c6d0d))
+* add routing telemetry and harden cli flows ([973b62e](https://github.com/unbrowse-ai/unbrowse-dev/commit/973b62edd5acab3907ded95845e4d043401a7e17))
+* add routing telemetry prep ([#330](https://github.com/unbrowse-ai/unbrowse-dev/issues/330)) ([ad05e6f](https://github.com/unbrowse-ai/unbrowse-dev/commit/ad05e6f12daf27dbd2cf4027406aac8c0f8334a4))
+* add X campaign feedback operator bundle ([b65530e](https://github.com/unbrowse-ai/unbrowse-dev/commit/b65530eef987b4fae9bc91367f9ff9e5671050b1))
+* **auth:** add Comet browser support for cookie extraction and login ([cda5bc8](https://github.com/unbrowse-ai/unbrowse-dev/commit/cda5bc83085808cf098f81cc54ddf7ad9ace6850))
+* extend CaptureResult with optional graph_session field ([a88dd27](https://github.com/unbrowse-ai/unbrowse-dev/commit/a88dd27ce42a80f473337fd06fbb5e639a3a8a83))
+* feature flag out extra plugins, keep skill + one-shot + manual ([01e411a](https://github.com/unbrowse-ai/unbrowse-dev/commit/01e411a682be30392c4b8ba819740b72aa0c53df))
+* **frontend:** enable Cloudflare image optimization and fix build ([b1de15f](https://github.com/unbrowse-ai/unbrowse-dev/commit/b1de15fafe815383c009ecee04b93ab5ac7cb4fd))
+* gate policy-sensitive site mutations ([#328](https://github.com/unbrowse-ai/unbrowse-dev/issues/328)) ([8e0c7b1](https://github.com/unbrowse-ai/unbrowse-dev/commit/8e0c7b1de95fe6513de73ea2a5ccbc8b9d6885c9))
+* **kuri:** add browser action primitive wrappers ([57ecc46](https://github.com/unbrowse-ai/unbrowse-dev/commit/57ecc4650a94bb2f8cc8cc2ee7c473bd9e5eabdf))
+* restore paper landing page as "Internal APIs Are All You Need" ([ccdbbb9](https://github.com/unbrowse-ai/unbrowse-dev/commit/ccdbbb95a599307a156ba69a50bb7f5ec9990d33))
+* verify release manifests and gate endpoints by corroboration ([15eccd1](https://github.com/unbrowse-ai/unbrowse-dev/commit/15eccd14123131bf111a8c000d1663b207032aec))
+* wire Kuri v0.3 action primitives into browser-action floor ([c0e43a6](https://github.com/unbrowse-ai/unbrowse-dev/commit/c0e43a60a75af9630d44d71324721a99db95ad8f)), closes [#86](https://github.com/unbrowse-ai/unbrowse-dev/issues/86) [#75](https://github.com/unbrowse-ai/unbrowse-dev/issues/75) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#88](https://github.com/unbrowse-ai/unbrowse-dev/issues/88) [#85](https://github.com/unbrowse-ai/unbrowse-dev/issues/85)
+
+### Bug Fixes
+
+* **#104:** call recordExecution after skill execute to report stats to backend ([ec09a5f](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec09a5f32e5a27874da9e60b2fad2ed066b76a56)), closes [#104](https://github.com/unbrowse-ai/unbrowse-dev/issues/104)
+* **#108:** wire first-pass browser action fallback into no-route resolve path ([#179](https://github.com/unbrowse-ai/unbrowse-dev/issues/179)) ([30f5737](https://github.com/unbrowse-ai/unbrowse-dev/commit/30f57372eda9442ae3dd150e2a2f432f546e2cfc))
+* **#109:** spawn failure on LinkedIn — add retry logic to kuri start ([c8ef8e1](https://github.com/unbrowse-ai/unbrowse-dev/commit/c8ef8e13d5f5a1e7ce1055bb066bfc8621e89199)), closes [#109](https://github.com/unbrowse-ai/unbrowse-dev/issues/109)
+* **#113:** abort hanging CDP phases via AbortSignal when capture timeout fires ([e5e64c6](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5e64c65c2feb7b7543ff3fb369ddb0c0434244f)), closes [#113](https://github.com/unbrowse-ai/unbrowse-dev/issues/113)
+* **#114:** add query hook bridge for UI event → network provenance ([#200](https://github.com/unbrowse-ai/unbrowse-dev/issues/200)) ([1afd13e](https://github.com/unbrowse-ai/unbrowse-dev/commit/1afd13eec520a9123b0ba126b9f7913023c4de4c)), closes [#114](https://github.com/unbrowse-ai/unbrowse-dev/issues/114)
+* **#118:** wire passive reverse-engineered artifacts into graph growth and marketplace ([#177](https://github.com/unbrowse-ai/unbrowse-dev/issues/177)) ([626462b](https://github.com/unbrowse-ai/unbrowse-dev/commit/626462bd1ab2b31863f61062598ab53ab960e08c)), closes [#118](https://github.com/unbrowse-ai/unbrowse-dev/issues/118)
+* **#152:** prefer richer endpoint when merging duplicates ([1b9b07f](https://github.com/unbrowse-ai/unbrowse-dev/commit/1b9b07f74a2f231b29f6cd37f3519d3aedd98e4a)), closes [#152](https://github.com/unbrowse-ai/unbrowse-dev/issues/152)
+* **#152:** prefer richer endpoint when merging duplicates ([#203](https://github.com/unbrowse-ai/unbrowse-dev/issues/203)) ([0b37423](https://github.com/unbrowse-ai/unbrowse-dev/commit/0b37423641b4f0bd34af73aebd92f5bee8ff30a1)), closes [#152](https://github.com/unbrowse-ai/unbrowse-dev/issues/152)
+* **#218:** rewrite tests to hit real backend, never mock fetch ([cc09d11](https://github.com/unbrowse-ai/unbrowse-dev/commit/cc09d1174e906df3907742a8d4b38613ccaca75c)), closes [#218](https://github.com/unbrowse-ai/unbrowse-dev/issues/218)
+* **#220:** wire computeBottleneckMetrics into backend analytics route ([e97d675](https://github.com/unbrowse-ai/unbrowse-dev/commit/e97d67581745fe4297a0c7a1489ce0f69e8de94a)), closes [#220](https://github.com/unbrowse-ai/unbrowse-dev/issues/220)
+* **#221:** wire computeCompositeSearchScore into search/resolve path ([4812ef0](https://github.com/unbrowse-ai/unbrowse-dev/commit/4812ef0509e9285ab64d50a1970f0f2d8356510d))
+* **#221:** wire computeCompositeSearchScore into search/resolve path ([040cd8b](https://github.com/unbrowse-ai/unbrowse-dev/commit/040cd8bc3fccbea3286dd98655ed932a78245a8d))
+* **#222:** wire SUPPORTED_HOSTS, LocalSupervisor, getDefaultLoginConfig to production ([2c120c6](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c120c66ca33177db04217e252a6fa6a3367a535)), closes [#222](https://github.com/unbrowse-ai/unbrowse-dev/issues/222)
+* **#223:** wire isStructuredSearchForm and attributeLifecycle into execution paths ([2352b9e](https://github.com/unbrowse-ai/unbrowse-dev/commit/2352b9edc921508abfa50c7e476ab4578f553aad)), closes [#223](https://github.com/unbrowse-ai/unbrowse-dev/issues/223)
+* **#224:** wire BrowserAccessConfig and computeVerificationCoverage to production ([54548f0](https://github.com/unbrowse-ai/unbrowse-dev/commit/54548f03be051229e39e8190060fbb044c5191e2)), closes [#224](https://github.com/unbrowse-ai/unbrowse-dev/issues/224)
+* **#225:** wire detectHostEnvironment and getBrowserConfig into kuri launch ([5362e5c](https://github.com/unbrowse-ai/unbrowse-dev/commit/5362e5c6781340e6b081f0c82d026fb5f6e2e0a1)), closes [#225](https://github.com/unbrowse-ai/unbrowse-dev/issues/225)
+* **#226:** wire buildDescriptionPrompt into reverse-engineer pipeline ([a80273a](https://github.com/unbrowse-ai/unbrowse-dev/commit/a80273a4c8ead1c9ecbea25ab87f6c082e5202b4)), closes [#226](https://github.com/unbrowse-ai/unbrowse-dev/issues/226)
+* **#227:** wire RSC wire format parser into capture pipeline ([988c6ab](https://github.com/unbrowse-ai/unbrowse-dev/commit/988c6ab8a34604166d9c616e47ca63c529c8a2d1)), closes [#227](https://github.com/unbrowse-ai/unbrowse-dev/issues/227)
+* **#228:** wire telemetry-driven auto issue filing pipeline ([4e4e660](https://github.com/unbrowse-ai/unbrowse-dev/commit/4e4e660c008baca7476880558e792712373357dc)), closes [#228](https://github.com/unbrowse-ai/unbrowse-dev/issues/228)
+* **#229:** implement tryFirstPassBrowserAction with HAR-based interception ([09f5118](https://github.com/unbrowse-ai/unbrowse-dev/commit/09f5118148494bfc9644bd39a7f7cbb91a8eb0fd)), closes [#229](https://github.com/unbrowse-ai/unbrowse-dev/issues/229)
+* **#229:** implement tryFirstPassBrowserAction with HAR-based interception ([30d3170](https://github.com/unbrowse-ai/unbrowse-dev/commit/30d3170334d07ae2e43aa6cf6d95203f1c800381)), closes [#229](https://github.com/unbrowse-ai/unbrowse-dev/issues/229)
+* **#230:** wire auth dependency runtime into login flow ([1329188](https://github.com/unbrowse-ai/unbrowse-dev/commit/1329188a6ec84c1f3630e05afb3277e530ee5d1a)), closes [#230](https://github.com/unbrowse-ai/unbrowse-dev/issues/230) [#230](https://github.com/unbrowse-ai/unbrowse-dev/issues/230)
+* **#231:** wire route pricing endpoint into payment flow ([da39ab0](https://github.com/unbrowse-ai/unbrowse-dev/commit/da39ab081337e6a65cdfa382abd8944651aa19f9)), closes [#231](https://github.com/unbrowse-ai/unbrowse-dev/issues/231)
+* **#232:** wire delta attribution client-side so indexer_id is sent ([f072750](https://github.com/unbrowse-ai/unbrowse-dev/commit/f0727502ee532ca77db8845eb7749ccffb8c32de)), closes [#232](https://github.com/unbrowse-ai/unbrowse-dev/issues/232)
+* **#233:** wire queuePassiveSkillPublish to actually publish skills ([bb720ed](https://github.com/unbrowse-ai/unbrowse-dev/commit/bb720ed2d779cd2ecec9aa8e1789b10d077b2efa)), closes [#233](https://github.com/unbrowse-ai/unbrowse-dev/issues/233)
+* **#233:** wire queuePassiveSkillPublish to actually publish skills ([f6b9b53](https://github.com/unbrowse-ai/unbrowse-dev/commit/f6b9b53d4e912afa0bb167ac9d81faa239646643)), closes [#233](https://github.com/unbrowse-ai/unbrowse-dev/issues/233)
+* **#48:** use pathToFileURL for tsx loader path to support Windows ([d95bab9](https://github.com/unbrowse-ai/unbrowse-dev/commit/d95bab91c9b6b9574966a5a482d70289be816a45)), closes [#48](https://github.com/unbrowse-ai/unbrowse-dev/issues/48)
+* **#51:** export DEPRECATION_THRESHOLD and add auto_deprecated_at to EndpointStats ([8033996](https://github.com/unbrowse-ai/unbrowse-dev/commit/8033996141f1345481636a563c44d4673bdd040b)), closes [#51](https://github.com/unbrowse-ai/unbrowse-dev/issues/51)
+* **#54:** add install warning audit smoke tests for OpenClaw plugin ([#180](https://github.com/unbrowse-ai/unbrowse-dev/issues/180)) ([b75d396](https://github.com/unbrowse-ai/unbrowse-dev/commit/b75d3963cd51f88b09123edc0832d50760adcc5a)), closes [#54](https://github.com/unbrowse-ai/unbrowse-dev/issues/54)
+* **#54:** add install warning audit smoke tests for OpenClaw plugin ([#180](https://github.com/unbrowse-ai/unbrowse-dev/issues/180)) ([#193](https://github.com/unbrowse-ai/unbrowse-dev/issues/193)) ([e0a6a75](https://github.com/unbrowse-ai/unbrowse-dev/commit/e0a6a7545974db4de35c7948e89cb4914fb623df)), closes [#54](https://github.com/unbrowse-ai/unbrowse-dev/issues/54)
+* **#89:** promote deferred skills to cache, guard mutable DOM auto-exec, restore resolvedParams IIFE ([cd8f9da](https://github.com/unbrowse-ai/unbrowse-dev/commit/cd8f9da6f05748ec3969835e58a651ed4c75a846)), closes [#89](https://github.com/unbrowse-ai/unbrowse-dev/issues/89)
+* **#89:** promote deferred skills to cache, guard mutable DOM auto-exec, restore resolvedParams IIFE ([#201](https://github.com/unbrowse-ai/unbrowse-dev/issues/201)) ([894f89c](https://github.com/unbrowse-ai/unbrowse-dev/commit/894f89c1bc8d8ede2a77423147c8de6f04a45e9a)), closes [#89](https://github.com/unbrowse-ai/unbrowse-dev/issues/89)
+* auto-extract browser cookies for gated sites, guard HAR entry iteration ([955564d](https://github.com/unbrowse-ai/unbrowse-dev/commit/955564debad2150f04a087da5aa1a2eb0a4486b0))
+* auto-queue browse submit publish and document public repo ([9905005](https://github.com/unbrowse-ai/unbrowse-dev/commit/9905005afa86402ac75d521381e6ca2eec1ab184))
+* bound frontend build api fetches ([f74bf7c](https://github.com/unbrowse-ai/unbrowse-dev/commit/f74bf7c3fe97c7f0444b8878f34d7282b8809d92))
+* bound stale endpoint verification batches ([e98d95c](https://github.com/unbrowse-ai/unbrowse-dev/commit/e98d95c4fc75d581c78bcbc0427cb146ee4a6dd9))
+* bundle vendored kuri and enforce package checks ([c165046](https://github.com/unbrowse-ai/unbrowse-dev/commit/c165046a89e5eecb24182c04fb67443120b3f850))
+* capture API bodies via Performance API + sync XHR replay ([b88f98d](https://github.com/unbrowse-ai/unbrowse-dev/commit/b88f98dfb32f32f635e7cc031cd96dc3150c4811))
+* **capture:** add live DOM extraction and improve interactive stimulus ([253112c](https://github.com/unbrowse-ai/unbrowse-dev/commit/253112c9471a44a7f0f9afe630198868a3b43a0b))
+* **capture:** improve interceptor timing and add Performance API replay ([5f0d503](https://github.com/unbrowse-ai/unbrowse-dev/commit/5f0d503361fd3eb8f2d64ca9600fa69f5644c242))
+* **capture:** wire live DOM extraction data through orchestrator to user ([664a637](https://github.com/unbrowse-ai/unbrowse-dev/commit/664a6371e783e389cc1217c2315cea7ff8991a04))
+* disable local npm release handling ([6dd2ce1](https://github.com/unbrowse-ai/unbrowse-dev/commit/6dd2ce19b24dfff96cbe724b0e9ed57f0ef1319a))
+* harden global install fallback and server version guards ([#323](https://github.com/unbrowse-ai/unbrowse-dev/issues/323)) ([ee91923](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee9192312766d8756b0691c5e45a2beec639085f))
+* harden packaged kuri recovery ([16e89b5](https://github.com/unbrowse-ai/unbrowse-dev/commit/16e89b52c6eced2010327e7d2d2bae96aa5ff0d5))
+* increase graph-api test timeout to 60s for rate-limit retries ([991d13a](https://github.com/unbrowse-ai/unbrowse-dev/commit/991d13a6da42671e4274254f3f3a0baf66c6f252))
+* install unbrowse shim in stable user bins ([#326](https://github.com/unbrowse-ai/unbrowse-dev/issues/326)) ([6a69c66](https://github.com/unbrowse-ai/unbrowse-dev/commit/6a69c665659bfd67b72f64b9d807e19f11877d97))
+* install.sh falls back to health if setup not available yet ([2c28268](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c28268527b3dd6b4a4ecb77bbde54b54b77d3bd))
+* install.sh use --yes flag and drop setup command ([c293572](https://github.com/unbrowse-ai/unbrowse-dev/commit/c2935726646fe928fe1c4782d2043055f0ab1cb8))
+* install.sh uses npm install instead of git clone ([6a13bf5](https://github.com/unbrowse-ai/unbrowse-dev/commit/6a13bf56ff53f9d01c81ba786244dced8d76351b))
+* isolate browse sessions under parallel load ([3194c8e](https://github.com/unbrowse-ai/unbrowse-dev/commit/3194c8e79536e0cac53dcad4328d507f3bd7efae))
+* isolate main CI local server and KV cache ([#325](https://github.com/unbrowse-ai/unbrowse-dev/issues/325)) ([c58711b](https://github.com/unbrowse-ai/unbrowse-dev/commit/c58711b72c428a7d9ceb518f6027cf222ebc7e37))
+* **kuri:** correct press() and scroll() signatures to require ref param ([40cbcb8](https://github.com/unbrowse-ai/unbrowse-dev/commit/40cbcb893745bad61795cadb29c91b24d257036c))
+* link homepage whitepaper button to paper landing page ([68b84f2](https://github.com/unbrowse-ai/unbrowse-dev/commit/68b84f2b8f3db6689ffaa78baf544874ee763119))
+* make marketplace search free before paid skill detail ([#327](https://github.com/unbrowse-ai/unbrowse-dev/issues/327)) ([e9e1e7f](https://github.com/unbrowse-ai/unbrowse-dev/commit/e9e1e7f9287ad13c56dbf494c468a5072db334cc))
+* **openclaw:** surface endpoint details in deferred resolve responses ([e964725](https://github.com/unbrowse-ai/unbrowse-dev/commit/e964725fb3241b93c4dcd935c4b3d637fadca532))
+* resolve all 21 backend test failures (19 fail + 2 errors) ([8074d14](https://github.com/unbrowse-ai/unbrowse-dev/commit/8074d14ed3c27cfb96a5bdae649a7a6e269fc669))
+* restore auth fallback and harden indexing ([1a30053](https://github.com/unbrowse-ai/unbrowse-dev/commit/1a3005306f892e785c53efc760207b06ae78939e))
+* restore fee routes and x402 CORS headers after merge conflict ([a634f25](https://github.com/unbrowse-ai/unbrowse-dev/commit/a634f2506b313cfcda8677960936f5c89ec98281))
+* restore gh in release workflow ([d1861f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/d1861f40af17d613abffb859c5a34797b0c526f7))
+* restore packaged cli staging path ([bec02dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/bec02dde63b91d15a8e5cd37718025e5142d551c))
+* retarget docs and PR helpers to main ([0c4c5d1](https://github.com/unbrowse-ai/unbrowse-dev/commit/0c4c5d1874066b93968de7aa72e803717562a8e0))
+* revert to unoptimized images, fix package.json and next.config syntax ([2352069](https://github.com/unbrowse-ai/unbrowse-dev/commit/2352069c2f7642604add1bc75928f0f08ae90195))
+* simplify install setup path ([3c31214](https://github.com/unbrowse-ai/unbrowse-dev/commit/3c3121463836421b68187985dc5f29d761350911))
+* skip pre-push P0/P1 suite when no analyses exist ([427c58d](https://github.com/unbrowse-ai/unbrowse-dev/commit/427c58de07cc18a9e5f6d47591d14c01e2608591))
+* stabilize browse submit recovery ([c586d5e](https://github.com/unbrowse-ai/unbrowse-dev/commit/c586d5e53ee34e7c3b6b051f38f9722f5ee7dadf))
+* unblock cli bootstrap and e2e smoke ([9cf533b](https://github.com/unbrowse-ai/unbrowse-dev/commit/9cf533bfe632c555b9abad87ffb063a53d61bb1e))
+* unblock cli wallet setup and auth e2e ([c92f39f](https://github.com/unbrowse-ai/unbrowse-dev/commit/c92f39f679966507686306dca57510ded95f0c55))
+* unblock main ci checks ([72f7cd9](https://github.com/unbrowse-ai/unbrowse-dev/commit/72f7cd9e4b640453b20cc96db421b6ac799a16de))
+* update kuri submodule — CDP async network event capture for HAR ([0976d55](https://github.com/unbrowse-ai/unbrowse-dev/commit/0976d550f446306ef3389801c6224d9db7a329a4))
+* update kuri submodule — HAR recorder now returns entries correctly ([1f8d194](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f8d194efbca0cd0502071529ece96344f07eded))
+* use unbrowse health instead of setup in install.sh ([557911c](https://github.com/unbrowse-ai/unbrowse-dev/commit/557911ce5aa6049efa8510d14843252b058aee85))
+
+### Refactoring
+
+* simplify install.sh — use npx skills add for registration ([78f280b](https://github.com/unbrowse-ai/unbrowse-dev/commit/78f280bfcbe683746335432c462fa6f2eea96c26))
+* simplify setup script — delegate to CLI for runtime bootstrap ([8848b52](https://github.com/unbrowse-ai/unbrowse-dev/commit/8848b52103760d6fbe544787fb4590e1ee734c74))
+
+## [2.1.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-24)
+
+### Bug Fixes
+
+* keep structured search skills on the resolve path ([1de509d](https://github.com/unbrowse-ai/unbrowse-dev/commit/1de509dda5746f8074fcec555e0e4a7c3f1e2f10))
+* rebuild canonical retrieval hydration from domain index ([#72](https://github.com/unbrowse-ai/unbrowse-dev/issues/72)) ([35e6de9](https://github.com/unbrowse-ai/unbrowse-dev/commit/35e6de9d732a84f553bdf0f2d574b97fab846485))
+* recover LawNet search form execution ([25a4e17](https://github.com/unbrowse-ai/unbrowse-dev/commit/25a4e172da849e57ad68cc6c41044c552785f7d8))
+
+## [2.1.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-24)
+
+## [2.1.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* harden LawNet search execution ([c42852c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c42852c7c08664d54d1eff342b060f30da04b711))
+
+## [2.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* stabilize warm retrieval cache ([ee3a2ac](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee3a2ac43ccc87004c25e061c3acb497e3831e3a))
+
+## [2.1.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* harden LawNet search recovery ([8eb5d04](https://github.com/unbrowse-ai/unbrowse-dev/commit/8eb5d048fda6da402a31d241088dc7285ec9f6da))
+
+## [2.1.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* restore packaged cli self-healing ([5b6b921](https://github.com/unbrowse-ai/unbrowse-dev/commit/5b6b92111c0f24636e5c79c516134c1891321722))
+
+## [2.1.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Features
+
+* improve capture resilience and align kuri upstream ([4607822](https://github.com/unbrowse-ai/unbrowse-dev/commit/46078224f8fafda4de7b9a2a9df04f37fd9a5b71))
+
+## [2.0.23](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* sharpen mcp routing defaults ([3e1b355](https://github.com/unbrowse-ai/unbrowse-dev/commit/3e1b35591c7ba7231061bcea5bfd927133013f99))
+
+## [2.0.22](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* stabilize installed linkedin force-capture ([f381f48](https://github.com/unbrowse-ai/unbrowse-dev/commit/f381f48dbf5d344f37b9a69141fd219579f7cdff))
+
+## [2.0.21](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* harden auth capture and Hermes install docs ([8ecd63e](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ecd63ebf2cc2fd52ea9a77e1b74200b84cb5eeb))
+
+## [2.0.16](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* disable release-it npm bump step ([6dbda71](https://github.com/unbrowse-ai/unbrowse-dev/commit/6dbda71e368c84e8f3962f572e99a06a772f7d66))
+* disable release-it npm bump step ([#69](https://github.com/unbrowse-ai/unbrowse-dev/issues/69)) ([bff1753](https://github.com/unbrowse-ai/unbrowse-dev/commit/bff1753d4b8ad98256e70230ac0b2cca7bd5dab5))
+* restore retrieval gate coverage ([781e660](https://github.com/unbrowse-ai/unbrowse-dev/commit/781e660dc8f49949e6026b71581c0730911c175b))
+* stabilize webarena adapted evals ([8afd22d](https://github.com/unbrowse-ai/unbrowse-dev/commit/8afd22de3ffece143b2ae63d26f1a6a1f9263347))
+
+## [2.0.15](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* align frontend deploy path and install docs ([#25](https://github.com/unbrowse-ai/unbrowse-dev/issues/25)) ([1f20a33](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f20a33c485676124044854f1325085dbe5bab88))
+* pin deploys to maintained kuri fork ([3055bcf](https://github.com/unbrowse-ai/unbrowse-dev/commit/3055bcfc57151d032c55cd93e0a43d59a1a2c012))
+
+## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* seed staging browser eval auth ([#24](https://github.com/unbrowse-ai/unbrowse-dev/issues/24)) ([9caa74d](https://github.com/unbrowse-ai/unbrowse-dev/commit/9caa74d769aca1a61b17d962753bb17ae629578d))
+
+## [2.0.13](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+## [2.0.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* bypass staging eval search cache ([b1b2038](https://github.com/unbrowse-ai/unbrowse-dev/commit/b1b2038291e2536599ff0cf3fb3b51487e1654e6))
+
+## [2.0.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* exempt staging eval token from search throttles ([1c29770](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c29770752cea8143eb9f4f654bd84bac3f53096))
+
+## [2.0.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* stop staging live eval from assuming seeded search ([#20](https://github.com/unbrowse-ai/unbrowse-dev/issues/20)) ([e6b4c2b](https://github.com/unbrowse-ai/unbrowse-dev/commit/e6b4c2b2740e852a744a489e5e77e2d860717729))
+
+## [2.0.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* separate public search rate limits for authed evals ([#19](https://github.com/unbrowse-ai/unbrowse-dev/issues/19)) ([8ea11ce](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ea11ce4b4b4c40e1a45f3c539b7a13edcd1665d))
+
+## [2.0.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* normalize skill sync newlines on windows ([#15](https://github.com/unbrowse-ai/unbrowse-dev/issues/15)) ([f511e7e](https://github.com/unbrowse-ai/unbrowse-dev/commit/f511e7e32c9539214b5b18ddda04db4225c0f8ce))
+* publish npm packages on self-hosted runners ([#16](https://github.com/unbrowse-ai/unbrowse-dev/issues/16)) ([7d6f81d](https://github.com/unbrowse-ai/unbrowse-dev/commit/7d6f81df521d74cd3be8e425e848c19e1de77f5e))
+* restore mcp package build ([#17](https://github.com/unbrowse-ai/unbrowse-dev/issues/17)) ([442922f](https://github.com/unbrowse-ai/unbrowse-dev/commit/442922f46f11595308f6fa8688fa91fbdfc61220))
+* skip live graph api tests by default ([#14](https://github.com/unbrowse-ai/unbrowse-dev/issues/14)) ([a4d69d7](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4d69d72eb562b248e8d51770e8143e5cb37c5c3))
+* unblock release packaging gates ([#18](https://github.com/unbrowse-ai/unbrowse-dev/issues/18)) ([d142996](https://github.com/unbrowse-ai/unbrowse-dev/commit/d142996cbd6487289c062ad63c34d4598d0cdb4c))
+
+## [2.0.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* simplify api key auto-registration ([#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)) ([198a6d2](https://github.com/unbrowse-ai/unbrowse-dev/commit/198a6d299bc5e4f0a8529901dbdc757b3432746b))
+* simplify one-command install flow ([#11](https://github.com/unbrowse-ai/unbrowse-dev/issues/11)) ([2d4bbe5](https://github.com/unbrowse-ai/unbrowse-dev/commit/2d4bbe52299ac82e039568969317fa124efa616f))
+* track windows kuri binary for npm pack ([#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10)) ([bc6b39a](https://github.com/unbrowse-ai/unbrowse-dev/commit/bc6b39afa6973c8fbe5b261ea61646228c2cf6fe))
+
+## [2.0.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-21)
+
+### Features
+
+* add ElizaOS plugin for unbrowse integration ([5134ac5](https://github.com/unbrowse-ai/unbrowse-dev/commit/5134ac56828bd077d2e44d31c99d2c0192dcc9ea))
+* add LangChain integration (unbrowse-langchain) ([c064902](https://github.com/unbrowse-ai/unbrowse-dev/commit/c064902e091d01393d43388d70f06e0f7dbb7019))
+* add MCP server integration for universal AI client support ([baa460c](https://github.com/unbrowse-ai/unbrowse-dev/commit/baa460c35d18ad297a1c544918be57081dbe9f24))
+* add unbrowse-hermes plugin for Hermes Agent framework ([c010d88](https://github.com/unbrowse-ai/unbrowse-dev/commit/c010d88e075d01aa6291d9fc873bdcd247b22e65))
+
+### Bug Fixes
+
+* add stealth patches + restore origin pre-navigation for authed captures ([14e5c56](https://github.com/unbrowse-ai/unbrowse-dev/commit/14e5c5618cf736737313a289b0ced64738fb01f5))
+* check vendor binaries first, skip zig build when present ([5f25866](https://github.com/unbrowse-ai/unbrowse-dev/commit/5f2586651ff9582b4ee834e0d3192c1b343e1e49))
+* CSRF detection via DAG-based value matching + JSESSIONID/csrf-token support ([c91894c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c91894c96966e5b907b2b7467b421587527163f4))
+* login opens user's default browser + auto-discover all Chromium/Firefox browsers ([680d877](https://github.com/unbrowse-ai/unbrowse-dev/commit/680d87759d368a44fe9a76ce80886553279bcc3c))
+* refresh lockfile and spa extraction fallback ([4054a8a](https://github.com/unbrowse-ai/unbrowse-dev/commit/4054a8a99cbcba80ad648128e46c60573cfc2396))
+* resolve Invalid URL crashes and capture failures on heavy SPAs (v2.0.2) ([7a4344d](https://github.com/unbrowse-ai/unbrowse-dev/commit/7a4344d89504ff611fb269a8ee4d01f2d80a2706))
+* security hardening — leaked keys, injection, auth gaps, timing attacks ([9d5e468](https://github.com/unbrowse-ai/unbrowse-dev/commit/9d5e4680d18c1e04816919fca1ef124dfd62ccd9)), closes [#51](https://github.com/unbrowse-ai/unbrowse-dev/issues/51) [#52](https://github.com/unbrowse-ai/unbrowse-dev/issues/52) [#53](https://github.com/unbrowse-ai/unbrowse-dev/issues/53) [#54](https://github.com/unbrowse-ai/unbrowse-dev/issues/54) [#55](https://github.com/unbrowse-ai/unbrowse-dev/issues/55) [#56](https://github.com/unbrowse-ai/unbrowse-dev/issues/56)
+* skip kuri zig cache during skill sync ([eb1d883](https://github.com/unbrowse-ai/unbrowse-dev/commit/eb1d88354fb6181339846a964a77d93714eec9e2))
+* SSR fallback for bot-detected sites + relax quality gate for DOM extraction ([df89a34](https://github.com/unbrowse-ai/unbrowse-dev/commit/df89a342771419758355da3199bcd4862c03374b))
+* stealth patches, origin pre-nav, discover after newTab, kuri evaluate double-escape ([cde0d93](https://github.com/unbrowse-ai/unbrowse-dev/commit/cde0d93db0a6c3e8d83613f0e83b9e031666754c))
+* update vendored Kuri binaries with 5-bug capture fix (v2.0.5) ([ca9b641](https://github.com/unbrowse-ai/unbrowse-dev/commit/ca9b641616d908b5ad34c5390b5e6a9e6d5261a9))
+
+## [2.0.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-15)
+
+### Features
+
+* migrate backend to EmergentDB Graph API ([#85](https://github.com/unbrowse-ai/unbrowse-dev/issues/85)) ([fabfe87](https://github.com/unbrowse-ai/unbrowse-dev/commit/fabfe87ce21d4b66cfc918ea383a90ff772e6f32))
+* sharpen landing hero value prop ([56b6035](https://github.com/unbrowse-ai/unbrowse-dev/commit/56b60356a24984e1f785ae3dc2f160979576b6ee))
+
+### Bug Fixes
+
+* bundle kuri runtime in cli releases ([4353f3e](https://github.com/unbrowse-ai/unbrowse-dev/commit/4353f3ecb574aa9c8dc67855318d29624d3d87d3))
+* stabilize frontend deploy fonts ([a51c4e2](https://github.com/unbrowse-ai/unbrowse-dev/commit/a51c4e29a75f233c62147a48029ece978b8af281))
+
+## [2.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-14)
+
+### Features
+
+* auto-execute + SSR fast-path (15s → 3.6s) ([318c10f](https://github.com/unbrowse-ai/unbrowse-dev/commit/318c10f243543857a945b34488ce0214780094c8))
+* auto-execute DOM extraction endpoints with LLM param inference ([b03b0d2](https://github.com/unbrowse-ai/unbrowse-dev/commit/b03b0d25e403b86f930f49575b2f182fbfeb0859))
+* auto-execute, SSR fast-path, route/domain caching, evals, backend improvements ([0fd9346](https://github.com/unbrowse-ai/unbrowse-dev/commit/0fd93468102e62364e1a31697cf8e6ea9e3b1a12))
+* domain-level skill cache for cross-intent reuse ([1aa8361](https://github.com/unbrowse-ai/unbrowse-dev/commit/1aa8361f671bf91f3f31e1320e3caa9c6df965e1))
+* expand public eval corpus and prep v2.0.0 ([b75f8d2](https://github.com/unbrowse-ai/unbrowse-dev/commit/b75f8d2f73e49bc9b96e38feadf3c2a0135c88a4))
+* persist route cache to disk (survives restarts) ([a6a5eae](https://github.com/unbrowse-ai/unbrowse-dev/commit/a6a5eaeac33a264bfe099e07465e02e4f71f26d6))
+* replace agent-browser with Kuri — CLI-first Zig-native browser automation ([6053014](https://github.com/unbrowse-ai/unbrowse-dev/commit/6053014c7c05411cac5988dd62ec2fa5ff417169)), closes [#71](https://github.com/unbrowse-ai/unbrowse-dev/issues/71) [#71](https://github.com/unbrowse-ai/unbrowse-dev/issues/71)
+
+### Bug Fixes
+
+* catch 'setPassword is not a function' keytar errors and fall back to encrypted file vault ([71a53af](https://github.com/unbrowse-ai/unbrowse-dev/commit/71a53af4ff20e01e570cd7b51e3c2c21a63497e4))
+* stale route cache + domain cache persistence ([55bc5a4](https://github.com/unbrowse-ai/unbrowse-dev/commit/55bc5a4a272972b20e24446ad3e2c8e5b860c59a))
+
+## [1.1.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-11)
+
+### Features
+
+* add full-pipeline retrieval tests to eval harness ([6405d83](https://github.com/unbrowse-ai/unbrowse-dev/commit/6405d83cda446a98be77c1259fee1c99f1657142))
+* add pre-commit perf eval harness + 10x faster skill execution ([bcf30bb](https://github.com/unbrowse-ai/unbrowse-dev/commit/bcf30bb18b9ea68d575610a67224cf31e3000acf))
+* append leftover params as query string on GET requests ([6ad6b42](https://github.com/unbrowse-ai/unbrowse-dev/commit/6ad6b425451a7623374c0a8d2209fcd108f8c56e))
+* browser cookies, agent-first selection, URN params, discovery cost (no KV migration) ([#27](https://github.com/unbrowse-ai/unbrowse-dev/issues/27)) ([4c945f7](https://github.com/unbrowse-ai/unbrowse-dev/commit/4c945f7d420b4dc7674aee38b65e4251c58394f8))
+* expand eval suite to 6 endpoints across 3 code paths ([fec1b4a](https://github.com/unbrowse-ai/unbrowse-dev/commit/fec1b4a8f6f4f0645284d2226bbff45676423a7a))
+* expand eval suite to 9 endpoints across 5 domains ([59b2171](https://github.com/unbrowse-ai/unbrowse-dev/commit/59b217163497b928a601c51cdbddef8b6af35a5f))
+* release pipeline + auto-suggest extraction ([#41](https://github.com/unbrowse-ai/unbrowse-dev/issues/41)) ([2b17422](https://github.com/unbrowse-ai/unbrowse-dev/commit/2b17422bb2554f4cf7f742cc01a3630752de11c0))
+* replace Cloudflare KV with EmergentDB qdkv ([#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)) ([48cd8f2](https://github.com/unbrowse-ai/unbrowse-dev/commit/48cd8f2daaf1f07b9ce24a734103ad891b003160))
+* require ToS acceptance for agent signup, block unauthenticated access ([cd4bb4e](https://github.com/unbrowse-ai/unbrowse-dev/commit/cd4bb4ef686a23034e0e97c4f91864f651ff4ba2))
+* surface auth_recommended hint when capture returns no data endpoints ([3d72726](https://github.com/unbrowse-ai/unbrowse-dev/commit/3d72726a701f0d7cb9b818b497c869a1ebe599e9))
+* tighten agent evals and public replay resolution ([#50](https://github.com/unbrowse-ai/unbrowse-dev/issues/50)) ([5dabe10](https://github.com/unbrowse-ai/unbrowse-dev/commit/5dabe1096c7e1e1abd346b606acd2a9a9e83a681))
+* zero-config setup with agent-mediated ToS consent ([#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6)) ([62fb5fd](https://github.com/unbrowse-ai/unbrowse-dev/commit/62fb5fd07064488738a53285c764ddf3fcef77ec))
+
+### Bug Fixes
+
+* 2-step endpoint selection + 14x faster execution ([0fa6f98](https://github.com/unbrowse-ai/unbrowse-dev/commit/0fa6f980d8d3eea9a8d595690908dfc8a5e17154))
+* 3 eval data quality issues found by harness ([b382709](https://github.com/unbrowse-ai/unbrowse-dev/commit/b382709e7bf995729e8de4d2cd212ee60c815c8c))
+* add apex domain route for unbrowse.ai ([#32](https://github.com/unbrowse-ai/unbrowse-dev/issues/32)) ([373f95b](https://github.com/unbrowse-ai/unbrowse-dev/commit/373f95b22a5b1ea2c433114d6ed6ff7eab3ca8c3))
+* always send auth header when API key exists ([#8](https://github.com/unbrowse-ai/unbrowse-dev/issues/8)) ([4700858](https://github.com/unbrowse-ai/unbrowse-dev/commit/47008589f41211b891b54febbdb800a521a7157c))
+* auto-install browser engine + auto-recover stale 404 endpoints ([4323ce9](https://github.com/unbrowse-ai/unbrowse-dev/commit/4323ce9e151ea2b0bd6dd1662eaba44a3f67fc43))
+* BUG-001 too many subrequests + BUG-002 intent/resolve parse error ([6d9b4f6](https://github.com/unbrowse-ai/unbrowse-dev/commit/6d9b4f6d4f9d36754d06049890c4181e87a3a047))
+* **BUG-006:** parameterize dynamic path segments instead of hardcoding ([#20](https://github.com/unbrowse-ai/unbrowse-dev/issues/20)) ([f93684a](https://github.com/unbrowse-ai/unbrowse-dev/commit/f93684a16ba5e3fd5741b981c1e242784e1d93d0))
+* bun/CF Brotli hang + sync working tree ([#42](https://github.com/unbrowse-ai/unbrowse-dev/issues/42)) ([88897cc](https://github.com/unbrowse-ai/unbrowse-dev/commit/88897cc47381f6e6b19612cde4c1898f3e31ec8d))
+* cache skills locally before remote publish to prevent post-resolve 404s ([4f7d4ad](https://github.com/unbrowse-ai/unbrowse-dev/commit/4f7d4ad828095527aa52658a0a05c090d9926d43)), closes [#34](https://github.com/unbrowse-ai/unbrowse-dev/issues/34)
+* eliminate read-after-write race in skill publishing ([#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10)) ([1c7054e](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c7054ee4e3b7d950fc10c2be894653282da53e5)), closes [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)
+* graceful browser shutdown + orphan cleanup (fixes [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4)) ([#28](https://github.com/unbrowse-ai/unbrowse-dev/issues/28)) ([59013ed](https://github.com/unbrowse-ai/unbrowse-dev/commit/59013edfc8e02e403251e947e00518c86e28209c))
+* guard against empty/malformed index values ([e99c7b6](https://github.com/unbrowse-ai/unbrowse-dev/commit/e99c7b68e99e897373ea15dd3551688d7c216d16))
+* harden search pipeline — error handling, batched reindex, await indexing ([#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7)) ([cd4d09d](https://github.com/unbrowse-ai/unbrowse-dev/commit/cd4d09dd587c38ec50d9d6d060d08cee5ca97049))
+* improve endpoint ranking with noise filtering and data-relevance scoring ([#17](https://github.com/unbrowse-ai/unbrowse-dev/issues/17)) ([7c38f8f](https://github.com/unbrowse-ai/unbrowse-dev/commit/7c38f8fd87e07656e2e102f37207626f239c9af2))
+* **issue-15:** wrong endpoint, broken params, repeated captures ([#19](https://github.com/unbrowse-ai/unbrowse-dev/issues/19)) ([c7d13d0](https://github.com/unbrowse-ai/unbrowse-dev/commit/c7d13d0a0b8a67fb152d029063393cf1586b8bf7)), closes [#16](https://github.com/unbrowse-ai/unbrowse-dev/issues/16)
+* KV _idx exceeds EmergentDB size limit — store keys only ([15daacb](https://github.com/unbrowse-ai/unbrowse-dev/commit/15daacb2823662b4ae3010aafe5461fd70ef5388))
+* make frontend mobile responsive ([#31](https://github.com/unbrowse-ai/unbrowse-dev/issues/31)) ([0e031f9](https://github.com/unbrowse-ai/unbrowse-dev/commit/0e031f92952ec661c1cde116e46f763e1e7b5a46))
+* marketplace recall, BM25 ranking, route cache, perf telemetry ([#18](https://github.com/unbrowse-ai/unbrowse-dev/issues/18)) ([152715c](https://github.com/unbrowse-ai/unbrowse-dev/commit/152715ce1d92ad3c9b6ee3d0c23d51cf1e1994bf))
+* migrate old string[] index format to {k,v}[] on first read ([37b8f91](https://github.com/unbrowse-ai/unbrowse-dev/commit/37b8f9130a6b386dcb1186a50804f2183f1076a4))
+* missing closing brace and duplicate return in skills route ([#21](https://github.com/unbrowse-ai/unbrowse-dev/issues/21)) ([3744068](https://github.com/unbrowse-ai/unbrowse-dev/commit/3744068cfd0701be995a7ad96a338fcb35a136bf))
+* prevent garbage DOM extractions from polluting marketplace ([df0545a](https://github.com/unbrowse-ai/unbrowse-dev/commit/df0545a5bf21497051657783460163ccc6b4a1ae))
+* query params execution, intent threading, publish race, kv cache ([#16](https://github.com/unbrowse-ai/unbrowse-dev/issues/16)) ([8ed7026](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ed70262beffaa42f34dd4ed2f2a07ca0b4dba89))
+* remove duplicate function bodies from squash merge artifact ([37cfffc](https://github.com/unbrowse-ai/unbrowse-dev/commit/37cfffc2a7611b147a45b40224910f0f16a75ebb)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+* remove duplicate old kvFallbackSearch body (squash artifact) ([ac24ceb](https://github.com/unbrowse-ai/unbrowse-dev/commit/ac24ceb062b2e72bf6c738cbdc1e6533f9b25845))
+* repair search index — filter null metadata, log index failures, add reindex endpoint ([04aeef2](https://github.com/unbrowse-ai/unbrowse-dev/commit/04aeef2762c4e67a939aed6ff58e9ac7208062df))
+* replace broken SKILLS_KV fallback search with qdkv cache ([dfc4ff0](https://github.com/unbrowse-ai/unbrowse-dev/commit/dfc4ff0475a7199eebb35ed6210c26f4b1e42635))
+* resolve URN references when inline fields are null ([#62](https://github.com/unbrowse-ai/unbrowse-dev/issues/62)) ([3500164](https://github.com/unbrowse-ai/unbrowse-dev/commit/3500164ac804b3783350b49b57da5cafede6860e))
+* restore vector namespace to unbrowse--global ([07e38a9](https://github.com/unbrowse-ai/unbrowse-dev/commit/07e38a9a9b5f778b7e036c1a051710fcea983992))
+* restore vector search namespace, remove kv fallback ([#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3)) ([15cb8a3](https://github.com/unbrowse-ai/unbrowse-dev/commit/15cb8a3fd01fcb6357c6767ce704f4f3e8b79d32))
+* search 20x faster, auth reliability, CI tests ([#36](https://github.com/unbrowse-ai/unbrowse-dev/issues/36)) ([02a47f5](https://github.com/unbrowse-ai/unbrowse-dev/commit/02a47f5ddfa10b7ed5a6c71a2607b2fc3e81c31b))
+* sec-ch-ua headless leak + token savings baseline ([#29](https://github.com/unbrowse-ai/unbrowse-dev/issues/29)) ([6ae0f76](https://github.com/unbrowse-ai/unbrowse-dev/commit/6ae0f7617a81f948ca417b3a3bdf93c1b3d64f87))
+* shell injection in sqliteQuery + sanitize auth_hint endpoint leak ([8bea854](https://github.com/unbrowse-ai/unbrowse-dev/commit/8bea8544c07023ddef2f128834a5211e96ff0405))
+* store KV index values inline to eliminate subrequest explosion ([#22](https://github.com/unbrowse-ai/unbrowse-dev/issues/22)) ([85607f6](https://github.com/unbrowse-ai/unbrowse-dev/commit/85607f6d0da3496182bd3b961bb5a0305dc1b68b))
+
+### Performance
+
+* add per-query result cache for search via qdkv ([219cd46](https://github.com/unbrowse-ai/unbrowse-dev/commit/219cd46843d3847a91cf93194e88061d32663576))
+* combine 3 ops requests into single /v1/ops endpoint ([485beca](https://github.com/unbrowse-ai/unbrowse-dev/commit/485beca10f13c8a13563d4b8882726907b94b5b4))
+* eliminate N+1 EmergentDB fetches with listWithValues + index cache ([#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2)) ([0585512](https://github.com/unbrowse-ai/unbrowse-dev/commit/0585512ed837dc55d1f7995b86461334f5bd3adb))
+* fetch-first for all safe GETs including DOM + cookie support ([ec7bfab](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec7bfabdc9e900a99a21d50a8e0f7187548aaf1e))
+* parallelize kv.put writes and fire-and-forget indexSkill on publish ([7aad29a](https://github.com/unbrowse-ai/unbrowse-dev/commit/7aad29a064794827df1ce2ca5d7110ed392911d5))
+* replace EmergentDB-backed rate limiter with in-memory store ([062b14d](https://github.com/unbrowse-ai/unbrowse-dev/commit/062b14d05fd74453aeb86968c9fe91f4b8d04497))
+
+### Refactoring
+
+* replace brittle assertions with data snapshots for LLM review ([269ae4f](https://github.com/unbrowse-ai/unbrowse-dev/commit/269ae4ff5ac6a04a639d540d95218f7f8af839f4))
+
+## [2.12.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.0...v2.12.1) (2026-04-03)
+
+### Features
+
+* detect install-specific upgrade and repair commands during setup so global npm installs get the right guidance
+* smoke-test the packaged global CLI in CI and tag releases before publish
+
+### Bug Fixes
+
+* **ci/deploy**: let `staging` pushes run the repo sanity/unit/backend/CLI gates, deploy the backend to the Wrangler `staging` environment, and only deploy the `frontend-staging` worker when `PREVIEW_API_URL` is configured so integration testing does not accidentally point at the wrong backend
+* harden the npm wrapper so stale fallback installs fail with a precise reinstall command instead of silent runtime crashes
+* return the installed version from `unbrowse --version`
+* repair packaged wrapper execute bits during postinstall and fail fast on stale local-server version mismatches
+
+
+## [2.12.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.11.0...v2.12.0) (2026-04-03)
+
+### Bug Fixes
+
+* auto-queue browse submit publish and document public repo ([9905005](https://github.com/unbrowse-ai/unbrowse-dev/commit/9905005afa86402ac75d521381e6ca2eec1ab184))
+* preserve backend kv binding during CI release deploys ([#282](https://github.com/unbrowse-ai/unbrowse-dev/issues/282)) ([47e0c72](https://github.com/unbrowse-ai/unbrowse-dev/commit/47e0c7223a24f68e84f8ebec4b4892acb635f217))
+* restore skills.sh discovery gate ([#285](https://github.com/unbrowse-ai/unbrowse-dev/issues/285)) ([e5299f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5299f480ec2b19ca85981f6706d0edf155aaed2))
+* ship standalone repo setup and main-base docs ([#281](https://github.com/unbrowse-ai/unbrowse-dev/issues/281)) ([2c66398](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c663989fd7b31aa3a87b5fed29b71c22c088f8e))
+* simplify install setup path ([#294](https://github.com/unbrowse-ai/unbrowse-dev/issues/294)) ([98d97d3](https://github.com/unbrowse-ai/unbrowse-dev/commit/98d97d30beaa737511f02926e5c43f3f648600b5))
+* simplify install setup path ([#295](https://github.com/unbrowse-ai/unbrowse-dev/issues/295)) ([a4c7fa9](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4c7fa94d90a412042eda4184fd66c83705aa676))
+
+## Unreleased
+
+### Features
+
+- add tracked `docs/agent-memory.md` and require agents to read/write durable Lewis preferences there
+* **docs/skill**: rewrite the public `SKILL.md` around the real Kuri-first model, including browser-native traversal rules, Kuri-to-Unbrowse command mapping, publish-time contract compilation, and a direct-Kuri debug escape hatch for session drift
+* **docs/mcp**: document dependency-walk rules for JS-heavy multi-step sites so future agents treat successful browse submits as the prerequisite edge for downstream pages instead of guessing deep links
+* **workflow/publish**: export sanitized workflow assets beside raw workflow artifacts so mined routes now persist as publishable, documented, token-censored inventory with `captured`/`published` status
+* add a real `unbrowse mcp` stdio server with `initialize`, `tools/list`, `tools/call`, and core Unbrowse resolve/execute/browse tools
+* add a deterministic `./setup --host mcp` bootstrap that writes a ready MCP config file, plus a frontend MCP install option and downloadable `/mcp.json` template
+* **install**: switch the curl installer and npm postinstall flow to Kuri-style platform detection + GitHub release tarballs, while keeping `unbrowse setup` as the first-run bootstrap
+* **install**: after successful curl-installer setup, best-effort call `npx skills add unbrowse-ai/unbrowse --yes` when `npx` is available so skills.sh registry counters still increment without making install success depend on Node
+* **install**: detect piped/headless installer runs, pass `--non-interactive --skip-wallet-setup` automatically, thread through `UNBROWSE_TOS_ACCEPTED` / `UNBROWSE_AGENT_EMAIL`, and skip first-run setup cleanly when ToS consent was not preseeded
+* **setup/upgrade**: add `unbrowse upgrade`, persist install metadata so clone installs get the right upgrade command, and register GSD-style session-start update hints for Codex and Claude during setup
+* **backend/github**: add a real GitHub webhook receiver for opt-in PR maintenance, with `X-Hub-Signature-256` verification, branch update/auto-merge actions, conflict comments, and 6-hour Telegram digests from the backend worker cron
+* **backend/github**: add a real GitHub webhook receiver for opt-in PR agent runs, with `X-Hub-Signature-256` verification, workflow dispatch on PR/check-suite events, a self-hosted `pr-agent.yml` Codex repair runner, and 6-hour Telegram digesting for failed dispatches
+* add root `glama.json` metadata so Glama can discover and attribute the Unbrowse MCP server to `@lekt9`
+* add a root `smithery.yaml` registry manifest so Smithery can classify and install Unbrowse as a stdio MCP server
+* **ci/frontend**: add GitHub Actions PR previews for the Cloudflare/OpenNext frontend with stable `pr-<number>` preview aliases, sticky PR comments, and staging-API wiring via `PREVIEW_API_URL`
+* **skills**: add a history-skill miner that reads local Codex chat archives, generates first-principles workflow skills, and keeps `AGENTS.md` synced with the emitted skill inventory
+* **skills**: add a Cloudflare-relayed `p2p-skill-share` flow that exports the mined skill bundle, writes a fetch manifest, and serves it over quick or named tunnel modes
+* **cli/analytics**: surface machine-readable per-run impact (`time_saved`, `tokens_saved`, `browser_avoided`) plus likely next actions in resolve/execute responses, and persist richer session telemetry so the canonical funnel can reason over success and savings instead of only coarse counters
+* **routing telemetry**: add a sanitized `POST /v1/telemetry/routing` ingest path, shared routing event types, orchestrator-side session/step/candidate/outcome emission, and a derived `/v1/analytics/routing` summary for future long-running agent router training
+* **routing analytics**: enrich `/v1/analytics/routing` with source-level speed/success stats plus top intents/domains so we can see what agents use most and which routing paths are actually fastest
+* **frontend/miners**: replace the hardcoded miners bounty board and weekly quests with demand-driven backend data aggregated from recent CLI search/resolve telemetry, so the board now tracks what agents are actually asking for
+* **setup/wallets**: encourage Crossmint `lobster.cash` during new-install bootstrap, surface it in setup status/docs, and point walletless installs at `npx @crossmint/lobster-cli setup`
+* **growth/landing**: add sticky SSR homepage experiments, landing-token install attribution, variant-level landing funnel analytics, an ops landing-funnel panel, and a daily optimizer workflow that rebalances live weights while only generating shadow variants inside approved messaging slots
+* **frontend/funnel**: re-center the homepage on first success after install with a copyable verification + resolve path, and extend acquisition analytics to measure install-copy to first-task-copy conversion
+* **landing/api**: add a landing-copy variant API with publish/list/resolve/summary routes, plus a `landing:publish` helper script, so homepage copy can be updated over API and measured by ICP/variant instead of staying hardcoded
+* **analytics/acquisition**: add section-depth checkpoints and ICP-path click tracking on the homepage, plus filtered acquisition summaries by `variant_id` / `icp` / `experiment_id` so landing copy resonance can be compared before tightening the funnel
+* **skills/acquisition**: add a repo-local `unbrowse-acquisition-operator` skill that owns the `traffic -> ICP -> variant -> activation` loop, routes to existing funnel/positioning/ads/measurement skills, and keeps X research/ads scoped under one measurable acquisition experiment
+* **frontend/acquisition**: persist first-touch UTM/click-id context plus sticky landing assignment cookies, resolve homepage variants from those signals server-side, and expose acquisition-dimension rollups in analytics so landing winners can be compared by source/campaign/term instead of only raw referrer
+* **analytics/campaign-feedback**: carry attribution from landing copy into copied install commands, persist it through CLI install/funnel/session telemetry, track content-page views, and add `/v1/analytics/campaigns` so X posts, articles, ads, landing variants, installs, and first-success can be compared in one loop
+* **skills/foundry**: add a repo-local `x-campaign-feedback-operator` skill plus a Foundry preset and fabricated bundle artifacts so the X/articles/ads/landing feedback loop can be installed, routed, and shared as one operator bundle
+* **skills/foundry**: add a repo-local `unbrowse-funnel-command-center` skill plus a Foundry preset and fabricated bundle artifacts so the full funnel can route from traffic and landing leaks through activation, retention, monetization, and referral under one operator entrypoint
+* **visualizers/merjs**: add a standalone `visualizers/funnel-merjs` app plus a local `/api/snapshot` proxy, session-backed `POST /api/viz` -> `/viz?id=...` flow for arbitrary analytics payloads, and a native desktop wrapper that can target any route or open a transparent always-on-top `--overlay <session-id>` view instead of relying on a plain browser tab
+* **visualizers/json-render**: expand the merjs `/json-render` route into an arbitrary-data visualization lab with file import, shareable hash-state URLs, and prompt-driven spec generation, so funnel snapshots or any other analytics JSON can be explored inside the same merjs shell and desktop wrapper
+
+### Tests
+
+* add MCP stdio smoke coverage for initialize, tool listing, and health tool calls
+* add routing telemetry sanitizer, idempotent backend ingest, and routing analytics regression coverage
+* add a real CLI-to-backend routing telemetry E2E that runs the live orchestrator path, verifies sanitized `routing-event:*` writes, and asserts `/v1/analytics/routing` updates from the emitted session
+* add live landing-funnel end-to-end coverage for signed token attribution, CLI telemetry propagation, analytics rollup, and daily optimizer reweighting
+
+### Bug Fixes
+
+- **release**: disable local `release-it` npm handling again so `@release-it/bumper` can own version bumps while the tag-triggered workflow owns the actual npm publish
+- **frontend/build**: cap homepage and blog API fetches with fast server-side timeouts so Cloudflare/Next static builds fall back instead of hanging until the export worker kills `/` and `/blog`
+- **release**: install `gh` inside self-hosted release jobs so asset uploads and skill-repo GitHub releases no longer fail after npm publish/deploy succeed
+* **browse/kuri**: disable ambient CDP attach during explicit clean-room runs like `UNBROWSE_IMPORT_BROWSER_COOKIES=0` or local-only staging loops, so packaged and staging Mandai repros use isolated managed Chrome instead of crashing on stray local browser sessions
+* **browse/sessions**: stop strict browse sessions from dying after successful submits or transient post-navigation CDP churn by retrying liveness checks, only expiring sessions when the tab is truly gone, and surfacing recoverable follow-up browser errors as retryable failures instead of fake `session_expired` drops
+* **browse/sessions**: rebind successful submit flows onto replacement tabs that already reached the hinted next-step pathname, so packaged staging runs keep the same session alive when Mandai swaps the underlying browser target between steps
+* **browse/submit**: resolve filename-style wait hints like `/tickets-selection.html` and `/add-ons-selection.html` relative to the current ticketing workflow directory instead of the site root, so packaged Mandai submit recovery keeps the session pinned to the real next step
+* **browse/submit**: compile hidden page prerequisites before clicking submit by filling Mandai-style hidden date fields, refusing visually disabled next-step buttons, and returning structured `prereq_state_incomplete` metadata instead of blindly falling through to same-origin submit fallback
+* **browse/kuri**: keep large `/evaluate` expressions in the request query string even on POST, matching the shipped Kuri broker contract so long submit scripts stop failing live with `Missing expression parameter`
+* **browse/kuri**: encode `+` in Kuri eval query strings and disable ambient CDP attach during explicit clean-room runs, so staging Mandai repros stop corrupting compiled browser scripts or latching onto stray local Chrome state
+* **browse/session**: rank same-path real tabs above exact `about:blank` placeholders during liveness checks while still treating freshly created owned blank tabs as live before first navigation
+* **browse/submit**: add Mandai-specific park, resident-ticket, date, and add-on submit compilers that patch hidden prerequisite state, detect document-level NEXT buttons outside the form, and fall back to native form submit when Mandai keeps a valid step visually disabled
+* **browse/kuri**: when a managed Kuri broker dies after submit but its headless Chrome instance is still alive, restart Kuri onto that surviving managed CDP port instead of launching a fresh browser and orphaning the live workflow tab
+* **packaged/kuri**: stop the skill pack/build path from silently shipping stale vendored Kuri binaries by failing fast on broken `submodules/kuri` checkouts, rebuilding when the vendored manifest source SHA drifts from `justrach/kuri` `adding-extensions`, stamping packaged Kuri artifacts with source/hash metadata, and wiring a dedicated baked-Kuri guard into `prepack`, root pack/publish scripts, and CI/release so stale vendor drift fails before tarball or npm publish
+* **landing/packaging**: forward signed landing tokens on CLI install and funnel telemetry so homepage attribution reaches analytics, and check in the baked Kuri vendor manifest so the new packaging guard passes in CI
+* **packaged/runtime**: make packaged local servers report a stable `package_version` + `code_hash` by hashing bundled `runtime-src` sources when `dist/` has no `.ts` files, stamp the pid file with the same version metadata, add an opt-out for real-browser cookie import during `browse/go`, and make browse-session recovery fail fast when the Kuri broker cannot restart instead of collapsing into opaque `fetch failed` errors, with coverage for the packaged-health contract plus duplicate-export install regression so staging-pointed CLI runs stop self-restarting into `about:blank` or inheriting stale browser carts
+* **package/runtime**: remove a duplicate `recordAnalyticsSession` export so packaged local-server autostart no longer crashes under the Node/tsx runtime path, make Kuri re-probe health instead of trusting stale in-memory ready state after port `7700` dies, fall back to raw Chrome CDP tab creation when Kuri’s `/tab/new` path flakes, retry capture on fresh Kuri tabs after mid-run transport loss instead of bailing out as generic `fetch failed`, and stop browse-session handoff from reusing first-pass tabs after Kuri has already dropped them
+* **browse/indexing**: stop `unbrowse submit` from queueing intermediate background publishes, coalesce later same-domain index jobs instead of dropping them, and keep final publish on `unbrowse close` so richer end-of-flow captures win
+* **auth/linkedin**: restore keychain/browser-cookie fallback for explicit login flows before interactive auth, prefer live browser-cookie import before saved auth-profile restore during browse navigation, use the discovered CDP port for secure cookie injection, tighten interactive-login success detection around real auth cookies like LinkedIn `li_at`, and skip periodic cold verification for auth-gated endpoints
+* **frontend/miners**: remove the fake bounty/quest game layer from the contributors page, replace it with honest demand targets, and add a coverage-globe view driven by real graph stats
+* **frontend/perf**: stop homepage and search from fetching the full 30MB+ skill registry payload, add a compact cacheable skill-card list for registry surfaces, and enable sane revalidation for blog API fetches
+* **frontend/cache**: move landing-copy selection off the homepage request path, serve the active growth variant from cached backend config, hard-cache popular/card registry APIs, short-TTL cache search responses in Worker edge + KV, and make `/` plus `/search` ship as static revalidated HTML instead of `no-store` server renders
+* **ci/frontend**: make Cloudflare frontend CI deploys ship via direct Wrangler deploy after the OpenNext build, so `main` and release deploys no longer die on the pre-populate R2 incremental-cache upload step
+* **cli/cache**: add a `cleanup-stale` sweep that re-verifies active skills, evicts stale local cache entries, and now rotates through periodic server-side batches so dead marketplace endpoints stop getting replayed
+* **browse/sessions**: isolate browse state behind per-session `session_id`s, serialize same-session browse actions, require explicit session selection when multiple sessions are live, and stop first-pass/capture flows from reusing Kuri's implicit default tab under parallel load
+* **browse/kuri**: add per-port Kuri broker clients, bind browse sessions to their originating broker, and spread browse-session traffic across a small local multi-broker pool so different sessions can issue tool calls in parallel without collapsing onto one singleton broker
+* **kuri/tests**: stop the Kuri live e2e suite from hijacking a visible Chrome session by honoring headless launch flags and running the fixture-browser tests in headless managed mode
+* **github/pr-agent**: split webhook dispatch into `repair` vs `merge` operations, ignore agent-self-failure loops, isolate runner `CODEX_HOME`, and let Codex make the merge recommendation before a final non-vibes safety gate executes the merge
+* **ci/tests**: isolate CLI end-to-end runs on a per-suite local-server port and clear backend KV index caches in popularity tests so self-hosted runners stop leaking state across jobs
+* **ci/backend-tests**: keep live beta-api backend smoke suites opt-in so required CI stops failing on external network and deployment flakiness
+* **ci/package-cli**: run the packaged CLI smoke on a per-run port and pre-accept ToS in non-interactive mode so self-hosted runners stop talking to stale local servers
+* **policy/execute**: add per-endpoint third-party-terms policy flags for sensitive domains like X, block autonomous mutation execution until callers pass explicit `confirm_third_party_terms`, and surface the policy requirement through resolve/CLI/MCP/SDK
+* **legal/terms**: clarify that users bear responsibility for third-party website and API terms, disclaim liability for third-party ToS violations to the maximum extent permitted by law, expand indemnity coverage for third-party claims, and fix the company name in ToS copy
+* **backend/payments**: split discovery from paid manifest access with `X402_SEARCH_ENABLED`, so `/v1/search*` can stay free while paid `/v1/skills/:id` detail remains x402-gated
+* **docs/whitepaper**: sync the companion docs with the shipped x402 and Crossmint wallet flow so payment gates, wallet-linked payout routing, and current settlement behavior stop reading as “coming soon”
+* **docs/mcp**: make the public README surfaces explicitly describe Unbrowse as a stdio MCP server, document `initialize` / `tools/list` / `tools/call`, enumerate the shipped MCP tool groups, and clarify that `localhost:6969` is the runtime behind the MCP surface rather than a custom host protocol
+* **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
+* **cli/release**: make the binary-only npm installer fail fast when the matching release asset is missing, gate npm publish on a live GitHub release-asset reachability check, and fix compiled `unbrowse setup` autostart so packaged installs exit cleanly after bootstrapping the local server
+* **frontend/homepage**: sharpen homepage positioning around AI agent builders, clarify the browser-automation replacement story, and reduce copy clutter across the hero, install, and registry sections
+* **frontend/homepage**: add explicit ICP paths for agent builders, OpenClaw users, and MCP hosts so each buyer can pattern-match to the right value prop and install path faster
+* **frontend/copy**: normalize the public role name to `contributor` across leaderboard and economics pages while keeping mining as the campaign verb
+* **frontend/registry**: stop stale search-index hits from linking to dead registry skill detail pages, and label them as index-only until the live registry has a backing skill page
+* **frontend/registry**: swap the homepage registry showcase from recent linked cards to list-only popular skills backed by observed execution counts
+* fix packaged MCP autostart by removing a duplicate `recordAnalyticsSession` export that broke the packaged local-server bootstrap path behind the installer-generated MCP command
+* **frontend/install**: simplify the landing-page install path around one clear command, reduce CTA clutter, trim install tabs, and make the copy action grab the primary command instead of the full block
+* **analytics**: stop labeling cached execute paths as manual browser usage, and derive canonical funnel activation/aha/repeat from successful session telemetry
+* **cli/install**: bake global-install diagnostics into the npm wrapper, add a real `unbrowse --version`, repair wrapper/launcher execute bits during postinstall, and fail loudly when a stale local server on `:6969` is serving a different package version than the installed CLI
+* **linkedin/replay**: keep unrelated infrastructure path prefixes like LinkedIn `litms` literal during capture, and bypass robots gating for authenticated session-backed execution so captured private feed endpoints can replay through the user session
+* **cli/install**: remove the duplicate `recordAnalyticsSession` export that broke fresh npm-installed runtime startup under Node/tsx, and cover the packaged client build path with a regression test
+
+* **cli/package**: restore the baked-Kuri npm package layout, keep the release-asset installer plus source fallback in sync, and re-ship the packaged launcher/runtime files so local tarball installs and npm publish smoke pass again
+* **frontend/staging**: remove a duplicated homepage section wrapper that broke the Next.js build, and add the missing staging `images` + `NEXT_INC_CACHE_R2_BUCKET` bindings so `frontend-staging` deploys cleanly
+* **browse/session**: harden packaged Kuri tab recovery by accepting `/tab/new` ids across response shapes, falling back to reusable idle tabs when Kuri cannot create a fresh target, and preferring blank/new-tab recovery over hijacking unrelated tabs
+* **browse/session**: enforce one-tab-per-session recovery by only reattaching to same-domain tabs and reusing idle tabs before opening raw CDP fallbacks, so browse sessions stop leaking or hijacking stray tabs
+* **browse/session**: keep explicit read-only session recovery pinned to the original route by only reattaching dead tabs when the last known URL pathname matches, and otherwise forcing a fresh owned tab instead of silently rewinding onto another same-domain page
+* **browse/session**: when the live tab swaps off-route, prefer the single meaningful same-domain replacement over a stale owned placeholder tab, close that stale blank tab after rebinding, and refresh click responses so multi-step sites like Mandai stop drifting onto `about:blank`
+* **browse/submit**: stop hammering Kuri with repeated post-submit HTML probes on URL-transition steps by preferring lighter URL-only settle checks until the tab stabilizes
+* **browse/submit**: make `browse submit` a thin proxy by default again, and require explicit `assist_site_state` / `--assist-site-state` opt-in before site-specific browser-state helpers run
+* **browse/submit**: keep regular traversal browser-native by default, make same-origin fetch fallback explicit opt-in only, and update CLI/MCP guidance so passive API analysis no longer silently turns into live fetch replay during submit flows
+* **kuri/browse**: stop reusing a “healthy” Kuri broker when its Chrome/CDP is gone; browser startup now requires a live CDP/tab path before `go` reuses an existing broker
+* **workflow/publish**: compile publish-safe replay contracts from passive traversal evidence, including typed params, enums, derived auth/token hints, prerequisites, next-state validators, and usage notes for explicit replay after publish
+* **mcp/workflow**: expose published workflow artifacts as read-only MCP resources (`workflow_publish://`, `workflow_contract://`, `workflow_dag://`) plus a `plan_workflow_execution` prompt so hosts can inspect dependency walks, typed restrictions, and x402/payment requirements before choosing traversal vs replay
+* **capture/pipeline**: split checkpoint, local index, and remote publish semantics so `sync`/`close` queue an explicit background `index -> publish` pipeline, add local-only `index`, add local `settings` for auto-publish + blacklist/prompt-list domain policy, surface `publish_policy` / `next_step` hints in tool output, mark workflow exports as `indexed` before remote share, and align CLI/MCP/skill docs around the new capture lifecycle
+* **orchestrator/publish**: enrich local endpoint descriptions and review prompts with audience, eligibility, pricing, and validity constraints so captured skills keep caveats like resident vs non-resident bundle rules before publish
+* **cli/tests**: stop local server bootstrap from blocking `/health` on remote auto-registration, make API routes wait briefly for background registration instead of failing fast, isolate snapshot-heavy e2e fixtures from the user’s real `~/.unbrowse` cache, and skip wallet bootstrap in the packaged setup smoke
+* preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
+* clean checked-in merge markers, restore the curl install script, and add a repo blog-publish helper so the stale frontend-history branch can be absorbed without dragging its generated junk forward
+* **wallet/setup**: detect paired lobster.cash agents from local `~/.lobster/agents.json` state so `setup --no-start` and payout sync reuse an existing local wallet instead of re-entering interactive wallet setup
+* **publish/admission**: tighten marketplace publish admission so background indexing and passive publish stop shipping stale, noisy, hash-heavy endpoint variants by default
+* **backend/storage**: make Neon-backed worker KV writes transactional, clear poisoned init-cache entries after transient Neon bootstrap failures, and add regression coverage for both paths
+* split `main` deploys from tag releases so ordinary `main` pushes stop surfacing a no-op npm publish path when the current CLI version is already on npm
+* simplify the homepage install story around `curl -fsSL https://unbrowse.ai/install.sh | bash`, add `npx skills add unbrowse-ai/unbrowse` as the skills-host shortcut, and demote repo-clone setup to fallback copy
+* **cli/browser-capture**: preserve top-level resolve errors in slim CLI output, return structured browser-capture failures instead of raw 500s, and isolate CLI E2E runs onto their own local server so live auth paths stop binding to stale ambient state
+* **cli/auth**: surface blocked auth-gated captures as structured auth prompts instead of opaque empty resolve output, stabilize the X CLI auth smoke on a real search URL, and restore clean backend typecheck on the miner-demand board
+
+## [2.11.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.10.2...v2.11.0) (2026-04-02)
+
+### Features
+
+* **#100:** implement robots.txt directive checking before route execution ([d920e7e](https://github.com/unbrowse-ai/unbrowse-dev/commit/d920e7e87058a3ea645e24b0f4441b44d8442867)), closes [#100](https://github.com/unbrowse-ai/unbrowse-dev/issues/100) [#100](https://github.com/unbrowse-ai/unbrowse-dev/issues/100)
+
+### Bug Fixes
+
+* harden browse submit recovery ([652f03b](https://github.com/unbrowse-ai/unbrowse-dev/commit/652f03b8146744fbfac4f0e70faee3798754db71))
+* harden main release workflow reruns ([f80cd5d](https://github.com/unbrowse-ai/unbrowse-dev/commit/f80cd5d3a5ada81fa285ca59e302c26aa47bb02d))
+* publish runtime deps in npm package ([9659770](https://github.com/unbrowse-ai/unbrowse-dev/commit/96597707c161a2de9f1424bbb622e0be203e7fbf))
+* seed canonical replay after x402 detail search ([6524063](https://github.com/unbrowse-ai/unbrowse-dev/commit/6524063b3ee9f77f7fb8a1e187291bb7ec72066b))
+
+## [2.10.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.10.1...v2.10.2) (2026-04-02)
+
+### Bug Fixes
+
+* unblock worker deployment ([ef8a5ba](https://github.com/unbrowse-ai/unbrowse-dev/commit/ef8a5badb2868c20fde988ebb98b123201e8da36))
+
+## [2.10.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.10.0...v2.10.1) (2026-04-02)
+
+### Bug Fixes
+
+* unblock self-hosted releases ([5dd2139](https://github.com/unbrowse-ai/unbrowse-dev/commit/5dd2139f49068cb2eb24a15489833b7a4c187638))
+
+## [2.10.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.9.1...v2.10.0) (2026-04-02)
+
+### Features
+
+* publish openclaw npm install flow ([ab1257f](https://github.com/unbrowse-ai/unbrowse-dev/commit/ab1257f1ff2c180d7bb07a390a7270555ffe896e))
+* publish openclaw npm install flow ([#260](https://github.com/unbrowse-ai/unbrowse-dev/issues/260)) ([2e6a252](https://github.com/unbrowse-ai/unbrowse-dev/commit/2e6a2520393a5f2bf9e0ed5e9a5e1c34b14973a8))
+* restore canonical analytics surface ([#262](https://github.com/unbrowse-ai/unbrowse-dev/issues/262)) ([78f83c8](https://github.com/unbrowse-ai/unbrowse-dev/commit/78f83c827b3d9292da16b5eaebf98cc6b63b8b2d))
+* ship wallet-first dashboard on restart-base ([#265](https://github.com/unbrowse-ai/unbrowse-dev/issues/265)) ([a673969](https://github.com/unbrowse-ai/unbrowse-dev/commit/a67396913f90b87acf705e60b9042c94cfe34610))
+* track analytics sessions by trace version ([5954238](https://github.com/unbrowse-ai/unbrowse-dev/commit/595423886b426a3032fb683e83b4e4bd102d3931))
+
+### Bug Fixes
+
+* ship worker payments and lobster x402 e2e ([#263](https://github.com/unbrowse-ai/unbrowse-dev/issues/263)) ([d3ec78f](https://github.com/unbrowse-ai/unbrowse-dev/commit/d3ec78fa049378bb9066f55f707ed608dc560daf))
+* unblock openclaw install PR ([422096b](https://github.com/unbrowse-ai/unbrowse-dev/commit/422096b734ebd926a136286a221be2c4a0be71c2))
+
+## [Unreleased]
+
+### Bug Fixes
+
+* telemetry/dashboard: derive per-run baseline vs actual speed/cost from real or fallback orchestrator economics, surface those totals on contributor dashboards, and cover the math with savings sims plus dashboard contract tests
+
+### Features
+
+* **sdk**: add a first-party `@unbrowse/sdk` TypeScript client for the canonical local server routes, with typed `resolve`/`execute`/auth helpers, SDK tests, and first-party API/quickstart docs instead of forcing app developers through raw fetch or CLI wrappers
+* **analytics**: restore the canonical investor analytics surface (`growth`, `usage`, `funnel`, `network`, `economics`, `dashboard`), add explicit `POST /v1/analytics/sessions` runtime ingestion, split the legacy setup funnel onto `/v1/analytics/install-funnel`, make the canonical funnel monotonic with recovered profiles excluded and surfaced separately, and unbreak manual execute auth warmup so end-to-end session ingestion actually reaches the analytics backend
+* **backend/storage**: add Neon-backed canonical state storage for the Worker via a Postgres-backed KV adapter, ship a Cloudflare-KV-to-Neon backfill script, and wire `DATABASE_URL` as the production worker secret so agent profiles, skills, ledgers, and analytics state can cut over from EmergentDB/legacy KV drift to Neon
+* **frontend/economics**: switch the web dashboard to wallet-first public lookup on `rach/restart-base`, with public `/dashboard` wallet search, public `/dashboard/:wallet` contributor ledgers, wallet-linked leaderboard rows, and backend wallet lookup routing
+* **frontend/blog**: canonicalize legacy article slugs back to their static routes, dedupe those slugs from the `/blog` feed and sitemap, and add FAQ schema/content for the proof-of-indexing economics page
+* **orchestrator/economics**: centralize timing economics math, persist baseline vs actual time/cost totals through telemetry, and surface browser-baseline plus speedup metrics in the public contributor dashboard
+* **cli/auth**: retry `resolve` through browser-cookie import before forcing interactive login, detect blocked interactive login states more explicitly, and auto-fall back from paid marketplace search to free exact-URL live capture when indexing fallback is available
+* **resolve**: enrich `available_endpoints` with depth-limited `schema_summary` (3-level recursive tree), `input_params` (key/type/required/example), `description_in`, and `example_fields` — agents can now pick endpoints and build extraction paths from the resolve response alone without needing separate schema calls
+* **cli**: implement `--path`, `--extract`, `--limit`, `--schema` post-processing in `execute` — flags were documented but never wired; now support nested array drilling (`data.items[].nested[].field`), field aliasing (`alias:deep.path`), null-row filtering, and item limiting
+* **cli**: auto-wrap large responses (>2KB) with `extraction_hints` including schema tree and byte count when no extraction flags are given
+
+### Bug Fixes
+
+* **packaging/release**: pin Kuri submodule validation to `justrach/kuri#adding-extensions`, build and upload `dist/unbrowse-*` GitHub release assets in CI/CD, smoke-test the compiled single-binary packaging path, and select the embedded Kuri payload by runtime target instead of hardcoding `darwin-arm64`
+* **skills/install**: quote all `SKILL.md` descriptions as valid YAML block scalars so `npx skills add unbrowse-ai/unbrowse` discovers the published Unbrowse skill again instead of bailing out with "No valid skills found", and add a dedicated CI/release gate that runs `tests/skill-docs-sync.test.ts` before packaging/publish
+* **github/docs**: update PR helpers and validation docs to treat `main` as the canonical base branch after the branch rename, so release/merge instructions stop pointing at the dead `rach/restart-base` branch
+* **analytics/security**: stop advertising authenticated analytics responses as publicly cacheable, add `Vary: Authorization`, remove user-facing analytics docs links, and pin the private header contract in end-to-end coverage
+* **install**: add a deterministic repo-native `./setup` bootstrap, switch the npm wrapper fallback to the stable Node launcher, and keep the standalone CLI package manifest pinned to the runtime payment deps (`bs58`, `@solana/kit`, `@cascade-fyi/splits-sdk`) so the public install path no longer depends on a healthy GitHub release asset plus a lucky npm fallback
+* **payments/wallets**: treat the configured wallet address as the single contributor/payment truth across setup, agent wallet sync, 402 error payloads, and transaction proof wiring, including generic agent-wallet providers instead of hardcoding lobster-only labels
+* **skills**: add a repo-local `internal-analytics` skill with a deterministic fetch helper so agents can pull private analytics without treating the surface as public docs
+## fix: mirror Claude skills into Codex installs
+
+- `scripts/sync-skill.sh` now routes local skill linking through a shared helper so the active Claude/Codex `unbrowse` links resolve to the current monorepo checkout instead of drifting to stale worktrees or copied skill dirs.
+- New `scripts/sync-skill-links.ts` also mirrors Claude skill directories into `~/.codex/skills` without overwriting Codex-specific entries, so the same global skill set is available in both hosts.
+
+* **cli**: add `unbrowse review` command — agents can push reviewed descriptions, action/resource kinds, and examples back to endpoint metadata via `POST /v1/skills/:id/review`
+* **cli**: add `unbrowse publish` command — two-phase agent-driven publish: Phase 1 returns endpoints with `schema_summary`, `sample_values`, `input_params` and `_fill_description` placeholder; Phase 2 merges agent descriptions, updates local caches, and publishes to marketplace
+* **skill/worktree**: add a repo-local worktree capability loop plus `issue:worktree:*` / `capability:worktree:*` helpers so an agent can fix GitHub issues or capability asks, mine public URLs from those asks into temporary eval cases, rerun the repo's regression loop, and always run a Codex cold/warm regression suite for phase 0 browse plus phase 1 replay
+* **skill/worktree**: add a read-first Codex harness doc for the worktree capability loop so the primary contract is instructions the agent performs manually, with helper scripts kept as optional convenience only
+* **skill/worktree**: make the worktree harness subagent-first for product proof, so real case judgment and cold/warm benchmark evidence outrank Vitest-style repo tests when deciding whether a capability actually works
+* **eval**: add `/unbrowse-eval` skill and `eval:agent` script — agent-driven end-to-end site testing (browse → index → resolve → execute → verify) with growing case set
+* **frontend/economics**: add explicit `/login`, `/dashboard`, and `/leaderboard` surfaces for agent-key auth, economics visibility, and public contribution ranking
+* add investor-facing analytics coverage: `/v1/analytics/growth`, `/v1/analytics/usage`, `/v1/analytics/network`, `/v1/analytics/economics`, plus session/adoption/pricing ingestion so cohort retention, new-user growth, skill reuse, external adoption, and path-to-$100k math are API-trackable
+### Bug Fixes
+
+* **openclaw/plugin**: resolve the bundled Unbrowse CLI from the installed package `bin` entry instead of guessing `bin/unbrowse.js`, bump the plugin dependency to `unbrowse@^2.10.2`, and add execution-path regression coverage so the OpenClaw plugin can actually launch the packaged runtime again
+* **openclaw/plugin**: add tarball-level packaging coverage for `unbrowse-openclaw` so published npm releases keep the installer `bin/` + `scripts/` entrypoints and the README `npx unbrowse-openclaw install --restart` flow stays real
+* **openclaw/plugin**: switch the installer off `openclaw plugins install` and onto a managed extension-dir write plus `plugins.load.paths` rewrite, so current OpenClaw builds stop blocking the plugin's legitimate `child_process` usage during npm/npx installs
+* **ci/release**: fix main-branch release metadata parsing so npm package name/version resolve correctly in GitHub Actions, fail fast if those outputs are empty, and treat duplicate-version npm publishes as idempotent no-ops instead of blocking deploy + skill sync
+* **tests/graph-api**: bound live graph API requests with explicit fetch timeouts, remove the extra retry fallthrough, and make fixture publishing best-effort so the backend integration suite stops timing out in `beforeAll` during CI reruns
+* **tests/search-live**: treat fast `429 Rate limit exceeded` replies as acceptable bounded outcomes in the live search perf/composite smoke tests, so shared CI load no longer fails the backend suite when beta search is responsive but throttled
+* **telemetry/funnel**: wire the landing-page acquisition tracker into the homepage, track install-command copy events, and emit real CLI install/funnel telemetry (`cli-first-seen`, `cli_invoked`, `setup_completed`, `registration_succeeded`, `resolve_started`, `resolve_completed`) from the canonical setup/resolve/execute paths so install and activation analytics stop reading as zero
+* **docs/frontend**: ground quickstart/API/deployment docs against the current repo and point public docs links at `docs.unbrowse.ai`
+* **ci/backend**: force Wrangler v3 backend deploys with KV bindings onto the legacy worker upload path so canonical release jobs stop failing on Cloudflare `/versions` permission checks
+* **frontend/openclaw**: clarify the public OpenClaw install flow around `npx unbrowse-openclaw install --restart`, note that the plugin package pulls in the local Unbrowse runtime automatically, and call out the one-time trust prompt older OpenClaw builds may show
+* **github/default-branch**: rename `rach/restart-base` to `main`, make `main` the repo default branch, and retarget PR/release docs plus helper scripts
+* **frontend/blog**: keep legacy article slugs canonical by redirecting `/blog/<slug>` to the live static article route, dedupe legacy-vs-dynamic blog listings, and emit legacy article URLs into `sitemap.xml` so published pages are actually discoverable by crawlers
+* **auth/replay**: persist LinkedIn replay-critical headers (`accept`, `csrf-token`, `x-li-*`, `x-restli-protocol-version`) alongside sensitive auth headers, infer `csrf-token` refresh from `JSESSIONID`, and drop blank publish-sanitized header values at execute time so sanitized skills still replay authenticated Voyager requests correctly
+* **ci/regressions**: add GitHub issue regression coverage for #69/#70/#71 plus Codex eval-contract tests to the default test path and CI unit job so HAR ownership/header regressions stop slipping past automation
+* **eval/flags**: fix Codex harness boolean flag parsing so `--benchmark`, `--force-capture`, `--restart-server`, and `--require-dag` actually take effect instead of silently no-oping
+* **browse/session**: validate stored Kuri tabs before reuse, recreate the browse session once on recoverable CDP/transport failures or empty snapshots, and fall forward to a fresh Kuri port when the default listener is wedged, so `unbrowse go/snap/eval` no longer stay pinned to dead tabs or a poisoned `127.0.0.1:7700`
+* **browse/submit**: add `POST /v1/browse/submit` plus `unbrowse submit`, with generic DOM submit first, same-origin HTML rehydrate fallback, best-effort `data-load-plugins` / `WRS.require` recovery, and capture restart so JS-heavy multi-step checkouts can advance without site-specific JS indexing
+* **github/ci**: remove stale `main` base-branch assumptions from workflows and PR helper scripts so repo automation targets `rach/restart-base` only
+* **ci/backend**: restore the shared telemetry type exports used by analytics routes, make the x402 gate Worker-safe without Node `Buffer`, mark the live graph-edge test truly opt-in again, and stop npm `prepack` from deleting tracked Kuri binaries before CI package validation
+* **docs/skill sync**: restore the full public `docs/whitepaper/` set from git history, make `scripts/sync-skill.sh` copy the monorepo `docs/` directory into the public skill repo so long-form docs stop disappearing on downstream syncs, and keep public entrypoints free of internal-only framing
+* **docs/messaging**: align the public README and skill entrypoints around the buyer-facing category line "drop-in browser for agents" while keeping the explanation grounded in route learning, reuse, and browser fallback
+* **docs/messaging**: sharpen the public category line to a drop-in replacement for OpenClaw / `agent-browser` browser flows, with explicit ~30x faster / ~90% cheaper framing for the API-native path and stronger "browser work becomes a reusable asset" language
+* **review**: fix skill lookup in review route to check domain cache (same as GET route) — previously returned 404 for skills only in domain snapshots
+* **review**: fix review route to update all local caches (domain snapshot + domain cache + published skill cache) so reviewed metadata is visible on next resolve without requiring marketplace round-trip
+* **execute**: return `endpoint_not_found` error with available endpoints list when agent-specified endpoint_id doesn't exist in skill — previously silently fell through to `selectBestEndpoint` and executed the wrong endpoint
+* **execute**: apply agent's params to trigger URL during trigger-and-intercept execution — previously replayed the original captured URL ignoring new search terms, causing search endpoints to return stale/unfiltered results
+* **skill sync**: restore standalone skill repo docs during `scripts/sync-skill.sh` by copying the monorepo `docs/` tree after the package rsync, so quickstart/API/release docs stop disappearing on the next sync
+* **resolve**: skip the first-pass browser fast-path for canonical replay pages like npm/PyPI package search and package detail URLs, so deterministic structured fetches run before flaky browser handoff
+* **payments/search**: make production cloud search routes return x402 `402 PAYMENT-REQUIRED` terms for Tier 3 graph lookups, and propagate those payment-required errors through the runtime instead of silently downgrading to empty marketplace results
+* **resolve/canonical replay**: when paid marketplace search blocks a canonical detail page like PyPI package records, seed a local structured replay skill instead of dead-ending at `payment_required`, so agents still get a runnable endpoint for free deterministic detail fetches
+* **payments/tests**: add backend route coverage for the x402 skill gate so paid skill reads now prove the real `402` header handshake and proof-accepted retry path
+* **payments**: align the backend x402 gate with lobster.cash and Corbits by emitting `PAYMENT-REQUIRED` v2 terms, settling `PAYMENT-SIGNATURE` retries through the facilitator, and preserving the older `X-Payment-Proof` fallback for legacy clients
+* **payments/splits**: sync creator payout wallets onto agent profiles, route single-contributor paid skills directly to that wallet, add an authenticated wallet-sync endpoint for existing agents, fan transaction ledgers out across contributor payouts from skill attribution shares, and teach publish-time split provisioning to accept either a fixed Cascade `split_config` override or auto-create/update one through `@cascade-fyi/splits-sdk`
+* **payments/auth**: enforce auth on protected skill/stats write routes again, carry the current wallet through publish to avoid wallet-sync/read-after-write races, and clear stale single-wallet `split_config` values when a skill becomes multi-contributor
+* **payments/policy**: disable Cascade-based multi-contributor routing for now and send paid skill proceeds to the current majority contributor wallet only, with creator ledgers following the same single-recipient policy
+* **payments/e2e**: verify real Lobster x402 settlement against staging end-to-end, document `X402_NETWORK_MODE=mainnet` for staging workers, and note that winning contributor wallets must already have a mainnet USDC token account for Corbits settlement to succeed
+* **payments/flags**: add Worker-level `PAYMENTS_ENABLED` kill switch so x402 gates and Tier 3 search fees can be disabled entirely without changing skill pricing metadata or redeploying code paths
+* **packaging**: publish the runtime payment deps (`bs58`, `@solana/kit`, `@cascade-fyi/splits-sdk`) in the npm CLI package so global installs no longer crash before `unbrowse help` / `unbrowse health`
+* **cli/auth**: improve agent UX on gated sites by auto-falling back from paid marketplace search to free `--force-capture`, trying browser cookie import before interactive login, and refusing to treat Cloudflare challenge pages as successful login
+* **telemetry/economics**: add per-agent savings ledgers from `POST /v1/stats/perf`, expose `GET /v1/dashboard/me` and `GET /v1/leaderboard`, and propagate billed Tier 3 search cost through the client/runtime for dashboard truth
+* **auth**: cookie injection via raw CDP for full `secure`/`httpOnly`/`sameSite`/`expires` support — Kuri's `/cookies` endpoint was dropping these flags, causing HTTP 400 on LinkedIn and other sites requiring secure cookies
+* **auth**: strip wrapping quotes from cookie values — Chrome stores JSESSIONID as `"ajax:..."` with literal quotes that broke LinkedIn's CSRF validation
+* **publish**: re-cache skill locally after marketplace publish to prevent `publishSkill`'s backend merge from overwriting agent-updated descriptions
+
+### Features
+* **#218**: wire DAG planner to backend EmergentDB graph — dag-advisor now queries the backend graph (fetchChain) first for cross-session intelligence with local planner fallback; publishEdgesToBackend fixed to use correct URL (beta-api.unbrowse.ai) and send Authorization headers; planner.ts stub replaced with real delegation to dag-feedback
+* **#155**: add BM25 lexical channel with RRF fusion — `indexEndpoints` stores docs in KV; `searchIntentInDomain` runs BM25 + graph in parallel and fuses with RRF (k=60), falling back to graph-only when no index exists
+* **#221**: wire `computeCompositeSearchScore` into search/resolve path — search results are now rescored with the Section 3.3 composite formula (40% embedding, 30% reliability, 15% freshness, 15% verification) instead of pure vector similarity; orchestrator scoring aligned to use continuous verified ratio
+* **#220**: wire `computeBottleneckMetrics` into backend — new `GET /v1/analytics/bottleneck` route returns latency percentiles (p50/p95 for capture, resolve, execute), cache/marketplace/live-capture hit rates, failure rate, and skills-per-domain capacity metric, all loaded from KV perf stats and skill data
+
+### Bug Fixes
+
+* **publish-pipeline**: `wrong_entity_type` verdict downgraded from `fail` to `skip` — captures with non-standard field names (e.g. `body` instead of `text`, `entityUrn` instead of `id`) no longer block marketplace publishing; post classifier expanded to accept real-world API field names (`message`, `_id`, `entityUrn`, `from.name`, `created_time`, etc.)
+* **tests**: rewrote stale release-flow, CLI, and payments coverage so reruns match the current product contract; unit runs no longer depend on repo version drift or live pricing/backend state, CLI JSON stdout stays machine-safe, and slow integration suites use hermetic/sequential setup instead of host-coupled timeouts
+* **tests**: removed mock-only incomplete backend spec fossils and promoted the local CLI payload contract suite into always-on coverage, so the remaining incomplete tests are opt-in live/integration paths instead of stub-server TODOs
+* **kuri/tests**: fixed live-browser tab registration and text snapshots in the Kuri client, replaced placeholder wrapper/action TODOs with real end-to-end browser coverage, promoted the P0/P1 and graph-edge live suites into always-on tests, and moved marketplace latency diagnostics out of the `*.test.ts` suite
+* **#223**: wire `isStructuredSearchForm`, `attributeLifecycle`, and `isRepeatableEval` into production code — search forms are detected from captured HTML and attached to endpoints, lifecycle phases are attributed for observability in the orchestrator and publish flows, and eval repeatability checking flags flaky cases in the harness
+* **#229**: implement `tryFirstPassBrowserAction` — navigates to the URL, records HAR, performs intent-driven actions (search/click/navigate), collects intercepted JSON API responses, and synthesizes a mini-skill for passive indexing ([#229](https://github.com/justrach/unbrowse34/issues/229))
+* **capture**: thread AbortSignal through CDP phases so 90s timeout aborts hanging kuri calls immediately instead of waiting for each call's own 30s timeout to stack ([#113](https://github.com/justrach/unbrowse34/issues/113))
+* **#152**: `mergeEndpoints` now promotes richer endpoint rediscoveries instead of silently dropping them
+* **#152**: `mergeEndpoints` now promotes richer endpoint rediscoveries instead of silently dropping them
 ## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
 
 ### Features
@@ -1133,6 +1850,9 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- feat: add server-owned skill provenance and staged graph promotion so first unverified publishes stay shadow-only until independently corroborated or verified
+- feat: verify signed release manifests on publish, stamp release-attestation provenance server-side, and require endpoint-level corroboration before brand-new endpoints on public skills enter the shared graph
+- build: make the npm CLI package binary-only, sync only `SKILL.md` to the standalone skill repo, and publish release assets before npm so installs can fetch the tagged native binary immediately
 - fix: materialize under-specified root eval cases into real-world intent URLs before strict judged agent-phase runs
 - fix: reuse learned skills by domain plus compatible intent instead of merging unrelated captures into one polluted skill
 - fix: strip self-referential page URL params before minting replayable page-artifact endpoints
@@ -1144,6 +1864,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- docs: correct the agent-facing workflow split so fresh `sync` / `close` captures are treated as publish-review material (`skill` / `publish --pretty` / `review` / `publish`), while `resolve` stays the reuse surface for already indexed/published contracts
 - fix: retry browser capture without persistent profile only for sparse blocked-shell captures; keep rich API captures and bound browser close time so x profile/trending resolves no longer hang
 - test: add focused graph dependency-inference unit coverage so DAG edge generation is asserted directly, not only through higher-level walk tests
 - feat: agent-facing chunk responses now show only runnable operations in a readable format with a suggested next step, while raw graph/dependency data stays internal
@@ -1160,8 +1881,21 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- fix: strict browse-session liveness now retries through transient empty tab discovery after submit/navigation churn instead of expiring the session immediately
+- fix: strict browse-session checks now prefer the freshly selected broker client for the session port, avoiding stale cached client objects after broker churn
+- fix: URL-targeted browse submits no longer treat same-page HTML/filter churn as success, so parks-selection style flows fall back to the real same-origin transition path instead of fabricating the next step URL
+- debug: Kuri broker exit logs now include child pid, signal, broker port, and CDP port to make real crash-vs-kill diagnosis observable in staging/package repros
+- fix: dead Kuri broker clients are now evicted from the per-port cache on stop/exit so later requests can build a fresh restartable client state
+- fix: Kuri startup/tab creation now waits for CDP readiness and retries raw Chrome tab creation instead of failing immediately during broker churn
+- fix: browse routes now preserve per-session broker client affinity so restart paths can keep the session-owned browser state instead of drifting to a different broker client
+- fix: successful submit no longer flushes/restarts capture mid-step; capture stays live until explicit `sync` or `close`, reducing session churn from step transitions
+- docs: sync the canonical repo whitepaper to the April 1 arXiv draft and refresh the paper landing page metadata, authors, subtitle, and abstract
+- fix: replace placeholder Kuri/capture TODO suites with real live-browser end-to-end coverage and promote deterministic CLI/P0-P1 regression checks into the default test lane
+- fix: repair backend live route/test wiring and add bounded rate-limit retries so `bun run test:all` completes green against the current live graph backend
+- docs: add canonical `test:e2e:truth` and `test:claims` lanes so user-visible behavior has an explicit live/e2e gate separate from unit coverage
 - fix: planner now treats captured query/path/example defaults as satisfiable bindings, so replayable APIs stop losing readiness to page artifacts on warm resolve
 - fix: semantic ranking now demotes linkedin sharebox/mailbox ui payloads for people/company intents and boosts real search/detail surfaces
+- feat: merjs visual lab now boots a real standalone `@json-render/react` surface from `/api/viz-spec`, so arbitrary prompt + payload sessions stream into spec-driven analytics UI inside the native desktop shell
 - fix: semantic intent scoring now distrusts mislabeled ui-scaffold endpoints, so generated sharebox/mailbox/notification skills stop stealing people/company search intents
 - fix: scoped warm-result cache now reuses recently validated results on the same route/intent, preventing slow recapture on immediate retrieve
 - pre-commit now runs DAG/replay regressions plus strict real-world `agent-phases` smoke instead of `evals/perf.ts`.
@@ -1191,3 +1925,9 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - fix: template param hydration now infers dev.to-style `tag` bindings from route context for query-based replay endpoints
 - fix: post projection now derives dev.to authors from article paths and recovers Lobsters scores from text-heavy list rows
 - docs: curated public expansion corpus now includes validated non-dev science/reference/news cases for arXiv, Wiktionary, and NPR, with exact blocked terminals where needed
+- x402 workers can now force `mainnet` payment terms outside production via `X402_NETWORK_MODE`, which unblocks Lobster wallet e2e against staging.
+- Fix browse submit so Mandai's resident gate is compiled into prerequisite state before `NEXT`, instead of falling through into a broken same-origin replay.
+- Treat Kuri broker `ECONNRESET` / socket-close failures as recoverable browse errors and return structured submit failures instead of raw 500s.
+- Fix browse recovery after live navigation: `go` now retries if it hands back a dead tab, empty `text` / `markdown` reads trigger session recovery, and `eval` recovers like `snap` instead of failing on stale tab bindings.
+- Fix Kuri broker reuse so stale `/tabs` registry entries no longer keep a dead broker alive after Chrome/CDP disappears.
+- Fix `browse sync` so it queues the same background publish/index path as `close`, instead of stopping at local cache flush only.

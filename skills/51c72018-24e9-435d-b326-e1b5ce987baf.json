@@ -1,0 +1,88 @@
+{
+  "skill_id": "51c72018-24e9-435d-b326-e1b5ce987baf",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T10:14:37.947Z",
+  "updated_at": "2026-02-20T10:14:40.633Z",
+  "name": "hitrustalliance",
+  "intent_signature": "Retrieve detailed company profiles and compliance information from",
+  "domain": "hitrustalliance.net",
+  "description": "Retrieve detailed company profiles and compliance information from",
+  "owner_type": "marketplace",
+  "auth_type": "API Key (x-goog-api-key)",
+  "service_name": "hitrustalliance",
+  "endpoints": [
+    {
+      "endpoint_id": "b3da78d7-004f-4c81-ba5c-e682a3ca1059",
+      "method": "GET",
+      "url_template": "https://hitrustalliance.net/__endpoint/b3da78d7-004f-4c81-ba5c-e682a3ca1059",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getLivechatWidget",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "939277a7-49c7-4686-a543-1492133a65dd",
+      "method": "GET",
+      "url_template": "https://hitrustalliance.net/__endpoint/939277a7-49c7-4686-a543-1492133a65dd",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getConfigJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "90ec60e5-df66-4385-8d4d-4eb5c2c0c8c7",
+      "method": "GET",
+      "url_template": "https://hitrustalliance.net/__endpoint/90ec60e5-df66-4385-8d4d-4eb5c2c0c8c7",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEmbedCombinedConfigs",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "eb8b5d6c-a9e0-4c5b-b561-62574d7aac20",
+      "method": "GET",
+      "url_template": "https://hitrustalliance.net/__endpoint/eb8b5d6c-a9e0-4c5b-b561-62574d7aac20",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getCompanyDetails",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "2DcerCZkJgvjJ44a6HtQkij4gYXGMYR2fwA3wfyHaKHp",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "d8a08c43c9d03d4aab8f5293a1d586ed6a6163d50a1242099b7ccc449f7f2802"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "TRANSFORMS.json",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: hitrustalliance\ndescription: Internal API for hitrustalliance\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://hitrustalliance.net\"\n  authMethod: \"API Key (x-goog-api-key)\"\n  endpointCount: 3\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Hitrustalliance API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nAPI Key (x-goog-api-key) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Data Read (3)\n- `GET /_hcms/livechat/widget` — Retrieve live chat widget configuration.\n- `GET /v3/company/details` — Get detailed information about a company.\n- `GET /web-interactives/public/v1/embed/combinedConfigs` — Obtain combined configuration for web interactives.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"hitrustalliance\", executionMode: \"backend\", endpoint: \"GET /_hcms/livechat/widget\" }\n```\n\nHere are some quick examples to get you started using the `hitrustalliance` API:\n\n```typescript\n// Retrieve the live chat widget configuration.\nasync function getLiveChatWidgetConfig() {\n  const widgetConfig = await client.get_hcms_livechat_widget();\n  console.log(\"Live chat widget configuration:\", widgetConfig);\n  return widgetConfig;\n}\n```\n\n```typescript\n// Fetch detailed information about a specific company.\nasync function getCompanyDetails() {\n  const companyDetails = await client.v3_company_details();\n  console.log(\"Company details:\", companyDetails);\n  return companyDetails;\n}\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** API Key (x-goog-api-key)\n**Base URL:** `https://hitrustalliance.net`\n**Captured Auth:** 2 auth headers\n\n## About This Skill\n\nThis skill provides access to Hitrustalliance's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Hitrustalliance data without official API access\n- Automate actions on hitrustalliance.net (faster than browser automation)\n- Call the same endpoints the Hitrustalliance frontend uses\n\n## Quick Start\n\n```typescript\nimport { HitrustallianceClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await HitrustallianceClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 2 (x-goog-api-key, authorization)\n- **Session cookies:** 0\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (4)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /_hcms/livechat/widget`\n- `GET /collected-forms/v1/config/json`\n- `GET /v3/company/details`\n- `GET /web-interactives/public/v1/embed/combinedConfigs`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /_hcms/livechat/widget`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /collected-forms/v1/config/json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /v3/company/details`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /web-interactives/public/v1/embed/combinedConfigs`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}

@@ -1,0 +1,231 @@
+{
+  "skill_id": "EKyannX1VRvImF9M8vJHP",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-23T07:43:22.644Z",
+  "updated_at": "2026-02-23T07:43:22.644Z",
+  "name": "bluebridgelaw.com -- Retrieve and manage cookie consent configuration, vendor",
+  "intent_signature": "Retrieve and manage cookie consent configuration, vendor",
+  "domain": "bluebridgelaw.com",
+  "description": "Auto-discovered skill for: Retrieve and manage cookie consent configuration, vendor",
+  "owner_type": "agent",
+  "endpoints": [
+    {
+      "endpoint_id": "79IITdE2_DHI_EQLpxqlW",
+      "method": "GET",
+      "url_template": "https://bluebridgelaw.com/",
+      "headers_template": {
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "uN4mqk0njnVuxrp8U74Zx",
+      "method": "GET",
+      "url_template": "https://bluebridgelaw.com/wp-content/uploads/complianz/cmp/vendorlist/additional-consent-providers.csv",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bluebridgelaw.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "BrVsgQlskiLa3Ln4xntUr",
+      "method": "GET",
+      "url_template": "https://bluebridgelaw.com/wp-content/uploads/complianz/cmp/vendorlist/vendor-list.json",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bluebridgelaw.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "c4QIKrD1zKi662T90STz9",
+      "method": "GET",
+      "url_template": "https://bluebridgelaw.com/wp-json/complianz/v1/banner",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bluebridgelaw.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {
+        "lang": "en",
+        "locale": "en_GB"
+      },
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "consenttype": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "region": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          },
+          "forceEnableStats": {
+            "type": "boolean",
+            "inferred_from_samples": 1
+          },
+          "banner_version": {
+            "type": "string",
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "consenttype",
+          "region",
+          "version",
+          "forceEnableStats",
+          "banner_version"
+        ],
+        "inferred_from_samples": 1
+      }
+    },
+    {
+      "endpoint_id": "lxgKV2WvIpZiGIVM-yTti",
+      "method": "GET",
+      "url_template": "https://bluebridgelaw.comhttps://bluebridgelaw.com/{id}",
+      "headers_template": {
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "3pgOwaBbZ_CDtIoKdY9ZH",
+      "method": "GET",
+      "url_template": "https://bluebridgelaw.com/wp-content/uploads/{id}/05/{id}-uhd_3840_2160_30fps-1-1.mp4",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bluebridgelaw.com/",
+        "accept-encoding": "identity;q=1, *;q=0",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "range": "bytes=0-",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "SWb8aOp1CA-MAus3ZO81F",
+      "method": "GET",
+      "url_template": "https://www.google.com/recaptcha/api2/anchor",
+      "headers_template": {
+        "referer": "https://bluebridgelaw.com/",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\""
+      },
+      "query": {
+        "ar": "1",
+        "k": "6Ld8eiYqAAAAAPeVSCm11gm5z0sSmuUXA4Xzu8kQ",
+        "co": "aHR0cHM6Ly9ibHVlYnJpZGdlbGF3LmNvbTo0NDM.",
+        "hl": "en",
+        "type": "v3",
+        "v": "vUgXt_KV952_-5BB2jjloYzl",
+        "size": "invisible",
+        "badge": "bottomright",
+        "sa": "Form",
+        "anchor-ms": "20000",
+        "execute-ms": "30000",
+        "cb": "tbylob9f86v4"
+      },
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5
+    },
+    {
+      "endpoint_id": "TB3H8sQbIuGIgzD7gx_1_",
+      "method": "GET",
+      "url_template": "https://bluebridgelaw.com/wp-json/complianz/v1/cookie_data",
+      "headers_template": {
+        "sec-ch-ua-platform": "\"macOS\"",
+        "referer": "https://bluebridgelaw.com/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"HeadlessChrome\";v=\"145\", \"Chromium\";v=\"145\"",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "query": {},
+      "idempotency": "safe",
+      "verification_status": "unverified",
+      "reliability_score": 0.5,
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "statistics": {
+            "type": "object",
+            "properties": {
+              "Elementor": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              },
+              "Hotjar": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                },
+                "inferred_from_samples": 1
+              }
+            },
+            "required": [
+              "Elementor",
+              "Hotjar"
+            ],
+            "inferred_from_samples": 1
+          }
+        },
+        "required": [
+          "statistics"
+        ],
+        "inferred_from_samples": 1
+      }
+    }
+  ],
+  "auth_profile_ref": "bluebridgelaw.com-session"
+}

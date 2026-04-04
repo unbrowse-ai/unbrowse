@@ -1,0 +1,100 @@
+{
+  "skill_id": "f036ba73-6f55-40dc-828e-8dae4205d3b4",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "lifecycle": "active",
+  "execution_type": "http",
+  "created_at": "2026-02-20T10:13:57.917Z",
+  "updated_at": "2026-02-20T10:14:01.381Z",
+  "name": "netdiligence",
+  "intent_signature": "Retrieve configuration data for web interactives and",
+  "domain": "netdiligence.com",
+  "description": "Retrieve configuration data for web interactives and",
+  "owner_type": "marketplace",
+  "auth_type": "Cookie-based (Web_SessionId)",
+  "service_name": "netdiligence",
+  "endpoints": [
+    {
+      "endpoint_id": "5ee59078-edf4-4580-9bcc-b185c630077d",
+      "method": "GET",
+      "url_template": "https://netdiligence.com/__endpoint/5ee59078-edf4-4580-9bcc-b185c630077d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getSiteNetdiligenceJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "e1890c5c-9c58-4808-aff8-40e2254c350d",
+      "method": "GET",
+      "url_template": "https://netdiligence.com/__endpoint/e1890c5c-9c58-4808-aff8-40e2254c350d",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "get6073855JsonById",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "e14d340a-46e9-42d0-8a05-bae96cc6a292",
+      "method": "GET",
+      "url_template": "https://netdiligence.com/__endpoint/e14d340a-46e9-42d0-8a05-bae96cc6a292",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getSamplingNetdiligenceJson",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "e94d6812-e71c-498b-be28-d5be2065693e",
+      "method": "GET",
+      "url_template": "https://netdiligence.com/__endpoint/e94d6812-e71c-498b-be28-d5be2065693e",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getEmbedCombinedConfigs",
+      "response_schema": null
+    },
+    {
+      "endpoint_id": "68b87279-f39d-4b77-9ef6-7af74116b97a",
+      "method": "GET",
+      "url_template": "https://netdiligence.com/__endpoint/68b87279-f39d-4b77-9ef6-7af74116b97a",
+      "headers_template": {},
+      "query_template": {},
+      "body_template": null,
+      "idempotency": "safe",
+      "verification_status": "pending",
+      "reliability_score": 0.5,
+      "description": "getConfigJson",
+      "response_schema": null
+    }
+  ],
+  "marketplace_meta": {
+    "creator_wallet": "2DcerCZkJgvjJ44a6HtQkij4gYXGMYR2fwA3wfyHaKHp",
+    "download_count": 0,
+    "total_versions": 1,
+    "latest_version_hash": "cf8b0bfa7ba69d736ecb7e51fbd20f8a392e0ed77798482e738d01f9c0ffd1f1"
+  },
+  "_references": [
+    "REFERENCE.md",
+    "PROXY_SKILL.md",
+    "PROXY_REFERENCE.md",
+    "PROXY_ENDPOINTS.json"
+  ],
+  "_has_scripts": [
+    "api.ts",
+    "proxy-api.ts"
+  ],
+  "_skill_md": "---\nname: netdiligence\ndescription: Internal API for netdiligence\nmetadata:\n  author: unbrowse\n  version: \"1.0\"\n  baseUrl: \"https://netdiligence.com\"\n  authMethod: \"Cookie-based (Web_SessionId)\"\n  endpointCount: 1\n  apiType: \"internal\"\n  category: \"web-app\"\n---\n\n# Netdiligence API\n\n> Reverse-engineered internal API. Unofficial — may change without notice.\n\n## Documentation Index\n- `SKILL.md` (this file)\n- `references/REFERENCE.md` (detailed endpoint docs)\n- `references/ENDPOINTS.json` (machine-readable endpoint catalog)\n- `scripts/api.ts` (typed client interface)\n\n## Authentication\nCookie-based (Web_SessionId) — Authentication method detected from captured traffic.\n\n### Providing credentials\n- Prefer passing auth as request headers or cookies at call time (do not hardcode secrets into the skill).\n- If executing via an external proxy/executor, pass per-call credentials (cookies and/or headers) so they are not persisted.\n\n## Dependencies\n- Runtime capable of HTTPS requests.\n- If using `scripts/api.ts`: TypeScript toolchain (or transpile to JS).\n\n## Endpoints\n\n### Config (1)\n- `GET /web-interactives/public/v1/embed/combinedConfigs` — Get configuration for interactive web elements.\n\n## Quick Start\n\n### OpenClaw (Unbrowse) workflow\n- Authenticate in the browser first (no credentials are shipped with this skill).\n- Capture fresh auth locally: run `unbrowse_capture` on an authenticated page for this domain.\n- Execute via backend gate + client browser executor: `unbrowse_replay` with `executionMode=\"backend\"`.\n\nExample:\n```text\nunbrowse_replay { service: \"netdiligence\", executionMode: \"backend\", endpoint: \"GET /web-interactives/public/v1/embed/combinedConfigs\" }\n```\n\n```typescript\n// Get the combined configuration for web interactives.\n// This is a common initial step to understand available options.\nconst config = await client.getWebInteractivesPublicV1EmbedCombinedConfigs();\nconsole.log(config);\n```\n\n```typescript\n// Access a specific configuration value.  Assumes the config object\n// from the previous example.  Error handling omitted for brevity.\nconst someValue = config.someConfigKey;\nconsole.log(someValue);\n```\n\n## Additional Notes\n\n**Type:** Reverse-engineered internal API (unofficial)\n**Auth:** Cookie-based (Web_SessionId)\n**Base URL:** `https://netdiligence.com`\n**Captured Auth:** 382 session cookies\n\n## About This Skill\n\nThis skill provides access to Netdiligence's internal API — the hidden endpoints that power their web/mobile app.\nThese are NOT official public APIs. They were captured by observing network traffic while using the site.\n\n**Important:**\n- Auth tokens in `auth.json` may expire — re-capture if you get 401 errors\n- Internal APIs can change without notice — endpoints may break\n- Rate limits are unknown — be conservative with request frequency\n\n## When to Use This Skill\n\nUse this skill when you need to:\n- Access Netdiligence data without official API access\n- Automate actions on netdiligence.com (faster than browser automation)\n- Call the same endpoints the Netdiligence frontend uses\n\n## Quick Start\n\n```typescript\nimport { NetdiligenceClient } from \"./scripts/api.ts\";\n\n// Load captured auth from auth.json\nconst client = await NetdiligenceClient.fromAuthFile(\"auth.json\");\n\n// Make requests to internal endpoints\nconst result = await client.get(\"/endpoint\");\n```\n\n## Captured Authentication\n\nThe `auth.json` file contains credentials extracted from browser traffic:\n- **Auth headers:** 0 (none)\n- **Session cookies:** 382\n\nIf auth expires, re-run `unbrowse_login` or `unbrowse_capture` to refresh tokens.\n\n## Internal Endpoints (5)\n\n\n## Error Handling\n\n```typescript\ntry {\n  const data = await client.get(\"/resource\");\n} catch (err) {\n  if (err.message.includes(\"401\")) {\n    // Auth expired — need to re-capture\n    console.error(\"Auth expired, re-run unbrowse_login\");\n  } else {\n    console.error(\"API error:\", err.message);\n  }\n}\n```\n\nSee [REFERENCE.md](references/REFERENCE.md) for detailed endpoint documentation.\n\n## Endpoints (Auto-generated)\n\n<!-- UNBROWSE:ENDPOINTS:BEGIN -->\n- `GET /collected-forms/v1/config/json`\n- `GET /embed/v3/form/6073855/9789e266-ae36-4f4f-b7fd-412222441c48/json`\n- `GET /pages/data-scripts/0105/4112/sampling/netdiligence.com.json`\n- `GET /pages/data-scripts/0105/4112/site/netdiligence.com.json`\n- `GET /web-interactives/public/v1/embed/combinedConfigs`\n<!-- UNBROWSE:ENDPOINTS:END -->\n\n<!-- UNBROWSE:ENDPOINT_DOCS:BEGIN -->\n### `GET /collected-forms/v1/config/json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /embed/v3/form/6073855/9789e266-ae36-4f4f-b7fd-412222441c48/json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pages/data-scripts/0105/4112/sampling/netdiligence.com.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /pages/data-scripts/0105/4112/site/netdiligence.com.json`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n\n### `GET /web-interactives/public/v1/embed/combinedConfigs`\n- Status: `pending` | Quality: `0` | Health: `100`\n\n#### Input\n- Path params: none\n- Query: none\n- Body schema: none\n\n#### Output\n- Output schema: (learned from executions)\n<!-- UNBROWSE:ENDPOINT_DOCS:END -->\n"
+}
