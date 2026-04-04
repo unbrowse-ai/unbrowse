@@ -96,6 +96,12 @@ If your agent host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
+That adds the skill instructions only. Users still need the `unbrowse` runtime installed separately, for example:
+
+```bash
+npm install -g unbrowse@preview && unbrowse setup --host mcp
+```
+
 If you want to call the canonical local API from app code instead of shelling out to the CLI or MCP server:
 
 ```bash
