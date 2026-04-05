@@ -4,3 +4,13 @@ packed-src/
 runtime-src/
 vendor/kuri/
 .env
+
+# Internal docs — do not publish
+traces/
+docs/gtm/
+docs/agent-memory.md
+docs/pr-validation-matrix.md
+docs/public-docs-audit-*.md
+docs/202*-*-orchestrator-*.md
+docs/202*-*-yq-*.md
+docs/202*-*-backend-*.md
