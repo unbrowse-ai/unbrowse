@@ -476,4 +476,117 @@ describe("landing funnel e2e", () => {
       backendServer.stop(true);
     }
   });
+
+  it("assigns ICP-matched variants when icp is provided", async () => {
+    const store = new Map<string, string>();
+    globalThis.fetch = createMockFetch(store, originalFetch) as typeof fetch;
+    await Promise.all([
+      statsKV(env).resetSplitIndex(),
+      skillsKV(env).resetSplitIndex(),
+    ]);
+
+    const backendPort = 8803;
+    for (const key of touchedEnvKeys) {
+      originalEnv.set(key, process.env[key]);
+    }
+
+    const backendServer = Bun.serve({
+      port: backendPort,
+      fetch(request) {
+        return app.fetch(request, env, execCtx);
+      },
+    });
+
+    try {
+      // "performance-engineer" ICP should only match speed-proof variant (the only active one for that ICP)
+      const perfResults = new Set<string>();
+      for (let i = 0; i < 20; i++) {
+        const res = await fetch(`http://127.0.0.1:${backendPort}/v1/landing/homepage/assign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visitor_id: `perf-visitor-${i}`, icp: "performance-engineer" }),
+        });
+        expect(res.status).toBe(200);
+        const body = await res.json() as { assignment: { variant_id: string } };
+        perfResults.add(body.assignment.variant_id);
+      }
+      // speed-proof is the only active variant tagged with performance-engineer
+      expect(perfResults.has("speed-proof")).toBe(true);
+      expect(perfResults.has("reuse-shadow")).toBe(false); // shadow has weight 0
+
+      // "agent-stack-builder" ICP matches control-browser-replacement and reuse-shadow (but shadow has weight 0)
+      // so all assignments should go to control-browser-replacement
+      const agentResults = new Set<string>();
+      for (let i = 0; i < 20; i++) {
+        const res = await fetch(`http://127.0.0.1:${backendPort}/v1/landing/homepage/assign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visitor_id: `agent-visitor-${i}`, icp: "agent-stack-builder" }),
+        });
+        expect(res.status).toBe(200);
+        const body = await res.json() as { assignment: { variant_id: string } };
+        agentResults.add(body.assignment.variant_id);
+      }
+      expect(agentResults.has("control-browser-replacement")).toBe(true);
+      // speed-proof is NOT tagged with agent-stack-builder
+      expect(agentResults.has("speed-proof")).toBe(false);
+
+      // Unknown ICP should fall back to all variants (no filtering)
+      const unknownRes = await fetch(`http://127.0.0.1:${backendPort}/v1/landing/homepage/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitor_id: "unknown-visitor-1", icp: "unknown-segment" }),
+      });
+      expect(unknownRes.status).toBe(200);
+      const unknownBody = await unknownRes.json() as { assignment: { variant_id: string } };
+      // Should still get a valid assignment (fallback to all variants)
+      expect(unknownBody.assignment.variant_id).toBeTruthy();
+
+      // No ICP should work as before (all variants eligible)
+      const noIcpRes = await fetch(`http://127.0.0.1:${backendPort}/v1/landing/homepage/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitor_id: "no-icp-visitor-1" }),
+      });
+      expect(noIcpRes.status).toBe(200);
+      const noIcpBody = await noIcpRes.json() as { assignment: { variant_id: string } };
+      expect(noIcpBody.assignment.variant_id).toBeTruthy();
+
+      // Sticky assignment: once assigned, cookie takes precedence over ICP
+      const firstRes = await fetch(`http://127.0.0.1:${backendPort}/v1/landing/homepage/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitor_id: "sticky-visitor", icp: "performance-engineer" }),
+      });
+      const firstBody = await firstRes.json() as {
+        assignment: { variant_id: string };
+        assignment_cookie: string;
+      };
+
+      // Re-assign with different ICP but same cookie — should keep original assignment
+      const stickyRes = await fetch(`http://127.0.0.1:${backendPort}/v1/landing/homepage/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitor_id: "sticky-visitor",
+          current_assignment: firstBody.assignment_cookie,
+          icp: "agent-stack-builder",
+        }),
+      });
+      const stickyBody = await stickyRes.json() as { assignment: { variant_id: string } };
+      expect(stickyBody.assignment.variant_id).toBe(firstBody.assignment.variant_id);
+
+      // Case-insensitive ICP matching
+      const caseRes = await fetch(`http://127.0.0.1:${backendPort}/v1/landing/homepage/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitor_id: "case-visitor-1", icp: "Performance-Engineer" }),
+      });
+      expect(caseRes.status).toBe(200);
+      const caseBody = await caseRes.json() as { assignment: { variant_id: string } };
+      expect(caseBody.assignment.variant_id).toBe("speed-proof");
+    } finally {
+      backendServer.stop(true);
+    }
+  });
 });
