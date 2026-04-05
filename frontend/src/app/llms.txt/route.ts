@@ -1,14 +1,30 @@
-# Unbrowse
+import { NextResponse } from "next/server";
+import {
+  INSTALL_CMD_GENERIC,
+  INSTALL_CMD_MCP,
+  INSTALL_CMD_NPM,
+} from "@/lib/install-command";
+import { makeAttribution, injectAttribution } from "@/lib/llms-attribution";
+
+export async function GET() {
+  const requestId = crypto.randomUUID();
+  const b64 = makeAttribution(requestId, "llms-txt");
+
+  const installGeneric = injectAttribution(INSTALL_CMD_GENERIC, b64);
+  const installMcp = injectAttribution(INSTALL_CMD_MCP, b64);
+  const installNpm = injectAttribution(INSTALL_CMD_NPM, b64);
+
+  const body = `# Unbrowse
 
 > Unbrowse is an open-source tool that reverse-engineers the internal APIs (shadow APIs) behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
 
 ## Getting Started
 
-- [Quick Start](https://www.unbrowse.ai/skill.md): Install with `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse && cd ~/unbrowse && ./setup --host off`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
-- [MCP Install](https://www.unbrowse.ai/mcp.json): For generic MCP hosts, run `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse && cd ~/unbrowse && ./setup --host mcp`, then import the generated config or use this template
+- [Quick Start](https://www.unbrowse.ai/skill.md): Install with \`${installGeneric}\`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
+- [MCP Install](https://www.unbrowse.ai/mcp.json): For generic MCP hosts, run \`${installMcp}\`, then import the generated config or use this template
 - [Public Docs](https://docs.unbrowse.ai): Public explainer and whitepaper companion docs
-- [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with `npm install -g unbrowse` and run `unbrowse setup`
-- [OpenClaw Plugin](https://www.npmjs.com/package/unbrowse-openclaw): Install OpenClaw browser replacement with `npx unbrowse-openclaw install --restart` (older OpenClaw builds may ask once to trust the plugin)
+- [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with \`${installNpm}\`
+- [OpenClaw Plugin](https://www.npmjs.com/package/unbrowse-openclaw): Install OpenClaw browser replacement with \`npx unbrowse-openclaw install --restart\` (older OpenClaw builds may ask once to trust the plugin)
 - [Discord Community](https://discord.gg/VWugEeFNsG): Support, release updates, and discussion
 
 ## Documentation
@@ -26,18 +42,18 @@
 
 ## API Reference
 
-- [Local REST API](https://www.unbrowse.ai/skill.md): Local server at `http://localhost:6969` -- resolve intents, execute endpoints, manage auth, search marketplace
+- [Local REST API](https://www.unbrowse.ai/skill.md): Local server at \`http://localhost:6969\` -- resolve intents, execute endpoints, manage auth, search marketplace
 - [Marketplace API](https://beta-api.unbrowse.ai): Cloudflare Worker backend -- skill storage, semantic vector search, agent registration, endpoint graph, transaction ledger
-- POST `/v1/intent/resolve`: Natural-language intent resolution -- searches cache, marketplace, and live capture
-- GET `/v1/skills`: List all marketplace skills with metadata and scoring
-- POST `/v1/search`: Semantic search for skills by intent
-- POST `/v1/search/domain`: Search skills scoped to a specific domain
-- POST `/v1/agents/register`: Register as an agent and receive an API key
-- POST `/v1/agents/wallet`: Authenticated wallet claim for a contributor profile
-- GET `/v1/dashboard/me`: Authenticated economics read model for one agent
-- GET `/v1/dashboard/wallet/:walletAddress`: Public economics read model by wallet
-- GET `/v1/leaderboard`: Public contribution leaderboard
-- GET `/v1/stats/summary`: Platform-wide stats (total skills, endpoints, agents, executions)
+- POST \`/v1/intent/resolve\`: Natural-language intent resolution -- searches cache, marketplace, and live capture
+- GET \`/v1/skills\`: List all marketplace skills with metadata and scoring
+- POST \`/v1/search\`: Semantic search for skills by intent
+- POST \`/v1/search/domain\`: Search skills scoped to a specific domain
+- POST \`/v1/agents/register\`: Register as an agent and receive an API key
+- POST \`/v1/agents/wallet\`: Authenticated wallet claim for a contributor profile
+- GET \`/v1/dashboard/me\`: Authenticated economics read model for one agent
+- GET \`/v1/dashboard/wallet/:walletAddress\`: Public economics read model by wallet
+- GET \`/v1/leaderboard\`: Public contribution leaderboard
+- GET \`/v1/stats/summary\`: Platform-wide stats (total skills, endpoints, agents, executions)
 
 ## GitHub
 
@@ -52,9 +68,20 @@
 - Three execution paths: skill cache (<200ms), shared route graph (sub-second), Kuri browser fallback (20-80s)
 - x402 micropayments via Solana and Base USDC -- capture and indexing are free, agents pay only for shared graph lookups
 - Seven-layer cache resolution: in-memory, route cache, domain skill cache, local snapshots, marketplace search, first-pass browser, live capture
-- Drop-in Playwright replacement: `import { Browser } from "unbrowse"` -- `page.goto()` resolves from skill cache first
+- Drop-in Playwright replacement: \`import { Browser } from "unbrowse"\` -- \`page.goto()\` resolves from skill cache first
 - Agents earn by mining routes: browse sites, Unbrowse learns APIs, set up Crossmint lobster.cash, earn when other agents install discovered routes
 
 ## Optional
 
 - [Full Documentation (llms-full.txt)](https://www.unbrowse.ai/llms-full.txt): Expanded version with architecture details, install instructions, Browser API reference, and use cases
+`;
+
+  return new NextResponse(body, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "X-Robots-Tag": "noindex",
+      "X-Llms-Request-Id": requestId,
+    },
+  });
+}
