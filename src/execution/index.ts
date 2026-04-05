@@ -1,10 +1,8 @@
-import { executeInBrowser, triggerAndIntercept, executeInWarmTab, evictWarmTab } from "../capture/index.js";
+import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
-import { enrichEndpointsWithTokenSources } from "../reverse-engineer/token-sources.js";
-import { resolveAuthTokens, invalidateTokenCache } from "./token-resolver.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
@@ -1388,24 +1386,6 @@ async function executeBrowserCapture(
     }
   }
 
-  // Token source discovery: for each captured request header that carries a
-  // CSRF / bearer / session token, scan the HTML + JS bundles for where that
-  // exact value appears and attach TokenBinding entries to the matching
-  // endpoints. At replay time, token-resolver re-scrapes the sources to get
-  // a fresh value. Closes the gap for Rails/Next.js/Laravel sites that rotate
-  // CSRF per page-load and for Twitter-style static bearer tokens in JS bundles.
-  if (captured.html || (captured.js_bundles && captured.js_bundles.size > 0)) {
-    const enriched = enrichEndpointsWithTokenSources(
-      endpoints,
-      captured.requests,
-      captured.html,
-      captured.js_bundles,
-    );
-    if (enriched > 0) {
-      log("execution", `enriched ${enriched} endpoint(s) with HTML/JS token sources`);
-    }
-  }
-
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
       const host = new URL(ep.url_template).hostname;
@@ -2246,30 +2226,6 @@ export async function executeEndpoint(
       }
     }
 
-    // Rich auth-token resolution: generalises csrf_plan to support tokens
-    // that live in HTML <meta>, inline hydration scripts, or JS bundle string
-    // constants. Re-scrapes the trigger URL (cached 5min) and extracts fresh
-    // values via recorded locators. See src/execution/token-resolver.ts.
-    if (endpoint.auth_tokens && endpoint.auth_tokens.length > 0) {
-      try {
-        const resolved = await resolveAuthTokens(endpoint.auth_tokens, {
-          triggerUrl: endpoint.trigger_url,
-          cookies,
-          authHeaders,
-        });
-        for (const [name, value] of Object.entries(resolved.headers)) {
-          if (!headers[name]) headers[name] = value;
-        }
-        if (body && typeof body === "object" && !Array.isArray(body)) {
-          for (const [name, value] of Object.entries(resolved.body)) {
-            (body as Record<string, unknown>)[name] ??= value;
-          }
-        }
-      } catch (err) {
-        log("exec", `auth_tokens resolve failed: ${err instanceof Error ? err.message : err}`);
-      }
-    }
-
     const replayUrls = hasStructuredReplay ? deriveStructuredDataReplayCandidates(structuredReplayUrl) : [structuredReplayUrl];
     let last: { data: unknown; status: number } = { data: null, status: 0 };
 
@@ -2336,7 +2292,7 @@ export async function executeEndpoint(
     //   1. Server fetch (fast — works for Twitter, simple APIs)
     //   2. Trigger-and-intercept (navigate to page, let site's JS make the call)
     //   3. Browser in-page fetch (last resort)
-    let strategy: "server" | "trigger-intercept" | "browser" | "warm-tab" | undefined;
+    let strategy: "server" | "trigger-intercept" | "browser" | undefined;
 
     // Endpoint-level learned strategy (strong signal — proven for this specific endpoint).
     // Domain-level prediction is only used as a tiebreaker, never to skip server-fetch entirely,
@@ -2415,29 +2371,6 @@ export async function executeEndpoint(
         strategy = "browser";
         workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
       }
-    } else if (endpointStrategy === "warm-tab") {
-      // Proven: this endpoint needs the site's runtime context. Execute via
-      // window.fetch() inside a persistent authenticated tab so the call
-      // inherits runtime-computed tokens (transaction IDs, HMAC signatures,
-      // fetch-level interceptors) that serverFetch cannot replicate.
-      log("exec", `using learned strategy warm-tab for ${endpoint.endpoint_id}`);
-      try {
-        // Warm tab inherits cookies from injection + any site-level header
-        // interceptors that run on window.fetch. We only forward content-type
-        // and the endpoint's own template headers — the site adds the rest.
-        const wtHeaders: Record<string, string> = {
-          ...(endpoint.headers_template ?? {}),
-          ...(body != null ? { "content-type": "application/json" } : {}),
-        };
-        result = await executeInWarmTab(url, endpoint.method, wtHeaders, body, cookies);
-        strategy = "warm-tab";
-        workflowChosenStrategy = "warm-tab";
-      } catch (err) {
-        log("exec", `warm-tab failed: ${err instanceof Error ? err.message : err} — falling back to server`);
-        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-        strategy = "server";
-        workflowChosenStrategy = "server";
-      }
     } else {
       // No endpoint-level strategy — always try server-fetch first (fastest path).
       // Fall back to trigger-intercept or browser if server returns 4xx.
@@ -2456,26 +2389,7 @@ export async function executeEndpoint(
           }
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
-          // Warm-tab first: faster than trigger-intercept and inherits the
-          // site's runtime context (fetch interceptors, transaction id signers).
-          // Falls through to trigger-intercept if warm-tab also 4xx's.
-          let warmTabTried = false;
-          try {
-            const wtHeaders: Record<string, string> = {
-              ...(endpoint.headers_template ?? {}),
-              ...(body != null ? { "content-type": "application/json" } : {}),
-            };
-            const warmResult = await executeInWarmTab(url, endpoint.method, wtHeaders, body, cookies);
-            warmTabTried = true;
-            if (warmResult.status >= 200 && warmResult.status < 400) {
-              result = warmResult;
-              strategy = "warm-tab";
-              workflowChosenStrategy = "warm-tab";
-            }
-          } catch (err) {
-            log("exec", `warm-tab fallback failed: ${err instanceof Error ? err.message : err}`);
-          }
-          if (strategy !== "warm-tab" && endpoint.trigger_url && isSafe) {
+          if (endpoint.trigger_url && isSafe) {
             let triggerUrl = endpoint.trigger_url;
             if (Object.keys(mergedParams).length > 0) {
               try {
@@ -2489,7 +2403,7 @@ export async function executeEndpoint(
             result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
             strategy = "trigger-intercept";
             workflowChosenStrategy = "trigger-intercept";
-          } else if (strategy !== "warm-tab") {
+          } else {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
             strategy = "browser";
             workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
@@ -2568,13 +2482,6 @@ export async function executeEndpoint(
   // Chain: authRuntime.refreshSession (lightweight) → refreshAuthFromBrowser (re-extract)
   //        → authRuntime.loginIfNeeded (full interactive login)
   if (status === 401 || status === 403) {
-    // Token cache invalidation: the next serverFetch retry will re-scrape
-    // the trigger URL for fresh auth_tokens values. Costs nothing when the
-    // endpoint has no auth_tokens bindings.
-    if (endpoint.trigger_url) {
-      invalidateTokenCache(endpoint.trigger_url);
-      try { evictWarmTab(new URL(endpoint.trigger_url).origin); } catch { /* skip */ }
-    }
     let authRecovered = false;
     try {
       // 1. Lightweight session refresh via authRuntime
