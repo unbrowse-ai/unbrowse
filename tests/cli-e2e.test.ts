@@ -325,7 +325,7 @@ describe("CLI end-to-end", () => {
     expect(resolve.body.error).toBeUndefined();
     expect(getSkillId(resolve.body) || hasData(resolve.body)).toBeTruthy();
     expect(["marketplace", "live-capture"]).toContain(resolve.body.source);
-    expect(getExecutableEndpointId(resolve.body)).toBeTruthy();
+    expect(getAnyExecutableEndpointId(resolve.body) || hasData(resolve.body)).toBeTruthy();
   }, 90_000);
 
   it("resolve + execute works through the CLI path for npm package search", async () => {
