@@ -1179,11 +1179,9 @@ export async function registerRoutes(app: FastifyInstance) {
 
   async function restartBrowseCapture(session: BrowseSession): Promise<void> {
     const broker = brokerForSession(session);
-    const load = await broker.waitForLoad(session.tabId, 2_000).catch(() => null);
-    if (load && load.status === "timeout") {
-      session.harActive = false;
-      return;
-    }
+    // Start HAR + interceptor regardless of page load state — the page will load
+    // and HAR records all traffic from the moment it starts.
+    await broker.waitForLoad(session.tabId, 2_000).catch(() => null);
     await broker.networkEnable(session.tabId).catch(() => {});
     await broker.harStart(session.tabId).catch(() => {});
     await broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
