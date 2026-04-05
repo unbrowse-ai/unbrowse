@@ -76,12 +76,7 @@ jobs:
               fi
               ;;
             lewis/experiments)
-              API_URL="${EXPERIMENTS_API_URL_VAR:-${EXPERIMENTS_API_URL_SECRET:-}}"
-              if [ -z "$API_URL" ]; then
-                echo "::notice::Skipping experiments frontend deploy; missing EXPERIMENTS_API_URL repo variable or secret."
-                echo "skip_frontend=1" >> "$GITHUB_OUTPUT"
-                exit 0
-              fi
+              API_URL="https://beta-api.unbrowse.ai"
               ;;
             *)
               API_URL="https://beta-api.unbrowse.ai"
@@ -98,8 +93,8 @@ jobs:
               OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env staging
               ;;
             lewis/experiments)
-              ./node_modules/.bin/opennextjs-cloudflare build
-              OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy
+              CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare build
+              OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env experiments
               ;;
             *)
               bun run deploy:ci

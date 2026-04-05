@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { readFileSync } from "node:fs";
+import { log } from "../logger.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
 import { enrichEndpointsWithTokenSources } from "../reverse-engineer/token-sources.js";
 import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
@@ -196,6 +197,7 @@ export async function cacheBrowseRequests(params: {
     if (!existingSkill || mergedEndpoints.length >= existingSkill.endpoints.length) {
       for (const endpoint of mergedEndpoints) {
         if (!endpoint.description) endpoint.description = generateLocalDescription(endpoint);
+        if (!endpoint.semantic) endpoint.semantic = inferEndpointSemantic(endpoint);
       }
       const quickSkill: SkillManifest = {
         skill_id: existingSkill?.skill_id ?? nanoid(),
@@ -221,9 +223,11 @@ export async function cacheBrowseRequests(params: {
       try {
         const html = getPageHtml ? await getPageHtml() : undefined;
         if (html && html.startsWith("<")) {
-          enrichEndpointsWithTokenSources(quickSkill.endpoints, requests, html, jsBundles);
+          const preCheck = requests.filter(r => r.request_headers["authorization"] || r.request_headers["x-csrf-token"]).length;
+          const enriched = enrichEndpointsWithTokenSources(quickSkill.endpoints, requests, html, jsBundles);
+          log("browse-index", `token enrichment: ${enriched} bindings, ${preCheck} auth-reqs pre-call, ${quickSkill.endpoints.length} eps`);
         }
-      } catch { /* best-effort */ }
+      } catch (e) { log("browse-index", `token enrichment failed: ${e}`); }
 
       const cacheKey = buildResolveCacheKey(domain, intent, sessionUrl);
       const scopedKey = scopedCacheKey("global", cacheKey);

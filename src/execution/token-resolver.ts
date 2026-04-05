@@ -34,10 +34,8 @@ export async function resolveAuthTokens(
   const triggerUrl = endpoint.trigger_url;
   if (!triggerUrl) return {};
 
-  // Only resolve header bindings that aren't already satisfied
-  const headerBindings = bindings.filter(
-    (b) => b.param_location === "header" && !existingAuthHeaders[b.param_name],
-  );
+  // Resolve ALL header bindings — DAG sources are authoritative over vault cache
+  const headerBindings = bindings.filter((b) => b.param_location === "header");
   if (headerBindings.length === 0) return {};
 
   const resolved: Record<string, string> = {};
@@ -56,7 +54,7 @@ export async function resolveAuthTokens(
       }
 
       for (const binding of headerBindings) {
-        const value = resolveBinding(binding, html);
+        const value = await resolveBinding(binding, html, cookies);
         if (value) {
           resolved[binding.param_name] = binding.param_name.toLowerCase() === "authorization"
             ? (value.startsWith("Bearer ") ? value : `Bearer ${value}`)
@@ -73,21 +71,36 @@ export async function resolveAuthTokens(
   return resolved;
 }
 
-function resolveBinding(binding: AuthTokenBinding, html: string): string | undefined {
+async function resolveBinding(
+  binding: AuthTokenBinding,
+  html: string,
+  cookies: Array<{ name: string; value: string; domain: string }>,
+): Promise<string | undefined> {
   for (const source of binding.sources) {
     let value: string | undefined;
 
-    if (source.kind === "html-meta" || source.kind === "html-inline-script") {
+    if (source.kind === "cookie" && source.cookie_names?.length) {
+      // Resolve from cookies — CSRF tokens typically live here
+      for (const name of source.cookie_names) {
+        const cookie = cookies.find((c) => c.name === name);
+        if (cookie?.value) { value = cookie.value; break; }
+      }
+    } else if (source.kind === "html-meta" || source.kind === "html-inline-script") {
       value = extractTokenFromHtml(source, html);
+    } else if (source.kind === "js-bundle" && source.bundle_url_pattern) {
+      try {
+        const resp = await fetch(source.bundle_url_pattern);
+        if (resp.ok) {
+          const body = await resp.text();
+          value = extractTokenFromBundle(source, body);
+        }
+      } catch { /* fetch failed — try next source */ }
     }
-    // JS bundle resolution would require fetching the bundle URL —
-    // skip for now, HTML sources cover most cases (CSRF, inline tokens)
 
     if (value && value.length >= 8) return value;
   }
   return undefined;
 }
-
 async function openResolverTab(
   url: string,
   cookies: Array<{ name: string; value: string; domain: string }>,
