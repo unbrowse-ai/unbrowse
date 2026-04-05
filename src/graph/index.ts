@@ -936,9 +936,12 @@ export function inferEndpointSemantic(
     confidence: fields.length > 0 ? 0.8 : 0.4,
     observed_at: opts?.observedAt,
     sample_request_url: opts?.sampleRequestUrl,
+    auth_required: !!(
+      endpoint.auth_tokens?.length ||
+      Object.keys(endpoint.headers_template ?? {}).some((h) => /auth|csrf|token|bearer/i.test(h))
+    ),
   };
 }
-
 export function resolveEndpointSemantic(
   endpoint: EndpointDescriptor,
   opts?: {
