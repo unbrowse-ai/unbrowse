@@ -84,6 +84,8 @@ jobs:
   package-cli:
     name: Package CLI
     runs-on: self-hosted
+    env:
+      UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
