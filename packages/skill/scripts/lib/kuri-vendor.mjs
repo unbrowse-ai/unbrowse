@@ -8,11 +8,11 @@ export const upstreamRepoUrl = "https://github.com/justrach/kuri.git";
 export const upstreamBranch = "adding-extensions";
 
 export const supportedTargets = [
-  { id: "darwin-arm64", zigTarget: "aarch64-macos" },
-  { id: "darwin-x64", zigTarget: "x86_64-macos" },
-  { id: "linux-arm64", zigTarget: "aarch64-linux" },
-  { id: "linux-x64", zigTarget: "x86_64-linux" },
-  { id: "win-x64", zigTarget: "x86_64-windows" },
+  { id: "darwin-arm64", zigTarget: "aarch64-macos", bin: "kuri" },
+  { id: "darwin-x64", zigTarget: "x86_64-macos", bin: "kuri" },
+  { id: "linux-arm64", zigTarget: "aarch64-linux", bin: "kuri" },
+  { id: "linux-x64", zigTarget: "x86_64-linux", bin: "kuri" },
+  { id: "win-x64", zigTarget: "x86_64-windows", bin: "kuri.exe" },
 ];
 
 export function monorepoKuriDir(repoRoot) {
@@ -44,7 +44,7 @@ export function detectBrokenMonorepoKuri(packageRoot, repoRoot, env = process.en
 }
 
 export function hasVendoredBinaries(vendorRoot) {
-  return supportedTargets.every((target) => existsSync(path.join(vendorRoot, target.id, binaryName)));
+  return supportedTargets.every((target) => existsSync(path.join(vendorRoot, target.id, target.bin)));
 }
 
 export function readVendorManifest(vendorRoot) {

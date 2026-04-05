@@ -12,7 +12,6 @@ import {
   supportedTargets,
   upstreamBranch,
   upstreamRepoUrl,
-  binaryName,
 } from "./lib/kuri-vendor.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +44,7 @@ if (manifest.branch !== upstreamBranch) {
 }
 
 for (const target of supportedTargets) {
-  const outFile = path.join(vendorRoot, target.id, binaryName);
+  const outFile = path.join(vendorRoot, target.id, target.bin);
   const expectedHash = manifest.binaries?.[target.id]?.sha256;
   if (!expectedHash) {
     fail(`manifest missing sha256 for ${target.id}`);
