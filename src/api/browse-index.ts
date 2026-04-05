@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { readFileSync } from "node:fs";
 import { extractEndpoints } from "../reverse-engineer/index.js";
+import { enrichEndpointsWithTokenSources } from "../reverse-engineer/token-sources.js";
 import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
 import { validateExtractionQuality } from "../execution/index.js";
 import { assessIntentResult } from "../intent-match.js";
@@ -183,6 +184,19 @@ export async function cacheBrowseRequests(params: {
       for (const endpoint of mergedEndpoints) {
         if (!endpoint.description) endpoint.description = generateLocalDescription(endpoint);
       }
+
+      // Token source discovery: scan live HTML for tokens used in captured
+      // request headers and attach AuthTokenBinding entries so serverFetch
+      // can rescrape on replay. Runs best-effort (getPageHtml may be missing).
+      try {
+        const html = getPageHtml ? await getPageHtml() : undefined;
+        if (html && html.startsWith("<")) {
+          const enriched = enrichEndpointsWithTokenSources(mergedEndpoints, requests, html, undefined);
+          if (enriched > 0) {
+            // (void log — logger not imported here; keep silent)
+          }
+        }
+      } catch { /* best-effort */ }
 
       const quickSkill: SkillManifest = {
         skill_id: existingSkill?.skill_id ?? nanoid(),
