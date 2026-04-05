@@ -1,0 +1,118 @@
+name: Test Windows E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/windows-support]
+
+permissions:
+  contents: read
+
+jobs:
+  test-windows:
+    name: Windows E2E
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+
+      - name: Check Chrome is available
+        shell: pwsh
+        run: |
+          $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+          if (Test-Path $chromePath) {
+            Write-Host "Chrome found: $chromePath"
+            & $chromePath --version
+          } else {
+            Write-Host "Chrome not at default path, searching..."
+            Get-ChildItem "C:\Program Files*\Google\Chrome\Application\chrome.exe" -ErrorAction SilentlyContinue
+          }
+
+      - name: Test kuri.exe health
+        shell: pwsh
+        run: |
+          $kuriExe = "packages\skill\vendor\kuri\win-x64\kuri.exe"
+          if (-not (Test-Path $kuriExe)) { Write-Error "kuri.exe not found"; exit 1 }
+          $env:HEADLESS = "true"
+          $proc = Start-Process -FilePath $kuriExe -PassThru -NoNewWindow
+          Start-Sleep -Seconds 5
+          try {
+            $health = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -TimeoutSec 10
+            Write-Host "Kuri health: $($health | ConvertTo-Json -Compress)"
+            if ($health.ok -ne $true) { throw "Kuri not ok" }
+            Write-Host "PASS: kuri.exe health"
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build unbrowse.exe
+        shell: pwsh
+        run: |
+          bun build src/single-binary.ts --compile --minify --target=bun-windows-x64 --outfile dist\unbrowse.exe
+          Write-Host "Built: $((Get-Item dist\unbrowse.exe).Length / 1MB) MB"
+
+      - name: Test unbrowse health
+        shell: pwsh
+        run: |
+          $env:HEADLESS = "true"
+          $result = & dist\unbrowse.exe health 2>&1 | Out-String
+          Write-Host $result
+          if ($result -match '"status":"ok"') { Write-Host "PASS: unbrowse health" }
+          else { Write-Host "WARN: health output unexpected"; exit 1 }
+
+      - name: Test browser workflow (go + snap + close)
+        shell: pwsh
+        run: |
+          $env:HEADLESS = "true"
+
+          Write-Host "=== GO ==="
+          $go = & dist\unbrowse.exe go "https://example.com" 2>&1 | Out-String
+          Write-Host $go
+
+          Start-Sleep -Seconds 3
+
+          Write-Host "=== SNAP ==="
+          $snap = & dist\unbrowse.exe snap 2>&1 | Out-String
+          Write-Host $snap
+
+          Write-Host "=== CLOSE ==="
+          $close = & dist\unbrowse.exe close 2>&1 | Out-String
+          Write-Host $close
+
+          if ($go -match '"ok":true') { Write-Host "PASS: browser workflow" }
+          else { Write-Host "FAIL: browser go"; exit 1 }
+
+      - name: Test resolve (marketplace)
+        shell: pwsh
+        run: |
+          $env:HEADLESS = "true"
+          & dist\unbrowse.exe resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty 2>&1
+
+      - name: Test install.ps1 syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.PSParser]::Tokenize((Get-Content install.ps1 -Raw), [ref]$errors)
+          if ($errors.Count -gt 0) { Write-Error "Syntax errors: $errors"; exit 1 }
+          Write-Host "PASS: install.ps1 syntax"
+
+      - name: Test OpenClaw plugin install
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          npm install -g openclaw 2>&1 | Select-Object -Last 3
+          openclaw --version 2>&1
+          npx unbrowse-openclaw install 2>&1 | Select-Object -Last 15
