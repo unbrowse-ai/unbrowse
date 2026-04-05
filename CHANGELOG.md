@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.1.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.0.4...v3.1.0) (2026-04-05)
+
+### Features
+
+* close x402 payment loop — auto-pay via lobster, ledger, wallet nudge ([3140a25](https://github.com/unbrowse-ai/unbrowse-dev/commit/3140a2574f131f8fb68833b376b76bfd31399955))
+* make OpenClaw the primary install method across all touchpoints ([47296b4](https://github.com/unbrowse-ai/unbrowse-dev/commit/47296b47ea3545c66b44c38a6325542a6dc9b5eb))
+* redesign hero CTA with tabbed install paths, OpenClaw primary ([27394c6](https://github.com/unbrowse-ai/unbrowse-dev/commit/27394c6041a8d4a6f0372226d20114120a8c828d))
+* Windows support — installer, binary, website, vendored kuri.exe ([df83f5c](https://github.com/unbrowse-ai/unbrowse-dev/commit/df83f5c52eef5c8a2c6d145afd54eb26921e1414))
+
+### Bug Fixes
+
+* auto-detect headless mode on Linux when no $DISPLAY is set ([47795eb](https://github.com/unbrowse-ai/unbrowse-dev/commit/47795eb611da9fe0494f4b73a2e537350ce23326)), closes [justrach/kuri#128](https://github.com/justrach/kuri/issues/128)
+* enable x402 payments — set default base_price and use dynamic pricing ([4666da7](https://github.com/unbrowse-ai/unbrowse-dev/commit/4666da7b76eff1a9eb3f0fcfb1dff59e6d910725))
+* pass signing secret to package-cli job and harden PyPI e2e test ([450bb52](https://github.com/unbrowse-ai/unbrowse-dev/commit/450bb52ad7e3597667a2aa156586ee49cf91559b))
+* point kuri submodule at lekt9 fork for CI access ([6ab51ef](https://github.com/unbrowse-ai/unbrowse-dev/commit/6ab51ef3bf4beff9e999ef570e966ac17ec1628a))
+* remove duplicate installNpm declaration and stale hero-cta tail ([8cdaa13](https://github.com/unbrowse-ai/unbrowse-dev/commit/8cdaa13b995d11508cfaec5cf292d96c05f059a7))
+* restore missing imports and constants in page.tsx ([a89b76f](https://github.com/unbrowse-ai/unbrowse-dev/commit/a89b76fe590a018ee8aa8951f3c07463d3e04579))
+* restore try/catch in x402 payment gate ([a5d2832](https://github.com/unbrowse-ai/unbrowse-dev/commit/a5d2832ab49be66aa48077c73d1f63e90cb72f1c))
+* update landing page default path callout and FAQ to lead with OpenClaw ([e766808](https://github.com/unbrowse-ai/unbrowse-dev/commit/e7668081b006a527c0ec1449255f5866ce0946d2))
+* use per-target binary names for Windows kuri.exe vendor support ([15dabfa](https://github.com/unbrowse-ai/unbrowse-dev/commit/15dabfaf705ffd0bb2f855037e0bf6314e7434ff))
+
 ## [3.0.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.0.1...v3.0.2) (2026-04-04)
 
 ### Features
