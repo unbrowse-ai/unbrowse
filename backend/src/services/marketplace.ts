@@ -216,6 +216,7 @@ export async function publishSkill(
       })),
       created_at: now,
       updated_at: now,
+      base_price_usd: draft.base_price_usd ?? 0.001,
     } as SkillManifest;
   }
 
