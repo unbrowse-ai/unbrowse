@@ -5,10 +5,19 @@ Read when: first local install, first CLI run, or CI/headless setup.
 ## Install
 
 ```bash
+# Recommended: make Unbrowse your agent's native browser
+npx unbrowse-openclaw install --restart
+```
+
+Every `page.goto()` routes through Unbrowse automatically — no code changes needed. The package pulls in the local runtime.
+
+Alternative standalone CLI install:
+
+```bash
 curl -fsSL https://unbrowse.ai/install.sh | sh
 ```
 
-That is the primary install path. The installer now follows the Kuri pattern: detect platform, download the matching release tarball, install `unbrowse` into `~/.local/bin`, then run `unbrowse setup`.
+The CLI installer detects platform, downloads the matching release tarball, installs `unbrowse` into `~/.local/bin`, then runs `unbrowse setup`.
 
 Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The repo-level agent contract lives in [SKILL.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/SKILL.md).
 
