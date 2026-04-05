@@ -154,9 +154,10 @@ export async function cacheBrowseRequests(params: {
   sessionDomain: string;
   requests: RawRequest[];
   getPageHtml?: () => Promise<string>;
+  jsBundles?: Map<string, string>;
   intent?: string;
 }): Promise<BrowseIndexResult> {
-  const { sessionUrl, sessionDomain, requests, getPageHtml } = params;
+  const { sessionUrl, sessionDomain, requests, getPageHtml, jsBundles } = params;
   let domain: string;
   try { domain = new URL(sessionUrl).hostname; } catch { domain = sessionDomain; }
   const intent = params.intent ?? `browse ${domain}`;
@@ -220,7 +221,7 @@ export async function cacheBrowseRequests(params: {
       try {
         const html = getPageHtml ? await getPageHtml() : undefined;
         if (html && html.startsWith("<")) {
-          enrichEndpointsWithTokenSources(quickSkill.endpoints, requests, html, undefined);
+          enrichEndpointsWithTokenSources(quickSkill.endpoints, requests, html, jsBundles);
         }
       } catch { /* best-effort */ }
 

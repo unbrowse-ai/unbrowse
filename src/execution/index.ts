@@ -2017,6 +2017,16 @@ export async function executeEndpoint(
   const epDomain = (() => { try { return new URL(endpoint.url_template).hostname; } catch { return skill.domain; } })();
   await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
 
+  // If endpoint has auth_tokens bindings and vault didn't provide the needed headers,
+  // resolve them from the page source (meta tags, inline scripts, JS bundles)
+  if (endpoint.auth_tokens?.length && Object.keys(authHeaders).length === 0) {
+    try {
+      const { resolveAuthTokens } = await import("./token-resolver.js");
+      const resolved = await resolveAuthTokens(endpoint, cookies, authHeaders);
+      Object.assign(authHeaders, resolved);
+    } catch { /* token resolution is best-effort */ }
+  }
+
   log("exec", `endpoint ${endpoint.endpoint_id}: cookies=${cookies.length} authHeaders=${Object.keys(authHeaders).length} hasAuth=${cookies.length > 0 || Object.keys(authHeaders).length > 0}`);
 
   // BUG-006: Merge path_params defaults — user params override captured defaults

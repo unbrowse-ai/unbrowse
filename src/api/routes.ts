@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
-import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor } from "../capture/index.js";
+import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -1235,11 +1235,24 @@ export async function registerRoutes(app: FastifyInstance) {
       harEntries,
       intent: `browse ${session.domain || profileName(session.url)}`,
     });
+
+    // Collect JS bundle bodies for token source scanning (interceptor captures JS before merge filters them)
+    const jsBundles = new Map<string, string>();
+    try {
+      const intercepted = await collectInterceptedRequests(session.tabId).catch(() => []);
+      for (const entry of intercepted) {
+        if (entry.is_js && entry.response_body && jsBundles.size < 20) {
+          jsBundles.set(entry.url, entry.response_body);
+        }
+      }
+    } catch { /* best-effort */ }
+
     const syncResult = await cacheBrowseRequests({
       sessionUrl: session.url,
       sessionDomain: session.domain,
       requests: allRequests,
       getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
+      jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
       intent: `browse ${session.domain || profileName(session.url)}`,
     });
 
