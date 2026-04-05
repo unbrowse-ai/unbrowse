@@ -13,10 +13,15 @@ import {
   detectTelemetryHostType,
   ensureCliInstallTracked,
   ensureRegistered,
+  getAgentId,
   getApiKey,
+  getCreatorEarnings,
+  getMyProfile,
+  getTransactionHistory,
   recordFunnelTelemetryEvent,
   recordInstallTelemetryEvent,
 } from "./client/index.js";
+import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
 import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
 import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
@@ -185,6 +190,14 @@ function formatSavedDuration(ms: number): string {
   return `${ms}ms`;
 }
 
+function formatCostUsd(uc: number): string {
+  // uc = micro-USD (1e-6 USD). 1M uc = $1.
+  const usd = uc / 1_000_000;
+  if (usd >= 1) return `$${usd.toFixed(2)}`;
+  if (usd >= 0.01) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(4)}`;
+}
+
 function emitImpactSummary(result: Record<string, unknown>): void {
   const impact = result.impact as Record<string, unknown> | undefined;
   if (!impact) return;
@@ -193,12 +206,14 @@ function emitImpactSummary(result: Record<string, unknown>): void {
   const tokensSaved = typeof impact.tokens_saved === "number" ? impact.tokens_saved : 0;
   const timeSavedPct = typeof impact.time_saved_pct === "number" ? impact.time_saved_pct : 0;
   const tokensSavedPct = typeof impact.tokens_saved_pct === "number" ? impact.tokens_saved_pct : 0;
+  const costSavedUc = typeof impact.cost_saved_uc === "number" ? impact.cost_saved_uc : 0;
   const browserAvoided = impact.browser_avoided === true;
-  if (timeSavedMs <= 0 && tokensSaved <= 0 && !browserAvoided) return;
+  if (timeSavedMs <= 0 && tokensSaved <= 0 && costSavedUc <= 0 && !browserAvoided) return;
 
   const parts: string[] = [];
   if (timeSavedMs > 0) parts.push(`${formatSavedDuration(timeSavedMs)} saved (${timeSavedPct}% faster)`);
   if (tokensSaved > 0) parts.push(`${tokensSaved.toLocaleString("en-US")} tokens saved (${tokensSavedPct}% less context)`);
+  if (costSavedUc > 0) parts.push(`${formatCostUsd(costSavedUc)} saved`);
   if (browserAvoided) parts.push("browser avoided");
   info(parts.join(" • "));
 }
@@ -371,6 +386,10 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
     result = slimTrace(result);
     emitImpactSummary(result);
+    {
+      const entry = impactFromResult("resolve", result, { intent, domain, });
+      if (entry) appendImpact(entry);
+    }
     emitNextActionSummary(result);
 
     const skill = result.skill as Record<string, unknown> | undefined;
@@ -562,6 +581,13 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     // Strip metadata bloat
     result = slimTrace(result);
     emitImpactSummary(result);
+    {
+      const entry = impactFromResult("execute", result, {
+        skill_id: skillId,
+        endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : undefined,
+      });
+      if (entry) appendImpact(entry);
+    }
     emitNextActionSummary(result);
 
     const pathFlag = flags.path as string | undefined;
@@ -939,6 +965,7 @@ export const CLI_REFERENCE = {
     { name: "forward", usage: "[--session id]", desc: "Navigate forward" },
     { name: "sync", usage: "[--session id]", desc: "Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review" },
     { name: "close", usage: "[--session id]", desc: "Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review" },
+    { name: "stats", usage: "[--json] [--pretty]", desc: "Show lifetime time/tokens/cost saved and marketplace earnings/spending" },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -979,6 +1006,139 @@ export const CLI_REFERENCE = {
     'unbrowse publish --skill abc --endpoints \'[{"endpoint_id":"def","description":"Search court judgments by keywords","action_kind":"search","resource_kind":"judgment"}]\'',
   ],
 };
+
+
+// ---------------------------------------------------------------------------
+// stats — show lifetime impact (savings + earnings) for the current agent
+// ---------------------------------------------------------------------------
+
+function formatTotalDuration(ms: number): string {
+  if (ms >= 3_600_000) return `${(ms / 3_600_000).toFixed(1)}h`;
+  if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${ms}ms`;
+}
+
+async function cmdStats(flags: Record<string, string | boolean>): Promise<void> {
+  const pretty = !!flags.pretty;
+  const jsonOnly = !!flags.json;
+  const local = readImpactSummary();
+  const agentId = getAgentId();
+
+  type EarningsLedger = { total_earned_uc: number; total_earned_usd: number; transaction_count: number; last_transaction_at?: string } | null;
+  type SpendingLedger = { total_spent_uc: number; total_spent_usd: number; transaction_count: number; last_transaction_at?: string } | null;
+
+  let profile: Awaited<ReturnType<typeof getMyProfile>> | null = null;
+  let earnings: { ledger: EarningsLedger; transactions: unknown[] } | null = null;
+  let spending: { ledger: SpendingLedger; transactions: unknown[] } | null = null;
+  const remoteErrors: Record<string, string> = {};
+
+  if (agentId) {
+    const results = await Promise.allSettled([
+      getMyProfile(),
+      getCreatorEarnings(agentId),
+      getTransactionHistory(agentId),
+    ]);
+    if (results[0].status === "fulfilled") profile = results[0].value;
+    else remoteErrors.profile = (results[0].reason as Error)?.message ?? String(results[0].reason);
+    if (results[1].status === "fulfilled") earnings = results[1].value as { ledger: EarningsLedger; transactions: unknown[] };
+    else remoteErrors.earnings = (results[1].reason as Error)?.message ?? String(results[1].reason);
+    if (results[2].status === "fulfilled") spending = results[2].value as { ledger: SpendingLedger; transactions: unknown[] };
+    else remoteErrors.spending = (results[2].reason as Error)?.message ?? String(results[2].reason);
+  } else {
+    remoteErrors.profile = "No agent_id in local config. Run `unbrowse setup` to register.";
+  }
+
+  const earnedUsd = earnings?.ledger?.total_earned_usd ?? 0;
+  const spentUsd = spending?.ledger?.total_spent_usd ?? 0;
+  const netUsd = earnedUsd - spentUsd;
+  const savedUsd = local.total_cost_saved_uc / 1_000_000;
+
+  const payload = {
+    agent_id: agentId,
+    profile,
+    impact: {
+      total_runs: local.total_runs,
+      successful_runs: local.successful_runs,
+      browser_avoided_runs: local.browser_avoided_runs,
+      total_time_saved_ms: local.total_time_saved_ms,
+      total_time_saved_human: formatTotalDuration(local.total_time_saved_ms),
+      total_tokens_saved: local.total_tokens_saved,
+      total_cost_saved_usd: Number(savedUsd.toFixed(6)),
+      avg_time_saved_pct: local.avg_time_saved_pct,
+      avg_tokens_saved_pct: local.avg_tokens_saved_pct,
+      by_source: local.by_source,
+      first_entry_at: local.first_entry_at,
+      last_entry_at: local.last_entry_at,
+      log_path: getImpactLogPath(),
+    },
+    earnings: {
+      total_earned_usd: earnedUsd,
+      total_earned_uc: earnings?.ledger?.total_earned_uc ?? 0,
+      transaction_count: earnings?.ledger?.transaction_count ?? 0,
+      last_transaction_at: earnings?.ledger?.last_transaction_at ?? null,
+    },
+    spending: {
+      total_spent_usd: spentUsd,
+      total_spent_uc: spending?.ledger?.total_spent_uc ?? 0,
+      transaction_count: spending?.ledger?.transaction_count ?? 0,
+      last_transaction_at: spending?.ledger?.last_transaction_at ?? null,
+    },
+    net_usd: netUsd,
+    ...(Object.keys(remoteErrors).length > 0 ? { remote_errors: remoteErrors } : {}),
+  };
+
+  if (jsonOnly) {
+    output(payload, pretty);
+    return;
+  }
+
+  // Human-readable view (to stderr like other info) + JSON to stdout for piping.
+  const lines: string[] = [];
+  lines.push("Unbrowse stats");
+  lines.push(`  agent_id: ${agentId ?? "(not registered — run `unbrowse setup`)"}`);
+  if (profile?.name) lines.push(`  name: ${profile.name}`);
+  lines.push("");
+  lines.push("Impact (local, this machine):");
+  if (local.total_runs === 0) {
+    lines.push("  No resolve/execute runs recorded yet.");
+    lines.push(`  Log file: ${getImpactLogPath()}`);
+  } else {
+    lines.push(`  Runs: ${local.total_runs} (${local.successful_runs} successful, ${local.browser_avoided_runs} browser-avoided)`);
+    if (local.total_time_saved_ms > 0) {
+      lines.push(`  Time saved: ${formatTotalDuration(local.total_time_saved_ms)} (avg ${local.avg_time_saved_pct}% faster)`);
+    }
+    if (local.total_tokens_saved > 0) {
+      lines.push(`  Tokens saved: ${local.total_tokens_saved.toLocaleString("en-US")} (avg ${local.avg_tokens_saved_pct}% less context)`);
+    }
+    if (savedUsd > 0) {
+      lines.push(`  Cost saved: ${formatCostUsd(local.total_cost_saved_uc)}`);
+    }
+    if (Object.keys(local.by_source).length > 0) {
+      const topSources = Object.entries(local.by_source)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(", ");
+      lines.push(`  By source: ${topSources}`);
+    }
+  }
+  lines.push("");
+  lines.push("Money (backend ledger):");
+  if (!agentId) {
+    lines.push("  (not registered — earnings/spending unavailable)");
+  } else if (remoteErrors.earnings || remoteErrors.spending) {
+    if (remoteErrors.earnings) lines.push(`  earnings: error — ${remoteErrors.earnings}`);
+    if (remoteErrors.spending) lines.push(`  spending: error — ${remoteErrors.spending}`);
+  } else {
+    lines.push(`  Earned:  $${earnedUsd.toFixed(4)} (${earnings?.ledger?.transaction_count ?? 0} payouts)`);
+    lines.push(`  Spent:   $${spentUsd.toFixed(4)} (${spending?.ledger?.transaction_count ?? 0} payments)`);
+    lines.push(`  Net:     ${netUsd >= 0 ? "+" : ""}$${netUsd.toFixed(4)}`);
+  }
+  lines.push("");
+  info(lines.join("\n"));
+  output(payload, pretty);
+}
 
 function printHelp(): void {
   const r = CLI_REFERENCE;
@@ -1489,6 +1649,7 @@ async function main(): Promise<void> {
   if (command === "restart") return cmdRestart(flags);
   if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
   if (command === "connect-chrome") return cmdConnectChrome();
+  if (command === "stats") return cmdStats(flags);
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
@@ -1497,7 +1658,7 @@ async function main(): Promise<void> {
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
-    "connect-chrome",
+    "connect-chrome", "stats",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -1559,6 +1720,7 @@ async function main(): Promise<void> {
     case "sync": return cmdSync(flags);
     case "close": return cmdClose(flags);
     case "connect-chrome": return cmdConnectChrome();
+    case "stats": return cmdStats(flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
