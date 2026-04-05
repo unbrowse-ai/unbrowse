@@ -109,9 +109,9 @@ describe("graph filter mechanism", () => {
     const meta = getEndpointDescriptionMetadata({ ...endpoint, semantic });
 
     expect(meta.source).toBe("auto");
-    expect(meta.needs_review).toBe(true);
+    expect(meta.needs_review).toBe(false); // schema-grounded auto descriptions pass review
     expect(meta.display).not.toContain("Captured search form artifact");
-    expect(meta.warning).toContain("captured page artifact");
+    expect(meta.warning).toBeUndefined(); // schema-grounded: no warning
   });
 
   it("treats local DOM fallback descriptions as auto-generated", () => {
@@ -144,7 +144,7 @@ describe("graph filter mechanism", () => {
     expect(semantic.description_source).toBe("auto");
     expect(semantic.description_needs_review).toBe(true);
     expect(meta.source).toBe("auto");
-    expect(meta.needs_review).toBe(true);
+    expect(meta.needs_review).toBe(false); // schema-grounded auto descriptions pass review
     expect(meta.display).not.toBe("Search form for www.linkedin.com");
   });
 

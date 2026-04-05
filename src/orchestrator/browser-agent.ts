@@ -15,9 +15,9 @@ import { extractBrowserCookies } from "../auth/browser-cookies.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
-import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import { generateLocalDescription } from "./index.js";
 import { nanoid } from "nanoid";
 import type { EndpointDescriptor, SkillManifest } from "../types/index.js";
@@ -311,7 +311,7 @@ export async function agenticBrowserResolve(
     // Auth extraction + vault storage
     const capturedAuthHeaders = extractAuthHeaders(allRequests);
     if (Object.keys(capturedAuthHeaders).length > 0) {
-      await storeCredential(`${domain}-session`, JSON.stringify({ headers: capturedAuthHeaders })).catch(() => {});
+      await storeCredential(`${getRegistrableDomain(domain)}-session`, JSON.stringify({ headers: capturedAuthHeaders })).catch(() => {});
     }
 
     // Merge with existing skill

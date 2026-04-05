@@ -82,11 +82,19 @@ export function mergeEndpoints(
       dom_extraction: ep.dom_extraction ?? dupe.dom_extraction,
       semantic: ep.semantic ?? dupe.semantic,
       response_schema: ep.response_schema ?? dupe.response_schema,
-      headers_template: ep.headers_template ?? dupe.headers_template,
+      headers_template: Object.keys(ep.headers_template ?? {}).length > 0 ? ep.headers_template : dupe.headers_template,
       query: ep.query ?? dupe.query,
       path_params: ep.path_params ?? dupe.path_params,
       body: ep.body ?? dupe.body,
+      body_params: ep.body_params ?? dupe.body_params,
       trigger_url: ep.trigger_url ?? dupe.trigger_url,
+      csrf_plan: ep.csrf_plan ?? dupe.csrf_plan,
+      oauth_plan: ep.oauth_plan ?? dupe.oauth_plan,
+      search_form: ep.search_form ?? dupe.search_form,
+      policy: ep.policy ?? dupe.policy,
+      graph_visibility: ep.graph_visibility ?? dupe.graph_visibility,
+      corroboration: ep.corroboration ?? dupe.corroboration,
+      auth_tokens: ep.auth_tokens ?? dupe.auth_tokens,
     };
   }
   return merged;

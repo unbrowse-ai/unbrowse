@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
-import { homedir, hostname } from "os";
+import { homedir, hostname, release as osRelease } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
 import type {
@@ -16,6 +16,7 @@ import {
   CODE_HASH,
   DEFAULT_BACKEND_URL,
   GIT_SHA,
+  PACKAGE_VERSION,
   RELEASE_MANIFEST_BASE64,
   RELEASE_MANIFEST_SIGNATURE,
   TRACE_VERSION,
@@ -302,8 +303,19 @@ export async function recordInstallTelemetryEvent(
     skill_version: options?.skillVersion,
     status: options?.status ?? "installed",
     created_at: createdAt,
-    properties: mergeTelemetryProperties(options?.properties, getTelemetryAttribution()),
+    properties: mergeTelemetryProperties({ ...getRuntimeContext(), ...options?.properties }, getTelemetryAttribution()),
   });
+}
+
+function getRuntimeContext(): Record<string, unknown> {
+  return {
+    cli_version: PACKAGE_VERSION,
+    code_hash: CODE_HASH,
+    node_version: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    os_release: osRelease(),
+  };
 }
 
 export async function recordFunnelTelemetryEvent(
@@ -326,7 +338,7 @@ export async function recordFunnelTelemetryEvent(
     source: options?.source ?? "cli",
     host_type: options?.hostType ?? detectTelemetryHostType(),
     created_at: createdAt,
-    properties: mergeTelemetryProperties(options?.properties, getTelemetryAttribution()),
+    properties: mergeTelemetryProperties({ ...getRuntimeContext(), ...options?.properties }, getTelemetryAttribution()),
   });
 }
 

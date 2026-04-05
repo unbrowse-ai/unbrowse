@@ -2,15 +2,15 @@ import type { FastifyInstance } from "fastify";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
-import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor } from "../capture/index.js";
+import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
-import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
@@ -135,7 +135,7 @@ function passiveIndexFromRequests(
       // 2. Extract and store auth credentials (cookies + sensitive headers)
       const capturedAuthHeaders = extractAuthHeaders(requests);
       if (Object.keys(capturedAuthHeaders).length > 0) {
-        const authKey = `${domain}-session`;
+        const authKey = `${getRegistrableDomain(domain)}-session`;
         await storeCredential(authKey, JSON.stringify({ headers: capturedAuthHeaders }));
       }
 
@@ -1178,11 +1178,9 @@ export async function registerRoutes(app: FastifyInstance) {
 
   async function restartBrowseCapture(session: BrowseSession): Promise<void> {
     const broker = brokerForSession(session);
-    const load = await broker.waitForLoad(session.tabId, 2_000).catch(() => null);
-    if (load && load.status === "timeout") {
-      session.harActive = false;
-      return;
-    }
+    // Start HAR + interceptor regardless of page load state — the page will load
+    // and HAR records all traffic from the moment it starts.
+    await broker.waitForLoad(session.tabId, 2_000).catch(() => null);
     await broker.networkEnable(session.tabId).catch(() => {});
     await broker.harStart(session.tabId).catch(() => {});
     await broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
@@ -1234,11 +1232,23 @@ export async function registerRoutes(app: FastifyInstance) {
       harEntries,
       intent: `browse ${session.domain || profileName(session.url)}`,
     });
+
+    // Collect JS bundle bodies for token source scanning
+    const jsBundles = new Map<string, string>();
+    try {
+      const intercepted = await collectInterceptedRequests(session.tabId).catch(() => []);
+      for (const entry of intercepted) {
+        if (entry.is_js && entry.response_body && jsBundles.size < 20) {
+          jsBundles.set(entry.url, entry.response_body);
+        }
+      }
+    } catch { /* best-effort */ }
     const syncResult = await cacheBrowseRequests({
       sessionUrl: session.url,
       sessionDomain: session.domain,
       requests: allRequests,
       getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
+      jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
       intent: `browse ${session.domain || profileName(session.url)}`,
     });
 

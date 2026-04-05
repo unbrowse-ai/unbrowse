@@ -19,7 +19,6 @@ import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
-import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
 import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
@@ -190,11 +189,10 @@ function normalizeEndpointForManifest(endpoint: EndpointDescriptor): EndpointDes
 
 async function prepareLearnedEndpoints(
   endpoints: EndpointDescriptor[],
-  intent: string,
-  domain: string,
+  _intent: string,
+  _domain: string,
 ): Promise<EndpointDescriptor[]> {
-  const normalized = endpoints.map(normalizeEndpointForManifest);
-  return augmentEndpointsWithAgent(normalized, { intent, domain });
+  return endpoints.map(normalizeEndpointForManifest);
 }
 
 function intentWantsStructuredRecords(intent?: string): boolean {
@@ -2016,6 +2014,18 @@ export async function executeEndpoint(
   // Endpoint domain — used for cookie resolution, strategy caching, auth refresh
   const epDomain = (() => { try { return new URL(endpoint.url_template).hostname; } catch { return skill.domain; } })();
   await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
+
+  // If endpoint has auth_tokens bindings, always resolve fresh tokens.
+  // Vault headers may be stale — the DAG knows how to get fresh ones.
+  log("exec", `auth_tokens check: ${endpoint.auth_tokens?.length ?? 0} bindings on ${endpoint.endpoint_id}`);
+  if (endpoint.auth_tokens?.length) {
+    try {
+      const { resolveAuthTokens } = await import("./token-resolver.js");
+      const resolved = await resolveAuthTokens(endpoint, cookies, authHeaders);
+      log("exec", `token resolver returned ${Object.keys(resolved).length} headers: ${Object.keys(resolved).join(",") || "none"}`);
+      Object.assign(authHeaders, resolved);
+    } catch (e) { log("exec", `token resolver failed: ${e}`); }
+  }
 
   log("exec", `endpoint ${endpoint.endpoint_id}: cookies=${cookies.length} authHeaders=${Object.keys(authHeaders).length} hasAuth=${cookies.length > 0 || Object.keys(authHeaders).length > 0}`);
 

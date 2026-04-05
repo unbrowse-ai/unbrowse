@@ -30,6 +30,114 @@ const activeTabRegistry = new Set<string>();
 // Tracks tabs where scriptInject has been registered (persistent across navigations)
 const interceptorInjectedTabs = new Set<string>();
 
+// Tracks tabs where CDP-level document-start injection has been registered
+const cdpDocStartTabs = new Set<string>();
+
+/**
+ * Register a script via Chrome's Page.addScriptToEvaluateOnNewDocument CDP method directly.
+ * This runs BEFORE any page JS on every navigation — critical for catching early fetch() calls.
+ * Falls back silently if CDP is unavailable.
+ */
+export async function registerDocumentStartScript(tabId: string, source: string): Promise<boolean> {
+  if (cdpDocStartTabs.has(tabId)) return true;
+  const cdpPort = kuri.getCdpPort();
+  if (!cdpPort) return false;
+
+  try {
+    // Get the WebSocket URL for this tab
+    const resp = await fetch(`http://127.0.0.1:${cdpPort}/json`);
+    const targets = await resp.json() as Array<{ id: string; webSocketDebuggerUrl?: string }>;
+    const target = targets.find((t) => t.id === tabId);
+    if (!target?.webSocketDebuggerUrl) return false;
+
+    // Connect via WebSocket and send CDP command
+    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    const result = await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => { ws.close(); resolve(false); }, 3000);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          id: 1,
+          method: "Page.addScriptToEvaluateOnNewDocument",
+          params: { source },
+        }));
+      };
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(String(event.data));
+          if (msg.id === 1) {
+            clearTimeout(timeout);
+            ws.close();
+            resolve(!msg.error);
+          }
+        } catch { /* ignore parse errors */ }
+      };
+      ws.onerror = () => { clearTimeout(timeout); ws.close(); resolve(false); };
+    });
+
+    if (result) {
+      cdpDocStartTabs.add(tabId);
+      log("capture", `document-start interceptor registered via direct CDP for tab ${tabId}`);
+    }
+    return result;
+  } catch {
+    return false;
+  }
+}
+
+// Tracks captured request headers from CDP Network events
+const cdpCapturedHeaders = new Map<string, Map<string, Record<string, string>>>();
+
+/**
+ * Enable CDP Network.requestWillBeSent listener to capture full request headers
+ * including auth headers that HAR/interceptor miss. Stores headers indexed by URL.
+ */
+export async function enableNetworkHeaderCapture(tabId: string): Promise<void> {
+  const cdpPort = kuri.getCdpPort();
+  if (!cdpPort) return;
+
+  try {
+    const resp = await fetch(`http://127.0.0.1:${cdpPort}/json`);
+    const targets = await resp.json() as Array<{ id: string; webSocketDebuggerUrl?: string }>;
+    const target = targets.find((t) => t.id === tabId);
+    if (!target?.webSocketDebuggerUrl) return;
+
+    const headers = new Map<string, Record<string, string>>();
+    cdpCapturedHeaders.set(tabId, headers);
+
+    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    ws.onopen = () => {
+      // Enable network domain (may already be enabled, that's OK)
+      ws.send(JSON.stringify({ id: 1, method: "Network.enable", params: {} }));
+    };
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(String(event.data));
+        if (msg.method === "Network.requestWillBeSent") {
+          const req = msg.params?.request;
+          if (req?.url && req?.headers) {
+            // Only capture headers for API-like URLs
+            if (/\/(api|graphql|v\d+)\b/i.test(req.url) || /ads-api|voyager/i.test(req.url)) {
+              headers.set(req.url, req.headers);
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    // Keep ws alive — it will be cleaned up when tab closes
+    ws.onerror = () => { cdpCapturedHeaders.delete(tabId); };
+
+    log("capture", `CDP network header capture enabled for tab ${tabId}`);
+  } catch { /* best-effort */ }
+}
+
+/**
+ * Get captured request headers for a tab. Returns a map of URL → headers.
+ * These come from CDP Network.requestWillBeSent which includes auth headers
+ * that HAR and the JS interceptor miss.
+ */
+export function getCapturedNetworkHeaders(tabId: string): Map<string, Record<string, string>> {
+  return cdpCapturedHeaders.get(tabId) ?? new Map();
+}
 // Hard timeout per capture: 90s prevents stuck tabs from holding slots forever
 const CAPTURE_TIMEOUT_MS = 90_000;
 const CAPTURE_NAV_TIMEOUT_MS = 20_000;
@@ -376,6 +484,11 @@ export const INTERCEPTOR_SCRIPT = `(function() {
     var method = (opts.method || 'GET').toUpperCase();
     var reqBody = opts.body ? String(opts.body).substring(0, MAX_BODY) : undefined;
     var reqHeaders = {};
+    // Extract headers from Request object (first arg)
+    if (args[0] && typeof args[0] === 'object' && args[0].headers && typeof args[0].headers.forEach === 'function') {
+      args[0].headers.forEach(function(v, k) { reqHeaders[k] = v; });
+    }
+    // Override/merge with explicit opts.headers (second arg)
     if (opts.headers) {
       if (typeof opts.headers.forEach === 'function') {
         opts.headers.forEach(function(v, k) { reqHeaders[k] = v; });
@@ -557,13 +670,21 @@ export function mergePassiveCaptureData(
     });
   }
 
-  // Priority 3: Extension entries (URL+headers supplement, no bodies)
+  // Priority 3: Extension entries (chrome.webRequest — has full auth headers HAR strips)
   for (const entry of extensionEntries) {
-    if (seen.has(entry.url)) continue;
     const reqHeaders: Record<string, string> = {};
     for (const h of entry.requestHeaders ?? []) reqHeaders[h.name] = h.value;
     const respHeaders: Record<string, string> = {};
     for (const h of entry.responseHeaders ?? []) respHeaders[h.name] = h.value;
+
+    const existing = seen.get(entry.url);
+    if (existing) {
+      // Merge auth headers from extension into existing entry (HAR strips them)
+      for (const [k, v] of Object.entries(reqHeaders)) {
+        if (!existing.request_headers[k]) existing.request_headers[k] = v;
+      }
+      continue;
+    }
     seen.set(entry.url, {
       url: entry.url,
       method: entry.method,
@@ -823,22 +944,36 @@ export async function enrichPassiveCaptureRequests(params: {
     ...request,
     url: normalizeCapturedUrl(request.url, captureUrl),
   }));
+
+  // HAR strips auth headers. Infer their presence from cookies so
+  // enrichEndpointsWithTokenSources can create DAG bindings.
+  if (extensionEntries.length === 0) {
+    const tabCookies = await kuri.getCookies(tabId).catch(() => []) as Array<{ name: string; value: string }>;
+    const hasAuthCookie = tabCookies.some((c) => /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|auth_token)$/i.test(c.name));
+    if (hasAuthCookie) {
+      for (const req of requests) {
+        if (/\/(api|graphql|v\d+)\b/i.test(req.url) || /ads-api|voyager/i.test(req.url)) {
+          if (!req.request_headers["authorization"]) req.request_headers["authorization"] = "[REDACTED]";
+          if (!req.request_headers["x-csrf-token"]) req.request_headers["x-csrf-token"] = "[REDACTED]";
+        }
+      }
+    }
+  }
+
   log("capture", `browse-checkpoint tracked ${harEntries.length} HAR, ${intercepted.length} intercepted, ${extensionEntries.length} extension, ${responseBodies.size} bodies → ${requests.length} merged`);
   return requests;
 }
-
 /**
  * Collect network requests observed by kuri's builtin extension (chrome.webRequest).
  * Gracefully returns [] if the extension relay is not yet wired.
  */
 async function collectExtensionRequests(tabId: string): Promise<ExtensionEntry[]> {
   try {
-    // Query the builtin extension's network log via the agent bridge
     const raw = await kuri.evaluate(tabId, `
       (function() {
         if (!window.__kuri || !window.__kuri._networkLog) return '[]';
         var log = window.__kuri._networkLog;
-        window.__kuri._networkLog = []; // drain
+        window.__kuri._networkLog = [];
         return JSON.stringify(log);
       })()
     `);
