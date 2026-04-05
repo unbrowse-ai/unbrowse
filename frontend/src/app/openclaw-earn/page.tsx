@@ -241,7 +241,7 @@ export default function OpenClawEarnPage() {
             <code className="text-orange-600">{INSTALL_CMD}</code>
           </div>
           <p className="mt-3 text-sm text-text-secondary">
-            Works with OpenClaw v0.7.13 and above. Your agent browses normally.
+            Works with OpenClaw v0.7.16 and above. Your agent browses normally.
             Earning starts immediately.
           </p>
         </section>
