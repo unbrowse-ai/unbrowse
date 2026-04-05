@@ -6,6 +6,7 @@ import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
 import { buildSkillPaymentTerms, searchPaymentsEnabled, verifyX402Proof, x402Response, x402UseTestnet } from "../middleware/x402-gate.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
+import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 function schedule<T, E extends { Bindings: Env }>(c: Context<E>, task: Promise<T>): void {
   try {
@@ -69,13 +70,25 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
     );
     return x402Response(c, terms);
   }
-
-  const { valid, degraded, settlementHeader } = await verifyX402Proof(paymentHeader ?? legacyProofHeader!);
+  const proof = paymentHeader ?? legacyProofHeader!;
+  const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
   if (!valid) return c.json({ error: "Payment proof invalid or rejected" }, 403);
   if (degraded) {
     console.warn(`[x402] facilitator down -- allowed degraded access for graph search ${routeLabel}`);
   }
   if (settlementHeader) c.header("PAYMENT-RESPONSE", settlementHeader);
+
+  // Record search payment to ledger (non-blocking)
+  const txId = transaction ?? `x402-search-${Date.now()}`;
+  const priceUsd = GRAPH_OPERATION_COST_UC.search / 1_000_000;
+  schedule(c, recordTransaction(c.env, {
+    transaction_id: txId,
+    consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
+    skill_id: `graph-search:${routeLabel}`,
+    price_usd: priceUsd,
+    payment_proof: proof,
+  }).catch((err) => console.warn(`[x402] search ledger write failed: ${(err as Error).message}`)));
+
   return null;
 }
 
