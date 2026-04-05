@@ -1,6 +1,7 @@
 export const REPO_CLONE_URL = "https://github.com/unbrowse-ai/unbrowse.git";
 export const INSTALL_SCRIPT_URL = "https://unbrowse.ai/install.sh";
 
+export const INSTALL_CMD_OPENCLAW = "npx unbrowse-openclaw install --restart";
 export const INSTALL_CMD_GENERIC = `curl -fsSL ${INSTALL_SCRIPT_URL} | bash`;
 export const INSTALL_CMD_SKILL = "npx skills add unbrowse-ai/unbrowse";
 export const INSTALL_CMD_NPM = "npm install -g unbrowse && unbrowse setup";

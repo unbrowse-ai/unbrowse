@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   INSTALL_CMD_GENERIC,
   INSTALL_CMD_MCP,
+  INSTALL_CMD_OPENCLAW,
   INSTALL_CMD_SKILL,
   MCP_CONFIG_JSON,
   MCP_CONFIG_PATH,
@@ -12,7 +13,7 @@ import {
 const SKILL_MD = `---
 name: unbrowse
 description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
-install: ${INSTALL_CMD_GENERIC}
+install: ${INSTALL_CMD_OPENCLAW}
 homepage: https://www.unbrowse.ai
 repository: https://github.com/unbrowse-ai/unbrowse
 ---
@@ -38,6 +39,10 @@ Current product path:
 ## Install
 
 \`\`\`bash
+# Recommended: make Unbrowse the native browser
+${INSTALL_CMD_OPENCLAW}
+
+# Alternative: standalone CLI
 ${INSTALL_CMD_GENERIC}
 \`\`\`
 

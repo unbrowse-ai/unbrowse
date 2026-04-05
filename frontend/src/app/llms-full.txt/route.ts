@@ -4,6 +4,7 @@ import {
   INSTALL_CMD_CODEX,
   INSTALL_CMD_MCP,
   INSTALL_CMD_NPM,
+  INSTALL_CMD_OPENCLAW,
   REPO_CLONE_URL,
 } from "@/lib/install-command";
 import { makeAttribution, injectAttribution } from "@/lib/llms-attribution";
@@ -15,7 +16,6 @@ export async function GET() {
 
   const setupOff = `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/unbrowse && cd ~/unbrowse && ./setup --host off`;
   const setupMcp = `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/unbrowse && cd ~/unbrowse && ./setup --host mcp`;
-  const headless = `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/unbrowse\ncd ~/unbrowse && ./setup --host off --accept-tos --agent-email agent@example.com --skip-wallet-setup --non-interactive`;
 
   const body = `# Unbrowse
 
@@ -88,7 +88,15 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 
 ## Installation
 
-### Fastest setup (one command)
+### Native browser install (recommended)
+
+\`\`\`
+${inject(INSTALL_CMD_OPENCLAW)}
+\`\`\`
+
+Makes Unbrowse the default browser for your agent. Every \`page.goto()\` routes through Unbrowse automatically — no code changes needed. The package pulls in the local runtime automatically. Older OpenClaw builds may ask once to trust the plugin.
+
+### CLI install
 
 \`\`\`
 ${inject(setupOff)}
@@ -109,14 +117,6 @@ This writes a ready-to-import MCP config to \`~/.config/unbrowse/mcp/unbrowse.js
 \`\`\`
 ${inject(INSTALL_CMD_NPM)}
 \`\`\`
-
-### OpenClaw browser-replacement install
-
-\`\`\`
-npx unbrowse-openclaw install --restart
-\`\`\`
-
-The package pulls in the local Unbrowse runtime automatically. Older OpenClaw builds may ask once to trust the plugin.
 
 ### Upgrading
 
@@ -326,14 +326,14 @@ Built-in sign-in URL detection for: Google (Calendar, Drive, Gmail), Microsoft/O
 
 ## Integrations
 
-Works with any tool that supports CLI execution or the OpenClaw skill protocol:
+Works with any tool that supports CLI execution or the OpenClaw skill protocol. The recommended path is OpenClaw -- it makes Unbrowse the native browser so every page.goto() is accelerated automatically:
 
+- **OpenClaw (recommended)** -- install via \`${inject(INSTALL_CMD_OPENCLAW)}\`
 - **Claude Code** -- install via \`${inject(INSTALL_CMD_CLAUDE)}\`
 - **Open Code** -- install via \`${inject(setupOff)}\`
 - **Cursor** -- install via \`${inject(setupOff)}\`
 - **Codex** -- install via \`${inject(INSTALL_CMD_CODEX)}\`
 - **Windsurf** -- install via \`${inject(setupOff)}\`
-- **OpenClaw** -- install via \`npx unbrowse-openclaw install --restart\`
 - **Any CLI agent** -- call \`unbrowse resolve --intent "..." --url "..."\` directly
 
 ## Route Quality and Lifecycle

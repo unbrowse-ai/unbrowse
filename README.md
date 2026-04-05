@@ -48,7 +48,14 @@ Typical MCP host config:
 ## Quick start
 
 ```bash
-# One-line install from the latest GitHub release
+# Recommended: make Unbrowse your agent's native browser (one command)
+npx unbrowse-openclaw install --restart
+```
+
+Every `page.goto()` routes through Unbrowse automatically — no code changes needed.
+
+```bash
+# Alternative: standalone CLI install from the latest GitHub release
 curl -fsSL https://unbrowse.ai/install.sh | sh
 ```
 

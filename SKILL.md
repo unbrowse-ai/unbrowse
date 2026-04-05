@@ -31,6 +31,15 @@ The full browser API surface is available — snapshots, ref-based actions, DOM 
 ## Installation
 
 ```bash
+# Recommended: make Unbrowse the native browser (one command)
+npx unbrowse-openclaw install --restart
+```
+
+Every `page.goto()` routes through Unbrowse automatically — no code changes needed. The package pulls in the local runtime.
+
+Alternative standalone CLI install:
+
+```bash
 git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
 cd ~/unbrowse && ./setup --host off
 ```
