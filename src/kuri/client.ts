@@ -243,6 +243,7 @@ function currentBundledKuriTarget(): string | null {
   if (process.platform === "darwin" && process.arch === "x64") return "darwin-x64";
   if (process.platform === "linux" && process.arch === "arm64") return "linux-arm64";
   if (process.platform === "linux" && process.arch === "x64") return "linux-x64";
+  if (process.platform === "win32" && process.arch === "x64") return "win-x64";
   return null;
 }
 

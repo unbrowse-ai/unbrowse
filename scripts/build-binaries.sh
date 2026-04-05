@@ -19,24 +19,30 @@ mkdir -p "$DIST_DIR"
 eval "$(bun "$ROOT_DIR/scripts/build-release-manifest.ts" --shell-env)"
 
 build_target() {
-  local target="$1" # e.g. darwin-arm64
-  local outfile="$DIST_DIR/unbrowse-$target"
+  local target="$1" # e.g. darwin-arm64, win-x64
+  local ext=""
+  [[ "$target" == win-* ]] && ext=".exe"
+  local outfile="$DIST_DIR/unbrowse-$target$ext"
   local archive="$DIST_DIR/unbrowse-$VERSION_TAG-$target.tar.gz"
+  local bun_target="bun-$target"
+  # Bun uses "windows" not "win" in target names
+  bun_target="${bun_target/bun-win-/bun-windows-}"
   local tmpdir
 
   echo "[build] $target -> $outfile"
   bun build "$ROOT_DIR/src/single-binary.ts" \
     --compile \
     --minify \
-    --target="bun-$target" \
+    --target="$bun_target" \
     --outfile "$outfile" 2>&1
 
   local size=$(ls -lh "$outfile" | awk '{print $5}')
   echo "[build] $target done ($size)"
 
   tmpdir="$(mktemp -d)"
-  cp "$outfile" "$tmpdir/unbrowse"
-  tar -czf "$archive" -C "$tmpdir" unbrowse
+  local archive_name="unbrowse$ext"
+  cp "$outfile" "$tmpdir/$archive_name"
+  tar -czf "$archive" -C "$tmpdir" "$archive_name"
   rm -rf "$tmpdir"
   echo "[build] packaged $archive"
 }
@@ -46,6 +52,7 @@ if [ "${1:-}" = "--all" ]; then
   build_target "darwin-x64"
   build_target "linux-arm64"
   build_target "linux-x64"
+  build_target "win-x64"
   echo "[build] all platforms built:"
   ls -lh "$DIST_DIR"/unbrowse-*
 else
