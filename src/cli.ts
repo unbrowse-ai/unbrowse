@@ -30,6 +30,7 @@ loadEnv({ path: ".env.runtime", quiet: true });
 
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
 const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `cli-${process.ppid || process.pid}`;
+let walletNudgeShown = false;
 
 // ---------------------------------------------------------------------------
 // Arg parser
@@ -374,6 +375,19 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
     const skill = result.skill as Record<string, unknown> | undefined;
     const trace = result.trace as Record<string, unknown> | undefined;
+
+    // Nudge wallet setup after successful resolve that indexed routes
+    if (trace?.success && !walletNudgeShown) {
+      try {
+        const { checkWalletConfigured } = await import("./payments/wallet.js");
+        const wallet = checkWalletConfigured();
+        if (!wallet.configured) {
+          info("You're indexing routes but have no payout wallet. Run: npx @crossmint/lobster-cli setup");
+          walletNudgeShown = true;
+        }
+      } catch (_e) { /* non-fatal */ }
+    }
+
     if (skill?.skill_id && trace) {
       (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
     }
@@ -810,6 +824,18 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     if (hook.action === "installed" || hook.action === "updated") {
       info(`${hook.host} update hint hook ${hook.action} at ${hook.config_file}`);
     }
+  }
+
+  // Wallet status — tell the user if they're missing payout config
+  if (report.wallet.configured) {
+    info(`Wallet configured (${report.wallet.provider}): ${(report.wallet as Record<string, unknown>).wallet_address ?? "linked"}`);
+  } else if ((report.wallet as Record<string, unknown>).lobster_installed) {
+    info("Wallet not paired — your indexed routes won't earn payouts.");
+    info("Run: npx @crossmint/lobster-cli setup");
+  } else {
+    info("No wallet configured — you're indexing routes for free.");
+    info("Set up a wallet so you earn when agents use your routes:");
+    info("  npx @crossmint/lobster-cli setup");
   }
 
   await recordInstallTelemetryEvent("setup", {

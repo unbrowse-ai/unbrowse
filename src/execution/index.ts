@@ -1882,28 +1882,40 @@ export async function executeEndpoint(
       wallet_configured: !!wallet.wallet_address,
     });
     if (gate.status === "payment_required" || gate.status === "wallet_not_configured" || gate.status === "insufficient_balance") {
-      const trace: ExecutionTrace = stampTrace({
-        trace_id: nanoid(),
-        skill_id: skill.skill_id,
-        endpoint_id: endpoint.endpoint_id,
-        started_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        success: false,
-        status_code: 402,
-        error: "payment_required",
-      });
-      return {
-        trace,
-        result: {
+      // If lobster wallet is available, let execution proceed —
+      // the client-level apiRequest will handle 402 pay-and-retry automatically.
+      let lobsterAvailable = false;
+      try {
+        const { isLobsterAvailable } = await import("../payments/lobster-pay.js");
+        lobsterAvailable = isLobsterAvailable();
+      } catch {}
+
+      if (lobsterAvailable && gate.status === "payment_required") {
+        console.log(`[payment] ${skill.skill_id}: lobster available — proceeding with auto-pay`);
+      } else {
+        const trace: ExecutionTrace = stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          status_code: 402,
           error: "payment_required",
-          price_usd: gate.requirement?.amount,
-          payment_status: gate.status,
-          message: gate.message,
-          wallet_provider: wallet.wallet_provider ?? "lobster.cash",
-          wallet_address: wallet.wallet_address,
-          indexing_fallback_available: true,
-        },
-      };
+        });
+        return {
+          trace,
+          result: {
+            error: "payment_required",
+            price_usd: gate.requirement?.amount,
+            payment_status: gate.status,
+            message: gate.message,
+            wallet_provider: wallet.wallet_provider ?? "lobster.cash",
+            wallet_address: wallet.wallet_address,
+            indexing_fallback_available: true,
+          },
+        };
+      }
     }
   }
 

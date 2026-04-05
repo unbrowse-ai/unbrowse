@@ -497,7 +497,8 @@ async function apiRequest<T = unknown>(
     throw new Error("ToS update required. Restart unbrowse to accept new terms.");
   }
 
-  // Handle x402 payment required — surface payment terms to the caller
+
+  // Handle x402 payment required — attempt lobster pay-and-retry before surfacing
   if (res.status === 402) {
     const paymentRequired = res.headers.get("PAYMENT-REQUIRED");
     const legacyPaymentTerms = res.headers.get("X-Payment-Required");
@@ -506,6 +507,29 @@ async function apiRequest<T = unknown>(
       : legacyPaymentTerms
         ? JSON.parse(legacyPaymentTerms)
         : (data as Record<string, unknown>).terms;
+
+    // Try lobster.cash automatic payment before throwing
+    try {
+      const { isLobsterAvailable, payAndRetry } = await import("../payments/lobster-pay.js");
+      if (isLobsterAvailable()) {
+        const fullUrl = `${API_URL}${path}`;
+        const paidResult = await payAndRetry<T>(fullUrl, {
+          body,
+          headers: {
+            "Content-Type": "application/json",
+            "Accept-Encoding": "gzip, deflate",
+            ...releaseAttestationHeaders,
+            ...(key ? { Authorization: `Bearer ${key}` } : {}),
+          },
+        });
+        if (paidResult) {
+          return { data: paidResult.data, headers: new Headers() };
+        }
+      }
+    } catch (payErr) {
+      console.warn(`[x402] lobster pay-and-retry failed: ${(payErr as Error).message}`);
+    }
+
     const err = new Error(`Payment required: ${(data as Record<string, unknown>).error ?? "This skill requires payment"}`);
     (err as Error & { x402: boolean; terms: unknown; status: number }).x402 = true;
     (err as Error & { terms: unknown }).terms = terms;
