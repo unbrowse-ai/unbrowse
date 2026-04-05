@@ -3020,6 +3020,7 @@ export async function resolveAndExecute(
             : null;
           const effectivePrice = typeof dynamicPrice === "string" ? parseFloat(dynamicPrice) : (dynamicPrice ?? 0);
           if (source === "marketplace" && effectivePrice > 0) {
+            try {
               const walletCheck = checkWalletConfigured();
               const wallet = getLocalWalletContext();
               const paymentResult = await checkPaymentRequirement(
@@ -3041,7 +3042,7 @@ export async function resolveAndExecute(
                   return {
                     result: {
                       error: "payment_required",
-                      price_usd: skill.base_price_usd,
+                      price_usd: effectivePrice,
                       payment_status: paymentResult.status,
                       message: paymentResult.message,
                       next_step: paymentResult.next_step,
