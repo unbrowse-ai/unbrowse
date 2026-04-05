@@ -511,11 +511,11 @@ describe("landing funnel e2e", () => {
         perfResults.add(body.assignment.variant_id);
       }
       // speed-proof is the only active variant tagged with performance-engineer
+      // speed-proof is the only active variant tagged with performance-engineer
       expect(perfResults.has("speed-proof")).toBe(true);
-      expect(perfResults.has("reuse-shadow")).toBe(false); // shadow has weight 0
+      expect(perfResults.has("scale-shadow")).toBe(false); // shadow has weight 0
 
-      // "agent-stack-builder" ICP matches control-browser-replacement and reuse-shadow (but shadow has weight 0)
-      // so all assignments should go to control-browser-replacement
+      // "agent-stack-builder" ICP only matches control-browser-replacement (scale-shadow targets scraping-at-scale now)
       const agentResults = new Set<string>();
       for (let i = 0; i < 20; i++) {
         const res = await fetch(`http://127.0.0.1:${backendPort}/v1/landing/homepage/assign`, {
