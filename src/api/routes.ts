@@ -1325,12 +1325,35 @@ export async function registerRoutes(app: FastifyInstance) {
 
         let cookiesInjected = 0;
         if (newDomain && newDomain !== session.domain) {
-          cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
-          await loadAuthProfileBestEffort(session.tabId, newDomain, "browse_go");
+          // Check if the browser already has fresh session cookies for this domain.
+          // If so, skip vault/profile cookie injection — browser cookies are fresher
+          // and injecting stale vault cookies (e.g. JSESSIONID) causes HTTP 400 on
+          // sites like LinkedIn that validate CSRF alignment.
+          const browserHasFreshSession = await (async () => {
+            try {
+              const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+              const { cookies } = extractBrowserCookies(newDomain);
+              // Consider the session fresh if we have session-like cookies that aren't expired
+              const now = Date.now() / 1000;
+              return cookies.some((c) =>
+                (c.httpOnly || c.secure) && (!c.expires || c.expires > now),
+              );
+            } catch { return false; }
+          })();
+
+          if (browserHasFreshSession) {
+            // Import browser cookies via CDP (they're fresh from Chrome's jar)
+            cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
+          } else {
+            // No fresh browser cookies — load from vault/auth profile
+            cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
+            await loadAuthProfileBestEffort(session.tabId, newDomain, "browse_go");
+          }
         }
 
         await restartBrowseCapture(session);
 
+        await broker.navigate(session.tabId, url);
         await broker.navigate(session.tabId, url);
         const finalUrl = await broker.getCurrentUrl(session.tabId).catch(() => url);
         session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
