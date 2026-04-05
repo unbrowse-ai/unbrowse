@@ -53,45 +53,6 @@ export interface CsrfPlan {
   extractor_sequence: string[];
 }
 
-/** A single candidate location for extracting a token value from captured page state.
- *  Each source is a deterministic locator that can be re-evaluated at replay time to
- *  produce a fresh token value, for sites that embed CSRF / bearer / session tokens
- *  in HTML meta tags, inline hydration scripts, or JS bundle string constants.
- *
- *  Distinct from WorkflowTokenCandidate (below) — that one lives on WorkflowRecipe
- *  for POST recipes; this lightweight shape lives directly on EndpointDescriptor
- *  and covers all methods including GETs that need CSRF / bearer tokens. */
-export interface AuthTokenSource {
-  kind: "cookie" | "html-meta" | "html-inline-script" | "js-bundle";
-  /** Cookie source — list of cookie names to try in order (matches existing csrf_plan semantics). */
-  cookie_names?: string[];
-  /** HTML <meta name="X" content="Y"> — records the `name` attribute. */
-  meta_name?: string;
-  /** Which attribute holds the token value (defaults to "content"). */
-  meta_attr?: "content" | "value";
-  /** Inline <script>...</script> regex. Capture group 1 must isolate the token. */
-  inline_script_regex?: string;
-  /** JS bundle URL substring match (e.g. "ondemand.s."). */
-  bundle_url_pattern?: string;
-  /** JS bundle content regex. Capture group 1 must isolate the token. */
-  bundle_regex?: string;
-}
-
-/** A single token an endpoint needs at replay time.
- *  Generalises CsrfPlan to support tokens that live in HTML / JS literals in addition
- *  to cookies. The resolver walks `sources` in order and uses the first one that yields
- *  a non-empty value. Attached to EndpointDescriptor.auth_tokens. */
-export interface AuthTokenBinding {
-  /** Name of the header / body field / query param that carries the token. */
-  param_name: string;
-  /** Where the token goes in the outgoing request. */
-  param_location: "header" | "body" | "query";
-  /** Ordered list of candidate sources. First non-empty wins. */
-  sources: AuthTokenSource[];
-  /** Re-scrape the source on 401/403 before retrying. */
-  refresh_on_401?: boolean;
-}
-
 export interface OAuthPlan {
   grant_type: string;
   token_url?: string;
@@ -184,10 +145,6 @@ export interface EndpointDescriptor {
   body_params?: Record<string, unknown>;
   body?: Record<string, unknown>;
   csrf_plan?: CsrfPlan;
-  /** Generalised token bindings — each entry describes a token the endpoint needs
-   *  (CSRF, bearer, session) and where to source it (cookie, HTML meta, inline script,
-   *  JS bundle). Resolved fresh at replay time by src/execution/token-resolver.ts. */
-  auth_tokens?: AuthTokenBinding[];
   oauth_plan?: OAuthPlan;
   transform_ref?: string;
   idempotency: Idempotency;
@@ -208,7 +165,7 @@ export interface EndpointDescriptor {
   trigger_url?: string;
   /** Learned execution strategy — set after first successful execution.
    *  Skips doomed server-fetch on sites that need browser execution (e.g. LinkedIn). */
-  exec_strategy?: "server" | "trigger-intercept" | "browser" | "warm-tab";
+  exec_strategy?: "server" | "trigger-intercept" | "browser";
   /** Server-owned graph visibility. Shadow endpoints are persisted but not indexed. */
   graph_visibility?: GraphVisibility;
   /** Server-owned corroboration counters used for staged promotion. */
@@ -663,7 +620,7 @@ export type RoutingTelemetryEvent =
   | RoutingStepEvent
   | RoutingSessionCompletedEvent;
 
-export type WorkflowStepStrategy = "server" | "trigger-intercept" | "browser-action" | "browser-fetch" | "warm-tab";
+export type WorkflowStepStrategy = "server" | "trigger-intercept" | "browser-action" | "browser-fetch";
 
 export interface WorkflowActionStep {
   action: string;
