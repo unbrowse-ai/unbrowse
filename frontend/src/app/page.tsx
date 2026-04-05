@@ -11,21 +11,17 @@ import {
   FIRST_TASK_CMD,
   INSTALL_CMD_GENERIC,
   INSTALL_CMD_MCP,
+  INSTALL_CMD_OPENCLAW,
   INSTALL_CMD_SKILL,
   MCP_CONFIG_PATH,
   UPGRADE_CMD_GENERIC,
   UPGRADE_CMD_MCP,
 } from "@/lib/install-command";
-import { Activity, ArrowRight, CheckCircle2, Github, Globe, Shield, Zap } from "lucide-react";
 
-export const revalidate = 300;
-
-const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
-const DOCS_URL = "https://docs.unbrowse.ai";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? `Start with ${INSTALL_CMD_GENERIC}. That script installs the CLI, runs setup, and finishes the real first-run flow: ToS acceptance, agent registration plus API-key caching, and wallet detection when present. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL} for slash-command or host discovery. For generic MCP hosts, run ${INSTALL_CMD_MCP}; that writes a ready-to-import config to ${MCP_CONFIG_PATH}, and the generic template lives at https://www.unbrowse.ai/mcp.json. Upgrade CLI installs with ${UPGRADE_CMD_GENERIC} and MCP installs with ${UPGRADE_CMD_MCP}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart.`
-  : `Start with ${INSTALL_CMD_GENERIC}. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL}. Generic MCP hosts can use ${INSTALL_CMD_MCP}. Upgrade with ${UPGRADE_CMD_GENERIC} or ${UPGRADE_CMD_MCP}.`;
+  ? `Recommended: ${INSTALL_CMD_OPENCLAW}. That makes Unbrowse your agent's native browser — every page.goto() routes through direct API calls automatically. The package pulls in the local runtime. For standalone CLI installs, use ${INSTALL_CMD_GENERIC}. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL} for slash-command or host discovery. For generic MCP hosts, run ${INSTALL_CMD_MCP}; that writes a ready-to-import config to ${MCP_CONFIG_PATH}. Upgrade CLI installs with ${UPGRADE_CMD_GENERIC} and MCP installs with ${UPGRADE_CMD_MCP}.`
+  : `Recommended: ${INSTALL_CMD_OPENCLAW}. For standalone CLI: ${INSTALL_CMD_GENERIC}. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL}. Generic MCP hosts can use ${INSTALL_CMD_MCP}. Upgrade with ${UPGRADE_CMD_GENERIC} or ${UPGRADE_CMD_MCP}.`;
 
 const TRUST_BAR_ITEMS: Record<LandingVariantCopy["trust_bar_order"][number], ReactNode> = {
   benchmarks: <span>94 domains benchmarked</span>,
@@ -229,7 +225,7 @@ export default async function Home() {
           Unbrowse is an open-source CLI that turns websites into reusable skills for agents by
           learning the request path behind the page and replaying it later.
         </p>
-        <p>Setup: {INSTALL_CMD_GENERIC}</p>
+        <p>Setup: {INSTALL_CMD_OPENCLAW}</p>
         <p>Optional skill install: {INSTALL_CMD_SKILL}</p>
         <p>MCP setup: {INSTALL_CMD_MCP}</p>
         <p>Upgrade existing installs: {UPGRADE_CMD_GENERIC}</p>
@@ -566,27 +562,28 @@ export default async function Home() {
             <div className="mt-8 space-y-4">
               <div className="rounded-[1.5rem] border border-orange-500/20 bg-orange-50/70 p-5">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-orange-700">
-                  Default path
+                  Recommended
                 </p>
                 <code className="mt-3 block break-all font-mono text-sm text-orange-700">
-                  {INSTALL_CMD_GENERIC}
+                  npx unbrowse-openclaw install --restart
                 </code>
               </div>
 
               <div className="rounded-[1.5rem] border border-border bg-surface p-5">
                 <p className="text-sm leading-7 text-text-secondary">
-                  Start with the runtime. Add the skill or MCP wiring only after the local path is
-                  healthy. If you want the contributor upside, keep the mined routes you publish
-                  useful enough that other agents actually reuse them.
+                  One command. Makes Unbrowse the native browser — every page.goto() routes
+                  through direct API calls automatically. No code changes needed. Add the skill
+                  or MCP wiring only after the local path is healthy.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
+                  <span className="rounded-full border border-orange-500/30 bg-orange-50 px-3 py-1.5 text-orange-700">OpenClaw</span>
                   <span className="rounded-full border border-border px-3 py-1.5">CLI</span>
                   <span className="rounded-full border border-border px-3 py-1.5">Codex</span>
                   <span className="rounded-full border border-border px-3 py-1.5">Claude Code</span>
                   <span className="rounded-full border border-border px-3 py-1.5">Cursor</span>
                   <span className="rounded-full border border-border px-3 py-1.5">MCP</span>
-                  <span className="rounded-full border border-border px-3 py-1.5">OpenClaw</span>
                 </div>
+              </div>
               </div>
 
               <div className="rounded-[1.5rem] border border-border bg-surface p-5">
