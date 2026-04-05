@@ -6,7 +6,6 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  binaryName,
   detectBrokenMonorepoKuri,
   hashFile,
   hasVendoredBinaries,
@@ -76,14 +75,14 @@ for (const target of supportedTargets) {
     stdio: "inherit",
   });
 
-  const builtBinary = path.join(prefixDir, "bin", binaryName);
+  const builtBinary = path.join(prefixDir, "bin", target.bin);
   if (!existsSync(builtBinary)) {
     throw new Error(`Kuri build succeeded for ${target.id}, but ${builtBinary} is missing`);
   }
 
   const outDir = path.join(vendorRoot, target.id);
   mkdirSync(outDir, { recursive: true });
-  const outFile = path.join(outDir, binaryName);
+  const outFile = path.join(outDir, target.bin);
   cpSync(builtBinary, outFile);
   chmodSync(outFile, 0o755);
   manifest.binaries[target.id] = {
