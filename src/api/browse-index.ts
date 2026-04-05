@@ -1,6 +1,8 @@
 import { nanoid } from "nanoid";
 import { readFileSync } from "node:fs";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { log } from "../logger.js";
+import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
+import { enrichEndpointsWithTokenSources } from "../reverse-engineer/token-sources.js";
 import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
 import { validateExtractionQuality } from "../execution/index.js";
 import { assessIntentResult } from "../intent-match.js";
@@ -10,6 +12,8 @@ import type { RawRequest } from "../capture/index.js";
 import { cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { upsertDagEdgesFromOperationGraph } from "../orchestrator/dag-feedback.js";
+import { storeCredential } from "../vault/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import {
   buildResolveCacheKey,
   domainSkillCache,
@@ -151,14 +155,25 @@ export async function cacheBrowseRequests(params: {
   sessionDomain: string;
   requests: RawRequest[];
   getPageHtml?: () => Promise<string>;
+  jsBundles?: Map<string, string>;
   intent?: string;
 }): Promise<BrowseIndexResult> {
-  const { sessionUrl, sessionDomain, requests, getPageHtml } = params;
+  const { sessionUrl, sessionDomain, requests, getPageHtml, jsBundles } = params;
   let domain: string;
   try { domain = new URL(sessionUrl).hostname; } catch { domain = sessionDomain; }
   const intent = params.intent ?? `browse ${domain}`;
 
   const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl: sessionUrl, finalUrl: sessionUrl });
+
+  // Extract and persist auth headers (authorization, csrf, bearer tokens)
+  // so serverFetch can replay them. Use registrable domain for vault key
+  // so ads.x.com and ads-api.x.com share the same session.
+  const capturedAuthHeaders = extractAuthHeaders(requests);
+  if (Object.keys(capturedAuthHeaders).length > 0) {
+    const sessionKey = `${getRegistrableDomain(domain)}-session`;
+    await storeCredential(sessionKey, JSON.stringify({ headers: capturedAuthHeaders })).catch(() => {});
+  }
+
   if (rawEndpoints.length > 0) {
     const existingSkill = findExistingSkillForDomain(domain);
     let allExisting = existingSkill?.endpoints ?? [];
@@ -182,8 +197,8 @@ export async function cacheBrowseRequests(params: {
     if (!existingSkill || mergedEndpoints.length >= existingSkill.endpoints.length) {
       for (const endpoint of mergedEndpoints) {
         if (!endpoint.description) endpoint.description = generateLocalDescription(endpoint);
+        if (!endpoint.semantic) endpoint.semantic = inferEndpointSemantic(endpoint);
       }
-
       const quickSkill: SkillManifest = {
         skill_id: existingSkill?.skill_id ?? nanoid(),
         version: "1.0.0",
@@ -201,6 +216,18 @@ export async function cacheBrowseRequests(params: {
         operation_graph: buildSkillOperationGraph(mergedEndpoints),
         intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
       };
+
+      // Token source discovery: scan live HTML for tokens used in captured
+      // request headers and attach AuthTokenBinding entries so serverFetch
+      // can rescrape fresh tokens on replay.
+      try {
+        const html = getPageHtml ? await getPageHtml() : undefined;
+        if (html && html.startsWith("<")) {
+          const preCheck = requests.filter(r => r.request_headers["authorization"] || r.request_headers["x-csrf-token"]).length;
+          const enriched = enrichEndpointsWithTokenSources(quickSkill.endpoints, requests, html, jsBundles);
+          log("browse-index", `token enrichment: ${enriched} bindings, ${preCheck} auth-reqs pre-call, ${quickSkill.endpoints.length} eps`);
+        }
+      } catch (e) { log("browse-index", `token enrichment failed: ${e}`); }
 
       const cacheKey = buildResolveCacheKey(domain, intent, sessionUrl);
       const scopedKey = scopedCacheKey("global", cacheKey);
@@ -294,7 +321,6 @@ export async function cacheBrowseRequests(params: {
       operation_graph: buildSkillOperationGraph(allEndpoints),
       intents: [...new Set([...(existing?.intents ?? []), intent])],
     };
-
     const cacheKey = buildResolveCacheKey(domain, intent, sessionUrl);
     const scopedKey = scopedCacheKey("global", cacheKey);
     writeSkillSnapshot(scopedKey, skill);

@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import { ensureLocalServer } from "./runtime/local-server.js";
 import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./workflow/publish.js";
 import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
+import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
+import { getAgentId, getCreatorEarnings, getMyProfile, getTransactionHistory } from "./client/index.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -824,6 +826,61 @@ async function executeResolvedEndpoint(result: Record<string, unknown>, args: Re
   }) as Promise<Record<string, unknown>>;
 }
 
+// ---------------------------------------------------------------------------
+// Impact visibility — every tool result includes a "saved X" line so agents
+// see concrete value (time, tokens, cost, browser-avoided) on every call.
+// ---------------------------------------------------------------------------
+
+function formatImpactUsd(uc: number): string {
+  const usd = uc / 1_000_000;
+  if (usd >= 1) return `$${usd.toFixed(2)}`;
+  if (usd >= 0.01) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(4)}`;
+}
+
+function formatImpactDuration(ms: number): string {
+  if (ms >= 3_600_000) return `${(ms / 3_600_000).toFixed(1)}h`;
+  if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
+  if (ms >= 10_000) return `${Math.round(ms / 1000)}s`;
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${ms}ms`;
+}
+
+/** Build a one-line impact summary, or "" if nothing meaningful happened. */
+function summarizeImpact(result: unknown): string {
+  if (!result || typeof result !== "object") return "";
+  const impact = (result as Record<string, unknown>).impact as Record<string, unknown> | undefined;
+  if (!impact) return "";
+  const timeMs = typeof impact.time_saved_ms === "number" ? impact.time_saved_ms : 0;
+  const tokens = typeof impact.tokens_saved === "number" ? impact.tokens_saved : 0;
+  const timePct = typeof impact.time_saved_pct === "number" ? impact.time_saved_pct : 0;
+  const tokensPct = typeof impact.tokens_saved_pct === "number" ? impact.tokens_saved_pct : 0;
+  const costUc = typeof impact.cost_saved_uc === "number" ? impact.cost_saved_uc : 0;
+  const browserAvoided = impact.browser_avoided === true;
+  if (timeMs <= 0 && tokens <= 0 && costUc <= 0 && !browserAvoided) return "";
+  const parts: string[] = [];
+  if (timeMs > 0) parts.push(`${formatImpactDuration(timeMs)} saved (${timePct}% faster)`);
+  if (tokens > 0) parts.push(`${tokens.toLocaleString("en-US")} tokens saved (${tokensPct}% less context)`);
+  if (costUc > 0) parts.push(`${formatImpactUsd(costUc)} saved`);
+  if (browserAvoided) parts.push("browser avoided");
+  return `Impact: ${parts.join(" • ")}`;
+}
+
+/** Append impact to the local log (fire-and-forget). Called from resolve/execute handlers. */
+function recordImpactForTool(
+  command: "resolve" | "execute",
+  result: unknown,
+  args: Record<string, unknown>,
+): void {
+  const entry = impactFromResult(command, result, {
+    intent: typeof args.intent === "string" ? args.intent : undefined,
+    domain: typeof args.domain === "string" ? args.domain : undefined,
+    skill_id: typeof args.skill === "string" ? args.skill : undefined,
+    endpoint_id: typeof args.endpoint === "string" ? args.endpoint : undefined,
+  });
+  if (entry) appendImpact(entry);
+}
+
 const tools: ToolDefinition[] = [
   {
     name: "unbrowse_health",
@@ -903,7 +960,11 @@ const tools: ToolDefinition[] = [
 
       result = addResolveMissGuidance(result, args);
       const nestedError = resolveNestedError(result);
-      return nestedError ? errorResult(nestedError, result) : successResult(maybePostProcessResult(result, args), "Resolve result.");
+      recordImpactForTool("resolve", result, args);
+      if (nestedError) return errorResult(nestedError, result);
+      const processed = maybePostProcessResult(result, args);
+      const impactLine = summarizeImpact(result);
+      return successResult(processed, impactLine ? `Resolve result. ${impactLine}` : "Resolve result.");
     },
   },
   {
@@ -946,10 +1007,113 @@ const tools: ToolDefinition[] = [
 
       const result = await api("POST", `/v1/skills/${args.skill}/execute`, body) as Record<string, unknown>;
       const nestedError = resolveNestedError(result);
+      recordImpactForTool("execute", result, args);
       if (nestedError) return errorResult(nestedError, result);
       const processed = maybePostProcessResult(result, args);
       const withHints = addExecuteNextStepHints(isPlainObject(processed) ? processed as Record<string, unknown> : { result: processed }, args);
-      return successResult(withHints, "Execution result. See _workflow_hints for required next steps.");
+      const impactLine = summarizeImpact(result);
+      return successResult(
+        withHints,
+        impactLine
+          ? `Execution result. ${impactLine}. See _workflow_hints for required next steps.`
+          : "Execution result. See _workflow_hints for required next steps.",
+      );
+    },
+  },
+  {
+    name: "unbrowse_stats",
+    description: "Show lifetime impact for this agent: total time saved, tokens saved, cost saved, browser calls avoided, and marketplace earnings/spending. Read-only — safe to call anytime. Use this to show the user the concrete value Unbrowse has delivered.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        include_recent: { type: "boolean", description: "Include recent earnings/spending transactions. Default false." },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      const local = readImpactSummary();
+      const agentId = getAgentId();
+
+      type EarningsLedger = { total_earned_uc: number; total_earned_usd: number; transaction_count: number; last_transaction_at?: string } | null;
+      type SpendingLedger = { total_spent_uc: number; total_spent_usd: number; transaction_count: number; last_transaction_at?: string } | null;
+
+      let profile: Awaited<ReturnType<typeof getMyProfile>> | null = null;
+      let earnings: { ledger: EarningsLedger; transactions: unknown[] } | null = null;
+      let spending: { ledger: SpendingLedger; transactions: unknown[] } | null = null;
+      const remoteErrors: Record<string, string> = {};
+
+      if (agentId) {
+        const results = await Promise.allSettled([
+          getMyProfile(),
+          getCreatorEarnings(agentId),
+          getTransactionHistory(agentId),
+        ]);
+        if (results[0].status === "fulfilled") profile = results[0].value;
+        else remoteErrors.profile = (results[0].reason as Error)?.message ?? String(results[0].reason);
+        if (results[1].status === "fulfilled") earnings = results[1].value as { ledger: EarningsLedger; transactions: unknown[] };
+        else remoteErrors.earnings = (results[1].reason as Error)?.message ?? String(results[1].reason);
+        if (results[2].status === "fulfilled") spending = results[2].value as { ledger: SpendingLedger; transactions: unknown[] };
+        else remoteErrors.spending = (results[2].reason as Error)?.message ?? String(results[2].reason);
+      } else {
+        remoteErrors.profile = "No agent_id in local config. Run `unbrowse setup` to register.";
+      }
+
+      const earnedUsd = earnings?.ledger?.total_earned_usd ?? 0;
+      const spentUsd = spending?.ledger?.total_spent_usd ?? 0;
+      const savedUsd = local.total_cost_saved_uc / 1_000_000;
+
+      const includeRecent = args.include_recent === true;
+      const payload = {
+        agent_id: agentId,
+        profile,
+        impact: {
+          total_runs: local.total_runs,
+          successful_runs: local.successful_runs,
+          browser_avoided_runs: local.browser_avoided_runs,
+          total_time_saved_ms: local.total_time_saved_ms,
+          total_time_saved_human: formatImpactDuration(local.total_time_saved_ms),
+          total_tokens_saved: local.total_tokens_saved,
+          total_cost_saved_usd: Number(savedUsd.toFixed(6)),
+          avg_time_saved_pct: local.avg_time_saved_pct,
+          avg_tokens_saved_pct: local.avg_tokens_saved_pct,
+          by_source: local.by_source,
+          first_entry_at: local.first_entry_at,
+          last_entry_at: local.last_entry_at,
+          log_path: getImpactLogPath(),
+        },
+        earnings: {
+          total_earned_usd: earnedUsd,
+          total_earned_uc: earnings?.ledger?.total_earned_uc ?? 0,
+          transaction_count: earnings?.ledger?.transaction_count ?? 0,
+          last_transaction_at: earnings?.ledger?.last_transaction_at ?? null,
+          ...(includeRecent && earnings?.transactions ? { recent: earnings.transactions.slice(0, 10) } : {}),
+        },
+        spending: {
+          total_spent_usd: spentUsd,
+          total_spent_uc: spending?.ledger?.total_spent_uc ?? 0,
+          transaction_count: spending?.ledger?.transaction_count ?? 0,
+          last_transaction_at: spending?.ledger?.last_transaction_at ?? null,
+          ...(includeRecent && spending?.transactions ? { recent: spending.transactions.slice(0, 10) } : {}),
+        },
+        net_usd: earnedUsd - spentUsd,
+        ...(Object.keys(remoteErrors).length > 0 ? { remote_errors: remoteErrors } : {}),
+      };
+
+      const headline: string[] = [];
+      if (local.total_runs > 0) {
+        const bits: string[] = [];
+        if (local.total_time_saved_ms > 0) bits.push(`${formatImpactDuration(local.total_time_saved_ms)} saved`);
+        if (local.total_tokens_saved > 0) bits.push(`${local.total_tokens_saved.toLocaleString("en-US")} tokens saved`);
+        if (savedUsd > 0) bits.push(`${formatImpactUsd(local.total_cost_saved_uc)} saved`);
+        if (local.browser_avoided_runs > 0) bits.push(`${local.browser_avoided_runs} browser calls avoided`);
+        if (bits.length > 0) headline.push(`Lifetime impact (${local.total_runs} runs): ${bits.join(" • ")}`);
+      }
+      if (agentId && !remoteErrors.earnings && !remoteErrors.spending) {
+        headline.push(`Marketplace: +$${earnedUsd.toFixed(4)} earned, -$${spentUsd.toFixed(4)} spent, net ${earnedUsd - spentUsd >= 0 ? "+" : ""}$${(earnedUsd - spentUsd).toFixed(4)}`);
+      }
+      return successResult(payload, headline.length > 0 ? headline.join(" • ") : "Unbrowse stats (no runs recorded yet).");
     },
   },
   {

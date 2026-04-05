@@ -41,6 +41,44 @@ function persistVisitorCookie(visitorId: string): void {
   document.cookie = `${VISITOR_ID_COOKIE}=${visitorId}; Path=/; Max-Age=${VISITOR_COOKIE_MAX_AGE}; SameSite=Lax`;
 }
 
+function getDeviceContext(): Record<string, unknown> {
+  if (!canTrack()) return {};
+  const w = window.screen?.width;
+  const h = window.screen?.height;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const touch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+  const ua = navigator.userAgent;
+
+  let device_type: "mobile" | "tablet" | "desktop" = "desktop";
+  if (/Mobile|Android.*Mobile|iPhone|iPod/.test(ua)) device_type = "mobile";
+  else if (/iPad|Android(?!.*Mobile)|Tablet/.test(ua) || (touch && vw >= 600 && vw <= 1024)) device_type = "tablet";
+  else if (touch && vw < 600) device_type = "mobile";
+
+  let browser = "unknown";
+  if (/Edg\//.test(ua)) browser = "edge";
+  else if (/OPR\/|Opera/.test(ua)) browser = "opera";
+  else if (/Chrome\//.test(ua)) browser = "chrome";
+  else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) browser = "safari";
+  else if (/Firefox\//.test(ua)) browser = "firefox";
+
+  const nav = navigator as Record<string, unknown>;
+  const conn = nav.connection as Record<string, unknown> | undefined;
+
+  return {
+    device_type,
+    screen_width: w,
+    screen_height: h,
+    viewport_width: vw,
+    viewport_height: vh,
+    touch_support: touch,
+    browser,
+    user_agent: ua.slice(0, 200),
+    language: navigator.language,
+    ...(conn?.effectiveType ? { connection_type: conn.effectiveType } : {}),
+  };
+}
+
 function getUtmProperties(): Record<string, string> {
   if (!canTrack()) return {};
   const search = new URLSearchParams(window.location.search);
@@ -184,6 +222,7 @@ export function trackWebEvent(
       referrer: document.referrer || null,
       created_at: new Date().toISOString(),
       properties: {
+        ...getDeviceContext(),
         ...getUtmProperties(),
         ...mergedContext,
         ...(properties ?? {}),

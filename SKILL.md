@@ -323,6 +323,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `forward` | `[--session id]` | Navigate forward |
 | `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review |
 | `close` | `[--session id]` | Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review |
+| `stats` | `[--json] [--pretty]` | Show lifetime time/tokens/cost saved and marketplace earnings/spending |
 
 ### Global flags
 
