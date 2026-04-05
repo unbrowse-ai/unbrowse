@@ -12,6 +12,7 @@ import { x402Response, verifyX402Proof, buildSkillPaymentTerms, paymentsEnabled,
 import { skillsKV } from "../services/kv.js";
 import { getAgentWallet, mergeContributor, resolveSkillPaymentRecipient, syncSkillSplitConfig } from "../services/splits.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
+import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 
 function schedule(c: Context, task: Promise<unknown>): void {
@@ -106,7 +107,8 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
     }
 
     // Proof provided -- verify via Corbits facilitator
-    const { valid, degraded, settlementHeader } = await verifyX402Proof(paymentHeader ?? legacyProofHeader!);
+    const proof = paymentHeader ?? legacyProofHeader!;
+    const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
     if (!valid) {
       return c.json({ error: "Payment proof invalid or rejected" }, 403);
     }
@@ -116,6 +118,17 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
     if (settlementHeader) {
       c.header("PAYMENT-RESPONSE", settlementHeader);
     }
+
+    // Record to ledger (non-blocking — don't fail the request if ledger write fails)
+    const txId = transaction ?? `x402-${Date.now()}-${skill.skill_id.slice(0, 8)}`;
+    schedule(c, recordTransaction(c.env, {
+      transaction_id: txId,
+      consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
+      creator_id: resolveSkillPaymentRecipient(skill, c.env),
+      skill_id: skill.skill_id,
+      price_usd: priceResult.price_usd,
+      payment_proof: proof,
+    }).catch((err) => console.warn(`[x402] ledger write failed: ${(err as Error).message}`)));
   }
 
   return c.json(skill);
