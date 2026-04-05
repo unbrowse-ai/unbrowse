@@ -3015,15 +3015,18 @@ export async function resolveAndExecute(
             console.log(`[prefetch] error: ${(prefetchErr as Error).message}`);
           }
           // --- Payment gate: only for marketplace-sourced paid skills ---
-          if (source === "marketplace" && skill.base_price_usd && skill.base_price_usd > 0) {
-            try {
+          const dynamicPrice = source === "marketplace"
+            ? (skill.base_price_usd ?? await (await import("../payments/index.js")).fetchDynamicPrice(skill.skill_id))
+            : null;
+          const effectivePrice = typeof dynamicPrice === "string" ? parseFloat(dynamicPrice) : (dynamicPrice ?? 0);
+          if (source === "marketplace" && effectivePrice > 0) {
               const walletCheck = checkWalletConfigured();
               const wallet = getLocalWalletContext();
               const paymentResult = await checkPaymentRequirement(
                 skill.skill_id,
                 candidate.endpoint.endpoint_id,
                 {
-                  price_usd: String(skill.base_price_usd),
+                  price_usd: String(effectivePrice),
                   wallet_configured: walletCheck.configured,
                 },
               );
