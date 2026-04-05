@@ -43,7 +43,7 @@ Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
 - Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
 - Kuri must work as a bundled runtime from the package/monorepo vendor path. Do not require end users to install Zig or a separate `kuri` binary.
-- When touching Kuri discovery, packaging, runtime paths, or `packages/skill`, run `bash scripts/check-packaged-kuri.sh`.
+- When touching Kuri discovery, packaging, runtime paths, or `packages/skill`, run `node packages/skill/scripts/assert-kuri-vendor.mjs`.
 
 ## Codex Eval Harness
 
