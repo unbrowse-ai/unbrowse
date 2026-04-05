@@ -12,6 +12,7 @@ export const supportedTargets = [
   { id: "darwin-x64", zigTarget: "x86_64-macos" },
   { id: "linux-arm64", zigTarget: "aarch64-linux" },
   { id: "linux-x64", zigTarget: "x86_64-linux" },
+  { id: "win-x64", zigTarget: "x86_64-windows" },
 ];
 
 export function monorepoKuriDir(repoRoot) {

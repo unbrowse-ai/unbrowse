@@ -8,6 +8,7 @@ import {
   INSTALL_CMD_NPM,
   INSTALL_CMD_OPENCLAW,
   INSTALL_CMD_SKILL,
+  INSTALL_CMD_WINDOWS,
   INSTALL_CMD_MCP,
   MCP_CONFIG_JSON,
   MCP_CONFIG_PATH,
@@ -114,6 +115,23 @@ ${UPGRADE_CMD_GENERIC}
 
 # Check the install
 unbrowse health --pretty`,
+  },
+  {
+    id: "windows",
+    label: "Windows",
+    command: INSTALL_CMD_WINDOWS,
+    code: `# PowerShell (Run as User — no admin needed)
+${INSTALL_CMD_WINDOWS}
+
+# Or install via npm
+npm install -g unbrowse
+unbrowse setup
+
+# Verify
+unbrowse health --pretty
+
+# Upgrade
+${INSTALL_CMD_WINDOWS}`,
   },
 ] as const;
 
