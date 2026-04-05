@@ -205,7 +205,7 @@ export default function PersonalAgentsPage() {
             <code className="text-orange-600">{INSTALL_CMD}</code>
           </div>
           <p className="mt-3 text-sm text-text-secondary">
-            Works with OpenClaw v0.7.16 and above. Your agent will try Unbrowse
+            Works with OpenClaw v0.7.17 and above. Your agent will try Unbrowse
             first for any web task, and fall back to the browser only when no
             route exists.
           </p>
