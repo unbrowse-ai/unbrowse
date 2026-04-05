@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
-import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, registerDocumentStartScript, enableNetworkHeaderCapture, getCapturedNetworkHeaders } from "../capture/index.js";
+import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -1187,10 +1187,6 @@ export async function registerRoutes(app: FastifyInstance) {
     await broker.networkEnable(session.tabId).catch(() => {});
     await broker.harStart(session.tabId).catch(() => {});
     await broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
-    // Direct CDP injection — survives navigations even when Kuri's scriptInject is broken
-    await registerDocumentStartScript(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
-    // CDP-level header capture — catches auth headers that HAR and JS interceptor miss
-    await enableNetworkHeaderCapture(session.tabId).catch(() => {});
     session.harActive = true;
     await injectInterceptor(session.tabId).catch(() => {});
   }
@@ -1239,21 +1235,6 @@ export async function registerRoutes(app: FastifyInstance) {
       harEntries,
       intent: `browse ${session.domain || profileName(session.url)}`,
     });
-
-    // Merge CDP-captured auth headers into requests (fills gaps from HAR/interceptor)
-    const cdpHeaders = getCapturedNetworkHeaders(session.tabId);
-    if (cdpHeaders.size > 0) {
-      for (const req of allRequests) {
-        const captured = cdpHeaders.get(req.url);
-        if (captured) {
-          for (const [k, v] of Object.entries(captured)) {
-            if (!req.request_headers[k] && /auth|csrf|token|bearer/i.test(k)) {
-              req.request_headers[k] = v;
-            }
-          }
-        }
-      }
-    }
 
     // Collect JS bundle bodies for token source scanning
     const jsBundles = new Map<string, string>();
