@@ -98,8 +98,8 @@ jobs:
               OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env staging
               ;;
             lewis/experiments)
-              CLOUDFLARE_ENV=experiments ./node_modules/.bin/opennextjs-cloudflare build
-              OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy --env experiments
+              ./node_modules/.bin/opennextjs-cloudflare build
+              OPEN_NEXT_DEPLOY=true ./node_modules/.bin/wrangler deploy
               ;;
             *)
               bun run deploy:ci
