@@ -16,13 +16,14 @@ landingRoutes.post("/landing/homepage/assign", async (c) => {
   const body = await c.req.json<{
     visitor_id?: string;
     current_assignment?: string | null;
+    icp?: string | null;
   }>().catch(() => null);
 
   if (!body?.visitor_id) {
     return c.json({ error: "visitor_id is required" }, 400);
   }
 
-  const assigned = await assignLandingHomepageVariant(c.env, body.visitor_id, body.current_assignment);
+  const assigned = await assignLandingHomepageVariant(c.env, body.visitor_id, body.current_assignment, body.icp);
   return c.json({
     assignment: assigned.assignment,
     assignment_cookie: encodeLandingHomepageAssignmentCookie(assigned.assignment),

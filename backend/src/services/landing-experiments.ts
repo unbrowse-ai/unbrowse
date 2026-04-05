@@ -36,6 +36,7 @@ export interface LandingVariantConfig {
   source: LandingVariantSource;
   angle_family: LandingAngleFamily;
   weight: number;
+  icp?: string | string[];
   rationale?: string;
   generated_at?: string;
   canary_started_at?: string;
@@ -319,10 +320,26 @@ export async function saveLandingHomepageExperimentConfig(
   return normalized;
 }
 
+function variantMatchesIcp(variant: LandingVariantConfig, icp: string): boolean {
+  if (!variant.icp) return true;
+  const targets = Array.isArray(variant.icp) ? variant.icp : [variant.icp];
+  return targets.some((t) => t.toLowerCase() === icp.toLowerCase());
+}
+
+function filterVariantsByIcp(
+  config: LandingHomepageExperimentConfig,
+  icp: string,
+): LandingHomepageExperimentConfig {
+  const matched = config.variants.filter((v) => variantMatchesIcp(v, icp));
+  if (matched.length === 0) return config;
+  return { ...config, variants: matched };
+}
+
 export async function assignLandingHomepageVariant(
   env: Env,
   visitorId: string,
   currentAssignmentRaw?: string | null,
+  visitorIcp?: string | null,
 ): Promise<LandingHomepageAssignmentResponse> {
   const config = await getLandingHomepageExperimentConfig(env);
   const currentAssignment = parseAssignmentCookie(currentAssignmentRaw);
@@ -338,7 +355,8 @@ export async function assignLandingHomepageVariant(
     }
   }
 
-  const weighted = normalizeWeights(config);
+  const filtered = visitorIcp ? filterVariantsByIcp(config, visitorIcp) : config;
+  const weighted = normalizeWeights(filtered);
   const hash = await hashToUnitInterval(`${config.experiment_id}:${config.assignment_salt}:${visitorId}`);
   let cursor = 0;
   let chosen = weighted[0]?.variant ?? config.variants.find((variant) => variant.variant_id === config.control_variant_id) ?? config.variants[0];

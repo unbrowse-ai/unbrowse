@@ -15,6 +15,7 @@
       "source": "human",
       "angle_family": "browser-replacement",
       "weight": 0.5,
+      "icp": ["agent-stack-builder", "automation-engineer"],
       "rationale": "Canonical wedge. Drop-in replacement for browser automation in agent stacks.",
       "copy": {
         "hero_headline": "A drop-in replacement",
@@ -42,6 +43,7 @@
       "source": "human",
       "angle_family": "speed-proof",
       "weight": 0.5,
+      "icp": ["performance-engineer", "scraping-at-scale"],
       "rationale": "Lead with the benchmark proof while keeping browser replacement as the category.",
       "copy": {
         "hero_headline": "Replace browser automation",
@@ -69,6 +71,7 @@
       "source": "human",
       "angle_family": "reliability",
       "weight": 0.1,
+      "icp": ["automation-engineer", "ci-cd-maintainer"],
       "rationale": "Test whether lower-breakage framing outperforms pure speed framing.",
       "canary_started_at": "2026-04-03T00:00:00.000Z",
       "copy": {
@@ -97,6 +100,7 @@
       "source": "auto_generated",
       "angle_family": "learn-once-reuse-later",
       "weight": 0,
+      "icp": ["agent-stack-builder"],
       "rationale": "Shadow candidate focused on repeated browser work becoming reusable infrastructure.",
       "copy": {
         "hero_headline": "Turn repeated browser work",
