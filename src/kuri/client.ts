@@ -216,7 +216,10 @@ function falseyEnv(value: string | undefined): boolean {
 }
 
 export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): KuriLaunchConfig {
-  const headless = envFlag(env.KURI_HEADLESS ?? env.HEADLESS);
+  const explicitHeadless = env.KURI_HEADLESS ?? env.HEADLESS;
+  const headless = explicitHeadless !== undefined
+    ? envFlag(explicitHeadless)
+    : (process.platform === "linux" && !env.DISPLAY); // auto-headless when no display on Linux
   const cleanRoom = envFlag(env.UNBROWSE_LOCAL_ONLY) || envFlag(env.KURI_CLEAN_ROOM);
   const browserCookieOptOut = falseyEnv(env.UNBROWSE_IMPORT_BROWSER_COOKIES);
   const explicitAttach = envFlag(env.KURI_ATTACH_EXISTING_CHROME ?? env.UNBROWSE_ATTACH_EXISTING_CHROME);
