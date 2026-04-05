@@ -6,6 +6,7 @@ import {
   INSTALL_CMD_CLAUDE,
   INSTALL_CMD_GENERIC,
   INSTALL_CMD_NPM,
+  INSTALL_CMD_OPENCLAW,
   INSTALL_CMD_SKILL,
   INSTALL_CMD_MCP,
   MCP_CONFIG_JSON,
@@ -17,6 +18,25 @@ import {
 import { getTokenizedInstallCommand, trackWebEvent } from "@/lib/web-telemetry";
 
 const tabs = [
+  {
+    id: "openclaw",
+    label: "OpenClaw (Recommended)",
+    command: INSTALL_CMD_OPENCLAW,
+    code: `# Make Unbrowse your agent's native browser
+${INSTALL_CMD_OPENCLAW}
+
+# The package pulls in the local Unbrowse runtime automatically
+# Every page.goto() routes through Unbrowse — no code changes needed
+
+# Older OpenClaw builds may ask once to trust the plugin
+# Type y and press enter if prompted
+
+# Fallback routing instead of hard browser blocking
+unbrowse-openclaw install --mode fallback --restart
+
+# Use a named OpenClaw profile
+unbrowse-openclaw install --profile work --restart`,
+  },
   {
     id: "cli",
     label: "Cursor / Codex / CLI",
@@ -34,25 +54,6 @@ unbrowse health --pretty
 
 # Upgrade after releases
 ${UPGRADE_CMD_GENERIC}`,
-  },
-  {
-    id: "mcp",
-    label: "Any MCP Client",
-    command: INSTALL_CMD_MCP,
-    code: `${INSTALL_CMD_MCP}
-
-# Installer writes the absolute-path config here
-${MCP_CONFIG_PATH}
-
-# Generic template for manual import / paste
-${MCP_CONFIG_JSON}
-
-# First run may ask for ToS acceptance, agent identity, and Crossmint lobster.cash setup
-# Set up Crossmint if you want route-mining payouts to land in your wallet
-unbrowse health
-
-# Already installed?
-${UPGRADE_CMD_MCP}`,
   },
   {
     id: "claude",
@@ -77,26 +78,23 @@ ${INSTALL_CMD_CLAUDE}
 ${UPGRADE_CMD_CLAUDE}`,
   },
   {
-    id: "openclaw",
-    label: "OpenClaw",
-    command: "npx unbrowse-openclaw install --restart",
-    code: `# Install the published browser-replacement plugin
-npx unbrowse-openclaw install --restart
+    id: "mcp",
+    label: "Any MCP Client",
+    command: INSTALL_CMD_MCP,
+    code: `${INSTALL_CMD_MCP}
 
-# The package pulls in the local Unbrowse runtime automatically
+# Installer writes the absolute-path config here
+${MCP_CONFIG_PATH}
 
-# Older OpenClaw builds may ask once to trust the plugin
-# Type y and press enter if prompted
+# Generic template for manual import / paste
+${MCP_CONFIG_JSON}
 
-# Or install globally for repeat use
-npm install -g unbrowse-openclaw
-unbrowse-openclaw install --restart
+# First run may ask for ToS acceptance, agent identity, and Crossmint lobster.cash setup
+# Set up Crossmint if you want route-mining payouts to land in your wallet
+unbrowse health
 
-# Fallback routing instead of hard browser blocking
-unbrowse-openclaw install --mode fallback --restart
-
-# Use a named OpenClaw profile
-unbrowse-openclaw install --profile work --restart`,
+# Already installed?
+${UPGRADE_CMD_MCP}`,
   },
   {
     id: "cursor",
@@ -125,7 +123,7 @@ interface Props {
 }
 
 export function InstallInstructions({ experimentId, variantId }: Props) {
-  const [active, setActive] = useState<string>("cli");
+  const [active, setActive] = useState<string>("openclaw");
   const [copied, setCopied] = useState(false);
 
   const tab = tabs.find((t) => t.id === active) ?? tabs[0];
