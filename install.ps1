@@ -2,6 +2,10 @@
 # Usage: irm https://unbrowse.ai/install.ps1 | iex
 $ErrorActionPreference = 'Stop'
 
+# Faster Invoke-WebRequest in PS 5.1 (no progress bar) and TLS 1.2 for older Windows
+$ProgressPreference = 'SilentlyContinue'
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
+
 $Repo = 'unbrowse-ai/unbrowse'
 $InstallDir = if ($env:UNBROWSE_INSTALL_DIR) { $env:UNBROWSE_INSTALL_DIR }
               elseif (Test-Path "$HOME\.local\bin") { "$HOME\.local\bin" }
@@ -27,18 +31,26 @@ $TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) "unbrowse-install-$([guid]
 New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
 
 try {
-    # Try .zip first, fall back to bare .exe
-    $ZipUrl = "https://github.com/$Repo/releases/download/$Version/unbrowse-$Version-win-x64.zip"
+    # Release assets: prefer the versioned tar.gz that build-binaries.sh actually produces;
+    # fall back to the bare win-x64 exe. Windows 10 1803+ ships tar.exe.
+    $TarUrl = "https://github.com/$Repo/releases/download/$Version/unbrowse-$Version-win-x64.tar.gz"
     $ExeUrl = "https://github.com/$Repo/releases/download/$Version/unbrowse-win-x64.exe"
-    $ZipPath = Join-Path $TmpDir 'unbrowse.zip'
+    $TarPath = Join-Path $TmpDir 'unbrowse.tar.gz'
     $ExePath = Join-Path $TmpDir 'unbrowse.exe'
 
     $downloaded = $false
-    try {
-        Invoke-WebRequest -Uri $ZipUrl -OutFile $ZipPath -UseBasicParsing
-        Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
-        $downloaded = $true
-    } catch {
+    if (Get-Command tar -ErrorAction SilentlyContinue) {
+        try {
+            Invoke-WebRequest -Uri $TarUrl -OutFile $TarPath -UseBasicParsing
+            & tar -xzf $TarPath -C $TmpDir
+            if ($LASTEXITCODE -ne 0) { throw "tar exited with $LASTEXITCODE" }
+            $downloaded = $true
+        } catch {
+            Write-Host "tar.gz path failed, falling back to bare .exe: $_"
+        }
+    }
+
+    if (-not $downloaded) {
         try {
             Invoke-WebRequest -Uri $ExeUrl -OutFile $ExePath -UseBasicParsing
             $downloaded = $true
@@ -48,8 +60,8 @@ try {
         }
     }
 
-    # Locate the binary
-    $SrcExe = Get-ChildItem -Path $TmpDir -Filter 'unbrowse.exe' -Recurse | Select-Object -First 1
+    # Locate the binary (tar may extract to a subdir; bare .exe is already at $ExePath)
+    $SrcExe = Get-ChildItem -Path $TmpDir -Filter 'unbrowse.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $SrcExe) { Write-Error 'Error: unbrowse.exe not found in download'; exit 1 }
 
     # Install
