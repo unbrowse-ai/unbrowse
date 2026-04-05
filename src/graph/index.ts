@@ -373,15 +373,20 @@ export function getEndpointDescriptionMetadata(endpoint: Pick<EndpointDescriptor
   warning?: string;
 } {
   const input = classifyDescriptionInput(endpoint.description);
-  const display = (input.source === "agent"
-    ? endpoint.description ?? ""
+  // Trust the LLM augmenter's semantic layer when it has run.
+  const agentAugmented = endpoint.semantic?.description_source === "agent";
+  // Schema-grounded auto descriptions (with real response fields) don't need
+  // external LLM review — the calling agent IS the LLM that reviews them.
+  const schemaGrounded = !!(endpoint.semantic?.example_fields?.length || endpoint.semantic?.response_summary);
+  const display = (input.source === "agent" || agentAugmented
+    ? endpoint.semantic?.description_out ?? endpoint.description ?? ""
     : endpoint.semantic?.description_out ?? endpoint.description ?? "").trim();
-  const source = display ? (input.source === "agent" ? "agent" : "auto") : "missing";
+  const source = display ? (input.source === "agent" || agentAugmented ? "agent" : "auto") : "missing";
   return {
     display,
     source,
-    needs_review: source !== "agent",
-    ...(source !== "agent"
+    needs_review: source === "missing" || (source === "auto" && !schemaGrounded),
+    ...(source !== "agent" && !schemaGrounded
       ? { warning: input.warning ?? "Auto-generated description. Review before trusting or publishing." }
       : {}),
   };

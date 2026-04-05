@@ -10,6 +10,7 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import {
   importBrowserCookiesIntoTab,
   loadAuthProfileBestEffort,
@@ -83,7 +84,7 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
       // Store auth credentials
       const capturedAuthHeaders = extractAuthHeaders(requests);
       if (Object.keys(capturedAuthHeaders).length > 0) {
-        await storeCredential(`${domain}-session`, JSON.stringify({ headers: capturedAuthHeaders }));
+        await storeCredential(`${getRegistrableDomain(domain)}-session`, JSON.stringify({ headers: capturedAuthHeaders }));
       }
 
       // Merge with existing skill (never reduce endpoint count)

@@ -11,6 +11,7 @@ import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
@@ -135,7 +136,7 @@ function passiveIndexFromRequests(
       // 2. Extract and store auth credentials (cookies + sensitive headers)
       const capturedAuthHeaders = extractAuthHeaders(requests);
       if (Object.keys(capturedAuthHeaders).length > 0) {
-        const authKey = `${domain}-session`;
+        const authKey = `${getRegistrableDomain(domain)}-session`;
         await storeCredential(authKey, JSON.stringify({ headers: capturedAuthHeaders }));
       }
 
