@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { readFileSync } from "node:fs";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
+import { enrichEndpointsWithTokenSources } from "../reverse-engineer/token-sources.js";
 import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
 import { validateExtractionQuality } from "../execution/index.js";
 import { assessIntentResult } from "../intent-match.js";
@@ -10,6 +11,8 @@ import type { RawRequest } from "../capture/index.js";
 import { cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { upsertDagEdgesFromOperationGraph } from "../orchestrator/dag-feedback.js";
+import { storeCredential } from "../vault/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import {
   buildResolveCacheKey,
   domainSkillCache,
@@ -159,6 +162,16 @@ export async function cacheBrowseRequests(params: {
   const intent = params.intent ?? `browse ${domain}`;
 
   const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl: sessionUrl, finalUrl: sessionUrl });
+
+  // Extract and persist auth headers (authorization, csrf, bearer tokens)
+  // so serverFetch can replay them. Use registrable domain for vault key
+  // so ads.x.com and ads-api.x.com share the same session.
+  const capturedAuthHeaders = extractAuthHeaders(requests);
+  if (Object.keys(capturedAuthHeaders).length > 0) {
+    const sessionKey = `${getRegistrableDomain(domain)}-session`;
+    await storeCredential(sessionKey, JSON.stringify({ headers: capturedAuthHeaders })).catch(() => {});
+  }
+
   if (rawEndpoints.length > 0) {
     const existingSkill = findExistingSkillForDomain(domain);
     let allExisting = existingSkill?.endpoints ?? [];
@@ -183,7 +196,6 @@ export async function cacheBrowseRequests(params: {
       for (const endpoint of mergedEndpoints) {
         if (!endpoint.description) endpoint.description = generateLocalDescription(endpoint);
       }
-
       const quickSkill: SkillManifest = {
         skill_id: existingSkill?.skill_id ?? nanoid(),
         version: "1.0.0",
@@ -201,6 +213,16 @@ export async function cacheBrowseRequests(params: {
         operation_graph: buildSkillOperationGraph(mergedEndpoints),
         intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
       };
+
+      // Token source discovery: scan live HTML for tokens used in captured
+      // request headers and attach AuthTokenBinding entries so serverFetch
+      // can rescrape fresh tokens on replay.
+      try {
+        const html = getPageHtml ? await getPageHtml() : undefined;
+        if (html && html.startsWith("<")) {
+          enrichEndpointsWithTokenSources(quickSkill.endpoints, requests, html, undefined);
+        }
+      } catch { /* best-effort */ }
 
       const cacheKey = buildResolveCacheKey(domain, intent, sessionUrl);
       const scopedKey = scopedCacheKey("global", cacheKey);
@@ -294,7 +316,6 @@ export async function cacheBrowseRequests(params: {
       operation_graph: buildSkillOperationGraph(allEndpoints),
       intents: [...new Set([...(existing?.intents ?? []), intent])],
     };
-
     const cacheKey = buildResolveCacheKey(domain, intent, sessionUrl);
     const scopedKey = scopedCacheKey("global", cacheKey);
     writeSkillSnapshot(scopedKey, skill);

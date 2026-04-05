@@ -130,6 +130,23 @@ export interface EndpointPathBindingCandidate {
   matched_page_hint?: boolean;
 }
 
+export interface AuthTokenSource {
+  kind: "cookie" | "html-meta" | "html-inline-script" | "js-bundle" | "observed-request";
+  cookie_names?: string[];
+  meta_name?: string;
+  meta_attr?: "content" | "value";
+  inline_script_regex?: string;
+  bundle_url_pattern?: string;
+  bundle_regex?: string;
+}
+
+export interface AuthTokenBinding {
+  param_name: string;
+  param_location: "header" | "body" | "query";
+  sources: AuthTokenSource[];
+  refresh_on_401?: boolean;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
@@ -146,6 +163,8 @@ export interface EndpointDescriptor {
   body?: Record<string, unknown>;
   csrf_plan?: CsrfPlan;
   oauth_plan?: OAuthPlan;
+  /** Token bindings discovered during capture — maps auth headers to their page sources */
+  auth_tokens?: AuthTokenBinding[];
   transform_ref?: string;
   idempotency: Idempotency;
   verification_status: VerificationStatus;

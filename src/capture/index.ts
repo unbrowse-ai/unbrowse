@@ -376,6 +376,11 @@ export const INTERCEPTOR_SCRIPT = `(function() {
     var method = (opts.method || 'GET').toUpperCase();
     var reqBody = opts.body ? String(opts.body).substring(0, MAX_BODY) : undefined;
     var reqHeaders = {};
+    // Extract headers from Request object (first arg)
+    if (args[0] && typeof args[0] === 'object' && args[0].headers && typeof args[0].headers.forEach === 'function') {
+      args[0].headers.forEach(function(v, k) { reqHeaders[k] = v; });
+    }
+    // Override/merge with explicit opts.headers (second arg)
     if (opts.headers) {
       if (typeof opts.headers.forEach === 'function') {
         opts.headers.forEach(function(v, k) { reqHeaders[k] = v; });
