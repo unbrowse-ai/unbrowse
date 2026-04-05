@@ -30,6 +30,114 @@ const activeTabRegistry = new Set<string>();
 // Tracks tabs where scriptInject has been registered (persistent across navigations)
 const interceptorInjectedTabs = new Set<string>();
 
+// Tracks tabs where CDP-level document-start injection has been registered
+const cdpDocStartTabs = new Set<string>();
+
+/**
+ * Register a script via Chrome's Page.addScriptToEvaluateOnNewDocument CDP method directly.
+ * This runs BEFORE any page JS on every navigation — critical for catching early fetch() calls.
+ * Falls back silently if CDP is unavailable.
+ */
+export async function registerDocumentStartScript(tabId: string, source: string): Promise<boolean> {
+  if (cdpDocStartTabs.has(tabId)) return true;
+  const cdpPort = kuri.getCdpPort();
+  if (!cdpPort) return false;
+
+  try {
+    // Get the WebSocket URL for this tab
+    const resp = await fetch(`http://127.0.0.1:${cdpPort}/json`);
+    const targets = await resp.json() as Array<{ id: string; webSocketDebuggerUrl?: string }>;
+    const target = targets.find((t) => t.id === tabId);
+    if (!target?.webSocketDebuggerUrl) return false;
+
+    // Connect via WebSocket and send CDP command
+    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    const result = await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => { ws.close(); resolve(false); }, 3000);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          id: 1,
+          method: "Page.addScriptToEvaluateOnNewDocument",
+          params: { source },
+        }));
+      };
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(String(event.data));
+          if (msg.id === 1) {
+            clearTimeout(timeout);
+            ws.close();
+            resolve(!msg.error);
+          }
+        } catch { /* ignore parse errors */ }
+      };
+      ws.onerror = () => { clearTimeout(timeout); ws.close(); resolve(false); };
+    });
+
+    if (result) {
+      cdpDocStartTabs.add(tabId);
+      log("capture", `document-start interceptor registered via direct CDP for tab ${tabId}`);
+    }
+    return result;
+  } catch {
+    return false;
+  }
+}
+
+// Tracks captured request headers from CDP Network events
+const cdpCapturedHeaders = new Map<string, Map<string, Record<string, string>>>();
+
+/**
+ * Enable CDP Network.requestWillBeSent listener to capture full request headers
+ * including auth headers that HAR/interceptor miss. Stores headers indexed by URL.
+ */
+export async function enableNetworkHeaderCapture(tabId: string): Promise<void> {
+  const cdpPort = kuri.getCdpPort();
+  if (!cdpPort) return;
+
+  try {
+    const resp = await fetch(`http://127.0.0.1:${cdpPort}/json`);
+    const targets = await resp.json() as Array<{ id: string; webSocketDebuggerUrl?: string }>;
+    const target = targets.find((t) => t.id === tabId);
+    if (!target?.webSocketDebuggerUrl) return;
+
+    const headers = new Map<string, Record<string, string>>();
+    cdpCapturedHeaders.set(tabId, headers);
+
+    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    ws.onopen = () => {
+      // Enable network domain (may already be enabled, that's OK)
+      ws.send(JSON.stringify({ id: 1, method: "Network.enable", params: {} }));
+    };
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(String(event.data));
+        if (msg.method === "Network.requestWillBeSent") {
+          const req = msg.params?.request;
+          if (req?.url && req?.headers) {
+            // Only capture headers for API-like URLs
+            if (/\/(api|graphql|v\d+)\b/i.test(req.url) || /ads-api|voyager/i.test(req.url)) {
+              headers.set(req.url, req.headers);
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    // Keep ws alive — it will be cleaned up when tab closes
+    ws.onerror = () => { cdpCapturedHeaders.delete(tabId); };
+
+    log("capture", `CDP network header capture enabled for tab ${tabId}`);
+  } catch { /* best-effort */ }
+}
+
+/**
+ * Get captured request headers for a tab. Returns a map of URL → headers.
+ * These come from CDP Network.requestWillBeSent which includes auth headers
+ * that HAR and the JS interceptor miss.
+ */
+export function getCapturedNetworkHeaders(tabId: string): Map<string, Record<string, string>> {
+  return cdpCapturedHeaders.get(tabId) ?? new Map();
+}
 // Hard timeout per capture: 90s prevents stuck tabs from holding slots forever
 const CAPTURE_TIMEOUT_MS = 90_000;
 const CAPTURE_NAV_TIMEOUT_MS = 20_000;
