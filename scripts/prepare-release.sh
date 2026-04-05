@@ -117,8 +117,8 @@ fi
 
 echo "=== Applying $BUMP bump: $CURRENT_VERSION -> $NEXT_VERSION ==="
 
-# Bump version in all package.json files
-for PKG in package.json packages/skill/package.json; do
+# Bump version in all package.json files and version.json
+for PKG in package.json packages/skill/package.json version.json; do
   node -e "
     const fs = require('fs');
     const pkg = JSON.parse(fs.readFileSync('$PKG', 'utf8'));
