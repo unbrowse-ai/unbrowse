@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { INSTALL_CMD_GENERIC, INSTALL_CMD_SKILL } from "@/lib/install-command";
+import { INSTALL_CMD_OPENCLAW, INSTALL_CMD_SKILL } from "@/lib/install-command";
 import { getTokenizedInstallCommand, trackWebEvent } from "@/lib/web-telemetry";
 
 interface Props {
@@ -35,19 +35,19 @@ export function HeroCTA({ experimentId, variantId, primaryLabel }: Props) {
     <div className="w-full max-w-3xl rounded-2xl border border-border bg-surface/90 p-3 shadow-sm backdrop-blur">
       <div className="grid gap-3">
         <button
-          onClick={() => handleCopy(INSTALL_CMD_GENERIC, "install_runtime")}
+          onClick={() => handleCopy(INSTALL_CMD_OPENCLAW, "install_runtime")}
           className="group rounded-xl border border-orange-500/25 bg-orange-50 px-4 py-4 text-left transition-colors hover:border-orange-500/45 hover:bg-orange-100/70 active:scale-[0.99]"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-orange-700">
-                {primaryLabel ?? "Install The Runtime"}
+                {primaryLabel ?? "Make It Your Native Browser"}
               </p>
               <p className="mt-1 text-sm text-text-secondary">
-                Local CLI, capture engine, and setup flow.
+                One command. Replaces the default browser in your agent.
               </p>
             </div>
-            {copied === INSTALL_CMD_GENERIC ? (
+            {copied === INSTALL_CMD_OPENCLAW ? (
               <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-orange-700">
                 <Check className="w-3.5 h-3.5" /> Copied
               </span>
@@ -58,7 +58,7 @@ export function HeroCTA({ experimentId, variantId, primaryLabel }: Props) {
             )}
           </div>
           <code className="mt-3 block overflow-x-auto whitespace-nowrap font-mono text-xs text-orange-700 sm:text-sm">
-            {INSTALL_CMD_GENERIC}
+            {INSTALL_CMD_OPENCLAW}
           </code>
         </button>
 
@@ -85,6 +85,111 @@ export function HeroCTA({ experimentId, variantId, primaryLabel }: Props) {
           </code>
         </div>
       </div>
+    </div>
+  );
+}
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </span>
+            )}
+          </div>
+          <code className="mt-3 block overflow-x-auto whitespace-nowrap font-mono text-xs text-orange-700 sm:text-sm">
+            {INSTALL_CMD_OPENCLAW}
+          </code>
+          <p className="mt-2 text-xs text-text-muted">
+            Replaces your agent&apos;s browser with direct API routes. Fallback mode available.
+          </p>
+        </button>
+      )}
+
+      {activeTab === "mcp" && (
+        <button
+          onClick={() => handleCopy(MCP_CONFIG_JSON, "mcp_config")}
+          className="group w-full rounded-xl border border-orange-500/25 bg-orange-50 px-4 py-4 text-left transition-colors hover:border-orange-500/45 hover:bg-orange-100/70 active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-orange-700">
+                {primaryLabel ?? "Paste Into Your MCP Config"}
+              </p>
+              <p className="mt-1 text-sm text-text-secondary">
+                Works with Claude Desktop, Cursor, Codex, Windsurf. Zero install.
+              </p>
+            </div>
+            {copied === MCP_CONFIG_JSON ? (
+              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-orange-700">
+                <Check className="w-3.5 h-3.5" /> Copied
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-orange-600">
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </span>
+            )}
+          </div>
+          <pre className="mt-3 overflow-x-auto whitespace-pre rounded-lg bg-white/50 p-3 font-mono text-xs text-orange-700 sm:text-sm">
+            {MCP_CONFIG_JSON}
+          </pre>
+        </button>
+      )}
+
+      {activeTab === "cli" && (
+        <button
+          onClick={() => handleCopy(INSTALL_CMD_GENERIC, "install_runtime")}
+          className="group w-full rounded-xl border border-orange-500/25 bg-orange-50 px-4 py-4 text-left transition-colors hover:border-orange-500/45 hover:bg-orange-100/70 active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-orange-700">
+                Install The Runtime
+              </p>
+              <p className="mt-1 text-sm text-text-secondary">
+                Local CLI, capture engine, and setup flow.
+              </p>
+            </div>
+            {copied === INSTALL_CMD_GENERIC ? (
+              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-orange-700">
+                <Check className="w-3.5 h-3.5" /> Copied
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-orange-600">
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </span>
+            )}
+          </div>
+          <code className="mt-3 block overflow-x-auto whitespace-nowrap font-mono text-xs text-orange-700 sm:text-sm">
+            {INSTALL_CMD_GENERIC}
+          </code>
+        </button>
+      )}
+
+      {activeTab === "skill" && (
+        <button
+          onClick={() => handleCopy(INSTALL_CMD_SKILL, "host_shortcut")}
+          className="group w-full rounded-xl border border-orange-500/25 bg-orange-50 px-4 py-4 text-left transition-colors hover:border-orange-500/45 hover:bg-orange-100/70 active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-orange-700">
+                Add As A Skill
+              </p>
+              <p className="mt-1 text-sm text-text-secondary">
+                For Claude Code, OpenClaw, or any skills-aware host.
+              </p>
+            </div>
+            {copied === INSTALL_CMD_SKILL ? (
+              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-orange-700">
+                <Check className="w-3.5 h-3.5" /> Copied
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-orange-600">
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </span>
+            )}
+          </div>
+          <code className="mt-3 block overflow-x-auto whitespace-nowrap font-mono text-xs text-orange-700 sm:text-sm">
+            {INSTALL_CMD_SKILL}
+          </code>
+        </button>
+      )}
     </div>
   );
 }
