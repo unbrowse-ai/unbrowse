@@ -309,7 +309,7 @@ export function enrichEndpointsWithTokenSources(
           sources.push({ kind: "cookie", cookie_names: ["ct0", "csrf_token", "_csrf", "csrftoken", "XSRF-TOKEN"] });
         } else if (lowerName === "authorization") {
           if (html) {
-            const scriptSrcRe = /<script[^>]+src=["']([^"']+\.js[^"']*?)["']/gi;
+            const scriptSrcRe = /<script[^>]+src=["']([^"']+)["']/gi;
             let m: RegExpExecArray | null;
             while ((m = scriptSrcRe.exec(html)) !== null) {
               if (/main|app|client|bundle|vendor/i.test(m[1])) {
