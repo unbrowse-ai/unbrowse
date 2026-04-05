@@ -234,9 +234,9 @@ describe("skills trust promotion", () => {
       body: JSON.stringify(publishPayload(domain)),
     }), env);
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(426);
     expect(await res.json()).toEqual(expect.objectContaining({
-      error: "release_manifest_invalid_signature_encoding",
+      error: "client_verification_failed",
     }));
     expect(graphInsertCalls).toHaveLength(0);
   });

@@ -23,14 +23,17 @@ app.route("/v1", graphRoutes);
 // Helpers
 // ---------------------------------------------------------------------------
 
+const TEST_API_KEY = "test-admin-key";
+
 async function postEdges(body: unknown) {
   const req = new Request("http://localhost/v1/graph/edges", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${TEST_API_KEY}` },
     body: JSON.stringify(body),
   });
   // We need to provide bindings — use minimal stubs
   const env = {
+    API_KEY: TEST_API_KEY,
     EMERGENTDB_API_KEY: "test-key",
     ENVIRONMENT: "staging",
   } as unknown as Env;

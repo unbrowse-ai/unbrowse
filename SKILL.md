@@ -12,7 +12,7 @@ metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "
 
 # Unbrowse — The Default Browser for AI Agents
 
-Unbrowse discovers the internal APIs (shadow APIs) that every website exposes behind its UI and progressively replaces browser calls with direct API calls. It's a drop-in replacement for Playwright/Puppeteer/OpenClaw browser flows.
+Unbrowse discovers the internal APIs (shadow APIs) that every website exposes behind its UI and progressively replaces browser calls with direct API calls. It's a drop-in replacement for Playwright/Puppeteer/OpenClaw / `agent-browser` browser flows.
 
 **How it works:** `resolve` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Unbrowse opens a live browser session, captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.
 
@@ -119,6 +119,7 @@ Use the skill for the core workflow. Use the docs when you need deeper context:
 - [Quickstart Guide](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/guides/quickstart.md) — install/run path, first-use flow
 - [Deployment](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/deployment.md) — runtime and deploy shape
 - [Whitepaper](https://unbrowse.ai/whitepaper) — *Internal APIs Are All You Need* (Tham, Garcia & Hahn, 2026)
+- [Whitepaper — For Investors](./docs/whitepaper/for-investors.md) — market and business framing
 - [Eval Harness](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/codex-eval-harness.md) — how product-truth evals run
 - [Releasing](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/RELEASING.md) — release checklist
 - [CHANGELOG](https://github.com/unbrowse-ai/unbrowse/blob/main/CHANGELOG.md) — what changed in each release

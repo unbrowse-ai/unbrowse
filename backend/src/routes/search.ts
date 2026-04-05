@@ -7,7 +7,7 @@ import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
 import { buildSkillPaymentTerms, searchPaymentsEnabled, verifyX402Proof, x402Response, x402UseTestnet } from "../middleware/x402-gate.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
-function schedule<T>(c: Context<{ Bindings: Env }>, task: Promise<T>): void {
+function schedule<T, E extends { Bindings: Env }>(c: Context<E>, task: Promise<T>): void {
   try {
     c.executionCtx.waitUntil(task);
   } catch {
@@ -28,12 +28,12 @@ function normalizeSearchText(value: string | undefined): string {
   return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function shouldCacheSearch(c: Context<{ Bindings: Env }>): boolean {
+function shouldCacheSearch<E extends { Bindings: Env }>(c: Context<E>): boolean {
   return !shouldRequireSearchPayment(c.env);
 }
 
-async function getCachedSearchPayload<T>(
-  c: Context<{ Bindings: Env }>,
+async function getCachedSearchPayload<T, E extends { Bindings: Env }>(
+  c: Context<E>,
   key: string,
   ttlSeconds: number,
   load: () => Promise<T>,
@@ -45,12 +45,12 @@ async function getCachedSearchPayload<T>(
   return payload;
 }
 
-function setSearchCacheHeaders(c: Context<{ Bindings: Env }>, ttlSeconds: number): void {
+function setSearchCacheHeaders<E extends { Bindings: Env }>(c: Context<E>, ttlSeconds: number): void {
   c.header("Cache-Control", buildCacheControl(ttlSeconds));
 }
 
-async function requireSearchPayment(
-  c: Context<{ Bindings: Env }>,
+async function requireSearchPayment<E extends { Bindings: Env }>(
+  c: Context<E>,
   routeLabel: string,
 ): Promise<Response | null> {
   if (!shouldRequireSearchPayment(c.env)) return null;

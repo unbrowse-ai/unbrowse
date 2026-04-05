@@ -64,7 +64,7 @@ describe("search route x402 gating", () => {
   it("returns PAYMENT-REQUIRED when payments are enabled", async () => {
     const res = await searchRoutes.request("http://localhost/search", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
       body: JSON.stringify({ intent: "search packages", k: 5 }),
     }, BASE_ENV);
 
@@ -88,7 +88,7 @@ describe("search route x402 gating", () => {
   it("allows staging search to advertise mainnet terms when X402_NETWORK_MODE=mainnet", async () => {
     const res = await searchRoutes.request("http://localhost/search", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
       body: JSON.stringify({ intent: "search packages", k: 5 }),
     }, { ...BASE_ENV, ENVIRONMENT: "staging", X402_NETWORK_MODE: "mainnet" });
 
@@ -109,7 +109,7 @@ describe("search route x402 gating", () => {
   it("keeps staging search free when payments are disabled", async () => {
     const res = await searchRoutes.request("http://localhost/search", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
       body: JSON.stringify({ intent: "search packages", k: 5 }),
     }, { ...BASE_ENV, ENVIRONMENT: "staging", PAYMENTS_ENABLED: "false" });
 
@@ -123,7 +123,7 @@ describe("search route x402 gating", () => {
   it("disables search payments entirely when PAYMENTS_ENABLED=false", async () => {
     const res = await searchRoutes.request("http://localhost/search", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
       body: JSON.stringify({ intent: "search packages", k: 5 }),
     }, { ...BASE_ENV, PAYMENTS_ENABLED: "false" });
 
@@ -138,7 +138,7 @@ describe("search route x402 gating", () => {
   it("keeps discovery free when X402_SEARCH_ENABLED=false", async () => {
     const res = await searchRoutes.request("http://localhost/search", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
       body: JSON.stringify({ intent: "search packages", k: 5 }),
     }, { ...BASE_ENV, X402_SEARCH_ENABLED: "false" });
 
