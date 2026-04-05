@@ -15,7 +15,6 @@ export async function GET() {
   const installGeneric = injectAttribution(INSTALL_CMD_GENERIC, b64);
   const installMcp = injectAttribution(INSTALL_CMD_MCP, b64);
   const installNpm = injectAttribution(INSTALL_CMD_NPM, b64);
-  const installNpm = injectAttribution(INSTALL_CMD_NPM, b64);
 
   const body = `# Unbrowse
 
