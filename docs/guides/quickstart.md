@@ -47,6 +47,12 @@ If your host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
+This is skill-only. It does not install the `unbrowse` runtime binary. Also install/setup the runtime:
+
+```bash
+npm install -g unbrowse@preview && unbrowse setup --host mcp
+```
+
 ## First-run behavior
 
 The CLI auto-starts the local server for normal commands. On the first real startup it also handles agent registration.
