@@ -17,7 +17,12 @@ import {
   UPGRADE_CMD_GENERIC,
   UPGRADE_CMD_MCP,
 } from "@/lib/install-command";
+import { Activity, ArrowRight, CheckCircle2, Github, Globe, Shield, Zap } from "lucide-react";
 
+export const revalidate = 300;
+
+const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
+const DOCS_URL = "https://docs.unbrowse.ai";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
   ? `Recommended: ${INSTALL_CMD_OPENCLAW}. That makes Unbrowse your agent's native browser — every page.goto() routes through direct API calls automatically. The package pulls in the local runtime. For standalone CLI installs, use ${INSTALL_CMD_GENERIC}. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL} for slash-command or host discovery. For generic MCP hosts, run ${INSTALL_CMD_MCP}; that writes a ready-to-import config to ${MCP_CONFIG_PATH}. Upgrade CLI installs with ${UPGRADE_CMD_GENERIC} and MCP installs with ${UPGRADE_CMD_MCP}.`
@@ -583,7 +588,6 @@ export default async function Home() {
                   <span className="rounded-full border border-border px-3 py-1.5">Cursor</span>
                   <span className="rounded-full border border-border px-3 py-1.5">MCP</span>
                 </div>
-              </div>
               </div>
 
               <div className="rounded-[1.5rem] border border-border bg-surface p-5">
