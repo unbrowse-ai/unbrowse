@@ -289,8 +289,6 @@ export function enrichEndpointsWithTokenSources(
   html: string | undefined,
   jsBundles: Map<string, string> | undefined,
 ): number {
-  if (!html && (!jsBundles || jsBundles.size === 0)) return 0;
-
   let enriched = 0;
   for (const req of requests) {
     const matching = endpoints.filter((ep) => endpointMatchesRequest(ep, req));
@@ -298,15 +296,35 @@ export function enrichEndpointsWithTokenSources(
 
     for (const [headerName, headerValue] of Object.entries(req.request_headers)) {
       if (!TOKEN_HEADER_PATTERN.test(headerName)) continue;
-      // Bearer tokens are prefixed — strip before scanning
       const tokenValue = extractTokenValue(headerName, headerValue);
       if (!tokenValue) continue;
 
-      const sources = findTokenSources(tokenValue, html, jsBundles);
+      const sources = (html || (jsBundles && jsBundles.size > 0))
+        ? findTokenSources(tokenValue, html, jsBundles)
+        : [];
+
+      const lowerName = headerName.toLowerCase();
+      if (sources.length === 0) {
+        if (/csrf|xsrf/i.test(lowerName)) {
+          sources.push({ kind: "cookie", cookie_names: ["ct0", "csrf_token", "_csrf", "csrftoken", "XSRF-TOKEN"] });
+        } else if (lowerName === "authorization") {
+          if (html) {
+            const scriptSrcRe = /<script[^>]+src=["']([^"']+\.js[^"']*?)["']/gi;
+            let m: RegExpExecArray | null;
+            while ((m = scriptSrcRe.exec(html)) !== null) {
+              if (/main|app|client|bundle|vendor/i.test(m[1])) {
+                sources.push({ kind: "js-bundle", bundle_url_pattern: m[1] });
+                if (sources.length >= 3) break;
+              }
+            }
+          }
+        }
+      }
+
       if (sources.length === 0) continue;
 
       const binding: AuthTokenBinding = {
-        param_name: headerName.toLowerCase(),
+        param_name: lowerName,
         param_location: "header",
         sources,
         refresh_on_401: true,
@@ -314,9 +332,13 @@ export function enrichEndpointsWithTokenSources(
 
       for (const ep of matching) {
         if (!ep.auth_tokens) ep.auth_tokens = [];
-        // Dedupe: skip if a binding for the same param already exists
-        if (ep.auth_tokens.some((b) => b.param_name === binding.param_name)) continue;
-        ep.auth_tokens.push(binding);
+        // Always replace with fresh binding — stale sources from cached merges get overwritten
+        const idx = ep.auth_tokens.findIndex((b) => b.param_name === binding.param_name);
+        if (idx >= 0) {
+          ep.auth_tokens[idx] = binding;
+        } else {
+          ep.auth_tokens.push(binding);
+        }
         enriched++;
       }
     }

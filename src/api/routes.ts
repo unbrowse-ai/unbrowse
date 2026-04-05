@@ -8,7 +8,6 @@ import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
-import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";

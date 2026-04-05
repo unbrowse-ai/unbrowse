@@ -670,13 +670,21 @@ export function mergePassiveCaptureData(
     });
   }
 
-  // Priority 3: Extension entries (URL+headers supplement, no bodies)
+  // Priority 3: Extension entries (chrome.webRequest — has full auth headers HAR strips)
   for (const entry of extensionEntries) {
-    if (seen.has(entry.url)) continue;
     const reqHeaders: Record<string, string> = {};
     for (const h of entry.requestHeaders ?? []) reqHeaders[h.name] = h.value;
     const respHeaders: Record<string, string> = {};
     for (const h of entry.responseHeaders ?? []) respHeaders[h.name] = h.value;
+
+    const existing = seen.get(entry.url);
+    if (existing) {
+      // Merge auth headers from extension into existing entry (HAR strips them)
+      for (const [k, v] of Object.entries(reqHeaders)) {
+        if (!existing.request_headers[k]) existing.request_headers[k] = v;
+      }
+      continue;
+    }
     seen.set(entry.url, {
       url: entry.url,
       method: entry.method,
@@ -936,22 +944,36 @@ export async function enrichPassiveCaptureRequests(params: {
     ...request,
     url: normalizeCapturedUrl(request.url, captureUrl),
   }));
+
+  // HAR strips auth headers. Infer their presence from cookies so
+  // enrichEndpointsWithTokenSources can create DAG bindings.
+  if (extensionEntries.length === 0) {
+    const tabCookies = await kuri.getCookies(tabId).catch(() => []) as Array<{ name: string; value: string }>;
+    const hasAuthCookie = tabCookies.some((c) => /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|auth_token)$/i.test(c.name));
+    if (hasAuthCookie) {
+      for (const req of requests) {
+        if (/\/(api|graphql|v\d+)\b/i.test(req.url) || /ads-api|voyager/i.test(req.url)) {
+          if (!req.request_headers["authorization"]) req.request_headers["authorization"] = "[REDACTED]";
+          if (!req.request_headers["x-csrf-token"]) req.request_headers["x-csrf-token"] = "[REDACTED]";
+        }
+      }
+    }
+  }
+
   log("capture", `browse-checkpoint tracked ${harEntries.length} HAR, ${intercepted.length} intercepted, ${extensionEntries.length} extension, ${responseBodies.size} bodies → ${requests.length} merged`);
   return requests;
 }
-
 /**
  * Collect network requests observed by kuri's builtin extension (chrome.webRequest).
  * Gracefully returns [] if the extension relay is not yet wired.
  */
 async function collectExtensionRequests(tabId: string): Promise<ExtensionEntry[]> {
   try {
-    // Query the builtin extension's network log via the agent bridge
     const raw = await kuri.evaluate(tabId, `
       (function() {
         if (!window.__kuri || !window.__kuri._networkLog) return '[]';
         var log = window.__kuri._networkLog;
-        window.__kuri._networkLog = []; // drain
+        window.__kuri._networkLog = [];
         return JSON.stringify(log);
       })()
     `);

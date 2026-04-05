@@ -15,7 +15,6 @@ import { extractBrowserCookies } from "../auth/browser-cookies.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
-import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";
