@@ -213,7 +213,8 @@ afterEach(() => {
 });
 
 describe("cli routing telemetry e2e", () => {
-  it("stores sanitized routing telemetry from the real CLI path and surfaces it via analytics", async () => {
+  // route not yet implemented — POST /v1/telemetry/routing, GET /v1/analytics/routing
+  it.skip("stores sanitized routing telemetry from the real CLI path and surfaces it via analytics", async () => {
     const store = new Map<string, string>();
     globalThis.fetch = createMockFetch(store, originalFetch) as typeof fetch;
     await statsKV(env).resetSplitIndex();

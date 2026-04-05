@@ -1,3 +1,4 @@
+import { createHmac } from "crypto";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import app from "../src/index.js";
 import type { Env, SkillManifest } from "../src/types.js";
@@ -14,7 +15,26 @@ const env: Env = {
     get: async () => null,
   } as unknown as KVNamespace,
   ENVIRONMENT: "staging",
+  RELEASE_MANIFEST_SIGNING_SECRET: "release-secret",
 };
+
+function signedReleaseHeaders() {
+  const manifest = JSON.stringify({
+    schema_version: 1,
+    release_version: "2.11.0",
+    git_sha: "git-a",
+    code_hash: "code-a",
+    trace_version: "trace-a",
+    issued_at: "2026-04-02T00:00:00.000Z",
+  });
+  const signature = createHmac("sha256", env.RELEASE_MANIFEST_SIGNING_SECRET!)
+    .update(manifest)
+    .digest("base64url");
+  return {
+    "X-Unbrowse-Release-Manifest": Buffer.from(manifest, "utf8").toString("base64url"),
+    "X-Unbrowse-Release-Signature": signature,
+  };
+}
 
 function createMockFetch(store: Map<string, string>) {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -127,6 +147,7 @@ describe("protected route auth", () => {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...signedReleaseHeaders(),
       },
       body: JSON.stringify(publishPayload("auth-publish.example.com")),
     }), env);
