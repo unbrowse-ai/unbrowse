@@ -5,6 +5,7 @@ export const INSTALL_CMD_OPENCLAW = "npx unbrowse-openclaw install --restart";
 export const INSTALL_CMD_GENERIC = `curl -fsSL ${INSTALL_SCRIPT_URL} | bash`;
 export const INSTALL_CMD_SKILL = "npx skills add unbrowse-ai/unbrowse";
 export const INSTALL_CMD_NPM = "npm install -g unbrowse && unbrowse setup";
+export const INSTALL_CMD_WINDOWS = `irm https://unbrowse.ai/install.ps1 | iex`;
 export const VERIFY_CMD = "unbrowse health --pretty";
 export const FIRST_TASK_CMD =
   'unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty';
