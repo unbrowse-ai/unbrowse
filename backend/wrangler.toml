@@ -15,6 +15,8 @@ crons = ["17 */6 * * *"]
 ENVIRONMENT = "production"
 PAYMENTS_ENABLED = "true"
 X402_SEARCH_ENABLED = "false"
+X402_NETWORK_MODE = "mainnet"
+PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
 [[kv_namespaces]]
@@ -39,6 +41,10 @@ zone_id = "73934a4d815fde770167414fc3ead04b"
 # - TELEGRAM_BOT_TOKEN
 # - TELEGRAM_CHAT_ID
 # - RELEASE_MANIFEST_SIGNING_SECRET
+# - UNBROWSE_CASCADE_SIGNER_SECRET_KEY  (base58 Solana secret for Cascade split creation)
+# - UNBROWSE_CASCADE_PLATFORM_WALLET    (= PAYMENT_RECIPIENT, for Cascade split recipients)
+# - UNBROWSE_CASCADE_RPC_URL            (Solana mainnet RPC, e.g. Helius)
+# - UNBROWSE_CASCADE_RPC_WS_URL         (Solana mainnet RPC WebSocket)
 
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
@@ -59,7 +65,7 @@ ENVIRONMENT = "staging"
 PAYMENTS_ENABLED = "true"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
-PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
+PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
 # --- Lewis experiments environment ---
@@ -81,5 +87,5 @@ ENVIRONMENT = "staging"
 PAYMENTS_ENABLED = "true"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
-PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
+PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
