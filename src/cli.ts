@@ -295,6 +295,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     if (flags["force-capture"]) body.force_capture = true;
+    if (flags["skip-robots"]) body.skip_robots_check = true;
     body.projection = { raw: true };
 
     function execBody(endpointId: string): Record<string, unknown> {
@@ -303,6 +304,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
         intent,
         projection: { raw: true },
         ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
+        ...(flags["skip-robots"] ? { skip_robots_check: true } : {}),
       };
     }
 
@@ -556,6 +558,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
+    if (flags["skip-robots"]) body.skip_robots_check = true;
     body.projection = { raw: true };
 
     let result = await withPendingNotice(

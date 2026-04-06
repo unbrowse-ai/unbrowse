@@ -36,6 +36,9 @@ export function getEndpointPolicy(endpoint: EndpointDescriptor): EndpointPolicyD
   if (!matched) return undefined;
   if (matched.require_for_mutations && !MUTATION_METHODS.has(endpoint.method)) return undefined;
 
+  // Read-only POST endpoints (GraphQL queries, ad queries, search) are safe — skip the gate
+  if (endpoint.idempotency === "safe" || endpoint.idempotency === "read") return undefined;
+
   return {
     requires_third_party_terms_confirmation: true,
     policy_domain: matched.domain,
