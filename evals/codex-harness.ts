@@ -85,6 +85,16 @@ type CaseRecord = {
   direct_result?: DirectResultRecord | null;
   agent_review: AgentReviewRecord;
   resolve_excerpt: unknown;
+  execute_verification?: {
+    executed: boolean;
+    status_code?: number;
+    success?: boolean;
+    execute_ms?: number;
+    expected_fields_found: string[];
+    expected_fields_missing: string[];
+    field_coverage: number;
+    sample_data?: Record<string, unknown>;
+  };
 };
 
 type GraphSection = {
@@ -306,7 +316,21 @@ function getAvailableEndpoints(body: any): DeferredEndpoint[] {
 }
 
 function getResolvedEndpointId(body: any): string | undefined {
-  return body?.trace?.endpoint_id;
+  return body?.trace?.endpoint_id || undefined;
+}
+
+/** Extract the best endpoint ID for execute from any resolve response format */
+function getBestEndpointId(body: any): string | undefined {
+  // Try available_endpoints first
+  const eps = body?.result?.available_endpoints ?? body?.available_endpoints ?? [];
+  if (eps.length > 0 && eps[0].endpoint_id) return eps[0].endpoint_id;
+  // Try available_operations
+  const ops = body?.result?.available_operations ?? [];
+  if (ops.length > 0 && ops[0].endpoint_id) return ops[0].endpoint_id;
+  // Fallback to trace
+  const traceEp = body?.trace?.endpoint_id;
+  if (traceEp && traceEp !== "" && traceEp !== "browser-capture") return traceEp;
+  return undefined;
 }
 
 function getJudgePayload(body: any): unknown {
@@ -512,12 +536,59 @@ async function evaluateCase(testCase: HarnessCase, index: number): Promise<CaseR
 
   const immediateVerdict = extractVerdict(resolve.body, testCase.intent);
   if (!availableEndpoints.length) {
+    // Try execute verification even for direct results
+    let directExecVerification: CaseRecord["execute_verification"];
+    const directEpId = getBestEndpointId(resolve.body);
+    if (resolveSkillId && directEpId && testCase.expected_fields?.length) {
+      try {
+        const execStarted = performance.now();
+        const execResult = await runCli(clientId, [
+          "execute", "--skill", resolveSkillId, "--endpoint", directEpId,
+          ...(testCase.params ? ["--params", JSON.stringify(testCase.params)] : []),
+          "--confirm-unsafe", "--raw",
+        ]);
+        const execMs = Math.round(performance.now() - execStarted);
+        const responseStr = JSON.stringify(execResult.body?.result ?? execResult.body ?? {});
+        const found: string[] = [];
+        const missing: string[] = [];
+        for (const field of testCase.expected_fields) {
+          const pat = new RegExp(`"${field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\s*:`, "i");
+          (pat.test(responseStr) ? found : missing).push(field);
+        }
+        directExecVerification = {
+          executed: true,
+          status_code: execResult.body?.trace?.status_code,
+          success: execResult.body?.trace?.success === true,
+          execute_ms: execMs,
+          expected_fields_found: found,
+          expected_fields_missing: missing,
+          field_coverage: testCase.expected_fields.length > 0 ? Math.round(found.length / testCase.expected_fields.length * 100) / 100 : 0,
+        };
+      } catch { directExecVerification = { executed: false, expected_fields_found: [], expected_fields_missing: testCase.expected_fields, field_coverage: 0 }; }
+    }
+    // Also try: resolve itself may contain data (direct-fetch or DOM extraction)
+    if (!directExecVerification?.executed && testCase.expected_fields?.length) {
+      const resolveStr = JSON.stringify(resolve.body?.result ?? resolve.body ?? {});
+      const found: string[] = [];
+      const missing: string[] = [];
+      for (const field of testCase.expected_fields) {
+        const pat = new RegExp(`"${field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\s*:`, "i");
+        (pat.test(resolveStr) ? found : missing).push(field);
+      }
+      if (found.length > 0) {
+        directExecVerification = {
+          executed: true, success: true, expected_fields_found: found, expected_fields_missing: missing,
+          field_coverage: Math.round(found.length / testCase.expected_fields.length * 100) / 100,
+        };
+      }
+    }
     return {
       ...baseRecord,
       collector_status: "ready_for_review",
       collector_reason: "agent_review_direct_result",
       selection_mode: "resolved",
       ordered_endpoint_ids: getResolvedEndpointId(resolve.body) ? [getResolvedEndpointId(resolve.body)!] : [],
+      ...(directExecVerification ? { execute_verification: directExecVerification } : {}),
       direct_result: {
         endpoint_id: getResolvedEndpointId(resolve.body),
         trace_success: resolve.body?.trace?.success,
@@ -534,12 +605,71 @@ async function evaluateCase(testCase: HarnessCase, index: number): Promise<CaseR
 
   const ordered = orderEndpoints(availableEndpoints);
   const reviewedOrdered = ordered.ordered.slice(0, maxReviewCandidates);
+
+  // --- Execute + verify step ---
+  // If we have a skill and endpoint, execute it and check expected_fields
+  let executeVerification: CaseRecord["execute_verification"];
+  const topEndpointId = reviewedOrdered[0];
+  const execEndpointId = topEndpointId || getBestEndpointId(resolve.body);
+  if (resolveSkillId && execEndpointId && testCase.expected_fields?.length) {
+    try {
+      const execStarted = performance.now();
+      const execResult = await runCli(clientId, [
+        "execute",
+        "--skill", resolveSkillId,
+        "--endpoint", execEndpointId,
+        ...(testCase.params ? ["--params", JSON.stringify(testCase.params)] : []),
+        "--confirm-unsafe",
+        "--raw",
+      ]);
+      const execMs = Math.round(performance.now() - execStarted);
+      const execBody = execResult.body;
+      const statusCode = execBody?.trace?.status_code ?? execBody?.result?.data?.status;
+      const execSuccess = execBody?.trace?.success === true;
+
+      // Deep search for expected fields in the response
+      const responseStr = JSON.stringify(execBody?.result ?? execBody ?? {});
+      const found: string[] = [];
+      const missing: string[] = [];
+      for (const field of testCase.expected_fields) {
+        // Check if field appears as a key anywhere in the response
+        const fieldPattern = new RegExp(`"${field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\s*:`, "i");
+        if (fieldPattern.test(responseStr)) {
+          found.push(field);
+        } else {
+          missing.push(field);
+        }
+      }
+      const coverage = testCase.expected_fields.length > 0
+        ? found.length / testCase.expected_fields.length
+        : 0;
+
+      executeVerification = {
+        executed: true,
+        status_code: statusCode,
+        success: execSuccess,
+        execute_ms: execMs,
+        expected_fields_found: found,
+        expected_fields_missing: missing,
+        field_coverage: Math.round(coverage * 100) / 100,
+      };
+    } catch (e) {
+      executeVerification = {
+        executed: false,
+        expected_fields_found: [],
+        expected_fields_missing: testCase.expected_fields,
+        field_coverage: 0,
+      };
+    }
+  }
+
   return {
     ...baseRecord,
     collector_status: "ready_for_review",
     collector_reason: reviewedOrdered.length > 0 ? "agent_select_endpoint" : "agent_review_pending",
     selection_mode: "deferred",
     ordered_endpoint_ids: ordered.ordered,
+    ...(executeVerification ? { execute_verification: executeVerification } : {}),
     agent_review: {
       required: true,
       mode: "shortlist",
@@ -587,6 +717,8 @@ function writeResults(results: CaseRecord[], graph: GraphSection): void {
       };
     });
 
+  const verified = results.filter((r) => r.execute_verification?.executed);
+  const verifiedPass = verified.filter((r) => r.execute_verification!.field_coverage >= 0.5);
   const summary = {
     total: results.length,
     ready_for_review: results.filter((result) => result.collector_status === "ready_for_review").length,
@@ -596,6 +728,11 @@ function writeResults(results: CaseRecord[], graph: GraphSection): void {
     agent_fail: results.filter((result) => result.agent_verdict === "fail").length,
     agent_skip: results.filter((result) => result.agent_verdict === "skip").length,
     review_required: results.filter((result) => result.agent_review.required).length,
+    execute_verified: verified.length,
+    execute_pass: verifiedPass.length,
+    execute_avg_coverage: verified.length > 0
+      ? Math.round(verified.reduce((sum, r) => sum + (r.execute_verification!.field_coverage || 0), 0) / verified.length * 100) / 100
+      : 0,
     graph_selection_fail: graph.selection_summary.failed,
     graph_dependency_fail: graph.dependency_summary.failed,
     force_capture: forceCapture,

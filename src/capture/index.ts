@@ -1473,17 +1473,23 @@ export async function captureSession(
       } catch (e) { log("capture", `early auth store failed: ${e instanceof Error ? e.message : String(e)}`); }
     }
 
-    // Stop HAR recording — short independent timeout so a stuck harStop
-    // doesn't kill the whole capture when CDP data is available
+    // Stop HAR recording — skip entirely when CDP captured data.
+    // Kuri harStop hangs indefinitely on heavy sites (LinkedIn 256+ buffered events)
+    // because the Zig sendJson write fails on large buffers and the promise never settles.
     let harEntries: kuri.KuriHarEntry[] = [];
-    try {
-      const harPromise = kuri.harStop(tabId);
-      const timeoutPromise = new Promise<{ entries: kuri.KuriHarEntry[] }>((resolve) =>
-        setTimeout(() => resolve({ entries: [] }), 5000),
-      );
-      const harResult = await Promise.race([harPromise, timeoutPromise]);
-      harEntries = harResult.entries ?? [];
-    } catch { /* HAR not available or crashed — CDP capture covers it */ }
+    if (cdpRequestMap.size === 0) {
+      // No CDP data — need Kuri HAR as primary source
+      try {
+        const harResult = await Promise.race([
+          kuri.harStop(tabId),
+          new Promise<{ entries: kuri.KuriHarEntry[] }>((r) => setTimeout(() => r({ entries: [] }), 5000)),
+        ]);
+        harEntries = harResult.entries ?? [];
+      } catch { /* harStop failed */ }
+    } else {
+      // CDP has the data — fire harStop in background, don't await
+      kuri.harStop(tabId).catch(() => {});
+    }
 
     // Close CDP websocket and merge CDP-captured entries into HAR
     // Wait briefly for pending getResponseBody callbacks
