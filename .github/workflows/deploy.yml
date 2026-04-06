@@ -114,6 +114,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: true
       - run: bash scripts/ensure-submodules.sh submodules/kuri
       - uses: mlugg/setup-zig@v2
         with:
