@@ -74,6 +74,83 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
   return c.json(payload);
 });
 
+// GET /v1/stats/coverage — public compatibility matrix for domains/endpoints
+publicStatsRoutes.get("/stats/coverage", async (c) => {
+  const payload = await getOrSetHttpCache(c.env, "stats:coverage", 120, async () => {
+    const [skillEntries, statEntries] = await Promise.all([
+      skillsKV(c.env).listWithValues("skill:"),
+      statsKV(c.env).listWithValues("stats:"),
+    ]);
+
+    // Build stats lookup
+    const statsMap = new Map<string, unknown>();
+    for (const { key, value } of statEntries) {
+      try { statsMap.set(key, JSON.parse(value)); } catch {}
+    }
+
+    const domains: Array<{
+      domain: string;
+      skill_id: string;
+      endpoints: Array<{
+        endpoint_id: string;
+        method: string;
+        url_template: string;
+        verification_status: string;
+        reliability_score: number;
+        total_executions: number;
+        successful_executions: number;
+        version_history: Array<{ version: string; status: string; verified_at: string }>;
+      }>;
+    }> = [];
+
+    for (const { value } of skillEntries) {
+      try {
+        const skill = JSON.parse(value) as {
+          skill_id: string; domain: string; lifecycle?: string;
+          endpoints?: Array<{ endpoint_id: string; method: string; url_template: string; verification_status?: string; reliability_score?: number }>;
+        };
+        if (skill.lifecycle === "deprecated" || skill.lifecycle === "disabled") continue;
+        if (!skill.endpoints?.length) continue;
+
+        const eps = skill.endpoints.map((ep) => {
+          const stats = statsMap.get(`stats:${skill.skill_id}:${ep.endpoint_id}`) as {
+            total_executions?: number; successful_executions?: number; version_history?: Array<{ version: string; status: string; verified_at: string }>;
+          } | undefined;
+          return {
+            endpoint_id: ep.endpoint_id,
+            method: ep.method,
+            url_template: ep.url_template,
+            verification_status: ep.verification_status ?? "unverified",
+            reliability_score: ep.reliability_score ?? 0,
+            total_executions: stats?.total_executions ?? 0,
+            successful_executions: stats?.successful_executions ?? 0,
+            version_history: stats?.version_history ?? [],
+          };
+        });
+
+        domains.push({ domain: skill.domain, skill_id: skill.skill_id, endpoints: eps });
+      } catch {}
+    }
+
+    // Sort by most endpoints first
+    domains.sort((a, b) => b.endpoints.length - a.endpoints.length);
+
+    const totalVerified = domains.reduce((n, d) => n + d.endpoints.filter((e) => e.verification_status === "verified").length, 0);
+    const totalEndpoints = domains.reduce((n, d) => n + d.endpoints.length, 0);
+
+    return {
+      domains: domains.length,
+      total_endpoints: totalEndpoints,
+      verified_endpoints: totalVerified,
+      coverage_pct: totalEndpoints > 0 ? Math.round((totalVerified / totalEndpoints) * 100) : 0,
+      data: domains,
+    };
+  });
+
+  c.header("Cache-Control", "public, max-age=120, s-maxage=120, stale-while-revalidate=600");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(payload);
+});
 // GET /v1/stats/perf — aggregated orchestration performance
 publicStatsRoutes.get("/stats/perf", async (c) => {
   const stats = await getPerf(c.env);
