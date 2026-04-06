@@ -1179,15 +1179,19 @@ export async function registerRoutes(app: FastifyInstance) {
   async function restartBrowseCapture(session: BrowseSession): Promise<void> {
     const broker = brokerForSession(session);
     // Ensure Kuri is actually responding before starting HAR.
-    // Cold starts on packaged CLI can have ConnectionRefused retries —
-    // if we start HAR during instability, it gets lost on restart.
+    let ready = false;
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         await broker.waitForLoad(session.tabId, 2_000);
+        ready = true;
         break;
       } catch {
         if (attempt < 4) await new Promise((r) => setTimeout(r, 1_000));
       }
+    }
+    if (!ready) {
+      // Last resort: try health check instead of waitForLoad
+      try { await broker.health(); ready = true; } catch {}
     }
     await broker.networkEnable(session.tabId).catch(() => {});
     await broker.harStart(session.tabId).catch(() => {});
