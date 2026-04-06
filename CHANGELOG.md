@@ -26,6 +26,44 @@
 * **capture:** remove CDP WebSocket interference with Kuri HAR ([e16f194](https://github.com/unbrowse-ai/unbrowse-dev/commit/e16f194a388c8470da4b095a0572a3c812d55591))
 * **capture:** retry waitForLoad before HAR start to survive cold starts ([ef43417](https://github.com/unbrowse-ai/unbrowse-dev/commit/ef434171bbc8dc16bfaf8635f4d1347aa9eeef83))
 * **ci:** add Zig 0.15.2 setup for Kuri build in npm preview publish ([6352fce](https://github.com/unbrowse-ai/unbrowse-dev/commit/6352fcefe857cb4bc24aea7d0062e526c1973c07))
+* **ci:** add Zig setup + Kuri build to release workflow ([b7266c2](https://github.com/unbrowse-ai/unbrowse-dev/commit/b7266c2c684c2ec55035570fcc96aa58afb4d30e))
+* **ci:** clean checkout for npm publish (stale runtime-src) ([acc0c3e](https://github.com/unbrowse-ai/unbrowse-dev/commit/acc0c3e1f8c52f0d74d257c6c4c46d4bd8a8902c))
+* **ci:** disable Windows cross-compile for Kuri (getenv incompatibility) ([548e04c](https://github.com/unbrowse-ai/unbrowse-dev/commit/548e04c0d98852e39fdaa41d33737c3b4b57f49b))
+* **ci:** download pre-built darwin-arm64 Kuri from GitHub release ([e503b7d](https://github.com/unbrowse-ai/unbrowse-dev/commit/e503b7d2167b6cdc6d1c2920246b4f046086a044))
+* **frontend:** use static assets cache for experiments env (skip R2) ([e42a4a7](https://github.com/unbrowse-ai/unbrowse-dev/commit/e42a4a759589e135565b9c265a4d28d9c3aeacf1))
+* **runtime:** always prefer dist/server.js over index.js tsx wrapper ([9f13080](https://github.com/unbrowse-ai/unbrowse-dev/commit/9f130809f7f0ef15b35d9b7369277309ef7a98de))
+* **windows:** correct installer asset URL and restore build script exec bit ([6f3f946](https://github.com/unbrowse-ai/unbrowse-dev/commit/6f3f9463587bd4802bc2fe9c02bb7e68ca8ca7e8)), closes [#360](https://github.com/unbrowse-ai/unbrowse-dev/issues/360)
+
+### Performance
+
+* **package:** bun-build server instead of tsx runtime interpretation ([92b9fb5](https://github.com/unbrowse-ai/unbrowse-dev/commit/92b9fb58eddd81e718a57bb2d8ba2da766bb0b02))
+
+## [3.2.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.1.0...v3.2.0) (2026-04-06)
+
+### Features
+
+* auth DAG, community verification, constraint learning ([#376](https://github.com/unbrowse-ai/unbrowse-dev/issues/376)) ([6d6014d](https://github.com/unbrowse-ai/unbrowse-dev/commit/6d6014d7c1dd93358b3affd5e35941e381f29b43))
+* **auth-dag:** add auth_required inference, token resolver, and JS bundle scanning ([9825490](https://github.com/unbrowse-ai/unbrowse-dev/commit/98254902261f1e2185b3c49df6161f3302a587f4))
+* **auth-dag:** wire auth token DAG for dynamic CSRF + bearer resolution ([a2cf008](https://github.com/unbrowse-ai/unbrowse-dev/commit/a2cf008142ff7feb68cb6d5d18fedec4195d843d))
+* **capture:** CDP-level network header capture for auth tokens ([bc152be](https://github.com/unbrowse-ai/unbrowse-dev/commit/bc152be0b4a8a73bc707122d0978925a74fc38fb))
+* **ci:** add npm preview publish for lewis/experiments ([d31addb](https://github.com/unbrowse-ai/unbrowse-dev/commit/d31addb27d08f095977d31ba7acf11edc23f60c3))
+* **marketplace:** public coverage API with version-keyed verification history ([186be38](https://github.com/unbrowse-ai/unbrowse-dev/commit/186be383bb59740d96a51bead7b9a8633489a630))
+* **marketplace:** verified/unverified endpoint status + auth DAG fixes ([3653a91](https://github.com/unbrowse-ai/unbrowse-dev/commit/3653a91e109b450dfc9985488a82b26d697a92b3))
+* **stats:** expose lifetime savings and earnings to agents ([c377b8c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c377b8c71d8dce32aa2821753108b82ba01031db))
+* **telemetry:** enrich funnel events with CLI version + device context ([d14abcd](https://github.com/unbrowse-ai/unbrowse-dev/commit/d14abcd4d156849b03e2e76e2286580c8bc40c3e))
+* **token-dag:** add token source scanner, resolver, and warm-tab pool ([921837c](https://github.com/unbrowse-ai/unbrowse-dev/commit/921837c6532a45dcaf149be4098c59b4a4a9b1ae))
+* **token-dag:** wire auth_tokens resolver and warm-tab into execute path ([81bcd47](https://github.com/unbrowse-ai/unbrowse-dev/commit/81bcd47ba96b2316482af172095b2a8fa0712362))
+
+### Bug Fixes
+
+* **auth-dag:** capture full script src URLs for bearer token resolution ([995f8bb](https://github.com/unbrowse-ai/unbrowse-dev/commit/995f8bbf54acc3a5121040af15e1a930167ba136))
+* **auth-dag:** resolve bearer from JS bundles via Performance API scan ([856fef4](https://github.com/unbrowse-ai/unbrowse-dev/commit/856fef4d43492e6590f347cbf0403c74e1cdde6e))
+* **auth:** preserve auth headers in merge, fix vault key alignment, add token source scanning ([5c26877](https://github.com/unbrowse-ai/unbrowse-dev/commit/5c2687779ceb6e136a5de434b3ca26673693dec1))
+* **capture:** add health check fallback for HAR cold start reliability ([93cfad2](https://github.com/unbrowse-ai/unbrowse-dev/commit/93cfad23737e1c7ccd2281f34d9ab0a9bb966fab))
+* **capture:** always start HAR regardless of page load timeout ([5e7a7bb](https://github.com/unbrowse-ai/unbrowse-dev/commit/5e7a7bb949c1986ade1d567a75a5a657766fb246))
+* **capture:** remove CDP WebSocket interference with Kuri HAR ([e16f194](https://github.com/unbrowse-ai/unbrowse-dev/commit/e16f194a388c8470da4b095a0572a3c812d55591))
+* **capture:** retry waitForLoad before HAR start to survive cold starts ([ef43417](https://github.com/unbrowse-ai/unbrowse-dev/commit/ef434171bbc8dc16bfaf8635f4d1347aa9eeef83))
+* **ci:** add Zig 0.15.2 setup for Kuri build in npm preview publish ([6352fce](https://github.com/unbrowse-ai/unbrowse-dev/commit/6352fcefe857cb4bc24aea7d0062e526c1973c07))
 * **ci:** clean checkout for npm publish (stale runtime-src) ([acc0c3e](https://github.com/unbrowse-ai/unbrowse-dev/commit/acc0c3e1f8c52f0d74d257c6c4c46d4bd8a8902c))
 * **ci:** disable Windows cross-compile for Kuri (getenv incompatibility) ([548e04c](https://github.com/unbrowse-ai/unbrowse-dev/commit/548e04c0d98852e39fdaa41d33737c3b4b57f49b))
 * **ci:** download pre-built darwin-arm64 Kuri from GitHub release ([e503b7d](https://github.com/unbrowse-ai/unbrowse-dev/commit/e503b7d2167b6cdc6d1c2920246b4f046086a044))
