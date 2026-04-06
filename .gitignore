@@ -9,6 +9,7 @@ dist/
 build/
 out/
 *.tsbuildinfo
+src/build-info.generated.ts
 
 # Environment variables
 .env
