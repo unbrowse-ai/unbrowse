@@ -166,6 +166,33 @@ export interface EndpointDescriptor {
   trigger_url?: string;
   graph_visibility?: GraphVisibility;
   corroboration?: EndpointCorroboration;
+  /** Learned constraints from API errors and agent observations */
+  constraints?: EndpointConstraint[];
+  /** Agent-contributed best practices, tips, and gotchas */
+  annotations?: EndpointAnnotation[];
+}
+
+export interface EndpointConstraint {
+  /** The parameter or field this constraint applies to */
+  param: string;
+  /** Type of constraint */
+  rule: "required" | "deprecated" | "format" | "enum" | "max_length" | "forbidden_in_body";
+  /** Human-readable message from the API */
+  message: string;
+  /** How this constraint was learned */
+  source: "api_error" | "agent";
+  /** When this constraint was learned */
+  learned_at: string;
+}
+
+/** Agent-contributed best practices and tips for using an endpoint */
+export interface EndpointAnnotation {
+  /** What the agent learned */
+  text: string;
+  /** Agent that contributed this */
+  agent_id?: string;
+  /** When this was contributed */
+  created_at: string;
 }
 
 export interface DiscoveryCost {

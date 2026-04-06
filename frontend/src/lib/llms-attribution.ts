@@ -4,7 +4,7 @@ export function makeAttribution(requestId: string, source: string): string {
     channel: "llm",
     content_id: requestId,
   });
-  return Buffer.from(payload).toString("base64");
+  return btoa(payload);
 }
 
 export function injectAttribution(command: string, b64: string): string {

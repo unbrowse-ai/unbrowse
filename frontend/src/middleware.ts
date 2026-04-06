@@ -15,9 +15,7 @@ function resolveApiUrl(request: NextRequest): string {
 
 function encodeHeaderPayload(payload: unknown): string {
   const json = JSON.stringify(payload);
-  const base64 = typeof btoa === "function"
-    ? btoa(json)
-    : Buffer.from(json, "utf8").toString("base64");
+  const base64 = btoa(json);
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 

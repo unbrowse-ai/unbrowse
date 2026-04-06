@@ -2,6 +2,8 @@ import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
+import { extractAuthHeaders } from "../reverse-engineer/index.js";
+import { storeCredential } from "../vault/index.js";
 import type { BrowserAccessConfig } from "../runtime/browser-access.js";
 import { DEFAULT_BROWSER_ACCESS } from "../runtime/browser-access.js";
 
@@ -503,7 +505,8 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       var isData = ct.indexOf('json') !== -1 || ct.indexOf('application/x-protobuf') !== -1 ||
                    ct.indexOf('text/plain') !== -1 ||
                    url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1 ||
-                   url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1;
+                   url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1 ||
+                   url.indexOf('youtubei') !== -1;
       if (!isJs && !isData) return response;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return response;
       var clone = response.clone();
@@ -553,7 +556,8 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       var isData = ct.indexOf('json') !== -1 || ct.indexOf('application/x-protobuf') !== -1 ||
                    ct.indexOf('text/plain') !== -1 ||
                    url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1 ||
-                   url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1;
+                   url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1 ||
+                   url.indexOf('youtubei') !== -1;
       if (!isJs && !isData) return;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return;
       var respBody = xhr.responseText || '';
@@ -741,7 +745,14 @@ function appendInterceptedResponseBodies(
 function normalizeCapturedUrl(url: string, baseUrl?: string): string {
   if (!url) return url;
   try {
-    return new URL(url).toString();
+    const parsed = new URL(url);
+    // Rewrite localhost/127.0.0.1 URLs to the page origin — service workers and dev
+    // proxies use local ports but the real API lives on the same origin as the page.
+    if (baseUrl && (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost")) {
+      const pageOrigin = new URL(baseUrl).origin;
+      return `${pageOrigin}${parsed.pathname}${parsed.search}`;
+    }
+    return parsed.toString();
   } catch {
     if (!baseUrl) return url;
     try {
@@ -1274,8 +1285,79 @@ export async function captureSession(
       }
     }
 
-    // Start HAR recording
-    await phase("harStart", () => kuri.harStart(tabId));
+    // Start HAR recording (Kuri HAR as backup) + direct CDP network capture
+    try { await phase("harStart", () => kuri.harStart(tabId)); } catch { /* harStart may fail */ }
+
+    // Direct CDP network capture — bypasses Kuri HAR bugs on sites like LinkedIn
+    const cdpNetworkEntries: kuri.KuriHarEntry[] = [];
+    const cdpRequestMap = new Map<string, { method: string; url: string; headers: Array<{name: string; value: string}>; postData?: string }>();
+    const cdpResponseMeta = new Map<string, { status: number; headers: Array<{name: string; value: string}>; mimeType: string }>();
+    const cdpFinishedRequests = new Set<string>();
+    let cdpWs: WebSocket | null = null;
+    let cdpMsgId = 10;
+    const cdpPendingBodies = new Map<number, string>(); // msgId -> requestId
+    const cdpResolvedBodies = new Map<string, string>(); // url -> body
+    const API_URL_PATTERN = /\/api\/|\/graphql|voyager|youtubei|\/v\d+\//i;
+    try {
+      const cdpPort = kuri.getCdpPort();
+      if (cdpPort) {
+        const tabsResp = await fetch(`http://127.0.0.1:${cdpPort}/json`);
+        const tabs = (await tabsResp.json()) as Array<{ id: string; webSocketDebuggerUrl?: string; type?: string }>;
+        const cdpTab = tabs.find(t => t.id === tabId) ?? tabs.find(t => t.type === "page");
+        if (cdpTab?.webSocketDebuggerUrl) {
+          cdpWs = new WebSocket(cdpTab.webSocketDebuggerUrl);
+          await new Promise<void>((resolve, reject) => {
+            cdpWs!.onopen = () => resolve();
+            cdpWs!.onerror = () => reject(new Error("CDP WS failed"));
+            setTimeout(() => reject(new Error("CDP WS timeout")), 3000);
+          });
+          cdpWs.onmessage = (ev) => {
+            try {
+              const msg = JSON.parse(String(ev.data));
+              if (msg.method === "Network.requestWillBeSent") {
+                const p = msg.params;
+                const reqHeaders = Object.entries(p.request?.headers ?? {}).map(([name, value]) => ({ name, value: String(value) }));
+                cdpRequestMap.set(p.requestId, {
+                  method: p.request?.method ?? "GET",
+                  url: p.request?.url ?? "",
+                  headers: reqHeaders,
+                  postData: p.request?.postData,
+                });
+              } else if (msg.method === "Network.responseReceived") {
+                const p = msg.params;
+                const respHeaders = Object.entries(p.response?.headers ?? {}).map(([name, value]) => ({ name, value: String(value) }));
+                cdpResponseMeta.set(p.requestId, {
+                  status: p.response?.status ?? 0,
+                  headers: respHeaders,
+                  mimeType: p.response?.mimeType ?? "",
+                });
+              } else if (msg.method === "Network.loadingFinished") {
+                const requestId = msg.params?.requestId;
+                cdpFinishedRequests.add(requestId);
+                const req = cdpRequestMap.get(requestId);
+                const resp = cdpResponseMeta.get(requestId);
+                // Auto-fetch response body for API-like URLs
+                if (req && resp && API_URL_PATTERN.test(req.url) && (resp.mimeType.includes("json") || resp.mimeType.includes("text"))) {
+                  const id = ++cdpMsgId;
+                  cdpPendingBodies.set(id, req.url);
+                  cdpWs!.send(JSON.stringify({ id, method: "Network.getResponseBody", params: { requestId } }));
+                }
+              } else if (msg.id && cdpPendingBodies.has(msg.id)) {
+                // Response to getResponseBody
+                const reqUrl = cdpPendingBodies.get(msg.id)!;
+                cdpPendingBodies.delete(msg.id);
+                if (msg.result?.body) {
+                  cdpResolvedBodies.set(reqUrl, msg.result.body);
+                }
+              }
+            } catch { /* parse error — ignore */ }
+          };
+          cdpWs.send(JSON.stringify({ id: 1, method: "Network.enable", params: {} }));
+          await new Promise(r => setTimeout(r, 200));
+          log("capture", "CDP network capture enabled (direct websocket)");
+        }
+      }
+    } catch { /* CDP direct capture is best-effort */ }
 
     // Determine page domain for JS bundle filtering
     let pageDomain: string | undefined;
@@ -1351,12 +1433,88 @@ export async function captureSession(
       );
     } catch { /* non-fatal */ }
 
-    // Stop HAR recording and merge with intercepted data
+    // --- Early auth extraction from CDP data ---
+    // Store auth headers NOW before harStop can crash and abort the session.
+    // CDP request headers include csrf-token, authorization, etc.
+    if (cdpRequestMap.size > 0) {
+      try {
+        const cdpRawReqs = [...cdpRequestMap.values()].map(r => ({
+          url: r.url, method: r.method,
+          request_headers: Object.fromEntries(r.headers.map(h => [h.name.toLowerCase(), h.value])),
+          response_status: 200, response_headers: {}, response_body: undefined, timestamp: "",
+        }));
+        const authHeaders = extractAuthHeaders(cdpRawReqs);
+        if (Object.keys(authHeaders).length > 0) {
+          // Merge with existing vault data — pull cookies from auth:{domain} (login flow)
+          const rawKey = `${domain}-session`;
+          const { getCredential } = await import("../vault/index.js");
+          let existing: { cookies?: unknown[]; headers?: Record<string, string> } = {};
+          try {
+            const stored = await getCredential(rawKey);
+            if (stored) existing = JSON.parse(stored);
+          } catch {}
+          // Also pull cookies from the login vault key if we don't have them
+          if (!existing.cookies || (existing.cookies as unknown[]).length === 0) {
+            try {
+              const loginKey = `auth:${getRegistrableDomain(domain)}`;
+              const loginStored = await getCredential(loginKey);
+              if (loginStored) {
+                const loginData = JSON.parse(loginStored);
+                if (loginData.cookies?.length) existing.cookies = loginData.cookies;
+              }
+            } catch {}
+          }
+          await storeCredential(rawKey, JSON.stringify({
+            ...existing,
+            headers: { ...(existing.headers ?? {}), ...authHeaders },
+          }));
+          log("capture", `early auth store: ${Object.keys(authHeaders).join(", ")} for ${domain}`);
+        }
+      } catch (e) { log("capture", `early auth store failed: ${e instanceof Error ? e.message : String(e)}`); }
+    }
+
+    // Stop HAR recording — short independent timeout so a stuck harStop
+    // doesn't kill the whole capture when CDP data is available
     let harEntries: kuri.KuriHarEntry[] = [];
     try {
-      const harResult = await phase("harStop", () => kuri.harStop(tabId));
-      harEntries = harResult.entries;
-    } catch { /* HAR may not be available */ }
+      const harPromise = kuri.harStop(tabId);
+      const timeoutPromise = new Promise<{ entries: kuri.KuriHarEntry[] }>((resolve) =>
+        setTimeout(() => resolve({ entries: [] }), 5000),
+      );
+      const harResult = await Promise.race([harPromise, timeoutPromise]);
+      harEntries = harResult.entries ?? [];
+    } catch { /* HAR not available or crashed — CDP capture covers it */ }
+
+    // Close CDP websocket and merge CDP-captured entries into HAR
+    // Wait briefly for pending getResponseBody callbacks
+    if (cdpPendingBodies.size > 0) {
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    if (cdpWs) {
+      try { cdpWs.close(); } catch {}
+    }
+    // Build final CDP HAR entries with response bodies
+    const harUrls = new Set(harEntries.map(e => e.request?.url).filter(Boolean));
+    let cdpAdded = 0;
+    for (const [requestId, req] of cdpRequestMap) {
+      if (harUrls.has(req.url)) continue;
+      const resp = cdpResponseMeta.get(requestId);
+      if (!resp) continue;
+      const body = cdpResolvedBodies.get(req.url);
+      harEntries.push({
+        startedDateTime: new Date().toISOString(),
+        request: { method: req.method, url: req.url, headers: req.headers, postData: req.postData ? { text: req.postData } : undefined },
+        response: { status: resp.status, headers: resp.headers, content: body ? { text: body, mimeType: resp.mimeType } : {} },
+      } as kuri.KuriHarEntry);
+      // Also populate responseBodies for API URLs with resolved bodies
+      if (body && body.length > 0 && !responseBodies.has(req.url)) {
+        responseBodies.set(req.url, body);
+      }
+      cdpAdded++;
+    }
+    if (cdpAdded > 0) {
+      log("capture", `CDP direct capture added ${cdpAdded} entries (${cdpResolvedBodies.size} with bodies, ${harEntries.length} total HAR)`);
+    }
 
     // --- HAR-based replay ---
     // CDP HAR sees ALL network requests (even ones the JS interceptor missed).
@@ -1372,7 +1530,7 @@ export async function captureSession(
       const status = entry.response?.status ?? 0;
       if (status < 200 || status >= 400) continue;
       const ct = (entry.response?.headers ?? []).find((h: { name: string }) => h.name.toLowerCase() === "content-type")?.value ?? "";
-      if (!HAR_REPLAY_CT.test(ct) && !harUrl.includes("/api/") && !harUrl.includes("_search") && !harUrl.includes("graphql")) continue;
+      if (!HAR_REPLAY_CT.test(ct) && !harUrl.includes("/api/") && !harUrl.includes("_search") && !harUrl.includes("graphql") && !harUrl.includes("youtubei")) continue;
       if (harReplayCount >= 20) break;
       try {
         const postData = method !== "GET" ? entry.request?.postData?.text : undefined;
@@ -1408,6 +1566,91 @@ export async function captureSession(
       try { new URL(final_url); } catch { final_url = url; }
       html = await phase("getPageHtml", () => kuri.getPageHtml(tabId));
     } catch {}
+
+    // --- Embedded SSR data extraction ---
+    // Many SPAs (YouTube Music, Next.js, Nuxt) embed API data in the initial HTML
+    // via global JS variables. Extract these as synthetic API responses.
+    const SSR_DATA_EXTRACTORS = [
+      // YouTube Music: ytcfg.get('YTMUSIC_INITIAL_DATA') + API key/context for execute
+      { name: "ytmusic", script: `(function(){try{var d=ytcfg.get('YTMUSIC_INITIAL_DATA');if(!d||!d.length)return null;var out={};d.forEach(function(x){if(x.path&&x.data)out[x.path]=x.data});out.__apiKey=ytcfg.get('INNERTUBE_API_KEY')||'';out.__context=ytcfg.get('INNERTUBE_CONTEXT')||null;return JSON.stringify(out)}catch(e){return null}})()` },
+      // Regular YouTube: window.ytInitialData
+      { name: "youtube", script: `(function(){try{return typeof ytInitialData!=='undefined'?JSON.stringify(ytInitialData):null}catch(e){return null}})()` },
+      // Next.js: window.__NEXT_DATA__
+      { name: "nextjs", script: `(function(){try{return window.__NEXT_DATA__?JSON.stringify(window.__NEXT_DATA__):null}catch(e){return null}})()` },
+      // Nuxt: window.__NUXT__
+      { name: "nuxt", script: `(function(){try{return window.__NUXT__?JSON.stringify(window.__NUXT__):null}catch(e){return null}})()` },
+    ];
+    let embeddedDataCount = 0;
+    for (const extractor of SSR_DATA_EXTRACTORS) {
+      try {
+        const raw = await phase(`ssr:${extractor.name}`, () => kuri.evaluate(tabId, extractor.script));
+        if (typeof raw !== "string" || !raw || raw === "null") continue;
+        // For ytmusic, we get {"/search": {...}, "/guide": {...}}
+        // Create a synthetic response for each path
+        if (extractor.name === "ytmusic") {
+          const parsed = JSON.parse(raw) as Record<string, unknown>;
+          const apiKey = (parsed.__apiKey as string) || "";
+          const innertubeContext = parsed.__context as Record<string, unknown> | null;
+          delete parsed.__apiKey;
+          delete parsed.__context;
+          for (const [path, data] of Object.entries(parsed)) {
+            if (!data || typeof data !== "object") continue;
+            // Strip framework noise (responseContext, trackingParams) and keep content
+            const cleaned = { ...(data as Record<string, unknown>) };
+            delete cleaned.responseContext;
+            delete cleaned.trackingParams;
+            delete cleaned.header;
+            delete cleaned.background;
+            // For large bodies, compact to ~10KB to avoid schema noise in scoring
+            let bodyStr = JSON.stringify(cleaned);
+            if (bodyStr.length > 10_000) {
+              bodyStr = bodyStr.substring(0, 10_000) + '"}]}';
+              try { JSON.parse(bodyStr); } catch { bodyStr = JSON.stringify(cleaned).substring(0, 10_000); }
+            }
+            if (bodyStr.length < 100) continue;
+            const origin = new URL(url).origin;
+            const contextParams = new URL(url).searchParams;
+            // Build URL with API key for direct execution
+            const keyParam = apiKey ? `key=${apiKey}&` : "";
+            const queryStr = path.includes("search") && contextParams.toString()
+              ? `?${keyParam}${contextParams.toString()}&prettyPrint=false`
+              : `?${keyParam}prettyPrint=false`;
+            const syntheticUrl = `${origin}/youtubei/v1${path}${queryStr}`;
+            responseBodies.set(syntheticUrl, bodyStr);
+            // Construct POST body with embedded context — context is fixed per session,
+            // only query varies. Embed full context so execute doesn't require it as a param.
+            const queryValue = contextParams.get("q") ?? "";
+            const postBody = path.includes("search") && innertubeContext
+              ? JSON.stringify({ context: innertubeContext, query: queryValue })
+              : path.includes("browse") && innertubeContext
+                ? JSON.stringify({ context: innertubeContext, browseId: "FEmusic_liked_videos" })
+                : JSON.stringify({ context: innertubeContext ?? {} });
+            harEntries.push({
+              startedDateTime: new Date().toISOString(),
+              request: { method: "POST", url: syntheticUrl, headers: [{ name: "content-type", value: "application/json" }], postData: { text: postBody } },
+              response: { status: 200, headers: [{ name: "content-type", value: "application/json" }], content: { text: bodyStr, mimeType: "application/json" } },
+            } as any);
+            embeddedDataCount++;
+            log("capture", `ssr:${extractor.name} extracted ${path} (${bodyStr.length}B)`);
+          }
+        } else {
+          // Generic: single object
+          if (raw.length < 100) continue;
+          const syntheticUrl = `${new URL(url).origin}/__ssr_data__/${extractor.name}`;
+          responseBodies.set(syntheticUrl, raw);
+          harEntries.push({
+            startedDateTime: new Date().toISOString(),
+            request: { method: "GET", url: syntheticUrl, headers: [] },
+            response: { status: 200, headers: [{ name: "content-type", value: "application/json" }], content: { text: raw, mimeType: "application/json" } },
+          } as any);
+          embeddedDataCount++;
+          log("capture", `ssr:${extractor.name} extracted (${raw.length}B)`);
+        }
+      } catch { /* extractor failed — non-fatal */ }
+    }
+    if (embeddedDataCount > 0) {
+      log("capture", `embedded SSR data: ${embeddedDataCount} synthetic endpoints injected`);
+    }
 
     // Merge all passive capture sources into unified request list
     const requests: RawRequest[] = mergePassiveCaptureData(intercepted, harEntries, extensionEntries, responseBodies, performanceUrls);

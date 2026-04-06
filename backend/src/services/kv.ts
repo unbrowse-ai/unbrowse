@@ -35,7 +35,7 @@ const MAX_IDX_BYTES = 400_000;
 
 interface IdxEntry { k: string; v: string }
 interface ListResult { keys: { name: string }[]; list_complete: boolean; cursor?: string }
-interface ValuedEntry { name: string; value: string }
+interface ValuedEntry { name: string; key: string; value: string }
 
 // Per-namespace merged index cache — lives for the lifetime of the Worker isolate
 const _cache = new Map<string, { entries: IdxEntry[]; expires: number }>();
@@ -165,7 +165,7 @@ export class EdbKV {
 
     for (const e of matching) {
       if (e.v) {
-        results.push({ name: e.k, value: e.v });
+        results.push({ name: e.k, key: e.k, value: e.v });
       } else {
         needFetch.push(e);
       }
@@ -193,7 +193,7 @@ export class EdbKV {
 
       for (const r of fetched) {
         if (!r) continue;
-        results.push({ name: r.key, value: r.value });
+        results.push({ name: r.key, key: r.key, value: r.value });
         const idx = all.findIndex(e => e.k === r.key);
         if (idx >= 0) { all[idx].v = r.value; dirty = true; }
       }

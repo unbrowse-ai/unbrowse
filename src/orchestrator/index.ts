@@ -47,6 +47,7 @@ import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from 
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { resolveAuthPrerequisites, deriveAuthDependencies } from "../auth/runtime.js";
+import { getCredential } from "../vault/index.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 import {
   buildRoutingCandidateSnapshots,
@@ -773,6 +774,14 @@ export function isCachedSkillRelevantForIntent(
       endpointMatchesExplicitSearchContext(endpoint, contextUrl),
     );
     if (hasStructuredSearchEndpoint) return true;
+    // Allow SSR-extracted or RPC-style endpoints that match the intent by URL path,
+    // even without declared search bindings (e.g. youtubei/v1/search for "search songs")
+    if (top && top.score >= 0) {
+      try {
+        const topPath = new URL(top.endpoint.url_template).pathname.toLowerCase();
+        if (/\/(search|find|query|browse|explore)\b/.test(topPath)) return true;
+      } catch {}
+    }
     if (collectExplicitSearchContextBindingKeys(contextUrl).size > 0) return false;
   }
   return (top?.score ?? Number.NEGATIVE_INFINITY) >= 0;
@@ -3705,11 +3714,11 @@ export async function resolveAndExecute(
     } catch { /* not a direct JSON API — continue to browser */ }
   }
 
-  if (context?.url && !forceCapture) {
+  if (process.env.UNBROWSE_LOCAL_ONLY === "1" && !forceCapture) {
     return buildNoCachedMatch();
   }
 
-  // 2. force_capture only — invoke browser-capture skill
+  // 2. No URL at all — nothing to capture
   if (!context?.url) {
     throw new Error(
       "No matching skill found. Pass context.url to trigger live capture and discovery.",

@@ -8,6 +8,7 @@ interface ListResult {
 
 interface ValuedEntry {
   name: string;
+  key: string;
   value: string;
 }
 
@@ -112,7 +113,7 @@ export class PgKV {
         AND (expires_at IS NULL OR expires_at > NOW())
       ORDER BY key
     ` as Array<{ key: string; value: string }>;
-    return rows.map((row) => ({ name: row.key, value: row.value }));
+    return rows.map((row) => ({ name: row.key, key: row.key, value: row.value }));
   }
 
   async resetSplitIndex(): Promise<void> {

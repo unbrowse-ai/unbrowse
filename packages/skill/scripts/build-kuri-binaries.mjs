@@ -98,14 +98,23 @@ for (const target of supportedTargets) {
   rmSync(prefixDir, { recursive: true, force: true });
   mkdirSync(prefixDir, { recursive: true });
 
-  execFileSync("zig", ["build", "-Doptimize=ReleaseFast", `-Dtarget=${target.zigTarget}`, "--prefix", prefixDir], {
-    cwd: sourceDir,
-    stdio: "inherit",
-  });
+  try {
+    execFileSync("zig", ["build", "-Doptimize=ReleaseFast", `-Dtarget=${target.zigTarget}`, "--prefix", prefixDir], {
+      cwd: sourceDir,
+      stdio: "inherit",
+    });
+  } catch (e) {
+    console.warn(`Cross-compile failed for ${target.id} — skipping (${e.message?.split("\n")[0] ?? "unknown error"})`);
+    rmSync(outDir, { recursive: true, force: true });
+    rmSync(prefixDir, { recursive: true, force: true });
+    continue;
+  }
 
   const builtBinary = path.join(prefixDir, "bin", target.bin);
   if (!existsSync(builtBinary)) {
-    throw new Error(`Kuri build succeeded for ${target.id}, but ${builtBinary} is missing`);
+    console.warn(`Kuri build for ${target.id} produced no binary — skipping`);
+    rmSync(prefixDir, { recursive: true, force: true });
+    continue;
   }
 
   cpSync(builtBinary, outFile);
