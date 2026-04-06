@@ -172,7 +172,7 @@ statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
   if (!skill_id || !endpoint_id || !trace) {
     return c.json({ error: "skill_id, endpoint_id, and trace required" }, 400);
   }
-  await recordExecution(c.env, skill_id, endpoint_id, trace);
+  await recordExecution(c.env, skill_id, endpoint_id, trace, c.get("agent_id"));
   // Track agent contribution + activity in one queued profile write.
   const agentId = c.get("agent_id");
   if (agentId) {

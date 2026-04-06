@@ -1,5 +1,5 @@
 import type { Env, EndpointStats, ExecutionTrace, VerificationStatus } from "../types.js";
-import { updateEndpointScore } from "./marketplace.js";
+import { getSkill, updateEndpointScore } from "./marketplace.js";
 import { statsKV } from "./kv.js";
 
 export const DEPRECATION_THRESHOLD = {
@@ -60,7 +60,8 @@ export async function recordExecution(
   env: Env,
   skillId: string,
   endpointId: string,
-  trace: ExecutionTrace
+  trace: ExecutionTrace,
+  executorAgentId?: string,
 ): Promise<void> {
   const stats = await getStats(env, skillId, endpointId);
   const latency = new Date(trace.completed_at).getTime() - new Date(trace.started_at).getTime();
@@ -93,7 +94,21 @@ export async function recordExecution(
     stats.auto_deprecated_at = new Date().toISOString();
     await saveStats(env, skillId, endpointId, stats);
   }
-  await updateEndpointScore(env, skillId, endpointId, score, shouldDisable ? "disabled" : undefined);
+
+  // Promote unverified → verified when a DIFFERENT agent executes successfully
+  let newStatus: VerificationStatus | undefined = shouldDisable ? "disabled" : undefined;
+  if (trace.success && executorAgentId && !shouldDisable) {
+    const skill = await getSkill(env, skillId);
+    const indexerId = skill?.indexer_id;
+    if (indexerId && executorAgentId !== indexerId) {
+      const endpoint = skill?.endpoints?.find((ep: { endpoint_id: string; verification_status?: string }) => ep.endpoint_id === endpointId);
+      if (endpoint?.verification_status === "unverified") {
+        newStatus = "verified";
+      }
+    }
+  }
+
+  await updateEndpointScore(env, skillId, endpointId, score, newStatus);
 }
 
 export async function recordFeedback(

@@ -3165,6 +3165,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       }
     }
     score += ep.reliability_score * 5;
+    if (ep.verification_status === "verified") score += 15;
     if (ep.method === "WS" && ep.response_schema) score += 3;
 
     // === Domain affinity ===
