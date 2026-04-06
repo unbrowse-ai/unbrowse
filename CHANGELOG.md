@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.3.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.2.0...v3.3.0) (2026-04-06)
+
+### Features
+
+* CDP capture, SSR extraction, scoring fixes ([#377](https://github.com/unbrowse-ai/unbrowse-dev/issues/377)) ([fa22f88](https://github.com/unbrowse-ai/unbrowse-dev/commit/fa22f8817286398d276c933e7342519135624fb9))
+
+### Bug Fixes
+
+* **policy:** skip third-party gate for read-only POSTs, wire skip_robots ([#379](https://github.com/unbrowse-ai/unbrowse-dev/issues/379)) ([249ad47](https://github.com/unbrowse-ai/unbrowse-dev/commit/249ad4717bc14882bea501b1a69109083240210a))
+* skip harStop hang + Unkey auth on skills list ([#378](https://github.com/unbrowse-ai/unbrowse-dev/issues/378)) ([95c3c98](https://github.com/unbrowse-ai/unbrowse-dev/commit/95c3c9895eaed5974df540bba53b03d3c367ac8b))
+
 ## [3.2.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.1.0...v3.2.0) (2026-04-06)
 
 ### Features
