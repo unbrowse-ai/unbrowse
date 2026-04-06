@@ -545,7 +545,7 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
@@ -554,10 +554,11 @@ export async function registerRoutes(app: FastifyInstance) {
       confirm_third_party_terms?: boolean;
       dry_run?: boolean;
       force_capture?: boolean;
+      skip_robots_check?: boolean;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, client_scope: clientScope });
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, client_scope: clientScope });
 
       // Surface timing breakdown
       const res = attachAgentOutcomeHints({ ...result } as Record<string, unknown>, {
@@ -801,7 +802,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url } = req.body as {
+    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url, skip_robots_check } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
@@ -809,6 +810,7 @@ export async function registerRoutes(app: FastifyInstance) {
       dry_run?: boolean;
       intent?: string;
       context_url?: string;
+      skip_robots_check?: boolean;
     };
     // Check local caches first: recent skills → domain snapshots → marketplace
     let skill = getRecentLocalSkill(skill_id, clientScope);
@@ -831,7 +833,7 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
     };
     try {
-      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
+      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, skip_robots_check, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
       if (execResult.trace.endpoint_id) {
         recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace, skill).catch(() => {});
@@ -865,7 +867,7 @@ export async function registerRoutes(app: FastifyInstance) {
             { ...execParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
-            { confirm_unsafe, confirm_third_party_terms, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
+            { confirm_unsafe, confirm_third_party_terms, dry_run, skip_robots_check, intent: intent || skill.intent_signature, client_scope: clientScope }
           );
           saveTrace(freshResult.trace);
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
