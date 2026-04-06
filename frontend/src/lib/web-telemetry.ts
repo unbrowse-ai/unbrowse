@@ -62,7 +62,7 @@ function getDeviceContext(): Record<string, unknown> {
   else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) browser = "safari";
   else if (/Firefox\//.test(ua)) browser = "firefox";
 
-  const nav = navigator as Record<string, unknown>;
+  const nav = navigator as unknown as Record<string, unknown>;
   const conn = nav.connection as Record<string, unknown> | undefined;
 
   return {

@@ -22,7 +22,7 @@ const SKIP_TELEMETRY_HOSTS = /(waa-pa\.|signaler-pa\.|appsgrowthpromo-pa\.|ogads
 const SKIP_TELEMETRY_PATHS = /\/(log|logging|telemetry|analytics|beacon|ping|heartbeat|metrics)(\/|$)/i;
 
 // RPC/API path hints — tightened to avoid false positives (BUG-GC-004)
-const RPC_HINTS = /(\/$rpc\/|\/rpc\/|graphql|trending|search|feed|results|batchexecute|\/api\/)/i;
+const RPC_HINTS = /(\/$rpc\/|\/rpc\/|graphql|trending|search|feed|results|batchexecute|\/api\/|youtubei|__ssr_data__)/i;
 
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
@@ -561,7 +561,7 @@ function isSemanticallyAdmissibleResponse(
 
 // On-domain noise patterns — framework plumbing, auth, tracking, ads that live
 // on the site's own domain (not caught by SKIP_HOSTS since they're same-origin).
-const ON_DOMAIN_NOISE = /\/(recaptcha|captcha|update-recaptcha|csrf|consent|data-protection|badge|drawer|header-action|geolocation|onboarding|wana\/bids|prebid|bids\/request|ads\/|pixel|beacon|collect|impression|click-tracking|heartbeat|webConfig|config\.json|manifest\.json|service-worker|sw\.js|favicon|robots\.txt|sitemap|opensearch|partial\/[a-zA-Z]+\/mod-|logging|csp-report|gen_204|generate_204|sodar|__|devvit-|user-drawer|action-item)/i;
+const ON_DOMAIN_NOISE = /\/(recaptcha|captcha|update-recaptcha|csrf|consent|data-protection|badge|drawer|header-action|geolocation|onboarding|wana\/bids|prebid|bids\/request|ads\/|pixel|beacon|collect|impression|click-tracking|heartbeat|webConfig|config\.json|manifest\.json|service-worker|sw\.js|favicon|robots\.txt|sitemap|opensearch|partial\/[a-zA-Z]+\/mod-|logging|csp-report|gen_204|generate_204|sodar|__webpack|__next|devvit-|user-drawer|action-item)/i;
 
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
@@ -643,7 +643,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       // API endpoints may have large/truncated/missing response bodies.
       // Admit them anyway if the URL pattern is clearly an API endpoint.
       const urlPath = (() => { try { return new URL(req.url).pathname; } catch { return ""; } })();
-      const isApiUrl = /\/(api|graphql)\b/i.test(urlPath) || /\.(json)(\?|$)/.test(req.url);
+      const isApiUrl = /\/(api|graphql|youtubei|__ssr_data__)\b/i.test(urlPath) || /\.(json)(\?|$)/.test(req.url);
 
       // For GraphQL: extract operationName from request body or URL
       let graphqlOpName: string | undefined;
@@ -764,8 +764,14 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     const sanitizedQParams = isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined;
     let pathTemplate = sanitizeUrlTemplate(normalized);
     const qBindings = sanitizedQParams ? buildQueryBindingMap(Object.keys(sanitizedQParams)) : {};
+    // Build query template, excluding params already present in the base URL
+    const existingQKeys = new Set<string>();
+    try { for (const k of new URL(pathTemplate).searchParams.keys()) existingQKeys.add(k.toLowerCase()); } catch {}
     const qTemplateStr = sanitizedQParams && Object.keys(sanitizedQParams).length > 0
-      ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${qBindings[k] ?? k}}`).join("&")
+      ? Object.keys(sanitizedQParams)
+          .filter((k) => !existingQKeys.has(k.toLowerCase()))
+          .map((k) => `${encodeURIComponent(k)}={${qBindings[k] ?? k}}`)
+          .join("&") || null
       : null;
 
     // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)
@@ -788,7 +794,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     let endpoint: EndpointDescriptor = {
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
-      url_template: qTemplateStr ? `${pathTemplate}?${qTemplateStr}` : pathTemplate,
+      url_template: qTemplateStr ? `${pathTemplate}${pathTemplate.includes("?") ? "&" : "?"}${qTemplateStr}` : pathTemplate,
       description: buildEndpointDescription(req, sampleRequest, sampleResponse),
       headers_template: sanitizeHeaders(req.request_headers),
       query: sanitizedQParams,

@@ -148,6 +148,9 @@ export function validateWorkflowReplayParams(
     if (!spec.user_supplied) continue;
     const value = valueForSpec(spec, params);
     if (spec.required && (value == null || value === "")) {
+      // Skip if the spec has a default value or example — auto-fill from contract
+      if (spec.default_value != null && spec.default_value !== "") continue;
+      if (spec.example_value != null && spec.example_value !== "") continue;
       errors.push({ name: spec.name, reason: "required" });
       continue;
     }

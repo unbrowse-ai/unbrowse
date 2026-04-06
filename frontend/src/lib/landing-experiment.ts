@@ -49,9 +49,7 @@ const DEFAULT_ASSIGNMENT: LandingAssignmentEnvelope = {
 function decodeHeaderValue(raw: string): LandingAssignmentEnvelope | null {
   try {
     const padded = raw.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(raw.length / 4) * 4, "=");
-    const json = typeof atob === "function"
-      ? atob(padded)
-      : Buffer.from(padded, "base64").toString("utf8");
+    const json = atob(padded);
     return JSON.parse(json) as LandingAssignmentEnvelope;
   } catch {
     return null;

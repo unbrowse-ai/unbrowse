@@ -123,17 +123,27 @@ async function reloadExecutionAuthState(
     }
   }
 
-  if (Object.keys(authHeaders).length === 0) {
-    try {
-      const sessionKey = `${getRegistrableDomain(epDomain)}-session`;
-      const sessionData = await getCredential(sessionKey);
-      if (sessionData) {
-        const parsed = JSON.parse(sessionData) as { headers?: Record<string, string>; cookies?: typeof cookies };
-        if (parsed.headers) Object.assign(authHeaders, parsed.headers);
-        if (parsed.cookies && cookies.length === 0) cookies.push(...parsed.cookies);
-      }
-    } catch {
-      /* ignore */
+  // Always check domain-session vault keys — auth_profile_ref may point to a partial entry
+  {
+    for (const sessionKey of [`${epDomain}-session`, `${getRegistrableDomain(epDomain)}-session`]) {
+      try {
+        const sessionData = await getCredential(sessionKey);
+        if (sessionData) {
+          const parsed = JSON.parse(sessionData) as { headers?: Record<string, string>; cookies?: typeof cookies };
+          if (parsed.headers) Object.assign(authHeaders, parsed.headers);
+          if (parsed.cookies && cookies.length === 0) cookies.push(...parsed.cookies);
+          if (Object.keys(authHeaders).length > 0) break;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // LinkedIn CSRF fix: LinkedIn validates csrf-token against JSESSIONID cookie value.
+  // CDP captures the ajax-style csrf-token but LinkedIn actually needs the JSESSIONID.
+  if (cookies.length > 0 && authHeaders["csrf-token"]) {
+    const jsessionId = cookies.find((c) => c.name === "JSESSIONID");
+    if (jsessionId) {
+      authHeaders["csrf-token"] = jsessionId.value.replace(/"/g, "");
     }
   }
 }
@@ -1410,9 +1420,11 @@ async function executeBrowserCapture(
 
   // BUG-004 fix: set auth_profile_ref when vault has stored auth for this domain
   if (!auth_profile_ref) {
-    const vaultKey = `auth:${targetDomain}`;
-    const hasStoredAuth = (await getCredential(vaultKey)) != null;
-    if (hasStoredAuth) auth_profile_ref = vaultKey;
+    // Check both vault key patterns: auth:{domain} (login flow) and {domain}-session (CDP capture)
+    for (const vaultKey of [`auth:${targetDomain}`, `${domain}-session`, `${targetDomain}-session`]) {
+      const hasStoredAuth = (await getCredential(vaultKey)) != null;
+      if (hasStoredAuth) { auth_profile_ref = vaultKey; break; }
+    }
   }
   const authBackedCapture = usedStoredAuth || !!auth_profile_ref;
   if (authBackedCapture) {
@@ -2063,7 +2075,10 @@ export async function executeEndpoint(
           u.searchParams.set(k, String(v));
         }
       }
-      urlTemplate = restoreTemplatePlaceholderEncoding(u.toString());
+      // Restore template placeholders + API-safe chars that URLSearchParams over-encodes
+      urlTemplate = restoreTemplatePlaceholderEncoding(u.toString())
+        .replace(/%28/gi, "(").replace(/%29/gi, ")")
+        .replace(/%2C/gi, ",").replace(/%3A/gi, ":");
     } catch {
       // URL parse failure — skip query merge
     }
@@ -2241,7 +2256,7 @@ export async function executeEndpoint(
 
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
-      log("exec", `server-fetch: ${endpoint.method} ${replayUrl.substring(0, 80)} auth=${(replayHeaders["authorization"] || "none").substring(0, 50)} csrf=${replayHeaders["x-csrf-token"]?.substring(0, 10)}... cookies=${(replayHeaders["cookie"]?.length ?? 0)}chars`);
+      log("exec", `server-fetch: ${endpoint.method} ${replayUrl.substring(0, 200)} csrf-token=${(replayHeaders["csrf-token"] || "none").substring(0, 20)}... hdrs=${Object.keys(replayHeaders).length} cookies=${(replayHeaders["cookie"]?.length ?? 0)}chars`);
       const res = await fetch(replayUrl, {
         method: endpoint.method,
         headers: replayHeaders,
@@ -2738,10 +2753,13 @@ function interpolate(template: string, params: Record<string, unknown>): string 
     params[k] != null ? String(params[k]) : `{${k}}`
   );
 
-  // Interpolate query params with URL encoding
-  const interpolatedQuery = query.replace(/\{(\w+)\}/g, (_, k) =>
-    params[k] != null ? encodeURIComponent(String(params[k])) : `{${k}}`
-  );
+  // Interpolate query params — light encoding that preserves () and , which some APIs require raw
+  const interpolatedQuery = query.replace(/\{(\w+)\}/g, (_, k) => {
+    if (params[k] == null) return `{${k}}`;
+    const val = String(params[k]);
+    // Only encode characters that are actually unsafe in query values
+    return val.replace(/[#&=\s]/g, (ch) => encodeURIComponent(ch));
+  });
 
   return `${interpolatedBase}?${interpolatedQuery}`;
 }
@@ -3167,6 +3185,19 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // Each matching core token = +100 points. "feed" matching gives +100,
       // "feed" + "post" matching gives +200, etc.
       score += matches * 100;
+    }
+
+    // === URL path to intent match — catches SSR-extracted and RPC-style endpoints ===
+    if (rawTokens.length > 0 && pathname) {
+      const pathLower = pathname.toLowerCase();
+      const pathSegs = pathLower.split("/").filter(Boolean);
+      for (const token of rawTokens) {
+        const stemmed = stem(token);
+        if (pathSegs.some((seg) => seg === stemmed || seg === token || seg.includes(token))) {
+          score += 150;
+          break; // one match is enough to signal relevance
+        }
+      }
     }
 
     // === Structural bonuses ===
