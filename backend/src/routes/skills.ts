@@ -280,3 +280,47 @@ skillRoutes.patch("/skills/:id/endpoints/:eid", bearerAuth, requireSignedClient,
   }
   return c.json({ ok: true });
 });
+
+// POST /v1/skills/:id/endpoints/:eid/annotate — agent contributes best practices
+skillRoutes.post("/skills/:id/endpoints/:eid/annotate", bearerAuth, async (c) => {
+  const body = await c.req.json<{
+    constraints?: Array<{ param: string; rule: string; message: string }>;
+    annotations?: Array<{ text: string }>;
+  }>();
+  const skill = await getSkill(c.env, c.req.param("id"));
+  if (!skill) return c.json({ error: "Skill not found" }, 404);
+  const endpoint = skill.endpoints.find((e) => e.endpoint_id === c.req.param("eid"));
+  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+
+  const agentId = c.get("agent_id");
+  const now = new Date().toISOString();
+  let added = 0;
+
+  if (body.constraints?.length) {
+    if (!endpoint.constraints) endpoint.constraints = [];
+    for (const c of body.constraints) {
+      if (!endpoint.constraints.some((ex) => ex.param === c.param && ex.rule === c.rule)) {
+        endpoint.constraints.push({ ...c, source: "agent" as const, learned_at: now } as any);
+        added++;
+      }
+    }
+  }
+
+  if (body.annotations?.length) {
+    if (!endpoint.annotations) endpoint.annotations = [];
+    for (const a of body.annotations) {
+      endpoint.annotations.push({ text: a.text, agent_id: agentId, created_at: now });
+      added++;
+    }
+    // Cap at 20 annotations
+    if (endpoint.annotations.length > 20) endpoint.annotations = endpoint.annotations.slice(-20);
+  }
+
+  if (added > 0) {
+    skill.updated_at = now;
+    const { skillsKV: getKV } = await import("../services/kv.js");
+    await getKV(c.env).put(`skill:${skill.skill_id}`, JSON.stringify(skill));
+  }
+
+  return c.json({ ok: true, added });
+});

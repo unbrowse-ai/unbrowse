@@ -295,6 +295,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Search cached indexed/published routes and optionally execute the top trusted endpoint |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
+| `annotate` | `--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:message']` | Contribute best practices or constraints for an endpoint |
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/schema metadata back to a captured skill before publish |
 | `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state only |
 | `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, inspect publish-review metadata, then publish/share from cached skill state |

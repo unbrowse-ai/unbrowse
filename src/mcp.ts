@@ -641,12 +641,29 @@ function addExecuteNextStepHints(
   if (skillId) hints.feedback_skill = skillId;
   if (endpointId) hints.feedback_endpoint = endpointId;
 
+  // Surface learned constraints so agents see them
+  const constraints = isPlainObject(nested) && Array.isArray(nested.constraints) ? nested.constraints : undefined;
+  if (constraints?.length) {
+    hints.known_constraints = constraints;
+  }
+
+  // Surface community annotations
+  const annotations = isPlainObject(nested) && Array.isArray(nested.annotations) ? nested.annotations : undefined;
+  if (annotations?.length) {
+    hints.community_notes = annotations;
+  }
+
   // Detect if this skill has unreviewed/generic descriptions — nudge review+publish
   const desc = isPlainObject(nested) && typeof nested.description === "string" ? nested.description : "";
   const looksGeneric = !desc || desc.startsWith("Captured ") || desc.startsWith("Returns results");
   if (looksGeneric) {
     hints.first_use_review_needed = true;
     hints.review_step = "After feedback, call unbrowse_review to write proper endpoint descriptions, then unbrowse_publish to share to marketplace.";
+  }
+
+  // Prompt agent to contribute what it learned
+  if (skillId && endpointId) {
+    hints.contribute = "If you learned something about this endpoint (required params, gotchas, best practices), call unbrowse_annotate to share it with other agents.";
   }
 
   return { ...result, _workflow_hints: hints };
@@ -1715,6 +1732,39 @@ const tools: ToolDefinition[] = [
       const result = await api("POST", "/v1/browse/close", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined);
       const withHints = addCaptureNextStepHints(result, args);
       return successResult(withHints, "Browse session closed. See _workflow_hints for required next steps: call unbrowse_review then unbrowse_publish.");
+    },
+  },
+  {
+    name: "unbrowse_annotate",
+    description: "Contribute constraints or best practices for an endpoint. Call this after executing an endpoint to share what you learned (required params, gotchas, tips) with other agents.",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        skill: { type: "string", description: "Skill ID" },
+        endpoint: { type: "string", description: "Endpoint ID" },
+        constraints: {
+          type: "array",
+          description: "Learned constraints (required params, deprecated fields, format rules)",
+          items: { type: "object", properties: { param: { type: "string" }, rule: { type: "string" }, message: { type: "string" } }, required: ["param", "rule", "message"] },
+        },
+        annotations: {
+          type: "array",
+          description: "Free-text best practices, tips, or gotchas",
+          items: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+        },
+      },
+      required: ["skill", "endpoint"],
+    },
+    handler: async (args: Record<string, unknown>) => {
+      await ensureServerReady();
+      const skillId = args.skill as string;
+      const endpointId = args.endpoint as string;
+      const body: Record<string, unknown> = {};
+      if (Array.isArray(args.constraints)) body.constraints = args.constraints;
+      if (Array.isArray(args.annotations)) body.annotations = args.annotations;
+      if (!body.constraints && !body.annotations) return errorResult("Provide constraints and/or annotations");
+      const result = await api("POST", `/v1/skills/${skillId}/endpoints/${endpointId}/annotate`, body);
+      return successResult(result, "Annotation saved. Other agents will see your contribution when using this endpoint.");
     },
   },
 ];
