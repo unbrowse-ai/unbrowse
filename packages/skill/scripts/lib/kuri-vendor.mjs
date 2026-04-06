@@ -12,7 +12,8 @@ export const supportedTargets = [
   { id: "darwin-x64", zigTarget: "x86_64-macos", bin: "kuri" },
   { id: "linux-arm64", zigTarget: "aarch64-linux", bin: "kuri" },
   { id: "linux-x64", zigTarget: "x86_64-linux", bin: "kuri" },
-  { id: "win-x64", zigTarget: "x86_64-windows", bin: "kuri.exe" },
+  // Windows cross-compile disabled — Kuri's getenv usage needs std.process.getenvW for Windows
+  // { id: "win-x64", zigTarget: "x86_64-windows", bin: "kuri.exe" },
 ];
 
 export function monorepoKuriDir(repoRoot) {

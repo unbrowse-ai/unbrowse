@@ -54,7 +54,14 @@ export async function resolveAuthTokens(
       }
 
       for (const binding of headerBindings) {
-        const value = await resolveBinding(binding, html, cookies);
+        let value = await resolveBinding(binding, html, cookies);
+
+        // If stored sources didn't resolve (e.g. bearer in a different bundle),
+        // scan all loaded script resources via Performance API
+        if (!value && binding.sources.some((s) => s.kind === "js-bundle")) {
+          value = await scanAllScriptResources(tabId, binding);
+        }
+
         if (value) {
           resolved[binding.param_name] = binding.param_name.toLowerCase() === "authorization"
             ? (value.startsWith("Bearer ") ? value : `Bearer ${value}`)
@@ -132,4 +139,36 @@ async function waitForLoad(tabId: string): Promise<void> {
     } catch { /* page not ready */ }
     await new Promise((r) => setTimeout(r, 500));
   }
+}
+
+/**
+ * Scan all script resources loaded by the page via Performance API.
+ * Fetches each bundle and searches for a token matching the binding pattern.
+ * This handles cases where the enrichment captured the wrong bundle URLs.
+ */
+async function scanAllScriptResources(tabId: string, binding: AuthTokenBinding): Promise<string | undefined> {
+  try {
+    const raw = await kuri.evaluate(tabId, `
+      JSON.stringify(
+        performance.getEntriesByType('resource')
+          .filter(function(e) { return e.initiatorType === 'script'; })
+          .map(function(e) { return e.name; })
+      )
+    `);
+    if (typeof raw !== "string" || !raw.startsWith("[")) return undefined;
+    const urls: string[] = JSON.parse(raw);
+
+    const tokenPattern = /AAAAAAAAAAAAAAAAAAA[A-Za-z0-9+/=_%-]{20,}/;
+
+    for (const url of urls) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        const body = await resp.text();
+        const m = body.match(tokenPattern);
+        if (m && m[0].length >= 20) return m[0];
+      } catch { /* fetch failed, try next */ }
+    }
+  } catch { /* evaluate failed */ }
+  return undefined;
 }
