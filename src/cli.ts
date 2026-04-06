@@ -696,6 +696,28 @@ async function cmdFeedback(flags: Record<string, string | boolean>): Promise<voi
   output(await api("POST", "/v1/feedback", body), !!flags.pretty);
 }
 
+async function cmdAnnotate(flags: Record<string, string | boolean>): Promise<void> {
+  const skillId = flags.skill as string;
+  const endpointId = flags.endpoint as string;
+  if (!skillId || !endpointId) die("--skill and --endpoint are required");
+
+  const body: Record<string, unknown> = {};
+
+  if (flags.text) {
+    body.annotations = [{ text: flags.text as string }];
+  }
+
+  if (flags.constraint) {
+    const parts = (flags.constraint as string).split(":");
+    if (parts.length >= 3) {
+      body.constraints = [{ param: parts[0], rule: parts[1], message: parts.slice(2).join(":") }];
+    }
+  }
+
+  if (!body.annotations && !body.constraints) die("--text or --constraint required");
+
+  output(await api("POST", `/v1/skills/${skillId}/endpoints/${endpointId}/annotate`, body), !!flags.pretty);
+}
 async function cmdReview(flags: Record<string, string | boolean>): Promise<void> {
   const skillId = flags.skill as string;
   if (!skillId) die("--skill is required");
@@ -937,6 +959,7 @@ export const CLI_REFERENCE = {
     { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Search cached indexed/published routes and optionally execute the top trusted endpoint" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
+    { name: "annotate", usage: "--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:message']", desc: "Contribute best practices or constraints for an endpoint" },
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/schema metadata back to a captured skill before publish" },
     { name: "index", usage: "--skill ID", desc: "Recompute local graph/contracts/export from cached skill state only" },
     { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Re-index locally, inspect publish-review metadata, then publish/share from cached skill state" },
@@ -1654,7 +1677,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "review", "index", "publish", "publish-bundle", "settings", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
+    "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
@@ -1689,6 +1712,7 @@ async function main(): Promise<void> {
     case "resolve": return cmdResolve(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
+    case "annotate": return cmdAnnotate(flags);
     case "review": return cmdReview(flags);
     case "index": return cmdIndex(flags);
     case "publish": return cmdPublish(flags);

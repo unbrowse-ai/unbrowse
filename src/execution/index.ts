@@ -3,6 +3,7 @@ import { captureSession } from "../capture/index.js";
 import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
+import { resolveAuthTokens } from "./token-resolver.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
@@ -2016,13 +2017,12 @@ export async function executeEndpoint(
   await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
 
   // If endpoint has auth_tokens bindings, always resolve fresh tokens.
-  // Vault headers may be stale — the DAG knows how to get fresh ones.
+  // Vault headers may be stale - the DAG knows how to get fresh ones.
   log("exec", `auth_tokens check: ${endpoint.auth_tokens?.length ?? 0} bindings on ${endpoint.endpoint_id}`);
   if (endpoint.auth_tokens?.length) {
     try {
-      const { resolveAuthTokens } = await import("./token-resolver.js");
       const resolved = await resolveAuthTokens(endpoint, cookies, authHeaders);
-      log("exec", `token resolver returned ${Object.keys(resolved).length} headers: ${Object.keys(resolved).join(",") || "none"} auth=${(resolved.authorization || "").substring(0, 40)}`);
+      log("exec", `token resolver returned ${Object.keys(resolved).length} headers: ${Object.keys(resolved).join(",") || "none"}`);
       Object.assign(authHeaders, resolved);
     } catch (e) { log("exec", `token resolver failed: ${e}`); }
   }
@@ -2252,6 +2252,28 @@ export async function executeEndpoint(
       const text = await res.text();
       try { data = JSON.parse(text); } catch { data = text; }
       last = { data, status: res.status };
+
+      // Learn constraints from API validation errors
+      if ((res.status === 400 || res.status === 422) && data && typeof data === "object") {
+        const errors = (data as Record<string, unknown>).errors as Array<{ code?: string; message?: string; parameter?: string }> | undefined;
+        if (errors?.length) {
+          if (!endpoint.constraints) endpoint.constraints = [];
+          const now = new Date().toISOString();
+          for (const err of errors) {
+            if (!err.message || !err.parameter) continue;
+            const rule = err.code === "MISSING_PARAMETER" ? "required" as const
+              : err.message.includes("deprecated") ? "deprecated" as const
+              : err.message.includes("not allowed") ? "forbidden_in_body" as const
+              : "format" as const;
+            // Dedupe by param+rule
+            if (!endpoint.constraints.some((c) => c.param === err.parameter && c.rule === rule)) {
+              endpoint.constraints.push({ param: err.parameter!, rule, message: err.message, source: "api_error", learned_at: now });
+              log("exec", `learned constraint: ${rule} ${err.parameter} - ${err.message}`);
+            }
+          }
+        }
+      }
+
       if (res.ok && !(typeof data === "string" && isHtml(data))) {
         return { data, status: res.status, trace_id: nanoid() };
       }

@@ -27,6 +27,10 @@ export interface Env {
   CASCADE_SIGNER_SECRET_KEY?: string;
   CASCADE_RPC_URL?: string;
   CASCADE_RPC_WS_URL?: string;
+  // Demo video generation pipeline
+  TURBOBOX_URL: string;
+  R2_BUCKET: R2Bucket;
+  FAL_KEY: string;
 }
 
 // --- Agent identity ---
