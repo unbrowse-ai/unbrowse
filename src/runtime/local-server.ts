@@ -1,4 +1,4 @@
-import { openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
@@ -103,6 +103,12 @@ export function getServerSpawnSpec(metaUrl: string, entrypoint = resolveSiblingE
       cwd: process.cwd(),
       recordedEntrypoint: `${process.execPath} serve`,
     };
+  }
+
+  // Prefer bun-built dist/server.js over tsx-interpreted runtime-src/index.ts
+  const serverJs = path.join(path.dirname(entrypoint), "server.js");
+  if (path.extname(entrypoint) !== ".js" && existsSync(serverJs)) {
+    entrypoint = serverJs;
   }
 
   return {
