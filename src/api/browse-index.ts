@@ -169,6 +169,10 @@ export async function cacheBrowseRequests(params: {
   // so serverFetch can replay them. Use registrable domain for vault key
   // so ads.x.com and ads-api.x.com share the same session.
   const capturedAuthHeaders = extractAuthHeaders(requests);
+  // Filter out [REDACTED] placeholders from cookie-inferred auth headers
+  for (const [k, v] of Object.entries(capturedAuthHeaders)) {
+    if (v === "[REDACTED]") delete capturedAuthHeaders[k];
+  }
   if (Object.keys(capturedAuthHeaders).length > 0) {
     const sessionKey = `${getRegistrableDomain(domain)}-session`;
     await storeCredential(sessionKey, JSON.stringify({ headers: capturedAuthHeaders })).catch(() => {});
