@@ -1,5 +1,5 @@
 import type { Env, EndpointStats, ExecutionTrace, VerificationStatus } from "../types.js";
-import { updateEndpointScore } from "./marketplace.js";
+import { getSkill, updateEndpointScore } from "./marketplace.js";
 import { statsKV } from "./kv.js";
 
 export const DEPRECATION_THRESHOLD = {
@@ -60,7 +60,8 @@ export async function recordExecution(
   env: Env,
   skillId: string,
   endpointId: string,
-  trace: ExecutionTrace
+  trace: ExecutionTrace,
+  executorAgentId?: string,
 ): Promise<void> {
   const stats = await getStats(env, skillId, endpointId);
   const latency = new Date(trace.completed_at).getTime() - new Date(trace.started_at).getTime();
@@ -85,6 +86,21 @@ export async function recordExecution(
       ? latency
       : stats.avg_latency_ms + (latency - stats.avg_latency_ms) / stats.total_executions;
 
+  // Track version-keyed verification history for public coverage dashboard
+  if (trace.trace_version) {
+    if (!stats.version_history) stats.version_history = [];
+    const existing = stats.version_history.find((v) => v.version === trace.trace_version);
+    const entry = { version: trace.trace_version, status: trace.success ? "pass" as const : "fail" as const, verified_at: trace.completed_at, agent_id: executorAgentId };
+    if (existing) {
+      // Update to latest result for this version
+      Object.assign(existing, entry);
+    } else {
+      stats.version_history.push(entry);
+      // Cap history at 50 versions
+      if (stats.version_history.length > 50) stats.version_history.shift();
+    }
+  }
+
   await saveStats(env, skillId, endpointId, stats);
 
   const score = computeReliabilityScore(stats);
@@ -93,7 +109,21 @@ export async function recordExecution(
     stats.auto_deprecated_at = new Date().toISOString();
     await saveStats(env, skillId, endpointId, stats);
   }
-  await updateEndpointScore(env, skillId, endpointId, score, shouldDisable ? "disabled" : undefined);
+
+  // Promote unverified → verified when a DIFFERENT agent executes successfully
+  let newStatus: VerificationStatus | undefined = shouldDisable ? "disabled" : undefined;
+  if (trace.success && executorAgentId && !shouldDisable) {
+    const skill = await getSkill(env, skillId);
+    const indexerId = skill?.indexer_id;
+    if (indexerId && executorAgentId !== indexerId) {
+      const endpoint = skill?.endpoints?.find((ep: { endpoint_id: string; verification_status?: string }) => ep.endpoint_id === endpointId);
+      if (endpoint?.verification_status === "unverified") {
+        newStatus = "verified";
+      }
+    }
+  }
+
+  await updateEndpointScore(env, skillId, endpointId, score, newStatus);
 }
 
 export async function recordFeedback(

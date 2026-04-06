@@ -65,7 +65,35 @@ const manifest = {
   binaries: {},
 };
 
+// Pre-built binaries hosted on GitHub Releases for targets that can't cross-compile reliably
+const prebuiltAssets = {
+  "darwin-arm64": `https://github.com/lekt9/kuri/releases/download/v0.1.0-${sourceSha?.substring(0, 7)}/kuri`,
+};
+
 for (const target of supportedTargets) {
+  const outDir = path.join(vendorRoot, target.id);
+  mkdirSync(outDir, { recursive: true });
+  const outFile = path.join(outDir, target.bin);
+
+  const prebuiltUrl = prebuiltAssets[target.id];
+  if (prebuiltUrl) {
+    // Download pre-built binary instead of cross-compiling
+    console.log(`Downloading pre-built ${target.id} from ${prebuiltUrl}`);
+    try {
+      execFileSync("curl", ["-fsSL", "-o", outFile, prebuiltUrl], { stdio: "inherit" });
+      chmodSync(outFile, 0o755);
+      manifest.binaries[target.id] = {
+        zig_target: target.zigTarget,
+        sha256: hashFile(outFile),
+        source: "prebuilt",
+      };
+      continue;
+    } catch (e) {
+      console.warn(`Pre-built download failed for ${target.id}, falling back to cross-compile`);
+    }
+  }
+
+  // Cross-compile with Zig
   const prefixDir = path.join(os.tmpdir(), `unbrowse-kuri-${target.id}-${process.pid}-${Date.now()}`);
   rmSync(prefixDir, { recursive: true, force: true });
   mkdirSync(prefixDir, { recursive: true });
@@ -80,9 +108,6 @@ for (const target of supportedTargets) {
     throw new Error(`Kuri build succeeded for ${target.id}, but ${builtBinary} is missing`);
   }
 
-  const outDir = path.join(vendorRoot, target.id);
-  mkdirSync(outDir, { recursive: true });
-  const outFile = path.join(outDir, target.bin);
   cpSync(builtBinary, outFile);
   chmodSync(outFile, 0o755);
   manifest.binaries[target.id] = {

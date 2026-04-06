@@ -260,6 +260,13 @@ export interface SkillContributor {
   /** When this agent last contributed */
   last_contributed_at: string;
 }
+export interface VersionVerification {
+  version: string;
+  status: "pass" | "fail";
+  verified_at: string;
+  agent_id?: string;
+}
+
 export interface EndpointStats {
   total_executions: number;
   successful_executions: number;
@@ -271,6 +278,8 @@ export interface EndpointStats {
   last_execution_at?: string;
   last_success_at?: string;
   auto_deprecated_at?: string;
+  /** Version-keyed verification history — tracks which CLI versions pass/fail */
+  version_history?: VersionVerification[];
 }
 
 export interface ExecutionTrace {

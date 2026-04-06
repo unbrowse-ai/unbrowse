@@ -9,7 +9,6 @@
   "files": [
     "bin",
     "dist",
-    "runtime-src",
     "vendor/kuri",
     "scripts/release-assets.mjs",
     "scripts/postinstall.mjs",

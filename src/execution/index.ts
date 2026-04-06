@@ -2022,7 +2022,7 @@ export async function executeEndpoint(
     try {
       const { resolveAuthTokens } = await import("./token-resolver.js");
       const resolved = await resolveAuthTokens(endpoint, cookies, authHeaders);
-      log("exec", `token resolver returned ${Object.keys(resolved).length} headers: ${Object.keys(resolved).join(",") || "none"}`);
+      log("exec", `token resolver returned ${Object.keys(resolved).length} headers: ${Object.keys(resolved).join(",") || "none"} auth=${(resolved.authorization || "").substring(0, 40)}`);
       Object.assign(authHeaders, resolved);
     } catch (e) { log("exec", `token resolver failed: ${e}`); }
   }
@@ -2241,7 +2241,7 @@ export async function executeEndpoint(
 
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
-      log("exec", `server-fetch: ${endpoint.method} ${replayUrl.substring(0, 80)} csrf=${replayHeaders["x-csrf-token"]?.substring(0, 10)}... cookies=${(replayHeaders["cookie"]?.length ?? 0)}chars`);
+      log("exec", `server-fetch: ${endpoint.method} ${replayUrl.substring(0, 80)} auth=${(replayHeaders["authorization"] || "none").substring(0, 50)} csrf=${replayHeaders["x-csrf-token"]?.substring(0, 10)}... cookies=${(replayHeaders["cookie"]?.length ?? 0)}chars`);
       const res = await fetch(replayUrl, {
         method: endpoint.method,
         headers: replayHeaders,
@@ -3165,6 +3165,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       }
     }
     score += ep.reliability_score * 5;
+    if (ep.verification_status === "verified") score += 15;
     if (ep.method === "WS" && ep.response_schema) score += 3;
 
     // === Domain affinity ===

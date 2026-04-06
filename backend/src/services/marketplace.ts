@@ -206,6 +206,7 @@ export async function publishSkill(
       provenance_events: [provenanceEvent],
       endpoints: draft.endpoints.map((endpoint) => ({
         ...endpoint,
+        verification_status: endpoint.verification_status ?? "unverified",
         graph_visibility: endpoint.graph_visibility ?? "shadow",
         corroboration: applySubmissionToCorroboration(
           undefined,
