@@ -1,6 +1,6 @@
 {
   "name": "@unbrowse/sdk",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Thin TypeScript SDK for the canonical Unbrowse local server API.",
   "type": "module",
   "license": "MIT",
