@@ -105,9 +105,9 @@ export function getServerSpawnSpec(metaUrl: string, entrypoint = resolveSiblingE
     };
   }
 
-  // Prefer bun-built dist/server.js over tsx-interpreted runtime-src/index.ts
+  // Prefer bun-built dist/server.js over the index.js tsx wrapper
   const serverJs = path.join(path.dirname(entrypoint), "server.js");
-  if (path.extname(entrypoint) !== ".js" && existsSync(serverJs)) {
+  if (existsSync(serverJs) && path.basename(entrypoint) !== "server.js") {
     entrypoint = serverJs;
   }
 
