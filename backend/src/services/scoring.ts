@@ -86,6 +86,21 @@ export async function recordExecution(
       ? latency
       : stats.avg_latency_ms + (latency - stats.avg_latency_ms) / stats.total_executions;
 
+  // Track version-keyed verification history for public coverage dashboard
+  if (trace.trace_version) {
+    if (!stats.version_history) stats.version_history = [];
+    const existing = stats.version_history.find((v) => v.version === trace.trace_version);
+    const entry = { version: trace.trace_version, status: trace.success ? "pass" as const : "fail" as const, verified_at: trace.completed_at, agent_id: executorAgentId };
+    if (existing) {
+      // Update to latest result for this version
+      Object.assign(existing, entry);
+    } else {
+      stats.version_history.push(entry);
+      // Cap history at 50 versions
+      if (stats.version_history.length > 50) stats.version_history.shift();
+    }
+  }
+
   await saveStats(env, skillId, endpointId, stats);
 
   const score = computeReliabilityScore(stats);
