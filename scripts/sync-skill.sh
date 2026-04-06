@@ -97,8 +97,8 @@ if [ -n "$VERSION_TAG" ]; then
   echo ""
   echo "=== Tagging skill repo with $VERSION_TAG ==="
   cd "$TARGET_REPO"
-  git tag -a "$VERSION_TAG" -m "Release $VERSION_TAG"
-  git push origin "$VERSION_TAG"
+  git tag -fa "$VERSION_TAG" -m "Release $VERSION_TAG"
+  git push origin "$VERSION_TAG" --force
   echo "Tagged and pushed $VERSION_TAG to $(git remote get-url origin)"
 
   # Create GitHub Release on skill repo using LLM-generated notes
