@@ -18,6 +18,8 @@ type InstallTimeline = {
   registration_at?: string;
   first_resolve_started_at?: string;
   first_resolve_succeeded_at?: string;
+  default_browser_set_at?: string;
+  default_browser_host?: string;
   success_count: number;
 };
 
@@ -146,6 +148,12 @@ export async function getFunnelSummary(env: Env, days = 90): Promise<FunnelSumma
         timeline.first_resolve_succeeded_at ??= event.created_at;
         timeline.success_count++;
         break;
+      case "default_browser_set":
+        timeline.default_browser_set_at ??= event.created_at;
+        timeline.default_browser_host ??= typeof event.properties?.agent_host === "string"
+          ? event.properties.agent_host
+          : undefined;
+        break;
       case "search_started":
         totals.search_started++;
         break;
@@ -187,6 +195,8 @@ export async function getFunnelSummary(env: Env, days = 90): Promise<FunnelSumma
   let repeatSuccess = 0;
   let powerUsers = 0;
   let abandonment24h = 0;
+  let defaultBrowserSet = 0;
+  const defaultBrowserHosts = new Map<string, number>();
 
   for (const timeline of installs.values()) {
     const host = normalizeHostType(timeline.host_type);
@@ -242,6 +252,13 @@ export async function getFunnelSummary(env: Env, days = 90): Promise<FunnelSumma
       hostSummary.power_users++;
     }
 
+    if (timeline.default_browser_set_at) {
+      defaultBrowserSet++;
+      if (timeline.default_browser_host) {
+        increment(defaultBrowserHosts, timeline.default_browser_host);
+      }
+    }
+
     const installAgeMs = Date.now() - Date.parse(timeline.first_event_at);
     if (timeline.success_count === 0 && Number.isFinite(installAgeMs) && installAgeMs >= 86400_000) {
       abandonment24h++;
@@ -280,7 +297,9 @@ export async function getFunnelSummary(env: Env, days = 90): Promise<FunnelSumma
       repeat_success: repeatSuccess,
       power_users: powerUsers,
       abandonment_24h: abandonment24h,
+      default_browser_set: defaultBrowserSet,
     },
+    default_browser_hosts: topBuckets(defaultBrowserHosts),
     rates: {
       cli_invoked_from_install: rate(cliInvoked, installs.size),
       registration_from_cli: rate(registrations, cliInvoked),

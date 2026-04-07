@@ -11,6 +11,7 @@ import { getAcquisitionSummary } from "../services/acquisition.js";
 import { getFunnelSummary } from "../services/funnel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
 import { getLandingHomepageAnalyticsSummary } from "../services/landing-experiments.js";
+import { getCampaignFeedbackSummary } from "../services/campaign-feedback.js";
 import {
   getGrowthMetrics,
   getNetworkHealthMetrics,
@@ -222,6 +223,21 @@ analyticsRoutes.get("/analytics/install-funnel", async (c) => {
 analyticsRoutes.get("/analytics/landing-funnel", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 180);
   const summary = await getLandingHomepageAnalyticsSummary(c.env, days);
+  setAnalyticsHeaders(c);
+  return c.json(summary);
+});
+
+analyticsRoutes.get("/analytics/attribution", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 365);
+  const filters: Record<string, string> = {};
+  for (const key of ["channel", "campaign_id", "content_id", "inferred_icp", "variant_id", "experiment_id"] as const) {
+    const value = c.req.query(key);
+    if (value) filters[key] = value;
+  }
+  const summary = await getCampaignFeedbackSummary(c.env, {
+    days,
+    filters: Object.keys(filters).length > 0 ? filters : undefined,
+  });
   setAnalyticsHeaders(c);
   return c.json(summary);
 });
