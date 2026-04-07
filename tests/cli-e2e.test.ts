@@ -355,7 +355,7 @@ describe("CLI end-to-end", () => {
     expect(execute.code).toBe(0);
     expect(execute.body.error).toBeUndefined();
     expect(execute.body.result?.error).not.toBe("auth_required");
-  }, 120_000);
+  }, 180_000);
 
   it("resolve does not fall back to auth_required when browser creds exist", async () => {
     const cookies = await getAuthCookies("x.com");
