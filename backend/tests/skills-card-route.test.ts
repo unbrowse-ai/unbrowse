@@ -110,7 +110,7 @@ describe("skills card route", () => {
       updated_at: "2026-04-02T00:00:00.000Z",
     })));
 
-    const res = await app.fetch(new Request("http://local.test/v1/skills?view=card&limit=1"), env);
+    const res = await app.fetch(new Request("http://local.test/v1/skills?view=card&limit=1", { headers: { Authorization: "Bearer admin" } }), env);
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toContain("s-maxage=300");
 
@@ -133,7 +133,7 @@ describe("skills card route", () => {
     store.delete("skills:skill:skill-older");
     store.delete("skills:skill:skill-newer");
 
-    const cachedRes = await app.fetch(new Request("http://local.test/v1/skills?view=card"), env);
+    const cachedRes = await app.fetch(new Request("http://local.test/v1/skills?view=card", { headers: { Authorization: "Bearer admin" } }), env);
     expect(cachedRes.status).toBe(200);
     const cachedBody = await cachedRes.json() as { skills: Array<{ skill_id: string }> };
     expect(cachedBody.skills.map((skill) => skill.skill_id)).toEqual(["skill-newer", "skill-older"]);
