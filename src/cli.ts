@@ -947,6 +947,56 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 
   output(report, true);
   if (report.browser_engine.action === "failed") process.exit(1);
+
+  // --- Guided first resolve ---
+  // After setup succeeds, auto-run a resolve so the user sees what unbrowse
+  // does. This directly attacks the 82% drop-off at registration→first_resolve.
+  try {
+    info("Trying your first resolve...");
+    const demoUrl = "https://jsonplaceholder.typicode.com";
+    const demoIntent = "list all posts";
+    await recordFunnelTelemetryEvent("resolve_started", {
+      source: "setup",
+      hostType,
+      properties: { command: "guided-first-resolve", intent: demoIntent, url: demoUrl },
+    });
+
+    const resolveResult = await api("POST", "/v1/intent/resolve", {
+      intent: demoIntent,
+      params: { url: demoUrl },
+      context: { url: demoUrl },
+      projection: { raw: true },
+    }) as Record<string, unknown>;
+
+    if (isResolveSuccessResult(resolveResult)) {
+      await recordFunnelTelemetryEvent("resolve_completed", {
+        source: "setup",
+        hostType,
+        properties: { command: "guided-first-resolve", intent: demoIntent, url: demoUrl, source: resolveResult.source },
+      });
+      const endpoints = resolveResult.available_endpoints as Array<Record<string, unknown>> | undefined;
+      if (endpoints && endpoints.length > 0) {
+        info(`Found ${endpoints.length} API endpoint${endpoints.length > 1 ? "s" : ""} on ${demoUrl}:`);
+        for (const ep of endpoints.slice(0, 5)) {
+          const method = ep.method ?? "GET";
+          const desc = ep.description ?? ep.url_template ?? ep.endpoint_id ?? "";
+          info(`  ${method} ${desc}`);
+        }
+      } else {
+        info(`Resolve succeeded on ${demoUrl}`);
+      }
+      info("");
+      info("That's unbrowse. Try your own:");
+      info('  unbrowse resolve --intent "search for shoes" --url "https://amazon.com"');
+    } else {
+      info("Guided resolve returned no results — try manually:");
+      info('  unbrowse resolve --intent "list posts" --url "https://jsonplaceholder.typicode.com"');
+    }
+  } catch {
+    // Guided resolve is best-effort — never fail setup because of it
+    info("Setup complete. Try your first resolve:");
+    info('  unbrowse resolve --intent "list posts" --url "https://jsonplaceholder.typicode.com"');
+  }
 }
 
 // ---------------------------------------------------------------------------
