@@ -26,7 +26,17 @@ pushd "$ROOT_DIR" >/dev/null
 TARBALL="$(npm pack --workspace packages/skill | tail -n 1)"
 popd >/dev/null
 
-NPM_CONFIG_PREFIX="$TMP_PREFIX" npm install -g "$ROOT_DIR/$TARBALL" --silent
+# Build the local binary so postinstall doesn't need to download from GitHub releases.
+# This prevents failures when release assets don't exist yet (test runs vs release runs).
+LOCAL_BIN="$ROOT_DIR/dist/unbrowse"
+if [[ ! -x "$LOCAL_BIN" ]]; then
+  bash "$ROOT_DIR/scripts/build-binaries.sh" 2>/dev/null || true
+fi
+if [[ -x "$LOCAL_BIN" ]]; then
+  UNBROWSE_INSTALL_BINARY_PATH="$LOCAL_BIN" NPM_CONFIG_PREFIX="$TMP_PREFIX" npm install -g "$ROOT_DIR/$TARBALL" --silent
+else
+  NPM_CONFIG_PREFIX="$TMP_PREFIX" npm install -g "$ROOT_DIR/$TARBALL" --silent
+fi
 
 BIN="$TMP_PREFIX/bin/unbrowse"
 RUNTIME_ENTRY="$TMP_PREFIX/lib/node_modules/unbrowse/runtime-src/index.ts"

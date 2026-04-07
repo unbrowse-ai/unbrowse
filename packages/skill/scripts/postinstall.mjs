@@ -119,24 +119,42 @@ function download(url, dest) {
   });
 }
 
-try {
-  const archivePath = join(tmpdir(), assetName);
-  const extractDir = join(tmpdir(), `unbrowse-install-${process.pid}`);
-  await download(url, archivePath);
-  mkdirSync(extractDir, { recursive: true });
-  execFileSync("tar", ["-xzf", archivePath, "-C", extractDir]);
-  const extractedBinary = join(extractDir, "unbrowse");
-  if (!existsSync(extractedBinary)) {
-    throw new Error(`Archive ${assetName} did not contain ./unbrowse`);
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [2000, 5000, 10000];
+let lastError;
+
+for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  try {
+    if (attempt > 0) {
+      console.log(`[unbrowse] Retry ${attempt}/${MAX_RETRIES - 1}...`);
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt - 1] || 5000));
+    }
+    const archivePath = join(tmpdir(), assetName);
+    const extractDir = join(tmpdir(), `unbrowse-install-${process.pid}`);
+    await download(url, archivePath);
+    mkdirSync(extractDir, { recursive: true });
+    execFileSync("tar", ["-xzf", archivePath, "-C", extractDir]);
+    const extractedBinary = join(extractDir, "unbrowse");
+    if (!existsSync(extractedBinary)) {
+      throw new Error(`Archive ${assetName} did not contain ./unbrowse`);
+    }
+    mkdirSync(binDir, { recursive: true });
+    copyFileSync(extractedBinary, binaryPath);
+    chmodSync(binaryPath, 0o755);
+    try { unlinkSync(archivePath); } catch {}
+    try { unlinkSync(extractedBinary); } catch {}
+    console.log(`[unbrowse] Binary installed: ${binaryPath}`);
+    lastError = null;
+    break;
+  } catch (err) {
+    lastError = err;
+    try { unlinkSync(binaryPath); } catch {}
   }
-  mkdirSync(binDir, { recursive: true });
-  copyFileSync(extractedBinary, binaryPath);
-  chmodSync(binaryPath, 0o755);
-  try { unlinkSync(archivePath); } catch {}
-  try { unlinkSync(extractedBinary); } catch {}
-  console.log(`[unbrowse] Binary installed: ${binaryPath}`);
-} catch (err) {
-  console.warn(`[unbrowse] Binary download failed: ${err.message}`);
-  console.warn(`[unbrowse] Falling back to source mode for ${repo} ${tag} (${target}).`);
-  try { unlinkSync(binaryPath); } catch {}
+}
+
+if (lastError) {
+  console.error(`[unbrowse] Binary download failed after ${MAX_RETRIES} attempts: ${lastError.message}`);
+  console.error(`[unbrowse] Run "node ${join(packageRoot, "scripts", "postinstall.mjs")}" to retry.`);
+  console.error(`[unbrowse] The CLI will fall back to source mode but may be slower.`);
+  process.exitCode = 1;
 }
