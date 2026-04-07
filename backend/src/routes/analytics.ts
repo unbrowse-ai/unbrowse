@@ -8,7 +8,7 @@ import {
   getRetention,
 } from "../services/analytics.js";
 import { getAcquisitionSummary } from "../services/acquisition.js";
-import { getFunnelSummary } from "../services/funnel.js";
+import { getChurnCurve, getFunnelSummary } from "../services/funnel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
 import { getLandingHomepageAnalyticsSummary } from "../services/landing-experiments.js";
 import { getCampaignFeedbackSummary } from "../services/campaign-feedback.js";
@@ -216,6 +216,18 @@ analyticsRoutes.get("/analytics/install", async (c) => {
 analyticsRoutes.get("/analytics/install-funnel", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
   const summary = await getFunnelSummary(c.env, days);
+  setAnalyticsHeaders(c);
+  return c.json(summary);
+});
+
+analyticsRoutes.get("/analytics/churn-curve", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
+  const anchor = c.req.query("anchor") === "registration" ? "registration" as const : "install" as const;
+  const offsetsParam = c.req.query("offsets");
+  const offsets = offsetsParam
+    ? offsetsParam.split(",").map(Number).filter(Number.isFinite)
+    : undefined;
+  const summary = await getChurnCurve(c.env, days, anchor, offsets);
   setAnalyticsHeaders(c);
   return c.json(summary);
 });

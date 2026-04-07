@@ -39,7 +39,9 @@ else
 fi
 
 BIN="$TMP_PREFIX/bin/unbrowse"
-RUNTIME_ENTRY="$TMP_PREFIX/lib/node_modules/unbrowse/runtime-src/index.ts"
+PKG_DIR="$TMP_PREFIX/lib/node_modules/unbrowse"
+# The npm package ships dist/server.js (bundled), not runtime-src/ (source).
+RUNTIME_ENTRY="$PKG_DIR/dist/server.js"
 PID_FILE="$TMP_HOME/server-$PORT.json"
 
 test -x "$BIN"
