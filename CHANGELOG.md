@@ -8,6 +8,19 @@
 
 ### Bug Fixes
 
+* add auth header to skills-card-route test after [#378](https://github.com/unbrowse-ai/unbrowse-dev/issues/378) ([62b8ecc](https://github.com/unbrowse-ai/unbrowse-dev/commit/62b8ecc435151f1c86ccb00fefc3a33449312e0e))
+* bump npm resolve+execute e2e timeout from 120s to 180s ([70c0204](https://github.com/unbrowse-ai/unbrowse-dev/commit/70c0204f868ab09ee1095ab40b4359564678ba8d))
+* gitignore build-info.generated.ts to prevent stale signing ([f3e3b67](https://github.com/unbrowse-ai/unbrowse-dev/commit/f3e3b671973046e3247425a1a974694c62e165fb))
+* replace build-info.generated.ts with empty stub ([9dc543c](https://github.com/unbrowse-ai/unbrowse-dev/commit/9dc543cab005df250dce472fb8fff7ed58cd101a))
+
+## [3.3.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.3.1...v3.3.2) (2026-04-07)
+
+### Features
+
+* fix attribution chain + add attribution analytics endpoint ([#380](https://github.com/unbrowse-ai/unbrowse-dev/issues/380)) ([408d6d4](https://github.com/unbrowse-ai/unbrowse-dev/commit/408d6d48a9177e381ee98b606bc2119601b2a15c))
+
+### Bug Fixes
+
 * gitignore build-info.generated.ts to prevent stale signing ([f3e3b67](https://github.com/unbrowse-ai/unbrowse-dev/commit/f3e3b671973046e3247425a1a974694c62e165fb))
 * replace build-info.generated.ts with empty stub ([9dc543c](https://github.com/unbrowse-ai/unbrowse-dev/commit/9dc543cab005df250dce472fb8fff7ed58cd101a))
 
