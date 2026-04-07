@@ -8,7 +8,7 @@ import {
   getRetention,
 } from "../services/analytics.js";
 import { getAcquisitionSummary } from "../services/acquisition.js";
-import { getChurnCurve, getFunnelSummary } from "../services/funnel.js";
+import { getChurnCurve, getFunnelSummary, type ChurnSegmentBy } from "../services/funnel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
 import { getLandingHomepageAnalyticsSummary } from "../services/landing-experiments.js";
 import { getCampaignFeedbackSummary } from "../services/campaign-feedback.js";
@@ -227,7 +227,12 @@ analyticsRoutes.get("/analytics/churn-curve", async (c) => {
   const offsets = offsetsParam
     ? offsetsParam.split(",").map(Number).filter(Number.isFinite)
     : undefined;
-  const summary = await getChurnCurve(c.env, days, anchor, offsets);
+  const validSegments = new Set(["version", "minor_version", "platform", "cohort_week"]);
+  const segmentParam = c.req.query("segment");
+  const segmentBy = segmentParam && validSegments.has(segmentParam)
+    ? segmentParam as ChurnSegmentBy
+    : undefined;
+  const summary = await getChurnCurve(c.env, days, anchor, offsets, segmentBy);
   setAnalyticsHeaders(c);
   return c.json(summary);
 });

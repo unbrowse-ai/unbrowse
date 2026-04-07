@@ -92,12 +92,12 @@ describe("churn-curve endpoint", () => {
   });
 
   /** Seed a funnel event via the telemetry POST route (goes through recordFunnelEvent → KV index). */
-  async function seedEvent(install_id: string, name: string, created_at: string) {
+  async function seedEvent(install_id: string, name: string, created_at: string, properties?: Record<string, unknown>) {
     const res = await app.fetch(
       new Request("http://local.test/v1/telemetry/events", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...signedReleaseHeaders() },
-        body: JSON.stringify({ install_id, name, source: "cli", host_type: "cli", created_at }),
+        body: JSON.stringify({ install_id, name, source: "cli", host_type: "cli", created_at, properties }),
       }),
       env,
     );
@@ -261,5 +261,100 @@ describe("churn-curve endpoint", () => {
     expect(b1.pending).toBe(1);
     expect(b1.abandoned).toBe(0);
     expect(b1.converted).toBe(0);
+  });
+
+  it("segments by minor_version", async () => {
+    const v32 = "seg-v32-" + crypto.randomUUID();
+    const v33 = "seg-v33-" + crypto.randomUUID();
+
+    await seedEvent(v32, "cli_invoked", hoursAgo(50), { cli_version: "3.2.1", platform: "darwin" });
+    await seedEvent(v32, "resolve_completed", hoursAgo(49), { cli_version: "3.2.1" });
+    await seedEvent(v33, "cli_invoked", hoursAgo(50), { cli_version: "3.3.4", platform: "linux" });
+    // v33 never resolves — abandoned
+
+    const res = await app.fetch(
+      new Request("http://local.test/v1/analytics/churn-curve?segment=minor_version&offsets=6,24", {
+        headers: authHeaders(),
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+
+    expect(body.segment_by).toBe("minor_version");
+    expect(body.segments.length).toBe(2);
+
+    const seg32 = body.segments.find((s: any) => s.key === "3.2.x");
+    const seg33 = body.segments.find((s: any) => s.key === "3.3.x");
+    expect(seg32).toBeDefined();
+    expect(seg33).toBeDefined();
+    expect(seg32.total_installs).toBe(1);
+    expect(seg33.total_installs).toBe(1);
+
+    // v3.2 converted, v3.3 abandoned at 6h
+    const seg32_b6 = seg32.buckets.find((b: any) => b.offset_hours === 6);
+    expect(seg32_b6.converted).toBe(1);
+    const seg33_b6 = seg33.buckets.find((b: any) => b.offset_hours === 6);
+    expect(seg33_b6.abandoned).toBe(1);
+  });
+
+  it("includes drop_off stage distribution", async () => {
+    const userSetup = "drop-setup-" + crypto.randomUUID();
+    const userReg = "drop-reg-" + crypto.randomUUID();
+    const userSuccess = "drop-ok-" + crypto.randomUUID();
+
+    // User 1: stopped at setup
+    await seedEvent(userSetup, "cli_invoked", hoursAgo(50));
+    await seedEvent(userSetup, "setup_completed", hoursAgo(49));
+    // User 2: stopped at registration
+    await seedEvent(userReg, "cli_invoked", hoursAgo(50));
+    await seedEvent(userReg, "setup_completed", hoursAgo(49));
+    await seedEvent(userReg, "registration_succeeded", hoursAgo(48));
+    // User 3: converted (should NOT appear in drop_off)
+    await seedEvent(userSuccess, "cli_invoked", hoursAgo(50));
+    await seedEvent(userSuccess, "resolve_completed", hoursAgo(48));
+
+    const res = await app.fetch(
+      new Request("http://local.test/v1/analytics/churn-curve?offsets=24", {
+        headers: authHeaders(),
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+
+    expect(body.drop_off).toBeArray();
+    expect(body.drop_off.length).toBe(2); // setup_completed + registration
+    const setupDrop = body.drop_off.find((d: any) => d.stage === "setup_completed");
+    const regDrop = body.drop_off.find((d: any) => d.stage === "registration");
+    expect(setupDrop.count).toBe(1);
+    expect(regDrop.count).toBe(1);
+    // No resolve_succeeded in drop_off — that user converted
+    expect(body.drop_off.find((d: any) => d.stage === "resolve_succeeded")).toBeUndefined();
+  });
+
+  it("segments by platform", async () => {
+    const mac = "plat-mac-" + crypto.randomUUID();
+    const win = "plat-win-" + crypto.randomUUID();
+
+    await seedEvent(mac, "cli_invoked", hoursAgo(50), { platform: "darwin" });
+    await seedEvent(mac, "resolve_completed", hoursAgo(49), { platform: "darwin" });
+    await seedEvent(win, "cli_invoked", hoursAgo(50), { platform: "win32" });
+    // win abandoned
+
+    const res = await app.fetch(
+      new Request("http://local.test/v1/analytics/churn-curve?segment=platform&offsets=6", {
+        headers: authHeaders(),
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+
+    expect(body.segment_by).toBe("platform");
+    const macSeg = body.segments.find((s: any) => s.key === "darwin");
+    const winSeg = body.segments.find((s: any) => s.key === "win32");
+    expect(macSeg.buckets[0].converted).toBe(1);
+    expect(winSeg.buckets[0].abandoned).toBe(1);
   });
 });
