@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.3.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.3.2...v3.3.3) (2026-04-07)
+
+### Bug Fixes
+
+* postinstall binary download retry + smoke test guards ([d5df390](https://github.com/unbrowse-ai/unbrowse-dev/commit/d5df390482dab010096f867a9fb7cfbf2c1061d2))
+
 ## [3.3.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.3.1...v3.3.2) (2026-04-07)
 
 ### Features
