@@ -59,18 +59,15 @@ function ensureExecutable(filePath) {
 ensureExecutable(wrapperPath);
 ensureExecutable(launcherPath);
 
-// Skip binary download in CI build environments — the release pipeline builds
-// binaries AFTER install, so the download would always 404 and fail.
-if (process.env.CI && (process.env.GITHUB_ACTIONS || process.env.UNBROWSE_SKIP_BINARY_DOWNLOAD)) {
-  process.exit(0);
-}
-
 // Skip if binary already exists (re-install)
 if (existsSync(binaryPath)) {
   ensureExecutable(binaryPath);
+  console.log(`[unbrowse] Binary already exists, skipping.`);
   process.exit(0);
 }
 
+// Local binary override — used by smoke tests to inject a pre-built binary.
+// Must run BEFORE the CI skip so packaged smoke tests work in GitHub Actions.
 if (localBinaryPath) {
   if (!existsSync(localBinaryPath)) {
     console.warn(`[unbrowse] Local binary override not found: ${localBinaryPath}`);
@@ -80,6 +77,13 @@ if (localBinaryPath) {
   copyFileSync(localBinaryPath, binaryPath);
   chmodSync(binaryPath, 0o755);
   console.log(`[unbrowse] Installed local binary override: ${binaryPath}`);
+  process.exit(0);
+}
+
+// Skip binary download in CI build environments — the release pipeline builds
+// binaries AFTER install, so the download would always 404 and fail.
+// Placed after the local binary override so smoke tests still work.
+if (process.env.CI && (process.env.GITHUB_ACTIONS || process.env.UNBROWSE_SKIP_BINARY_DOWNLOAD)) {
   process.exit(0);
 }
 
