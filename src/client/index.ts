@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { homedir, hostname, release as osRelease } from "os";
 import { randomBytes, createHash } from "crypto";
@@ -95,8 +95,34 @@ function getInstallTelemetryPath(): string {
 }
 
 function getLandingToken(): string | undefined {
-  const token = process.env.UNBROWSE_LANDING_TOKEN?.trim();
-  return token ? token : undefined;
+  // 1. Prefer env var (set during npm install or manual invocation)
+  const envToken = process.env.UNBROWSE_LANDING_TOKEN?.trim();
+  if (envToken) return envToken;
+
+  // 2. Fall back to file persisted by postinstall.mjs
+  //    This bridges the gap: postinstall writes the token during npm install,
+  //    and the CLI reads it back on first invocation (e.g. `unbrowse setup`).
+  //    One-shot: delete after reading so it doesn't leak into future sessions.
+  try {
+    const attributionPath = join(homedir(), ".unbrowse", "landing-attribution.json");
+    if (existsSync(attributionPath)) {
+      const raw = readFileSync(attributionPath, "utf8");
+      const data = JSON.parse(raw);
+      const fileToken = typeof data.landing_token === "string" ? data.landing_token.trim() : undefined;
+
+      // Also restore UNBROWSE_ATTRIBUTION_B64 into env so readInstallAttributionFromEnv() picks it up
+      if (typeof data.attribution_b64 === "string" && !process.env.UNBROWSE_ATTRIBUTION_B64) {
+        process.env.UNBROWSE_ATTRIBUTION_B64 = data.attribution_b64;
+      }
+
+      // Delete the file — one-shot consumption
+      try { unlinkSync(attributionPath); } catch { /* best-effort */ }
+
+      if (fileToken) return fileToken;
+    }
+  } catch { /* best-effort — never block CLI startup */ }
+
+  return undefined;
 }
 
 function sanitizeProfileName(value: string): string {

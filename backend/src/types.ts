@@ -550,6 +550,7 @@ export type FunnelEventName =
   | "resolve_completed"
   | "search_started"
   | "search_completed"
+  | "default_browser_set"
   | `${string}_failed`;
 
 export type FunnelEventSource =
@@ -612,7 +613,9 @@ export interface FunnelSummary {
     repeat_success: number;
     power_users: number;
     abandonment_24h: number;
+    default_browser_set: number;
   };
+  default_browser_hosts?: FunnelFailureBucket[];
   rates: {
     cli_invoked_from_install: number;
     registration_from_cli: number;
@@ -822,6 +825,7 @@ export interface CampaignFeedbackRow {
   registrations: number;
   first_resolve_started: number;
   first_resolve_succeeded: number;
+  default_browser_set: number;
   total_sessions: number;
   successful_sessions: number;
   install_copy_rate_from_landing: number;

@@ -81,6 +81,7 @@ type CampaignRowState = {
   registrations: Set<string>;
   first_resolve_started: Set<string>;
   first_resolve_succeeded: Set<string>;
+  default_browser_set: Set<string>;
   total_sessions: Set<string>;
   successful_sessions: Set<string>;
 };
@@ -191,6 +192,7 @@ function ensureRow(
     registrations: new Set<string>(),
     first_resolve_started: new Set<string>(),
     first_resolve_succeeded: new Set<string>(),
+    default_browser_set: new Set<string>(),
     total_sessions: new Set<string>(),
     successful_sessions: new Set<string>(),
   };
@@ -283,6 +285,9 @@ export async function getCampaignFeedbackSummary(
       case "resolve_completed":
         row.first_resolve_succeeded.add(event.install_id);
         break;
+      case "default_browser_set":
+        row.default_browser_set.add(event.install_id);
+        break;
     }
   }
 
@@ -319,6 +324,7 @@ export async function getCampaignFeedbackSummary(
       registrations: row.registrations.size,
       first_resolve_started: row.first_resolve_started.size,
       first_resolve_succeeded: row.first_resolve_succeeded.size,
+      default_browser_set: row.default_browser_set.size,
       total_sessions: row.total_sessions.size,
       successful_sessions: row.successful_sessions.size,
       install_copy_rate_from_landing: rate(row.install_command_copies.size, row.landing_sessions.size),

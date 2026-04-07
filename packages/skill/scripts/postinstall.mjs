@@ -8,14 +8,36 @@
  * fetch the matching GitHub release asset, wire it into `bin/`, and fall
  * back to the packaged runtime if the release asset is missing.
  */
-import { existsSync, mkdirSync, chmodSync, copyFileSync, createWriteStream, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, chmodSync, copyFileSync, createWriteStream, unlinkSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import http from "node:http";
 import https from "node:https";
 import { SUPPORTED_TARGETS, buildBinaryArchiveName, buildReleaseAssetUrl, getReleaseAssetConfig } from "./release-assets.mjs";
+
+// --- Persist landing attribution from env to disk ---
+// The UNBROWSE_LANDING_TOKEN env var is set when the user copies the install
+// command from the landing page. It only lives during this npm install process.
+// Persist it to disk so the CLI can read it back on first `unbrowse setup`.
+try {
+  const landingToken = process.env.UNBROWSE_LANDING_TOKEN?.trim();
+  const attributionB64 = process.env.UNBROWSE_ATTRIBUTION_B64?.trim();
+  if (landingToken || attributionB64) {
+    const attrDir = join(homedir(), ".unbrowse");
+    mkdirSync(attrDir, { recursive: true });
+    writeFileSync(
+      join(attrDir, "landing-attribution.json"),
+      JSON.stringify({
+        persisted_at: new Date().toISOString(),
+        ...(landingToken ? { landing_token: landingToken } : {}),
+        ...(attributionB64 ? { attribution_b64: attributionB64 } : {}),
+      }, null, 2),
+      "utf8",
+    );
+  }
+} catch { /* Attribution is best-effort — never block install */ }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
