@@ -21,6 +21,9 @@ type InstallTimeline = {
   default_browser_set_at?: string;
   default_browser_host?: string;
   success_count: number;
+  cli_version?: string;
+  platform?: string;
+  last_stage: string;
 };
 
 function clampDays(days: number | undefined, fallback = 90): number {
@@ -120,81 +123,87 @@ export interface ChurnCurveStageTransition {
   samples: number;
 }
 
+export interface ChurnDropOffBucket {
+  stage: string;
+  count: number;
+  share: number;
+}
+
+export interface ChurnCurveSegment {
+  key: string;
+  total_installs: number;
+  buckets: ChurnCurveBucket[];
+  drop_off: ChurnDropOffBucket[];
+}
+
 export interface ChurnCurveSummary {
   generated_at: string;
   window_days: number;
   total_installs: number;
   anchor: string;
+  segment_by: string | null;
   buckets: ChurnCurveBucket[];
   stage_latency: ChurnCurveStageTransition[];
+  drop_off: ChurnDropOffBucket[];
+  segments: ChurnCurveSegment[];
 }
 
 const DEFAULT_OFFSETS = [1, 2, 4, 6, 12, 24, 48, 72, 168, 336, 720];
 
-export async function getChurnCurve(
-  env: Env,
-  days = 90,
-  anchor: "install" | "registration" = "install",
-  offsets?: number[],
-): Promise<ChurnCurveSummary> {
-  const windowDays = clampDays(days);
-  const events = await loadFunnelEvents(env, windowDays);
-  const installs = new Map<string, InstallTimeline>();
+export type ChurnSegmentBy = "version" | "minor_version" | "platform" | "cohort_week" | null;
 
-  for (const event of events) {
-    const timeline: InstallTimeline = installs.get(event.install_id) ?? {
-      install_id: event.install_id,
-      host_type: normalizeHostType(event.host_type),
-      first_event_at: event.created_at,
-      success_count: 0,
-    };
-    if (event.created_at < timeline.first_event_at) {
-      timeline.first_event_at = event.created_at;
-    }
-    if (timeline.host_type === "unknown") {
-      timeline.host_type = normalizeHostType(event.host_type);
-    }
-    switch (event.name) {
-      case "cli_invoked":
-        timeline.cli_invoked_at ??= event.created_at;
-        break;
-      case "setup_completed":
-        timeline.setup_completed_at ??= event.created_at;
-        break;
-      case "server_autostart_succeeded":
-        timeline.server_autostart_succeeded_at ??= event.created_at;
-        break;
-      case "registration_succeeded":
-        timeline.registration_at ??= event.created_at;
-        break;
-      case "resolve_started":
-        timeline.first_resolve_started_at ??= event.created_at;
-        break;
-      case "resolve_completed":
-        timeline.first_resolve_succeeded_at ??= event.created_at;
-        timeline.success_count++;
-        break;
-      case "default_browser_set":
-        timeline.default_browser_set_at ??= event.created_at;
-        timeline.default_browser_host ??= typeof event.properties?.agent_host === "string"
-          ? event.properties.agent_host
-          : undefined;
-        break;
-    }
-    installs.set(event.install_id, timeline);
+const STAGE_ORDER = ["install", "cli_invoked", "setup_completed", "server_autostart", "registration", "resolve_started", "resolve_succeeded"] as const;
+
+function lastStageReached(tl: InstallTimeline): string {
+  if (tl.first_resolve_succeeded_at) return "resolve_succeeded";
+  if (tl.first_resolve_started_at) return "resolve_started";
+  if (tl.registration_at) return "registration";
+  if (tl.server_autostart_succeeded_at) return "server_autostart";
+  if (tl.setup_completed_at) return "setup_completed";
+  if (tl.cli_invoked_at) return "cli_invoked";
+  return "install";
+}
+
+function minorVersion(version: string | undefined): string {
+  if (!version) return "unknown";
+  const parts = version.split(".");
+  if (parts.length < 2) return version;
+  return `${parts[0]}.${parts[1]}.x`;
+}
+
+function cohortWeek(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "unknown";
+  const day = d.getUTCDay();
+  const monday = new Date(d);
+  monday.setUTCDate(d.getUTCDate() - ((day + 6) % 7));
+  return monday.toISOString().slice(0, 10);
+}
+
+function segmentKey(tl: InstallTimeline, segmentBy: ChurnSegmentBy): string {
+  switch (segmentBy) {
+    case "version": return tl.cli_version ?? "unknown";
+    case "minor_version": return minorVersion(tl.cli_version);
+    case "platform": return tl.platform ?? "unknown";
+    case "cohort_week": return cohortWeek(tl.first_event_at);
+    default: return "all";
   }
+}
 
-  const hourOffsets = offsets ?? DEFAULT_OFFSETS;
-  const now = Date.now();
-
-  const buckets: ChurnCurveBucket[] = hourOffsets.map((hours) => {
+function computeBuckets(
+  timelines: Iterable<InstallTimeline>,
+  hourOffsets: number[],
+  anchor: "install" | "registration",
+  now: number,
+): ChurnCurveBucket[] {
+  return hourOffsets.map((hours) => {
     const offsetMs = hours * 3600_000;
     let abandoned = 0;
     let converted = 0;
     let pending = 0;
     let eligible = 0;
 
-    for (const tl of installs.values()) {
+    for (const tl of timelines) {
       const anchorAt = anchor === "registration" ? tl.registration_at : tl.first_event_at;
       if (!anchorAt) continue;
       const anchorMs = Date.parse(anchorAt);
@@ -231,6 +240,113 @@ export async function getChurnCurve(
       pending,
     };
   });
+}
+
+function computeDropOff(timelines: Iterable<InstallTimeline>): ChurnDropOffBucket[] {
+  const counts = new Map<string, number>();
+  let total = 0;
+  for (const tl of timelines) {
+    if (tl.success_count > 0) continue; // not abandoned
+    const stage = tl.last_stage;
+    counts.set(stage, (counts.get(stage) ?? 0) + 1);
+    total++;
+  }
+  return STAGE_ORDER
+    .filter((s) => counts.has(s))
+    .map((stage) => {
+      const count = counts.get(stage) ?? 0;
+      return { stage, count, share: rate(count, total) };
+    });
+}
+
+export async function getChurnCurve(
+  env: Env,
+  days = 90,
+  anchor: "install" | "registration" = "install",
+  offsets?: number[],
+  segmentBy?: ChurnSegmentBy,
+): Promise<ChurnCurveSummary> {
+  const windowDays = clampDays(days);
+  const events = await loadFunnelEvents(env, windowDays);
+  const installs = new Map<string, InstallTimeline>();
+
+  for (const event of events) {
+    const timeline: InstallTimeline = installs.get(event.install_id) ?? {
+      install_id: event.install_id,
+      host_type: normalizeHostType(event.host_type),
+      first_event_at: event.created_at,
+      success_count: 0,
+      last_stage: "install",
+    };
+    if (event.created_at < timeline.first_event_at) {
+      timeline.first_event_at = event.created_at;
+    }
+    if (timeline.host_type === "unknown") {
+      timeline.host_type = normalizeHostType(event.host_type);
+    }
+    // Extract cli_version and platform from first event that has them
+    if (!timeline.cli_version && typeof event.properties?.cli_version === "string") {
+      timeline.cli_version = event.properties.cli_version;
+    }
+    if (!timeline.platform && typeof event.properties?.platform === "string") {
+      timeline.platform = event.properties.platform;
+    }
+    switch (event.name) {
+      case "cli_invoked":
+        timeline.cli_invoked_at ??= event.created_at;
+        break;
+      case "setup_completed":
+        timeline.setup_completed_at ??= event.created_at;
+        break;
+      case "server_autostart_succeeded":
+        timeline.server_autostart_succeeded_at ??= event.created_at;
+        break;
+      case "registration_succeeded":
+        timeline.registration_at ??= event.created_at;
+        break;
+      case "resolve_started":
+        timeline.first_resolve_started_at ??= event.created_at;
+        break;
+      case "resolve_completed":
+        timeline.first_resolve_succeeded_at ??= event.created_at;
+        timeline.success_count++;
+        break;
+      case "default_browser_set":
+        timeline.default_browser_set_at ??= event.created_at;
+        timeline.default_browser_host ??= typeof event.properties?.agent_host === "string"
+          ? event.properties.agent_host
+          : undefined;
+        break;
+    }
+    timeline.last_stage = lastStageReached(timeline);
+    installs.set(event.install_id, timeline);
+  }
+
+  const hourOffsets = offsets ?? DEFAULT_OFFSETS;
+  const now = Date.now();
+
+  const allTimelines = Array.from(installs.values());
+  const buckets = computeBuckets(allTimelines, hourOffsets, anchor, now);
+  const dropOff = computeDropOff(allTimelines);
+
+  // Build segments
+  const segmentGroups = new Map<string, InstallTimeline[]>();
+  if (segmentBy) {
+    for (const tl of allTimelines) {
+      const key = segmentKey(tl, segmentBy);
+      const group = segmentGroups.get(key) ?? [];
+      group.push(tl);
+      segmentGroups.set(key, group);
+    }
+  }
+  const segments: ChurnCurveSegment[] = Array.from(segmentGroups.entries())
+    .map(([key, group]) => ({
+      key,
+      total_installs: group.length,
+      buckets: computeBuckets(group, hourOffsets, anchor, now),
+      drop_off: computeDropOff(group),
+    }))
+    .sort((a, b) => b.total_installs - a.total_installs);
 
   const stages: [string, string, (tl: InstallTimeline) => number | null][] = [
     ["install", "cli_invoked", (tl) => durationMs(tl.first_event_at, tl.cli_invoked_at)],
@@ -263,8 +379,11 @@ export async function getChurnCurve(
     window_days: windowDays,
     total_installs: installs.size,
     anchor,
+    segment_by: segmentBy ?? null,
     buckets,
     stage_latency: stageLatency,
+    drop_off: dropOff,
+    segments,
   };
 }
 
@@ -287,6 +406,7 @@ export async function getFunnelSummary(env: Env, days = 90): Promise<FunnelSumma
       host_type: normalizeHostType(event.host_type),
       first_event_at: event.created_at,
       success_count: 0,
+      last_stage: "install",
     };
 
     if (event.created_at < timeline.first_event_at) {
