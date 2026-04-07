@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.3.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.3.3...v3.3.4) (2026-04-07)
+
+### Bug Fixes
+
+* skip postinstall binary download in CI build environments ([3236580](https://github.com/unbrowse-ai/unbrowse-dev/commit/323658010b8914bc47e0dbe6db4a01e374887e21))
+
 ## [3.3.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.3.2...v3.3.3) (2026-04-07)
 
 ### Bug Fixes
