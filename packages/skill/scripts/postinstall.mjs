@@ -59,6 +59,12 @@ function ensureExecutable(filePath) {
 ensureExecutable(wrapperPath);
 ensureExecutable(launcherPath);
 
+// Skip binary download in CI build environments — the release pipeline builds
+// binaries AFTER install, so the download would always 404 and fail.
+if (process.env.CI && (process.env.GITHUB_ACTIONS || process.env.UNBROWSE_SKIP_BINARY_DOWNLOAD)) {
+  process.exit(0);
+}
+
 // Skip if binary already exists (re-install)
 if (existsSync(binaryPath)) {
   ensureExecutable(binaryPath);
