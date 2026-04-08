@@ -347,6 +347,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `--limit N` | Cap array output to N items |
 | `--endpoint-id ID` | Pick a specific endpoint |
 | `--dry-run` | Preview mutations |
+| `--curl` | Output the captured request as a curl command (no execution) |
 | `--params '{...}'` | Extra params as JSON |
 <!-- CLI_REFERENCE_END -->
 

@@ -481,13 +481,23 @@ export const INTERCEPTOR_SCRIPT = `(function() {
   var origFetch = window.fetch;
   window.fetch = function() {
     var args = arguments;
-    var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
+    var isRequestObj = args[0] && typeof args[0] === 'object' && typeof args[0].url === 'string';
+    var url = typeof args[0] === 'string' ? args[0] : (isRequestObj ? args[0].url : '');
     var opts = args[1] || {};
-    var method = (opts.method || 'GET').toUpperCase();
+    // Extract method: prefer explicit opts, then Request object, then default GET
+    var method = (opts.method || (isRequestObj ? args[0].method : null) || 'GET').toUpperCase();
+    // Extract body: prefer explicit opts.body, then clone+read Request body
     var reqBody = opts.body ? String(opts.body).substring(0, MAX_BODY) : undefined;
+    var reqBodyPromise = null;
+    if (!reqBody && isRequestObj && method !== 'GET' && method !== 'HEAD') {
+      try {
+        var reqClone = args[0].clone();
+        reqBodyPromise = reqClone.text().then(function(t) { return t ? t.substring(0, MAX_BODY) : undefined; }).catch(function() { return undefined; });
+      } catch(e) { /* clone failed */ }
+    }
     var reqHeaders = {};
     // Extract headers from Request object (first arg)
-    if (args[0] && typeof args[0] === 'object' && args[0].headers && typeof args[0].headers.forEach === 'function') {
+    if (isRequestObj && args[0].headers && typeof args[0].headers.forEach === 'function') {
       args[0].headers.forEach(function(v, k) { reqHeaders[k] = v; });
     }
     // Override/merge with explicit opts.headers (second arg)
@@ -510,7 +520,13 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       if (!isJs && !isData) return response;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return response;
       var clone = response.clone();
-      clone.text().then(function(body) {
+      // Resolve request body (from Request object clone) and response body in parallel
+      Promise.all([
+        clone.text(),
+        reqBodyPromise ? reqBodyPromise : Promise.resolve(reqBody)
+      ]).then(function(results) {
+        var body = results[0];
+        var resolvedReqBody = results[1];
         var limit = isJs ? MAX_JS_BODY : MAX_BODY;
         if (body.length > limit) return;
         var respHeaders = {};
@@ -519,7 +535,7 @@ export const INTERCEPTOR_SCRIPT = `(function() {
           url: url,
           method: method,
           request_headers: reqHeaders,
-          request_body: reqBody,
+          request_body: resolvedReqBody,
           response_status: response.status,
           response_headers: respHeaders,
           response_body: body,
@@ -612,7 +628,7 @@ export async function injectInterceptor(tabId: string): Promise<void> {
   // Split into setup (globals + fetch) and XHR parts
   const SETUP = `(function(){if(window.__unbrowse_interceptor_installed)return;window.__unbrowse_interceptor_installed=true;window.__unbrowse_intercepted=[];window.__UB_MAX=2*1024*1024;window.__UB_MAX_JS=2*1024*1024;window.__UB_MAX_N=500;})()`;
 
-  const FETCH_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oF=window.fetch;window.fetch=function(){var a=arguments,u=typeof a[0]==='string'?a[0]:(a[0]&&a[0].url?a[0].url:''),o=a[1]||{},m=(o.method||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,M):void 0,rh={};if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k]})}return oF.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=MN)return r;var ct=r.headers.get('content-type')||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return r;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return r;var c=r.clone();c.text().then(function(b){var lim=isJ?MJ:M;if(b.length>lim)return;var rr={};r.headers.forEach(function(v,k){rr[k]=v});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rb,response_status:r.status,response_headers:rr,response_body:b,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})}).catch(function(){});return r}).catch(function(e){throw e})}})()`;
+  const FETCH_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oF=window.fetch;window.fetch=function(){var a=arguments,isR=a[0]&&typeof a[0]==='object'&&typeof a[0].url==='string',u=typeof a[0]==='string'?a[0]:(isR?a[0].url:''),o=a[1]||{},m=(o.method||(isR?a[0].method:null)||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,M):void 0,rbP=null;if(!rb&&isR&&m!=='GET'&&m!=='HEAD'){try{var rc=a[0].clone();rbP=rc.text().then(function(t){return t?t.substring(0,M):void 0}).catch(function(){return void 0})}catch(e){}}var rh={};if(isR&&a[0].headers&&typeof a[0].headers.forEach==='function')a[0].headers.forEach(function(v,k){rh[k]=v});if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k]})}return oF.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=MN)return r;var ct=r.headers.get('content-type')||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return r;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return r;var c=r.clone();Promise.all([c.text(),rbP?rbP:Promise.resolve(rb)]).then(function(res){var b=res[0],rrb=res[1];var lim=isJ?MJ:M;if(b.length>lim)return;var rr={};r.headers.forEach(function(v,k){rr[k]=v});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rrb,response_status:r.status,response_headers:rr,response_body:b,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})}).catch(function(){});return r}).catch(function(e){throw e})}})()`;
 
   const XHR_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oO=XMLHttpRequest.prototype.open,oS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__ub_m=m;this.__ub_u=u;this.__ub_h={};var oSH=this.setRequestHeader.bind(this);this.setRequestHeader=function(k,v){this.__ub_h[k]=v;oSH(k,v)}.bind(this);return oO.apply(this,arguments)};XMLHttpRequest.prototype.send=function(b){var x=this;x.addEventListener('load',function(){if(window.__unbrowse_intercepted.length>=MN)return;var ct=x.getResponseHeader('content-type')||'',u=x.__ub_u||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return;var rb=x.responseText||'';var lim=isJ?MJ:M;if(rb.length>lim)return;window.__unbrowse_intercepted.push({url:u,method:(x.__ub_m||'GET').toUpperCase(),request_headers:x.__ub_h||{},request_body:b?String(b).substring(0,M):void 0,response_status:x.status,response_headers:{},response_body:rb,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})});return oS.apply(this,arguments)}})()`;
 
@@ -637,10 +653,22 @@ export function mergePassiveCaptureData(
 ): RawRequest[] {
   const seen = new Map<string, RawRequest>();
 
+  // For GraphQL endpoints, extract operationName from request body to differentiate operations
+  function graphqlDedup(url: string, requestBody?: string): string {
+    if (!requestBody || !/graphql/i.test(url)) return url;
+    try {
+      const parsed = JSON.parse(requestBody);
+      const opName = parsed.operationName ?? parsed.query?.match(/(?:query|mutation)\s+(\w+)/)?.[1];
+      if (opName) return `${url}#op=${opName}`;
+    } catch { /* not JSON */ }
+    return url;
+  }
+
   // Priority 1: JS-intercepted entries (have response bodies)
   for (const entry of intercepted) {
     if (entry.is_js) continue; // skip JS bundles
-    seen.set(entry.url, {
+    const key = graphqlDedup(entry.url, entry.request_body);
+    seen.set(key, {
       url: entry.url,
       method: entry.method,
       request_headers: entry.request_headers,
@@ -656,17 +684,20 @@ export function mergePassiveCaptureData(
   // Skip OPTIONS (CORS preflight) — they pollute method attribution
   for (const entry of harEntries) {
     const url = entry.request?.url;
-    if (!url || seen.has(url)) continue;
+    if (!url) continue;
     if (entry.request.method === "OPTIONS") continue;
+    const postBody = entry.request.postData?.text;
+    const key = graphqlDedup(url, postBody);
+    if (seen.has(key)) continue;
     const reqHeaders: Record<string, string> = {};
     for (const h of entry.request.headers ?? []) reqHeaders[h.name] = h.value;
     const respHeaders: Record<string, string> = {};
     for (const h of entry.response.headers ?? []) respHeaders[h.name] = h.value;
-    seen.set(url, {
+    seen.set(key, {
       url,
       method: entry.request.method,
       request_headers: reqHeaders,
-      request_body: entry.request.postData?.text,
+      request_body: postBody,
       response_status: entry.response.status,
       response_headers: respHeaders,
       response_body: responseBodies.get(url) ?? entry.response.content?.text,
@@ -681,14 +712,18 @@ export function mergePassiveCaptureData(
     const respHeaders: Record<string, string> = {};
     for (const h of entry.responseHeaders ?? []) respHeaders[h.name] = h.value;
 
-    const existing = seen.get(entry.url);
-    if (existing) {
-      // Merge auth headers from extension into existing entry (HAR strips them)
-      for (const [k, v] of Object.entries(reqHeaders)) {
-        if (!existing.request_headers[k]) existing.request_headers[k] = v;
+    // Find any existing entry for this URL (may have GraphQL-suffixed key)
+    let merged = false;
+    for (const [key, existing] of seen) {
+      if (existing.url === entry.url) {
+        for (const [k, v] of Object.entries(reqHeaders)) {
+          if (!existing.request_headers[k]) existing.request_headers[k] = v;
+        }
+        merged = true;
+        break;
       }
-      continue;
     }
+    if (merged) continue;
     seen.set(entry.url, {
       url: entry.url,
       method: entry.method,

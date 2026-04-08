@@ -934,7 +934,15 @@ async function findReusableIdleTab(state: BrokerState = defaultBrokerState): Pro
   try {
     const tabs = (await kuriGet(state, "/tabs")) as Array<{ id?: string; url?: string }>;
     const candidate = tabs.find((tab) => /^(about:blank|chrome:\/\/newtab\/?)$/i.test(tab?.url ?? ""));
-    return candidate?.id ?? "";
+    if (!candidate?.id) return "";
+    // Verify tab is CDP-responsive before reusing — avoids recycling crashed zombie tabs
+    try {
+      await kuriGet(state, "/evaluate", { tab_id: candidate.id, expression: "1" });
+      return candidate.id;
+    } catch {
+      // Tab is unresponsive — don't reuse, let caller create a fresh one
+      return "";
+    }
   } catch {
     return "";
   }

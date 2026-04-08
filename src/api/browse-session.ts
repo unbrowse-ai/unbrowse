@@ -61,8 +61,8 @@ const RECOVERABLE_BROWSE_FAILURES = [
   "econnreset",
 ];
 
-const LIVE_CHECK_RETRIES = 8;
-const LIVE_CHECK_RETRY_DELAY_MS = 250;
+const LIVE_CHECK_RETRIES = 3;
+const LIVE_CHECK_RETRY_DELAY_MS = 100;
 
 const sessionQueues = new Map<string, Promise<void>>();
 
@@ -386,6 +386,10 @@ export async function resolveRequestedBrowseSession(
   if (requestedSessionId) {
     const session = sessions.get(requestedSessionId);
     if (!session) throw new BrowseSessionError("session_not_found");
+    if (!(await isBrowseSessionLive(session, client))) {
+      removeBrowseSession(sessions, requestedSessionId);
+      throw new BrowseSessionError("session_expired");
+    }
     return session;
   }
 

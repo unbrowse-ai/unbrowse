@@ -542,6 +542,51 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     },
   });
 
+  // --curl: output captured request as curl command without executing
+  if (flags.curl) {
+    const endpointId = typeof flags.endpoint === "string" ? flags.endpoint : undefined;
+    if (!endpointId) die("--curl requires --endpoint");
+    const skill = await api("GET", `/v1/skills/${skillId}`) as { endpoints?: Array<Record<string, unknown>>; domain?: string };
+    const ep = (skill.endpoints ?? []).find((e) => e.endpoint_id === endpointId);
+    if (!ep) die(`Endpoint ${endpointId} not found`);
+
+    // Use request-preview endpoint — returns full headers (including vault auth) + body + cookies
+    let method = (ep.method as string) ?? "GET";
+    let url = ep.url_template as string;
+    let headers: Record<string, string> = { ...((ep.headers_template ?? {}) as Record<string, string>) };
+    let body = ep.body as Record<string, unknown> | undefined;
+
+    try {
+      const preview = await api("GET", `/v1/skills/${skillId}/request-preview/${endpointId}`) as Record<string, unknown>;
+      if (preview.headers) headers = preview.headers as Record<string, string>;
+      if (preview.body) body = preview.body as Record<string, unknown>;
+      if (preview.url) url = preview.url as string;
+      if (preview.method) method = preview.method as string;
+    } catch { /* fallback to endpoint template */ }
+
+    const parts: string[] = ["curl"];
+    if (method !== "GET") parts.push(`-X ${method}`);
+    parts.push(`'${url}'`);
+    for (const [k, v] of Object.entries(headers)) {
+      if (/^(newrelic|traceparent|tracestate)$/i.test(k)) continue;
+      parts.push(`-H '${k}: ${v}'`);
+    }
+    if (body) {
+      if (!headers["content-type"] && !headers["Content-Type"]) parts.push(`-H 'Content-Type: application/json'`);
+      parts.push(`-d '${JSON.stringify(body)}'`);
+    }
+
+    output({
+      curl: parts.join(" \\\n  "),
+      endpoint_id: endpointId,
+      method,
+      url,
+      ...(body ? { body } : {}),
+      headers,
+    }, !!flags.pretty);
+    return;
+  }
+
   try {
     const body: Record<string, unknown> = { params: {} };
     if (flags.endpoint) {
@@ -598,7 +643,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     const limitFlag = flags.limit ? Number(flags.limit) : undefined;
     const schemaFlag = !!flags.schema;
     const rawFlag = !!flags.raw;
-
     // --schema: show response structure without data
     if (schemaFlag && !rawFlag) {
       const data = result.result;
@@ -1058,6 +1102,7 @@ export const CLI_REFERENCE = {
     { flag: "--limit N", desc: "Cap array output to N items" },
     { flag: "--endpoint-id ID", desc: "Pick a specific endpoint" },
     { flag: "--dry-run", desc: "Preview mutations" },
+    { flag: "--curl", desc: "Output the captured request as a curl command (no execution)" },
     { flag: "--params '{...}'", desc: "Extra params as JSON" },
   ],
   examples: [

@@ -222,4 +222,92 @@ describe("reverse engineer parsed-body admission", () => {
     });
     expect(endpoints[0]?.semantic?.auth_required).toBe(true);
   });
+
+  it("preserves GraphQL POST body (operationName, query, variables) — issue #392", () => {
+    const graphqlBody = JSON.stringify({
+      operationName: "FeedPost",
+      query: "query FeedPost($id: ID!) { post(id: $id) { title body } }",
+      variables: { id: "abc-123" },
+    });
+    const endpoints = extractEndpoints([
+      makeRequest({
+        method: "POST",
+        url: "https://gql.reddit.com/svc/shreddit/graphql",
+        request_headers: { "content-type": "application/json" },
+        request_body: graphqlBody,
+        response_body: JSON.stringify({ data: { post: { title: "Hello", body: "World" } } }),
+      }),
+    ], undefined, {
+      pageUrl: "https://www.reddit.com/r/singularity",
+    });
+
+    expect(endpoints.length).toBe(1);
+    const ep = endpoints[0]!;
+    // The body must contain the GraphQL fields, not be empty {}
+    expect(ep.body).toBeDefined();
+    expect(ep.body).not.toEqual({});
+    expect(ep.body?.operationName ?? ep.body_params?.operationName).toBeDefined();
+    expect(ep.body?.query ?? ep.body_params?.query).toBeDefined();
+    expect(ep.body?.variables ?? ep.body_params?.variables).toBeDefined();
+  });
+
+  it("creates separate endpoints for different GraphQL operations on same URL — issue #392", () => {
+    const endpoints = extractEndpoints([
+      makeRequest({
+        method: "POST",
+        url: "https://gql.reddit.com/svc/shreddit/graphql",
+        request_headers: { "content-type": "application/json" },
+        request_body: JSON.stringify({
+          operationName: "FeedPost",
+          query: "query FeedPost($id: ID!) { post(id: $id) { title } }",
+          variables: { id: "abc" },
+        }),
+        response_body: JSON.stringify({ data: { post: { title: "Hello" } } }),
+      }),
+      makeRequest({
+        method: "POST",
+        url: "https://gql.reddit.com/svc/shreddit/graphql",
+        request_headers: { "content-type": "application/json" },
+        request_body: JSON.stringify({
+          operationName: "SubredditAbout",
+          query: "query SubredditAbout($name: String!) { subreddit(name: $name) { description } }",
+          variables: { name: "singularity" },
+        }),
+        response_body: JSON.stringify({ data: { subreddit: { description: "AI news" } } }),
+      }),
+    ], undefined, {
+      pageUrl: "https://www.reddit.com/r/singularity",
+    });
+
+    // Both operations should produce separate endpoints
+    expect(endpoints.length).toBe(2);
+  });
+
+  it("preserves GraphQL POST body when response body is missing — issue #392", () => {
+    const graphqlBody = JSON.stringify({
+      operationName: "GetPostsFeed",
+      query: "query GetPostsFeed($first: Int) { posts(first: $first) { edges { node { id title } } } }",
+      variables: { first: 20 },
+    });
+    const endpoints = extractEndpoints([
+      makeRequest({
+        method: "POST",
+        url: "https://www.producthunt.com/frontend/graphql",
+        request_headers: { "content-type": "application/json" },
+        request_body: graphqlBody,
+        // Response body missing/empty — triggers synthetic body path
+        response_body: undefined,
+      }),
+    ], undefined, {
+      pageUrl: "https://www.producthunt.com",
+    });
+
+    expect(endpoints.length).toBe(1);
+    const ep = endpoints[0]!;
+    expect(ep.body).toBeDefined();
+    expect(ep.body).not.toEqual({});
+    // At minimum, query and operationName should be in the body
+    expect(ep.body?.operationName ?? ep.body_params?.operationName).toBeDefined();
+    expect(ep.body?.query ?? ep.body_params?.query).toBeDefined();
+  });
 });

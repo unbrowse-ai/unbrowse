@@ -87,7 +87,7 @@ function serializeReplayBody(body: unknown, headers: Record<string, string>): Bo
   return JSON.stringify(body);
 }
 
-async function reloadExecutionAuthState(
+export async function reloadExecutionAuthState(
   skill: SkillManifest,
   epDomain: string,
   authHeaders: Record<string, string>,
@@ -2208,11 +2208,9 @@ export async function executeEndpoint(
       ...sessionHeaders,
       ...normalizeReplayHeaders(extraHeaders),
     };
-    // Strip browser-only headers that cause issues server-side
-    delete headers["sec-ch-ua"];
-    delete headers["sec-ch-ua-mobile"];
-    delete headers["sec-ch-ua-platform"];
-    delete headers["upgrade-insecure-requests"];
+    // NOTE: sec-ch-ua-*, sec-fetch-*, and upgrade-insecure-requests are kept —
+    // Cloudflare and other bot-detection systems validate these headers and
+    // reject requests missing them even when cookies are valid.
 
     // Inject cookies as Cookie header — same as a browser would send.
     // Strip enclosing quotes from values — Chrome's SQLite stores them quoted

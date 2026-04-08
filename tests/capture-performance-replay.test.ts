@@ -55,4 +55,67 @@ describe("performance api replay selection", () => {
     expect(merged[0]?.method).toBe("GET");
     expect(merged[0]?.response_status).toBe(200);
   });
+
+  it("keeps multiple GraphQL operations to the same URL as separate requests — issue #392", () => {
+    const graphqlUrl = "https://gql.reddit.com/svc/shreddit/graphql";
+    const merged = mergePassiveCaptureData(
+      [
+        {
+          url: graphqlUrl,
+          method: "POST",
+          request_headers: { "content-type": "application/json" },
+          request_body: JSON.stringify({ operationName: "FeedPost", query: "query FeedPost { post { id } }", variables: {} }),
+          response_status: 200,
+          response_headers: { "content-type": "application/json" },
+          response_body: JSON.stringify({ data: { post: { id: "1" } } }),
+          timestamp: new Date().toISOString(),
+        },
+        {
+          url: graphqlUrl,
+          method: "POST",
+          request_headers: { "content-type": "application/json" },
+          request_body: JSON.stringify({ operationName: "SubredditAbout", query: "query SubredditAbout { subreddit { name } }", variables: {} }),
+          response_status: 200,
+          response_headers: { "content-type": "application/json" },
+          response_body: JSON.stringify({ data: { subreddit: { name: "singularity" } } }),
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      [],
+      [],
+      new Map(),
+    );
+
+    expect(merged.length).toBe(2);
+    // Both operations should be present with their respective bodies
+    const bodies = merged.map(r => JSON.parse(r.request_body!).operationName);
+    expect(bodies).toContain("FeedPost");
+    expect(bodies).toContain("SubredditAbout");
+  });
+
+  it("preserves GraphQL POST request body through merge — issue #392", () => {
+    const graphqlUrl = "https://www.producthunt.com/frontend/graphql";
+    const body = JSON.stringify({ operationName: "GetPosts", query: "query GetPosts { posts { id title } }", variables: { first: 20 } });
+    const merged = mergePassiveCaptureData(
+      [
+        {
+          url: graphqlUrl,
+          method: "POST",
+          request_headers: { "content-type": "application/json" },
+          request_body: body,
+          response_status: 200,
+          response_headers: { "content-type": "application/json" },
+          response_body: JSON.stringify({ data: { posts: [{ id: "1", title: "Test" }] } }),
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      [],
+      [],
+      new Map(),
+    );
+
+    expect(merged.length).toBe(1);
+    expect(merged[0]?.request_body).toBe(body);
+    expect(merged[0]?.method).toBe("POST");
+  });
 });

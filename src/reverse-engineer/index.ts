@@ -74,7 +74,10 @@ const SAFE_HEADERS = new Set([
   "content-type", "origin", "referer", "user-agent", "pragma",
   "if-none-match", "if-modified-since", "range", "dnt", "connection",
   "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
-  "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
+  "sec-ch-ua-full-version-list", "sec-ch-ua-arch", "sec-ch-ua-bitness",
+  "sec-ch-ua-model", "sec-ch-ua-wow64",
+  "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site", "sec-fetch-user",
+  "upgrade-insecure-requests",
   "x-requested-with",
 ]);
 
@@ -712,7 +715,16 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
 
   for (const { req } of scored) {
     const normalized = normalizeUrl(req.url);
-    const key = `${req.method}:${normalized}`;
+    // For GraphQL POST endpoints, include operationName in dedup key
+    // so different operations to the same URL produce separate endpoints
+    let key = `${req.method}:${normalized}`;
+    if (/graphql/i.test(req.url) && req.method !== "GET" && req.request_body) {
+      try {
+        const parsed = JSON.parse(req.request_body);
+        const opName = parsed.operationName ?? parsed.query?.match(/(?:query|mutation)\s+(\w+)/)?.[1];
+        if (opName) key += `#op=${opName}`;
+      } catch { /* not JSON */ }
+    }
     if (seen.has(key)) continue;
     seen.add(key);
 
