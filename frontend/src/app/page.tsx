@@ -580,6 +580,13 @@ export default async function Home() {
                   through direct API calls automatically. No code changes needed. Add the skill
                   or MCP wiring only after the local path is healthy.
                 </p>
+                <p className="mt-2 text-xs leading-6 text-text-muted">
+                  Includes{" "}
+                  <a href="https://www.crossmint.com" target="_blank" rel="noopener" className="text-orange-700 hover:text-orange-600 transition-colors">
+                    Crossmint
+                  </a>{" "}
+                  wallet setup — earn USDC when other agents use your routes.
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
                   <span className="rounded-full border border-orange-500/30 bg-orange-50 px-3 py-1.5 text-orange-700">OpenClaw</span>
                   <span className="rounded-full border border-border px-3 py-1.5">CLI</span>
@@ -679,6 +686,34 @@ export default async function Home() {
             {FAQ_ITEMS.map((item) => (
               <FAQCard key={item.question} question={item.question} answer={item.answer} />
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-border/50 py-10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <p className="text-center text-[11px] font-medium uppercase tracking-[0.28em] text-text-muted">
+            Payments powered by
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-8">
+            <a
+              href="https://www.crossmint.com"
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/70 px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-orange-500/30 hover:text-text-primary"
+            >
+              <span className="font-semibold tracking-tight">Crossmint</span>
+              <span className="hidden text-xs text-text-muted sm:inline">Agent payment infrastructure</span>
+            </a>
+            <a
+              href="https://x402.org"
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/70 px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-orange-500/30 hover:text-text-primary"
+            >
+              <span className="font-semibold tracking-tight font-mono">x402</span>
+              <span className="hidden text-xs text-text-muted sm:inline">Protocol</span>
+            </a>
           </div>
         </div>
       </section>

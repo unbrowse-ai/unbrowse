@@ -46,11 +46,21 @@ function MyCreditsSection() {
 
   return (
     <section className="mb-6 rounded-[32px] border border-border bg-surface-raised p-8 sm:p-10">
-      <div className="flex items-center gap-2">
-        <Coins className="h-4 w-4 text-orange-500" />
-        <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-500">
-          My credits
-        </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Coins className="h-4 w-4 text-orange-500" />
+          <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-500">
+            My credits
+          </p>
+        </div>
+        <a
+          href="https://www.crossmint.com"
+          target="_blank"
+          rel="noopener"
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-sunken px-3 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted transition-colors hover:border-orange-500/20 hover:text-text-secondary"
+        >
+          Powered by Crossmint
+        </a>
       </div>
 
       {loading ? (
