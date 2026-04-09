@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.6.0-preview.0...v3.6.0) (2026-04-09)
+
+### Bug Fixes
+
+* don't force HEADLESS=false in auth flows — Kuri works headless ([77e6eec](https://github.com/unbrowse-ai/unbrowse-dev/commit/77e6eec7f9b3cbddb6f711452210399b9f40e0a4))
+* resolve returns phantom endpoints that can't be executed ([9136d89](https://github.com/unbrowse-ai/unbrowse-dev/commit/9136d89e76b47bb5694855ca5bfc2c711693c940))
+
 ## [3.6.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.4...v3.6.0-preview.0) (2026-04-09)
 
 ### Features

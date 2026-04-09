@@ -1,0 +1,4083 @@
+openapi: 3.1.0
+info:
+  title: Unbrowse API
+  version: 0.8.0
+  description: |
+    Unbrowse — API-native agent browser. Discovers internal APIs (shadow APIs) from real browsing
+    traffic and progressively replaces browser calls with cached API routes.
+
+    **Two surfaces:**
+    - **Local Server** (`http://localhost:6969`) — Fastify skill engine, browse sessions, Kuri browser
+    - **Backend** (`https://beta-api.unbrowse.ai`) — Cloudflare Worker marketplace, analytics, graph
+
+    The local server proxies unmatched `/v1/*` routes to the backend automatically.
+  contact:
+    name: Unbrowse
+    url: https://unbrowse.ai
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:6969
+    description: Local skill engine server (Fastify)
+  - url: https://beta-api.unbrowse.ai
+    description: Backend marketplace API (Cloudflare Worker)
+
+tags:
+  - name: Health
+    description: Server health checks
+  - name: Settings
+    description: Capture pipeline settings (local only)
+  - name: Intent Resolution
+    description: Discover and execute intents via the orchestrator
+  - name: Skills
+    description: Skill manifest CRUD, review, index, publish, execute
+  - name: Authentication
+    description: Browser cookie extraction and credential storage
+  - name: Browse
+    description: Kuri browser session management — navigate, interact, capture (local only)
+  - name: Search
+    description: Semantic intent search across the marketplace (backend)
+  - name: Agents
+    description: Agent registration, profiles, ToS, wallets (backend)
+  - name: Stats
+    description: Execution stats, performance, diagnostics (backend)
+  - name: Analytics
+    description: Engagement, retention, growth, funnel analytics (backend)
+  - name: Graph
+    description: DAG edges, prerequisite chains, co-occurrence learning (backend)
+  - name: Issues
+    description: Skill issue reporting and auto-filing (backend)
+  - name: Fees
+    description: Graph API fee ledgers (backend)
+  - name: Transactions
+    description: x402 payment transaction records (backend)
+  - name: Attribution
+    description: Tier 1 indexer attribution and earnings (backend)
+  - name: Dashboard
+    description: Agent earnings dashboard and leaderboard (backend)
+  - name: Miners
+    description: Miner stats, bounties, and quests (backend)
+  - name: Ops
+    description: Admin operations — reindex, consolidate, migrate (backend)
+  - name: Blog
+    description: Blog post publishing and listing (backend)
+  - name: Landing
+    description: Landing page A/B experiments (backend)
+  - name: Telemetry
+    description: Install and funnel event telemetry (backend)
+  - name: Webhooks
+    description: GitHub webhook processing (backend)
+  - name: Feedback
+    description: Execution feedback and diagnostics (local)
+  - name: Foundry
+    description: Foundry workflow bundle publishing (local)
+  - name: Stale Cleanup
+    description: Stale endpoint verification and cleanup (local)
+  - name: Sessions
+    description: Local trace/debug session listing (local)
+  - name: Validation
+    description: Skill manifest validation (backend)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        API key obtained via `POST /v1/agents/register`.
+        Pass as `Authorization: Bearer <api_key>`.
+    SignedClient:
+      type: apiKey
+      in: header
+      name: X-Unbrowse-Code-Hash
+      description: |
+        Signed client headers for write operations. Requires all of:
+        `X-Unbrowse-Code-Hash`, `X-Unbrowse-Git-Sha`, `X-Unbrowse-Trace-Version`.
+        Optionally `X-Unbrowse-Release-Manifest` + `X-Unbrowse-Release-Signature`
+        for verified release provenance.
+    x402Payment:
+      type: apiKey
+      in: header
+      name: PAYMENT-SIGNATURE
+      description: |
+        x402 payment proof for paid skills/search. Alternative header: `X-Payment-Proof`.
+        If absent and the resource has a price, the server returns 402 with payment terms.
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    ResponseSchema:
+      type: object
+      description: Inferred JSON response schema from sample responses
+      properties:
+        type:
+          type: string
+        properties:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ResponseSchema'
+        items:
+          $ref: '#/components/schemas/ResponseSchema'
+        required:
+          type: array
+          items:
+            type: string
+        anyOf:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResponseSchema'
+        inferred_from_samples:
+          type: integer
+
+    CsrfPlan:
+      type: object
+      description: CSRF token extraction plan
+      properties:
+        source:
+          type: string
+          enum: [header, cookie, form]
+        param_name:
+          type: string
+        refresh_on_401:
+          type: boolean
+        extractor_sequence:
+          type: array
+          items:
+            type: string
+
+    OAuthPlan:
+      type: object
+      description: OAuth token refresh plan
+      properties:
+        grant_type:
+          type: string
+        token_url:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        refresh_path:
+          type: string
+
+    EndpointDescriptor:
+      type: object
+      description: A discovered API endpoint within a skill — the atomic unit of Unbrowse's route cache
+      properties:
+        endpoint_id:
+          type: string
+          description: Unique hash-based identifier
+        method:
+          type: string
+          enum: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, WS]
+        url_template:
+          type: string
+          description: URL with template parameters, e.g. `https://api.example.com/users/{user_id}`
+        description:
+          type: string
+          description: LLM-generated semantic description of what the endpoint returns
+        headers_template:
+          type: object
+          additionalProperties:
+            type: string
+          description: Headers to send with the request (auth tokens templated)
+        query:
+          type: object
+          description: Default query parameters
+        body:
+          type: object
+          description: Default request body template
+        csrf_plan:
+          $ref: '#/components/schemas/CsrfPlan'
+        oauth_plan:
+          $ref: '#/components/schemas/OAuthPlan'
+        idempotency:
+          type: string
+          enum: [safe, unsafe]
+          description: Whether the endpoint is safe to retry (GET=safe, POST=unsafe by default)
+        verification_status:
+          type: string
+          enum: [verified, unverified, failed, pending, disabled]
+          description: Whether the endpoint has been verified to return valid data
+        reliability_score:
+          type: number
+          description: Computed score (0-1) based on success rate, freshness, and corroboration
+        last_verified_at:
+          type: string
+          format: date-time
+        signature:
+          type: string
+          description: Content hash for deduplication
+        response_schema:
+          $ref: '#/components/schemas/ResponseSchema'
+        trigger_url:
+          type: string
+          description: The page URL that triggered discovery of this endpoint
+        graph_visibility:
+          type: string
+          enum: [shadow, public]
+          description: Whether the endpoint is visible in the public marketplace graph
+        corroboration:
+          type: object
+          description: Multi-agent corroboration evidence
+          properties:
+            submission_count:
+              type: integer
+            unique_submitters:
+              type: integer
+            verified_release_submissions:
+              type: integer
+            unique_verified_submitters:
+              type: integer
+            last_submission_at:
+              type: string
+              format: date-time
+      required: [endpoint_id, method, url_template, idempotency, verification_status, reliability_score]
+
+    SkillContributor:
+      type: object
+      description: An agent who contributed endpoints to this skill
+      properties:
+        agent_id:
+          type: string
+        endpoints_added:
+          type: integer
+        first_contributed_at:
+          type: string
+          format: date-time
+        last_contributed_at:
+          type: string
+          format: date-time
+        wallet_address:
+          type: string
+          description: Solana wallet for x402 revenue share
+        share_pct:
+          type: number
+          description: Revenue share percentage (0-100)
+
+    DiscoveryCost:
+      type: object
+      description: Resources consumed during initial endpoint discovery
+      properties:
+        capture_ms:
+          type: integer
+        capture_tokens:
+          type: integer
+        response_bytes:
+          type: integer
+        captured_at:
+          type: string
+          format: date-time
+
+    SkillManifest:
+      type: object
+      description: |
+        A skill manifest represents a domain's discovered API surface. It's the unit of
+        the Unbrowse marketplace — agents discover endpoints by browsing, package them as
+        skills, and publish to the marketplace for other agents to consume.
+      properties:
+        skill_id:
+          type: string
+        version:
+          type: string
+        schema_version:
+          type: string
+        name:
+          type: string
+        intent_signature:
+          type: string
+          description: Primary intent string for semantic matching
+        domain:
+          type: string
+          description: Registrable domain (e.g. `reddit.com`)
+        subdomain:
+          type: string
+        description:
+          type: string
+        owner_type:
+          type: string
+          enum: [agent, marketplace, user]
+        execution_type:
+          type: string
+          enum: [http, browser-capture]
+          description: http = direct API call, browser-capture = requires Kuri browser
+        auth_profile_ref:
+          type: string
+          description: Reference to stored auth credentials in the vault
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/EndpointDescriptor'
+        lifecycle:
+          type: string
+          enum: [active, deprecated, disabled]
+        changelog:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        prev_version:
+          type: string
+        discovery_cost:
+          $ref: '#/components/schemas/DiscoveryCost'
+        intents:
+          type: array
+          items:
+            type: string
+          description: All intent strings that contributed endpoints to this skill
+        needs_reindex:
+          type: boolean
+          description: Vector indexing failed at publish time — eligible for reindex
+        indexer_id:
+          type: string
+          description: Agent ID who published this skill — used for Tier 1 attribution
+        contributors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillContributor'
+        split_config:
+          type: string
+          description: Cascade Split address for x402 revenue sharing
+        owner_compensation_opt_in:
+          type: boolean
+          description: Site-owner opted in for revenue sharing
+        base_price_usd:
+          type: number
+          description: Optional per-execution price override in USD
+        trust:
+          type: object
+          description: Server-computed trust metadata
+          properties:
+            graph_visibility:
+              type: string
+              enum: [shadow, public]
+            promotion_reason:
+              type: string
+            submission_count:
+              type: integer
+            unique_submitters:
+              type: integer
+            verified_release_submissions:
+              type: integer
+            verified_ratio:
+              type: number
+      required: [skill_id, version, name, domain, endpoints, lifecycle]
+
+    AgentProfile:
+      type: object
+      description: An agent's identity and activity summary
+      properties:
+        agent_id:
+          type: string
+          description: Unkey key ID
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        wallet_address:
+          type: string
+          description: Solana wallet for x402 earnings
+        wallet_provider:
+          type: string
+        profile_origin:
+          type: string
+          enum: [registered, recovered]
+        skills_discovered:
+          type: array
+          items:
+            type: string
+        total_executions:
+          type: integer
+        total_feedback_given:
+          type: integer
+        tos_accepted_version:
+          type: string
+          nullable: true
+        tos_accepted_at:
+          type: string
+          format: date-time
+          nullable: true
+        first_execution_at:
+          type: string
+          format: date-time
+        last_active_at:
+          type: string
+          format: date-time
+        landing_token:
+          type: string
+          description: Install attribution token from landing page
+
+    ExecutionTrace:
+      type: object
+      description: Trace of a single endpoint execution
+      properties:
+        trace_id:
+          type: string
+        skill_id:
+          type: string
+        endpoint_id:
+          type: string
+        success:
+          type: boolean
+        status_code:
+          type: integer
+        latency_ms:
+          type: number
+        url:
+          type: string
+        method:
+          type: string
+
+    OrchestrationTiming:
+      type: object
+      description: Performance timing breakdown for a resolve+execute cycle
+      properties:
+        total_ms:
+          type: number
+          description: Total wall-clock time
+        baseline_total_ms:
+          type: integer
+          description: Estimated time without Unbrowse (browser-only baseline)
+        actual_total_ms:
+          type: integer
+          description: Actual time with Unbrowse
+        time_saved_ms:
+          type: integer
+        baseline_cost_uc:
+          type: integer
+          description: Estimated cost in microcents without Unbrowse
+        actual_cost_uc:
+          type: integer
+          description: Actual cost in microcents with Unbrowse
+        cost_saved_uc:
+          type: integer
+        paid_search_uc:
+          type: integer
+          description: x402 fees paid for search
+        paid_execution_uc:
+          type: integer
+          description: x402 fees paid for execution
+      required: [total_ms]
+
+    ValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        hardErrors:
+          type: array
+          items:
+            type: string
+        softWarnings:
+          type: array
+          items:
+            type: string
+
+    BlogPost:
+      type: object
+      properties:
+        slug:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        content:
+          type: string
+          description: Markdown content
+        author:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+      required: [slug, title, content]
+
+    CheckpointResult:
+      type: object
+      description: Result of a browse session checkpoint (sync or close)
+      properties:
+        ok:
+          type: boolean
+        checkpointed:
+          type: boolean
+        session_id:
+          type: string
+        tab_id:
+          type: string
+        indexed:
+          type: boolean
+          description: Whether new endpoints were extracted and indexed
+        mode:
+          type: string
+          enum: [http, dom, none]
+          description: Discovery mode — http (API), dom (DOM extraction), or none
+        domain:
+          type: string
+        skill_id:
+          type: string
+          nullable: true
+        endpoint_count:
+          type: integer
+        endpoints:
+          type: array
+          items:
+            type: object
+            properties:
+              endpoint_id:
+                type: string
+              method:
+                type: string
+              url_template:
+                type: string
+              description:
+                type: string
+              trigger_url:
+                type: string
+              action_kind:
+                type: string
+              resource_kind:
+                type: string
+        request_count:
+          type: integer
+          description: Number of HTTP requests captured in this checkpoint
+        pipeline:
+          type: object
+          properties:
+            index_queued:
+              type: boolean
+            publish_queued:
+              type: boolean
+        publish_policy:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum: [auto, disabled, blacklisted, prompt]
+            reason:
+              type: string
+            matched_domain:
+              type: string
+        background_publish_queued:
+          type: boolean
+        auth_saved:
+          type: string
+          nullable: true
+          description: Domain for which auth cookies were saved to vault (close only)
+        next_step:
+          type: string
+          description: Human-readable guidance for what to do next
+
+paths:
+  # ═══════════════════════════════════════════════════════════════════════
+  # HEALTH
+  # ═══════════════════════════════════════════════════════════════════════
+  /health:
+    get:
+      tags: [Health]
+      summary: Server health check
+      description: |
+        **Local server** returns `package_version`, `trace_version`, `code_hash`, `git_sha`.
+        **Backend** returns `service` name and `timestamp`.
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  package_version:
+                    type: string
+                  trace_version:
+                    type: string
+                  code_hash:
+                    type: string
+                  git_sha:
+                    type: string
+                  service:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # SETTINGS (Local only)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/settings:
+    get:
+      tags: [Settings]
+      summary: Get capture pipeline settings
+      description: Returns the current auto-publish mode, domain blacklist, and promptlist.
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  capture_pipeline:
+                    type: object
+                    properties:
+                      auto_publish_checkpoints:
+                        type: boolean
+                      publish_domain_blacklist:
+                        type: array
+                        items:
+                          type: string
+                      publish_domain_promptlist:
+                        type: array
+                        items:
+                          type: string
+    post:
+      tags: [Settings]
+      summary: Update capture pipeline settings
+      description: |
+        Controls whether browse checkpoints auto-publish to the marketplace.
+        Blacklisted domains never publish; promptlisted domains require `confirm_publish`.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                auto_publish_checkpoints:
+                  type: boolean
+                publish_domain_blacklist:
+                  type: array
+                  items:
+                    type: string
+                publish_domain_promptlist:
+                  type: array
+                  items:
+                    type: string
+                clear_publish_domain_blacklist:
+                  type: boolean
+                clear_publish_domain_promptlist:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  capture_pipeline:
+                    type: object
+                  next_step:
+                    type: string
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # INTENT RESOLUTION
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/intent/resolve:
+    post:
+      tags: [Intent Resolution]
+      summary: Resolve a natural language intent to an API call and execute it
+      description: |
+        The core orchestration endpoint. Takes a natural language intent, searches the
+        local cache and marketplace for matching skills/endpoints, selects the best
+        candidate, and executes it. Falls back to live browser capture if no cached
+        route exists.
+
+        **Pipeline:** route cache → marketplace vector search → first-pass browser (8s)
+        → browse session handoff → live capture fallback.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intent:
+                  type: string
+                  description: Natural language intent, e.g. "get trending posts on Reddit"
+                params:
+                  type: object
+                  description: Key-value params to fill URL templates and request bodies
+                context:
+                  type: object
+                  properties:
+                    url:
+                      type: string
+                      description: URL context for domain-scoped resolution
+                    domain:
+                      type: string
+                projection:
+                  type: object
+                  description: Response field selection/filtering options
+                confirm_unsafe:
+                  type: boolean
+                  description: Confirm execution of unsafe (non-idempotent) endpoints
+                confirm_third_party_terms:
+                  type: boolean
+                  description: Confirm acceptance of third-party terms of service
+                dry_run:
+                  type: boolean
+                  description: Resolve without executing — returns the matched endpoint
+                force_capture:
+                  type: boolean
+                  description: Skip cache, force fresh browser capture
+              required: [intent]
+      responses:
+        '200':
+          description: Resolved and/or executed result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: object
+                    description: Structured execution result data
+                  skill:
+                    $ref: '#/components/schemas/SkillManifest'
+                  trace:
+                    $ref: '#/components/schemas/ExecutionTrace'
+                  timing:
+                    $ref: '#/components/schemas/OrchestrationTiming'
+                  available_endpoints:
+                    type: array
+                    items:
+                      type: object
+                    description: Deferred endpoint options when disambiguation is needed
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Orchestration error
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # SKILLS
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/skills:
+    get:
+      tags: [Skills]
+      summary: List all skills in the marketplace
+      parameters:
+        - name: view
+          in: query
+          schema:
+            type: string
+            enum: [card]
+          description: Use `card` for a compact card view with endpoint previews
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: include_deprecated
+          in: query
+          schema:
+            type: string
+            enum: ["1"]
+      responses:
+        '200':
+          description: Skill list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skills:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SkillManifest'
+    post:
+      tags: [Skills]
+      summary: Publish or update a skill manifest to the marketplace
+      description: |
+        Publishes a skill manifest with full provenance tracking.
+        Requires signed client headers. The server validates the manifest,
+        merges contributor records, and syncs split config for x402 payments.
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/SkillManifest'
+                - type: object
+                  properties:
+                    indexer_id:
+                      type: string
+                      description: Agent ID of the indexer (defaults to authenticated agent)
+                    wallet_address:
+                      type: string
+                      description: Publisher's Solana wallet for revenue share
+                    wallet_provider:
+                      type: string
+      responses:
+        '201':
+          description: Skill published successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SkillManifest'
+                  - type: object
+                    properties:
+                      warnings:
+                        type: array
+                        items:
+                          type: string
+        '400':
+          description: Release manifest error
+        '422':
+          description: Manifest validation failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: string
+
+  /v1/skills/popular:
+    get:
+      tags: [Skills]
+      summary: List top skills by observed execution count
+      description: Cached for 5 minutes.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 8
+      responses:
+        '200':
+          description: Popular skills
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skills:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SkillManifest'
+
+  /v1/skills/{skill_id}:
+    get:
+      tags: [Skills]
+      summary: Get a skill manifest by ID
+      description: |
+        Returns the full skill manifest. For paid skills, requires x402 payment proof.
+        Returns 402 with payment terms (Solana USDC address, price) if no proof is provided.
+        
+        **Local server** checks disk cache and domain snapshots before hitting the marketplace.
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - {}
+        - x402Payment: []
+      responses:
+        '200':
+          description: Full skill manifest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillManifest'
+        '402':
+          description: Payment required — x402 payment terms in response headers
+        '404':
+          description: Skill not found
+    patch:
+      tags: [Skills]
+      summary: Update skill metadata (price, split config)
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                base_price_usd:
+                  type: number
+                  minimum: 0
+                  description: Per-execution price in USD (0 = free)
+                split_config:
+                  type: string
+                  nullable: true
+                  description: Cascade Split address for revenue sharing
+      responses:
+        '200':
+          description: Updated skill
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillManifest'
+
+  /v1/skills/{skill_id}/review:
+    post:
+      tags: [Skills]
+      summary: Submit reviewed endpoint descriptions
+      description: |
+        Agent submits corrected descriptions, action kinds, and resource kinds.
+        The skill is re-indexed locally after review. This is the agent-in-the-loop
+        quality step before publishing.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endpoints:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      endpoint_id:
+                        type: string
+                      description:
+                        type: string
+                      action_kind:
+                        type: string
+                      resource_kind:
+                        type: string
+              required: [endpoints]
+      responses:
+        '200':
+          description: Review merged and skill re-indexed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  skill_id:
+                    type: string
+                  endpoints_updated:
+                    type: integer
+                  indexed:
+                    type: boolean
+                  publish_status:
+                    type: string
+                  endpoint_count:
+                    type: integer
+
+  /v1/skills/{skill_id}/index:
+    post:
+      tags: [Skills]
+      summary: Recompute local graph and export from cached state
+      description: Re-runs the local skill graph builder without publishing to the marketplace.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Re-indexed locally
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  skill_id:
+                    type: string
+                  indexed:
+                    type: boolean
+                  publish_status:
+                    type: string
+                  endpoint_count:
+                    type: integer
+                  domain:
+                    type: string
+                  next_step:
+                    type: string
+
+  /v1/skills/{skill_id}/publish:
+    post:
+      tags: [Skills]
+      summary: Two-phase publish — index locally then share to marketplace
+      description: |
+        **Phase 1** (no `endpoints` in body): Re-indexes locally, returns each endpoint with
+        its `review_context` (deps, schemas, provenance) and `_fill_description` prompt.
+        The agent fills descriptions using this context.
+        
+        **Phase 2** (with `endpoints`): Merges the agent's reviewed descriptions,
+        re-indexes locally, validates, and publishes to the remote marketplace.
+        
+        For blacklisted/promptlisted domains, `confirm_publish: true` is required.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endpoints:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      endpoint_id:
+                        type: string
+                      description:
+                        type: string
+                      action_kind:
+                        type: string
+                      resource_kind:
+                        type: string
+                confirm_publish:
+                  type: boolean
+                  description: Required for blacklisted/promptlisted domains
+      responses:
+        '200':
+          description: Phase 1 or Phase 2 result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skill_id:
+                    type: string
+                  domain:
+                    type: string
+                  indexed:
+                    type: boolean
+                  publish_status:
+                    type: string
+                    enum: [indexed, published]
+                  published:
+                    type: boolean
+                  published_at:
+                    type: string
+                    format: date-time
+                  endpoint_count:
+                    type: integer
+                  endpoints_to_describe:
+                    type: array
+                    description: Phase 1 only — endpoints needing descriptions
+                    items:
+                      type: object
+                      properties:
+                        endpoint_id:
+                          type: string
+                        method:
+                          type: string
+                        url:
+                          type: string
+                        current_description:
+                          type: string
+                        description_source:
+                          type: string
+                        description_needs_review:
+                          type: boolean
+                        schema_summary:
+                          type: string
+                          nullable: true
+                        review_context:
+                          type: object
+                        _fill_description:
+                          type: string
+                  validation_errors:
+                    type: array
+                    items:
+                      type: string
+                  next_step:
+                    type: string
+        '409':
+          description: Publish confirmation required for this domain
+
+  /v1/skills/{skill_id}/chunk:
+    post:
+      tags: [Skills]
+      summary: Dynamic subgraph load for current intent and bindings
+      description: |
+        Returns a focused slice of the skill's operation graph relevant to the agent's
+        current intent and known bindings. Used by agents to progressively load only
+        the endpoints they need.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intent:
+                  type: string
+                operation_id:
+                  type: string
+                  description: Seed operation to expand from
+                known_bindings:
+                  type: object
+                  description: Bindings the agent already has
+                max_operations:
+                  type: integer
+      responses:
+        '200':
+          description: Agent skill chunk view
+
+  /v1/skills/{skill_id}/execute:
+    post:
+      tags: [Skills]
+      summary: Execute a specific skill's best-matching endpoint
+      description: |
+        Routes to the best matching endpoint within the skill and executes it.
+        If the endpoint returns 404 (stale), auto-recovers by re-capturing through
+        the orchestrator.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                params:
+                  type: object
+                  description: Parameters to fill URL templates and request bodies
+                projection:
+                  type: object
+                confirm_unsafe:
+                  type: boolean
+                confirm_third_party_terms:
+                  type: boolean
+                dry_run:
+                  type: boolean
+                intent:
+                  type: string
+                  description: Intent hint for endpoint selection within the skill
+                context_url:
+                  type: string
+                  description: URL context for routing and auto-recovery
+      responses:
+        '200':
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: object
+                  skill:
+                    $ref: '#/components/schemas/SkillManifest'
+                  trace:
+                    $ref: '#/components/schemas/ExecutionTrace'
+                  _recovery:
+                    type: object
+                    description: Present when auto-recovery from stale endpoint occurred
+                    properties:
+                      reason:
+                        type: string
+                      original_skill_id:
+                        type: string
+                      message:
+                        type: string
+
+  /v1/skills/{skill_id}/auth:
+    post:
+      tags: [Authentication]
+      summary: Store credentials (cookies/headers) for a skill's domain
+      description: Stores auth credentials in the local vault, keyed by domain.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cookies:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      value:
+                        type: string
+                      domain:
+                        type: string
+                      path:
+                        type: string
+                    required: [name, value, domain]
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        '200':
+          description: Credentials stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  auth_profile_ref:
+                    type: string
+
+  /v1/skills/{skill_id}/verify:
+    post:
+      tags: [Skills]
+      summary: Trigger endpoint verification for a skill
+      description: Tests each endpoint to check it still returns valid data.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Verification results per endpoint
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skill_id:
+                    type: string
+                  verification:
+                    type: object
+
+  /v1/skills/{skill_id}/endpoints/{endpoint_id}/schema:
+    get:
+      tags: [Skills]
+      summary: Get inferred response schema for an endpoint
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: endpoint_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Response schema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSchema'
+        '404':
+          description: No schema available
+
+  /v1/skills/{skill_id}/endpoints/{endpoint_id}:
+    patch:
+      tags: [Skills]
+      summary: Update endpoint score, status, or response schema
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: endpoint_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                score:
+                  type: number
+                status:
+                  type: string
+                response_schema:
+                  $ref: '#/components/schemas/ResponseSchema'
+      responses:
+        '200':
+          description: Endpoint updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+
+  /v1/skills/{skill_id}/price:
+    get:
+      tags: [Skills]
+      summary: Get dynamic route price and site-owner compensation info
+      description: Computes price based on endpoint stats, reliability, and base price override.
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Price breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  price_usd:
+                    type: number
+        '404':
+          description: Skill not found
+
+  /v1/skills/{skill_id}/issues:
+    get:
+      tags: [Issues]
+      summary: List issues for a skill
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, acknowledged, resolved]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        '200':
+          description: Issue list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  issues:
+                    type: array
+                    items:
+                      type: object
+    post:
+      tags: [Issues]
+      summary: Report an issue with a skill endpoint
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                  enum: [broken, wrong_data, needs_auth, rate_limited, stale_schema, missing_endpoint, other]
+                description:
+                  type: string
+                endpoint_id:
+                  type: string
+                trace_id:
+                  type: string
+              required: [category, description]
+      responses:
+        '201':
+          description: Issue created
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # AUTHENTICATION
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Interactive browser login and cookie extraction
+      description: |
+        Launches Kuri browser, navigates to the URL, waits for the user to log in,
+        then extracts session cookies and stores them in the vault.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: URL to authenticate against
+                browser:
+                  type: string
+                  enum: [auto, firefox, chrome, chromium]
+                  description: Which browser's cookies to read as fallback
+                chrome_profile:
+                  type: string
+                firefox_profile:
+                  type: string
+                chromium_profile:
+                  type: string
+                chromium_user_data_dir:
+                  type: string
+                chromium_cookie_db_path:
+                  type: string
+                safe_storage_service:
+                  type: string
+                browser_name:
+                  type: string
+              required: [url]
+      responses:
+        '200':
+          description: Auth result with extracted cookies/tokens
+
+  /v1/auth/steal:
+    post:
+      tags: [Authentication]
+      summary: Extract cookies from local browser SQLite databases (no browser launch)
+      description: |
+        Reads cookies directly from Firefox/Chrome/Chromium cookie DBs on disk.
+        No browser launch required — Chrome can stay open.
+        Rate limited to 30 requests/minute.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                browser:
+                  type: string
+                  enum: [auto, firefox, chrome, chromium]
+                chrome_profile:
+                  type: string
+                firefox_profile:
+                  type: string
+                chromium_profile:
+                  type: string
+                chromium_user_data_dir:
+                  type: string
+                chromium_cookie_db_path:
+                  type: string
+                safe_storage_service:
+                  type: string
+                browser_name:
+                  type: string
+              required: [url]
+      responses:
+        '200':
+          description: Extracted auth credentials
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # BROWSE (Kuri browser sessions — local only)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/browse/go:
+    post:
+      tags: [Browse]
+      summary: Navigate browser to a URL
+      description: |
+        Opens or reuses a Kuri browser session. Injects cookies from the local
+        browser and vault, starts passive HAR recording + JS interceptor.
+        Every page load is automatically captured for API discovery.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                session_id:
+                  type: string
+                  description: Reuse an existing browse session
+              required: [url]
+      responses:
+        '200':
+          description: Navigation complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  url:
+                    type: string
+                  tab_id:
+                    type: string
+                  auth_profile:
+                    type: string
+                    description: Domain for which auth cookies were loaded
+                  cookies_injected:
+                    type: integer
+
+  /v1/browse/snap:
+    post:
+      tags: [Browse]
+      summary: Get accessibility tree snapshot of the current page
+      description: Returns a structured a11y tree. Use `filter: "interactive"` for form elements only.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filter:
+                  type: string
+                session_id:
+                  type: string
+      responses:
+        '200':
+          description: A11y snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshot:
+                    type: object
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/click:
+    post:
+      tags: [Browse]
+      summary: Click an element by accessibility ref
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ref:
+                  type: string
+                  description: Element ref from the a11y snapshot
+                session_id:
+                  type: string
+              required: [ref]
+      responses:
+        '200':
+          description: Click performed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+                  url:
+                    type: string
+
+  /v1/browse/fill:
+    post:
+      tags: [Browse]
+      summary: Fill an input field by accessibility ref
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ref:
+                  type: string
+                value:
+                  type: string
+                session_id:
+                  type: string
+              required: [ref, value]
+      responses:
+        '200':
+          description: Field filled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/type:
+    post:
+      tags: [Browse]
+      summary: Type text via keyboard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                session_id:
+                  type: string
+              required: [text]
+      responses:
+        '200':
+          description: Text typed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/press:
+    post:
+      tags: [Browse]
+      summary: Press a keyboard key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key:
+                  type: string
+                  description: 'Key name: Enter, Tab, Escape, ArrowDown, etc.'
+                session_id:
+                  type: string
+              required: [key]
+      responses:
+        '200':
+          description: Key pressed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/select:
+    post:
+      tags: [Browse]
+      summary: Select a dropdown option by accessibility ref
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ref:
+                  type: string
+                value:
+                  type: string
+                session_id:
+                  type: string
+              required: [ref, value]
+      responses:
+        '200':
+          description: Option selected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/scroll:
+    post:
+      tags: [Browse]
+      summary: Scroll the page
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                direction:
+                  type: string
+                  enum: [up, down, left, right]
+                  default: down
+                amount:
+                  type: number
+                session_id:
+                  type: string
+      responses:
+        '200':
+          description: Scrolled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/screenshot:
+    get:
+      tags: [Browse]
+      summary: Capture a screenshot of the current page
+      parameters:
+        - name: session_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Base64-encoded PNG screenshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  screenshot:
+                    type: string
+                    description: Base64-encoded PNG
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/text:
+    get:
+      tags: [Browse]
+      summary: Extract visible text content from the page
+      parameters:
+        - name: session_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page text
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text:
+                    type: string
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/markdown:
+    get:
+      tags: [Browse]
+      summary: Convert current page to Markdown
+      parameters:
+        - name: session_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Markdown content
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  markdown:
+                    type: string
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/cookies:
+    get:
+      tags: [Browse]
+      summary: Get cookies for the current page
+      parameters:
+        - name: session_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page cookies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cookies:
+                    type: array
+                    items:
+                      type: object
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/eval:
+    post:
+      tags: [Browse]
+      summary: Evaluate a JavaScript expression in the page context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expression:
+                  type: string
+                session_id:
+                  type: string
+              required: [expression]
+      responses:
+        '200':
+          description: JS evaluation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: {}
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/back:
+    post:
+      tags: [Browse]
+      summary: Navigate back in browser history
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+      responses:
+        '200':
+          description: Navigated back
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/forward:
+    post:
+      tags: [Browse]
+      summary: Navigate forward in browser history
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+      responses:
+        '200':
+          description: Navigated forward
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+
+  /v1/browse/submit:
+    post:
+      tags: [Browse]
+      summary: Submit the active form on the page
+      description: |
+        Clicks the submit button, waits for navigation/response, and flushes captured traffic.
+        Supports `same_origin_fetch_fallback` for SPAs that submit via XHR instead of navigation.
+        Supports `wait_for` to wait for a specific URL pattern or CSS selector after submit.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                form_selector:
+                  type: string
+                submit_selector:
+                  type: string
+                wait_for:
+                  type: string
+                  description: CSS selector or URL pattern to wait for after submit
+                same_origin_fetch_fallback:
+                  type: boolean
+                timeout_ms:
+                  type: integer
+                assist_site_state:
+                  type: boolean
+                session_id:
+                  type: string
+      responses:
+        '200':
+          description: Form submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  session_id:
+                    type: string
+                  tab_id:
+                    type: string
+                  url:
+                    type: string
+                  next_step:
+                    type: string
+
+  /v1/browse/sync:
+    post:
+      tags: [Browse]
+      summary: Checkpoint capture without closing the tab
+      description: |
+        Flushes all captured HAR + JS interceptor traffic, merges CDP-captured auth headers,
+        indexes new endpoints locally, and queues background publish if auto-publish is enabled.
+        The browser tab stays open for continued browsing.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+      responses:
+        '200':
+          description: Checkpoint saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckpointResult'
+
+  /v1/browse/close:
+    post:
+      tags: [Browse]
+      summary: Final checkpoint — save auth, index, and close the tab
+      description: |
+        Flushes capture, saves auth cookies to the vault for the session's domain,
+        indexes endpoints, queues publish, and closes the Kuri tab.
+        The session is terminated and cannot be reused.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+      responses:
+        '200':
+          description: Session closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckpointResult'
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # SEARCH (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/search:
+    post:
+      tags: [Search]
+      summary: Global semantic intent search across all marketplace skills
+      description: |
+        Searches using vector similarity (Nebius embeddings). May require x402 payment
+        when search payments are enabled. Rate limited to 30/60s.
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intent:
+                  type: string
+                k:
+                  type: integer
+                  default: 5
+              required: [intent]
+      responses:
+        '200':
+          description: Search results ranked by relevance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+        '402':
+          description: x402 payment required
+
+  /v1/search/domain:
+    post:
+      tags: [Search]
+      summary: Domain-scoped semantic intent search
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intent:
+                  type: string
+                domain:
+                  type: string
+                k:
+                  type: integer
+                  default: 5
+              required: [intent, domain]
+      responses:
+        '200':
+          description: Domain-scoped search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+
+  /v1/search/resolve:
+    post:
+      tags: [Search]
+      summary: Combined domain + global intent search
+      description: Searches the domain namespace first, then global. Returns both result sets.
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intent:
+                  type: string
+                domain:
+                  type: string
+                domain_k:
+                  type: integer
+                  default: 5
+                global_k:
+                  type: integer
+                  default: 10
+              required: [intent]
+      responses:
+        '200':
+          description: Combined domain + global results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domain_results:
+                    type: array
+                    items:
+                      type: object
+                  global_results:
+                    type: array
+                    items:
+                      type: object
+                  skipped_global:
+                    type: boolean
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # AGENTS (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/tos/current:
+    get:
+      tags: [Agents]
+      summary: Get current Terms of Service version
+      description: Cached for 5 minutes.
+      responses:
+        '200':
+          description: Current ToS info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                  summary:
+                    type: string
+                  url:
+                    type: string
+
+  /v1/agents/register:
+    post:
+      tags: [Agents]
+      summary: Self-register an agent and receive an API key
+      description: |
+        Creates a new agent identity via Unkey and returns a Bearer API key.
+        Requires accepting the current ToS version. Rate limited to 10/5min per IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Unique agent name
+                tos_version:
+                  type: string
+                  description: Must match current ToS version from `GET /v1/tos/current`
+                wallet_address:
+                  type: string
+                  description: Solana wallet address for x402 earnings
+                wallet_provider:
+                  type: string
+                landing_token:
+                  type: string
+                  description: Install attribution token from landing page experiment
+              required: [name]
+      responses:
+        '201':
+          description: Agent registered — API key returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent_id:
+                    type: string
+                  api_key:
+                    type: string
+                    description: Bearer token for all authenticated requests
+        '400':
+          description: Missing ToS acceptance or version mismatch
+        '409':
+          description: Agent name already taken
+
+  /v1/agents/wallet:
+    post:
+      tags: [Agents]
+      summary: Claim or update payout wallet
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                wallet_address:
+                  type: string
+                wallet_provider:
+                  type: string
+      responses:
+        '200':
+          description: Wallet claimed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  status:
+                    type: string
+        '409':
+          description: Wallet already claimed by another agent
+
+  /v1/agents/accept-tos:
+    post:
+      tags: [Agents]
+      summary: Accept updated Terms of Service
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tos_version:
+                  type: string
+              required: [tos_version]
+      responses:
+        '200':
+          description: ToS accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  tos_accepted_version:
+                    type: string
+
+  /v1/agents/me:
+    get:
+      tags: [Agents]
+      summary: Get authenticated agent's own profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Agent profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentProfile'
+
+  /v1/agents:
+    get:
+      tags: [Agents]
+      summary: List recent agents (public profiles)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        '200':
+          description: Agent list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AgentProfile'
+
+  /v1/agents/{id}:
+    get:
+      tags: [Agents]
+      summary: Get public agent profile by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentProfile'
+        '404':
+          description: Agent not found
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # STATS (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/stats:
+    get:
+      tags: [Stats]
+      summary: Local server aggregated stats
+      description: Returns skill/endpoint/execution counts from the local server. No auth required.
+      responses:
+        '200':
+          description: Local stats
+
+  /v1/stats/summary:
+    get:
+      tags: [Stats]
+      summary: Marketplace summary stats
+      description: |
+        Aggregated counts for skills, endpoints, domains, executions, agents, and
+        performance metrics (hit rate, avg resolve time, tokens saved). Cached 60s.
+      responses:
+        '200':
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skills:
+                    type: integer
+                  endpoints:
+                    type: integer
+                  domains:
+                    type: integer
+                  executions:
+                    type: integer
+                  agents:
+                    type: integer
+                  perf:
+                    type: object
+                    properties:
+                      total_resolves:
+                        type: integer
+                      marketplace_hit_rate:
+                        type: integer
+                        description: Percentage (0-100)
+                      avg_resolve_ms:
+                        type: integer
+                      avg_marketplace_ms:
+                        type: integer
+                      avg_cache_ms:
+                        type: integer
+                      p95_ms:
+                        type: integer
+                      total_tokens_saved:
+                        type: integer
+                      avg_time_saved_pct:
+                        type: integer
+                      avg_tokens_saved_pct:
+                        type: integer
+
+  /v1/stats/perf:
+    get:
+      tags: [Stats]
+      summary: Aggregated orchestration performance stats
+      description: Cached for 10s.
+      responses:
+        '200':
+          description: Performance metrics
+    post:
+      tags: [Stats]
+      summary: Record orchestration timing from a resolve+execute cycle
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrchestrationTiming'
+      responses:
+        '200':
+          description: Timing recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+
+  /v1/stats/execution:
+    post:
+      tags: [Stats]
+      summary: Record a skill execution and trigger Tier 1 attribution
+      description: |
+        Records the execution trace, updates endpoint reliability scores, and
+        triggers delta-based attribution for the indexer who published the skill.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skill_id:
+                  type: string
+                endpoint_id:
+                  type: string
+                trace:
+                  $ref: '#/components/schemas/ExecutionTrace'
+                indexer_id:
+                  type: string
+                  description: Indexer agent ID for attribution (falls back to skill manifest)
+                next_best_score:
+                  type: number
+                  description: Reliability score of the next best alternative endpoint
+              required: [skill_id, endpoint_id, trace]
+      responses:
+        '200':
+          description: Execution recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+
+  /v1/stats/feedback:
+    post:
+      tags: [Stats]
+      summary: Record execution quality feedback
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skill_id:
+                  type: string
+                endpoint_id:
+                  type: string
+                rating:
+                  type: number
+                  description: Quality rating (0-5)
+              required: [skill_id, endpoint_id, rating]
+      responses:
+        '200':
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  avg_rating:
+                    type: number
+
+  /v1/stats/diagnostics:
+    post:
+      tags: [Stats]
+      summary: Record agent-reported speed/accuracy diagnostics
+      description: Stored in KV with 90-day retention, keyed by trace_version for version grouping.
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skill_id:
+                  type: string
+                endpoint_id:
+                  type: string
+                total_ms:
+                  type: number
+                bottleneck:
+                  type: string
+                wrong_endpoint:
+                  type: boolean
+                expected_data:
+                  type: string
+                got_data:
+                  type: string
+                trace_version:
+                  type: string
+              required: [skill_id, endpoint_id]
+      responses:
+        '200':
+          description: Diagnostics recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+
+  /v1/stats/fees:
+    get:
+      tags: [Fees]
+      summary: Aggregate graph fee summary (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Fee summary
+
+  /v1/stats/fees/{agentId}:
+    get:
+      tags: [Fees]
+      summary: Per-agent graph fee ledger (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent fee ledger
+        '404':
+          description: No fee records
+
+  /v1/stats/attribution:
+    get:
+      tags: [Attribution]
+      summary: Aggregate Tier 1 attribution summary (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Attribution summary
+
+  /v1/stats/attribution/{indexerId}:
+    get:
+      tags: [Attribution]
+      summary: Per-indexer attribution ledger (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: indexerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Indexer ledger
+        '404':
+          description: No attribution records
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # FEEDBACK (Local)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/feedback:
+    post:
+      tags: [Feedback]
+      summary: Submit execution feedback with optional diagnostics (local)
+      description: Records feedback locally and forwards diagnostics to the backend.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skill_id:
+                  type: string
+                target_id:
+                  type: string
+                  description: Alias for skill_id (deprecated)
+                endpoint_id:
+                  type: string
+                rating:
+                  type: number
+                outcome:
+                  type: string
+                diagnostics:
+                  type: object
+                  properties:
+                    total_ms:
+                      type: number
+                    bottleneck:
+                      type: string
+                    wrong_endpoint:
+                      type: boolean
+                    expected_data:
+                      type: string
+                    got_data:
+                      type: string
+                    trace_version:
+                      type: string
+              required: [endpoint_id, rating]
+      responses:
+        '200':
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  avg_rating:
+                    type: number
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # VALIDATION (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/validate:
+    post:
+      tags: [Validation]
+      summary: Validate a skill manifest without publishing
+      description: Returns hard errors and soft warnings. Rate limited to 60/60s.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # ANALYTICS (Backend — all require Bearer auth)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/analytics/engagement:
+    get:
+      tags: [Analytics]
+      summary: Engagement metrics (DAU/WAU/MAU, session depth)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Engagement data
+
+  /v1/analytics/retention:
+    get:
+      tags: [Analytics]
+      summary: Retention cohort analysis
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+            maximum: 60
+      responses:
+        '200':
+          description: Cohort data
+
+  /v1/analytics/activation:
+    get:
+      tags: [Analytics]
+      summary: Activation funnel (install → first resolve → first execute)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Activation funnel data
+
+  /v1/analytics/growth:
+    get:
+      tags: [Analytics]
+      summary: Growth metrics (new agents, skills, endpoints over time)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+            maximum: 90
+      responses:
+        '200':
+          description: Growth data
+
+  /v1/analytics/usage:
+    get:
+      tags: [Analytics]
+      summary: Usage metrics (resolves, executions, cache hit rates)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Usage data
+
+  /v1/analytics/funnel:
+    get:
+      tags: [Analytics]
+      summary: Optimization funnel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+            maximum: 90
+      responses:
+        '200':
+          description: Funnel data
+
+  /v1/analytics/network:
+    get:
+      tags: [Analytics]
+      summary: Network health metrics (coverage, quality, staleness)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Network health data
+
+  /v1/analytics/economics:
+    get:
+      tags: [Analytics]
+      summary: Unit economics metrics (cost per resolve, revenue per execution)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Economics data
+
+  /v1/analytics/agents:
+    get:
+      tags: [Analytics]
+      summary: Agent health metrics (active agents, churn, power users)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Agent health data
+
+  /v1/analytics/bottleneck:
+    get:
+      tags: [Analytics]
+      summary: Bottleneck metrics (slow endpoints, failing routes)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Bottleneck data
+
+  /v1/analytics/pricing:
+    get:
+      tags: [Analytics]
+      summary: Revenue and pricing data
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pricing data
+    post:
+      tags: [Analytics]
+      summary: Save pricing configuration (admin only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Pricing saved
+        '403':
+          description: Admin only
+
+  /v1/analytics/sessions:
+    post:
+      tags: [Analytics]
+      summary: Record an analytics session summary
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                started_at:
+                  type: string
+                  format: date-time
+                completed_at:
+                  type: string
+                  format: date-time
+                trace_version:
+                  type: string
+                api_calls:
+                  type: integer
+                discovery_queries:
+                  type: integer
+                cached_skill_calls:
+                  type: integer
+                fresh_index_calls:
+                  type: integer
+                browser_mode:
+                  type: string
+                  enum: [default, replaced, manual, unknown]
+                success:
+                  type: boolean
+                source:
+                  type: string
+                time_saved_ms:
+                  type: integer
+                time_saved_pct:
+                  type: number
+                tokens_saved:
+                  type: integer
+                tokens_saved_pct:
+                  type: number
+                cost_saved_uc:
+                  type: integer
+              required: [session_id, started_at]
+      responses:
+        '200':
+          description: Session recorded
+
+  /v1/analytics/adoption:
+    post:
+      tags: [Analytics]
+      summary: Record an adoption metric snapshot (admin only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metric:
+                  type: string
+                  enum: [npm_installs, github_stars, cli_installs]
+                value:
+                  type: number
+                captured_at:
+                  type: string
+                  format: date-time
+              required: [metric, value]
+      responses:
+        '200':
+          description: Recorded
+        '403':
+          description: Admin only
+
+  /v1/analytics/dashboard:
+    get:
+      tags: [Analytics]
+      summary: Full aggregated analytics dashboard (all metrics in one call)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All analytics metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  growth:
+                    type: object
+                  engagement:
+                    type: object
+                  usage:
+                    type: object
+                  funnel:
+                    type: object
+                  activation:
+                    type: object
+                  network:
+                    type: object
+                  economics:
+                    type: object
+                  pricing:
+                    type: object
+                  agent_health:
+                    type: object
+                  bottleneck:
+                    type: object
+
+  /v1/analytics/acquisition:
+    get:
+      tags: [Analytics]
+      summary: Acquisition summary (referrers, channels, campaigns)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+            maximum: 90
+      responses:
+        '200':
+          description: Acquisition data
+
+  /v1/analytics/install:
+    get:
+      tags: [Analytics]
+      summary: Install telemetry summary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 90
+            maximum: 180
+      responses:
+        '200':
+          description: Install data
+
+  /v1/analytics/install-funnel:
+    get:
+      tags: [Analytics]
+      summary: Install conversion funnel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 90
+            maximum: 180
+      responses:
+        '200':
+          description: Install funnel data
+
+  /v1/analytics/landing-funnel:
+    get:
+      tags: [Analytics]
+      summary: Landing homepage analytics and conversion funnel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+            maximum: 180
+      responses:
+        '200':
+          description: Landing funnel data
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # GRAPH (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/graph/edges:
+    post:
+      tags: [Graph]
+      summary: Upsert DAG edges for a domain's operation graph
+      description: Add or update prerequisite dependency edges between endpoints.
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                domain:
+                  type: string
+                node:
+                  type: object
+                  properties:
+                    endpoint_id:
+                      type: string
+                  required: [endpoint_id]
+                edges:
+                  type: array
+                  items:
+                    type: object
+              required: [domain, node, edges]
+      responses:
+        '200':
+          description: Edges upserted
+
+  /v1/graph/chain:
+    post:
+      tags: [Graph]
+      summary: Resolve prerequisite chain for a target endpoint
+      description: Returns the ordered sequence of endpoints that must execute before the target.
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                domain:
+                  type: string
+                target_endpoint_id:
+                  type: string
+                available_bindings:
+                  type: array
+                  items:
+                    type: string
+                  description: Bindings the agent already has (skip those prereqs)
+              required: [domain, target_endpoint_id]
+      responses:
+        '200':
+          description: Ordered prerequisite chain
+
+  /v1/graph/predict/{domain}:
+    get:
+      tags: [Graph]
+      summary: Predict next likely endpoint from co-occurrence patterns
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Endpoint ID to predict from
+        - name: k
+          in: query
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: Predicted next endpoints
+
+  /v1/graph/session:
+    post:
+      tags: [Graph]
+      summary: Record a session action for co-occurrence learning
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                action:
+                  type: object
+                  properties:
+                    intent:
+                      type: string
+                    domain:
+                      type: string
+                    endpoint_id:
+                      type: string
+                    result:
+                      type: string
+                      enum: [success, failure, skip]
+                    timestamp:
+                      type: number
+                  required: [intent, domain, endpoint_id, result]
+              required: [session_id, action]
+      responses:
+        '200':
+          description: Action recorded
+
+  /v1/graph/negative:
+    post:
+      tags: [Graph]
+      summary: Record a negative routing example
+      description: Tells the graph that a particular intent should NOT route to this endpoint.
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                domain:
+                  type: string
+                intent_pattern:
+                  type: string
+                endpoint_id:
+                  type: string
+              required: [domain, intent_pattern, endpoint_id]
+      responses:
+        '200':
+          description: Negative example recorded
+
+  /v1/graph/credits:
+    get:
+      tags: [Graph]
+      summary: Check remaining Graph API credits
+      responses:
+        '200':
+          description: Credit balance
+
+  /v1/graph/intent-cache:
+    get:
+      tags: [Graph]
+      summary: Check cached intent-to-endpoint routing
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: domain
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cache hit/miss result
+
+  /v1/graph/cooccurrence/{domain}:
+    get:
+      tags: [Graph]
+      summary: Dump co-occurrence matrix for a domain
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Co-occurrence matrix
+
+  /v1/graph/edges/{domain}/{endpoint_id}:
+    get:
+      tags: [Graph]
+      summary: Read adjacency list for an endpoint
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: endpoint_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Adjacency list
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # ISSUES (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/issues/auto-file:
+    post:
+      tags: [Issues]
+      summary: Auto-file issues from telemetry failure data
+      description: |
+        Checks failure threshold, builds a ReproBundle, and files an issue if
+        enough failures have accumulated. Rate limited to 10/60s per agent.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skill_id:
+                  type: string
+                endpoint_id:
+                  type: string
+                intent:
+                  type: string
+                errors:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      trace_id:
+                        type: string
+                      timestamp:
+                        type: string
+              required: [skill_id, endpoint_id, errors]
+      responses:
+        '200':
+          description: Below threshold, not filed
+        '201':
+          description: Issue filed
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # FEES (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/fees/summary:
+    get:
+      tags: [Fees]
+      summary: Aggregate fee ledger summary across all agents
+      responses:
+        '200':
+          description: Fee summary
+
+  /v1/fees/agent/{agentId}:
+    get:
+      tags: [Fees]
+      summary: Fee ledger for a specific agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent fee ledger
+        '404':
+          description: No fees recorded
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # TRANSACTIONS (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/transactions:
+    post:
+      tags: [Transactions]
+      summary: Record an x402 payment transaction
+      security:
+        - BearerAuth: []
+        - SignedClient: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_id:
+                  type: string
+                consumer_id:
+                  type: string
+                creator_id:
+                  type: string
+                skill_id:
+                  type: string
+                endpoint_id:
+                  type: string
+                price_usd:
+                  type: number
+                  minimum: 0
+                payment_proof:
+                  type: string
+              required: [transaction_id, consumer_id, skill_id, price_usd]
+      responses:
+        '201':
+          description: Transaction recorded
+
+  /v1/transactions/consumer/{agentId}:
+    get:
+      tags: [Transactions]
+      summary: Consumer payment history
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consumer ledger
+        '404':
+          description: No transactions
+
+  /v1/transactions/creator/{agentId}:
+    get:
+      tags: [Transactions]
+      summary: Creator earnings history
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Creator ledger
+        '404':
+          description: No transactions
+
+  /v1/transactions/summary:
+    get:
+      tags: [Transactions]
+      summary: Aggregate transaction stats
+      responses:
+        '200':
+          description: Transaction summary
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # ATTRIBUTION (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/attribution/indexer/{indexerId}:
+    get:
+      tags: [Attribution]
+      summary: Indexer earnings from delta-based attribution
+      parameters:
+        - name: indexerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Indexer ledger
+        '404':
+          description: No attribution data
+
+  /v1/attribution/summary:
+    get:
+      tags: [Attribution]
+      summary: Aggregate attribution stats across all indexers
+      responses:
+        '200':
+          description: Attribution summary
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # DASHBOARD & LEADERBOARD (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/leaderboard:
+    get:
+      tags: [Dashboard]
+      summary: Agent earnings leaderboard
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: Leaderboard entries
+
+  /v1/dashboard/me:
+    get:
+      tags: [Dashboard]
+      summary: Authenticated agent's earnings dashboard
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Agent dashboard
+        '404':
+          description: Agent not found
+
+  /v1/dashboard/wallet/{walletAddress}:
+    get:
+      tags: [Dashboard]
+      summary: Dashboard by Solana wallet address
+      parameters:
+        - name: walletAddress
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wallet dashboard
+        '404':
+          description: Wallet not found
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # MINERS (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/miners/stats:
+    get:
+      tags: [Miners]
+      summary: Miner network stats, domain coverage, leaderboard, bounties, and quests
+      description: |
+        Returns everything the miner dashboard needs in one call:
+        network totals, per-domain breakdown, top earners, available bounties, and active quests.
+      responses:
+        '200':
+          description: Miner stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  network:
+                    type: object
+                    properties:
+                      total_routes:
+                        type: integer
+                      total_skills:
+                        type: integer
+                      total_agents:
+                        type: integer
+                      total_executions:
+                        type: integer
+                      total_earned_usd:
+                        type: number
+                      marketplace_hit_rate:
+                        type: integer
+                      total_resolves:
+                        type: integer
+                      total_tokens_saved:
+                        type: integer
+                  domains:
+                    type: array
+                    items:
+                      type: object
+                  leaderboard:
+                    type: array
+                    items:
+                      type: object
+                  bounties:
+                    type: array
+                    items:
+                      type: object
+                  quests:
+                    type: array
+                    items:
+                      type: object
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # OPS (Backend — Admin only)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/ops:
+    get:
+      tags: [Ops]
+      summary: Ops dashboard — stats, skills, agents in one call
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Ops dashboard
+
+  /v1/ops/reindex:
+    post:
+      tags: [Ops]
+      summary: Re-index active skills into vector store (admin)
+      description: |
+        Processes skills in batches (default 3). Supports pagination via `offset`.
+        Can also purge stale skill IDs from the vector index.
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                purge_skill_ids:
+                  type: array
+                  items:
+                    type: string
+                limit:
+                  type: integer
+                  default: 3
+                offset:
+                  type: integer
+                  default: 0
+      responses:
+        '200':
+          description: Reindex results
+        '403':
+          description: Admin only
+
+  /v1/ops/consolidate:
+    post:
+      tags: [Ops]
+      summary: Merge all skills for a domain into one canonical skill (admin)
+      description: |
+        Finds all active skills for the domain, merges endpoints into the richest one,
+        deprecates the rest, and re-indexes.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                domain:
+                  type: string
+              required: [domain]
+      responses:
+        '200':
+          description: Consolidation result
+        '403':
+          description: Admin only
+
+  /v1/ops/migrate-index:
+    post:
+      tags: [Ops]
+      summary: Reset stale split indexes (admin, one-time migration)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Migration triggered
+        '403':
+          description: Admin only
+
+  /v1/ops/backfill-analytics:
+    post:
+      tags: [Ops]
+      summary: Seed cohort and active-day data from existing agent profiles (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Backfill result
+        '403':
+          description: Admin only
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # BLOG (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/blog/publish:
+    post:
+      tags: [Blog]
+      summary: Publish a blog post
+      description: |
+        Requires the blog publish key (separate from regular API key).
+        Stores the post in KV and updates the index. Cached for 5 minutes.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlogPost'
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  slug:
+                    type: string
+                  url:
+                    type: string
+
+  /v1/blog/posts:
+    get:
+      tags: [Blog]
+      summary: List all blog posts (newest first)
+      responses:
+        '200':
+          description: Blog post summaries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        slug:
+                          type: string
+                        title:
+                          type: string
+                        description:
+                          type: string
+                        author:
+                          type: string
+                        published_at:
+                          type: string
+                        keywords:
+                          type: array
+                          items:
+                            type: string
+
+  /v1/blog/posts/{slug}:
+    get:
+      tags: [Blog]
+      summary: Get a single blog post by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full blog post
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogPost'
+        '404':
+          description: Not found
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # LANDING (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/landing/homepage/assign:
+    post:
+      tags: [Landing]
+      summary: Assign a landing page A/B variant to a visitor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visitor_id:
+                  type: string
+                current_assignment:
+                  type: string
+                  nullable: true
+                icp:
+                  type: string
+                  nullable: true
+                  description: Ideal customer profile segment
+              required: [visitor_id]
+      responses:
+        '200':
+          description: Variant assigned
+
+  /v1/landing/homepage/token:
+    post:
+      tags: [Landing]
+      summary: Mint install attribution token for funnel tracking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                experiment_id:
+                  type: string
+                variant_id:
+                  type: string
+                visitor_id:
+                  type: string
+                session_id:
+                  type: string
+              required: [experiment_id, variant_id, visitor_id, session_id]
+      responses:
+        '200':
+          description: Token minted
+
+  /v1/landing/homepage/config:
+    get:
+      tags: [Landing]
+      summary: Get experiment configuration (admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Experiment config
+        '403':
+          description: Admin only
+    put:
+      tags: [Landing]
+      summary: Save experiment configuration (admin only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Config saved
+        '403':
+          description: Admin only
+
+  /v1/landing/homepage/analytics:
+    get:
+      tags: [Landing]
+      summary: Landing page experiment analytics (admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+            maximum: 180
+      responses:
+        '200':
+          description: Experiment analytics
+        '403':
+          description: Admin only
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # TELEMETRY (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/telemetry/events:
+    post:
+      tags: [Telemetry]
+      summary: Record a funnel event (install_start, first_resolve, first_execute, etc.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                install_id:
+                  type: string
+                session_id:
+                  type: string
+                landing_token:
+                  type: string
+                name:
+                  type: string
+                source:
+                  type: string
+                host_type:
+                  type: string
+                created_at:
+                  type: string
+                  format: date-time
+                properties:
+                  type: object
+              required: [install_id, name, source]
+      responses:
+        '200':
+          description: Event recorded
+
+  /v1/telemetry/install:
+    post:
+      tags: [Telemetry]
+      summary: Record install telemetry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                install_id:
+                  type: string
+                landing_token:
+                  type: string
+                source:
+                  type: string
+                host_type:
+                  type: string
+                skill:
+                  type: string
+                skill_version:
+                  type: string
+                status:
+                  type: string
+                created_at:
+                  type: string
+                  format: date-time
+                properties:
+                  type: object
+              required: [install_id, source]
+      responses:
+        '200':
+          description: Install recorded
+
+  /v1/telemetry/web:
+    post:
+      tags: [Telemetry]
+      summary: Record web telemetry event (page views, clicks, conversions)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visitor_id:
+                  type: string
+                session_id:
+                  type: string
+                name:
+                  type: string
+                experiment_id:
+                  type: string
+                variant_id:
+                  type: string
+                path:
+                  type: string
+                referrer:
+                  type: string
+                  nullable: true
+                created_at:
+                  type: string
+                  format: date-time
+                properties:
+                  type: object
+              required: [visitor_id, session_id, name]
+      responses:
+        '200':
+          description: Web event recorded
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # WEBHOOKS (Backend)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/webhooks/github:
+    post:
+      tags: [Webhooks]
+      summary: Process GitHub webhook events (star, issue, PR)
+      description: Requires `X-Hub-Signature-256` and `X-GitHub-Event` headers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Processed
+        '401':
+          description: Invalid webhook signature
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # STALE CLEANUP (Local)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/stale/cleanup:
+    post:
+      tags: [Stale Cleanup]
+      summary: Verify active skills and mark dead endpoints as stale
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skill_id:
+                  type: string
+                  description: Scope cleanup to a single skill
+                domain:
+                  type: string
+                  description: Scope cleanup to a single domain
+                limit:
+                  type: integer
+      responses:
+        '200':
+          description: Cleanup results
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # SESSIONS (Local)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/sessions/{domain}:
+    get:
+      tags: [Sessions]
+      summary: List local trace/debug files for a domain
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Session list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domain:
+                    type: string
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # FOUNDRY (Local)
+  # ═══════════════════════════════════════════════════════════════════════
+  /v1/foundry/publish-bundle:
+    post:
+      tags: [Foundry]
+      summary: Derive bundle/share/host artifacts from a workflow preset
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preset_path:
+                  type: string
+                  description: Path to the workflow preset file
+                site_url:
+                  type: string
+                hosts:
+                  type: array
+                  items:
+                    type: string
+                    enum: [codex, claude, openclaw]
+              required: [preset_path]
+      responses:
+        '200':
+          description: Bundle artifacts generated

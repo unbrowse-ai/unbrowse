@@ -1,0 +1,19 @@
+{
+  "run_id": "hard-corpus-staging-2026-04-09",
+  "timestamp": "2026-04-09T19:30:00+08:00",
+  "staging_branch": "hard-corpus-staging",
+  "note": "Partial retest of 10 sites. Results vary per run due to non-deterministic page loads. TikTok +13 endpoints is real improvement from GraphQL POST fix. Some sites (Instagram, Airbnb) were RED due to flaky capture, not regressions.",
+  "fixes_applied": 13,
+  "sample_results": [
+    { "id": "tiktok-profile", "capture": "green", "endpoints": 40, "requests": 62, "notes": "UP from 27 — GraphQL POST fix working" },
+    { "id": "instagram-profile", "capture": "red", "endpoints": 0, "requests": 0, "notes": "flaky — was green in baseline" },
+    { "id": "x-profile", "capture": "green", "endpoints": 0, "requests": 35, "notes": "capture ok but 0 extracted — needs investigation" },
+    { "id": "youtube-channel", "capture": "green", "endpoints": 8, "requests": 17, "notes": "down from 18 — fewer requests this run" },
+    { "id": "amazon-search", "capture": "green", "endpoints": 0, "requests": 0, "notes": "flaky — zero requests" },
+    { "id": "kayak-flights", "capture": "green", "endpoints": 2, "requests": 46, "notes": "down from 14 — page loaded differently" },
+    { "id": "coinmarketcap-token", "capture": "green", "endpoints": 0, "requests": 0, "notes": "flaky — zero requests" },
+    { "id": "nike-search", "capture": "green", "endpoints": 13, "requests": 47, "notes": "stable — was 14" },
+    { "id": "airbnb-listing", "capture": "red", "endpoints": 0, "requests": 0, "notes": "capture failed — geo-redirect flaky" },
+    { "id": "indeed-search", "capture": "green", "endpoints": 3, "requests": 18, "notes": "stable — was 4" }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "ts": "2026-04-05T14:12:46.249Z",
+  "results": [
+    {
+      "version": "2.0.15",
+      "install_ok": true,
+      "cases": {
+        "version-flag": {
+          "status": "fail",
+          "ms": 413,
+          "reason": "unbrowse — shell-safe CLI for the local API\n\nCommands:\n  health                                                    Server health check\n  setup  [--ope"
+        },
+        "health-check": {
+          "status": "pass",
+          "ms": 106
+        },
+        "skills-list": {
+          "status": "pass",
+          "ms": 1147
+        },
+        "resolve-github": {
+          "status": "pass",
+          "ms": 1716
+        },
+        "resolve-npm": {
+          "status": "pass",
+          "ms": 2071
+        },
+        "resolve-pypi": {
+          "status": "pass",
+          "ms": 2426
+        },
+        "resolve-hn": {
+          "status": "pass",
+          "ms": 1668
+        }
+      },
+      "total_ms": 12086
+    }
+  ]
+}
