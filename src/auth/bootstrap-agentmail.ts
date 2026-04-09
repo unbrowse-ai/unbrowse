@@ -44,8 +44,8 @@ export interface BootstrapResult {
 export async function bootstrapAgentMailKey(): Promise<BootstrapResult> {
   log("bootstrap-agentmail", "starting — opening console.agentmail.to");
 
-  const prevHeadless = process.env.HEADLESS;
-  process.env.HEADLESS = "false";
+  // Don't force HEADLESS=false — Kuri works headless too.
+  // Cookie injection + OAuth still works without a display.
 
   try {
     await kuri.start();
@@ -200,8 +200,7 @@ export async function bootstrapAgentMailKey(): Promise<BootstrapResult> {
       error: "Reached dashboard but could not extract API key. Create one manually at https://console.agentmail.to/dashboard/api-keys",
     };
   } finally {
-    if (prevHeadless !== undefined) process.env.HEADLESS = prevHeadless;
-    else delete process.env.HEADLESS;
+    // no-op — we don't override HEADLESS anymore
   }
 }
 

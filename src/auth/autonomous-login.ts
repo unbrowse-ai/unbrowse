@@ -160,9 +160,7 @@ export async function autonomousLogin(
 
   log("autonomous-login", `starting for ${targetDomain} — url: ${loginUrl}`);
 
-  // Ensure Kuri is running with visible browser
-  const prevHeadless = process.env.HEADLESS;
-  process.env.HEADLESS = "false";
+  // Kuri works both headless and visible — don't force either
 
   let tabId: string;
   try {
@@ -170,8 +168,7 @@ export async function autonomousLogin(
     tabId = await kuri.getDefaultTab();
     await kuri.networkEnable(tabId);
   } catch (err) {
-    if (prevHeadless !== undefined) process.env.HEADLESS = prevHeadless;
-    else delete process.env.HEADLESS;
+    // no-op — we don't override HEADLESS
     return { success: false, method: "failed", domain: targetDomain, cookies_stored: 0, error: `Kuri start failed: ${err}`, duration_ms: elapsed() };
   }
 
@@ -287,7 +284,6 @@ export async function autonomousLogin(
 
     return { success: false, method: "failed", domain: targetDomain, email: agentEmail, cookies_stored: 0, error: "login flow completed but no auth cookies detected", duration_ms: elapsed() };
   } finally {
-    if (prevHeadless !== undefined) process.env.HEADLESS = prevHeadless;
-    else delete process.env.HEADLESS;
+    // no-op — we don't override HEADLESS
   }
 }
