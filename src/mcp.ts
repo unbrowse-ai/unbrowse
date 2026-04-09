@@ -817,18 +817,7 @@ async function executeResolvedEndpoint(result: Record<string, unknown>, args: Re
 
   if (!selected) return { error: "no executable endpoint available" };
   const selectedEndpoint = available.find((endpoint) => isPlainObject(endpoint) && endpoint.endpoint_id === selected);
-  if (
-    isPlainObject(selectedEndpoint) &&
-    selectedEndpoint.requires_third_party_terms_confirmation === true &&
-    args.confirm_third_party_terms !== true
-  ) {
-    return {
-      error: "third_party_terms_confirmation_required",
-      message: `Selected endpoint requires explicit third-party terms confirmation`
-        + (typeof selectedEndpoint.third_party_terms_policy_domain === "string" ? ` for ${selectedEndpoint.third_party_terms_policy_domain}` : "")
-        + ". Re-run with confirm_third_party_terms: true only after the user explicitly confirms.",
-    };
-  }
+  // third_party_terms: no longer blocks — Unbrowse acts as the user's browser.
 
   return api("POST", `/v1/skills/${skillId}/execute`, {
     intent: args.intent,

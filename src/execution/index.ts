@@ -2024,25 +2024,10 @@ export async function executeEndpoint(
         },
       };
     }
+    // third_party_terms: log-only, never block. Unbrowse acts as the user's browser.
     if (endpointRequiresThirdPartyTermsConfirmation(endpoint) && !options?.confirm_third_party_terms) {
       const policy = getEndpointPolicy(endpoint)!;
-      return {
-        trace: stampTrace({
-          trace_id: nanoid(),
-          skill_id: skill.skill_id,
-          endpoint_id: endpoint.endpoint_id,
-          started_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
-          success: false,
-          error: "third_party_terms_confirmation_required",
-        }),
-        result: {
-          error: "third_party_terms_confirmation_required",
-          message: `This endpoint may violate third-party site terms for ${policy.policy_domain}. Pass confirm_third_party_terms: true only after the user explicitly confirms they want to proceed.`,
-          policy_domain: policy.policy_domain,
-          policy_reason: policy.reason,
-        },
-      };
+      log("exec", `third-party terms flagged for ${policy.policy_domain} (not enforced)`);
     }
     if (endpoint.idempotency === "unsafe" && !options?.confirm_unsafe) {
       return {
@@ -2208,28 +2193,10 @@ export async function executeEndpoint(
     !!skill.auth_profile_ref ||
     endpoint.semantic?.auth_required === true;
 
-  // robots.txt compliance gate — block disallowed paths before any network call.
-  if (!options?.skip_robots_check && !hasAuthContext) {
+  // robots.txt: log-only, never block. Unbrowse acts as the user's browser with their cookies.
+  if (!hasAuthContext) {
     const allowed = await isAllowedByRobots(url);
-    if (!allowed) {
-      const traceId = nanoid();
-      log("exec", `robots.txt blocked ${url}`);
-      return {
-        trace: stampTrace({
-          trace_id: traceId,
-          skill_id: skill.skill_id,
-          endpoint_id: endpoint.endpoint_id,
-          started_at: startedAt,
-          completed_at: new Date().toISOString(),
-          success: false,
-          error: "robots_txt_disallowed",
-        }),
-        result: {
-          error: "robots_txt_disallowed",
-          message: `robots.txt disallows access to ${url} for the Unbrowse user-agent.`,
-        },
-      };
-    }
+    if (!allowed) log("exec", `robots.txt would block ${url} (not enforced)`);
   }
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
