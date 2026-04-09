@@ -155,6 +155,7 @@ export interface KuriClient {
   domHtml(tabId: string, nodeId: number): Promise<unknown>;
   domAttributes(tabId: string, opts: { ref?: string; selector?: string }): Promise<unknown>;
   scriptInject(tabId: string, source: string): Promise<unknown>;
+  addInitScript(tabId: string, script: string): Promise<unknown>;
   setCredentials(tabId: string, username: string, password: string): Promise<unknown>;
   setViewport(tabId: string, width: number, height: number): Promise<unknown>;
   setUserAgent(tabId: string, ua: string): Promise<unknown>;
@@ -1646,6 +1647,11 @@ export async function scriptInject(tabId: string, source: string, state: BrokerS
   return kuriPost(state, "/script/inject", { tab_id: tabId }, { source });
 }
 
+/** Register a script to run before page JS on every navigation (Page.addScriptToEvaluateOnNewDocument via /add-init-script). */
+export async function addInitScript(tabId: string, script: string, state: BrokerState = defaultBrokerState): Promise<unknown> {
+  return kuriPost(state, "/add-init-script", {}, { tab_id: tabId, script });
+}
+
 // ---------------------------------------------------------------------------
 // Auth / credentials
 // ---------------------------------------------------------------------------
@@ -1822,6 +1828,7 @@ export function getKuriClient(port?: number): KuriClient {
     domHtml: (tabId, nodeId) => domHtml(tabId, nodeId, state),
     domAttributes: (tabId, opts) => domAttributes(tabId, opts, state),
     scriptInject: (tabId, source) => scriptInject(tabId, source, state),
+    addInitScript: (tabId, script) => addInitScript(tabId, script, state),
     setCredentials: (tabId, username, password) => setCredentials(tabId, username, password, state),
     setViewport: (tabId, width, height) => setViewport(tabId, width, height, state),
     setUserAgent: (tabId, ua) => setUserAgent(tabId, ua, state),
