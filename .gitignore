@@ -87,3 +87,4 @@ tmp/
 .codex/
 codedb.snapshot
 .kuri/
+submodules/foundry/
