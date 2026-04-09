@@ -32,21 +32,26 @@ if [ "$#" -gt 0 ]; then
 fi
 
 if [ "$should_verify_kuri" -eq 1 ] && [ -f .gitmodules ] && [ -e submodules/kuri/.git -o -d submodules/kuri/.git ]; then
+  # Verify the submodule checked out to the commit the superproject expects
+  actual_sha="$(git -C submodules/kuri rev-parse HEAD)"
+  expected_sha="$(git ls-tree HEAD submodules/kuri | awk '{ print $3 }')"
+  if [ -z "$expected_sha" ]; then
+    echo "[submodules] submodules/kuri not tracked by superproject; skipping verify" >&2
+  elif [ "$actual_sha" != "$expected_sha" ]; then
+    echo "[submodules] submodules/kuri is at ${actual_sha}, superproject expects ${expected_sha}" >&2
+    exit 1
+  else
+    echo "[submodules] submodules/kuri matches superproject pin (${actual_sha})"
+  fi
+
+  # Warn (non-fatal) if the pinned commit is behind the tracking branch
   kuri_branch="$(git config -f .gitmodules --get submodule.submodules/kuri.branch || true)"
   kuri_url="$(git config -f .gitmodules --get submodule.submodules/kuri.url || true)"
   if [ -n "$kuri_branch" ] && [ -n "$kuri_url" ]; then
-    echo "[submodules] verifying submodules/kuri against ${kuri_branch}"
-    actual_sha="$(git -C submodules/kuri rev-parse HEAD)"
-    expected_sha="$(git ls-remote --heads "$kuri_url" "$kuri_branch" | awk 'NR==1 { print $1 }')"
-    if [ -z "$expected_sha" ]; then
-      echo "[submodules] failed to resolve ${kuri_url}#${kuri_branch}" >&2
-      exit 1
+    remote_sha="$(git ls-remote --heads "$kuri_url" "$kuri_branch" 2>/dev/null | awk 'NR==1 { print $1 }')"
+    if [ -n "$remote_sha" ] && [ "$actual_sha" != "$remote_sha" ]; then
+      echo "[submodules] NOTE: submodules/kuri is behind ${kuri_branch} tip (${remote_sha}). Consider updating."
     fi
-    if [ "$actual_sha" != "$expected_sha" ]; then
-      echo "[submodules] submodules/kuri is pinned to ${actual_sha}, expected ${expected_sha} from ${kuri_branch}" >&2
-      exit 1
-    fi
-    echo "[submodules] submodules/kuri matches ${kuri_branch} (${actual_sha})"
   fi
 fi
 

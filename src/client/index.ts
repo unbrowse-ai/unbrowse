@@ -3,6 +3,7 @@ import { join } from "path";
 import { homedir, hostname, release as osRelease } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
+import { execSync } from "child_process";
 import type {
   AgentSkillChunkView,
   EndpointStats,
@@ -490,7 +491,7 @@ async function apiRequest<T = unknown>(
   method: string,
   path: string,
   body?: unknown,
-  opts?: { noAuth?: boolean; timeoutMs?: number },
+  opts?: { noAuth?: boolean; timeoutMs?: number; skipAutoUpdate?: boolean },
 ): Promise<{ data: T; headers: Headers }> {
   const key = opts?.noAuth ? "" : getApiKey();
   const releaseAttestationHeaders = buildReleaseAttestationHeaders(
@@ -535,6 +536,30 @@ async function apiRequest<T = unknown>(
     throw new Error("ToS update required. Restart unbrowse to accept new terms.");
   }
 
+  // Handle 426 — client outdated or verification failed. Auto-update, restart, and retry once.
+  if (res.status === 426 && !opts?.skipAutoUpdate) {
+    const errCode = (data as Record<string, unknown>).error;
+    if (errCode === "client_update_required" || errCode === "client_verification_failed") {
+      console.warn(`\n[unbrowse] Server requires a client update (${errCode}).`);
+      console.warn("[unbrowse] Attempting automatic update...");
+      try {
+        const updateCmd = process.env.UNBROWSE_UPDATE_COMMAND || "curl -fsSL https://unbrowse.ai/install.sh | bash";
+        execSync(updateCmd, { stdio: "inherit", timeout: 120_000 });
+        console.warn("[unbrowse] Update installed. Restarting server...");
+        // Kill stale server processes so the new binary takes over
+        try { execSync("pkill -9 -f 'unbrowse|kuri'", { stdio: "ignore", timeout: 5_000 }); } catch { /* may not match */ }
+        // Brief pause for process cleanup
+        await new Promise((r) => setTimeout(r, 2_000));
+        console.warn("[unbrowse] Retrying request with updated client...");
+        return apiRequest<T>(method, path, body, { ...opts, skipAutoUpdate: true });
+      } catch (updateErr) {
+        console.warn(`[unbrowse] Auto-update failed: ${(updateErr as Error).message}`);
+        const cmd = (data as Record<string, unknown>).update_command ?? "curl -fsSL https://unbrowse.ai/install.sh | bash";
+        console.warn(`[unbrowse] Please update manually: ${cmd}`);
+        throw new Error(`Client update required. Run: ${cmd}`);
+      }
+    }
+  }
 
   // Handle x402 payment required — attempt lobster pay-and-retry before surfacing
   if (res.status === 402) {
