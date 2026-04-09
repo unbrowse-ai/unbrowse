@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.6.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.4...v3.6.0-preview.0) (2026-04-09)
+
+### Features
+
+* autonomous email login via AgentMail — zero-config agent auth ([7955536](https://github.com/unbrowse-ai/unbrowse-dev/commit/79555360dcc129f71b015ddc7a2d4d984f2314cb))
+* restore Alethea v2 frontend (School of Athens, dark mode, spacing) ([70ec96f](https://github.com/unbrowse-ai/unbrowse-dev/commit/70ec96fecfce5d8c39d709ea7a0582ea6303c253))
+
+### Bug Fixes
+
+* pass positional args to login-auto CLI command ([b5026ca](https://github.com/unbrowse-ai/unbrowse-dev/commit/b5026caa18c685fca80811091b826c0f1381b5a3))
+
+### Refactoring
+
+* reframe payment messaging from mining/indexing to per-use earning ([444d91f](https://github.com/unbrowse-ai/unbrowse-dev/commit/444d91f131f290f0cc816c0f16bca56cc916a46a))
+
 ## Unreleased
 
 ### Features
