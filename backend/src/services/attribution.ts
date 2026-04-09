@@ -18,6 +18,7 @@
 
 import type { Env } from "../types.js";
 import { statsKV } from "./kv.js";
+import { creditEarnings } from "./credits.js";
 
 // ─── Fee parameters ───────────────────────────────────────────────────────────
 
@@ -133,6 +134,16 @@ export async function recordAttribution(
   ledger.last_attributed_at = now;
 
   await kv.put(key, JSON.stringify(ledger));
+
+  // Credit earnings to the indexer's credit balance (best-effort)
+  if (env.CREDITS_ENABLED === "1") {
+    try {
+      await creditEarnings(env, event.indexer_id, fee_allocated_uc);
+    } catch {
+      // Credit ledger may not exist yet — don't fail attribution
+    }
+  }
+
   return fullEvent;
 }
 

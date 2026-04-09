@@ -197,24 +197,40 @@ export async function runSetup(options?: {
     : await ensureBrowserEngineInstalled();
   const walletCheck = checkWalletConfigured();
   const skipWalletSetup = process.env.UNBROWSE_SKIP_WALLET_SETUP === "1";
-  const lobsterInstalled = hasBinary("lobstercash") ||
+  let lobsterInstalled = hasBinary("lobstercash") ||
     existsSync(path.join(os.homedir(), ".agents", "skills", "lobstercash", "SKILL.md"));
 
-  // Auto-setup Crossmint lobster.cash if the wallet tooling is already present.
-  if (!skipWalletSetup && !walletCheck.configured && lobsterInstalled) {
-    console.log("[unbrowse] Crossmint lobster.cash detected but wallet not configured — running wallet setup...");
-    try {
-      execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
-        stdio: "inherit",
-        timeout: 60_000,
-      });
-      // Re-check after setup
-      const recheck = checkWalletConfigured();
-      if (recheck.configured) {
-        console.log(`[unbrowse] wallet configured (${recheck.provider})`);
+  // Auto-install + setup Crossmint lobster.cash wallet.
+  // Wallet is required for the agent economy — agents earn USDC when their
+  // indexed routes are used by others, and spend credits/USDC on paid routes.
+  if (!skipWalletSetup && !walletCheck.configured) {
+    if (!lobsterInstalled) {
+      console.log("[unbrowse] Setting up Crossmint wallet (required for earning + payments)...");
+      try {
+        execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
+          stdio: "inherit",
+          timeout: 120_000,
+        });
+        lobsterInstalled = true;
+      } catch {
+        console.warn("[unbrowse] Crossmint wallet setup failed — you can retry with: npx @crossmint/lobster-cli setup");
+        console.warn("[unbrowse] Continuing with free credits ($2.00). Set up a wallet later to earn from your routes.");
       }
-    } catch {
-      console.warn("[unbrowse] Crossmint lobster.cash setup failed or was skipped — continuing without wallet");
+    } else {
+      console.log("[unbrowse] Crossmint lobster.cash detected but wallet not configured — running wallet setup...");
+      try {
+        execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
+          stdio: "inherit",
+          timeout: 60_000,
+        });
+      } catch {
+        console.warn("[unbrowse] Crossmint wallet setup failed or was skipped — continuing without wallet");
+      }
+    }
+    // Re-check after setup
+    const recheck = checkWalletConfigured();
+    if (recheck.configured) {
+      console.log(`[unbrowse] wallet configured (${recheck.provider})`);
     }
   }
 

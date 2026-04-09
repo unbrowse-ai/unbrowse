@@ -63,8 +63,10 @@ export async function importBrowserCookiesIntoTab(tabId: string, domain: string)
   if (!shouldImportBrowserCookies()) return 0;
 
   try {
-    const { extractBrowserCookies } = await import("./browser-cookies.js");
-    const { cookies } = extractBrowserCookies(domain);
+    const { extractBrowserCookies, findBestBrowserSession } = await import("./browser-cookies.js");
+    // Try all browsers, pick the one with the best session for this domain
+    const bestSession = findBestBrowserSession(domain);
+    const cookies = bestSession ? bestSession.cookies : extractBrowserCookies(domain).cookies;
     let imported = 0;
 
     for (const cookie of cookies) {

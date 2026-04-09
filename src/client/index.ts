@@ -795,6 +795,9 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
     });
 
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
+    console.log(`\nYou have $2.00 in free credits — start resolving to use them.`);
+    console.log(`As you browse, you earn credits when other agents use your indexed routes.`);
+    console.log(`Run \`unbrowse earnings\` anytime to check your balance.`);
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);
     console.warn("Set UNBROWSE_API_KEY manually or try again.");
@@ -1485,4 +1488,32 @@ export async function setSkillPrice(skillId: string, priceUsd: number): Promise<
 
 export async function setSkillSplitConfig(skillId: string, splitConfig: string | null): Promise<unknown> {
   return api("PATCH", `/v1/skills/${skillId}`, { split_config: splitConfig });
+}
+
+/** Fetch the full flywheel pulse from the analytics backend. */
+export async function getFlywheelPulse(): Promise<{
+  funnel: {
+    installs_7d: number; registrations_7d: number; first_resolve_7d: number; repeat_users_7d: number;
+    installs_30d: number; registrations_30d: number; first_resolve_30d: number; repeat_users_30d: number;
+  };
+  credits: {
+    pool_remaining_uc: number; pool_total_granted_uc: number;
+    agents_subsidized: number; agents_self_sustaining: number;
+    avg_time_to_self_sustaining_hours: number;
+  };
+  index: {
+    total_endpoints: number; total_domains: number;
+    new_endpoints_7d: number; marketplace_hit_rate: number;
+  };
+  economics: {
+    total_revenue_uc: number; total_earned_by_agents_uc: number;
+    revenue_per_install_uc: number; ltv_per_agent_uc: number;
+  };
+  conversion: {
+    install_to_register: number; register_to_first_resolve: number;
+    first_resolve_to_repeat: number; overall_activation: number;
+  };
+  timestamp: string;
+}> {
+  return api("GET", "/v1/analytics/flywheel");
 }

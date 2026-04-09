@@ -2,7 +2,7 @@ import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
-import { extractAuthHeaders } from "../reverse-engineer/index.js";
+import { extractAuthHeaders, extractGraphQLOperationName } from "../reverse-engineer/index.js";
 import { storeCredential } from "../vault/index.js";
 import type { BrowserAccessConfig } from "../runtime/browser-access.js";
 import { DEFAULT_BROWSER_ACCESS } from "../runtime/browser-access.js";
@@ -190,6 +190,32 @@ type CaptureNavigationPage = {
 
 export async function navigatePageForCapture(page: CaptureNavigationPage, url: string): Promise<void> {
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: CAPTURE_NAV_TIMEOUT_MS });
+}
+
+/**
+ * Returns the canonical ordered list of capture setup phases for a given capture context.
+ *
+ * This is the authoritative ordering contract for captureSession. All network recording
+ * setup (scriptInject, addInitScript, harStart, cdpEnable) MUST precede any navigation
+ * phase so that requests fired during LinkedIn's challenge redirect chain are captured.
+ *
+ * Used by tests to verify the ordering invariant without running a real browser.
+ */
+export function getCaptureSetupOrder(opts: { hasCookies: boolean }): string[] {
+  const phases: string[] = [
+    "setHeaders",
+    "addInitScript",   // Page.addScriptToEvaluateOnNewDocument — runs before page JS on every navigation
+    "scriptInject",    // persistent interceptor for fetch/XHR
+    "harStart",        // Kuri HAR recording
+    "cdpEnable",       // direct CDP Network.enable
+  ];
+  if (opts.hasCookies) {
+    phases.push("navigate:origin");   // first navigation — recording already active
+    phases.push("waitForLoad:origin");
+    phases.push("injectCookies");
+  }
+  phases.push("navigate");            // navigate to target URL
+  return phases;
 }
 
 async function acquireTabSlot(): Promise<void> {
@@ -528,7 +554,12 @@ export const INTERCEPTOR_SCRIPT = `(function() {
         var body = results[0];
         var resolvedReqBody = results[1];
         var limit = isJs ? MAX_JS_BODY : MAX_BODY;
-        if (body.length > limit) return;
+        // For JS bundles, drop the entry entirely if response is too large (not useful)
+        if (isJs && body.length > limit) return;
+        // For API/GraphQL endpoints: record the entry even if response body is too large.
+        // Preserve request_body (contains operationName/doc_id) so GraphQL operations
+        // can be correctly deduplicated even when the response body exceeds the limit.
+        var respBody = body.length > limit ? '' : body;
         var respHeaders = {};
         response.headers.forEach(function(v, k) { respHeaders[k] = v; });
         window.__unbrowse_intercepted.push({
@@ -538,7 +569,7 @@ export const INTERCEPTOR_SCRIPT = `(function() {
           request_body: resolvedReqBody,
           response_status: response.status,
           response_headers: respHeaders,
-          response_body: body,
+          response_body: respBody,
           content_type: ct,
           is_js: isJs,
           timestamp: new Date().toISOString()
@@ -576,9 +607,13 @@ export const INTERCEPTOR_SCRIPT = `(function() {
                    url.indexOf('youtubei') !== -1;
       if (!isJs && !isData) return;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return;
-      var respBody = xhr.responseText || '';
+      var rawRespBody = xhr.responseText || '';
       var limit = isJs ? MAX_JS_BODY : MAX_BODY;
-      if (respBody.length > limit) return;
+      // For JS bundles, drop the entry entirely if response is too large (not useful)
+      if (isJs && rawRespBody.length > limit) return;
+      // For API/GraphQL: record entry even if response body is too large — preserve
+      // request_body (operationName/doc_id) for correct GraphQL deduplication.
+      var respBody = rawRespBody.length > limit ? '' : rawRespBody;
       window.__unbrowse_intercepted.push({
         url: url,
         method: (xhr.__unbrowse_method || 'GET').toUpperCase(),
@@ -628,9 +663,9 @@ export async function injectInterceptor(tabId: string): Promise<void> {
   // Split into setup (globals + fetch) and XHR parts
   const SETUP = `(function(){if(window.__unbrowse_interceptor_installed)return;window.__unbrowse_interceptor_installed=true;window.__unbrowse_intercepted=[];window.__UB_MAX=2*1024*1024;window.__UB_MAX_JS=2*1024*1024;window.__UB_MAX_N=500;})()`;
 
-  const FETCH_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oF=window.fetch;window.fetch=function(){var a=arguments,isR=a[0]&&typeof a[0]==='object'&&typeof a[0].url==='string',u=typeof a[0]==='string'?a[0]:(isR?a[0].url:''),o=a[1]||{},m=(o.method||(isR?a[0].method:null)||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,M):void 0,rbP=null;if(!rb&&isR&&m!=='GET'&&m!=='HEAD'){try{var rc=a[0].clone();rbP=rc.text().then(function(t){return t?t.substring(0,M):void 0}).catch(function(){return void 0})}catch(e){}}var rh={};if(isR&&a[0].headers&&typeof a[0].headers.forEach==='function')a[0].headers.forEach(function(v,k){rh[k]=v});if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k]})}return oF.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=MN)return r;var ct=r.headers.get('content-type')||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return r;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return r;var c=r.clone();Promise.all([c.text(),rbP?rbP:Promise.resolve(rb)]).then(function(res){var b=res[0],rrb=res[1];var lim=isJ?MJ:M;if(b.length>lim)return;var rr={};r.headers.forEach(function(v,k){rr[k]=v});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rrb,response_status:r.status,response_headers:rr,response_body:b,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})}).catch(function(){});return r}).catch(function(e){throw e})}})()`;
+  const FETCH_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oF=window.fetch;window.fetch=function(){var a=arguments,isR=a[0]&&typeof a[0]==='object'&&typeof a[0].url==='string',u=typeof a[0]==='string'?a[0]:(isR?a[0].url:''),o=a[1]||{},m=(o.method||(isR?a[0].method:null)||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,M):void 0,rbP=null;if(!rb&&isR&&m!=='GET'&&m!=='HEAD'){try{var rc=a[0].clone();rbP=rc.text().then(function(t){return t?t.substring(0,M):void 0}).catch(function(){return void 0})}catch(e){}}var rh={};if(isR&&a[0].headers&&typeof a[0].headers.forEach==='function')a[0].headers.forEach(function(v,k){rh[k]=v});if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k]})}return oF.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=MN)return r;var ct=r.headers.get('content-type')||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return r;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return r;var c=r.clone();Promise.all([c.text(),rbP?rbP:Promise.resolve(rb)]).then(function(res){var b=res[0],rrb=res[1];var lim=isJ?MJ:M;if(isJ&&b.length>lim)return;var rb2=b.length>lim?'':b;var rr={};r.headers.forEach(function(v,k){rr[k]=v});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rrb,response_status:r.status,response_headers:rr,response_body:rb2,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})}).catch(function(){});return r}).catch(function(e){throw e})}})()`;
 
-  const XHR_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oO=XMLHttpRequest.prototype.open,oS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__ub_m=m;this.__ub_u=u;this.__ub_h={};var oSH=this.setRequestHeader.bind(this);this.setRequestHeader=function(k,v){this.__ub_h[k]=v;oSH(k,v)}.bind(this);return oO.apply(this,arguments)};XMLHttpRequest.prototype.send=function(b){var x=this;x.addEventListener('load',function(){if(window.__unbrowse_intercepted.length>=MN)return;var ct=x.getResponseHeader('content-type')||'',u=x.__ub_u||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return;var rb=x.responseText||'';var lim=isJ?MJ:M;if(rb.length>lim)return;window.__unbrowse_intercepted.push({url:u,method:(x.__ub_m||'GET').toUpperCase(),request_headers:x.__ub_h||{},request_body:b?String(b).substring(0,M):void 0,response_status:x.status,response_headers:{},response_body:rb,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})});return oS.apply(this,arguments)}})()`;
+  const XHR_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oO=XMLHttpRequest.prototype.open,oS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__ub_m=m;this.__ub_u=u;this.__ub_h={};var oSH=this.setRequestHeader.bind(this);this.setRequestHeader=function(k,v){this.__ub_h[k]=v;oSH(k,v)}.bind(this);return oO.apply(this,arguments)};XMLHttpRequest.prototype.send=function(b){var x=this;x.addEventListener('load',function(){if(window.__unbrowse_intercepted.length>=MN)return;var ct=x.getResponseHeader('content-type')||'',u=x.__ub_u||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return;var rb=x.responseText||'';var lim=isJ?MJ:M;if(isJ&&rb.length>lim)return;var rb2=rb.length>lim?'':rb;window.__unbrowse_intercepted.push({url:u,method:(x.__ub_m||'GET').toUpperCase(),request_headers:x.__ub_h||{},request_body:b?String(b).substring(0,M):void 0,response_status:x.status,response_headers:{},response_body:rb2,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})});return oS.apply(this,arguments)}})()`;
 
   // Inject in 3 small chunks
   for (const chunk of [SETUP, FETCH_PATCH, XHR_PATCH]) {
@@ -654,13 +689,12 @@ export function mergePassiveCaptureData(
   const seen = new Map<string, RawRequest>();
 
   // For GraphQL endpoints, extract operationName from request body to differentiate operations
+  // Handles X.com URL patterns, Facebook doc_id/fb_api_req_friendly_name,
+  // Instagram query_hash, and URL-encoded form bodies
   function graphqlDedup(url: string, requestBody?: string): string {
-    if (!requestBody || !/graphql/i.test(url)) return url;
-    try {
-      const parsed = JSON.parse(requestBody);
-      const opName = parsed.operationName ?? parsed.query?.match(/(?:query|mutation)\s+(\w+)/)?.[1];
-      if (opName) return `${url}#op=${opName}`;
-    } catch { /* not JSON */ }
+    if (!/graphql/i.test(url)) return url;
+    const opName = extractGraphQLOperationName(url, requestBody);
+    if (opName) return `${url}#op=${opName}`;
     return url;
   }
 
@@ -1282,33 +1316,24 @@ export async function captureSession(
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
     await phase("setHeaders", () => kuri.setHeaders(tabId, allHeaders));
 
-    // Navigate to origin first so cookies are set in the correct domain context
-    // (CDP setCookie on about:blank doesn't bind to the target domain properly)
-    if (cookies && cookies.length > 0) {
-      const origin = new URL(url).origin;
-      await phase("navigate:origin", () => kuri.navigate(tabId, origin));
-      await phase("waitForLoad:origin", () => kuri.waitForLoad(tabId, 10_000).catch(() => {}));
+    // Fix for issue #403: all network recording setup must happen BEFORE any navigation.
+    // LinkedIn (and similar sites with challenge/redirect chains) fire Voyager GraphQL
+    // API calls during the origin navigation — setting up recording after the first
+    // navigate call means those requests are never captured.
 
-      // Check if browser already has a valid session (not redirected to login).
-      // If so, skip vault cookie injection — browser cookies are fresher and
-      // injecting stale vault cookies (e.g. JSESSIONID) causes HTTP 400.
-      const postOriginUrl = await phase("checkOriginUrl", () => kuri.getCurrentUrl(tabId));
-      const LOGIN_PATHS_RE = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
-      const originHost = new URL(origin).hostname;
-      let browserAlreadyAuthed = false;
-      try {
-        const postHost = new URL(postOriginUrl).hostname;
-        browserAlreadyAuthed = postHost === originHost && !LOGIN_PATHS_RE.test(new URL(postOriginUrl).pathname);
-      } catch { /* bad URL — inject cookies as fallback */ }
-
-      if (browserAlreadyAuthed) {
-        log("capture", `browser already authenticated at ${postOriginUrl} — skipping vault cookie injection`);
-      } else {
-        await phase("injectCookies", () => injectCookies(tabId, cookies!));
-      }
+    // Step 1: Register interceptor via addInitScript — runs before page JS on EVERY
+    // navigation including LinkedIn's challenge redirect chain. This is the most
+    // reliable hook for catching early API calls on SPAs with redirect flows.
+    try {
+      await phase("addInitScript", () => kuri.addInitScript(tabId, INTERCEPTOR_SCRIPT));
+      log("capture", "interceptor registered via addInitScript (pre-navigation, survives redirects)");
+    } catch {
+      // Older kuri builds without addInitScript — fall through to scriptInject
+      log("capture", "addInitScript unavailable — falling back to scriptInject");
     }
 
-    // Inject interceptor persistently — survives navigations via Page.addScriptToEvaluateOnNewDocument
+    // Step 2: scriptInject — also registers as Page.addScriptToEvaluateOnNewDocument.
+    // Belt-and-suspenders: use both addInitScript and scriptInject for maximum coverage.
     if (!interceptorInjectedTabs.has(tabId)) {
       try {
         await phase("scriptInject", () => kuri.scriptInject(tabId, INTERCEPTOR_SCRIPT));
@@ -1320,10 +1345,11 @@ export async function captureSession(
       }
     }
 
-    // Start HAR recording (Kuri HAR as backup) + direct CDP network capture
+    // Step 3: Start HAR recording BEFORE any navigation.
     try { await phase("harStart", () => kuri.harStart(tabId)); } catch { /* harStart may fail */ }
 
-    // Direct CDP network capture — bypasses Kuri HAR bugs on sites like LinkedIn
+    // Step 4: Direct CDP network capture — BEFORE any navigation.
+    // This is the primary capture path for LinkedIn Voyager and similar SPA APIs.
     const cdpNetworkEntries: kuri.KuriHarEntry[] = [];
     const cdpRequestMap = new Map<string, { method: string; url: string; headers: Array<{name: string; value: string}>; postData?: string }>();
     const cdpResponseMeta = new Map<string, { status: number; headers: Array<{name: string; value: string}>; mimeType: string }>();
@@ -1387,12 +1413,40 @@ export async function captureSession(
               }
             } catch { /* parse error — ignore */ }
           };
+          // cdpEnable: must happen before first navigate (issue #403)
           cdpWs.send(JSON.stringify({ id: 1, method: "Network.enable", params: {} }));
           await new Promise(r => setTimeout(r, 200));
-          log("capture", "CDP network capture enabled (direct websocket)");
+          log("capture", "CDP network capture enabled (direct websocket, pre-navigation)");
         }
       }
     } catch { /* CDP direct capture is best-effort */ }
+
+    // Step 5: Navigate to origin so cookies bind to the correct domain context.
+    // All recording is now active before this point — API calls during LinkedIn's
+    // challenge redirect will be captured by addInitScript + CDP.
+    if (cookies && cookies.length > 0) {
+      const origin = new URL(url).origin;
+      await phase("navigate:origin", () => kuri.navigate(tabId, origin));
+      await phase("waitForLoad:origin", () => kuri.waitForLoad(tabId, 10_000).catch(() => {}));
+
+      // Check if browser already has a valid session (not redirected to login).
+      // If so, skip vault cookie injection — browser cookies are fresher and
+      // injecting stale vault cookies (e.g. JSESSIONID) causes HTTP 400.
+      const postOriginUrl = await phase("checkOriginUrl", () => kuri.getCurrentUrl(tabId));
+      const LOGIN_PATHS_RE = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
+      const originHost = new URL(origin).hostname;
+      let browserAlreadyAuthed = false;
+      try {
+        const postHost = new URL(postOriginUrl).hostname;
+        browserAlreadyAuthed = postHost === originHost && !LOGIN_PATHS_RE.test(new URL(postOriginUrl).pathname);
+      } catch { /* bad URL — inject cookies as fallback */ }
+
+      if (browserAlreadyAuthed) {
+        log("capture", `browser already authenticated at ${postOriginUrl} — skipping vault cookie injection`);
+      } else {
+        await phase("injectCookies", () => injectCookies(tabId, cookies!));
+      }
+    }
 
     // Determine page domain for JS bundle filtering
     let pageDomain: string | undefined;
@@ -1401,7 +1455,9 @@ export async function captureSession(
     // Navigate to target URL
     await phase("navigate", () => kuri.navigate(tabId, url));
 
-    // If scriptInject wasn't available, fall back to single evaluate injection after navigation
+    // Re-inject via evaluate as a last resort for sites that clear window globals
+    // (some challenge pages wipe the window object). addInitScript above handles
+    // the normal case; this evaluate is a safety net for post-navigation state.
     if (!interceptorInjectedTabs.has(tabId)) {
       await phase("evaluate:interceptor", () => kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {}));
       log("capture", "interceptor re-injected via evaluate fallback");

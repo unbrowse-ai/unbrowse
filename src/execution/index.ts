@@ -1843,6 +1843,41 @@ export async function executeEndpoint(
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
   endpoint = annotateEndpointPolicy(endpoint);
+
+  // Session-bound params gate — bail early for endpoints that cannot be replayed.
+  // Sites like TikTok validate fingerprint parameters server-side and return empty
+  // results (HTTP 200 with empty lists) when captured values are stale. Attempting
+  // the API call wastes time and confuses the agent with a misleading success trace.
+  if (endpoint.policy?.requires_live_session) {
+    const sessionParams = endpoint.policy.session_bound_params ?? [];
+    const contextUrl = options?.contextUrl ?? `https://${skill.domain}`;
+    const startedAt = new Date().toISOString();
+    const traceId = nanoid();
+    const resultData = {
+      error: "browser_replay_only",
+      message: `This endpoint requires a live browser session. ${sessionParams.length} session-bound fingerprint parameter(s) (${sessionParams.slice(0, 3).join(", ")}${sessionParams.length > 3 ? ", ..." : ""}) cannot be replayed from a capture — the server validates these values and returns empty results when they are stale.`,
+      session_bound_params: sessionParams,
+      next_step: `Use \`unbrowse go "${contextUrl}"\` to open a live browser session, then run \`unbrowse eval "return JSON.stringify(<your extraction logic>)"\` to get the data. All traffic will be passively captured and indexed for future API replay.`,
+      commands: [
+        `unbrowse go "${contextUrl}"`,
+        `unbrowse eval "return document.title"`,
+        "unbrowse close",
+      ],
+    };
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: endpoint.endpoint_id,
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "browser_replay_only",
+      result: resultData,
+    });
+    log("exec", `endpoint ${endpoint.endpoint_id} skipped — requires_live_session (${sessionParams.length} session-bound params)`);
+    return { trace, result: resultData };
+  }
+
   const workflowArtifact = readWorkflowArtifact(skill.skill_id);
   const workflowRecipe = pickWorkflowRecipe(workflowArtifact, endpoint.endpoint_id);
   const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
@@ -1892,6 +1927,15 @@ export async function executeEndpoint(
     const gate = await checkPaymentRequirement(skill.skill_id, endpoint.endpoint_id, {
       wallet_configured: !!wallet.wallet_address,
     });
+    // Show credit balance when paid via credits
+    if (gate.status === "paid" && gate.method === "credits" && gate.balance_remaining_uc !== undefined) {
+      const balUsd = (gate.balance_remaining_uc / 1_000_000).toFixed(4);
+      console.log(`[credits] $${balUsd} remaining. ${gate.message ?? ""}`);
+      if (gate.balance_remaining_uc < 200_000) { // < $0.20
+        console.log(`[credits] Running low — run \`npx lobstercash setup\` to add a wallet and keep going after credits run out.`);
+      }
+    }
+
     if (gate.status === "payment_required" || gate.status === "wallet_not_configured" || gate.status === "insufficient_balance") {
       // If lobster wallet is available, let execution proceed —
       // the client-level apiRequest will handle 402 pay-and-retry automatically.
@@ -2625,12 +2669,34 @@ export async function executeEndpoint(
     const semanticAssessment = assessIntentResult(data, effectiveIntent);
     if (semanticAssessment.verdict === "fail") {
       trace.success = false;
-      trace.error = semanticAssessment.reason;
-      data = {
-        error: "intent_mismatch",
-        message: `Execution result did not satisfy intent "${effectiveIntent}": ${semanticAssessment.reason}`,
-        projected: semanticAssessment.projected,
-      };
+      // When the endpoint has session-bound params and the result is empty/mismatched,
+      // the root cause is stale fingerprint params — not a generic intent mismatch.
+      // Surface a browser_replay_only error with actionable next_step guidance.
+      if (
+        endpoint.policy?.requires_live_session &&
+        (semanticAssessment.reason === "empty_text" || semanticAssessment.reason === "no_data" || semanticAssessment.reason === "empty_array")
+      ) {
+        const sessionParams = endpoint.policy.session_bound_params ?? [];
+        trace.error = "browser_replay_only";
+        data = {
+          error: "browser_replay_only",
+          message: `This endpoint requires a live browser session. ${sessionParams.length} session-bound fingerprint parameter(s) (${sessionParams.slice(0, 3).join(", ")}${sessionParams.length > 3 ? ", ..." : ""}) cannot be replayed from a capture — TikTok and similar sites validate these server-side and return empty results when they are stale.`,
+          session_bound_params: sessionParams,
+          next_step: `Use \`unbrowse go "${options?.contextUrl ?? skill.domain}"\` to open a live browser session, then run \`unbrowse eval "return JSON.stringify(<your extraction logic>)"\` to get the data. All traffic will be passively captured and indexed for future API replay.`,
+          commands: [
+            `unbrowse go "${options?.contextUrl ?? `https://${skill.domain}`}"`,
+            `unbrowse eval "return document.title"`,
+            "unbrowse close",
+          ],
+        };
+      } else {
+        trace.error = semanticAssessment.reason;
+        data = {
+          error: "intent_mismatch",
+          message: `Execution result did not satisfy intent "${effectiveIntent}": ${semanticAssessment.reason}`,
+          projected: semanticAssessment.projected,
+        };
+      }
       trace.result = data;
     }
   }
@@ -3009,7 +3075,10 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const NOISE_HOSTS = /(id5-sync\.com|btloader\.com|presage\.io|onetrust\.com|adsrvr\.org|googlesyndication\.com|adtrafficquality\.google|amazon-adsystem\.com|crazyegg\.com|challenges\.cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|protechts\.net|demdex\.net|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|cloudflareinsights\.com|fonts\.googleapis\.com|recaptcha|waa-pa\.|signaler-pa\.|ogads-pa\.|reddit\.com\/pixels?|pixel-config\.|dns-finder\.com|cookieconsentpub|firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|apis\.google\.com|connect\.facebook\.net|bat\.bing\.com|static\.cloudflareinsights\.com|cdn\.mxpnl\.com|js\.hs-analytics\.net|snap\.licdn\.com|clc\.stackoverflow\.com|px\.ads|t\.co\/i|analytics\.|telemetry\.|stats\.)/i;
 
   // Noise URL path patterns — tracking, telemetry, logging
-  const NOISE_PATHS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts|collect|tr\/|gen_204|generate_204|log$|logging|heartbeat|metrics|consent|sodar|tag$|event$|events$|impression|pageview|click|__)/i;
+  const NOISE_PATHS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts|collect|tr\/|gen_204|generate_204|log$|logging|heartbeat|metrics|consent|sodar|tag$|event$|events$|impression|pageview|click|__|adx\/|\/cm\/ttc|\/pfb$|_stm$|videoads\/|prerolls|phantom\/)/i;
+
+  // i18n / locales / static config — translation files and navigation scaffolding, never data
+  const I18N_CONFIG_PATHS = /\/(i18n\/|locales\/|locale\/|translations?\/|l10n\/|lang\/[a-z]{2,5}\/|navigation\.json$|privacy[-_]compliance|privacy[-_]consent|consent[-_])/i;
 
   // Auth/session/config — on-domain but not data
   const AUTH_CONFIG_PATHS = /\/(csrf_meta|logged_in_user|analytics_user_data|onboarding|geolocation|auth|login|logout|register|signup|session|webConfig|config\.json|manifest\.json|robots\.txt|sitemap|favicon|opensearch|service-worker|sw\.js)\b/i;
@@ -3034,6 +3103,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       if (NOISE_HOSTS.test(host)) return false;
     } catch { /* skip */ }
     if (NOISE_PATHS.test(ep.url_template)) return false;
+    if (I18N_CONFIG_PATHS.test(ep.url_template)) return false;
     if (AUTH_CONFIG_PATHS.test(ep.url_template)) return false;
     if (SESSION_PLUMBING.test(ep.url_template)) return false;
     return true;
@@ -3064,12 +3134,20 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       return hasPositive && !hasNegative;
     }
 
+    // "channel/server/guild/workspace" plausibility only applies to chat/team platforms
+    // (Discord, Slack, Teams). YouTube channels and video "channels" must not be filtered
+    // here — their endpoints use /youtubei/, /v1/, etc. without guild/member_count signals.
     if (/\b(channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(intentLower)) {
-      const hasEntitySignal = /(\/guilds\b|\/channels\b|\bguilds?\b|\bchannels?\b|\bservers?\b|\bworkspaces?\b)/i.test(haystack);
-      const hasFieldSignal = /\b(ids?|names?|icon|member_count|topic|description)\b/i.test(haystack);
-      const hasPositive = hasEntitySignal && hasFieldSignal;
-      const hasNegative = /(affinit|preview|quests|survey|referrals?|promotions?|science|detectable|applications\/public|\/games\b|entitlements?|billing|subscriptions?|collectibles?|gifts?|experiments?|connections?|status|incidents?|scheduled-maintenances?)/i.test(haystack);
-      return hasPositive && !hasNegative;
+      const isChatPlatformContext = /(discord|slack|teams|guilds?|workspaces?)/.test(
+        (skillDomain ?? "").toLowerCase() + (contextUrl ?? "").toLowerCase(),
+      );
+      if (isChatPlatformContext) {
+        const hasEntitySignal = /(\/guilds\b|\/channels\b|\bguilds?\b|\bchannels?\b|\bservers?\b|\bworkspaces?\b)/i.test(haystack);
+        const hasFieldSignal = /\b(ids?|names?|icon|member_count|topic|description)\b/i.test(haystack);
+        const hasPositive = hasEntitySignal && hasFieldSignal;
+        const hasNegative = /(affinit|preview|quests|survey|referrals?|promotions?|science|detectable|applications\/public|\/games\b|entitlements?|billing|subscriptions?|collectibles?|gifts?|experiments?|connections?|status|incidents?|scheduled-maintenances?)/i.test(haystack);
+        return hasPositive && !hasNegative;
+      }
     }
 
     return true;
@@ -3215,7 +3293,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         score += Math.min(propCount * 2, 20);
       }
     }
-    score += ep.reliability_score * 5;
+    score += (ep.reliability_score ?? 0) * 5;
     if (ep.verification_status === "verified") score += 15;
     if (ep.method === "WS" && ep.response_schema) score += 3;
 
@@ -3235,6 +3313,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     // API subdomain bonus even without skill domain context
     if (API_SUBDOMAIN.test(hostname)) score += 10;
+    // Strong bonus for API subdomain + has structured response schema = confirmed data endpoint
+    if (API_SUBDOMAIN.test(hostname) && ep.response_schema) score += 40;
 
     // Strongly penalize dedicated status/statuspage endpoints unless the user explicitly
     // asked for status/incidents/maintenance. These often hijack root-domain skills.
@@ -3246,6 +3326,12 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     // === Data-relevance signals ===
     if (DATA_INDICATORS.test(ep.url_template)) score += 5;
+    // REST-style resource URL bonus — /api/v*/search, /search, /products, /items, etc.
+    if (/\/api\/v?\d*\/(search|products?|items?|results?|catalog|listings?|goods|feed)\b/i.test(pathname)) score += 25;
+    // Intent keyword present in URL path — strong signal the endpoint serves the requested resource
+    if (rawTokens.length > 0 && !intent?.match(/\b(search|find|get|list|fetch)\b/i)?.input) {
+      // Already handled by URL-to-intent match above; add bonus for explicit resource nouns
+    }
     if (CURRENCY_TIME_PATTERNS.test(pathname)) score += 15;
     if (intent && COMMS_INTENT.test(intent) && COMMS_PATH.test(pathname)) score += 45;
     if (intent && COMMS_INTENT.test(intent) && DISCORD_META_PATHS.test(pathname)) score -= 220;
@@ -3390,6 +3476,16 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (DISCORD_META_PATHS.test(pathname)) score -= 35;
     if (SESSION_PLUMBING.test(pathname) || SESSION_PLUMBING.test(ep.url_template)) score -= 30;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 40;
+
+    // Penalize surviving infra-like paths that couldn't be hard-filtered
+    // (whitepaper/summaries, server-timestamp, fingerprint, static config pages)
+    if (/\/(whitepaper|_stm|phantom|pfb|fingerprint|timesync|server[-_]?time)\b/i.test(ep.url_template)) score -= 100;
+    // Penalize static document/article pages (no template params, no response_schema, not API-style)
+    // These look like navigation pages that happen to match keywords in their path segment
+    const hasTemplateParams = /\{[^}]+\}/.test(ep.url_template);
+    if (!hasTemplateParams && !ep.response_schema && !ep.dom_extraction && !looksLikeApiEndpoint) score -= 60;
+    // Penalize privacy/consent endpoints that slip through AUTH_CONFIG_PATHS
+    if (/privacy|consent/i.test(pathname) && !ep.response_schema) score -= 50;
 
     // Penalize root/short paths (homepage, config, init)
     if (pathname.length <= 2) score -= 10;

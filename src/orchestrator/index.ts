@@ -20,7 +20,7 @@ import {
   toAgentWorkflowDagView,
 } from "../graph/index.js";
 import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
-import { getRegistrableDomain } from "../domain.js";
+import { getRegistrableDomain, isSameBrandDomain } from "../domain.js";
 import { extractTemplateQueryBindings, mergeContextTemplateParams, normalizeQueryBindingKey } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationGraph } from "./dag-feedback.js";
@@ -3040,6 +3040,15 @@ export async function resolveAndExecute(
                   wallet_configured: walletCheck.configured,
                 },
               );
+              // Show credit balance when paid via credits
+              if (paymentResult.status === "paid" && paymentResult.method === "credits" && paymentResult.balance_remaining_uc !== undefined) {
+                const balUsd = (paymentResult.balance_remaining_uc / 1_000_000).toFixed(4);
+                console.log(`[credits] $${balUsd} remaining. ${paymentResult.message ?? ""}`);
+                if (paymentResult.balance_remaining_uc < 200_000) {
+                  console.log(`[credits] Running low — run \`npx lobstercash setup\` to add a wallet.`);
+                }
+              }
+
               if (paymentResult.status !== "free" && paymentResult.status !== "paid") {
                 // Apply indexing fallback for unpaid users — they can still capture and contribute
                 const { resolveUnpaidAccess } = await import("../payments/index.js");
@@ -3269,13 +3278,29 @@ export async function resolveAndExecute(
   // Domain-level cache: different intent, same domain → reuse skill with new params
   if (!forceCapture && !agentChoseEndpoint && requestedDomain) {
     const domainKey = getDomainReuseKey(context?.url ?? requestedDomain);
-    const domainCached = domainKey ? domainSkillCache.get(domainKey) : null;
+    let domainCached = domainKey ? domainSkillCache.get(domainKey) : null;
+    // Brand-equivalent fallback: airbnb.com → airbnb.com.sg (geo-redirect)
+    if (!domainCached && domainKey) {
+      for (const [k, v] of domainSkillCache) {
+        if (isSameBrandDomain(k, domainKey)) {
+          domainCached = v;
+          break;
+        }
+      }
+    }
     if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
       const skill = readSkillSnapshot(domainCached.localSkillPath) ?? await getSkill(domainCached.skillId, clientScope);
-      if (skill && isCachedSkillRelevantForIntent(skill, queryIntent, context?.url)) {
-        console.log(`[domain-cache] hit for ${domainKey} → skill ${skill.skill_id.slice(0, 15)}`);
+      // Fresh local captures (< 60s) skip strict relevance check — they're the freshest
+      // data we have and shouldn't lose to stale marketplace results. The enrichment
+      // pipeline hasn't run yet so response_schema/descriptions may be missing.
+      const isFreshLocalCapture = skill && (Date.now() - domainCached.ts < 1_800_000); // 30min — trust recent local captures
+      const isStrictRelevant = skill && isCachedSkillRelevantForIntent(skill, queryIntent, context?.url);
+      if (skill && (isFreshLocalCapture || isStrictRelevant)) {
+        console.log(`[domain-cache] hit for ${domainKey} → skill ${skill.skill_id.slice(0, 15)} (fresh=${isFreshLocalCapture})`);
         const result = await buildDeferralWithAutoExec(skill, "marketplace");
-        if (shouldFallbackToLiveCaptureAfterAutoexecFailure(result.autoexecFailedAll, context?.url)) {
+        // Fresh local captures: don't fall back to live capture on auto-exec failure.
+        // The skill is local and recent — just return the endpoints for the agent to pick.
+        if (!isFreshLocalCapture && shouldFallbackToLiveCaptureAfterAutoexecFailure(result.autoexecFailedAll, context?.url)) {
           console.log(`[domain-cache] stale skill for ${domainKey}; retrying via live capture`);
           invalidateResolveCacheEntries([cacheKey], [domainKey]);
         } else {
@@ -3287,9 +3312,25 @@ export async function resolveAndExecute(
         const ranked = rankEndpoints(skill.endpoints, queryIntent, skill.domain, context?.url);
         const top = ranked[0];
         console.log(
-          `[domain-cache] skip ${domainKey}: no relevant endpoint for "${queryIntent}"` +
+          `[domain-cache] skip strict check for ${domainKey}, attempting fallback: no strictly relevant endpoint for "${queryIntent}"` +
             (top ? ` (${top.endpoint.endpoint_id} score=${top.score.toFixed(1)})` : ""),
         );
+        // Fallback: domain-skill-cache was explicitly populated for this domain.
+        // Even if the strict relevance check fails (e.g. ccTLD endpoint mismatch or
+        // unmatched search binding params), attempt to use the skill before falling
+        // through to live capture. buildDeferralWithAutoExec will filter endpoints
+        // by isResolveUsableEndpointForIntent so only viable endpoints are returned.
+        if (skill.endpoints.some((ep) => isResolveUsableEndpointForIntent(ep, queryIntent, context?.url))) {
+          const fallbackResult = await buildDeferralWithAutoExec(skill, "marketplace");
+          if (shouldFallbackToLiveCaptureAfterAutoexecFailure(fallbackResult.autoexecFailedAll, context?.url)) {
+            console.log(`[domain-cache] fallback stale for ${domainKey}; retrying via live capture`);
+            invalidateResolveCacheEntries([cacheKey], [domainKey]);
+          } else {
+            timing.cache_hit = true;
+            fallbackResult.orchestratorResult.timing.cache_hit = true;
+            return fallbackResult.orchestratorResult;
+          }
+        }
       }
     }
 
@@ -4108,6 +4149,82 @@ export async function resolveAndExecute(
   }
 
   if (!learned_skill) {
+    // Eval-based DOM extraction fallback: if capture loaded the page (trace.success)
+    // but found no useful endpoints, try extracting content directly from the DOM.
+    if (trace.success && context?.url) {
+      try {
+        console.log("[dom-fallback] capture found no endpoints — attempting eval-based DOM extraction");
+        await kuri.start().catch(() => {});
+        const evalTabId = await kuri.newTab(context.url).catch(() => "");
+        if (evalTabId) {
+          try {
+            // Inject cookies for auth
+            const evalDomain = new URL(context.url).hostname.replace(/^www\./, "");
+            try {
+              const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+              const { cookies: evalCookies } = extractBrowserCookies(evalDomain);
+              for (const cookie of evalCookies) await kuri.setCookie(evalTabId, cookie).catch(() => {});
+            } catch { /* non-fatal */ }
+
+            // Wait for page to load
+            await kuri.waitForLoad(evalTabId, 10_000).catch(() => {});
+
+            // Extract page content via eval
+            const rawContent = await kuri.evaluate(evalTabId, "document.body.innerText.substring(0, 10000)");
+            const extractedText = typeof rawContent === "string" ? rawContent : String(rawContent ?? "");
+
+            if (extractedText.length > 200) {
+              const rawTitle = await kuri.evaluate(evalTabId, "document.title").catch(() => "");
+              const pageTitle = typeof rawTitle === "string" ? rawTitle : String(rawTitle ?? "");
+              const rawUrl = await kuri.getCurrentUrl(evalTabId).catch(() => context.url!);
+              // Validate URL starts with http (guard against [object Object])
+              const pageUrl = typeof rawUrl === "string" && rawUrl.startsWith("http") ? rawUrl : context.url!;
+
+              console.log(`[dom-fallback] extracted ${extractedText.length} chars from DOM (title: "${pageTitle.slice(0, 60)}")`);
+
+              const evalTrace: ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: "dom-extraction",
+                endpoint_id: "eval-fallback",
+                started_at: trace.started_at,
+                completed_at: new Date().toISOString(),
+                success: true,
+              };
+              const evalResult = {
+                status: "dom_extraction",
+                message: "No API endpoints found, but page content was extracted from DOM.",
+                content: extractedText,
+                title: pageTitle,
+                url: pageUrl,
+              };
+
+              recordRoutingStep("dom-fallback", captureSkill, evalTrace, evalResult, {
+                candidateCount: 0,
+                userOverride: false,
+                requiredRecovery: false,
+              });
+
+              await kuri.closeTab(evalTabId).catch(() => {});
+
+              return {
+                result: evalResult,
+                trace: evalTrace,
+                source: "dom-fallback",
+                skill: captureSkill!,
+                timing: finalize("dom-fallback", evalResult, undefined, undefined, evalTrace),
+              };
+            }
+            console.log(`[dom-fallback] extracted content too short (${extractedText.length} chars) — skipping`);
+            await kuri.closeTab(evalTabId).catch(() => {});
+          } catch {
+            await kuri.closeTab(evalTabId).catch(() => {});
+          }
+        }
+      } catch (evalError) {
+        console.warn("[dom-fallback] eval extraction failed:", evalError instanceof Error ? evalError.message : String(evalError));
+      }
+    }
+
     recordRoutingStep("live-capture", captureSkill, trace, result, {
       candidateCount: trace.endpoint_id ? 1 : 0,
       selectedEndpointId: trace.endpoint_id,
@@ -4250,10 +4367,23 @@ export function hasUsableEndpoints(skill: SkillManifest): boolean {
       if (isCanonicalReplay) return true;
 
       const u = new URL(ep.url_template);
-      const onDomain = u.hostname === skill.domain || u.hostname.endsWith(`.${skill.domain}`);
+      const onDomain = u.hostname === skill.domain || u.hostname.endsWith(`.${skill.domain}`) ||
+        getRegistrableDomain(u.hostname) === getRegistrableDomain(skill.domain) ||
+        isSameBrandDomain(u.hostname, skill.domain);
       if (!onDomain) return false;
-      // Must have a response schema (JSON) or be an API-style path
-      return !!ep.response_schema || /\/api\//i.test(u.pathname) || !!ep.dom_extraction;
+      // Must have a response schema (JSON), DOM extraction, or be an API-style path.
+      // API-style detection covers:
+      //   /api/        — explicit api segment (beatsaver, many REST APIs)
+      //   /youtubei/   — YouTube internal RPC API
+      //   /graphql     — GraphQL endpoints
+      //   /v1/ /v2/ … — versioned REST APIs (e.g. /v1/users, /v2/search)
+      //   /i/api/      — X.com internal API prefix
+      const isApiPath =
+        /\/api\b/i.test(u.pathname) ||
+        /\/youtubei\b/i.test(u.pathname) ||
+        /\/graphql\b/i.test(u.pathname) ||
+        /\/v\d+\b/i.test(u.pathname);
+      return !!ep.response_schema || isApiPath || !!ep.dom_extraction;
     } catch {
       return false;
     }

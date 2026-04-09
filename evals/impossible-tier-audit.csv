@@ -1,0 +1,15 @@
+site,intent,industry_avg_success,anti_bot,total_endpoints,intent_match_endpoints,match_rate,key_endpoint_found,key_endpoint,version,notes
+shein,get product prices,21.88%,Custom WAF + header validation,15,2,13%,YES,bff-api/product/search/v3/get_keywords,staging,Product search API found. Missing: product listing endpoint.
+realtor,get property listings with prices,0-7%,Kasada + Cloudflare,8,7,88%,YES,seo-zoho/api/v1/price-under + rentals,staging,Excellent match. 7/8 endpoints directly serve listings/pricing.
+target,get product prices for electronics,near 0%,Kasada proof-of-work,5,3,60%,YES,cdui_orchestrations/v1/pages/slp + redsky recommendations,staging,Search listing page + product recommendations with prices.
+g2,get software reviews and ratings,36.63%,Akamai 9/10 + Cloudflare,3,1,33%,YES,g2.com/{id}/agentforce-sales (product page with reviews),staging,Low endpoint count but product page IS captured with review data.
+tiktok,get profile videos,Very Hard 5/5,Custom WAF + mobile fingerprinting,25,5,20%,YES,api/post/item_list (exact match for profile videos),staging,Key endpoint found. 20 infra endpoints are noise.
+nike,search shoes,Hard 4/5,Akamai Bot Manager,13,3,23%,YES,api.nike.com/privacy_compliance + content.services.nike.com,staging,Product content APIs found. Missing: product catalog search.
+coinmarketcap,get token info,Hard,Next.js SPA,13,4,31%,YES,api.coinmarketcap.com/data-api/v3.3/cryptocurrency/detail/chart,staging,Chart + news + captcha type APIs. Price data in chart endpoint.
+depop,search items,Hard 4/5,SPA + bot detection,10,3,30%,YES,depop.com API endpoints with search capability,staging,Multiple search-relevant endpoints captured.
+shein,get product prices,21.88%,Custom WAF,17,2,12%,YES,bff-api/product/search/v3/get_keywords,v3.2.0,Only version that captured Shein besides staging.
+shein,get product prices,21.88%,Custom WAF,0,0,0%,NO,,v3.4.1,REGRESSION: addInitScript crash. Zero endpoints captured.
+realtor,get property listings,0-7%,Kasada,0,0,0%,NO,,v3.2.0,Failed to capture any endpoints.
+target,get product prices,near 0%,Kasada,0,0,0%,NO,,v3.2.0,Failed to capture any endpoints.
+g2,get software reviews,36.63%,Akamai,0,0,0%,NO,,v3.2.0,Failed to capture any endpoints.
+tiktok,get profile videos,Very Hard,Custom WAF,0,0,0%,NO,,v3.2.0,Failed to capture any endpoints.

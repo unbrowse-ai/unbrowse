@@ -1269,6 +1269,22 @@ export async function registerRoutes(app: FastifyInstance) {
       intent: `browse ${session.domain || profileName(session.url)}`,
     });
 
+    // Persist domain-skill-cache SYNCHRONOUSLY so resolve can find this skill
+    // immediately after close, without waiting for background index pipeline.
+    if (syncResult.skill && syncResult.domain) {
+      const domainKey = getDomainReuseKey(session.url || syncResult.domain);
+      if (domainKey) {
+        const cacheKey = scopedCacheKey("local", `${domainKey}:${syncResult.skill.skill_id}`);
+        writeSkillSnapshot(cacheKey, syncResult.skill);
+        domainSkillCache.set(domainKey, {
+          skillId: syncResult.skill.skill_id,
+          localSkillPath: snapshotPathForCacheKey(cacheKey),
+          ts: Date.now(),
+        });
+        persistDomainCache();
+      }
+    }
+
     let indexQueued = false;
     let publishQueued = false;
     const publishDecision = options.queuePublish
@@ -1369,12 +1385,19 @@ export async function registerRoutes(app: FastifyInstance) {
           })();
 
           if (browserHasFreshSession) {
-            // Import browser cookies via CDP (they're fresh from Chrome's jar)
             cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
           } else {
-            // No fresh browser cookies — load from vault/auth profile
             cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
             await loadAuthProfileBestEffort(session.tabId, newDomain, "browse_go");
+          }
+          // Also inject Google OAuth cookies so "Login with Google" auto-completes.
+          // Many sites use Google OAuth and the user may be logged into Google in another browser.
+          if (cookiesInjected === 0) {
+            const googleInjected = await importBrowserCookiesIntoTab(session.tabId, "google.com");
+            const accountsInjected = await importBrowserCookiesIntoTab(session.tabId, "accounts.google.com");
+            if (googleInjected > 0 || accountsInjected > 0) {
+              console.log(`[auth] injected ${googleInjected + accountsInjected} Google OAuth cookies for potential SSO`);
+            }
           }
         }
 
@@ -1459,6 +1482,29 @@ export async function registerRoutes(app: FastifyInstance) {
         result = await navigateSession(session);
       }
 
+      // Detect auth walls — if the page is asking for login, flag it so the
+      // agent (or auto-login) can handle it without a separate manual command.
+      let authRequired = false;
+      let authHint: string | undefined;
+      try {
+        const broker = brokerForSession(session);
+        const authProbe = await broker.evaluate(
+          session.tabId,
+          `JSON.stringify({
+            hasLoginBtn: !!(document.querySelector('[data-testid*="login"], [class*="login"], a[href*="login"], button[class*="sign"]')),
+            loginText: (document.body.innerText.match(/log\\s*in|sign\\s*in|sign\\s*up/i) || [])[0] || null,
+            url: location.href
+          })`,
+        ).catch(() => null);
+        if (authProbe && typeof authProbe === "string") {
+          const info = JSON.parse(authProbe);
+          if (info.hasLoginBtn || info.loginText) {
+            authRequired = true;
+            authHint = `Page requires authentication. Use \`unbrowse snap --filter interactive\` to find the login button, then \`unbrowse click <ref>\` to start the login flow. Session cookies from ${session.domain} will be saved automatically on close.`;
+          }
+        }
+      } catch { /* non-fatal */ }
+
       return reply.send({
         ok: true,
         session_id: session.sessionId,
@@ -1466,6 +1512,7 @@ export async function registerRoutes(app: FastifyInstance) {
         tab_id: session.tabId,
         auth_profile: session.domain,
         ...(result.cookiesInjected > 0 ? { cookies_injected: result.cookiesInjected } : {}),
+        ...(authRequired ? { auth_required: true, auth_hint: authHint } : {}),
       });
     } catch (error) {
       return sendBrowseSessionError(reply, error);

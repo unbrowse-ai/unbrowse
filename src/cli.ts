@@ -16,6 +16,7 @@ import {
   getAgentId,
   getApiKey,
   getCreatorEarnings,
+  getFlywheelPulse,
   getMyProfile,
   getTransactionHistory,
   recordFunnelTelemetryEvent,
@@ -1046,6 +1047,10 @@ export const CLI_REFERENCE = {
     { name: "sync", usage: "[--session id]", desc: "Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review" },
     { name: "close", usage: "[--session id]", desc: "Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review" },
     { name: "stats", usage: "[--json] [--pretty]", desc: "Show lifetime time/tokens/cost saved and marketplace earnings/spending" },
+    { name: "flywheel", usage: "[--json] [--pretty]", desc: "Flywheel pulse: funnel, credits, index health, economics, conversions" },
+    { name: "earnings", usage: "[--json]", desc: "Show your credit balance, earnings from indexing, and spending" },
+    { name: "corpus-test", usage: "--url <url> [--id <id>] [--retries N]", desc: "Capture a single URL with retry logic; keeps best result across N attempts" },
+    { name: "corpus-run", usage: "--corpus <file> --out <file> [--retries N]", desc: "Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot" },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -1218,6 +1223,123 @@ async function cmdStats(flags: Record<string, string | boolean>): Promise<void> 
   lines.push("");
   info(lines.join("\n"));
   output(payload, pretty);
+}
+
+// ---------------------------------------------------------------------------
+// flywheel — full flywheel state in one call (funnel + credits + index + econ)
+// ---------------------------------------------------------------------------
+
+async function cmdFlywheel(flags: Record<string, string | boolean>): Promise<void> {
+  const pretty = !!flags.pretty;
+  const jsonOnly = !!flags.json;
+
+  let pulse: Awaited<ReturnType<typeof getFlywheelPulse>>;
+  try {
+    pulse = await getFlywheelPulse();
+  } catch (err) {
+    die(`Failed to fetch flywheel pulse: ${(err as Error).message}`);
+  }
+
+  if (jsonOnly) {
+    output(pulse, pretty);
+    return;
+  }
+
+  const f = pulse.funnel;
+  const cr = pulse.conversion;
+  const pct = (v: number): string => `${Math.round(v * 100)}%`;
+  const ucToUsd = (uc: number): string => formatCostUsd(uc);
+  const comma = (n: number): string => n.toLocaleString("en-US");
+
+  const lines: string[] = [];
+  lines.push("=== Unbrowse Flywheel (7d) ===");
+  lines.push(
+    `Installs: ${f.installs_7d} -> Register: ${f.registrations_7d} (${pct(cr.install_to_register)})` +
+    ` -> Resolve: ${f.first_resolve_7d} (${pct(cr.register_to_first_resolve)})` +
+    ` -> Repeat: ${f.repeat_users_7d} (${pct(cr.first_resolve_to_repeat)})`,
+  );
+
+  const c = pulse.credits;
+  lines.push(
+    `Credits pool: ${ucToUsd(c.pool_remaining_uc)} remaining` +
+    ` | ${c.agents_subsidized} agents subsidized` +
+    ` | ${c.agents_self_sustaining} self-sustaining`,
+  );
+
+  const idx = pulse.index;
+  lines.push(
+    `Index: ${comma(idx.total_endpoints)} endpoints (+${idx.new_endpoints_7d} this week)` +
+    ` | ${pct(idx.marketplace_hit_rate)} hit rate`,
+  );
+
+  const e = pulse.economics;
+  lines.push(
+    `Revenue: ${ucToUsd(e.total_revenue_uc)}` +
+    ` | ${ucToUsd(e.revenue_per_install_uc)}/install` +
+    ` | LTV ${ucToUsd(e.ltv_per_agent_uc)}/agent`,
+  );
+
+  lines.push("");
+  lines.push("=== 30d totals ===");
+  lines.push(
+    `Installs: ${f.installs_30d} | Registrations: ${f.registrations_30d}` +
+    ` | Resolves: ${f.first_resolve_30d} | Repeat: ${f.repeat_users_30d}`,
+  );
+  lines.push(
+    `Agent earnings: ${ucToUsd(e.total_earned_by_agents_uc)}` +
+    ` | Domains: ${idx.total_domains}`,
+  );
+  if (c.avg_time_to_self_sustaining_hours > 0) {
+    lines.push(`Avg time to self-sustaining: ${c.avg_time_to_self_sustaining_hours}h`);
+  }
+
+  lines.push("");
+  info(lines.join("\n"));
+  output(pulse, pretty);
+}
+
+async function cmdEarnings(flags: Record<string, string | boolean>): Promise<void> {
+  const jsonOnly = !!flags.json;
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    die("No API key found. Run `unbrowse setup` first.");
+  }
+
+  try {
+    const resp = await fetch(`${BASE_URL.replace("localhost:1998", "beta-api.unbrowse.ai")}/v1/credits/balance`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!resp.ok) {
+      die(`Failed to fetch earnings: ${resp.status}`);
+    }
+    const data = await resp.json() as {
+      granted_uc: number; earned_uc: number; consumed_uc: number;
+      balance_uc: number; is_self_sustaining: boolean;
+    };
+
+    if (jsonOnly) {
+      output(data, false);
+      return;
+    }
+
+    const usd = (uc: number): string => `$${(uc / 1_000_000).toFixed(4)}`;
+    const lines: string[] = [];
+    lines.push("=== Unbrowse Earnings ===");
+    lines.push(`Balance:    ${usd(data.balance_uc)}`);
+    lines.push(`  Granted:  ${usd(data.granted_uc)} (welcome credits)`);
+    lines.push(`  Earned:   ${usd(data.earned_uc)} (from other agents using your routes)`);
+    lines.push(`  Spent:    ${usd(data.consumed_uc)}`);
+    lines.push(`  Status:   ${data.is_self_sustaining ? "Self-sustaining" : "Subsidized"}`);
+    if (!data.is_self_sustaining && data.earned_uc > 0) {
+      const pct = Math.round((data.earned_uc / Math.max(data.consumed_uc, 1)) * 100);
+      lines.push(`  Progress: ${pct}% to self-sustaining`);
+    }
+    lines.push("");
+    lines.push("Keep resolving to index more routes and earn from other agents!");
+    info(lines.join("\n"));
+  } catch (err) {
+    die(`Failed to fetch earnings: ${(err as Error).message}`);
+  }
 }
 
 function printHelp(): void {
@@ -1655,6 +1777,340 @@ async function cmdClose(flags: Record<string, string | boolean>): Promise<void> 
   output(await api("POST", "/v1/browse/close", typeof flags.session === "string" ? { session_id: flags.session } : undefined), false);
 }
 
+// ---------------------------------------------------------------------------
+// login-auto — autonomous email-based login/registration
+// ---------------------------------------------------------------------------
+
+async function cmdLoginAuto(flags: Record<string, unknown>) {
+  const url = flags.url as string;
+  if (!url) return die("--url is required");
+
+  const domain = (() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } })();
+  info(`[login-auto] creating agent email for ${domain}...`);
+
+  const { autonomousEmailLogin } = await import("./auth/agent-mail.js");
+  const session = await autonomousEmailLogin(domain);
+
+  info(`[login-auto] agent email: ${session.email}`);
+  info(`[login-auto] use this email to register/login on ${domain}`);
+  info(`[login-auto] then run: unbrowse login-auto --url ${url} --wait-otp`);
+  info(`[login-auto]    or:    unbrowse login-auto --url ${url} --wait-link`);
+
+  if (flags["wait-otp"]) {
+    info(`[login-auto] waiting for OTP email from ${domain}...`);
+    const otp = await session.waitForOtp();
+    if (otp) {
+      info(`[login-auto] OTP received: ${otp}`);
+      output({ email: session.email, otp, domain });
+    } else {
+      info(`[login-auto] no OTP received within 90 seconds`);
+      output({ email: session.email, otp: null, domain, error: "timeout" });
+    }
+    return;
+  }
+
+  if (flags["wait-link"]) {
+    info(`[login-auto] waiting for verification link from ${domain}...`);
+    const link = await session.waitForLink();
+    if (link) {
+      info(`[login-auto] verification link: ${link}`);
+      output({ email: session.email, link, domain });
+    } else {
+      info(`[login-auto] no verification email within 90 seconds`);
+      output({ email: session.email, link: null, domain, error: "timeout" });
+    }
+    return;
+  }
+
+  // Default: just return the email for the agent to use
+  output({ email: session.email, inbox_id: session.inboxId, domain });
+}
+
+// ---------------------------------------------------------------------------
+// sessions-scan — discover logged-in sessions across all browsers
+// ---------------------------------------------------------------------------
+
+async function cmdSessionsScan(flags: Record<string, unknown>) {
+  const domain = flags.domain as string | undefined;
+  const { scanAllBrowserSessions, findBestBrowserSession } = await import("./auth/browser-cookies.js");
+  const { execFileSync, existsSync } = await import("./cli-imports.js").catch(() => ({ execFileSync: require("child_process").execFileSync, existsSync: require("fs").existsSync }));
+
+  if (domain) {
+    // Scan for a specific domain
+    const sessions = scanAllBrowserSessions(domain);
+    if (sessions.length === 0) {
+      info(`No browser has a session for ${domain}`);
+      output({ domain, sessions: [], best: null });
+      return;
+    }
+    const best = sessions[0];
+    info(`Best session for ${domain}: ${best.browser} (${best.sessionCookies} session cookies)`);
+    output({
+      domain,
+      sessions: sessions.map(s => ({
+        browser: s.browser,
+        cookies: s.cookies.length,
+        session_cookies: s.sessionCookies,
+      })),
+      best: { browser: best.browser, session_cookies: best.sessionCookies },
+    });
+    return;
+  }
+
+  // Scan ALL domains across all browsers — discover what you're logged into
+  const home = require("os").homedir();
+  const { join } = require("path");
+  const browsers = [
+    { name: "Chrome", path: join(home, "Library/Application Support/Google/Chrome/Default/Cookies") },
+    { name: "Dia", path: join(home, "Library/Application Support/Dia/User Data/Default/Cookies") },
+    { name: "Arc", path: join(home, "Library/Application Support/Arc/User Data/Default/Cookies") },
+    { name: "Brave", path: join(home, "Library/Application Support/BraveSoftware/Brave-Browser/Default/Cookies") },
+    { name: "Edge", path: join(home, "Library/Application Support/Microsoft Edge/Default/Cookies") },
+  ];
+
+  const allSessions: Array<{ browser: string; domain: string; session_cookies: number }> = [];
+
+  for (const b of browsers) {
+    if (!require("fs").existsSync(b.path)) continue;
+    try {
+      const tmp = `/tmp/unbrowse-scan-${b.name}.db`;
+      require("child_process").execFileSync("cp", [b.path, tmp]);
+      const result = require("child_process").execFileSync("sqlite3", [tmp,
+        `SELECT host_key, COUNT(*) as c FROM cookies WHERE is_httponly=1 OR is_secure=1 GROUP BY host_key HAVING c >= 2 ORDER BY c DESC LIMIT 50;`,
+      ], { encoding: "utf8" });
+      for (const line of result.trim().split("\n")) {
+        if (!line) continue;
+        const [d, count] = line.split("|");
+        // Skip trackers
+        if (/google|facebook|doubleclick|rubiconproject|demdex|hcaptcha|protechts/.test(d)) continue;
+        allSessions.push({ browser: b.name, domain: d, session_cookies: parseInt(count) || 0 });
+      }
+      require("child_process").execFileSync("rm", [tmp]);
+    } catch { /* skip */ }
+  }
+
+  // Dedupe by domain, keep browser with most cookies
+  const byDomain = new Map<string, typeof allSessions[0]>();
+  for (const s of allSessions) {
+    const existing = byDomain.get(s.domain);
+    if (!existing || s.session_cookies > existing.session_cookies) {
+      byDomain.set(s.domain, s);
+    }
+  }
+  const sorted = [...byDomain.values()].sort((a, b) => b.session_cookies - a.session_cookies);
+
+  info(`Found ${sorted.length} logged-in domains across ${browsers.filter(b => require("fs").existsSync(b.path)).length} browsers`);
+  output({ sessions: sorted.slice(0, 30) });
+}
+
+// ---------------------------------------------------------------------------
+// corpus-test — capture a single URL with retry logic for deterministic benchmarking
+// ---------------------------------------------------------------------------
+
+interface CorpusCaptureResult {
+  capture: "ok" | "error";
+  endpoints: number;
+  requests: number;
+  error?: string;
+  raw?: unknown;
+}
+
+async function captureOnce(url: string): Promise<CorpusCaptureResult> {
+  try {
+    const goResult = await api("POST", "/v1/browse/go", { url }) as Record<string, unknown>;
+    if (goResult.error) {
+      return { capture: "error", endpoints: 0, requests: 0, error: String(goResult.error) };
+    }
+    // Wait a moment for page to load and capture traffic
+    await new Promise(r => setTimeout(r, 6000));
+    const closeResult = await api("POST", "/v1/browse/close", {}) as Record<string, unknown>;
+    if (closeResult.error) {
+      return { capture: "error", endpoints: 0, requests: 0, error: String(closeResult.error) };
+    }
+    return {
+      capture: "ok",
+      endpoints: (closeResult.endpoint_count as number) ?? 0,
+      requests: (closeResult.request_count as number) ?? 0,
+      raw: closeResult,
+    };
+  } catch (err) {
+    return { capture: "error", endpoints: 0, requests: 0, error: (err as Error).message };
+  }
+}
+
+async function cmdCorpusTest(flags: Record<string, string | boolean>): Promise<void> {
+  const url = flags.url as string;
+  if (!url) die("--url is required for corpus-test");
+  const id = (flags.id as string) || new URL(url).hostname;
+  const retries = flags.retries ? parseInt(flags.retries as string, 10) : 3;
+
+  let best: CorpusCaptureResult = { capture: "error", endpoints: 0, requests: 0 };
+  let attempts = 0;
+
+  for (let attempt = 0; attempt < retries; attempt++) {
+    attempts++;
+    info(`corpus-test [${id}] attempt ${attempt + 1}/${retries}`);
+    const result = await captureOnce(url);
+    if (result.endpoints > best.endpoints) best = result;
+    if (best.endpoints > 0) break;
+    // Kill kuri/chrome between retries for a clean state
+    if (attempt < retries - 1) {
+      try { spawn("pkill", ["-9", "-f", "kuri|chrome-profile"], { stdio: "ignore" }); } catch {}
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  output({
+    id,
+    url,
+    capture: best.capture,
+    endpoints: best.endpoints,
+    requests: best.requests,
+    attempts,
+    best_of: retries,
+    ...(best.error ? { error: best.error } : {}),
+  }, !!flags.pretty);
+}
+
+// ---------------------------------------------------------------------------
+// corpus-run — run corpus-test over a corpus file, write a comparable snapshot
+// ---------------------------------------------------------------------------
+
+interface CorpusCase {
+  id: string;
+  intent?: string;
+  url: string;
+  [key: string]: unknown;
+}
+
+interface CorpusFile {
+  cases: CorpusCase[];
+}
+
+interface CorpusRunResult {
+  id: string;
+  capture: "ok" | "error";
+  endpoints: number;
+  requests: number;
+  resolve_endpoints: number;
+  verdict: "pass" | "fail" | "skip";
+  attempts: number;
+  notes: string;
+}
+
+async function cmdCorpusRun(flags: Record<string, string | boolean>): Promise<void> {
+  const corpusPath = flags.corpus as string;
+  const outPath = flags.out as string;
+  if (!corpusPath) die("--corpus is required for corpus-run");
+  if (!outPath) die("--out is required for corpus-run");
+  const retries = flags.retries ? parseInt(flags.retries as string, 10) : 3;
+
+  // Read corpus file
+  let corpus: CorpusFile;
+  try {
+    const raw = require("node:fs").readFileSync(corpusPath, "utf-8");
+    corpus = JSON.parse(raw) as CorpusFile;
+  } catch (err) {
+    die(`Failed to read corpus file: ${(err as Error).message}`);
+  }
+  if (!Array.isArray(corpus.cases) || corpus.cases.length === 0) {
+    die("Corpus file must have a non-empty 'cases' array");
+  }
+
+  // Capture git SHA for metadata
+  let gitSha = "unknown";
+  try {
+    const { execSync } = require("node:child_process");
+    gitSha = execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
+  } catch {}
+
+  const startTime = Date.now();
+  const results: CorpusRunResult[] = [];
+
+  info(`corpus-run: ${corpus.cases.length} cases, retries=${retries}`);
+
+  for (const c of corpus.cases) {
+    const caseId = c.id || new URL(c.url).hostname;
+    info(`corpus-run [${caseId}] starting`);
+
+    // Kill kuri/chrome before each site for clean state
+    try { spawn("pkill", ["-9", "-f", "kuri|chrome-profile"], { stdio: "ignore" }); } catch {}
+    await new Promise(r => setTimeout(r, 1500));
+
+    let best: CorpusCaptureResult = { capture: "error", endpoints: 0, requests: 0 };
+    let attempts = 0;
+
+    for (let attempt = 0; attempt < retries; attempt++) {
+      attempts++;
+      const result = await captureOnce(c.url);
+      if (result.endpoints > best.endpoints) best = result;
+      if (best.endpoints > 0) break;
+      if (attempt < retries - 1) {
+        try { spawn("pkill", ["-9", "-f", "kuri|chrome-profile"], { stdio: "ignore" }); } catch {}
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+
+    // Try a quick resolve to count resolve_endpoints
+    let resolveEndpoints = 0;
+    if (best.capture === "ok" && best.endpoints > 0) {
+      try {
+        const resolveResult = await api("GET", "/v1/resolve", {
+          intent: c.intent ?? `get data from ${caseId}`,
+          url: c.url,
+          domain: new URL(c.url).hostname,
+        }) as Record<string, unknown>;
+        const endpoints = (resolveResult.endpoints as unknown[]) ?? (resolveResult.results as unknown[]) ?? [];
+        resolveEndpoints = Array.isArray(endpoints) ? endpoints.length : 0;
+      } catch {}
+    }
+
+    const verdict: "pass" | "fail" | "skip" = best.capture === "error" ? "fail"
+      : best.endpoints > 0 ? "pass"
+      : "fail";
+
+    results.push({
+      id: caseId,
+      capture: best.capture,
+      endpoints: best.endpoints,
+      requests: best.requests,
+      resolve_endpoints: resolveEndpoints,
+      verdict,
+      attempts,
+      notes: best.error ?? "",
+    });
+
+    // Save incrementally after each site
+    const snapshot = {
+      git_sha: gitSha,
+      timestamp: new Date().toISOString(),
+      total_runtime_ms: Date.now() - startTime,
+      results,
+    };
+    try {
+      require("node:fs").writeFileSync(outPath, JSON.stringify(snapshot, null, 2));
+    } catch {}
+
+    info(`corpus-run [${caseId}] done: endpoints=${best.endpoints} verdict=${verdict} attempts=${attempts}`);
+  }
+
+  const totalRuntime = Date.now() - startTime;
+  const pass = results.filter(r => r.verdict === "pass").length;
+  const fail = results.filter(r => r.verdict === "fail").length;
+
+  const snapshot = {
+    git_sha: gitSha,
+    timestamp: new Date().toISOString(),
+    total_runtime_ms: totalRuntime,
+    results,
+  };
+
+  require("node:fs").writeFileSync(outPath, JSON.stringify(snapshot, null, 2));
+
+  info(`corpus-run complete: ${pass} pass, ${fail} fail of ${results.length} total`);
+  output(snapshot, !!flags.pretty);
+}
+
 async function cmdConnectChrome(): Promise<void> {
   const { execSync, spawn: spawnProc } = require("child_process");
   
@@ -1730,6 +2186,10 @@ async function main(): Promise<void> {
   if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
   if (command === "connect-chrome") return cmdConnectChrome();
   if (command === "stats") return cmdStats(flags);
+  if (command === "flywheel") return cmdFlywheel(flags);
+  if (command === "earnings") return cmdEarnings(flags);
+  if (command === "sessions-scan") return cmdSessionsScan(flags);
+  if (command === "login-auto") return cmdLoginAuto(flags);
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
@@ -1738,7 +2198,7 @@ async function main(): Promise<void> {
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
-    "connect-chrome", "stats",
+    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "login-auto",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -1802,6 +2262,12 @@ async function main(): Promise<void> {
     case "close": return cmdClose(flags);
     case "connect-chrome": return cmdConnectChrome();
     case "stats": return cmdStats(flags);
+    case "flywheel": return cmdFlywheel(flags);
+    case "earnings": return cmdEarnings(flags);
+    case "corpus-test": return cmdCorpusTest(flags);
+    case "corpus-run": return cmdCorpusRun(flags);
+    case "sessions-scan": return cmdSessionsScan(flags);
+    case "login-auto": return cmdLoginAuto(flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
