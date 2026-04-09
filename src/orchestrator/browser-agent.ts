@@ -173,10 +173,12 @@ export async function agenticBrowserResolve(
     for (const c of cookies) await kuri.setCookie(tabId, c).catch(() => {});
   } catch { /* non-fatal */ }
 
-  // Inject fetch/XHR interceptor
-  await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+  // Register interceptor as init script so it runs before page JS on every navigation
+  // This catches SSR hydration API calls (Reddit GraphQL, etc.) that fire before evaluate()
+  await kuri.addInitScript(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+  await kuri.scriptInject(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
 
-  // Start HAR recording
+  // Start HAR recording BEFORE any navigation
   await kuri.harStart(tabId).catch(() => {});
 
   // Navigate if not already on the page
@@ -184,7 +186,7 @@ export async function agenticBrowserResolve(
   if (!currentUrl || !currentUrl.startsWith("http") || new URL(currentUrl).hostname !== domain) {
     await kuri.navigate(tabId, url);
     await new Promise(r => setTimeout(r, 2000));
-    // Re-inject interceptor after navigation
+    // Safety fallback: also evaluate in case addInitScript didn't fire on this page
     await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
   }
 

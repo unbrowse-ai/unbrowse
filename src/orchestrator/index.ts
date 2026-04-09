@@ -182,20 +182,27 @@ try {
   }
 } catch { /* fresh start */ }
 
-// Persist route cache to disk (debounced)
+// Persist route cache to disk (debounced, with sync flush option)
 let _routeCacheDirty = false;
-function persistRouteCache() {
-  _routeCacheDirty = true;
-}
-const routeCacheFlushTimer = setInterval(() => {
-  if (!_routeCacheDirty) return;
-  _routeCacheDirty = false;
+function _writeRouteCacheToDisk() {
   try {
     const dir = dirname(ROUTE_CACHE_FILE);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const entries = Object.fromEntries(skillRouteCache);
     writeFileSync(ROUTE_CACHE_FILE, JSON.stringify(entries), "utf-8");
   } catch { /* best effort */ }
+  _routeCacheDirty = false;
+}
+function persistRouteCache() {
+  _routeCacheDirty = true;
+}
+/** Flush route cache to disk immediately so other requests/processes see it. */
+function flushRouteCacheSync() {
+  _writeRouteCacheToDisk();
+}
+const routeCacheFlushTimer = setInterval(() => {
+  if (!_routeCacheDirty) return;
+  _writeRouteCacheToDisk();
 }, 5_000);
 
 /** Invalidate stale route cache entries for a domain and flush to disk immediately */
@@ -4249,8 +4256,10 @@ export async function resolveAndExecute(
       contextUrl: context?.url,
     });
     timing.execute_ms += Date.now() - te1;
-    if (execOut.trace.success)
+    if (execOut.trace.success) {
       promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id, context?.url);
+      flushRouteCacheSync();
+    }
     if (execOut.trace.success && isAcceptableIntentResult(execOut.result, queryIntent)) {
       queuePassivePublishIfExecuted(
         learned_skill,
@@ -4321,6 +4330,15 @@ export async function resolveAndExecute(
         }
       : undefined,
   );
+  // Promote to route + domain cache so subsequent resolves hit cache instead of re-capturing
+  promoteLearnedSkill(
+    clientScope,
+    cacheKey,
+    learned_skill!,
+    deferred.orchestratorResult.trace.endpoint_id || undefined,
+    context?.url,
+  );
+  flushRouteCacheSync();
   queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
   upsertDagEdgesFromOperationGraph(learned_skill!);
   return deferred.orchestratorResult;
