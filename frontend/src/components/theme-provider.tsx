@@ -19,8 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const stored = localStorage.getItem("unbrowse-theme") as Theme | null;
-    const preferred = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-    setTheme(stored ?? preferred);
+    setTheme(stored ?? "dark");
     setMounted(true);
   }, []);
 

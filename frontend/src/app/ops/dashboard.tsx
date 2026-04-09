@@ -1,6 +1,6 @@
 "use client";
 
-import type { SkillManifest, StatsSummary, AgentProfile, LandingVariantAnalytics } from "@/lib/api";
+import type { SkillManifest, StatsSummary, AgentProfile } from "@/lib/api";
 import type { AnalyticsData } from "./loader";
 import { useEffect, useState } from "react";
 
@@ -44,20 +44,6 @@ const VERIFICATION_COLORS: Record<string, string> = {
   verified: "#22c55e", unverified: "#6b7280", failed: "#ef4444", pending: "#eab308",
 };
 
-function ratePct(value: number): string {
-  return `${Math.round(value * 100)}%`;
-}
-
-function landingStatusColor(status: LandingVariantAnalytics["status"]): string {
-  const map: Record<LandingVariantAnalytics["status"], string> = {
-    active: "#22c55e",
-    canary: "#eab308",
-    shadow: "#6b7280",
-    disabled: "#ef4444",
-  };
-  return map[status];
-}
-
 /* -- main component -- */
 
 export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
@@ -73,7 +59,6 @@ export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
   const health = analytics.agentHealth;
   const activation = analytics.activation;
   const engagement = analytics.engagement;
-  const landing = analytics.landingFunnel;
 
   // -- derived data --
   const activeSkills = skills.filter(s => s.lifecycle === "active");
@@ -114,10 +99,6 @@ export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
 
   // Stickiness (DAU/WAU)
   const stickiness = engagement ? Math.round(engagement.dau_wau_ratio * 100) : 0;
-  const landingVariants = [...(landing?.variants ?? [])]
-    .sort((a, b) => b.first_resolve_succeeded - a.first_resolve_succeeded || b.landing_visitors - a.landing_visitors);
-  const landingControl = landingVariants.find((variant) => variant.variant_id === landing?.control_variant_id) ?? null;
-  const landingWinner = landingVariants.find((variant) => variant.variant_id === landing?.winner_variant_id) ?? landingVariants[0] ?? null;
 
   // Recent skills
   const recentSkills = [...skills]
@@ -163,123 +144,6 @@ export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
 
       {/* -- grid -- */}
       <div className="ops-grid">
-
-        <div className="ops-panel ops-panel-wide">
-          <div className="ops-panel-header">
-            <span className="ops-panel-title">LANDING FUNNEL</span>
-            <span className="ops-panel-count">{landing?.experiment_id ?? "auth required"}</span>
-          </div>
-          {landing ? (
-            <>
-              <div className="ops-mini-grid">
-                <div className="ops-mini-card">
-                  <span className="ops-mini-label">CONTROL</span>
-                  <span className="ops-mini-value">{landingControl?.label ?? "n/a"}</span>
-                  <span className="ops-mini-sub">{landingControl ? ratePct(landingControl.rates.first_resolve_succeeded_from_landing) : "0%"}</span>
-                </div>
-                <div className="ops-mini-card">
-                  <span className="ops-mini-label">WINNER</span>
-                  <span className="ops-mini-value">{landingWinner?.label ?? "n/a"}</span>
-                  <span className="ops-mini-sub">{landingWinner?.angle_family ?? "no data"}</span>
-                </div>
-                <div className="ops-mini-card">
-                  <span className="ops-mini-label">LIVE VARIANTS</span>
-                  <span className="ops-mini-value">{landing.live_weights.length}</span>
-                  <span className="ops-mini-sub">{landing.window_days}d window</span>
-                </div>
-                <div className="ops-mini-card">
-                  <span className="ops-mini-label">PRIMARY METRIC</span>
-                  <span className="ops-mini-value">
-                    {landingWinner ? ratePct(landingWinner.rates.first_resolve_succeeded_from_landing) : "0%"}
-                  </span>
-                  <span className="ops-mini-sub">first_resolve / landing</span>
-                </div>
-              </div>
-
-              <div className="ops-table">
-                <div className="ops-table-row ops-table-header-row">
-                  <span>Variant</span>
-                  <span>Status</span>
-                  <span>Weight</span>
-                  <span>Landing</span>
-                  <span>Copy</span>
-                  <span>Setup</span>
-                  <span>Resolve</span>
-                  <span>Primary</span>
-                </div>
-                {landingVariants.map((variant) => (
-                  <div key={variant.variant_id} className="ops-table-row">
-                    <span className="ops-table-primary">
-                      {variant.label}
-                      <span className="ops-table-muted">{variant.angle_family}</span>
-                    </span>
-                    <span style={{ color: landingStatusColor(variant.status) }}>{variant.status}</span>
-                    <span>{variant.weight.toFixed(2)}</span>
-                    <span>{variant.landing_visitors}</span>
-                    <span>{variant.install_command_copies}</span>
-                    <span>{variant.setup_completed}</span>
-                    <span>{variant.first_resolve_succeeded}</span>
-                    <span>{ratePct(variant.rates.first_resolve_succeeded_from_landing)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="ops-empty">Landing funnel requires admin auth in local storage.</div>
-          )}
-        </div>
-
-        <div className="ops-panel">
-          <div className="ops-panel-header">
-            <span className="ops-panel-title">OPTIMIZER LOOP</span>
-            <span className="ops-panel-count">{landing?.optimizer_runs.length ?? 0} runs</span>
-          </div>
-          {landing ? (
-            <>
-              <div className="ops-pill-row">
-                {landing.live_weights.map((entry) => (
-                  <span key={entry.variant_id} className="ops-pill">
-                    {entry.variant_id}: {(entry.weight * 100).toFixed(0)}%
-                  </span>
-                ))}
-              </div>
-              <div className="ops-note-block">
-                <div className="ops-note-line">
-                  <span className="ops-note-label">Canary</span>
-                  <span>{landing.canaries.map((entry) => entry.label).join(", ") || "none"}</span>
-                </div>
-                <div className="ops-note-line">
-                  <span className="ops-note-label">Shadow queue</span>
-                  <span>{landing.shadow_queue.map((entry) => entry.label).join(", ") || "empty"}</span>
-                </div>
-                <div className="ops-note-line">
-                  <span className="ops-note-label">Trend</span>
-                  <span>{landing.optimizer_runs.slice(-3).map((entry) => entry.winner_angle_family ?? "n/a").join(" -> ") || "waiting"}</span>
-                </div>
-              </div>
-              <div className="ops-timeline">
-                {landing.optimizer_runs.slice(-4).reverse().map((run) => (
-                  <div key={run.ran_at} className="ops-timeline-item">
-                    <div className="ops-timeline-dot" />
-                    <div className="ops-timeline-content">
-                      <div className="ops-timeline-top">
-                        <span className="ops-timeline-domain">{run.winner_variant_id ?? "rebalance"}</span>
-                        <span className="ops-timeline-time">{timeAgo(run.ran_at)}</span>
-                      </div>
-                      <span className="ops-timeline-intent">{run.winner_angle_family ?? "no winner yet"}</span>
-                      {run.notes ? <span className="ops-timeline-time">{run.notes}</span> : null}
-                    </div>
-                  </div>
-                ))}
-                {landing.optimizer_runs.length === 0 ? (
-                  <div className="ops-empty">No optimizer runs recorded.</div>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <div className="ops-empty">No authenticated landing optimizer data.</div>
-          )}
-        </div>
 
         {/* Activation funnel */}
         <div className="ops-panel">
@@ -635,23 +499,6 @@ const OPS_STYLES = `
   .ops-growth-label { font-size: 8px; letter-spacing: 3px; color: var(--ops-muted); text-transform: uppercase; }
   .ops-growth-hint { font-size: 9px; color: var(--ops-muted); opacity: 0.5; }
 
-  .ops-mini-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-  }
-  .ops-mini-card {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px;
-    border: 1px solid var(--ops-border);
-    background: #0F0D0B;
-  }
-  .ops-mini-label { font-size: 8px; letter-spacing: 2px; color: var(--ops-muted); text-transform: uppercase; }
-  .ops-mini-value { font-size: 13px; color: var(--ops-text); }
-  .ops-mini-sub { font-size: 10px; color: var(--ops-muted); }
-
   /* Grid */
   .ops-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
@@ -670,74 +517,6 @@ const OPS_STYLES = `
   }
   .ops-panel-title { font-size: 10px; letter-spacing: 3px; color: var(--ops-accent); text-transform: uppercase; }
   .ops-panel-count { font-size: 10px; color: var(--ops-muted); }
-
-  .ops-table {
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--ops-border);
-    background: #0F0D0B;
-  }
-  .ops-table-row {
-    display: grid;
-    grid-template-columns: minmax(160px, 1.6fr) 0.8fr 0.6fr 0.6fr 0.6fr 0.6fr 0.6fr 0.7fr;
-    gap: 10px;
-    padding: 10px 12px;
-    align-items: center;
-    border-bottom: 1px solid rgba(30,26,22,0.6);
-    font-size: 10px;
-    color: var(--ops-muted);
-  }
-  .ops-table-row:last-child { border-bottom: none; }
-  .ops-table-header-row {
-    font-size: 8px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--ops-accent);
-    background: rgba(255, 109, 0, 0.04);
-  }
-  .ops-table-primary {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    color: var(--ops-text);
-  }
-  .ops-table-muted {
-    font-size: 9px;
-    color: var(--ops-muted);
-  }
-  .ops-pill-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .ops-pill {
-    padding: 4px 8px;
-    border: 1px solid var(--ops-border);
-    background: var(--ops-accent-dim);
-    color: var(--ops-text);
-    font-size: 10px;
-  }
-  .ops-note-block {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-    border: 1px solid var(--ops-border);
-    background: #0F0D0B;
-  }
-  .ops-note-line {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 10px;
-    color: var(--ops-text);
-  }
-  .ops-note-label {
-    color: var(--ops-muted);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    flex-shrink: 0;
-  }
 
   /* Funnel */
   .ops-funnel { display: flex; flex-direction: column; gap: 10px; flex: 1; justify-content: center; }
@@ -832,8 +611,6 @@ const OPS_STYLES = `
     .ops-stats-strip { grid-template-columns: repeat(3, 1fr); }
     .ops-growth-strip { grid-template-columns: repeat(4, 1fr); }
     .ops-timeline { grid-template-columns: 1fr; }
-    .ops-mini-grid { grid-template-columns: repeat(2, 1fr); }
-    .ops-table-row { grid-template-columns: minmax(140px, 1.4fr) repeat(7, minmax(0, 1fr)); }
   }
   @media (max-width: 640px) {
     .ops-grid { grid-template-columns: 1fr; }
@@ -842,11 +619,5 @@ const OPS_STYLES = `
     .ops-growth-strip { grid-template-columns: repeat(2, 1fr); }
     .ops-bar-row { grid-template-columns: 100px 1fr 28px; }
     .ops-stat-value { font-size: 28px; }
-    .ops-mini-grid { grid-template-columns: 1fr; }
-    .ops-table-row {
-      grid-template-columns: minmax(120px, 1.5fr) repeat(3, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .ops-table-row span:nth-child(n+5) { display: none; }
   }
 `;

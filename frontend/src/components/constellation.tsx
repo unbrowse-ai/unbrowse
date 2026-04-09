@@ -44,16 +44,30 @@ export function Constellation() {
     const h = () => canvas.offsetHeight;
 
     // Create particles — more, varied sizes
-    for (let i = 0; i < 80; i++) {
+    // Mix of smaller drifting stars and a few larger anchor stars
+    for (let i = 0; i < 72; i++) {
       particles.push({
         x: Math.random() * w(),
         y: Math.random() * h(),
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
-        radius: Math.random() * 2 + 0.5,
-        alpha: Math.random() * 0.6 + 0.15,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        radius: Math.random() * 1.4 + 0.4,
+        alpha: Math.random() * 0.5 + 0.12,
         pulse: Math.random() * Math.PI * 2,
-        pulseSpeed: 0.01 + Math.random() * 0.02,
+        pulseSpeed: 0.008 + Math.random() * 0.015,
+      });
+    }
+    // Anchor stars — larger, brighter, slower (fixed reference points like a star chart)
+    for (let i = 0; i < 8; i++) {
+      particles.push({
+        x: Math.random() * w(),
+        y: Math.random() * h(),
+        vx: (Math.random() - 0.5) * 0.08,
+        vy: (Math.random() - 0.5) * 0.08,
+        radius: 2.2 + Math.random() * 1.2,
+        alpha: 0.75 + Math.random() * 0.2,
+        pulse: Math.random() * Math.PI * 2,
+        pulseSpeed: 0.005 + Math.random() * 0.008,
       });
     }
 
@@ -111,33 +125,46 @@ export function Constellation() {
         p.pulse += p.pulseSpeed;
         const alpha = p.alpha * (0.7 + 0.3 * Math.sin(p.pulse));
 
-        // Draw particle with glow
+        // Draw particle — orange nodes (ancient starlight)
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 109, 0, ${alpha})`;
         ctx.fill();
 
-        // Subtle glow around larger particles
-        if (p.radius > 1.2) {
+        // Glow corona on anchor stars (larger ones)
+        if (p.radius > 2) {
+          const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 5);
+          grad.addColorStop(0, `rgba(255, 140, 40, ${alpha * 0.22})`);
+          grad.addColorStop(1, `rgba(255, 109, 0, 0)`);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius * 5, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.fill();
+        } else if (p.radius > 1.2) {
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.radius * 3, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 109, 0, ${alpha * 0.08})`;
+          ctx.fillStyle = `rgba(255, 109, 0, ${alpha * 0.07})`;
           ctx.fill();
         }
 
-        // Draw connections
+        // Draw connections — azure lines (modern routing / precision)
         for (let j = i + 1; j < particles.length; j++) {
           const p2 = particles[j];
           const dx = p.x - p2.x;
           const dy = p.y - p2.y;
           const dist = Math.hypot(dx, dy);
-          if (dist < 160) {
-            const lineAlpha = 0.12 * (1 - dist / 160);
+          const maxDist = (p.radius > 2 || p2.radius > 2) ? 220 : 150;
+          if (dist < maxDist) {
+            const lineAlpha = 0.14 * (1 - dist / maxDist);
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = `rgba(255, 109, 0, ${lineAlpha})`;
-            ctx.lineWidth = 0.6;
+            // Anchor star connections are more azure (technical), regular stars more warm
+            const isAnchor = p.radius > 2 || p2.radius > 2;
+            ctx.strokeStyle = isAnchor
+              ? `rgba(74, 142, 186, ${lineAlpha * 1.4})`
+              : `rgba(120, 160, 200, ${lineAlpha * 0.8})`;
+            ctx.lineWidth = isAnchor ? 0.7 : 0.5;
             ctx.stroke();
           }
         }
