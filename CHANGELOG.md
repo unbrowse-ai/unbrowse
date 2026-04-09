@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.5.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.0...v3.5.1) (2026-04-09)
+
+### Bug Fixes
+
+* use DEFAULT_BACKEND_URL import for earnings command ([9595537](https://github.com/unbrowse-ai/unbrowse-dev/commit/95955374d2ef3f67b0f51c8b5ad67e61892d22a3))
+
 ## [3.5.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.4.1...v3.5.0) (2026-04-09)
 
 ### Features
