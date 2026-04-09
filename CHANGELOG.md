@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.4.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.4.0...v3.4.1) (2026-04-09)
+
+### Bug Fixes
+
+* remove --curl flag and request-preview endpoint ([#399](https://github.com/unbrowse-ai/unbrowse-dev/issues/399)) ([2ee90fb](https://github.com/unbrowse-ai/unbrowse-dev/commit/2ee90fbaf979a1102fcba116c9546ccd969ac147))
+
 ## [3.4.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.3.4...v3.4.0) (2026-04-09)
 
 ### Features
