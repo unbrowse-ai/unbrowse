@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.5.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.1...v3.5.2) (2026-04-09)
+
+### Bug Fixes
+
+* route cache never persisted after deferral, interceptor late injection, extension GraphQL body ([df448e2](https://github.com/unbrowse-ai/unbrowse-dev/commit/df448e26521a87ee87db64af0977b1f09b96edd0))
+
 ## [3.5.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.0...v3.5.1) (2026-04-09)
 
 ### Bug Fixes
