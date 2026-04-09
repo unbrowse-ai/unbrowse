@@ -1,4 +1,5 @@
 import { DEFAULT_BACKEND_URL } from "../version.js";
+import { getApiKey } from "../client/index.js";
 
 /**
  * Payment integration — lobster.cash compatible.
@@ -27,6 +28,8 @@ export interface PaymentRequirement {
   memo?: string;
 }
 
+export type PaymentMethod = "credits" | "x402" | "free" | "indexing";
+
 export type PaymentStatus =
   | "paid"
   | "payment_required"
@@ -42,6 +45,8 @@ export interface PaymentGateResult {
   requirement?: PaymentRequirement;
   message: string;
   next_step?: string;
+  method?: PaymentMethod;
+  balance_remaining_uc?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +71,178 @@ export const X402_CONFIG = {
   facilitator: "https://facilitator.corbits.dev",
   supports_pda_wallets: true,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Credit balance — subsidized onboarding via backend credit ledger
+// ---------------------------------------------------------------------------
+
+/** Backend API base URL for credit queries. */
+const CREDITS_API_URL = process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
+
+/** Credit balance cache: avoids hitting the backend on every call. */
+let _creditBalanceCache: { balance_uc: number; earned_uc: number; fetched_at: number } | null = null;
+const CREDIT_CACHE_TTL_MS = 60_000; // 60 seconds
+
+/** Maximum time (ms) to wait for credit API before skipping. */
+const CREDITS_TIMEOUT_MS = 2_000;
+
+/**
+ * Fetch agent credit balance from the backend.
+ * Returns { balance_uc, earned_uc } in micro-cents, or null on failure.
+ * Results are cached for 60s to avoid per-call overhead.
+ */
+export async function fetchCreditBalance(): Promise<{ balance_uc: number; earned_uc: number } | null> {
+  // Return cached if fresh
+  if (_creditBalanceCache && Date.now() - _creditBalanceCache.fetched_at < CREDIT_CACHE_TTL_MS) {
+    return { balance_uc: _creditBalanceCache.balance_uc, earned_uc: _creditBalanceCache.earned_uc };
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey || apiKey === "local-only") return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CREDITS_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${CREDITS_API_URL}/v1/credits/balance`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as Record<string, unknown>;
+    const balance_uc = typeof body?.balance_uc === "number" ? body.balance_uc : 0;
+    const earned_uc = typeof body?.earned_uc === "number" ? body.earned_uc : 0;
+    _creditBalanceCache = { balance_uc, earned_uc, fetched_at: Date.now() };
+    return { balance_uc, earned_uc };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Debit credits from the agent's balance.
+ * Returns the remaining balance in micro-cents, or null on failure.
+ */
+export async function debitCredits(amount_uc: number): Promise<{ balance_uc: number; earned_uc: number } | null> {
+  const apiKey = getApiKey();
+  if (!apiKey || apiKey === "local-only") return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CREDITS_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${CREDITS_API_URL}/v1/credits/debit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ amount_uc }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as Record<string, unknown>;
+    const balance_uc = typeof body?.balance_uc === "number" ? body.balance_uc : 0;
+    const earned_uc = typeof body?.earned_uc === "number" ? body.earned_uc : 0;
+    // Update cache with debit result
+    _creditBalanceCache = { balance_uc, earned_uc, fetched_at: Date.now() };
+    return { balance_uc, earned_uc };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Invalidate the credit balance cache (e.g. after external top-up). */
+export function invalidateCreditCache(): void {
+  _creditBalanceCache = null;
+}
+
+/** Format micro-cents as a dollar string: 100000 uc = $1.00 */
+export function formatCreditsUsd(uc: number): string {
+  return `$${(uc / 100_000).toFixed(2)}`;
+}
+
+/**
+ * Try to pay for an execution using credits.
+ * Returns a PaymentGateResult with status "paid" and method "credits" on success,
+ * or null if credits are unavailable or insufficient.
+ */
+export async function tryPayWithCredits(
+  priceUsd: string,
+  skillId: string,
+  endpointId: string,
+): Promise<PaymentGateResult | null> {
+  const balance = await fetchCreditBalance().catch(() => null);
+  if (!balance || balance.balance_uc <= 0) return null;
+
+  // Convert price USD to micro-cents: $0.001 = 1000 uc ($1 = 1,000,000 uc)
+  const priceUc = Math.ceil(parseFloat(priceUsd) * 1_000_000);
+  if (priceUc <= 0) return null;
+
+  if (balance.balance_uc < priceUc) {
+    console.log(`[credits] insufficient: have ${balance.balance_uc} uc, need ${priceUc} uc — falling back to wallet`);
+    return null;
+  }
+
+  // Debit credits AND record the sponsor obligation on the backend.
+  // The backend tracks who is owed what. Lewis batch-settles direct USDC
+  // transfers from his wallet to route creators. No Cascade, no splits —
+  // just direct payments.
+  const result = await debitCredits(priceUc).catch(() => null);
+  if (!result) return null;
+
+  // Record the sponsor payment obligation (fire-and-forget)
+  recordSponsorObligation(priceUsd, priceUc, skillId, endpointId).catch(() => {});
+
+  const remaining = formatCreditsUsd(result.balance_uc);
+  const earned = formatCreditsUsd(result.earned_uc);
+
+  console.log(`[credits] paid ${priceUsd} (sponsor-backed) for ${skillId}/${endpointId} — ${remaining} remaining (${earned} earned)`);
+
+  return {
+    status: "paid",
+    method: "credits",
+    balance_remaining_uc: result.balance_uc,
+    message: `Paid with credits. ${remaining} remaining (${earned} earned from indexing).`,
+  };
+}
+
+/**
+ * Record a sponsor payment obligation on the backend.
+ * The backend accumulates these and Lewis batch-settles direct USDC
+ * transfers to route creators from his personal wallet.
+ */
+async function recordSponsorObligation(
+  priceUsd: string,
+  priceUc: number,
+  skillId: string,
+  endpointId: string,
+): Promise<void> {
+  const apiKey = getApiKey();
+  if (!apiKey) return;
+  const backendUrl = process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
+  await fetch(`${backendUrl}/v1/credits/sponsor-obligation`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      price_usd: priceUsd,
+      price_uc: priceUc,
+      skill_id: skillId,
+      endpoint_id: endpointId,
+      timestamp: new Date().toISOString(),
+    }),
+  }).catch(() => { /* best-effort */ });
+}
 
 // ---------------------------------------------------------------------------
 // Dynamic pricing — fetch real route price from the backend
@@ -155,9 +332,21 @@ export async function checkPaymentRequirement(
   }
 
   if (parseFloat(amount) <= 0) {
-    return { status: "free", message: "No payment required." };
+    return { status: "free", method: "free", message: "No payment required." };
   }
 
+  // --- Credit balance check (subsidized onboarding) ---
+  // Try credits BEFORE requiring x402 wallet payment.
+  // New agents get free credits; they only pay once credits run out.
+  // Gated by UNBROWSE_CREDITS_ENABLED env var.
+  if (process.env.UNBROWSE_CREDITS_ENABLED !== "0") {
+    const creditResult = await tryPayWithCredits(amount, skillId, endpointId).catch(() => null);
+    if (creditResult) {
+      return creditResult;
+    }
+  }
+
+  // --- Fall through to x402 wallet payment ---
   const requirement: PaymentRequirement = {
     required: true,
     amount,

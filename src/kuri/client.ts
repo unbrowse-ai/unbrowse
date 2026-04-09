@@ -155,6 +155,7 @@ export interface KuriClient {
   domHtml(tabId: string, nodeId: number): Promise<unknown>;
   domAttributes(tabId: string, opts: { ref?: string; selector?: string }): Promise<unknown>;
   scriptInject(tabId: string, source: string): Promise<unknown>;
+  addInitScript(tabId: string, script: string): Promise<unknown>;
   setCredentials(tabId: string, username: string, password: string): Promise<unknown>;
   setViewport(tabId: string, width: number, height: number): Promise<unknown>;
   setUserAgent(tabId: string, ua: string): Promise<unknown>;
@@ -656,6 +657,30 @@ async function waitForChildExit(child: ChildProcess | null | undefined, timeoutM
  */
 async function startOn(state: BrokerState, port?: number): Promise<void> {
   const requestedPort = port ?? Number(process.env.KURI_PORT || KURI_DEFAULT_PORT);
+
+  // External Kuri mode: skip launch, connect to an existing Kuri broker + Chrome.
+  // Use when running inside a sandbox (turbobox, Docker) that already has Kuri + Chrome.
+  // Start Chrome + Kuri externally, then set KURI_EXTERNAL_PORT=<port> and optional CDP_URL.
+  const externalPort = process.env.KURI_EXTERNAL_PORT;
+  if (externalPort && !state.ready) {
+    const ep = Number(externalPort);
+    if (await isKuriHealthyOnPort(ep)) {
+      state.port = ep;
+      state.requestedPort = ep;
+      state.ready = true;
+      state.managedChrome = false;
+      // Discover CDP port from the external Kuri
+      const cdpUrl = process.env.CDP_URL;
+      if (cdpUrl) {
+        const m = cdpUrl.match(/:(\d+)/);
+        if (m) state.cdpPort = Number(m[1]);
+      }
+      log("kuri", `using external Kuri broker on port ${ep}${state.cdpPort ? ` (CDP port ${state.cdpPort})` : ""}`);
+      return;
+    }
+    log("kuri", `external Kuri on port ${ep} not healthy — falling through to normal start`);
+  }
+
   if (state.ready) {
     const activePort = state.port || requestedPort;
     if (await isKuriHealthyOnPort(activePort)) return;
@@ -1646,6 +1671,11 @@ export async function scriptInject(tabId: string, source: string, state: BrokerS
   return kuriPost(state, "/script/inject", { tab_id: tabId }, { source });
 }
 
+/** Register a script to run before page JS on every navigation (Page.addScriptToEvaluateOnNewDocument via /add-init-script). */
+export async function addInitScript(tabId: string, script: string, state: BrokerState = defaultBrokerState): Promise<unknown> {
+  return kuriPost(state, "/add-init-script", {}, { tab_id: tabId, script });
+}
+
 // ---------------------------------------------------------------------------
 // Auth / credentials
 // ---------------------------------------------------------------------------
@@ -1822,6 +1852,7 @@ export function getKuriClient(port?: number): KuriClient {
     domHtml: (tabId, nodeId) => domHtml(tabId, nodeId, state),
     domAttributes: (tabId, opts) => domAttributes(tabId, opts, state),
     scriptInject: (tabId, source) => scriptInject(tabId, source, state),
+    addInitScript: (tabId, script) => addInitScript(tabId, script, state),
     setCredentials: (tabId, username, password) => setCredentials(tabId, username, password, state),
     setViewport: (tabId, width, height) => setViewport(tabId, width, height, state),
     setUserAgent: (tabId, ua) => setUserAgent(tabId, ua, state),

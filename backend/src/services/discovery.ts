@@ -8,7 +8,8 @@ const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
 /** Normalize domain: strip www., use stg- prefix for staging. */
 function normalizeDomain(env: Env, domain: string): string {
   const clean = domain.replace(/^www\./, "");
-  return env.ENVIRONMENT === "staging" ? `stg-${clean}` : clean;
+  // v2: fresh graph namespace — old stale embeddings remain in unprefixed collections
+  return env.ENVIRONMENT === "staging" ? `stg2-${clean}` : `v2-${clean}`;
 }
 
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;

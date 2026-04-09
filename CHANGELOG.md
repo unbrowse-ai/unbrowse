@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **credits**: agent onboarding subsidy system — $2 welcome credits per agent from a capped pool, balance-aware payment gate (credits → earned → x402 wallet fallback), auto-grant on registration, earnings from attribution
+* **credits**: `CREDITS_ENABLED` env flag to toggle the entire credit system on/off
+* **credits**: backend routes — `/v1/credits/balance`, `/v1/credits/debit`, `/v1/credits/pool`, `/v1/credits/init-pool`, `/v1/credits/grant`, `/v1/credits/self-sustaining`
+* **cli**: `unbrowse earnings` command — show credit balance, granted/earned/spent, self-sustaining progress
+* **cli**: `unbrowse flywheel` command — full funnel pulse dashboard (funnel, credits, index, economics, conversions)
+* **frontend**: My Credits section on `/dashboard` for authenticated agents — balance, breakdown, progress toward self-sustaining
+* **analytics**: `/v1/analytics/flywheel` endpoint — aggregates funnel + credits + index + economics in one call
+
 ## [3.4.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.4.0...v3.4.1) (2026-04-09)
 
 ### Bug Fixes

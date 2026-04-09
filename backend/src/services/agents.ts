@@ -1,6 +1,7 @@
 import type { Env, AgentProfile } from "../types.js";
 import { statsKV } from "./kv.js";
 import { CURRENT_TOS_VERSION } from "../tos.js";
+import { grantCredits } from "./credits.js";
 
 const MAX_ACTIVITY_DAYS = 90;
 const agentWriteQueue = new Map<string, Promise<void>>();
@@ -153,6 +154,15 @@ export async function registerAgent(
   await statsKV(env).put(`agent:${data.keyId}`, JSON.stringify(profile));
   if (normalizedWallet) {
     await statsKV(env).put(walletLookupKey(normalizedWallet), data.keyId);
+  }
+
+  // Grant welcome credits from subsidy pool (best-effort, don't fail registration)
+  if (env.CREDITS_ENABLED === "1") {
+    try {
+      await grantCredits(env, data.keyId);
+    } catch {
+      // Pool may not be initialized yet — that's fine
+    }
   }
 
   return { agent_id: data.keyId, api_key: data.key };

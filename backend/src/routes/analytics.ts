@@ -9,6 +9,7 @@ import {
 } from "../services/analytics.js";
 import { getAcquisitionSummary } from "../services/acquisition.js";
 import { getChurnCurve, getFunnelSummary, type ChurnSegmentBy } from "../services/funnel.js";
+import { getFlywheelPulse } from "../services/flywheel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
 import { getLandingHomepageAnalyticsSummary } from "../services/landing-experiments.js";
 import { getCampaignFeedbackSummary } from "../services/campaign-feedback.js";
@@ -197,6 +198,12 @@ analyticsRoutes.get("/analytics/dashboard", async (c) => {
     agent_health: agentHealth,
     bottleneck,
   });
+});
+
+analyticsRoutes.get("/analytics/flywheel", async (c) => {
+  const pulse = await getFlywheelPulse(c.env);
+  setAnalyticsHeaders(c);
+  return c.json(pulse);
 });
 
 analyticsRoutes.get("/analytics/acquisition", async (c) => {
