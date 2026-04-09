@@ -496,6 +496,36 @@ export async function removeEndpointsFromIndex(
   await Promise.all(deletes);
 }
 
+/** Purge all endpoint vectors for a skill from both domain and global indexes. */
+export async function purgeSkillVectors(
+  env: Env,
+  skillId: string,
+  endpointIds: string[],
+  domain: string
+): Promise<{ deleted: number }> {
+  const d = normalizeDomain(env, domain);
+  const g = normalizeDomain(env, "global");
+  const deletes: Promise<unknown>[] = [];
+
+  // Delete each endpoint vector by its composite ID
+  for (const epId of endpointIds) {
+    const id = `${skillId}:${epId}`;
+    deletes.push(
+      edbRequest(env, "POST", "/graph/delete", { domain: d, id }).catch(() => {}),
+      edbRequest(env, "POST", "/graph/delete", { domain: g, id }).catch(() => {}),
+    );
+  }
+
+  // Also delete the bare skill ID in case old-style vectors exist
+  deletes.push(
+    edbRequest(env, "POST", "/graph/delete", { domain: d, id: skillId }).catch(() => {}),
+    edbRequest(env, "POST", "/graph/delete", { domain: g, id: skillId }).catch(() => {}),
+  );
+
+  await Promise.all(deletes);
+  return { deleted: endpointIds.length };
+}
+
 export function hashToInt(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {

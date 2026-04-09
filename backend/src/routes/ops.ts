@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, SkillManifest } from "../types.js";
 import { listSkills, mergeEndpoints, publishSkill, deprecateSkill } from "../services/marketplace.js";
 import { listAgents, countAgents } from "../services/agents.js";
-import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
+import { reindexSkill, removeSkillFromIndex, purgeSkillVectors } from "../services/discovery.js";
 import { backfillFromProfiles } from "../services/analytics.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 import { bearerAuth } from "../middleware/auth.js";
@@ -210,6 +210,65 @@ opsRoutes.post("/ops/consolidate", bearerAuth, async (c) => {
     endpoints: consolidated.endpoints.length,
     deprecated_skill_ids: deprecated,
     intents: Array.from(intents),
+  });
+});
+
+/**
+ * POST /v1/ops/purge-reindex — nuclear option: delete ALL vectors from the graph
+ * index, then re-index only active skills from current DB state.
+ *
+ * Fixes stale vecdb entries pointing to endpoints that no longer exist on skills.
+ * Processes in batches (default 3) to stay within CF Worker limits.
+ * Call repeatedly with increasing offset until has_more is false.
+ *
+ * Admin-only.
+ */
+opsRoutes.post("/ops/purge-reindex", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+
+  const body = await c.req.json<{ limit?: number; offset?: number; purge_only?: boolean }>().catch(() => ({} as { limit?: number; offset?: number; purge_only?: boolean }));
+  const limit = body.limit ?? 3;
+  const offset = body.offset ?? 0;
+
+  const allSkills = await listSkills(c.env);
+  const batch = allSkills.slice(offset, offset + limit);
+
+  const purgeResults: Array<{ skill_id: string; domain: string; endpoints_purged: number }> = [];
+  const indexResults: Array<{ skill_id: string; domain: string; ok: boolean; error?: string }> = [];
+
+  for (const skill of batch) {
+    // Step 1: purge all vectors for this skill (active or not)
+    const endpointIds = skill.endpoints.map((e: { endpoint_id: string }) => e.endpoint_id);
+    const { deleted } = await purgeSkillVectors(c.env, skill.skill_id, endpointIds, skill.domain);
+    purgeResults.push({ skill_id: skill.skill_id, domain: skill.domain, endpoints_purged: deleted });
+
+    // Step 2: re-index only if active and not purge_only mode
+    if (!body.purge_only && skill.lifecycle === "active") {
+      try {
+        await reindexSkill(c.env, skill);
+        indexResults.push({ skill_id: skill.skill_id, domain: skill.domain, ok: true });
+      } catch (err) {
+        indexResults.push({ skill_id: skill.skill_id, domain: skill.domain, ok: false, error: (err as Error).message });
+      }
+    }
+  }
+
+  const hasMore = offset + limit < allSkills.length;
+  const activeCount = allSkills.filter((s) => s.lifecycle === "active").length;
+
+  return c.json({
+    total_skills: allSkills.length,
+    active_skills: activeCount,
+    batch_offset: offset,
+    batch_limit: limit,
+    processed: batch.length,
+    purged: purgeResults,
+    reindexed: indexResults,
+    has_more: hasMore,
+    next_offset: hasMore ? offset + limit : null,
   });
 });
 
