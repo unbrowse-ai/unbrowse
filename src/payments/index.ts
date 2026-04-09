@@ -408,8 +408,8 @@ export function interpretPaymentResult(
       return {
         status: "insufficient_balance",
         requirement,
-        message: `Insufficient balance. Fund your wallet with at least ${requirement.amount} ${requirement.currency}, or fall back to indexing mode.`,
-        next_step: "Fund your agent wallet and retry, or use resolveUnpaidAccess() to contribute indexing instead.",
+        message: `Insufficient balance. Fund your wallet with at least ${requirement.amount} ${requirement.currency}.`,
+        next_step: "Fund your agent wallet and retry. Routes you discover are still cached locally.",
       };
 
     case "wallet_not_configured":
@@ -417,16 +417,16 @@ export function interpretPaymentResult(
       return {
         status: "wallet_not_configured",
         requirement,
-        message: "No agent wallet configured. Falling back to indexing mode — you can contribute route indexing instead of paying.",
-        next_step: "Set up lobster.cash to unlock paid execution, or continue in indexing mode.",
+        message: "No agent wallet configured. Routes you discover are cached locally — set up a wallet to earn from reuse.",
+        next_step: "Set up lobster.cash to earn when other agents use routes you discovered.",
       };
 
     default:
       return {
         status: "payment_failed",
         requirement,
-        message: `Payment failed: ${walletStatus}. You may retry or fall back to indexing mode.`,
-        next_step: "Retry the payment, or use resolveUnpaidAccess() to contribute indexing instead.",
+        message: `Payment failed: ${walletStatus}. You may retry.`,
+        next_step: "Retry the payment. Routes you discover are still cached locally.",
       };
   }
 }
@@ -453,7 +453,7 @@ export function resolveUnpaidAccess(
   return {
     status: "indexing_fallback",
     requirement: gateResult.requirement,
-    message: "Indexing mode: you can capture and index routes for the marketplace. Paid execution requires a funded wallet.",
-    next_step: "Use resolve with --force-capture to contribute new routes. Set up lobster.cash to unlock paid execution.",
+    message: "No wallet — routes you discover are cached locally. Set up a wallet to earn when other agents reuse them.",
+    next_step: "Set up lobster.cash to start earning from routes you discover through normal usage.",
   };
 }
