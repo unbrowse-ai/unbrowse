@@ -295,6 +295,7 @@ interface ExtensionEntry {
   statusCode?: number;
   requestHeaders?: Array<{ name: string; value: string }>;
   responseHeaders?: Array<{ name: string; value: string }>;
+  requestBody?: string;
   tabId?: number;
   timestamp: number;
 }
@@ -746,22 +747,29 @@ export function mergePassiveCaptureData(
     const respHeaders: Record<string, string> = {};
     for (const h of entry.responseHeaders ?? []) respHeaders[h.name] = h.value;
 
+    const dedupKey = graphqlDedup(entry.url, entry.requestBody);
+
     // Find any existing entry for this URL (may have GraphQL-suffixed key)
     let merged = false;
     for (const [key, existing] of seen) {
-      if (existing.url === entry.url) {
+      if (existing.url === entry.url || key === dedupKey) {
         for (const [k, v] of Object.entries(reqHeaders)) {
           if (!existing.request_headers[k]) existing.request_headers[k] = v;
+        }
+        // Backfill request_body if the existing entry is missing it
+        if (!existing.request_body && entry.requestBody) {
+          existing.request_body = entry.requestBody;
         }
         merged = true;
         break;
       }
     }
     if (merged) continue;
-    seen.set(entry.url, {
+    seen.set(dedupKey, {
       url: entry.url,
       method: entry.method,
       request_headers: reqHeaders,
+      request_body: entry.requestBody,
       response_status: entry.statusCode ?? 0,
       response_headers: respHeaders,
       response_body: responseBodies.get(entry.url),
