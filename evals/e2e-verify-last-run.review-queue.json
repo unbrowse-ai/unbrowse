@@ -1,0 +1,626 @@
+{
+  "summary": {
+    "total": 14,
+    "source_artifact": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/evals/e2e-verify-last-run.json",
+    "max_review_candidates": 3
+  },
+  "queue": [
+    {
+      "id": "github-search-repositories",
+      "intent": "search repositories",
+      "url": "https://github.com/search?q=openai&type=repositories",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "uzTsP39hjgm50VgyP9f9p",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "uzTsP39hjgm50VgyP9f9p",
+          "score": 579.2,
+          "description": "Structured replay for search repositories",
+          "url": "https://api.github.com/search/repositories?q={q}&per_page=20",
+          "trigger_url": "https://github.com/search?q=openai&type=repositories",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "structured_replay"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "jsFZ3Wjre1ABk23vWSISe",
+            "--endpoint",
+            "uzTsP39hjgm50VgyP9f9p",
+            "--intent",
+            "search repositories",
+            "--url",
+            "https://github.com/search?q=openai&type=repositories",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gitlab-search-projects",
+      "intent": "search projects",
+      "url": "https://gitlab.com/explore/projects?name=openai",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "iW_VuW0YYgClevsI1ydSs",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "iW_VuW0YYgClevsI1ydSs",
+          "score": 516.7,
+          "description": "Structured replay for search projects",
+          "url": "https://gitlab.com/api/v4/projects?search={name}&simple=true&per_page=20",
+          "trigger_url": "https://gitlab.com/explore/projects?name=openai",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "AaBnggElQoMNUd0oJVnEA",
+            "--endpoint",
+            "iW_VuW0YYgClevsI1ydSs",
+            "--intent",
+            "search projects",
+            "--url",
+            "https://gitlab.com/explore/projects?name=openai",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "npm-search-packages",
+      "intent": "search packages",
+      "url": "https://www.npmjs.com/search?q=openai",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "iE3TALsNzH6ioimkqYhRn",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "iE3TALsNzH6ioimkqYhRn",
+          "score": 298.2,
+          "description": "Structured replay for packages",
+          "url": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
+          "trigger_url": "https://www.npmjs.com/search?q=openai",
+          "signals": [
+            "templated_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like",
+            "third_party"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "5kaG-eyAjLMZKn8aiOfXF",
+            "--endpoint",
+            "iE3TALsNzH6ioimkqYhRn",
+            "--intent",
+            "search packages",
+            "--url",
+            "https://www.npmjs.com/search?q=openai",
+            "--raw"
+          ]
+        },
+        {
+          "rank": 2,
+          "endpoint_id": "UEs-cuhCFXc-7WjrBWAS1",
+          "score": 265,
+          "description": "Structured replay for get package info",
+          "url": "https://registry.npmjs.org/openai",
+          "trigger_url": "https://www.npmjs.com/package/openai",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "structured_replay",
+            "third_party"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "5kaG-eyAjLMZKn8aiOfXF",
+            "--endpoint",
+            "UEs-cuhCFXc-7WjrBWAS1",
+            "--intent",
+            "search packages",
+            "--url",
+            "https://www.npmjs.com/search?q=openai",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "npm-package-info",
+      "intent": "get package info",
+      "url": "https://www.npmjs.com/package/openai",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "UEs-cuhCFXc-7WjrBWAS1",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "UEs-cuhCFXc-7WjrBWAS1",
+          "score": 418.3,
+          "description": "Structured replay for get package info",
+          "url": "https://registry.npmjs.org/openai",
+          "trigger_url": "https://www.npmjs.com/package/openai",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "structured_replay",
+            "third_party"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "5kaG-eyAjLMZKn8aiOfXF",
+            "--endpoint",
+            "UEs-cuhCFXc-7WjrBWAS1",
+            "--intent",
+            "get package info",
+            "--url",
+            "https://www.npmjs.com/package/openai",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pypi-package-info",
+      "intent": "get package info",
+      "url": "https://pypi.org/project/openai/",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "TZTTaS06iHy0YWqgBj7uc",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "TZTTaS06iHy0YWqgBj7uc",
+          "score": 460.3,
+          "description": "Structured replay for get package info",
+          "url": "https://pypi.org/pypi/openai/json",
+          "trigger_url": "https://pypi.org/project/openai/",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "structured_replay"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "pjlNg5Ia1yeYnd7olCQUO",
+            "--endpoint",
+            "TZTTaS06iHy0YWqgBj7uc",
+            "--intent",
+            "get package info",
+            "--url",
+            "https://pypi.org/project/openai/",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mdn-search-docs",
+      "intent": "search docs",
+      "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "sluktm12bs5lyrm_jiMfl",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "sluktm12bs5lyrm_jiMfl",
+          "score": 361.5,
+          "description": "Structured replay for search docs",
+          "url": "https://developer.mozilla.org/api/v1/search?q={q}&page=1&page_size=20&locale=en-US",
+          "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "4Ur0K3kqIVLyPEDcarCvE",
+            "--endpoint",
+            "sluktm12bs5lyrm_jiMfl",
+            "--intent",
+            "search docs",
+            "--url",
+            "https://developer.mozilla.org/en-US/search?q=fetch",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hn-search-param-seeded",
+      "intent": "search hacker news",
+      "url": "https://hn.algolia.com/",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "3UT0Nromg-dRFTwc_D_UC",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "3UT0Nromg-dRFTwc_D_UC",
+          "score": 498.3,
+          "description": "Structured replay for search hacker news",
+          "url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+          "trigger_url": "https://hn.algolia.com/",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "jPZdARvAawyqe7ggpQNly",
+            "--endpoint",
+            "3UT0Nromg-dRFTwc_D_UC",
+            "--intent",
+            "search hacker news",
+            "--url",
+            "https://hn.algolia.com/",
+            "--params",
+            "{\"q\":\"openai\"}",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reddit-programming-posts",
+      "intent": "get subreddit posts",
+      "url": "https://www.reddit.com/r/programming/",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "i6fOa2uOY6rX9QaSKLGsw",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "i6fOa2uOY6rX9QaSKLGsw",
+          "score": 568.6,
+          "description": "Structured replay for get subreddit posts",
+          "url": "https://www.reddit.com/r/programming/.json",
+          "trigger_url": "https://www.reddit.com/r/programming/",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "nitUsOQ1eAjkMkTEXE3yM",
+            "--endpoint",
+            "i6fOa2uOY6rX9QaSKLGsw",
+            "--intent",
+            "get subreddit posts",
+            "--url",
+            "https://www.reddit.com/r/programming/",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "docker-image-tags",
+      "intent": "get image tags",
+      "url": "https://hub.docker.com/r/library/nginx/tags",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "3qLUMg-vUL2P8nebypCm5",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "3qLUMg-vUL2P8nebypCm5",
+          "score": 606.7,
+          "description": "Structured replay for get image tags",
+          "url": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page_size=25",
+          "trigger_url": "https://hub.docker.com/r/library/nginx/tags",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "VyOyl0KkgAsJXXmgsxeZP",
+            "--endpoint",
+            "3qLUMg-vUL2P8nebypCm5",
+            "--intent",
+            "get image tags",
+            "--url",
+            "https://hub.docker.com/r/library/nginx/tags",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stack-overflow-tag-questions",
+      "intent": "get tag questions",
+      "url": "https://stackoverflow.com/questions/tagged/javascript",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "N7oR6kjb7IgVjumBwnXBC",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "N7oR6kjb7IgVjumBwnXBC",
+          "score": 566.7,
+          "description": "Structured replay for get tag questions",
+          "url": "https://api.stackexchange.com/2.3/questions?site=stackoverflow&tagged={tag}&order=desc&sort=activity&pagesize=20&filter=...",
+          "trigger_url": "https://stackoverflow.com/questions/tagged/javascript",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "structured_replay",
+            "third_party"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "xNh-idWkrVLCQBAq5FY33",
+            "--endpoint",
+            "N7oR6kjb7IgVjumBwnXBC",
+            "--intent",
+            "get tag questions",
+            "--url",
+            "https://stackoverflow.com/questions/tagged/javascript",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "devto-tag-posts",
+      "intent": "get tag posts",
+      "url": "https://dev.to/t/javascript",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "Q3rFeYJ0nyqf7Pt0CRPyg",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "Q3rFeYJ0nyqf7Pt0CRPyg",
+          "score": 374,
+          "description": "Structured replay for get tag posts",
+          "url": "https://dev.to/api/articles?tag={tag}&per_page=20",
+          "trigger_url": "https://dev.to/t/javascript",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "mlwtjsg1bL6I6gOolTAXr",
+            "--endpoint",
+            "Q3rFeYJ0nyqf7Pt0CRPyg",
+            "--intent",
+            "get tag posts",
+            "--url",
+            "https://dev.to/t/javascript",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rubygems-package-info",
+      "intent": "get package info",
+      "url": "https://rubygems.org/gems/rails",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "8Z3OYuIJWbLt4PUlMrOfc",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "8Z3OYuIJWbLt4PUlMrOfc",
+          "score": 473.3,
+          "description": "Structured replay for get package info",
+          "url": "https://rubygems.org/api/v1/gems/rails.json",
+          "trigger_url": "https://rubygems.org/gems/rails",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "W1mOw6P1NDdZrP7g0c0KP",
+            "--endpoint",
+            "8Z3OYuIJWbLt4PUlMrOfc",
+            "--intent",
+            "get package info",
+            "--url",
+            "https://rubygems.org/gems/rails",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pubdev-package-info",
+      "intent": "get package info",
+      "url": "https://pub.dev/packages/http",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "6oIY21SWCWxOrNvYsgQ6v",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "6oIY21SWCWxOrNvYsgQ6v",
+          "score": 611.7,
+          "description": "Structured replay for get package info",
+          "url": "https://pub.dev/api/packages/http",
+          "trigger_url": "https://pub.dev/packages/http",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "RdSDFpjpTzbyrwxYTss6t",
+            "--endpoint",
+            "6oIY21SWCWxOrNvYsgQ6v",
+            "--intent",
+            "get package info",
+            "--url",
+            "https://pub.dev/packages/http",
+            "--raw"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jmail-search",
+      "intent": "search emails",
+      "url": "https://jmail.world/search?q=clinton",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "ZWJZbdOzavVOHDxDGa-EP",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "ZWJZbdOzavVOHDxDGa-EP",
+          "score": 518.2,
+          "description": "Structured replay for search emails",
+          "url": "https://jmail.world/api/emails/search?q={q}&limit={limit}&page={page}&source={source}",
+          "trigger_url": "https://jmail.world/search?q=clinton",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "structured_replay",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "tlIrZ5f1aiY1JaQdwadpm",
+            "--endpoint",
+            "ZWJZbdOzavVOHDxDGa-EP",
+            "--intent",
+            "search emails",
+            "--url",
+            "https://jmail.world/search?q=clinton",
+            "--raw"
+          ]
+        }
+      ]
+    }
+  ]
+}
