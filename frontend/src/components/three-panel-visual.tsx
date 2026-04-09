@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Monitor, Terminal, Zap, ArrowRight, CheckCircle2, Globe2, Search, Map, Tent, Home, MousePointer2, Loader2, Code2, RotateCcw, Camera } from "lucide-react";
+import { Globe2, Search, MousePointer2 } from "lucide-react";
+import {
+  IconFrame,
+  IconTerminal,
+  IconHourglass,
+  IconArrow,
+  IconDiamondCheck,
+  IconCode,
+  IconCycle,
+  IconAperture,
+  IconSpinner,
+  IconSigil,
+} from "@/components/archival-icons";
 
 export function ThreePanelVisual() {
   const [time, setTime] = useState(0);
@@ -150,23 +162,22 @@ export function ThreePanelVisual() {
   ];
 
     return (
-      <section ref={sectionRef} className="relative py-16 sm:py-24 border-b border-border overflow-hidden bg-surface-sunken">
+      <section ref={sectionRef} className="relative min-h-screen flex flex-col justify-center overflow-hidden py-8">
         <div className="relative max-w-[90rem] mx-auto px-4 sm:px-6">
             <div className="text-center mb-12 sm:mb-16 relative">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-500/20 text-orange-600 text-xs font-mono font-medium uppercase tracking-widest mb-6">
-                <Monitor className="w-3.5 h-3.5" />
-                The Problem
-              </div>
+              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-4">
+                ##  The Problem
+              </p>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mt-3 mb-4 text-balance text-text-primary">
                 Three ways to see the same website
               </h2>
               
               <div className="absolute right-0 top-0 hidden md:block">
-                <button 
+                <button
                   onClick={handleReplay}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-surface text-text-secondary hover:text-text-primary hover:bg-surface-raised hover:border-orange-500/30 transition-all font-medium text-xs shadow-sm ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+                  className={`flex items-center gap-2 px-4 py-2 border border-[rgba(255,122,32,0.3)] bg-[#060402] text-[rgba(255,122,32,0.7)] hover:text-[rgba(255,176,96,0.9)] hover:border-[rgba(255,122,32,0.5)] transition-all font-mono text-xs ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <IconCycle size={14} />
                   Replay
                 </button>
               </div>
@@ -175,9 +186,9 @@ export function ThreePanelVisual() {
             <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
               
               {/* Shared Timer for Panels 1 & 2 */}
-              <div className="lg:col-span-2 relative rounded-2xl p-4 sm:p-6 bg-surface border border-border shadow-sm mt-5">
+              <div className="lg:col-span-2 relative rounded-sm p-4 sm:p-6 bg-[#060402] border border-[rgba(255,122,32,0.28)] mt-5">
                 {/* Timer badge — full width on mobile, centered pill on desktop */}
-                <div className="absolute -top-4 left-4 right-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 z-50 bg-zinc-900 text-white text-[10px] sm:text-xs font-mono px-3 sm:px-4 py-2 rounded-full border border-white/10 flex items-center justify-center gap-2 sm:gap-4 shadow-xl shadow-black/20">
+                <div className="absolute -top-4 left-4 right-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 z-50 bg-[#060402] text-white text-[10px] sm:text-xs font-mono px-3 sm:px-4 py-2 border border-[rgba(255,122,32,0.4)] flex items-center justify-center gap-2 sm:gap-4 shadow-xl shadow-black/20" style={{ boxShadow: '0 0 20px rgba(255,82,0,0.1)' }}>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
                     <span className="text-zinc-400 hidden xs:inline">Time:</span>
@@ -197,15 +208,15 @@ export function ThreePanelVisual() {
                 <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 mt-2">
 
               {/* What Humans See */}
-            <div className="group rounded-xl border border-border bg-surface overflow-hidden transition-all relative">
-              <div className="px-4 py-3 border-b border-border bg-surface-raised flex items-center gap-3">
+            <div className="group rounded-sm border border-[rgba(255,122,32,0.22)] bg-[#060402] overflow-hidden transition-all relative">
+              <div className="px-4 py-3 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
                   <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
                   <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
                 </div>
                 <div className="flex-1 flex justify-center">
-                  <div className="px-3 py-1 rounded bg-surface border border-border text-[10px] sm:text-xs text-text-muted font-mono flex items-center gap-2">
+                  <div className="px-3 py-1 rounded-sm bg-[#060402] border border-[rgba(255,122,32,0.2)] text-[10px] sm:text-xs text-[rgba(255,122,32,0.55)] font-mono flex items-center gap-2">
                     travelbooker.com
                   </div>
                 </div>
@@ -219,7 +230,7 @@ export function ThreePanelVisual() {
                       style={{ opacity: currentFlash * 0.9 }}
                     >
                       <div className="bg-zinc-900/90 text-white px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-mono backdrop-blur-sm shadow-xl">
-                        <Camera className="w-3.5 h-3.5" />
+                        <IconAperture size={14} />
                         <span>Screenshot captured</span>
                       </div>
                     </div>
@@ -295,24 +306,24 @@ export function ThreePanelVisual() {
                   </div>
                 </div>
               </div>
-              <div className="px-4 py-3 border-t border-border bg-surface-raised text-center relative z-20">
-                <h4 className="text-[13px] font-semibold text-text-primary flex items-center justify-center gap-2">
-                  <Monitor className="w-3.5 h-3.5 text-text-muted" /> What Humans See
+              <div className="px-4 py-3 border-t border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] text-center relative z-20">
+                <h4 className="text-[13px] font-mono text-[rgba(255,122,32,0.8)] flex items-center justify-center gap-2">
+                  <IconFrame size={14} className="text-[rgba(255,122,32,0.5)]" /> What Humans See
                 </h4>
-                <p className="text-[11px] text-text-secondary mt-0.5">Beautiful, interactive UI</p>
+                <p className="text-[11px] text-[rgba(255,122,32,0.4)] mt-0.5 font-mono">Beautiful, interactive UI</p>
               </div>
             </div>
 
               {/* What Agents See Today */}
-              <div className="group rounded-xl border border-border bg-surface overflow-hidden transition-all relative">
-              <div className="px-4 py-3 border-b border-border bg-surface-raised flex items-center gap-3 relative z-20">
+              <div className="group rounded-sm border border-[rgba(255,122,32,0.22)] bg-[#060402] overflow-hidden transition-all relative">
+              <div className="px-4 py-3 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3 relative z-20">
                 <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[rgba(255,122,32,0.3)]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[rgba(255,122,32,0.3)]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[rgba(255,122,32,0.3)]" />
                 </div>
                 <div className="flex-1 flex justify-center">
-                  <div className="px-3 py-1 rounded bg-surface border border-border text-[10px] sm:text-xs text-text-muted font-mono flex items-center gap-2">
+                  <div className="px-3 py-1 rounded-sm bg-[#060402] border border-[rgba(255,122,32,0.2)] text-[10px] sm:text-xs text-[rgba(255,122,32,0.55)] font-mono flex items-center gap-2">
                     view-source:travelbooker.com
                   </div>
                 </div>
@@ -326,11 +337,11 @@ export function ThreePanelVisual() {
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent z-20 pointer-events-none" />
               </div>
-                <div className="px-4 py-3 border-t border-border bg-surface-raised text-center relative z-30">
-                  <h4 className="text-[13px] font-semibold text-text-primary flex items-center justify-center gap-2">
-                    <Terminal className="w-3.5 h-3.5 text-text-muted" /> What Agents See Today
+                <div className="px-4 py-3 border-t border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] text-center relative z-30">
+                  <h4 className="text-[13px] font-mono text-[rgba(255,122,32,0.8)] flex items-center justify-center gap-2">
+                    <IconTerminal size={14} className="text-[rgba(255,122,32,0.5)]" /> What Agents See Today
                   </h4>
-                  <p className="text-[11px] text-text-secondary mt-0.5 font-mono">Image + 847KB DOM <span className="text-red-400 font-medium">× {browserPasses} passes</span></p>
+                  <p className="text-[11px] text-[rgba(255,122,32,0.4)] mt-0.5 font-mono">Image + 847KB DOM <span className="text-red-400 font-medium">× {browserPasses} passes</span></p>
                 </div>
               </div>
             </div>{/* end grid sm:grid-cols-2 */}
@@ -338,7 +349,7 @@ export function ThreePanelVisual() {
 
               {/* What Unbrowse Does */}
               <div className="relative mt-5 lg:mt-0 flex flex-col">
-                <div className="absolute -top-4 left-4 right-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 z-50 bg-orange-500 text-white text-[10px] sm:text-xs font-mono px-3 sm:px-4 py-2 rounded-full flex items-center justify-center gap-2 sm:gap-3 shadow-xl shadow-orange-500/20">
+                <div className="absolute -top-4 left-4 right-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 z-50 bg-orange-500 text-white text-[10px] sm:text-xs font-mono px-3 sm:px-4 py-2 flex items-center justify-center gap-2 sm:gap-3 shadow-xl shadow-orange-500/20">
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
                     <span className="hidden sm:inline text-orange-200">Time:</span>
@@ -356,16 +367,16 @@ export function ThreePanelVisual() {
                   </div>
                 </div>
 
-            <div className="flex-1 rounded-2xl border-2 border-orange-500/30 bg-surface overflow-hidden transition-all shadow-[0_0_40px_-10px_rgba(255,109,0,0.2)] hover:shadow-[0_0_60px_-15px_rgba(255,109,0,0.3)] hover:border-orange-500/50 z-10 relative flex flex-col pt-3">
-              <div className="px-5 py-4 border-b border-orange-500/10 bg-orange-50/50 flex items-center gap-3">
+            <div className="flex-1 rounded-sm border border-[rgba(255,122,32,0.5)] bg-[#060402] overflow-hidden transition-all shadow-[0_0_40px_-10px_rgba(255,109,0,0.25)] hover:shadow-[0_0_60px_-15px_rgba(255,109,0,0.4)] hover:border-[rgba(255,122,32,0.7)] z-10 relative flex flex-col pt-3">
+              <div className="px-5 py-4 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500/20" />
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500/20" />
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500/20" />
                 </div>
                 <div className="flex-1 flex justify-center">
-                  <div className="px-3 py-1 rounded bg-orange-50 border border-orange-500/20 text-[10px] sm:text-xs text-orange-600 font-mono flex items-center gap-2 font-medium">
-                    agent_session <ArrowRight className="w-3 h-3 text-orange-400" /> API
+                  <div className="px-3 py-1 rounded-sm bg-[#060402] border border-[rgba(255,122,32,0.35)] text-[10px] sm:text-xs text-[rgba(255,176,96,0.9)] font-mono flex items-center gap-2 font-medium" style={{ textShadow: '0 0 8px rgba(255,176,96,0.5)' }}>
+                    agent_session <IconArrow size={12} className="text-orange-400" /> API
                   </div>
                 </div>
               </div>
@@ -384,7 +395,7 @@ export function ThreePanelVisual() {
                     <div key={i} className="relative z-10 animate-fade-up">
                       {/* Tool Call Initiation */}
                       <div className="flex items-start gap-2 mb-1.5 text-zinc-300">
-                        <Code2 className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                        <IconCode size={16} className="text-orange-400 shrink-0 mt-0.5" />
                         <div className="flex flex-col">
                           <span className="text-orange-400 font-semibold">{call.tool}</span>
                           <span className="text-zinc-500 text-[10px]">{call.args}</span>
@@ -395,12 +406,12 @@ export function ThreePanelVisual() {
                       <div className="flex items-center gap-2 pl-6">
                         {isActive ? (
                           <>
-                            <Loader2 className="w-3.5 h-3.5 text-zinc-500 animate-spin" />
+                            <IconSpinner size={14} className="text-zinc-500 animate-spin" />
                             <span className="text-zinc-500 text-[11px] animate-pulse">Executing...</span>
                           </>
                         ) : (
                           <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <IconDiamondCheck size={14} className="text-emerald-400" />
                             <span className="text-emerald-400 text-[11px]">{call.result}</span>
                             <span className="text-zinc-600 text-[10px] ml-auto">{call.ms}</span>
                           </>
@@ -418,11 +429,11 @@ export function ThreePanelVisual() {
                 )}
               </div>
 
-              <div className="px-5 py-4 border-t border-orange-500/10 bg-orange-50/50 text-center relative z-20">
-                <h4 className="text-[13px] font-semibold text-text-primary flex items-center justify-center gap-2">
-                  <Zap className="w-3.5 h-3.5 text-orange-500" /> What Unbrowse Does
+              <div className="px-5 py-4 border-t border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] text-center relative z-20">
+                <h4 className="text-[13px] font-mono text-[rgba(255,176,96,0.9)] flex items-center justify-center gap-2" style={{ textShadow: '0 0 12px rgba(255,176,96,0.4)' }}>
+                  <IconHourglass size={14} className="text-orange-500" /> What Unbrowse Does
                 </h4>
-                <p className="text-[11px] text-text-secondary mt-0.5 font-mono font-medium">1KB JSON <span className="text-emerald-400 font-medium">× {apiPasses} calls</span></p>
+                <p className="text-[11px] text-[rgba(255,122,32,0.55)] mt-0.5 font-mono">1KB JSON <span className="text-emerald-400 font-medium">× {apiPasses} calls</span></p>
               </div>
               </div>
             </div>
@@ -431,11 +442,11 @@ export function ThreePanelVisual() {
           
           {/* Mobile Replay Button */}
           <div className="mt-12 flex justify-center md:hidden">
-            <button 
+            <button
               onClick={handleReplay}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full border border-border bg-surface text-text-secondary hover:text-text-primary hover:bg-surface-raised hover:border-orange-500/30 transition-all font-medium text-sm shadow-sm ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+              className={`flex items-center gap-2 px-5 py-2.5 border border-[rgba(255,122,32,0.3)] bg-[#060402] text-[rgba(255,122,32,0.7)] hover:text-[rgba(255,176,96,0.9)] hover:border-[rgba(255,122,32,0.5)] transition-all font-mono text-sm ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
             >
-              <RotateCcw className="w-4 h-4" />
+              <IconCycle size={16} />
               Replay Animation
             </button>
           </div>

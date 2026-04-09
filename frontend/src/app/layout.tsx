@@ -4,13 +4,12 @@ import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
 import { DocsEmbed } from "@/components/docs-embed";
 import { ContentPageTracker } from "@/components/content-page-tracker";
-import versionInfo from "../../../version.json";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Unbrowse — Drop-in replacement for browser automation in agent stacks",
+  title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
   description:
-    "Unbrowse is a drop-in replacement for browser automation in agent stacks. It learns the request path behind websites so agents run faster, cheaper, and with less breakage than repeated browser rediscovery.",
+    "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -23,9 +22,9 @@ export const metadata: Metadata = {
     canonical: "https://www.unbrowse.ai",
   },
   openGraph: {
-    title: "Unbrowse — Drop-in replacement for browser automation in agent stacks",
+    title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
     description:
-      "Unbrowse is a drop-in replacement for browser automation in agent stacks. It learns the request path behind websites so agents run faster, cheaper, and with less breakage than repeated browser rediscovery.",
+      "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
     url: "https://www.unbrowse.ai",
     siteName: "Unbrowse",
     type: "website",
@@ -35,7 +34,7 @@ export const metadata: Metadata = {
         url: "https://www.unbrowse.ai/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Unbrowse — Drop-in replacement for browser automation in agent stacks",
+        alt: "Unbrowse — The API layer for AI agents",
       },
       {
         url: "https://www.unbrowse.ai/nvidia-inception.png",
@@ -46,9 +45,9 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     site: "@getFoundry",
-    title: "Unbrowse — Drop-in replacement for browser automation in agent stacks",
+    title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
     description:
-      "Unbrowse is a drop-in replacement for browser automation in agent stacks. It learns the request path behind websites so agents run faster, cheaper, and with less breakage than repeated browser rediscovery.",
+      "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
     images: ["https://www.unbrowse.ai/og-image.png"],
   },
   other: {
@@ -78,7 +77,7 @@ export default function RootLayout({
         />
         <link rel="preconnect" href="https://cloud.umami.is" />
           <link
-            href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap"
             rel="stylesheet"
           />
         <style>{`
@@ -95,22 +94,16 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "Organization",
               name: "Unbrowse",
-              legalName: "Unbrowse AI PTE. LTD.",
+              legalName: "Unbrowse AI Pte. Ltd.",
               url: "https://www.unbrowse.ai",
               logo: "https://www.unbrowse.ai/logo.png",
               description:
-                "Unbrowse is a drop-in replacement for browser automation in agent stacks. It turns repeated browser work into reusable learned routes for AI agents.",
-              foundingDate: "2026",
-              foundingLocation: {
-                "@type": "Place",
-                name: "Singapore",
-              },
+                "Unbrowse reverse-engineers any website into reusable API skills for AI agents. 100x faster than headless browsers, 40x fewer tokens.",
               sameAs: [
                 "https://github.com/unbrowse-ai",
                 "https://github.com/unbrowse-ai/unbrowse",
                 "https://x.com/getFoundry",
                 "https://www.npmjs.com/package/unbrowse",
-                "https://arxiv.org/abs/2604.00694",
               ],
             }),
           }}
@@ -123,11 +116,11 @@ export default function RootLayout({
               "@type": "SoftwareApplication",
               name: "Unbrowse",
               description:
-                "A drop-in replacement for browser automation in agent stacks. Unbrowse learns the request path behind websites and reuses it as a skill for AI agents.",
+                "Reverse-engineer any website into reusable API skills for AI agents. Auto-discovers undocumented website APIs and converts them to clean, direct API calls.",
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
-              operatingSystem: "Cross-platform (macOS, Linux, Windows)",
-              softwareVersion: versionInfo.version,
+              operatingSystem: "macOS, Linux, Windows",
+              softwareVersion: "1.1.2",
               downloadUrl: "https://www.npmjs.com/package/unbrowse",
               codeRepository: "https://github.com/unbrowse-ai/unbrowse",
               isAccessibleForFree: true,
@@ -138,97 +131,17 @@ export default function RootLayout({
               },
               author: {
                 "@type": "Organization",
-                name: "Unbrowse AI PTE. LTD.",
+                name: "Unbrowse",
                 url: "https://www.unbrowse.ai",
               },
               featureList: [
-                "Drop-in replacement for browser automation in agent stacks",
-                "Learns and reuses website request flows as skills",
+                "Auto-discovers undocumented website APIs",
                 "100x faster than headless browsers (50-200ms vs 5-30s)",
                 "40x fewer tokens (200 vs 8000 per page)",
                 "Shared skill registry for collective API discoveries",
                 "Works with Claude Code, Cursor, OpenClaw, and Windsurf",
               ],
               programmingLanguage: "TypeScript",
-            }),
-          }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "ScholarlyArticle",
-              headline: "Internal APIs Are All You Need",
-              name: "Internal APIs Are All You Need",
-              description:
-                "Research paper demonstrating that learned internal request paths can outperform repeated headless browser automation for AI agents.",
-              url: "https://arxiv.org/abs/2604.00694",
-              author: [
-                {
-                  "@type": "Person",
-                  name: "Lewis Tham",
-                },
-                {
-                  "@type": "Person",
-                  name: "Nicholas Mac Gregor Garcia",
-                },
-                {
-                  "@type": "Person",
-                  name: "Jungpil Hahn",
-                },
-              ],
-              publisher: {
-                "@type": "Organization",
-                name: "arXiv",
-                url: "https://arxiv.org",
-              },
-              datePublished: "2026",
-              isAccessibleForFree: true,
-              sameAs: "https://arxiv.org/abs/2604.00694",
-            }),
-          }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "FAQPage",
-              mainEntity: [
-                {
-                  "@type": "Question",
-                  name: "What is Unbrowse?",
-                  acceptedAnswer: {
-                    "@type": "Answer",
-                    text: "Unbrowse is a drop-in replacement for browser automation in agent stacks. It learns the request path behind websites and reuses it as a skill, so agents stop repeating the same browser workflow every time.",
-                  },
-                },
-                {
-                  "@type": "Question",
-                  name: "How does Unbrowse work?",
-                  acceptedAnswer: {
-                    "@type": "Answer",
-                    text: "Unbrowse can use a real browser on the first pass to learn the request flow behind a site, then reuse that learned route as a skill on later runs. The browser stays available for auth and hard cases, but repeat work stops depending on the DOM.",
-                  },
-                },
-                {
-                  "@type": "Question",
-                  name: "Which AI coding agents work with Unbrowse?",
-                  acceptedAnswer: {
-                    "@type": "Answer",
-                    text: "Unbrowse works with all major AI coding agents including Claude Code, Cursor, OpenClaw, and Windsurf. The simplest full install path is curl -fsSL https://unbrowse.ai/install.sh | bash. After install, hosts with skills support can also use npx skills add unbrowse-ai/unbrowse.",
-                  },
-                },
-                {
-                  "@type": "Question",
-                  name: "Is Unbrowse free to use?",
-                  acceptedAnswer: {
-                    "@type": "Answer",
-                    text: "Yes, Unbrowse is free and open-source. Install it with curl -fsSL https://unbrowse.ai/install.sh | bash and start discovering APIs immediately. After install, hosts with skills support can also use npx skills add unbrowse-ai/unbrowse. The shared skill marketplace lets you benefit from APIs discovered by the community.",
-                  },
-                },
-              ],
             }),
           }}
         />
@@ -254,7 +167,7 @@ export default function RootLayout({
         />
         <script defer src="https://cloud.umami.is/script.js" data-website-id="66d811d2-a320-4b38-87b9-b15a60022313"></script>
       </head>
-      <body className="antialiased">
+      <body className="antialiased overflow-x-hidden">
         <ThemeProvider>
           <AuthProvider>
             <ContentPageTracker />

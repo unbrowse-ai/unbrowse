@@ -22,7 +22,7 @@ export default function TermsPage() {
         Terms of Service
       </h1>
       <p className="text-text-secondary text-lg mb-12 animate-fade-up stagger-1">
-        Effective date: 3 April 2026
+        Effective date: 22 February 2026
       </p>
 
       <div className="space-y-12 animate-fade-up stagger-2">
@@ -90,15 +90,6 @@ export default function TermsPage() {
             Unbrowse indexes publicly observable API structure; it does not grant you
             rights to use those APIs beyond what the target site permits.
           </p>
-          <p>
-            You are solely responsible for determining whether your access to,
-            capture of, extraction from, or use of any third-party website, API,
-            data, or service is authorized and complies with that third party&apos;s
-            terms, policies, robots rules, rate limits, and applicable law.
-            Unbrowse does not grant you any right to access or use any third-party
-            service, and we are not responsible for third-party restrictions,
-            enforcement decisions, or changes.
-          </p>
         </Section>
 
         <Section title="5. Contributions to the collective registry">
@@ -150,19 +141,11 @@ export default function TermsPage() {
 
         <Section title="8. Limitation of liability">
           <p>
-            TO THE MAXIMUM EXTENT PERMITTED BY LAW, UNBROWSE AI PTE. LTD. AND ITS
+            TO THE MAXIMUM EXTENT PERMITTED BY LAW, UNREEL AI PTE LTD AND ITS
             OFFICERS, DIRECTORS, EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE FOR ANY
             INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR
             ANY LOSS OF PROFITS, DATA, USE, OR GOODWILL, ARISING OUT OF OR IN
             CONNECTION WITH YOUR USE OF THE SERVICE.
-          </p>
-          <p>
-            TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE ARE NOT LIABLE FOR ANY
-            CLAIM, LOSS, PENALTY, ENFORCEMENT ACTION, ACCOUNT SUSPENSION, OR DAMAGE
-            ARISING FROM OR RELATING TO YOUR ACCESS TO, CAPTURE OF, EXTRACTION
-            FROM, OR USE OF ANY THIRD-PARTY WEBSITE, API, DATA, OR SERVICE, OR
-            YOUR BREACH OR ALLEGED BREACH OF ANY THIRD-PARTY TERMS, POLICIES, OR
-            RIGHTS.
           </p>
           <p>
             OUR TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS ARISING OUT OF THESE TERMS
@@ -177,10 +160,8 @@ export default function TermsPage() {
             You agree to indemnify and hold harmless Unbrowse AI Pte. Ltd., its officers,
             directors, employees, and agents from any claims, damages, losses, or
             expenses (including reasonable legal fees) arising out of your use of the
-            Service, violation of these Terms, infringement of any third-party
-            rights, or your access to or use of any third-party website, API, data,
-            or service, including any breach or alleged breach of third-party terms
-            or policies.
+            Service, violation of these Terms, or infringement of any third-party
+            rights.
           </p>
         </Section>
 
@@ -245,7 +226,7 @@ export default function TermsPage() {
       </div>
 
       <div className="mt-16 pt-8 border-t border-border text-sm text-text-muted">
-        Last updated: 3 April 2026
+        Last updated: 22 February 2026
       </div>
     </div>
   );
