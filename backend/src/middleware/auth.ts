@@ -184,6 +184,12 @@ export async function requireSignedClient(c: Context<AuthEnv>, next: Next) {
   }
 
   if (!result.verified) {
+    // If the server's signing secret isn't configured, don't punish the client —
+    // the server can't verify, so let the request through.
+    if (result.reason === "verification_unconfigured") {
+      await next();
+      return;
+    }
     return c.json({
       error: "client_verification_failed",
       message: "Your Unbrowse client failed release verification. Please update to an official release.",
