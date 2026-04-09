@@ -1306,7 +1306,9 @@ async function cmdEarnings(flags: Record<string, string | boolean>): Promise<voi
   }
 
   try {
-    const resp = await fetch(`${BASE_URL.replace("localhost:1998", "beta-api.unbrowse.ai")}/v1/credits/balance`, {
+    const { DEFAULT_BACKEND_URL } = await import("./version.js");
+    const backendUrl = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
+    const resp = await fetch(`${backendUrl}/v1/credits/balance`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!resp.ok) {
