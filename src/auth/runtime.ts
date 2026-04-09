@@ -1,3 +1,7 @@
+import { log } from "../logger.js";
+import { getStoredAuth, extractBrowserAuth, getAuthCookies } from "./index.js";
+import { autonomousLogin } from "./autonomous-login.js";
+
 export type AuthStrategy = "login_if_needed" | "ensure_account" | "refresh_session" | "none";
 
 export interface AuthDependency {
@@ -10,6 +14,7 @@ export interface AuthDependency {
 export interface AuthResult {
   authenticated: boolean;
   session_token?: string;
+  method?: "cookies" | "agent-mail" | "interactive" | "cached";
 }
 
 export interface AuthRuntime {
@@ -20,25 +25,48 @@ export interface AuthRuntime {
 }
 
 /**
- * Stub auth runtime — checks local session store only.
- * Interactive login (browser-based) to be wired in a follow-up.
+ * Auth runtime with real fallback chain:
+ *   1. Cached session (in-memory)
+ *   2. Stored vault cookies (browser-extracted or previous login)
+ *   3. Autonomous login via AgentMail + Kuri (no human needed)
+ *   4. Return false — caller surfaces auth_required to agent
  */
 export class LocalAuthRuntime implements AuthRuntime {
-  private sessions = new Map<string, { token: string; expires: number }>();
+  private sessions = new Map<string, { token: string; expires: number; method?: string }>();
 
   async resolveAuth(dep: AuthDependency): Promise<AuthResult> {
-    if (dep.strategy === "none") return { authenticated: true };
+    if (dep.strategy === "none") return { authenticated: true, method: "cached" };
 
     const session = this.sessions.get(dep.domain);
     if (session && session.expires > Date.now()) {
-      return { authenticated: true, session_token: session.token };
+      return { authenticated: true, session_token: session.token, method: "cached" };
     }
+
+    // Try stored vault cookies
+    try {
+      const cookies = await getStoredAuth(dep.domain);
+      if (cookies && cookies.length > 0) {
+        log("auth-runtime", `found ${cookies.length} stored cookies for ${dep.domain}`);
+        this.setSession(dep.domain, "vault-cookies", 3600_000);
+        return { authenticated: true, method: "cookies" };
+      }
+    } catch { /* vault not available */ }
+
+    // Try browser cookie extraction
+    try {
+      const result = await extractBrowserAuth(dep.domain);
+      if (result.success && result.cookies_stored > 0) {
+        log("auth-runtime", `extracted ${result.cookies_stored} browser cookies for ${dep.domain}`);
+        this.setSession(dep.domain, "browser-cookies", 3600_000);
+        return { authenticated: true, method: "cookies" };
+      }
+    } catch { /* browser extraction not available */ }
 
     if (dep.strategy === "refresh_session" && session) {
       const refreshed = await this.refreshSession(dep.domain);
       if (refreshed) {
         const updated = this.sessions.get(dep.domain);
-        return { authenticated: true, session_token: updated?.token };
+        return { authenticated: true, session_token: updated?.token, method: "cached" };
       }
     }
 
@@ -59,12 +87,34 @@ export class LocalAuthRuntime implements AuthRuntime {
     return false;
   }
 
-  async loginIfNeeded(domain: string, _loginUrl?: string): Promise<boolean> {
-    // Try session refresh first — cheap path
+  async loginIfNeeded(domain: string, loginUrl?: string): Promise<boolean> {
     const refreshed = await this.refreshSession(domain);
     if (refreshed) return true;
-    // Full interactive login not yet implemented in LocalAuthRuntime.
-    // Browser-based login will be wired through the auth/index.ts flow.
+
+    // Try vault + browser cookies
+    try {
+      const cookies = await getAuthCookies(domain);
+      if (cookies && cookies.length > 0) {
+        this.setSession(domain, "auto-cookies", 3600_000);
+        log("auth-runtime", `loginIfNeeded resolved via cookies for ${domain}`);
+        return true;
+      }
+    } catch { /* not available */ }
+
+    // Try fully autonomous login (AgentMail + Kuri browser automation)
+    const url = loginUrl ?? `https://${domain}/login`;
+    try {
+      const result = await autonomousLogin(url, domain);
+      if (result.success) {
+        this.setSession(domain, "autonomous-login", 3600_000);
+        log("auth-runtime", `loginIfNeeded resolved via autonomous login for ${domain} (${result.method}, ${result.duration_ms}ms)`);
+        return true;
+      }
+      log("auth-runtime", `autonomous login failed for ${domain}: ${result.error}`);
+    } catch (err) {
+      log("auth-runtime", `autonomous login error for ${domain}: ${err instanceof Error ? err.message : err}`);
+    }
+
     return false;
   }
 
@@ -75,11 +125,8 @@ export class LocalAuthRuntime implements AuthRuntime {
 
 export const authRuntime: AuthRuntime = new LocalAuthRuntime();
 
-
 /**
  * Resolve a batch of auth dependencies using the singleton runtime.
- * Used by the orchestrator auth prerequisite detection before endpoint execution.
- * Returns one AuthResult per dependency, in the same order.
  */
 export async function resolveAuthPrerequisites(
   deps: AuthDependency[],
@@ -89,8 +136,6 @@ export async function resolveAuthPrerequisites(
 
 /**
  * Derive auth dependencies from a skill manifest endpoints.
- * Inspects semantic.auth_required and auth_profile_ref to surface
- * which domains need authentication and what strategy to use.
  */
 export function deriveAuthDependencies(
   skill: { domain: string; auth_profile_ref?: string; endpoints: Array<{ endpoint_id: string; semantic?: { auth_required?: boolean } }> },

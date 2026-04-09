@@ -46,7 +46,7 @@ import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
-import { resolveAuthPrerequisites, deriveAuthDependencies } from "../auth/runtime.js";
+import { resolveAuthPrerequisites, deriveAuthDependencies, authRuntime } from "../auth/runtime.js";
 import { getCredential } from "../vault/index.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 import {
@@ -2790,7 +2790,20 @@ export async function resolveAndExecute(
           resolved: allAuthed,
         };
         if (!allAuthed) {
-          console.log(`[auth] auth prerequisite unresolved for ${skill.domain} — continuing with best effort`);
+          // Try autonomous login before giving up
+          for (const dep of authDeps) {
+            const loggedIn = await authRuntime.loginIfNeeded(dep.domain, dep.login_url);
+            if (loggedIn) {
+              console.log(`[auth] autonomous login succeeded for ${dep.domain}`);
+              (decisionTrace as Record<string, unknown>).auth_prerequisites = {
+                ...(decisionTrace as Record<string, unknown>).auth_prerequisites as object,
+                resolved: true,
+                method: "autonomous",
+              };
+            } else {
+              console.log(`[auth] auth prerequisite unresolved for ${dep.domain} — continuing with best effort`);
+            }
+          }
         }
       }
     }

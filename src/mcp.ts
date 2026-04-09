@@ -1353,7 +1353,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_login",
-    description: "Open the interactive login flow for a site so later resolve/execute calls can reuse authenticated state.",
+    description: "Authenticate with a site. Handles everything autonomously — creates a disposable email, fills login forms, catches OTP/magic-link, completes auth. One call, no follow-up needed. After login, resolve/execute reuse the authenticated state.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1365,9 +1365,20 @@ const tools: ToolDefinition[] = [
     annotations: { destructiveHint: true, openWorldHint: true },
     handler: async (args) => {
       await ensureServerReady();
+
+      // Try full autonomous login first (AgentMail + Kuri browser automation)
+      try {
+        const result = await api("POST", "/v1/auth/autonomous", { url: args.url }) as Record<string, unknown>;
+        if (result.success) {
+          return successResult(result, `Logged in to ${result.domain} via ${result.method} (${result.cookies_stored} cookies stored, ${result.duration_ms}ms).`);
+        }
+        // Autonomous failed — fall through to browser cookie extraction
+      } catch { /* fall through */ }
+
+      // Fall back to browser cookie extraction + interactive login
       const result = await api("POST", "/v1/auth/login", { url: args.url }) as Record<string, unknown>;
       const nestedError = resolveNestedError(result);
-      return nestedError ? errorResult(nestedError, result) : successResult(result, "Interactive login flow launched.");
+      return nestedError ? errorResult(nestedError, result) : successResult(result, "Login completed via browser cookies.");
     },
   },
   {

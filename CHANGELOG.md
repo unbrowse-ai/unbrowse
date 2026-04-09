@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **auth**: autonomous email login via AgentMail SDK — agents can register/login on sites without human intervention
+* **cli**: `unbrowse login-auto <domain>` with `--wait-otp`, `--wait-link`, `--send-to` flags
+* **mcp**: `unbrowse_login` now tries agent email first, `unbrowse_login_wait` polls for OTP/magic link
+* **api**: `POST /v1/auth/agent-mail` endpoint for programmatic agent mail auth
+* **frontend**: restored Alethea v2 design (School of Athens, dark mode, spacing)
+
 ## [3.5.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.3...v3.5.4) (2026-04-09)
 
 ### Bug Fixes

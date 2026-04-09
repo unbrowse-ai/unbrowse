@@ -885,6 +885,35 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     info("  npx @crossmint/lobster-cli setup");
   }
 
+  // Email provider status — bootstrap AgentMail if not configured
+  if (!report.agent_mail.configured) {
+    info("AgentMail not configured — attempting to bootstrap via console.agentmail.to...");
+    try {
+      const { bootstrapAgentMailKey } = await import("./auth/bootstrap-agentmail.js");
+      const result = await bootstrapAgentMailKey();
+      if (result.success) {
+        info(`AgentMail API key obtained (${result.method}) — autonomous email login enabled`);
+        report.agent_mail.configured = true;
+      } else {
+        info(`AgentMail bootstrap: ${result.error}`);
+      }
+    } catch (err) {
+      info(`AgentMail bootstrap failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  const hasGcloud = (() => { try { const { existsSync } = require("fs"); const { homedir } = require("os"); const { join } = require("path"); return existsSync(join(homedir(), ".config", "gcloud", "application_default_credentials.json")); } catch { return false; } })();
+  const emailProviders: string[] = [];
+  if (hasGcloud) emailProviders.push("Gmail (via GWS)");
+  if (report.agent_mail.configured) emailProviders.push("AgentMail");
+
+  if (emailProviders.length > 0) {
+    info(`Email providers: ${emailProviders.join(", ")} — autonomous login enabled`);
+  } else {
+    info("No email provider configured — agents can't auto-register on gated sites.");
+    info("Options: export AGENTMAIL_API_KEY=<key> (https://agentmail.to) or gcloud auth login (Gmail)");
+  }
+
   await recordInstallTelemetryEvent("setup", {
     hostType,
     status: report.browser_engine.action === "failed" ? "failed" : "installed",
@@ -1771,51 +1800,71 @@ async function cmdClose(flags: Record<string, string | boolean>): Promise<void> 
 }
 
 // ---------------------------------------------------------------------------
-// login-auto — autonomous email-based login/registration
+// login-auto — autonomous email-based login/registration via AgentMail
 // ---------------------------------------------------------------------------
 
 async function cmdLoginAuto(flags: Record<string, unknown>) {
-  const url = flags.url as string;
-  if (!url) return die("--url is required");
+  const urlOrDomain = (flags.url ?? flags.domain ?? flags._?.[0]) as string | undefined;
+  if (!urlOrDomain) return die("usage: unbrowse login-auto <domain-or-url> [--wait-otp | --wait-link | --send-to <email>]");
 
-  const domain = (() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } })();
+  const domain = (() => {
+    try { return new URL(urlOrDomain.startsWith("http") ? urlOrDomain : `https://${urlOrDomain}`).hostname.replace(/^www\./, ""); }
+    catch { return urlOrDomain; }
+  })();
+
+  const { autonomousEmailLogin, isAgentMailAvailable } = await import("./auth/agent-mail.js");
+  if (!isAgentMailAvailable()) return die("AGENTMAIL_API_KEY not set — run: export AGENTMAIL_API_KEY=<key>");
+
   info(`[login-auto] creating agent email for ${domain}...`);
-
-  const { autonomousEmailLogin } = await import("./auth/agent-mail.js");
   const session = await autonomousEmailLogin(domain);
 
-  info(`[login-auto] agent email: ${session.email}`);
-  info(`[login-auto] use this email to register/login on ${domain}`);
-  info(`[login-auto] then run: unbrowse login-auto --url ${url} --wait-otp`);
-  info(`[login-auto]    or:    unbrowse login-auto --url ${url} --wait-link`);
+  info(`[login-auto] email: ${session.email}`);
 
+  // --send-to: send an email from the agent inbox (for sites that require incoming email verification)
+  const sendTo = flags["send-to"] as string | undefined;
+  if (sendTo) {
+    const subject = (flags.subject as string) ?? `Verify ${domain}`;
+    const body = (flags.body as string) ?? `This is an automated verification email from Unbrowse agent for ${domain}.`;
+    info(`[login-auto] sending email to ${sendTo}...`);
+    const result = await session.sendEmail(sendTo, subject, body);
+    output({ email: session.email, sent_to: sendTo, message_id: result.messageId, domain });
+    return;
+  }
+
+  // --wait-otp: poll for an OTP code
   if (flags["wait-otp"]) {
-    info(`[login-auto] waiting for OTP email from ${domain}...`);
-    const otp = await session.waitForOtp();
+    const timeout = Number(flags.timeout) || 90_000;
+    info(`[login-auto] waiting for OTP from ${domain} (${Math.round(timeout / 1000)}s timeout)...`);
+    const otp = await session.waitForOtp(timeout);
     if (otp) {
-      info(`[login-auto] OTP received: ${otp}`);
+      info(`[login-auto] OTP: ${otp}`);
       output({ email: session.email, otp, domain });
     } else {
-      info(`[login-auto] no OTP received within 90 seconds`);
+      info(`[login-auto] no OTP received`);
       output({ email: session.email, otp: null, domain, error: "timeout" });
     }
     return;
   }
 
+  // --wait-link: poll for a verification/magic link
   if (flags["wait-link"]) {
-    info(`[login-auto] waiting for verification link from ${domain}...`);
-    const link = await session.waitForLink();
+    const timeout = Number(flags.timeout) || 90_000;
+    info(`[login-auto] waiting for verification link from ${domain} (${Math.round(timeout / 1000)}s timeout)...`);
+    const link = await session.waitForLink(timeout);
     if (link) {
-      info(`[login-auto] verification link: ${link}`);
+      info(`[login-auto] link: ${link}`);
       output({ email: session.email, link, domain });
     } else {
-      info(`[login-auto] no verification email within 90 seconds`);
+      info(`[login-auto] no verification link received`);
       output({ email: session.email, link: null, domain, error: "timeout" });
     }
     return;
   }
 
-  // Default: just return the email for the agent to use
+  // Default: return the email for the agent/user to use
+  info(`[login-auto] use this email to register/login on ${domain}`);
+  info(`[login-auto] then: unbrowse login-auto ${domain} --wait-otp`);
+  info(`[login-auto]   or: unbrowse login-auto ${domain} --wait-link`);
   output({ email: session.email, inbox_id: session.inboxId, domain });
 }
 
