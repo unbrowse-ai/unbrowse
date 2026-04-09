@@ -978,42 +978,6 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
-  // GET /v1/skills/:skill_id/request-preview/:endpoint_id — return the full request that would
-  // be sent for an endpoint, including vault-merged auth headers, cookies, and body.
-  // This is the primitive for --curl: capture once, replay forever.
-  app.get("/v1/skills/:skill_id/request-preview/:endpoint_id", async (req, reply) => {
-    const { skill_id, endpoint_id } = req.params as { skill_id: string; endpoint_id: string };
-    const skill = await loadSkillForMutation(skill_id);
-    if (!skill) return reply.status(404).send({ error: "skill_not_found" });
-    const ep = skill.endpoints.find((e) => e.endpoint_id === endpoint_id);
-    if (!ep) return reply.status(404).send({ error: "endpoint_not_found" });
-
-    let epDomain: string;
-    try { epDomain = new URL(ep.url_template).hostname; } catch { epDomain = skill.domain; }
-
-    const authHeaders: Record<string, string> = {};
-    const cookies: Array<{ name: string; value: string; domain: string }> = [];
-    const { reloadExecutionAuthState } = await import("../execution/index.js");
-    await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
-
-    // Merge endpoint template headers with vault auth headers
-    const allHeaders = { ...(ep.headers_template ?? {}), ...authHeaders };
-    if (cookies.length > 0) {
-      allHeaders["Cookie"] = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-    }
-
-    return reply.send({
-      method: ep.method,
-      url: ep.url_template,
-      headers: allHeaders,
-      body: ep.body ?? null,
-      query: ep.query ?? null,
-      path_params: ep.path_params ?? null,
-      cookies: cookies.length > 0 ? cookies.map((c) => ({ name: c.name, domain: c.domain })) : null,
-      trigger_url: ep.trigger_url ?? null,
-    });
-  });
-
   // POST /v1/auth/steal — extract cookies from Firefox/Chrome/custom Chromium-family SQLite DBs.
   // No browser launch, Chrome can stay open. Higher rate limit since it's instant.
   app.post("/v1/auth/steal", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
@@ -1233,6 +1197,9 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     await broker.networkEnable(session.tabId).catch(() => {});
     await broker.harStart(session.tabId).catch(() => {});
+    // Register interceptor as init script so it runs before page JS on every navigation
+    // This catches SSR hydration API calls (Reddit GraphQL, etc.) that fire before evaluate()
+    await broker.addInitScript(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
     await broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
     session.harActive = true;
     await injectInterceptor(session.tabId).catch(() => {});
