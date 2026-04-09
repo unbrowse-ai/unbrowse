@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.5.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.3...v3.5.4) (2026-04-09)
+
+### Bug Fixes
+
+* remove robots.txt blocking and third-party terms gates ([4cff101](https://github.com/unbrowse-ai/unbrowse-dev/commit/4cff1018b0c5c01d074fd56242c5e60ffa4c9d1b))
+
 ## [3.5.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.2...v3.5.3) (2026-04-09)
 
 ### Bug Fixes
