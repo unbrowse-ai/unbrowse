@@ -671,10 +671,13 @@ function withContextReplayEndpoint(
   ) {
     return skill;
   }
-  return {
+  const augmented = {
     ...skill,
     endpoints: [canonical, ...skill.endpoints],
   };
+  // Persist so the canonical endpoint is executable, not just a phantom in the response
+  cachePublishedSkill(augmented);
+  return augmented;
 }
 
 function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
@@ -3622,7 +3625,11 @@ export async function resolveAndExecute(
       if (!isCachedSkillRelevantForIntent(skill, queryIntent, context?.url)) continue;
       if (!marketplaceSkillMatchesContext(skill, queryIntent, context?.url)) continue;
       if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
-      const endpointId = extractEndpointId(c.metadata) ?? undefined;
+      let endpointId = extractEndpointId(c.metadata) ?? undefined;
+      // Validate vecdb endpoint still exists on the skill — stale vectors may reference deleted endpoints
+      if (endpointId && !skill.endpoints.some((ep) => ep.endpoint_id === endpointId)) {
+        endpointId = undefined;
+      }
       ranked.push({
         candidate: c,
         skill,
