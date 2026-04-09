@@ -1,0 +1,42 @@
+{
+  "benchmark": "impossible-tier",
+  "timestamp": "2026-04-09T21:30:00+08:00",
+  "source": "Proxyway 2025 + Scraperly 583-site database",
+  "method": "turbobox cloud sandboxes (parallel) + local staging",
+  "versions": {
+    "v3.2.0": {
+      "environment": "turbobox ubuntu sandbox",
+      "sites": [
+        { "id": "shein", "endpoints": 17, "capture": "ok", "notes": "21.88% industry avg success" },
+        { "id": "g2", "endpoints": 0, "capture": "ok", "notes": "36.63% industry avg" },
+        { "id": "realtor", "endpoints": 0, "capture": "ok", "notes": "0-7% for most APIs (Kasada)" },
+        { "id": "target", "endpoints": 0, "capture": "ok", "notes": "Kasada-protected" },
+        { "id": "tiktok", "endpoints": 0, "capture": "ok", "notes": "Very Hard 5/5" }
+      ],
+      "total_endpoints": 17
+    },
+    "v3.4.1": {
+      "environment": "turbobox ubuntu sandbox",
+      "sites": [
+        { "id": "shein", "endpoints": 0, "capture": "error", "notes": "addInitScript crash — regression" }
+      ],
+      "total_endpoints": 0,
+      "regression": "addInitScript method missing from Kuri client"
+    },
+    "staging": {
+      "environment": "local macOS (hard-corpus-staging branch)",
+      "sites": [
+        { "id": "shein", "endpoints": 15, "capture": "ok", "notes": "worst in Proxyway 2025" },
+        { "id": "g2", "endpoints": 3, "capture": "ok", "notes": "Akamai 9/10" },
+        { "id": "realtor", "endpoints": 8, "capture": "ok", "notes": "Kasada, 0-7% for most APIs" },
+        { "id": "target", "endpoints": 5, "capture": "ok", "notes": "Kasada proof-of-work" },
+        { "id": "tiktok", "endpoints": 25, "capture": "ok", "notes": "Very Hard 5/5" },
+        { "id": "nike", "endpoints": 13, "capture": "ok" },
+        { "id": "coinmarketcap", "endpoints": 13, "capture": "ok" },
+        { "id": "depop", "endpoints": 10, "capture": "ok" }
+      ],
+      "total_endpoints": 92
+    }
+  },
+  "summary": "staging: 92 endpoints across 8 impossible/hard sites. v3.2.0: 17. v3.4.1: 0 (regression). Turbobox parallel benchmarking works — can scale to all 30 impossible sites."
+}

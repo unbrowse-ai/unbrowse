@@ -60,6 +60,29 @@ Omit empty sections. No emojis. No file paths or function names.
 - Versions synced across: `package.json`, `packages/skill/package.json`, `version.json`
 - Do not bump versions or create tags manually — `release-it` handles it
 
+## Auth Primitives — Autonomous Login
+
+When `go` detects an auth wall, it returns `auth_required: true`. The resolve pipeline should auto-chain login primitives without manual intervention.
+
+### CLI level (unbrowse primitives)
+- `sessions-scan` — find which browsers have sessions for any domain
+- `sessions-scan --domain <d>` — check a specific domain
+- `go <url>` — auto-injects best browser cookies, returns `auth_required: true` if login still needed
+- `snap --filter interactive` → `click` → `fill` → `submit` — drive any login UI
+
+### Agent level (aiko chains primitives)
+1. `go <url>` → detect `auth_required: true`
+2. `sessions-scan --domain <d>` → check if any browser has session
+3. If session found → inject cookies → reload → done
+4. If no session → `snap` → find login button → `click`
+5. If OAuth (Google/Facebook) → auto-completes via pre-injected OAuth cookies
+6. If OTP → `fill` phone → read OTP from iMessage/TG → `fill` OTP → `submit`
+7. `close` → session saved permanently, never login again
+
+### Primitive levels
+- **unbrowse CLI**: session scanning, cookie injection, auth detection, browse actions
+- **aiko agent**: chaining primitives, reading OTP, making decisions about login strategy
+
 ## GitHub
 
 - Base branch is always `main`

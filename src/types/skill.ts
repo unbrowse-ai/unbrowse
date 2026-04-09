@@ -117,6 +117,12 @@ export interface EndpointPolicyDescriptor {
   requires_third_party_terms_confirmation: boolean;
   policy_domain: string;
   reason: string;
+  /** When true, this endpoint requires a live browser session because captured query
+   *  parameters are session-bound (e.g. TikTok device_id, WebIdLastTime). Direct API
+   *  replay will return empty results. The agent should use `go` + `eval` instead. */
+  requires_live_session?: boolean;
+  /** Names of the session-bound query parameters detected in this endpoint's query. */
+  session_bound_params?: string[];
 }
 
 export interface EndpointPathBindingCandidate {
@@ -196,12 +202,22 @@ export interface EndpointDescriptor {
   _minedTemplate?: string;
   /** Raw path binding evidence captured before semantic naming rewrites placeholders. */
   _path_binding_candidates?: EndpointPathBindingCandidate[];
+  /** GraphQL operation metadata — operation name extracted from request body or URL.
+   *  Used for deduplication, display, and template matching of GraphQL endpoints. */
+  graphql_info?: {
+    operation_name: string;
+  };
   /** Structured search form spec — when present, indicates this endpoint can be driven
    *  by filling a DOM form rather than a direct API call. Used by isStructuredSearchForm
    *  to gate search-form execution paths. */
   search_form?: import("../execution/search-forms.js").SearchFormSpec;
   /** Optional third-party policy metadata surfaced to callers and enforced at execute time. */
   policy?: EndpointPolicyDescriptor;
+  /** GraphQL operation metadata — present when the endpoint is a GraphQL POST */
+  graphql_info?: {
+    /** The GraphQL operation name (e.g. "UserTweets", "ProfileCometTimelineFeedRefetchQuery") */
+    operation_name: string;
+  };
   /** Learned constraints from API errors and agent observations */
   constraints?: EndpointConstraint[];
   /** Agent-contributed best practices, tips, and gotchas */
