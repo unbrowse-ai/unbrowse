@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.5.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.2...v3.5.3) (2026-04-09)
+
+### Bug Fixes
+
+* remove phantom dependency-runtime.js import, add robots.txt tests ([33a8151](https://github.com/unbrowse-ai/unbrowse-dev/commit/33a815104cec3d1aebfd228d613b536bdded4d55)), closes [#89](https://github.com/unbrowse-ai/unbrowse-dev/issues/89)
+
 ## [3.5.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.5.1...v3.5.2) (2026-04-09)
 
 ### Bug Fixes
