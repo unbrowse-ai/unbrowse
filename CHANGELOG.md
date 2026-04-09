@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.4.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.3.4...v3.4.0) (2026-04-09)
+
+### Features
+
+* --curl flag to expose captured requests ([#389](https://github.com/unbrowse-ai/unbrowse-dev/issues/389)) ([d16b6d6](https://github.com/unbrowse-ai/unbrowse-dev/commit/d16b6d630b96225009ce0b7a674c75a908557ef5)), closes [#390](https://github.com/unbrowse-ai/unbrowse-dev/issues/390) [#386](https://github.com/unbrowse-ai/unbrowse-dev/issues/386) [#391](https://github.com/unbrowse-ai/unbrowse-dev/issues/391) [#392](https://github.com/unbrowse-ai/unbrowse-dev/issues/392) [#393](https://github.com/unbrowse-ai/unbrowse-dev/issues/393)
+* churn-curve analytics endpoint ([#381](https://github.com/unbrowse-ai/unbrowse-dev/issues/381)) ([71f08b0](https://github.com/unbrowse-ai/unbrowse-dev/commit/71f08b05517c506ba57262d9dabea2fd62216109))
+* guided first resolve after setup to fix 82% registration drop-off ([#383](https://github.com/unbrowse-ai/unbrowse-dev/issues/383)) ([f3e14b5](https://github.com/unbrowse-ai/unbrowse-dev/commit/f3e14b5436cccd487b59e96dcd8cafdceaf304f9))
+* version-segmented churn curve with drop-off stage tracking ([#382](https://github.com/unbrowse-ai/unbrowse-dev/issues/382)) ([6d6907c](https://github.com/unbrowse-ai/unbrowse-dev/commit/6d6907c712a9d5dcf858d07741b9b454320b7a7f))
+
+### Bug Fixes
+
+* ensure-submodules checks superproject pin, not live remote tip ([#398](https://github.com/unbrowse-ai/unbrowse-dev/issues/398)) ([1fbc05f](https://github.com/unbrowse-ai/unbrowse-dev/commit/1fbc05f4ef3b9b2b1e142c713d6f18ac8cd1012d)), closes [unbrowse-ai/unbrowse#100](https://github.com/unbrowse-ai/unbrowse/issues/100)
+* prevent dead session reuse and zombie tab recycling ([#387](https://github.com/unbrowse-ai/unbrowse-dev/issues/387)) ([d52a999](https://github.com/unbrowse-ai/unbrowse-dev/commit/d52a999cc97df966bf2baa695f91e7839e993125)), closes [#386](https://github.com/unbrowse-ai/unbrowse-dev/issues/386)
+
 ## [3.3.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.3.3...v3.3.4) (2026-04-07)
 
 ### Bug Fixes
