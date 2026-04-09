@@ -9,6 +9,19 @@ import os from "node:os";
 import fs from "node:fs";
 import { getDefaultLoginConfig } from "../runtime/supervisor.js";
 
+// Re-export agent mail primitives
+export {
+  autonomousEmailLogin,
+  tryAgentMailAuth,
+  isAgentMailAvailable,
+  getOrCreateSiteInbox,
+  waitForVerificationEmail,
+  extractOtpFromEmail,
+  extractVerificationLink,
+  type AgentMailSession,
+  type VerificationEmail,
+} from "./agent-mail.js";
+
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
 const MIN_WAIT_MS = 15_000;

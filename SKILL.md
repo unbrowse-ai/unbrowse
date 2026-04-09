@@ -427,15 +427,25 @@ Or filter `available_endpoints` by `action_kind`, URL pattern, or description in
 - **Structured output** — DOM extraction returns clean JSON arrays, not raw HTML
 ## Authentication
 
-**Automatic.** Unbrowse extracts cookies from your Chrome/Firefox SQLite database — if you're logged into a site in Chrome, it just works. For Chromium-family apps and Electron shells, the raw API also supports importing from a custom cookie DB path or user-data dir via `/v1/auth/steal`.
+Three auth strategies, tried in order:
+
+1. **Browser cookies (automatic)** — extracts cookies from Chrome/Firefox SQLite databases. If you're logged into a site in Chrome, it just works.
+2. **Agent email (autonomous)** — creates a disposable inbox via AgentMail, registers/logs in, catches the OTP or magic link. No human needed. Requires `AGENTMAIL_API_KEY`.
+3. **Interactive browser** — opens a visible browser for manual login. Cookies stored and reused.
 
 If `auth_required` is returned:
 
 ```bash
+# Autonomous (agent can do this without user)
+unbrowse login-auto example.com               # get a disposable email
+unbrowse login-auto example.com --wait-otp    # wait for OTP code
+unbrowse login-auto example.com --wait-link   # wait for magic link
+
+# Interactive (needs user)
 unbrowse login --url "https://example.com/login"
 ```
 
-User completes login in the browser window. Cookies are stored and reused automatically.
+For MCP agents, `unbrowse_login` tries agent email first, falls back to browser. Use `unbrowse_login_wait` to poll for the OTP/link after submitting the agent email on the site.
 
 ## Other Commands
 
