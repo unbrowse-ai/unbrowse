@@ -1803,8 +1803,8 @@ async function cmdClose(flags: Record<string, string | boolean>): Promise<void> 
 // login-auto — autonomous email-based login/registration via AgentMail
 // ---------------------------------------------------------------------------
 
-async function cmdLoginAuto(flags: Record<string, unknown>) {
-  const urlOrDomain = (flags.url ?? flags.domain ?? flags._?.[0]) as string | undefined;
+async function cmdLoginAuto(args: string[], flags: Record<string, unknown>) {
+  const urlOrDomain = (args[0] ?? flags.url ?? flags.domain) as string | undefined;
   if (!urlOrDomain) return die("usage: unbrowse login-auto <domain-or-url> [--wait-otp | --wait-link | --send-to <email>]");
 
   const domain = (() => {
@@ -2231,7 +2231,7 @@ async function main(): Promise<void> {
   if (command === "flywheel") return cmdFlywheel(flags);
   if (command === "earnings") return cmdEarnings(flags);
   if (command === "sessions-scan") return cmdSessionsScan(flags);
-  if (command === "login-auto") return cmdLoginAuto(flags);
+  if (command === "login-auto") return cmdLoginAuto(args, flags);
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
@@ -2309,7 +2309,7 @@ async function main(): Promise<void> {
     case "corpus-test": return cmdCorpusTest(flags);
     case "corpus-run": return cmdCorpusRun(flags);
     case "sessions-scan": return cmdSessionsScan(flags);
-    case "login-auto": return cmdLoginAuto(flags);
+    case "login-auto": return cmdLoginAuto(args, flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
