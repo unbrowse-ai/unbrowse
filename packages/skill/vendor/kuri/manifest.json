@@ -1,28 +1,25 @@
 {
   "repo_url": "https://github.com/justrach/kuri.git",
   "branch": "adding-extensions",
-  "source_sha": "e4b57cc7c052263cc64904da563ea8ad36998b7a",
-  "built_at": "2026-04-09T10:06:15.410Z",
+  "source_sha": "eadfaa5f921f7152e1762aed5ed64b3a4fbefbf3",
+  "built_at": "2026-04-09T16:06:09.281Z",
   "binaries": {
     "darwin-arm64": {
       "zig_target": "aarch64-macos",
-      "sha256": "50af2345d6a5049ebef0ad3b9f4b0a7d8f97dd63c7c8f20b30c3a45f862f4fdc"
+      "sha256": "1796501e393403016723c6b69266b834e2db04ba2559f51c84c957bd85c3927b",
+      "source": "prebuilt"
     },
     "darwin-x64": {
       "zig_target": "x86_64-macos",
-      "sha256": "6831bc80dc6db95aade9a5fc85af8be531fd8ebe5de738a91d1125ade7281730"
+      "sha256": "228dfd50f0d706aaf584c98dd01689d36a0866c4d717a70df696e3cde69d6f4f"
     },
     "linux-arm64": {
       "zig_target": "aarch64-linux",
-      "sha256": "08c2022142fca65338626399e1960798ee9634547d75034743052b57e787e604"
+      "sha256": "cd390bfa1d81ef2ebc9aa6c47e566011b19be482cb6e46cb2154cfe862a6b35c"
     },
     "linux-x64": {
       "zig_target": "x86_64-linux",
-      "sha256": "9d2a1d65c80e36b6df4376c5b12182d2504050bd23d2c4ec21692811e7cf7f56"
-    },
-    "win-x64": {
-      "zig_target": "x86_64-windows",
-      "sha256": "176291ad9827a183ba7322ddb56cc1fa5edc7c214a264ecdf8a1d5d18366d686"
+      "sha256": "9388be1ca7c5cd6c73fd4c88f44d28e79a734d14ae87f3f35089e604f5c05cd1"
     }
   }
 }
