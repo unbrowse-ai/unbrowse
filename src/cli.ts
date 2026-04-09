@@ -395,7 +395,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
         const { checkWalletConfigured } = await import("./payments/wallet.js");
         const wallet = checkWalletConfigured();
         if (!wallet.configured) {
-          info("You're indexing routes but have no payout wallet. Run: npx @crossmint/lobster-cli setup");
+          info("No payout wallet — you won't earn when others reuse your routes. Run: npx @crossmint/lobster-cli setup");
           walletNudgeShown = true;
         }
       } catch (_e) { /* non-fatal */ }
@@ -877,11 +877,11 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
   if (report.wallet.configured) {
     info(`Wallet configured (${report.wallet.provider}): ${(report.wallet as Record<string, unknown>).wallet_address ?? "linked"}`);
   } else if ((report.wallet as Record<string, unknown>).lobster_installed) {
-    info("Wallet not paired — your indexed routes won't earn payouts.");
+    info("Wallet not paired — you won't earn when other agents use routes you discovered.");
     info("Run: npx @crossmint/lobster-cli setup");
   } else {
-    info("No wallet configured — you're indexing routes for free.");
-    info("Set up a wallet so you earn when agents use your routes:");
+    info("No wallet configured — you earn when other agents reuse routes you discovered.");
+    info("Set up a wallet to start earning:");
     info("  npx @crossmint/lobster-cli setup");
   }
 
@@ -1328,7 +1328,7 @@ async function cmdEarnings(flags: Record<string, string | boolean>): Promise<voi
       lines.push(`  Progress: ${pct}% to self-sustaining`);
     }
     lines.push("");
-    lines.push("Keep resolving to index more routes and earn from other agents!");
+    lines.push("Every resolve discovers routes — you earn when other agents reuse them.");
     info(lines.join("\n"));
   } catch (err) {
     die(`Failed to fetch earnings: ${(err as Error).message}`);
