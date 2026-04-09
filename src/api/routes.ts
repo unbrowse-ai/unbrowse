@@ -1380,8 +1380,46 @@ export async function registerRoutes(app: FastifyInstance) {
 
         await restartBrowseCapture(session);
 
-        await broker.navigate(session.tabId, url);
-        await broker.navigate(session.tabId, url);
+        try {
+          await broker.navigate(session.tabId, url);
+        } catch (navError: unknown) {
+          // Navigate can throw on slow sites (challenge pages, redirect chains)
+          // even though the page actually loaded. Check if the tab is alive
+          // and landed on the intended domain before giving up.
+          const msg = navError instanceof Error ? navError.message : String(navError);
+          const isTimeoutOrAbort =
+            /abort|timeout|operation was aborted/i.test(msg);
+          if (!isTimeoutOrAbort) throw navError;
+
+          const probe = await broker
+            .evaluate(
+              session.tabId,
+              "JSON.stringify({url:location.href,title:document.title,ready:document.readyState})",
+            )
+            .catch(() => null);
+
+          let pageLoaded = false;
+          if (probe && typeof probe === "string") {
+            try {
+              const info = JSON.parse(probe) as {
+                url: string;
+                title: string;
+                ready: string;
+              };
+              const targetDomain = profileName(url);
+              const actualDomain = profileName(info.url);
+              pageLoaded =
+                info.url.startsWith("http") &&
+                actualDomain === targetDomain &&
+                info.title.length > 0;
+            } catch {
+              /* parse failed — treat as not loaded */
+            }
+          }
+          if (!pageLoaded) throw navError;
+          // Page is actually loaded — continue the flow normally
+        }
+
         const finalUrl = await broker.getCurrentUrl(session.tabId).catch(() => url);
         session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
         session.domain = profileName(session.url);
