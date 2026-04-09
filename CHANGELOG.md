@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.5.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.4.1...v3.5.0) (2026-04-09)
+
+### Features
+
+* deep indexing + agent payments (credit subsidy, USDC payouts, hard corpus) ([17d67c0](https://github.com/unbrowse-ai/unbrowse-dev/commit/17d67c0b1f2aa8a04824aaab2fd356ae9fd811a3)), closes [#402](https://github.com/unbrowse-ai/unbrowse-dev/issues/402) [#401](https://github.com/unbrowse-ai/unbrowse-dev/issues/401) [#403](https://github.com/unbrowse-ai/unbrowse-dev/issues/403) [#404](https://github.com/unbrowse-ai/unbrowse-dev/issues/404) [#410](https://github.com/unbrowse-ai/unbrowse-dev/issues/410) [#408](https://github.com/unbrowse-ai/unbrowse-dev/issues/408) [#408](https://github.com/unbrowse-ai/unbrowse-dev/issues/408) [#413](https://github.com/unbrowse-ai/unbrowse-dev/issues/413) [#418](https://github.com/unbrowse-ai/unbrowse-dev/issues/418)
+* webhook handler dispatches pr-agent for new bug issues ([#400](https://github.com/unbrowse-ai/unbrowse-dev/issues/400)) ([d3fe4cf](https://github.com/unbrowse-ai/unbrowse-dev/commit/d3fe4cf44a510f3474911142970541cfcecc4641))
+
+### Bug Fixes
+
+* add missing addInitScript method to Kuri client ([cbe289c](https://github.com/unbrowse-ai/unbrowse-dev/commit/cbe289ca588c77aa9a766e872efc1d2a200d4163))
+* recover from navigate timeout when page actually loaded ([4c32832](https://github.com/unbrowse-ai/unbrowse-dev/commit/4c328321bc1b0335b81e035bc943666d652e068d))
+
 ## Unreleased
 
 ### Features
