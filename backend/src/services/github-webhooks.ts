@@ -432,10 +432,61 @@ export async function processGithubWebhook(
     return { ok: true, status: 200, kind: "duplicate", note: "delivery already processed" };
   }
 
-  if (eventName !== "pull_request" && eventName !== "check_suite") {
+  if (eventName !== "pull_request" && eventName !== "check_suite" && eventName !== "issues") {
     const result = { ok: true, status: 202, kind: "ignored" as const, note: `ignored event ${eventName}` };
     await markDeliveryProcessed(env, deliveryId, result);
     return result;
+  }
+
+  // Issues: dispatch pr-agent with operation "triage" for new bug issues
+  if (eventName === "issues") {
+    const issuePayload = payload as GithubWebhookPayload & { issue?: { number?: number; title?: string; labels?: PullRequestLabel[] } };
+    const action = issuePayload.action;
+    const issue = issuePayload.issue;
+    if (!issue?.number || (action !== "opened" && action !== "labeled")) {
+      const result = { ok: true, status: 202, kind: "ignored" as const, repo, note: `issues:${action} not actionable` };
+      await markDeliveryProcessed(env, deliveryId, result);
+      return result;
+    }
+    const labels = (issue.labels ?? []).map((l) => l.name).filter(Boolean);
+    if (!labels.includes("bug")) {
+      const result = { ok: true, status: 202, kind: "ignored" as const, repo, note: "issue not labeled bug" };
+      await markDeliveryProcessed(env, deliveryId, result);
+      return result;
+    }
+    const dedupeKey = `gh-dispatch:triage:issues:${repo}:${issue.number}`;
+    if (await statsKV(env).get(dedupeKey) != null) {
+      const result = { ok: true, status: 200, kind: "duplicate" as const, repo, note: `triage already dispatched for issue #${issue.number}` };
+      await markDeliveryProcessed(env, deliveryId, result);
+      return result;
+    }
+    try {
+      if (!env.GITHUB_PR_BOT_TOKEN?.trim()) throw new Error("Missing GITHUB_PR_BOT_TOKEN.");
+      const [owner, repoName] = repo.split("/");
+      await githubRest(env.GITHUB_PR_BOT_TOKEN, `/repos/${owner}/${repoName}/actions/workflows/${workflowFile(env)}/dispatches`, {
+        method: "POST",
+        body: JSON.stringify({
+          ref: workflowRef(env),
+          inputs: {
+            repo,
+            pr_number: String(issue.number),
+            head_sha: "main",
+            trigger_source: "issues",
+            trigger_reason: `issues:${action}:bug`,
+            operation: "triage",
+          },
+        }),
+      });
+      await statsKV(env).put(dedupeKey, JSON.stringify({ seen_at: new Date().toISOString() }));
+      const result = { ok: true, status: 202, kind: "dispatched" as const, repo, note: `dispatched triage for issue #${issue.number}` };
+      await markDeliveryProcessed(env, deliveryId, result);
+      return result;
+    } catch (error) {
+      const note = error instanceof Error ? error.message : String(error);
+      const result = { ok: false, status: 500, kind: "failed" as const, repo, note };
+      await markDeliveryProcessed(env, deliveryId, result);
+      return result;
+    }
   }
 
   const basePlan = parseWebhookPlan(eventName, payload);

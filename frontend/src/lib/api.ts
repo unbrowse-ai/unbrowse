@@ -390,6 +390,21 @@ export async function getDashboardByWallet(walletAddress: string): Promise<Dashb
   return api<DashboardData>("GET", `/v1/dashboard/wallet/${encodeURIComponent(walletAddress.trim())}`);
 }
 
+// --- Credits / Earnings ---
+
+export interface CreditBalance {
+  agent_id: string;
+  granted_uc: number;
+  earned_uc: number;
+  consumed_uc: number;
+  balance_uc: number;
+  is_self_sustaining: boolean;
+}
+
+export async function getCreditBalance(): Promise<CreditBalance> {
+  return authApi<CreditBalance>("GET", "/v1/credits/balance");
+}
+
 export async function getLeaderboard(limit = 50): Promise<LeaderboardEntry[]> {
   const data = await api<{ entries: LeaderboardEntry[] }>("GET", `/v1/leaderboard?limit=${limit}`);
   return data.entries;

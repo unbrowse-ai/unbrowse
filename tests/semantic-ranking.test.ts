@@ -735,4 +735,207 @@ describe("rankEndpoints semantic intent adjustment", () => {
     expect(ranked[0]?.endpoint.endpoint_id).toBe("observed-search");
     expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("bundle-ghost");
   });
+
+  test("prefers temu product search api over ad-tracking and fingerprint endpoints", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "ad-tracking",
+        method: "GET",
+        url_template: "https://www.temu.com/api/bg/bg-temu-activity-oversea-fe/activity/common/adx/cm/ttc",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.8,
+        description: "Ad tracking endpoint for TTClid campaign measurement",
+      } as any,
+      {
+        endpoint_id: "fingerprint",
+        method: "POST",
+        url_template: "https://www.temu.com/api/phantom/pfb",
+        idempotency: "unsafe",
+        verification_status: "verified",
+        reliability_score: 0.8,
+        description: "Browser fingerprint collection endpoint",
+      } as any,
+      {
+        endpoint_id: "timestamp",
+        method: "GET",
+        url_template: "https://www.temu.com/server/_stm",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Server timestamp endpoint",
+      } as any,
+      {
+        endpoint_id: "product-search",
+        method: "GET",
+        url_template: "https://www.temu.com/api/poppy/v1/search?q={q}&page_sn={page_sn}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.85,
+        description: "Returns product search results with goods_list, price, and ratings",
+        response_schema: {
+          type: "object",
+          properties: {
+            goods_list: { type: "array" },
+            total: { type: "number" },
+          },
+        },
+      } as any,
+    ], "search products on temu", "www.temu.com", "https://www.temu.com/search_result.html?search_key=shoes");
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("product-search");
+    // ad-tracking, fingerprint, and timestamp should all rank below product-search
+    const productIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "product-search");
+    const adIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "ad-tracking");
+    const fpIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "fingerprint");
+    const stmIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "timestamp");
+    if (adIdx !== -1) expect(productIdx).toBeLessThan(adIdx);
+    if (fpIdx !== -1) expect(productIdx).toBeLessThan(fpIdx);
+    if (stmIdx !== -1) expect(productIdx).toBeLessThan(stmIdx);
+  });
+
+  test("prefers nike product search api over privacy-consent and i18n navigation endpoints", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "privacy-compliance",
+        method: "GET",
+        url_template: "https://www.nike.com/api/privacy_compliance",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Privacy compliance settings endpoint",
+      } as any,
+      {
+        endpoint_id: "i18n-navigation",
+        method: "GET",
+        url_template: "https://www.nike.com/i18n/en/navigation.json",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Internationalization navigation config",
+      } as any,
+      {
+        endpoint_id: "privacy-consent",
+        method: "GET",
+        url_template: "https://www.nike.com/api/privacy-consent",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.8,
+        description: "User privacy consent endpoint",
+      } as any,
+      {
+        endpoint_id: "product-search",
+        method: "GET",
+        url_template: "https://api.nike.com/crs/products/v4/search?queryid={queryid}&endpoint=product&search={search}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.85,
+        description: "Returns product search results with title, price, and colorways",
+        response_schema: {
+          type: "object",
+          properties: {
+            products: { type: "array" },
+            pages: { type: "object" },
+          },
+        },
+      } as any,
+    ], "search shoes on nike", "www.nike.com", "https://www.nike.com/w/shoes-y7ok?q=shoes");
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("product-search");
+    const productIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "product-search");
+    const privacyIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "privacy-compliance");
+    const i18nIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "i18n-navigation");
+    if (privacyIdx !== -1) expect(productIdx).toBeLessThan(privacyIdx);
+    if (i18nIdx !== -1) expect(productIdx).toBeLessThan(i18nIdx);
+  });
+
+  test("filters x.com videoads and fleets avatar endpoints below data apis for tweet search", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "videoads",
+        method: "GET",
+        url_template: "https://x.com/i/api/1.1/ads/videoads/prerolls.json",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.8,
+        description: "Video preroll ads endpoint",
+      } as any,
+      {
+        endpoint_id: "fleets-avatar",
+        method: "GET",
+        url_template: "https://x.com/i/api/fleets/v1/avatar_content?user_ids={user_ids}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.8,
+        description: "Fleets avatar content for user ids",
+      } as any,
+      {
+        endpoint_id: "search-timeline",
+        method: "GET",
+        url_template: "https://x.com/i/api/graphql/N624Yk5dI3CB6SDnSnm5cg/SearchTimeline?variables={variables}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Returns tweet search results with tweet text and author",
+        response_schema: {
+          type: "object",
+          properties: {
+            data: { type: "object" },
+          },
+        },
+      } as any,
+    ], "search tweets", "x.com", "https://x.com/search?q=openai");
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("search-timeline");
+    const searchIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "search-timeline");
+    const adsIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "videoads");
+    const fleetsIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "fleets-avatar");
+    if (adsIdx !== -1) expect(searchIdx).toBeLessThan(adsIdx);
+    if (fleetsIdx !== -1) expect(searchIdx).toBeLessThan(fleetsIdx);
+  });
+
+  test("filters coinmarketcap locales and whitepaper endpoints below token info api", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "locales",
+        method: "GET",
+        url_template: "https://coinmarketcap.com/locales/Community.json",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Community localization strings",
+      } as any,
+      {
+        endpoint_id: "whitepaper",
+        method: "GET",
+        url_template: "https://coinmarketcap.com/currencies/bitcoin/whitepaper/summaries",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.85,
+        description: "Whitepaper summaries for token",
+      } as any,
+      {
+        endpoint_id: "token-info",
+        method: "GET",
+        url_template: "https://api.coinmarketcap.com/data-api/v3/cryptocurrency/detail?id={id}&convertId={convertId}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Returns token details with price, market cap, and 24h change",
+        response_schema: {
+          type: "object",
+          properties: {
+            data: { type: "object" },
+            price: { type: "number" },
+            marketCap: { type: "number" },
+          },
+        },
+      } as any,
+    ], "get bitcoin token info", "coinmarketcap.com", "https://coinmarketcap.com/currencies/bitcoin/");
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("token-info");
+    const tokenIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "token-info");
+    const localesIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "locales");
+    if (localesIdx !== -1) expect(tokenIdx).toBeLessThan(localesIdx);
+  });
 });

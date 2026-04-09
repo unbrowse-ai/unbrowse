@@ -421,3 +421,79 @@ export function extractBrowserCookies(
   chrome.warnings.push(...ff.warnings);
   return chrome;
 }
+
+// ---------------------------------------------------------------------------
+// Multi-browser session scanner — find best logged-in session across all browsers
+// ---------------------------------------------------------------------------
+
+interface BrowserSessionResult {
+  browser: string;
+  cookies: BrowserCookie[];
+  sessionCookies: number; // httpOnly + secure = likely auth
+  source: string | null;
+}
+
+const CHROMIUM_BROWSERS: Array<{ name: string; macPath: string; linuxPath?: string; winPath?: string }> = [
+  { name: "Chrome", macPath: "Google/Chrome" },
+  { name: "Arc", macPath: "Arc/User Data" },
+  { name: "Brave", macPath: "BraveSoftware/Brave-Browser" },
+  { name: "Edge", macPath: "Microsoft Edge" },
+  { name: "Vivaldi", macPath: "Vivaldi" },
+  { name: "Opera", macPath: "com.operasoftware.Opera" },
+  { name: "Dia", macPath: "Dia/User Data" },
+  { name: "Chromium", macPath: "Chromium" },
+];
+
+export function scanAllBrowserSessions(domain: string): BrowserSessionResult[] {
+  const results: BrowserSessionResult[] = [];
+  const home = homedir();
+
+  for (const browser of CHROMIUM_BROWSERS) {
+    const userDataDir = platform() === "darwin"
+      ? join(home, "Library", "Application Support", browser.macPath)
+      : platform() === "win32"
+        ? join(process.env.LOCALAPPDATA ?? join(home, "AppData", "Local"), browser.macPath, "User Data")
+        : join(home, ".config", browser.macPath.toLowerCase());
+
+    if (!existsSync(userDataDir)) continue;
+
+    try {
+      const result = extractFromChromium(domain, {
+        userDataDir,
+        browserName: browser.name,
+      });
+      if (result.cookies.length > 0) {
+        const sessionCookies = result.cookies.filter(c => c.httpOnly || c.secure).length;
+        results.push({
+          browser: browser.name,
+          cookies: result.cookies,
+          sessionCookies,
+          source: result.source,
+        });
+      }
+    } catch { /* skip browsers that fail */ }
+  }
+
+  // Also try Firefox
+  try {
+    const ff = extractFromFirefox(domain);
+    if (ff.cookies.length > 0) {
+      const sessionCookies = ff.cookies.filter(c => c.httpOnly || c.secure).length;
+      results.push({
+        browser: "Firefox",
+        cookies: ff.cookies,
+        sessionCookies,
+        source: ff.source,
+      });
+    }
+  } catch { /* skip */ }
+
+  // Sort by session cookie count (most auth-like first)
+  results.sort((a, b) => b.sessionCookies - a.sessionCookies);
+  return results;
+}
+
+export function findBestBrowserSession(domain: string): BrowserSessionResult | null {
+  const sessions = scanAllBrowserSessions(domain);
+  return sessions[0] ?? null;
+}

@@ -359,7 +359,7 @@ type KVEnv = {
 };
 
 export function skillsKV(env: KVEnv): PgKV | EdbKV {
-  const ns = env.ENVIRONMENT === "staging" ? "staging-skills-v2" : "skills";
+  const ns = env.ENVIRONMENT === "staging" ? "staging-skills-v3" : "skills-v2";
   if (env.DATABASE_URL?.trim()) {
     return new PgKV(env.DATABASE_URL, ns);
   }

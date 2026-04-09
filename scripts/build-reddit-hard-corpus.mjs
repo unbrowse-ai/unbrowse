@@ -1,0 +1,178 @@
+#!/usr/bin/env node
+/**
+ * build-reddit-hard-corpus.mjs
+ *
+ * Generates evals/trace-loop.reddit-hard-100.json — a 100-site hard corpus
+ * derived from Reddit-signal sites across 9 verticals.
+ *
+ * These are sites that real users discuss on Reddit as hard to scrape/automate:
+ * heavy JS rendering, auth walls, bot detection, GraphQL, dynamic routing.
+ *
+ * Usage:
+ *   node scripts/build-reddit-hard-corpus.mjs
+ *
+ * Output: evals/trace-loop.reddit-hard-100.json
+ *
+ * This corpus is a telemetry seed for per-site parallel trace-loop runs.
+ * Do NOT run all 100 in one monolithic pass.
+ */
+
+import { writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const OUT = join(__dirname, "..", "evals", "trace-loop.reddit-hard-100.json");
+
+const corpus = {
+  description:
+    "100-site hard corpus across 9 verticals. Reddit-derived: sites frequently discussed as difficult to automate (bot detection, auth walls, heavy JS, GraphQL, dynamic routing). Use per-site parallel agents, not one bulk pass.",
+  source_strategy:
+    "Curated from Reddit threads in r/webscraping, r/webdev, r/selfhosted, r/datascience discussing hard-to-automate sites. Cross-referenced with known anti-bot and SPA-heavy properties.",
+  defaults: { compiled: true },
+  cases: [
+    // === Social / UGC (10) ===
+    { id: "linkedin-profile", intent: "get profile info", url: "https://www.linkedin.com/in/williamhgates/", tags: ["social", "auth-wall"], notes: "Login wall on most pages, aggressive bot detection", vertical: "social", reddit_signal: "r/webscraping top complaint" },
+    { id: "instagram-profile", intent: "get profile posts", url: "https://www.instagram.com/natgeo/", tags: ["social", "auth-wall", "graphql"], notes: "GraphQL API behind login, aggressive rate limiting", vertical: "social", reddit_signal: "r/webscraping frequent topic" },
+    { id: "tiktok-profile", intent: "get profile videos", url: "https://www.tiktok.com/@nasa", tags: ["social", "bot-detection"], notes: "Heavy fingerprinting, dynamic video loading", vertical: "social", reddit_signal: "r/webscraping known hard" },
+    { id: "facebook-page", intent: "get page posts", url: "https://www.facebook.com/NASA/", tags: ["social", "auth-wall"], notes: "Login wall, shadow DOM, complex React hydration", vertical: "social", reddit_signal: "r/webscraping impossible without login" },
+    { id: "x-profile", intent: "get user tweets", url: "https://x.com/elonmusk", tags: ["social", "graphql", "auth-wall"], notes: "GraphQL POST with massive JSON, login required for timeline", vertical: "social", reddit_signal: "r/webscraping API shutdown discussion" },
+    { id: "threads-profile", intent: "get user threads", url: "https://www.threads.net/@zuck", tags: ["social", "spa"], notes: "Meta SPA, similar anti-bot to Instagram", vertical: "social", reddit_signal: "new platform, same Meta defenses" },
+    { id: "youtube-channel", intent: "get channel videos", url: "https://www.youtube.com/@MrBeast", tags: ["social", "spa", "dynamic"], notes: "Polymer SPA, infinite scroll, consent interstitial in EU", vertical: "social", reddit_signal: "r/webscraping frequent" },
+    { id: "twitch-channel", intent: "get channel info", url: "https://www.twitch.tv/shroud", tags: ["social", "spa", "graphql"], notes: "React SPA with GraphQL, live content", vertical: "social", reddit_signal: "r/webscraping graphql discussion" },
+    { id: "pinterest-search", intent: "search pins", url: "https://www.pinterest.com/search/pins/?q=interior+design", tags: ["social", "infinite-scroll"], notes: "Infinite scroll waterfall, login nag", vertical: "social", reddit_signal: "r/webscraping login wall" },
+    { id: "snapchat-spotlight", intent: "get spotlight content", url: "https://www.snapchat.com/spotlight", tags: ["social", "spa"], notes: "Minimal web presence, heavy client-side rendering", vertical: "social", reddit_signal: "nearly impossible web scraping" },
+
+    // === Maps / Travel / Local (14) ===
+    { id: "google-maps-search", intent: "search places", url: "https://www.google.com/maps/search/coffee+shops+singapore/", tags: ["maps", "spa", "dynamic"], notes: "Protobuf API, complex DOM, consent screens", vertical: "travel", reddit_signal: "r/webscraping most-asked" },
+    { id: "google-flights-search", intent: "search flights", url: "https://www.google.com/travel/flights/search?tfs=CBwQAhoeEgoyMDI2LTA1LTAxagcIARIDU0ZPcgcIARIDTEFYGh4SCjIwMjYtMDUtMDhqBwgBEgNMQVhyBwgBEgNTRk9AAUgBcAGCAQsI____________AZgBAQ&hl=en", tags: ["travel", "spa", "dynamic"], notes: "Extremely dynamic SPA, encoded search params", vertical: "travel", reddit_signal: "r/flights scraping threads" },
+    { id: "airbnb-listing", intent: "get listing details", url: "https://www.airbnb.com/s/Tokyo/homes", tags: ["travel", "bot-detection"], notes: "Challenge wall, Datadome protection", vertical: "travel", reddit_signal: "r/webscraping known blocked" },
+    { id: "booking-search", intent: "search hotels", url: "https://www.booking.com/searchresults.html?ss=Paris", tags: ["travel", "bot-detection"], notes: "Akamai bot detection, CAPTCHA on automation", vertical: "travel", reddit_signal: "r/webscraping anti-bot discussion" },
+    { id: "tripadvisor-search", intent: "search hotels", url: "https://www.tripadvisor.com/Hotels-g60763-New_York_City_New_York-Hotels.html", tags: ["travel", "bot-detection"], notes: "Cloudflare + custom bot detection", vertical: "travel", reddit_signal: "r/webscraping rate limiting" },
+    { id: "agoda-search", intent: "search hotels", url: "https://www.agoda.com/search?city=17193", tags: ["travel", "spa"], notes: "Heavy React SPA, price obfuscation", vertical: "travel", reddit_signal: "r/webscraping asia travel" },
+    { id: "expedia-search", intent: "search hotels", url: "https://www.expedia.com/Hotel-Search?destination=London", tags: ["travel", "bot-detection"], notes: "PerimeterX bot protection", vertical: "travel", reddit_signal: "r/webscraping blocked discussion" },
+    { id: "kayak-flights", intent: "search flights", url: "https://www.kayak.com/flights/SFO-LAX/2026-05-01", tags: ["travel", "spa", "dynamic"], notes: "Dynamic price loading, polling results", vertical: "travel", reddit_signal: "r/webscraping polling difficulty" },
+    { id: "skyscanner-flights", intent: "search flights", url: "https://www.skyscanner.com/transport/flights/sfo/lax/260501/", tags: ["travel", "spa"], notes: "React SPA, progressive result loading", vertical: "travel", reddit_signal: "r/webscraping SPA difficulty" },
+    { id: "vrbo-search", intent: "search vacation rentals", url: "https://www.vrbo.com/search?destination=Maui", tags: ["travel", "bot-detection"], notes: "Expedia group, similar anti-bot", vertical: "travel", reddit_signal: "same stack as expedia" },
+    { id: "hostelworld-search", intent: "search hostels", url: "https://www.hostelworld.com/st/hostels/p/1/s/Bangkok/", tags: ["travel", "spa"], notes: "SPA with dynamic pricing", vertical: "travel", reddit_signal: "r/solotravel scraping threads" },
+    { id: "trip-com-search", intent: "search hotels", url: "https://www.trip.com/hotels/list?city=318", tags: ["travel", "spa"], notes: "Chinese tech stack, heavy obfuscation", vertical: "travel", reddit_signal: "r/webscraping china sites" },
+    { id: "opentable-search", intent: "search restaurants", url: "https://www.opentable.com/s?covers=2&dateTime=2026-05-01T19%3A00&metroId=4", tags: ["local", "spa"], notes: "Dynamic availability, auth for booking", vertical: "travel", reddit_signal: "r/webscraping restaurant data" },
+    { id: "yelp-search", intent: "search businesses", url: "https://www.yelp.com/search?find_desc=ramen&find_loc=San+Francisco", tags: ["local", "bot-detection"], notes: "Aggressive bot detection, CAPTCHA", vertical: "travel", reddit_signal: "r/webscraping yelp blocked" },
+
+    // === Retail / Ecommerce (14) ===
+    { id: "amazon-search", intent: "search products", url: "https://www.amazon.com/s?k=mechanical+keyboard", tags: ["ecommerce", "bot-detection"], notes: "CAPTCHA on automation, dynamic pricing", vertical: "retail", reddit_signal: "r/webscraping #1 most discussed" },
+    { id: "walmart-search", intent: "search products", url: "https://www.walmart.com/search?q=laptop", tags: ["ecommerce", "bot-detection"], notes: "PerimeterX, heavy anti-bot", vertical: "retail", reddit_signal: "r/webscraping walmart blocked" },
+    { id: "target-search", intent: "search products", url: "https://www.target.com/s?searchTerm=headphones", tags: ["ecommerce", "bot-detection"], notes: "Akamai protection, geo-restricted pricing", vertical: "retail", reddit_signal: "r/webscraping target captcha" },
+    { id: "ebay-search", intent: "search listings", url: "https://www.ebay.com/sch/i.html?_nkw=vintage+watch", tags: ["ecommerce", "dynamic"], notes: "Dynamic listing updates, complex filters", vertical: "retail", reddit_signal: "r/webscraping ebay api discussion" },
+    { id: "etsy-search", intent: "search handmade items", url: "https://www.etsy.com/search?q=ceramic+mug", tags: ["ecommerce", "spa"], notes: "React SPA, consent wall in EU", vertical: "retail", reddit_signal: "r/webscraping etsy difficulty" },
+    { id: "temu-search", intent: "search products", url: "https://www.temu.com/search_result.html?search_key=phone+case", tags: ["ecommerce", "bot-detection"], notes: "Aggressive fingerprinting, Chinese anti-bot", vertical: "retail", reddit_signal: "r/webscraping temu impossible" },
+    { id: "shein-search", intent: "search fashion", url: "https://www.shein.com/recommend/Women-New-in-sc-100161222.html", tags: ["ecommerce", "bot-detection"], notes: "Heavy bot detection, geo-redirect", vertical: "retail", reddit_signal: "r/webscraping shein blocked" },
+    { id: "bestbuy-search", intent: "search electronics", url: "https://www.bestbuy.com/site/searchpage.jsp?st=gpu", tags: ["ecommerce", "bot-detection"], notes: "Akamai + queue system during drops", vertical: "retail", reddit_signal: "r/webscraping gpu drop bots" },
+    { id: "costco-search", intent: "search products", url: "https://www.costco.com/CatalogSearch?dept=All&keyword=coffee", tags: ["ecommerce", "auth-wall"], notes: "Member pricing behind login", vertical: "retail", reddit_signal: "r/webscraping membership wall" },
+    { id: "nike-search", intent: "search shoes", url: "https://www.nike.com/w/mens-shoes-nik1zy7ok", tags: ["ecommerce", "bot-detection"], notes: "Akamai, queue/draw system, fingerprinting", vertical: "retail", reddit_signal: "r/sneakers bot detection" },
+    { id: "adidas-search", intent: "search shoes", url: "https://www.adidas.com/us/men-shoes", tags: ["ecommerce", "bot-detection"], notes: "Queue-IT, heavy anti-bot on releases", vertical: "retail", reddit_signal: "r/sneakers queue discussion" },
+    { id: "zara-search", intent: "browse clothing", url: "https://www.zara.com/us/en/man-new-in-l711.html", tags: ["ecommerce", "spa"], notes: "Heavy SPA, no traditional URLs for products", vertical: "retail", reddit_signal: "r/webscraping zara spa" },
+    { id: "uniqlo-search", intent: "browse clothing", url: "https://www.uniqlo.com/us/en/men/t-shirts", tags: ["ecommerce", "spa"], notes: "React SPA, dynamic inventory", vertical: "retail", reddit_signal: "r/webscraping japanese retail" },
+    { id: "wayfair-search", intent: "search furniture", url: "https://www.wayfair.com/keyword.php?keyword=desk", tags: ["ecommerce", "bot-detection"], notes: "Bot detection, dynamic pricing", vertical: "retail", reddit_signal: "r/webscraping wayfair blocked" },
+
+    // === Marketplaces / Resale / Classifieds (12) ===
+    { id: "stockx-search", intent: "search sneakers", url: "https://stockx.com/search?s=jordan+1", tags: ["marketplace", "bot-detection"], notes: "PerimeterX, API-heavy SPA", vertical: "marketplace", reddit_signal: "r/sneakers stockx bots" },
+    { id: "goat-search", intent: "search sneakers", url: "https://www.goat.com/search?query=yeezy", tags: ["marketplace", "spa"], notes: "React SPA, dynamic pricing", vertical: "marketplace", reddit_signal: "r/sneakers goat scraping" },
+    { id: "grailed-search", intent: "search designer clothing", url: "https://www.grailed.com/shop?query=rick+owens", tags: ["marketplace", "spa"], notes: "React SPA with Algolia search", vertical: "marketplace", reddit_signal: "r/webscraping grailed" },
+    { id: "depop-search", intent: "search items", url: "https://www.depop.com/search/?q=vintage+jacket", tags: ["marketplace", "spa"], notes: "Mobile-first SPA", vertical: "marketplace", reddit_signal: "r/depop scraping" },
+    { id: "poshmark-search", intent: "search listings", url: "https://poshmark.com/search?query=handbag", tags: ["marketplace", "bot-detection"], notes: "Bot detection, CAPTCHA on search", vertical: "marketplace", reddit_signal: "r/webscraping poshmark blocked" },
+    { id: "mercari-search", intent: "search items", url: "https://www.mercari.com/search/?keyword=nintendo", tags: ["marketplace", "spa"], notes: "React SPA, login nag", vertical: "marketplace", reddit_signal: "r/webscraping mercari" },
+    { id: "reverb-search", intent: "search music gear", url: "https://reverb.com/marketplace?query=stratocaster", tags: ["marketplace", "spa"], notes: "React SPA, dynamic filters", vertical: "marketplace", reddit_signal: "r/guitar reverb scraping" },
+    { id: "offerup-search", intent: "search local items", url: "https://offerup.com/search?q=bicycle", tags: ["marketplace", "spa", "geo"], notes: "Geo-restricted, app-first", vertical: "marketplace", reddit_signal: "r/webscraping local marketplaces" },
+    { id: "carousell-search", intent: "search items", url: "https://www.carousell.sg/search/iphone", tags: ["marketplace", "spa"], notes: "SEA marketplace, React SPA", vertical: "marketplace", reddit_signal: "r/singapore carousell scraping" },
+    { id: "vinted-search", intent: "search clothing", url: "https://www.vinted.com/catalog?search_text=nike", tags: ["marketplace", "bot-detection"], notes: "Cloudflare protection, EU market", vertical: "marketplace", reddit_signal: "r/webscraping vinted blocked" },
+    { id: "wallapop-search", intent: "search items", url: "https://es.wallapop.com/app/search?keywords=bicicleta", tags: ["marketplace", "spa"], notes: "Spanish marketplace, SPA", vertical: "marketplace", reddit_signal: "r/webscraping spain" },
+    { id: "craigslist-search", intent: "search listings", url: "https://sfbay.craigslist.org/search/sss?query=desk", tags: ["classifieds"], notes: "Simple HTML but geo-split, IP blocking", vertical: "marketplace", reddit_signal: "r/webscraping craigslist ip ban" },
+
+    // === Ticketing / Events (8) ===
+    { id: "ticketmaster-search", intent: "search events", url: "https://www.ticketmaster.com/search?q=concert", tags: ["ticketing", "bot-detection"], notes: "Queue-IT, aggressive bot detection, CAPTCHA", vertical: "ticketing", reddit_signal: "r/webscraping ticketmaster impossible" },
+    { id: "stubhub-search", intent: "search tickets", url: "https://www.stubhub.com/find/s?q=taylor+swift", tags: ["ticketing", "bot-detection"], notes: "PerimeterX, dynamic pricing", vertical: "ticketing", reddit_signal: "r/webscraping stubhub blocked" },
+    { id: "axs-events", intent: "search events", url: "https://www.axs.com/search?q=music", tags: ["ticketing", "spa"], notes: "SPA, queue system for popular events", vertical: "ticketing", reddit_signal: "r/webscraping ticket sites" },
+    { id: "seatgeek-search", intent: "search tickets", url: "https://seatgeek.com/search?search=nba", tags: ["ticketing", "spa"], notes: "React SPA, dynamic seat maps", vertical: "ticketing", reddit_signal: "r/webscraping seatgeek" },
+    { id: "eventbrite-search", intent: "search events", url: "https://www.eventbrite.com/d/ca--san-francisco/events/", tags: ["ticketing", "spa"], notes: "React SPA, location-based", vertical: "ticketing", reddit_signal: "r/webscraping eventbrite" },
+    { id: "meetup-search", intent: "search groups", url: "https://www.meetup.com/find/?keywords=tech&source=EVENTS", tags: ["ticketing", "spa", "auth-wall"], notes: "Login nag, Apollo GraphQL", vertical: "ticketing", reddit_signal: "r/webscraping meetup graphql" },
+    { id: "bandsintown-search", intent: "search concerts", url: "https://www.bandsintown.com/choose-dates/genre/all-genres", tags: ["ticketing", "spa"], notes: "SPA, location detection", vertical: "ticketing", reddit_signal: "r/webscraping music events" },
+    { id: "songkick-search", intent: "search concerts", url: "https://www.songkick.com/search?query=rock&type=upcoming", tags: ["ticketing", "spa"], notes: "SPA, progressive loading", vertical: "ticketing", reddit_signal: "r/webscraping concert data" },
+
+    // === Jobs / Professional (10) ===
+    { id: "indeed-search", intent: "search jobs", url: "https://www.indeed.com/jobs?q=software+engineer&l=remote", tags: ["jobs", "bot-detection"], notes: "CAPTCHA, IP blocking, Cloudflare", vertical: "jobs", reddit_signal: "r/webscraping indeed blocked" },
+    { id: "glassdoor-search", intent: "search companies", url: "https://www.glassdoor.com/Reviews/index.htm?overall_rating_low=4", tags: ["jobs", "auth-wall"], notes: "Login wall for reviews, Cloudflare", vertical: "jobs", reddit_signal: "r/webscraping glassdoor login" },
+    { id: "ziprecruiter-search", intent: "search jobs", url: "https://www.ziprecruiter.com/jobs-search?search=data+scientist", tags: ["jobs", "bot-detection"], notes: "Bot detection, CAPTCHA", vertical: "jobs", reddit_signal: "r/webscraping job sites" },
+    { id: "greenhouse-jobs", intent: "get company jobs", url: "https://boards.greenhouse.io/openai", tags: ["jobs", "spa"], notes: "iFrame embed, API-backed", vertical: "jobs", reddit_signal: "r/webscraping ATS boards" },
+    { id: "lever-jobs", intent: "get company jobs", url: "https://jobs.lever.co/anthropic", tags: ["jobs", "spa"], notes: "SPA job board, API-backed", vertical: "jobs", reddit_signal: "r/webscraping ATS boards" },
+    { id: "workable-jobs", intent: "get company jobs", url: "https://apply.workable.com/figma/", tags: ["jobs", "spa"], notes: "SPA job board platform", vertical: "jobs", reddit_signal: "r/webscraping ATS boards" },
+    { id: "ashby-jobs", intent: "get company jobs", url: "https://jobs.ashbyhq.com/notion", tags: ["jobs", "spa"], notes: "Modern ATS SPA, API-backed", vertical: "jobs", reddit_signal: "r/webscraping modern ATS" },
+    { id: "wellfound-search", intent: "search startup jobs", url: "https://wellfound.com/role/r/software-engineer", tags: ["jobs", "spa", "auth-wall"], notes: "Login nag, React SPA", vertical: "jobs", reddit_signal: "r/webscraping angellist/wellfound" },
+    { id: "upwork-search", intent: "search freelance jobs", url: "https://www.upwork.com/nx/search/jobs/?q=web+scraping", tags: ["jobs", "auth-wall", "bot-detection"], notes: "Login required, Cloudflare", vertical: "jobs", reddit_signal: "r/webscraping upwork blocked" },
+    { id: "freelancer-search", intent: "search projects", url: "https://www.freelancer.com/jobs/web-scraping/", tags: ["jobs", "spa"], notes: "Angular SPA, dynamic loading", vertical: "jobs", reddit_signal: "r/webscraping freelance platforms" },
+
+    // === Finance / Crypto / NFT (12) ===
+    { id: "binance-market", intent: "get market data", url: "https://www.binance.com/en/markets/overview", tags: ["crypto", "spa", "websocket"], notes: "WebSocket-driven prices, zero static content", vertical: "finance", reddit_signal: "r/webscraping binance zero surface" },
+    { id: "coinbase-prices", intent: "get crypto prices", url: "https://www.coinbase.com/explore", tags: ["crypto", "spa"], notes: "React SPA, dynamic price updates", vertical: "finance", reddit_signal: "r/webscraping coinbase" },
+    { id: "kraken-market", intent: "get market data", url: "https://www.kraken.com/prices", tags: ["crypto", "spa"], notes: "SPA, WebSocket prices", vertical: "finance", reddit_signal: "r/webscraping crypto exchanges" },
+    { id: "bybit-market", intent: "get market data", url: "https://www.bybit.com/en/markets/overview", tags: ["crypto", "spa", "bot-detection"], notes: "Cloudflare, WebSocket-only prices", vertical: "finance", reddit_signal: "r/webscraping bybit blocked" },
+    { id: "okx-market", intent: "get market data", url: "https://www.okx.com/markets/prices", tags: ["crypto", "spa"], notes: "SPA, heavy obfuscation", vertical: "finance", reddit_signal: "r/webscraping okx" },
+    { id: "tradingview-chart", intent: "get chart data", url: "https://www.tradingview.com/symbols/BTCUSD/", tags: ["finance", "spa", "websocket"], notes: "Canvas-rendered charts, WebSocket data", vertical: "finance", reddit_signal: "r/webscraping tradingview impossible" },
+    { id: "coingecko-token", intent: "get token info", url: "https://www.coingecko.com/en/coins/bitcoin", tags: ["crypto", "spa"], notes: "SPA, rate limiting on API", vertical: "finance", reddit_signal: "r/webscraping coingecko api" },
+    { id: "coinmarketcap-token", intent: "get token info", url: "https://coinmarketcap.com/currencies/ethereum/", tags: ["crypto", "spa"], notes: "Next.js SPA, dynamic data", vertical: "finance", reddit_signal: "r/webscraping cmc" },
+    { id: "dexscreener-pair", intent: "get pair data", url: "https://dexscreener.com/ethereum", tags: ["crypto", "spa", "websocket"], notes: "WebSocket-driven, real-time DEX data", vertical: "finance", reddit_signal: "r/webscraping defi data" },
+    { id: "opensea-collection", intent: "get NFT collection", url: "https://opensea.io/collection/boredapeyachtclub", tags: ["nft", "spa", "bot-detection"], notes: "Cloudflare, React SPA, dynamic NFT data", vertical: "finance", reddit_signal: "r/webscraping opensea blocked" },
+    { id: "magiceden-collection", intent: "get NFT collection", url: "https://magiceden.io/marketplace/solana", tags: ["nft", "spa"], notes: "SPA, multi-chain, dynamic loading", vertical: "finance", reddit_signal: "r/webscraping nft marketplaces" },
+    { id: "robinhood-stock", intent: "get stock info", url: "https://robinhood.com/stocks/AAPL", tags: ["finance", "auth-wall", "spa"], notes: "Login required for most data, React SPA", vertical: "finance", reddit_signal: "r/webscraping robinhood login" },
+
+    // === Real Estate / Autos (10) ===
+    { id: "zillow-search", intent: "search homes", url: "https://www.zillow.com/san-francisco-ca/", tags: ["realestate", "bot-detection"], notes: "PerimeterX, CAPTCHA, aggressive blocking", vertical: "realestate", reddit_signal: "r/webscraping zillow #1 real estate complaint" },
+    { id: "redfin-search", intent: "search homes", url: "https://www.redfin.com/city/17151/CA/San-Francisco", tags: ["realestate", "bot-detection"], notes: "Bot detection, dynamic map loading", vertical: "realestate", reddit_signal: "r/webscraping redfin blocked" },
+    { id: "realtor-search", intent: "search homes", url: "https://www.realtor.com/realestateandhomes-search/San-Francisco_CA", tags: ["realestate", "bot-detection"], notes: "Akamai protection, geo-based", vertical: "realestate", reddit_signal: "r/webscraping realtor.com" },
+    { id: "apartments-search", intent: "search apartments", url: "https://www.apartments.com/san-francisco-ca/", tags: ["realestate", "spa"], notes: "SPA, map-based results", vertical: "realestate", reddit_signal: "r/webscraping apartment sites" },
+    { id: "streeteasy-search", intent: "search rentals", url: "https://streeteasy.com/for-rent/nyc", tags: ["realestate", "spa"], notes: "Zillow-owned, SPA, NYC-focused", vertical: "realestate", reddit_signal: "r/webscraping nyc housing" },
+    { id: "rightmove-search", intent: "search properties", url: "https://www.rightmove.co.uk/house-prices/London.html", tags: ["realestate", "bot-detection"], notes: "UK market, Cloudflare protection", vertical: "realestate", reddit_signal: "r/webscraping uk property" },
+    { id: "idealista-search", intent: "search properties", url: "https://www.idealista.com/en/venta-viviendas/madrid/", tags: ["realestate", "bot-detection"], notes: "EU market, bot detection", vertical: "realestate", reddit_signal: "r/webscraping spain property" },
+    { id: "autotrader-search", intent: "search cars", url: "https://www.autotrader.com/cars-for-sale/all-cars?zip=94102", tags: ["autos", "bot-detection"], notes: "Bot detection, dynamic pricing", vertical: "autos", reddit_signal: "r/webscraping car sites" },
+    { id: "cars-com-search", intent: "search cars", url: "https://www.cars.com/shopping/results/?stock_type=all&zip=94102", tags: ["autos", "spa"], notes: "SPA, dynamic inventory", vertical: "autos", reddit_signal: "r/webscraping car listings" },
+    { id: "carvana-search", intent: "search cars", url: "https://www.carvana.com/cars", tags: ["autos", "spa", "bot-detection"], notes: "React SPA, bot protection", vertical: "autos", reddit_signal: "r/webscraping carvana" },
+
+    // === Food / Local Delivery (10) ===
+    { id: "doordash-search", intent: "search restaurants", url: "https://www.doordash.com/food-delivery/san-francisco-ca-restaurants/", tags: ["delivery", "spa", "geo"], notes: "React SPA, geo-restricted, login nag", vertical: "food", reddit_signal: "r/webscraping doordash blocked" },
+    { id: "ubereats-search", intent: "search restaurants", url: "https://www.ubereats.com/category/san-francisco-ca/all", tags: ["delivery", "spa", "geo"], notes: "Next.js SPA, geo-restricted, auth for ordering", vertical: "food", reddit_signal: "r/webscraping uber ecosystem" },
+    { id: "grubhub-search", intent: "search restaurants", url: "https://www.grubhub.com/delivery/ca-san-francisco", tags: ["delivery", "spa"], notes: "SPA, geo-based, dynamic menus", vertical: "food", reddit_signal: "r/webscraping food delivery" },
+    { id: "instacart-search", intent: "search groceries", url: "https://www.instacart.com/store", tags: ["delivery", "auth-wall", "geo"], notes: "Login + zip code required, React SPA", vertical: "food", reddit_signal: "r/webscraping instacart login" },
+    { id: "deliveroo-search", intent: "search restaurants", url: "https://deliveroo.co.uk/restaurants/london/city", tags: ["delivery", "spa", "geo"], notes: "UK delivery, SPA, geo-restricted", vertical: "food", reddit_signal: "r/webscraping uk delivery" },
+    { id: "just-eat-search", intent: "search restaurants", url: "https://www.just-eat.co.uk/area/se1-london", tags: ["delivery", "spa"], notes: "UK delivery, postcode-based", vertical: "food", reddit_signal: "r/webscraping just-eat" },
+    { id: "swiggy-search", intent: "search restaurants", url: "https://www.swiggy.com/city/bangalore", tags: ["delivery", "spa", "geo"], notes: "India delivery, heavy SPA, geo-locked", vertical: "food", reddit_signal: "r/webscraping india delivery" },
+    { id: "zomato-search", intent: "search restaurants", url: "https://www.zomato.com/mumbai/delivery", tags: ["delivery", "spa", "geo"], notes: "India delivery, React SPA, geo-locked", vertical: "food", reddit_signal: "r/webscraping zomato" },
+    { id: "resy-search", intent: "search restaurants", url: "https://resy.com/cities/ny", tags: ["local", "spa"], notes: "React SPA, availability polling", vertical: "food", reddit_signal: "r/webscraping reservation sites" },
+    { id: "foodpanda-search", intent: "search restaurants", url: "https://www.foodpanda.sg/restaurants/new", tags: ["delivery", "spa", "geo"], notes: "SEA delivery, SPA, geo-locked", vertical: "food", reddit_signal: "r/webscraping sea delivery" },
+  ],
+};
+
+// Validate
+const ids = corpus.cases.map((c) => c.id);
+const uniqueIds = new Set(ids);
+if (ids.length !== uniqueIds.size) {
+  const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+  console.error(`DUPLICATE IDS: ${dupes.join(", ")}`);
+  process.exit(1);
+}
+if (ids.length !== 100) {
+  console.error(`EXPECTED 100 cases, got ${ids.length}`);
+  process.exit(1);
+}
+
+writeFileSync(OUT, JSON.stringify(corpus, null, 2) + "\n");
+console.log(`Wrote ${ids.length} cases to ${OUT}`);
+
+// Print vertical breakdown
+const byVertical = {};
+for (const c of corpus.cases) {
+  byVertical[c.vertical] = (byVertical[c.vertical] || 0) + 1;
+}
+console.log("\nVertical breakdown:");
+for (const [v, n] of Object.entries(byVertical).sort((a, b) => b[1] - a[1])) {
+  console.log(`  ${v}: ${n}`);
+}

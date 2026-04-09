@@ -26,6 +26,79 @@ const RPC_HINTS = /(\/$rpc\/|\/rpc\/|graphql|trending|search|feed|results|batche
 
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
+/**
+ * Extract GraphQL operation name from a request body or URL.
+ * Handles multiple GraphQL conventions:
+ * - Standard: { operationName: "UserTweets" }
+ * - Inline query: { query: "query UserTweets { ... }" }
+ * - Facebook: { fb_api_req_friendly_name: "ProfileCometTimelineFeedRefetchQuery" }
+ * - Facebook doc_id: { doc_id: "1234567890" } (used as fallback identifier)
+ * - Instagram: { query_hash: "abc123" } (used as fallback identifier)
+ * - X.com URL pattern: /graphql/{hash}/UserTweets → "UserTweets"
+ * - URL-encoded form data: fb_api_req_friendly_name=FooQuery&doc_id=123&...
+ */
+export function extractGraphQLOperationName(url: string, requestBody?: string): string | undefined {
+  // Try URL path first (X.com style: /graphql/{hash}/OperationName)
+  const urlMatch = url.match(/\/graphql\/[^/]+\/(\w+)/);
+  if (urlMatch) return urlMatch[1];
+
+  if (!requestBody) return undefined;
+
+  // Handle form-encoded bodies (Facebook sometimes sends as application/x-www-form-urlencoded)
+  let parsed: Record<string, unknown> | undefined;
+  try {
+    parsed = JSON.parse(requestBody);
+  } catch {
+    // Try URL-encoded form data (fb_api_req_friendly_name=FooQuery&doc_id=123&...)
+    if (requestBody.includes("=") && !requestBody.includes("{")) {
+      try {
+        const params = new URLSearchParams(requestBody);
+        const friendly = params.get("fb_api_req_friendly_name");
+        if (friendly) return friendly;
+        const docId = params.get("doc_id");
+        if (docId) return `doc_${docId}`;
+        const queryHash = params.get("query_hash");
+        if (queryHash) return `qh_${queryHash}`;
+      } catch { /* not form data */ }
+    }
+    return undefined;
+  }
+
+  if (!parsed || typeof parsed !== "object") return undefined;
+
+  // Standard GraphQL operationName
+  if (typeof parsed.operationName === "string" && parsed.operationName) {
+    return parsed.operationName;
+  }
+
+  // Extract from inline query string
+  const queryStr = typeof parsed.query === "string" ? parsed.query : undefined;
+  if (queryStr) {
+    const match = queryStr.match(/(?:query|mutation|subscription)\s+(\w+)/);
+    if (match) return match[1];
+  }
+
+  // Facebook: fb_api_req_friendly_name
+  if (typeof parsed.fb_api_req_friendly_name === "string" && parsed.fb_api_req_friendly_name) {
+    return parsed.fb_api_req_friendly_name;
+  }
+
+  // Facebook: doc_id (numeric identifier for persisted queries)
+  if (typeof parsed.doc_id === "string" && parsed.doc_id) {
+    return `doc_${parsed.doc_id}`;
+  }
+  if (typeof parsed.doc_id === "number") {
+    return `doc_${parsed.doc_id}`;
+  }
+
+  // Instagram: query_hash
+  if (typeof parsed.query_hash === "string" && parsed.query_hash) {
+    return `qh_${parsed.query_hash}`;
+  }
+
+  return undefined;
+}
+
 // Headers that must never be stored in skill manifests (BUG-GC-005)
 // Includes session tokens, API keys, and Google-specific credential headers.
 const STRIP_HEADERS = new Set([
@@ -571,6 +644,8 @@ function scoreRequest(req: RawRequest): number {
   let score = 0;
   // GET is preferred — safe, idempotent, more useful for data retrieval
   if (req.method === "GET") score += 2;
+  // GraphQL POST endpoints are known data APIs — give them the same method bonus as GET
+  if (req.method === "POST" && /graphql/i.test(req.url)) score += 2;
   if (RPC_HINTS.test(req.url)) score += 3;
   if (SKIP_JS_BUNDLES.test(req.url)) score -= 10;
   const ct = req.response_headers?.["content-type"] ?? "";
@@ -649,19 +724,11 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       const isApiUrl = /\/(api|graphql|youtubei|__ssr_data__)\b/i.test(urlPath) || /\.(json)(\?|$)/.test(req.url);
 
       // For GraphQL: extract operationName from request body or URL
+      // Handles X.com URL patterns, Facebook doc_id/fb_api_req_friendly_name,
+      // Instagram query_hash, and URL-encoded form bodies
       let graphqlOpName: string | undefined;
       if (/graphql/i.test(req.url)) {
-        if (req.request_body) {
-          try {
-            const body = JSON.parse(req.request_body);
-            graphqlOpName = body.operationName ?? body.query?.match(/(?:query|mutation)\s+(\w+)/)?.[1];
-          } catch { /* not JSON */ }
-        }
-        // Also try extracting from URL query (GET GraphQL endpoints encode operationName in URL)
-        if (!graphqlOpName) {
-          const urlMatch = req.url.match(/\/graphql\/\w+\/(\w+)/);
-          if (urlMatch) graphqlOpName = urlMatch[1];
-        }
+        graphqlOpName = extractGraphQLOperationName(req.url, req.request_body);
       }
 
       // For .json endpoints: use the last path segment as description
@@ -718,13 +785,8 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // For GraphQL POST endpoints, include operationName in dedup key
     // so different operations to the same URL produce separate endpoints
     let key = `${req.method}:${normalized}`;
-    if (/graphql/i.test(req.url) && req.method !== "GET" && req.request_body) {
-      try {
-        const parsed = JSON.parse(req.request_body);
-        const opName = parsed.operationName ?? parsed.query?.match(/(?:query|mutation)\s+(\w+)/)?.[1];
-        if (opName) key += `#op=${opName}`;
-      } catch { /* not JSON */ }
-    }
+    const graphqlOp = /graphql/i.test(req.url) ? extractGraphQLOperationName(req.url, req.request_body) : undefined;
+    if (graphqlOp) key += `#op=${graphqlOp}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -803,6 +865,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     });
     const csrfPlan = inferCsrfPlan(req, parsedRequestBody);
 
+    // Attach GraphQL operation info if detected
+    const endpointGraphqlOp = /graphql/i.test(req.url) ? extractGraphQLOperationName(req.url, req.request_body) : undefined;
+
     let endpoint: EndpointDescriptor = {
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
@@ -814,6 +879,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       ...(Object.keys(bodyParams).length > 0 ? { body_params: bodyParams } : {}),
       ...(templatedRequestBody && typeof templatedRequestBody === "object" && !Array.isArray(templatedRequestBody) ? { body: templatedRequestBody as Record<string, unknown> } : {}),
       ...(csrfPlan ? { csrf_plan: csrfPlan } : {}),
+      ...(endpointGraphqlOp ? { graphql_info: { operation_name: endpointGraphqlOp } } : {}),
       idempotency: isGet ? "safe" : "unsafe",
       verification_status: verificationStatus,
       reliability_score: 0.5,
@@ -838,6 +904,10 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       };
     }
     endpoint.description = endpoint.semantic?.description_out ?? endpoint.description;
+    // Prepend GraphQL operation name to description for discoverability
+    if (endpointGraphqlOp && endpoint.description && !endpoint.description.includes(endpointGraphqlOp)) {
+      endpoint.description = `[GraphQL: ${endpointGraphqlOp}] ${endpoint.description}`;
+    }
     const admission = isSemanticallyAdmissibleResponse(req, sampleResponse, sampleRequest, context);
     if (!admission.ok) {
       traceRows.push({

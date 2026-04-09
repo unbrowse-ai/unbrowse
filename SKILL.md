@@ -325,6 +325,10 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review |
 | `close` | `[--session id]` | Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review |
 | `stats` | `[--json] [--pretty]` | Show lifetime time/tokens/cost saved and marketplace earnings/spending |
+| `flywheel` | `[--json] [--pretty]` | Flywheel pulse: funnel, credits, index health, economics, conversions |
+| `earnings` | `[--json]` | Show your credit balance, earnings from indexing, and spending |
+| `corpus-test` | `--url <url> [--id <id>] [--retries N]` | Capture a single URL with retry logic; keeps best result across N attempts |
+| `corpus-run` | `--corpus <file> --out <file> [--retries N]` | Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot |
 
 ### Global flags
 

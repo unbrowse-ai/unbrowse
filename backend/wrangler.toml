@@ -14,6 +14,7 @@ crons = ["17 */6 * * *"]
 [vars]
 ENVIRONMENT = "production"
 PAYMENTS_ENABLED = "true"
+CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
@@ -63,6 +64,7 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 [env.staging.vars]
 ENVIRONMENT = "staging"
 PAYMENTS_ENABLED = "true"
+CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
@@ -85,6 +87,7 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 [env.experiments.vars]
 ENVIRONMENT = "staging"
 PAYMENTS_ENABLED = "true"
+CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"

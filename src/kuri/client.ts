@@ -657,6 +657,30 @@ async function waitForChildExit(child: ChildProcess | null | undefined, timeoutM
  */
 async function startOn(state: BrokerState, port?: number): Promise<void> {
   const requestedPort = port ?? Number(process.env.KURI_PORT || KURI_DEFAULT_PORT);
+
+  // External Kuri mode: skip launch, connect to an existing Kuri broker + Chrome.
+  // Use when running inside a sandbox (turbobox, Docker) that already has Kuri + Chrome.
+  // Start Chrome + Kuri externally, then set KURI_EXTERNAL_PORT=<port> and optional CDP_URL.
+  const externalPort = process.env.KURI_EXTERNAL_PORT;
+  if (externalPort && !state.ready) {
+    const ep = Number(externalPort);
+    if (await isKuriHealthyOnPort(ep)) {
+      state.port = ep;
+      state.requestedPort = ep;
+      state.ready = true;
+      state.managedChrome = false;
+      // Discover CDP port from the external Kuri
+      const cdpUrl = process.env.CDP_URL;
+      if (cdpUrl) {
+        const m = cdpUrl.match(/:(\d+)/);
+        if (m) state.cdpPort = Number(m[1]);
+      }
+      log("kuri", `using external Kuri broker on port ${ep}${state.cdpPort ? ` (CDP port ${state.cdpPort})` : ""}`);
+      return;
+    }
+    log("kuri", `external Kuri on port ${ep} not healthy — falling through to normal start`);
+  }
+
   if (state.ready) {
     const activePort = state.port || requestedPort;
     if (await isKuriHealthyOnPort(activePort)) return;
