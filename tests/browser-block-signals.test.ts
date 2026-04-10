@@ -34,6 +34,15 @@ describe("detectBrowserBlockSignals", () => {
     it("fires on captcha", () => {
       expect(detect({ title: "Please complete the captcha" })).toContain("challenge_title");
     });
+    it("fires on CloudFront error page", () => {
+      expect(detect({ title: "ERROR: The request could not be satisfied" })).toContain("challenge_title");
+    });
+    it("fires on 403 forbidden", () => {
+      expect(detect({ title: "403 Forbidden" })).toContain("challenge_title");
+    });
+    it("fires on unusual traffic (Google)", () => {
+      expect(detect({ title: "Unusual traffic from your computer network" })).toContain("challenge_title");
+    });
     it("does NOT fire on normal page titles", () => {
       expect(detect({ title: "Home | Example Corp" })).not.toContain("challenge_title");
     });

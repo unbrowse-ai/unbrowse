@@ -3214,7 +3214,7 @@ export function detectBrowserBlockSignals(input: {
   const { requestUrls, title, htmlLength, rejectionCounts } = input;
   const signals: string[] = [];
   const titleLower = title.toLowerCase();
-  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|cloudflare|press and hold/i.test(titleLower)) {
+  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|cloudflare|press and hold|request could not be satisfied|403 forbidden|site blocked|unusual traffic|security check/i.test(titleLower)) {
     signals.push("challenge_title");
   }
   const vendorHits = new Set<string>();
