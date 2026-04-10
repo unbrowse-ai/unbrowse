@@ -77,26 +77,53 @@ if [[ "$HEALTH_OK" != "true" ]]; then
   exit 1
 fi
 
-# Browser smoke (go + snap) — optional, requires Chrome on the CI runner.
-# Falls back gracefully so the core smoke (version + health) still gates releases.
-BROWSER_OK=true
-HOME="$TMP_HOME" XDG_CONFIG_HOME="$TMP_HOME/.config" \
-  UNBROWSE_DISABLE_AUTO_UPDATE=1 UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 \
-  UNBROWSE_URL="http://127.0.0.1:$PORT" \
-  "$BIN" go "https://example.com" >/tmp/unbrowse-packaged-cli-go.json 2>&1 || BROWSER_OK=false
+# Browser smoke (go + eval + snap + close) — requires Chrome on the CI runner.
+# This is a hard gate: if go succeeds, eval and snap MUST work.
+# This catches the multi-broker regression where go reports success but the tab
+# never navigates (stays on about:blank) and all CDP commands fail.
+BROWSER_AVAILABLE=true
+CLI_ENV=(
+  HOME="$TMP_HOME" XDG_CONFIG_HOME="$TMP_HOME/.config"
+  UNBROWSE_DISABLE_AUTO_UPDATE=1 UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1
+  UNBROWSE_URL="http://127.0.0.1:$PORT"
+)
 
-if [[ "$BROWSER_OK" == "true" ]]; then
-  HOME="$TMP_HOME" XDG_CONFIG_HOME="$TMP_HOME/.config" \
-    UNBROWSE_DISABLE_AUTO_UPDATE=1 UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 \
-    UNBROWSE_URL="http://127.0.0.1:$PORT" \
-    "$BIN" snap --filter interactive >/tmp/unbrowse-packaged-cli-snap.txt 2>&1 || BROWSER_OK=false
-fi
+env "${CLI_ENV[@]}" "$BIN" go "https://example.com" >/tmp/unbrowse-packaged-cli-go.json 2>&1 || BROWSER_AVAILABLE=false
 
 grep -q '"status":"ok"' /tmp/unbrowse-packaged-cli-health.json
 
-if [[ "$BROWSER_OK" == "true" ]]; then
+if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
   grep -q '"ok":true' /tmp/unbrowse-packaged-cli-go.json
-  grep -q '\[e0\]' /tmp/unbrowse-packaged-cli-snap.txt
+
+  # Extract session_id for subsequent commands
+  SESSION_ID="$(node -p 'JSON.parse(require("fs").readFileSync("/tmp/unbrowse-packaged-cli-go.json","utf-8")).session_id' 2>/dev/null || true)"
+  if [[ -z "$SESSION_ID" ]]; then
+    echo "[packaged-cli-smoke] FAIL: go returned ok but no session_id" >&2
+    exit 1
+  fi
+
+  # eval must return real content — catches multi-broker tab-on-about:blank bug
+  env "${CLI_ENV[@]}" "$BIN" eval --session "$SESSION_ID" "document.title" \
+    >/tmp/unbrowse-packaged-cli-eval.json 2>&1
+  if grep -q '"error"' /tmp/unbrowse-packaged-cli-eval.json; then
+    echo "[packaged-cli-smoke] FAIL: eval returned error after go success — tab likely not navigated" >&2
+    cat /tmp/unbrowse-packaged-cli-eval.json >&2
+    exit 1
+  fi
+
+  # snap must return a non-empty a11y tree
+  env "${CLI_ENV[@]}" "$BIN" snap --session "$SESSION_ID" --filter interactive \
+    >/tmp/unbrowse-packaged-cli-snap.txt 2>&1
+  if ! grep -q '\[e0\]' /tmp/unbrowse-packaged-cli-snap.txt; then
+    echo "[packaged-cli-smoke] FAIL: snap returned empty a11y tree" >&2
+    cat /tmp/unbrowse-packaged-cli-snap.txt >&2
+    exit 1
+  fi
+
+  # close must succeed
+  env "${CLI_ENV[@]}" "$BIN" close --session "$SESSION_ID" \
+    >/tmp/unbrowse-packaged-cli-close.json 2>&1
+  grep -q '"ok":true' /tmp/unbrowse-packaged-cli-close.json
 else
   echo "[packaged-cli-smoke] WARN: browser smoke skipped (Chrome/Kuri not available)"
 fi

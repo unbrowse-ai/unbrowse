@@ -157,7 +157,6 @@ jobs:
       - name: Smoke packaged global install
         if: steps.npm-auth.outputs.skip_publish != '1'
         run: bash scripts/smoke-packaged-cli.sh
-        continue-on-error: true
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
 

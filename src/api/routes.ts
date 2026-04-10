@@ -57,7 +57,7 @@ import { readWorkflowArtifact, writeWorkflowArtifact } from "../workflow/artifac
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
-const BROWSE_BROKER_MAX = Math.max(1, Number(process.env.KURI_MULTI_BROKER_MAX ?? "2"));
+const BROWSE_BROKER_MAX = Math.max(1, Number(process.env.KURI_MULTI_BROKER_MAX ?? "1"));
 const BROWSE_BROKER_BASE_PORT = Number(process.env.KURI_PORT ?? "7700");
 
 type AnalyticsSessionResult = {
