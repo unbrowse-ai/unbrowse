@@ -1,0 +1,20 @@
+get dictionary word|https://www.dictionary.com/browse/serendipity
+get merriam-webster|https://www.merriam-webster.com/dictionary/epiphany
+get urban dictionary|https://www.urbandictionary.com/define.php?term=gaslighting
+get genius lyrics|https://genius.com/artists/Taylor-swift
+get lyrics.com song|https://www.lyrics.com/artist/Taylor-Swift
+get rym album|https://rateyourmusic.com/release/album/the-beatles/abbey-road/
+get letterboxd film|https://letterboxd.com/film/the-godfather/
+get douban movie|https://movie.douban.com/subject/1291546/
+get tmdb movie|https://www.themoviedb.org/movie/238
+get allmovie film|https://www.allmovie.com/movie/v19356
+get criterion film|https://www.criterion.com/films
+get wikimedia article|https://commons.wikimedia.org/wiki/Main_Page
+get wikidata entity|https://www.wikidata.org/wiki/Q42
+get bing search|https://www.bing.com/search?q=unbrowse+ai
+get yandex search|https://yandex.com/search/?text=unbrowse
+get startpage search|https://www.startpage.com/do/search?q=unbrowse
+get kagi search|https://kagi.com/
+get perplexity answer|https://www.perplexity.ai/
+get you com answer|https://you.com/
+get phind search|https://www.phind.com/
