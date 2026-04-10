@@ -206,7 +206,9 @@ for r in rows:
     trace_ok = r.get('trace_success')
     err = r.get('error_code') or ''
     # Browser-block takes precedence — the product never had a chance.
-    if bs and bs != '[]' and ('vendor:' in bs or 'challenge_title' in bs):
+    # no_html_many_apis is a kuri-layer capture failure (getPageHtml
+    # returned empty despite network firing); same effect as block.
+    if bs and bs != '[]' and ('vendor:' in bs or 'challenge_title' in bs or 'no_html_many_apis' in bs):
         buckets['BROWSER_BLOCK'].append(r['url'])
     elif err == 'auth_required':
         buckets['AUTH_GATED'].append(r['url'])

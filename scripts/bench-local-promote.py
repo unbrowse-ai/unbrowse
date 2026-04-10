@@ -41,7 +41,7 @@ def classify(row: dict) -> str:
                 bs = str(bs_raw)
         except Exception:
             bs = str(bs_raw)
-    if bs and ("vendor:" in bs or "challenge_title" in bs):
+    if bs and ("vendor:" in bs or "challenge_title" in bs or "no_html_many_apis" in bs):
         return "BROWSER_BLOCK"
     if err == "auth_required":
         return "AUTH_GATED"
