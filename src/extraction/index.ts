@@ -160,10 +160,18 @@ export function cleanDOM(html: string): string {
   const $ = cheerio.load(html);
 
   // 1. Remove script/style/svg/iframe/noscript tags entirely
-  //    Preserve JSON-LD scripts — they contain structured data
+  //    Preserve JSON-LD scripts — they contain structured data.
+  //    Use each() + manual check instead of .not() because cheerio's
+  //    .not() chainable method is unavailable in some bundling contexts
+  //    (test isolation issue seen under bun's parallel test runner).
   for (const tag of STRIP_TAGS) {
     if (tag === "script") {
-      $("script").not('[type="application/ld+json"]').remove();
+      $("script").each((_, el) => {
+        const type = $(el).attr("type") ?? "";
+        if (type !== "application/ld+json") {
+          $(el).remove();
+        }
+      });
     } else {
       $(tag).remove();
     }
