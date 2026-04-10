@@ -744,6 +744,21 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     if (!hasAdmissibleParsedBody(req.response_body)) {
       // API endpoints may have large/truncated/missing response bodies.
       // Admit them anyway if the URL pattern is clearly an API endpoint.
+      //
+      // BUT: if the body is present AND clearly CSS / JS / plain text
+      // (not JSON, not HTML, not empty), it's NOT a data API — don't
+      // apply the URL-based bypass. Otherwise bundled JS or CSS on
+      // /api/ paths (e.g. /api/app.js during development) gets admitted.
+      const body = req.response_body;
+      if (typeof body === "string" && body.length > 20) {
+        const trimmed = body.trimStart().slice(0, 200).toLowerCase();
+        const looksCss = /^[.#@a-z][a-z0-9_\-]*\s*\{|^body\s*\{|^@media|^@import|^@font-face/.test(trimmed);
+        const looksJs = /^function\s|^var\s|^let\s|^const\s|^import\s|^\(function|^\/\*|^\!function/.test(trimmed) && !trimmed.includes("{\"");
+        if (looksCss || looksJs) {
+          traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
+          continue;
+        }
+      }
       const urlPath = (() => { try { return new URL(req.url).pathname; } catch { return ""; } })();
       // Recognise common SPA data-fetch URL conventions as API endpoints even
       // when the body is missing/HTML. Zillow uses /async-create-search-page-state,
