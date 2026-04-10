@@ -60,7 +60,9 @@ Every row in `results.jsonl` / `evidence.csv` includes:
 - `captured_html_bytes`, `captured_text_bytes`, `captured_title`, `captured_api_calls`
 - `captured_intent_verdict`, `captured_intent_reason` — `assessIntentResult` on stripped text
 - `filter_rejections` — JSON map of `{reason: count}` from extractEndpoints (`not_api_like`, `score_non_positive`, `body_not_json_or_html`, `domain_mismatch`, `semantic_entity_mismatch`, `rsc_payload`, `ad_response`, `cloudflare_challenge`, `protobuf_unparseable`)
-- `browser_block_signals` — JSON list of signals: `challenge_title`, `vendor:cloudflare|perimeterx|datadome|imperva_incapsula|captcha_vendor|shape_security|kasada`, `sparse_capture_mostly_noise`, `empty_capture`, `no_html_many_apis` (kuri getPageHtml failed but network fired)
+- `browser_block_signals` — JSON list of signals: `challenge_title`, `vendor:cloudflare|perimeterx|datadome|imperva_incapsula|akamai_bot_manager|captcha_vendor|shape_security|kasada`, `sparse_capture_mostly_noise`, `empty_capture`, `no_html_many_apis` (kuri getPageHtml failed but network fired)
+- `capture_diagnostic` — set on `No relevant endpoint discovered` rejection path, one of: `no_endpoints_extracted` (browser-blocked upstream), `all_endpoints_filtered_by_noise_rules` (ranker killed everything), `endpoints_scored_below_relevance_threshold` (scoring issue)
+- `total_endpoints_captured` — raw count before ranking, transparency for the above diagnostic
 
 ### Agent rubric for classifying bench-local rows
 
