@@ -102,6 +102,32 @@ print(json.dumps({
 
 # Version + health
 record "version" "$(unbrowse --version 2>/dev/null || echo 'unknown')"
+
+# ── Onboarding checks: the agent experience starts at install ──
+record "onboarding" "$(python3 -c "
+import os, json, subprocess, shutil
+out = {}
+out['binary_on_path'] = bool(shutil.which('unbrowse'))
+cfg_path = os.path.expanduser('~/.unbrowse/config.json')
+if os.path.exists(cfg_path):
+    try:
+        d = json.load(open(cfg_path))
+        out['config_exists'] = True
+        out['has_api_key'] = bool(d.get('api_key'))
+        out['has_wallet'] = bool(d.get('wallet_address'))
+        out['agent_email'] = d.get('agent_email','') or ''
+    except: out['config_exists'] = False
+else:
+    out['config_exists'] = False
+out['kuri_extracted'] = os.path.exists(os.path.expanduser('~/.unbrowse/bin/kuri'))
+out['traces_dir_exists'] = os.path.exists(os.path.expanduser('~/.unbrowse/traces'))
+# Server reachable
+try:
+    r = subprocess.run(['curl','-s','-o','/dev/null','-w','%{http_code}','http://localhost:6969/health','--max-time','3'], capture_output=True, text=True, timeout=5)
+    out['server_http_code'] = r.stdout.strip() or '000'
+except: out['server_http_code'] = 'error'
+print(json.dumps(out))
+" 2>/dev/null || echo '{}')"
 record "health" "$(unbrowse health 2>/dev/null || echo '{\"error\":\"health_failed\"}')"
 
 # Resolve: does the marketplace return endpoints?
