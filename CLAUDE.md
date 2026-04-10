@@ -45,6 +45,46 @@ Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-
 - Kuri must work as a bundled runtime from the package/monorepo vendor path. Do not require end users to install Zig or a separate `kuri` binary.
 - When touching Kuri discovery, packaging, runtime paths, or `packages/skill`, run `node packages/skill/scripts/assert-kuri-vendor.mjs`.
 
+## bench-local (fastest iteration loop)
+
+Primary loop when investigating coverage regressions: `bash scripts/bench-local.sh --use-source --corpus-file F --timeout 90`. Uses `bun src/cli.ts` inline (no package reinstall, no server spawn, no CI flakiness). Writes `.bench-local/{results.jsonl,evidence.csv,*.out}` + prints the rubric tally on stderr.
+
+### Evidence fields the agent reads
+
+Every row in `results.jsonl` / `evidence.csv` includes:
+
+- `source` — `marketplace` | `live-capture` | `dom-fallback` | `cache` | `` (no response)
+- `trace_success` + `trace_skill_id` — top-level trace outcome
+- `has_available_operations` + `n_operations` — shortlist size
+- `error_code` + `error_message` — what the product returned
+- `captured_html_bytes`, `captured_text_bytes`, `captured_title`, `captured_api_calls`
+- `captured_intent_verdict`, `captured_intent_reason` — `assessIntentResult` on stripped text
+- `filter_rejections` — JSON map of `{reason: count}` from extractEndpoints (`not_api_like`, `score_non_positive`, `body_not_json_or_html`, `domain_mismatch`, `semantic_entity_mismatch`, `rsc_payload`, `ad_response`, `cloudflare_challenge`, `protobuf_unparseable`)
+- `browser_block_signals` — JSON list of signals: `challenge_title`, `vendor:cloudflare|perimeterx|datadome|imperva_incapsula|captcha_vendor|shape_security|kasada`, `sparse_capture_mostly_noise`, `empty_capture`
+
+### Agent rubric for classifying bench-local rows
+
+Apply in order (first match wins):
+
+| Bucket | Condition | Counted? |
+|---|---|---|
+| `BROWSER_BLOCK` | `browser_block_signals` contains `vendor:*` or `challenge_title` | Excluded from coverage |
+| `AUTH_GATED` | `error_code == "auth_required"` | Excluded from coverage |
+| `PASS` | `has_available_operations == true && n_operations > 0` | ✓ Pass |
+| `PASS` | `trace_success == true && source == "dom-fallback"` | ✓ Pass |
+| `SPARSE_REVIEW` | `browser_block_signals` contains only `sparse_capture_mostly_noise` (no vendor) | Agent judges in-thread |
+| `PRODUCT_FAIL` | anything else | ✗ Fail |
+
+Coverage metric: **`PASS / (PASS + PRODUCT_FAIL + SPARSE_REVIEW)`**. Never include browser-blocked or auth-gated sites in the denominator — they're not our bug to fix. The stop hook's "100% coverage unless browser-blocked" maps directly to this formula.
+
+### When a row is `SPARSE_REVIEW`
+
+Read `rejected_samples` and `captured_title` for that row's `.out` file. If the rejected URLs look like pure anti-bot telemetry (perimeterx/datadome/cloudflare collectors, tracking beacons, data: URLs), reclassify as `BROWSER_BLOCK`. If they look like real data endpoints the filter ate, add it to `.bench-learned-problems/` as a new product issue and extend the extractor.
+
+### When a row is `PRODUCT_FAIL`
+
+Look at `filter_rejections`: if one bucket dominates, read the corresponding rejected_samples to see if real data endpoints were dropped. Use the pattern from commit 688c79ad (graphql bypass, sibling-subdomain bypass, SPA URL convention bypass) to add targeted filter relaxations. Always add a matching test to `tests/extraction-filter-bypass.test.ts` so the unblock can't silently regress.
+
 ## Codex Eval Harness
 
 ### Agent Eval (manual, agent-driven)

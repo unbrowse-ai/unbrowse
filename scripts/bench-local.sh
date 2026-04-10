@@ -135,7 +135,14 @@ while IFS='|' read -r goal url; do
   slug=$(printf '%s' "$url" | tr '/:?&=.' '_')
   out_file="$OUT_DIR/${i}_${slug:0:60}.out"
   echo "[bench-local] ($i/$N) $url" >&2
-  timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" </dev/null > "$out_file" 2>&1 || true
+  timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" </dev/null > "$out_file" 2>&1
+  cli_exit=$?
+  # Log exit codes so process-level failures (timeout=124, SIGKILL=137,
+  # CLI crash=non-zero) are visible in the stream instead of getting
+  # swallowed as "empty output → source=none".
+  if [ "$cli_exit" -ne 0 ]; then
+    echo "  [bench-local] cli exit=$cli_exit (timeout=124, killed=137)" >&2
+  fi
   record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url")
   echo "$record" >> "$OUT_DIR/results.jsonl"
   # Show a compact one-line evidence summary for the agent watching the run.
@@ -174,8 +181,51 @@ with open('.bench-local/evidence.csv', 'w', newline='') as f:
         w.writerow(r)
 # Dump the JSONL back out as the agent-consumable artifact.
 print(json.dumps({'rows': rows, 'count': len(rows)}, indent=2))
+# Group rows by category using the structured signals. This is NOT a
+# verdict — it's a deterministic grouping from the signals the product
+# already emitted, so the agent sees a consistent denominator across runs.
+# The agent still reviews each row in-thread for anything non-obvious.
+from collections import defaultdict
+buckets = defaultdict(list)
+for r in rows:
+    bs = r.get('browser_block_signals') or ''
+    src = r.get('source') or ''
+    has_ops = r.get('has_available_operations')
+    n_ops = r.get('n_operations', 0) or 0
+    trace_ok = r.get('trace_success')
+    err = r.get('error_code') or ''
+    # Browser-block takes precedence — the product never had a chance.
+    if bs and bs != '[]' and ('vendor:' in bs or 'challenge_title' in bs):
+        buckets['BROWSER_BLOCK'].append(r['url'])
+    elif err == 'auth_required':
+        buckets['AUTH_GATED'].append(r['url'])
+    elif has_ops and n_ops > 0:
+        buckets['PASS'].append(r['url'])
+    elif trace_ok and src == 'dom-fallback':
+        buckets['PASS'].append(r['url'])
+    elif bs and 'sparse_capture_mostly_noise' in bs:
+        # Ambiguous — could be browser-level, could be product. Agent decides.
+        buckets['SPARSE_REVIEW'].append(r['url'])
+    else:
+        buckets['PRODUCT_FAIL'].append(r['url'])
+
+total = len(rows)
+passes = len(buckets['PASS'])
+blocked = len(buckets['BROWSER_BLOCK']) + len(buckets['AUTH_GATED'])
+reachable = total - blocked
+print(f"\n[bench-local] rubric tally (agent still judges in-thread):", file=sys.stderr)
+for k in ('PASS', 'PRODUCT_FAIL', 'SPARSE_REVIEW', 'BROWSER_BLOCK', 'AUTH_GATED'):
+    urls = buckets.get(k, [])
+    if not urls:
+        continue
+    print(f"  {k:<15} {len(urls):>3}", file=sys.stderr)
+    for u in urls:
+        print(f"    - {u}", file=sys.stderr)
+if reachable > 0:
+    print(f"\n[bench-local] product-reachable pass: {passes}/{reachable} ({100*passes/reachable:.0f}%)", file=sys.stderr)
+print(f"[bench-local] raw pass: {passes}/{total} ({100*passes/total:.0f}%)", file=sys.stderr)
 print(f"\n[bench-local] wrote {len(rows)} rows to .bench-local/evidence.csv", file=sys.stderr)
 print("[bench-local] per-URL raw outputs in .bench-local/*.out", file=sys.stderr)
 print("[bench-local] results.jsonl has the same rows in JSON Lines format", file=sys.stderr)
-print("[bench-local] — agent reads the artifacts and judges in-thread. harness does not classify.", file=sys.stderr)
+print("[bench-local] — agent reads the artifacts and judges in-thread. buckets above are a signal grouping, not a verdict.", file=sys.stderr)
 PY
