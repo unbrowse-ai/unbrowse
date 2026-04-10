@@ -24,6 +24,6 @@ get stackoverflow answer|https://stackoverflow.com/questions/tagged/webscraping
 get github user|https://github.com/lewistham9x
 get hackernoon article|https://hackernoon.com/
 get substack article|https://stratechery.com/
-get x post|https://twitter.com/sama/status/1
+get x profile|https://twitter.com/sama
 get linkedin jobs|https://www.linkedin.com/jobs/search/?keywords=software+engineer
 get indeed company|https://www.indeed.com/cmp/Openai
