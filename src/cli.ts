@@ -845,6 +845,16 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     properties: { command: "setup" },
   });
   info("Running setup checks");
+
+  // Ensure the agent is registered BEFORE the server starts — closes the
+  // race where the server boots without a key and the first resolve returns
+  // api_key_required. ensureRegistered is idempotent and fast if already done.
+  try {
+    await ensureRegistered({ promptForEmail: false, exitOnFailure: false });
+  } catch (err) {
+    info(`[setup] background registration issue: ${err instanceof Error ? err.message : err}`);
+  }
+
   const report = await runSetup({
     cwd: process.cwd(),
     opencode: normalizeSetupScope(flags.opencode),

@@ -490,15 +490,27 @@ export async function registerRoutes(app: FastifyInstance) {
     return `${base}${suffix}`;
   }
 
-  // Auth gate: block all routes except /health when no API key is configured
+  // Auth gate: block all routes except /health when no API key is configured.
+  // On fresh install, the server fires background registration and starts
+  // accepting requests before the key is written. Wait up to 10s for the
+  // background registration to complete before returning 401 — this closes
+  // the race where the first resolve lands between server-up and key-ready.
   app.addHook("onRequest", async (req, reply) => {
     if (req.url === "/health" || req.url === "/v1/stats" || req.url.startsWith("/v1/settings")) return;
 
-    const key = getApiKey();
+    let key = getApiKey();
+    if (!key) {
+      // Wait for background registration (race-close on fresh install)
+      try {
+        const { waitForBackgroundRegistration } = await import("../client/index.js");
+        await waitForBackgroundRegistration(10_000);
+        key = getApiKey();
+      } catch { /* best effort */ }
+    }
     if (!key) {
       return reply.code(401).send({
         error: "api_key_required",
-        message: "No API key configured. Restart the server to auto-register, or run: bash scripts/setup.sh",
+        message: "No API key configured. Run `unbrowse setup` to register, or set UNBROWSE_API_KEY manually.",
         docs_url: "https://unbrowse.ai",
       });
     }
