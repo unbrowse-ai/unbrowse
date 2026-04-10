@@ -79,16 +79,20 @@ else:
         text_bytes = meta.get('text_bytes', 0)
         api_calls = meta.get('observed_api_calls', 0)
         intent_verdict = meta.get('intent_verdict', 'skip')
-        # Browser-level block signal: the browser got a page but it had
-        # almost no content AND no API calls AND the intent semantic check
-        # says "empty_text" or "no_data" or "html_payload".
-        # This covers amazon (degraded Sorry page), twitter (auth-wall JS
-        # shell), imdb (SSR-gated), cloudflare challenges, etc. — without
-        # hardcoding any of them.
-        if api_calls == 0 and text_bytes < 2000 and intent_verdict == 'fail':
+        # Browser-level block signals — all generic, no site names:
+        #
+        # 1. No HTML at all — kuri couldn't capture anything
+        # 2. <500 bytes of visible text after stripping script/style — no real
+        #    content page has that little text. Tracking beacons and dormant
+        #    scripts don't count as content. amazon's degraded "Sorry!" page
+        #    fires analytics pings but has ~28 bytes of real text.
+        # 3. intent_verdict == "fail" with low text — semantic check rejected
+        #    the page AND the page is small → the browser got a decoy
+        if html_bytes == 0:
             verdict = 'block'
-        # Also: no HTML at all = kuri failed to capture anything = browser-level
-        elif html_bytes == 0:
+        elif text_bytes < 500:
+            verdict = 'block'
+        elif text_bytes < 2000 and intent_verdict == 'fail':
             verdict = 'block'
 print(json.dumps({
     'goal': goal,
