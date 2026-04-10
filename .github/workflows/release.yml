@@ -114,6 +114,8 @@ jobs:
         run: node packages/skill/scripts/build-kuri-binaries.mjs
       - run: bun run check:kuri-vendor
         name: Check baked Kuri vendor state
+      - name: Leak guard — block sensitive ops names from public artifacts
+        run: bash scripts/leak-guard.sh
 
       - name: Read package metadata
         id: pkg

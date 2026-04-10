@@ -33,6 +33,7 @@ declare -a PRIMITIVES=(
   "npm-install-integrity|scripts/npm-install-integrity.sh|verify npm install symlinks/versions are consistent|stale symlinks in ~/.npm-global/bin after re-install"
   "release-with-visibility|scripts/release-with-visibility.sh|wrap release-it with forced stdout capture|release-it dying silently in background shells"
   "release-and-verify|scripts/release-and-verify.sh|full release pipeline with remote blank-slate smoke|release works locally, fails on fresh install"
+  "leak-guard|scripts/leak-guard.sh|prevent operational primitives from leaking to public paths|sensitive harness names appearing in SKILL.md, npm tarball, or public mirror"
 )
 
 check_primitive() {
