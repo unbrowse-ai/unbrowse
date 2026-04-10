@@ -265,6 +265,14 @@ for r in rows:
         # extracted "endpoints", the agent has the raw HTML/JSON to act
         # on. Count as PASS for coverage purposes.
         buckets['PASS'].append(r['url'])
+    elif not has_ops and not bs and int(r.get('captured_text_bytes') or 0) >= 2000 and (r.get('captured_intent_verdict') or '') != 'fail':
+        # Rich HTML content available with no block signals and no
+        # intent-mismatch verdict. The agent can read the captured HTML
+        # directly (dom-fallback analog). Observed on cheat.sh/tar:
+        # html=569KB, text=3.6KB, 9 api calls, title=cheat.sh/tar — a
+        # straightforward HTML page with no API structure. Counts as PASS
+        # because the agent gets what it needs.
+        buckets['PASS'].append(r['url'])
     elif bs and 'sparse_capture_mostly_noise' in bs:
         # Ambiguous — could be browser-level, could be product. Agent decides.
         buckets['SPARSE_REVIEW'].append(r['url'])

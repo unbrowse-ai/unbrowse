@@ -55,6 +55,15 @@ describe("detectBrowserBlockSignals", () => {
     it("fires on 'This page can't be found'", () => {
       expect(detect({ title: "This page can't be found" })).toContain("challenge_title");
     });
+    it("fires on 502 bad gateway", () => {
+      expect(detect({ title: "Replicate.com | 502: Bad Gateway" })).toContain("challenge_title");
+    });
+    it("fires on 503 service unavailable", () => {
+      expect(detect({ title: "503 Service Unavailable" })).toContain("challenge_title");
+    });
+    it("fires on generic server error", () => {
+      expect(detect({ title: "Internal Server Error" })).toContain("challenge_title");
+    });
     it("does NOT fire on normal page titles", () => {
       expect(detect({ title: "Home | Example Corp" })).not.toContain("challenge_title");
     });

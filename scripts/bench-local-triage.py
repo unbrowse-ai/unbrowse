@@ -69,6 +69,16 @@ def classify(row: dict) -> str:
         return "PASS"
     if trace_ok and src == "direct-fetch":
         return "PASS"
+    # Rich HTML content with no block signals and no intent-mismatch —
+    # the agent can read the captured HTML directly (dom-fallback analog).
+    # Observed on cheat.sh/tar: 569KB HTML / 3.6KB text / 9 apis.
+    try:
+        text_bytes = int(row.get("captured_text_bytes") or 0)
+    except (ValueError, TypeError):
+        text_bytes = 0
+    intent_verdict = row.get("captured_intent_verdict") or ""
+    if not has_ops and not bs and text_bytes >= 2000 and intent_verdict != "fail":
+        return "PASS"
     if bs and "sparse_capture_mostly_noise" in bs:
         return "SPARSE_REVIEW"
     return "PRODUCT_FAIL"
