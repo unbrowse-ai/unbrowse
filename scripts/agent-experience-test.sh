@@ -133,25 +133,29 @@ print(json.dumps(out))
 # Agentmail auto-registration: a fresh agent should be able to create an
 # email identity without human intervention. If AGENTMAIL_API_KEY is set,
 # try creating a session. If not, record that as a real gap.
-record "onboarding_agentmail" "$(
-if [ -n \"\${AGENTMAIL_API_KEY:-}\" ]; then
-  unbrowse login-auto example.com --send-to nobody@example.com --subject probe --body probe 2>&1 | python3 -c \"
+#
+# Note: bash 5.2 parses $(...) with nested \" differently from bash 3.2, so
+# we compute the value into a variable using a here-doc-friendly pattern
+# instead of inlining the python script inside record "$(...)".
+if [ -n "${AGENTMAIL_API_KEY:-}" ]; then
+  _agentmail_raw="$(unbrowse login-auto example.com --send-to nobody@example.com --subject probe --body probe 2>&1 || true)"
+  _agentmail_json="$(printf '%s' "$_agentmail_raw" | python3 -c '
 import sys, json
 raw = sys.stdin.read()
-# Find JSON in output
 for line in raw.split(chr(10)):
     try:
         d = json.loads(line.strip())
-        if 'email' in d or 'error' in d:
-            print(json.dumps({'has_email_identity': 'email' in d, 'error': d.get('error'), 'email_domain': d.get('email','').split('@')[-1] if '@' in d.get('email','') else None}))
-            exit(0)
-    except: pass
-print(json.dumps({'has_email_identity': False, 'error': 'no JSON in login-auto output', 'raw_preview': raw[:100]}))
-\" 2>/dev/null
+        if "email" in d or "error" in d:
+            print(json.dumps({"has_email_identity": "email" in d, "error": d.get("error"), "email_domain": d.get("email","").split("@")[-1] if "@" in d.get("email","") else None}))
+            sys.exit(0)
+    except Exception:
+        pass
+print(json.dumps({"has_email_identity": False, "error": "no JSON in login-auto output", "raw_preview": raw[:100]}))
+' 2>/dev/null || echo '{}')"
 else
-  echo '{\"has_email_identity\":false,\"error\":\"AGENTMAIL_API_KEY not set\"}'
+  _agentmail_json='{"has_email_identity":false,"error":"AGENTMAIL_API_KEY not set"}'
 fi
-)"
+record "onboarding_agentmail" "$_agentmail_json"
 record "health" "$(unbrowse health 2>/dev/null || echo '{\"error\":\"health_failed\"}')"
 
 # Resolve: does the marketplace return endpoints?
