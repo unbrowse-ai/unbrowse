@@ -12,9 +12,21 @@ TARBALL=""
 
 cleanup() {
   if [[ -n "$SERVER_PID" ]]; then
-    kill "$SERVER_PID" >/dev/null 2>&1 || true
-    wait "$SERVER_PID" 2>/dev/null || true
+    # SIGTERM first, then SIGKILL if still alive after 2s. Previously this
+    # did `kill + wait` which hung CI for 27 minutes when the bun server
+    # didn't respond to SIGTERM — the whole release pipeline stalled.
+    kill -TERM "$SERVER_PID" >/dev/null 2>&1 || true
+    for i in 1 2 3 4; do
+      if ! kill -0 "$SERVER_PID" 2>/dev/null; then break; fi
+      sleep 0.5
+    done
+    kill -KILL "$SERVER_PID" >/dev/null 2>&1 || true
+    # Drop the wait — a detached bun child can inherit the server PID and
+    # outlive the kill, and `wait` on a non-child will block forever.
   fi
+  # Also sweep any orphan bun/unbrowse/kuri descendants spawned by the smoke
+  pkill -9 -P $$ 2>/dev/null || true
+  pkill -9 -f "$RUNTIME_ENTRY" 2>/dev/null || true
   if [[ -n "$TARBALL" && -f "$TARBALL" ]]; then
     rm -f "$TARBALL"
   fi
