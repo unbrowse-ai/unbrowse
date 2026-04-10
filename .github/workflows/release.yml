@@ -212,6 +212,12 @@ jobs:
             PUBLISHED=1
           fi
           echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
+
+      - name: Sync npm dist-tags (latest + preview)
+        if: steps.publish-result.outputs.published == '1' || steps.npm-publish.outputs.duplicate_version == '1'
+        run: bash scripts/npm-dist-tag-sync.sh
+        env:
+          NODE_AUTH_TOKEN: ${{ env.NODE_AUTH_TOKEN }}
   deploy-backend:
     name: Deploy Backend (CF Worker)
     runs-on: self-hosted

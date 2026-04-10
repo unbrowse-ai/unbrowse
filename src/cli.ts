@@ -1813,7 +1813,23 @@ async function cmdLoginAuto(args: string[], flags: Record<string, unknown>) {
   })();
 
   const { autonomousEmailLogin, isAgentMailAvailable } = await import("./auth/agent-mail.js");
-  if (!isAgentMailAvailable()) return die("AGENTMAIL_API_KEY not set — run: export AGENTMAIL_API_KEY=<key>");
+  if (!isAgentMailAvailable()) {
+    // Before giving up, try to bootstrap the key via the browser flow
+    info(`[login-auto] AGENTMAIL_API_KEY not set — attempting auto-bootstrap via console.agentmail.to`);
+    try {
+      const { bootstrapAgentMailKey } = await import("./auth/bootstrap-agentmail.js");
+      const bootstrap = await bootstrapAgentMailKey();
+      if (bootstrap.success && bootstrap.api_key) {
+        process.env.AGENTMAIL_API_KEY = bootstrap.api_key;
+        info(`[login-auto] bootstrapped AgentMail key via ${bootstrap.method ?? "browser"}`);
+      } else {
+        return die(`AGENTMAIL_API_KEY not set and bootstrap failed: ${bootstrap.error ?? "unknown"}. Get a key at https://agentmail.to and run: export AGENTMAIL_API_KEY=<key>`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return die(`AGENTMAIL_API_KEY not set and bootstrap errored: ${msg}. Get a key at https://agentmail.to and run: export AGENTMAIL_API_KEY=<key>`);
+    }
+  }
 
   info(`[login-auto] creating agent email for ${domain}...`);
   const session = await autonomousEmailLogin(domain);
