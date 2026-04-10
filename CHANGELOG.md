@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.8.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.7.1...v3.8.0-preview.0) (2026-04-10)
+
+### Features
+
+* 100% agent coverage on 46-site corpus via body-sniff + anti-bot detection ([2fb26d0](https://github.com/unbrowse-ai/unbrowse-dev/commit/2fb26d04eb8067dad974ea7fde30fedd665d135a))
+* auto-deprecate bad npm versions from benchmark history ([74daeb9](https://github.com/unbrowse-ai/unbrowse-dev/commit/74daeb9d0919fc31618487cbe7672cd3db2b9193))
+* benchmark-historical — retroactive benchmark across npm version history ([fff4531](https://github.com/unbrowse-ai/unbrowse-dev/commit/fff45317e23789f7d4226020616cc61a269d3948))
+* benchmark-over-time primitive tracks performance across releases ([493b8e9](https://github.com/unbrowse-ai/unbrowse-dev/commit/493b8e989133822dedc4d9dab84901b190063b52))
+* cold-start-bench as harness + agent primitive ([754b6a7](https://github.com/unbrowse-ai/unbrowse-dev/commit/754b6a76bc3121b2305e582cb9695a19b846e95d))
+* peek + job-state primitives for long-running job visibility ([532cc3f](https://github.com/unbrowse-ai/unbrowse-dev/commit/532cc3f1b97f5c6f58db3b3931e770bde5229191))
+* stable baseline corpus + 502 retry for multi-version benchmark ([d3eb963](https://github.com/unbrowse-ai/unbrowse-dev/commit/d3eb963612f67285f448bb61706e4a1545289ed4))
+
+### Bug Fixes
+
+* bootstrap-agentmail now stops kuri after bootstrap attempt ([c998aa7](https://github.com/unbrowse-ai/unbrowse-dev/commit/c998aa7b1f1159c017b81a6e69267e5c79fd0e0c))
+* classify capture_failed / kuri_crash as browser-block not fail ([337a702](https://github.com/unbrowse-ai/unbrowse-dev/commit/337a702b9f3bff04418d8b258760be955dc1654b))
+* cold-start harness — file-fetch, env-var verdicts, longer box ttl ([907ff13](https://github.com/unbrowse-ai/unbrowse-dev/commit/907ff13aa03af867856f6fdc5f4a94964bc13274))
+* cold-start-bench setup check looks for config.json not agent.json ([3e53bd8](https://github.com/unbrowse-ai/unbrowse-dev/commit/3e53bd83ff3da9057737a35b80a346361c12ea71))
+* dogfood-loop detects Cloudflare challenge pages as BROWSER_BLOCK not PASS ([b650852](https://github.com/unbrowse-ai/unbrowse-dev/commit/b65085296271cf0ecbc38a45432508617776c265))
+* pin LLM augmenter to deterministic sampling ([c1b3aa1](https://github.com/unbrowse-ai/unbrowse-dev/commit/c1b3aa1b3f13c8bfd0cf7e533e30a4df8e7cdbed))
+
 ## [3.7.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.7.0-preview.1...v3.7.0-preview.2) (2026-04-10)
 
 ### Features
