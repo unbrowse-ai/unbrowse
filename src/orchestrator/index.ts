@@ -3763,20 +3763,19 @@ export async function resolveAndExecute(
     }
   } // end !forceCapture
 
-  // 1.4 Direct JSON fetch: if URL looks like a raw API endpoint, try fetching directly
-  if (context?.url && (
-    /\.(json|xml)(\?|$)|\/api\/|\/v\d+\//.test(context.url) ||
-    /[?&]format=(j\d*|json)\b/i.test(context.url) ||
-    /^https?:\/\/api\./i.test(context.url)
-  )) {
+  // 1.4 Direct JSON fetch: always try — if the URL returns JSON, use it directly.
+  // Previously this was gated on URL pattern heuristics like .json, /api/, api.
+  // which missed sites like jsonplaceholder.typicode.com/posts. Now we just try
+  // and check content-type on the response.
+  if (context?.url) {
     try {
       const directRes = await fetch(context.url, {
-        headers: { "Accept": "application/json", "User-Agent": "unbrowse/1.0" },
+        headers: { "Accept": "application/json, text/html;q=0.5", "User-Agent": "unbrowse/1.0" },
         signal: AbortSignal.timeout(5000),
         redirect: "follow",
       });
       const ct = directRes.headers.get("content-type") ?? "";
-      if (directRes.ok && (ct.includes("json") || ct.includes("+json"))) {
+      if (directRes.ok && (ct.includes("application/json") || ct.includes("+json") || ct.includes("text/json"))) {
         const data = await directRes.json();
         const trace: ExecutionTrace = {
           trace_id: nanoid(),

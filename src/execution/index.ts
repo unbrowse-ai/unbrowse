@@ -1047,6 +1047,73 @@ async function trySeedPublicDocumentFetchSkill(
     redirect: "follow",
   });
   const html = await response.text();
+
+  // JSON short-circuit: if the URL directly serves JSON, the URL IS the endpoint.
+  // No browser capture needed — build a stable GET endpoint from the response.
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  if (response.ok && (contentType.includes("application/json") || contentType.includes("text/json"))) {
+    try {
+      const parsed = JSON.parse(html);
+      const urlObj = new URL(response.url || url);
+      const pathTemplate = `${urlObj.origin}${urlObj.pathname}`;
+      const responseSchema = inferSchema([parsed]);
+      const endpoint: EndpointDescriptor = {
+        endpoint_id: stableEndpointId("GET", pathTemplate),
+        method: "GET",
+        url_template: pathTemplate,
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.95,
+        description: `Direct JSON API for ${intent}`,
+        response_schema: responseSchema,
+      };
+      endpoint.semantic = inferEndpointSemantic(endpoint, {
+        sampleResponse: parsed,
+        observedAt: new Date().toISOString(),
+        sampleRequestUrl: url,
+      });
+
+      const domain = getRegistrableDomain(targetDomain);
+      const existingSkill = findExistingSkillForDomain(domain, intent);
+      const localEndpoints = await prepareLearnedEndpoints(
+        existingSkill ? mergeEndpoints(existingSkill.endpoints, [endpoint]) : [endpoint],
+        intent,
+        domain,
+      );
+      const localDraft: SkillManifest = {
+        skill_id: existingSkill?.skill_id ?? nanoid(),
+        version: "1.0.0",
+        schema_version: "1",
+        lifecycle: "active" as const,
+        execution_type: "http" as const,
+        created_at: existingSkill?.created_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        name: domain,
+        intent_signature: intent,
+        domain,
+        description: `API skill for ${domain}`,
+        owner_type: "agent" as const,
+        endpoints: localEndpoints,
+        operation_graph: buildSkillOperationGraph(localEndpoints),
+        intents: [intent],
+      };
+      try { cachePublishedSkill(localDraft); } catch { /* best-effort */ }
+
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: localDraft.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+          status_code: response.status,
+        }),
+        result: parsed as Record<string, unknown>,
+      };
+    } catch { /* not valid JSON — fall through */ }
+  }
+
   if (!isHtml(html) || isSpaShell(html)) return undefined;
 
   const built = buildPageArtifactCapture(response.url || url, intent, html, usedStoredAuth);
