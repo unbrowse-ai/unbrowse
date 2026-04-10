@@ -1,0 +1,20 @@
+get github gist|https://gist.github.com/discover
+get gitkraken docs|https://www.gitkraken.com/learn/git
+get cheat sh tool|https://cheat.sh/tar
+get replicate model|https://replicate.com/explore
+get modal labs|https://modal.com/docs
+get dribbble shot|https://dribbble.com/shots
+get behance project|https://www.behance.net/search/projects
+get canva template|https://www.canva.com/templates/
+get strava activity|https://www.strava.com/explore
+get petfinder pet|https://www.petfinder.com/pet-search
+get carfax vehicle|https://www.carfax.com/vehicle-research
+get trulia listing|https://www.trulia.com/San_Francisco,CA/
+get redfin listing|https://www.redfin.com/city/17151/CA/San-Francisco
+get doordash restaurant|https://www.doordash.com/food-delivery/san-francisco-ca-restaurants/
+get marketwatch stock|https://www.marketwatch.com/investing/stock/aapl
+get seeking alpha stock|https://seekingalpha.com/symbol/AAPL
+get feedly feed|https://feedly.com/i/discover
+get smartnews|https://www.smartnews.com/
+get flipboard article|https://flipboard.com/topic/technology
+get man pages|https://man7.org/linux/man-pages/
