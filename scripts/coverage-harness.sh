@@ -38,9 +38,22 @@ from collections import Counter, defaultdict
 
 traces_dir = '$TRACES_DIR'
 since = '$SINCE'
-all_files = sorted(glob.glob(os.path.join(traces_dir, '*.json')))
+all_files_raw = sorted(glob.glob(os.path.join(traces_dir, '*.json')))
 if since:
-    all_files = [f for f in all_files if os.path.basename(f) >= since]
+    all_files_raw = [f for f in all_files_raw if os.path.basename(f) >= since]
+
+# Filter out test-fixture traces (trace_id=='test-nanoid') that leak from
+# unit tests mocking nanoid. These pollute the real trace log.
+all_files = []
+for f in all_files_raw:
+    try:
+        with open(f) as fh: d = json.load(fh)
+        if d.get('trace_id') == 'test-nanoid':
+            continue
+        if d.get('session_scope', '').startswith('test'):
+            continue
+        all_files.append(f)
+    except: pass
 
 success = [f for f in all_files if 'success' in os.path.basename(f)]
 failure = [f for f in all_files if 'failure' in os.path.basename(f)]
