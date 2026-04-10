@@ -4124,6 +4124,16 @@ export async function resolveAndExecute(
       error: `No relevant endpoint discovered for "${queryIntent}"`,
     };
     console.warn(`[capture] dropping learned skill with no relevant endpoints for "${queryIntent}"`);
+    // Diagnostic for the agent/bench triage: distinguish between
+    // "captured lots of endpoints but none relevant" (scoring issue)
+    // and "captured nothing at all" (likely browser-blocked upstream).
+    const totalEndpoints = resolvedSkill.endpoints.length;
+    const captureDiagnostic =
+      totalEndpoints === 0
+        ? "no_endpoints_extracted"
+        : ranked.length === 0
+        ? "all_endpoints_filtered_by_noise_rules"
+        : "endpoints_scored_below_relevance_threshold";
     return {
       result: {
         error: `No relevant endpoint discovered for "${queryIntent}"`,
@@ -4133,6 +4143,8 @@ export async function resolveAndExecute(
           description: candidate.endpoint.description,
           url: candidate.endpoint.url_template,
         })),
+        capture_diagnostic: captureDiagnostic,
+        total_endpoints_captured: totalEndpoints,
         ...(authRecommended
           ? {
               auth_recommended: true,
