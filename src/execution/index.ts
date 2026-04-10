@@ -1448,54 +1448,13 @@ async function executeBrowserCapture(
     for (const [reason, urls] of Object.entries(samplesByReason)) {
       for (const u of urls) rejectedSamples.push({ url: u, reason });
     }
-    const blockSignals: string[] = [];
-    const titleLower = title.toLowerCase();
-    if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|cloudflare|press and hold/i.test(titleLower)) {
-      blockSignals.push("challenge_title");
-    }
-    const vendorHits = new Set<string>();
-    for (const req of captured.requests ?? []) {
-      const u = req.url ?? "";
-      // PerimeterX: vendor CDN hosts + first-party proxied patterns. PX is
-      // usually served through the site's own domain via a UUID/UUID path
-      // that ends in ips.js (bot-detection script) or /tl (telemetry). The
-      // KP_UIDz= query param is a PX session identifier used on every call.
-      if (
-        /perimeterx|px-cloud|px-cdn|pxhd\.net/i.test(u) ||
-        /KP_UIDz=/.test(u) ||
-        /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(ips\.js|tl|xhr|init)/i.test(u)
-      ) {
-        vendorHits.add("perimeterx");
-      }
-      if (/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i.test(u)) vendorHits.add("datadome");
-      if (/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i.test(u)) vendorHits.add("imperva_incapsula");
-      if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i.test(u)) vendorHits.add("cloudflare");
-      if (/hcaptcha|recaptcha|arkoselabs|funcaptcha/i.test(u)) vendorHits.add("captcha_vendor");
-      if (/shape\.security|f5\.com\/shape|ShapeSecurity/i.test(u)) vendorHits.add("shape_security");
-      if (/kasada|client\.kasada|ips\.kasada/i.test(u)) vendorHits.add("kasada");
-    }
-    for (const v of vendorHits) blockSignals.push(`vendor:${v}`);
     const apiCallCount = captured.requests?.length ?? 0;
-    const noisyRejections =
-      (rejectionCounts.not_api_like ?? 0) +
-      (rejectionCounts.score_non_positive ?? 0);
-    if (apiCallCount > 0 && apiCallCount <= 20 && noisyRejections >= Math.max(1, Math.floor(apiCallCount * 0.6))) {
-      blockSignals.push("sparse_capture_mostly_noise");
-    }
-    // Detect an "empty page load" — browser got no HTML at all. Usually means
-    // the browser was blocked before the document loaded, or the page is a
-    // client-side-rendered SPA that the capture missed.
-    if (html.length < 500 && apiCallCount === 0) {
-      blockSignals.push("empty_capture");
-    }
-    // Detect "network fired, HTML missing" — the browser DID make many
-    // requests (page was loading) but captured.html is empty. This is a
-    // capture-layer issue, not a product filter issue, and is distinct
-    // from browser-blocked. Observed on math.stackexchange.com/questions/*
-    // where Kuri captured 120 requests but getPageHtml() returned nothing.
-    if (html.length < 500 && apiCallCount >= 30) {
-      blockSignals.push("no_html_many_apis");
-    }
+    const blockSignals = detectBrowserBlockSignals({
+      requestUrls: (captured.requests ?? []).map((r) => r.url ?? ""),
+      title,
+      htmlLength: html.length,
+      rejectionCounts,
+    });
     return {
       html_bytes: html.length,
       title,
@@ -3238,6 +3197,61 @@ function semanticIntentAdjustment(endpoint: EndpointDescriptor, intent?: string)
   }
 
   return delta;
+}
+
+/**
+ * Detect browser-block signals from capture evidence. Pure function — no
+ * closure state — so the full rule set can be unit-tested and evolved
+ * without touching the execute() flow. Signals are raw evidence the
+ * agent/harness judges with; this function never returns a verdict.
+ */
+export function detectBrowserBlockSignals(input: {
+  requestUrls: string[];
+  title: string;
+  htmlLength: number;
+  rejectionCounts: Record<string, number>;
+}): string[] {
+  const { requestUrls, title, htmlLength, rejectionCounts } = input;
+  const signals: string[] = [];
+  const titleLower = title.toLowerCase();
+  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|cloudflare|press and hold/i.test(titleLower)) {
+    signals.push("challenge_title");
+  }
+  const vendorHits = new Set<string>();
+  for (const u of requestUrls) {
+    // PerimeterX: vendor CDN hosts + first-party proxied patterns. PX is
+    // usually served through the site's own domain via a UUID/UUID path
+    // that ends in ips.js (bot-detection script) or /tl (telemetry). The
+    // KP_UIDz= query param is a PX session identifier.
+    if (
+      /perimeterx|px-cloud|px-cdn|pxhd\.net/i.test(u) ||
+      /KP_UIDz=/.test(u) ||
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(ips\.js|tl|xhr|init)/i.test(u)
+    ) {
+      vendorHits.add("perimeterx");
+    }
+    if (/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i.test(u)) vendorHits.add("datadome");
+    if (/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i.test(u)) vendorHits.add("imperva_incapsula");
+    if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i.test(u)) vendorHits.add("cloudflare");
+    if (/hcaptcha|recaptcha|arkoselabs|funcaptcha/i.test(u)) vendorHits.add("captcha_vendor");
+    if (/shape\.security|f5\.com\/shape|ShapeSecurity/i.test(u)) vendorHits.add("shape_security");
+    if (/kasada|client\.kasada|ips\.kasada/i.test(u)) vendorHits.add("kasada");
+  }
+  for (const v of vendorHits) signals.push(`vendor:${v}`);
+  const apiCallCount = requestUrls.length;
+  const noisyRejections =
+    (rejectionCounts.not_api_like ?? 0) +
+    (rejectionCounts.score_non_positive ?? 0);
+  if (apiCallCount > 0 && apiCallCount <= 20 && noisyRejections >= Math.max(1, Math.floor(apiCallCount * 0.6))) {
+    signals.push("sparse_capture_mostly_noise");
+  }
+  if (htmlLength < 500 && apiCallCount === 0) {
+    signals.push("empty_capture");
+  }
+  if (htmlLength < 500 && apiCallCount >= 30) {
+    signals.push("no_html_many_apis");
+  }
+  return signals;
 }
 
 /**
