@@ -16,14 +16,22 @@
 #
 set -uo pipefail
 
-# Register with the job-state primitive so `bash scripts/peek.sh` can see
-# live progress even when this script is running in the background.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/job-state.sh"
-JOB_ID=$(job_register "benchmark-turbobox-parallel" "$*")
-trap 'job_done "$JOB_ID" "interrupted" ""' INT TERM
-echo "[turbobox-parallel] job_id=$JOB_ID  (peek: bash scripts/peek.sh $JOB_ID)"
+# Register with the Aiko job-state primitive so `peek` can see live progress
+# even when this script is running in the background. job-state lives in the
+# agent-factory primitives so it's available to every project, not unbrowse.
+JOB_STATE_LIB="$HOME/agent-factory/bin/job-state/job-state"
+if [ -f "$JOB_STATE_LIB" ]; then
+  # shellcheck disable=SC1090
+  source "$JOB_STATE_LIB"
+  JOB_ID=$(job_register "benchmark-turbobox-parallel" "$*")
+  trap 'job_done "$JOB_ID" "interrupted" ""' INT TERM
+  echo "[turbobox-parallel] job_id=$JOB_ID  (peek: $HOME/agent-factory/bin/peek/peek $JOB_ID)"
+else
+  JOB_ID=""
+  job_register() { :; }
+  job_update() { :; }
+  job_done() { :; }
+fi
 
 TURBOBOX_URL="${TURBOBOX_URL:-https://sandbox.trilok.ai}"
 VERSIONS=""
