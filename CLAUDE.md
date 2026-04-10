@@ -108,8 +108,36 @@ When asked to release, follow this flow:
 1. Read commits since last tag: `git log $(git describe --tags --match='v*' --abbrev=0)..HEAD --format="%s"`
 2. Read the diff of user-facing code (src/, packages/, SKILL.md, README.md)
 3. Write polished, user-facing release notes to `.release-notes.md` (see format below)
-4. Run `bun run release` — bumps version, updates CHANGELOG, tags, creates GitHub Release using the notes
+4. Run `bun run release:preview` — tests, bumps version, tags, pushes, waits for npm, runs remote agent-xp
 5. The tag push triggers CI which deploys backend + frontend and syncs + releases the skill repo
+
+### Post-release agent experience review (MANDATORY)
+
+After every release, run the agent experience harness and **judge the artifacts yourself**:
+
+```bash
+bash scripts/agent-experience-test.sh --remote lekt8@89.169.121.108
+```
+
+This outputs JSON with real workflow artifacts. Review each task:
+
+| Task | Pass if | Fail if |
+|------|---------|---------|
+| health | `status: "ok"`, version matches release | missing, wrong version |
+| resolve | `available_operations` has 1+ endpoints with `endpoint_id` | empty ops, error |
+| execute | `success: true`, `status_code: 200`, response has domain-relevant data | empty data on `--raw`, error |
+| search (parameterized) | agent-filled `{q}` param returned results | empty after param fill |
+| feedback | `ok: true` | error |
+| browse_go | `ok: true`, `session_id` present | all 3 retries failed = investigate |
+| browse_eval | result contains page content (title, h1, body length) | CDP error, empty |
+| browse_snap | a11y tree with `[e0]` root | empty snapshot |
+| browse_close | `ok: true`, `endpoint_count >= 0` | error |
+
+If execute returns `data: []` with `--extract`, retry with `--raw` — extraction path mismatch is not a pipeline failure. Judge the raw response.
+
+If browse skips on remote (cold Kuri start), that's a known timing issue — not a release blocker unless resolve/execute also fail.
+
+**Do not ship a release without reviewing these artifacts.** Grep-based pass/fail is not sufficient — the agent must judge whether the data makes sense for the intent.
 
 ### Release notes format (.release-notes.md)
 

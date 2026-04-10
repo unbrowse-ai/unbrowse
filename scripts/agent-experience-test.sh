@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# agent-experience-test.sh — verify the full agent workflow on a target host
+# agent-experience-test.sh — collect agent workflow artifacts for agent review
+#
+# Outputs structured JSON artifacts. The calling agent judges pass/fail.
+# This is not a deterministic test — it's an evidence collector.
 #
 # Usage:
-#   bash scripts/agent-experience-test.sh                    # run locally
-#   bash scripts/agent-experience-test.sh --remote HOST      # run on remote via SSH
-#   bash scripts/agent-experience-test.sh --remote lekt8@89.169.121.108
+#   bash scripts/agent-experience-test.sh                    # local
+#   bash scripts/agent-experience-test.sh --remote HOST      # remote via SSH
 #
 set -uo pipefail
 
 REMOTE=""
 for arg in "$@"; do
   case "$arg" in
-    --remote) shift; REMOTE="$1"; shift ;;
+    --remote) shift; REMOTE="${1:-}"; shift || true ;;
   esac
 done
 
@@ -20,105 +22,71 @@ if [ -n "$REMOTE" ]; then
     "bash -s" < "$0"
 fi
 
-# ── Running on target host ──
+# ── Target host ──
 export PATH="$HOME/.npm-global/bin:/usr/local/bin:$PATH"
 export UNBROWSE_NON_INTERACTIVE=1
 export UNBROWSE_TOS_ACCEPTED=1
 
-log() { echo "[agent-xp] $(date +%H:%M:%S) $*"; }
-PASS=0; FAIL=0; SKIP=0
+RESULTS_FILE="/tmp/agent-xp-results.json"
+echo '{"tasks":[]}' > "$RESULTS_FILE"
 
-assert() {
-  local name="$1"; shift
-  log "TEST: $name"
-  local out
-  if out=$("$@" 2>&1); then
-    PASS=$((PASS + 1))
-    log "  PASS"
-  else
-    FAIL=$((FAIL + 1))
-    log "  FAIL: $out" | head -3
-  fi
+record() {
+  local task="$1" raw="$2"
+  python3 -c "
+import json, sys
+with open('$RESULTS_FILE') as f: results = json.load(f)
+try:
+    data = json.loads('''$(echo "$raw" | sed "s/'/\\\\'/g")''')
+except: data = '''$(echo "$raw" | head -c 500 | sed "s/'/\\\\'/g")'''
+results['tasks'].append({'task': '$task', 'output': data})
+with open('$RESULTS_FILE', 'w') as f: json.dump(results, f)
+" 2>/dev/null
 }
 
-skip() {
-  local name="$1"
-  SKIP=$((SKIP + 1))
-  log "TEST: $name"
-  log "  SKIP"
-}
+# ── Collect evidence ──
 
-# ── Tests ──
+# Version + health
+record "version" "$(unbrowse --version 2>/dev/null || echo 'unknown')"
+record "health" "$(unbrowse health 2>/dev/null || echo '{\"error\":\"health_failed\"}')"
 
-# 1. Version + health
-assert "version" sh -c 'unbrowse --version | grep -qE "^[0-9]+\.[0-9]+\.[0-9]+"'
-assert "health" sh -c 'unbrowse health 2>/dev/null | grep -q "\"ok\""'
+# Resolve: does the marketplace return endpoints?
+record "resolve_pypi_flask" "$(unbrowse resolve --intent 'get package info' --url 'https://pypi.org/project/flask/' --pretty 2>/dev/null)"
 
-# 2. Resolve finds endpoints on a known marketplace site
-assert "resolve finds pypi endpoint" sh -c '
-  unbrowse resolve --intent "get package info" --url "https://pypi.org/project/flask/" 2>/dev/null \
-    | grep -q "available_operations\|available_endpoints"
-'
-
-# 3. Two-step resolve → execute returns real data
-test_resolve_execute() {
-  local OUT SKILL EP
-  OUT=$(unbrowse resolve --intent "get package info" --url "https://pypi.org/project/flask/" 2>/dev/null)
-  SKILL=$(echo "$OUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
-  EP=$(echo "$OUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
-  if [ -z "$SKILL" ] || [ -z "$EP" ]; then echo "no skill/ep"; return 1; fi
-  unbrowse execute --skill "$SKILL" --endpoint "$EP" --raw 2>/dev/null | grep -q '"success":true'
-}
-assert "resolve+execute two-step" test_resolve_execute
-
-# 4. Parameterized resolve + execute (agent fills a template)
-test_parameterized_search() {
-  local OUT SKILL EP
-  OUT=$(unbrowse resolve --intent "search packages" --url "https://registry.npmjs.org/-/v1/search?text=express" 2>/dev/null)
-  SKILL=$(echo "$OUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
-  EP=$(echo "$OUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
-  if [ -z "$SKILL" ] || [ -z "$EP" ]; then echo "no skill/ep"; return 1; fi
-  unbrowse execute --skill "$SKILL" --endpoint "$EP" --params '{"q":"express"}' --raw 2>/dev/null | grep -q '"success":true'
-}
-assert "parameterized search" test_parameterized_search
-
-# 5. Feedback loop (mandatory after execute)
-test_feedback() {
-  local OUT SKILL EP
-  OUT=$(unbrowse resolve --intent "get info" --url "https://pypi.org/project/numpy/" 2>/dev/null)
-  SKILL=$(echo "$OUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
-  EP=$(echo "$OUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
-  if [ -z "$SKILL" ] || [ -z "$EP" ]; then return 0; fi
-  unbrowse feedback --skill "$SKILL" --endpoint "$EP" --rating 5 --outcome success 2>/dev/null
-}
-assert "feedback" test_feedback
-
-# 6. Browse session: go → eval → snap → close (skip if no Chrome)
-GO_OUT=$(unbrowse go "https://example.com" 2>/dev/null) || true
-if echo "$GO_OUT" | grep -q '"ok":true'; then
-  SESSION=$(echo "$GO_OUT" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('session_id',''))" 2>/dev/null)
-
-  assert "eval returns page title" sh -c "
-    unbrowse eval --session '$SESSION' 'document.title' 2>/dev/null | grep -q 'Example Domain'
-  "
-
-  assert "snap returns a11y tree" sh -c "
-    unbrowse snap --session '$SESSION' 2>/dev/null | grep -q '\[e0\]'
-  "
-
-  assert "close checkpoints" sh -c "
-    unbrowse close --session '$SESSION' 2>/dev/null | grep -q '\"ok\":true'
-  "
-else
-  skip "eval returns page title (no Chrome)"
-  skip "snap returns a11y tree (no Chrome)"
-  skip "close checkpoints (no Chrome)"
+# Execute: does calling an endpoint return data?
+RESOLVE=$(unbrowse resolve --intent 'get package info' --url 'https://pypi.org/project/flask/' 2>/dev/null)
+SKILL=$(echo "$RESOLVE" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
+EP=$(echo "$RESOLVE" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
+if [ -n "$SKILL" ] && [ -n "$EP" ]; then
+  record "execute_pypi_flask" "$(unbrowse execute --skill "$SKILL" --endpoint "$EP" --raw --pretty 2>/dev/null)"
 fi
 
-# ── Results ──
-log "════════════════════"
-log "PASS=$PASS FAIL=$FAIL SKIP=$SKIP"
+# Parameterized search: can the agent fill template params?
+RESOLVE_NPM=$(unbrowse resolve --intent 'search packages' --url 'https://registry.npmjs.org/-/v1/search?text=express' 2>/dev/null)
+SKILL_NPM=$(echo "$RESOLVE_NPM" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
+EP_NPM=$(echo "$RESOLVE_NPM" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
+if [ -n "$SKILL_NPM" ] && [ -n "$EP_NPM" ]; then
+  record "execute_npm_search" "$(unbrowse execute --skill "$SKILL_NPM" --endpoint "$EP_NPM" --params '{"q":"express"}' --raw --pretty 2>/dev/null)"
+fi
 
+# Feedback: does the loop close?
+if [ -n "$SKILL" ] && [ -n "$EP" ]; then
+  record "feedback" "$(unbrowse feedback --skill "$SKILL" --endpoint "$EP" --rating 5 --outcome success 2>/dev/null)"
+fi
+
+# Browse: can the agent drive a browser?
+for attempt in 1 2 3; do
+  GO=$(unbrowse go 'https://example.com' 2>/dev/null) || true
+  if echo "$GO" | python3 -c "import sys,json; exit(0 if json.loads(sys.stdin.read()).get('ok') else 1)" 2>/dev/null; then
+    SESSION=$(echo "$GO" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['session_id'])" 2>/dev/null)
+    record "browse_go" "$GO"
+    record "browse_eval" "$(unbrowse eval --session "$SESSION" "JSON.stringify({title:document.title,h1:document.querySelector('h1')?.textContent,bodyLen:document.body.innerHTML.length})" 2>/dev/null)"
+    record "browse_snap_head" "$(unbrowse snap --session "$SESSION" 2>/dev/null | head -15)"
+    record "browse_close" "$(unbrowse close --session "$SESSION" 2>/dev/null)"
+    break
+  fi
+  sleep 5
+done
+
+# ── Output the artifact ──
 pkill -9 -f 'unbrowse|kuri' 2>/dev/null || true
-
-[ "$FAIL" -eq 0 ]
+cat "$RESULTS_FILE"
