@@ -1410,7 +1410,8 @@ async function executeBrowserCapture(
     }
   }
 
-  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent });
+  const extractionTrace: { rows?: Array<Record<string, unknown>> } = {};
+  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
 
   // Detect structured search forms from captured HTML and attach to search-like endpoints
   if (captured.html) {
@@ -1685,6 +1686,27 @@ async function executeBrowserCapture(
           intentReason = assessment.reason;
         } catch { /* best effort */ }
       }
+      // Summarise extractor rejections so the agent can see WHICH filter ate
+      // each captured request. On SPA-heavy sites (tripadvisor, zillow) the
+      // browser sees 100+ requests but extractEndpoints rejects all of them —
+      // without this, the rejection reasons are invisible to the agent.
+      const rows = extractionTrace.rows ?? [];
+      const rejectionCounts: Record<string, number> = {};
+      const samplesByReason: Record<string, string[]> = {};
+      const PER_REASON_SAMPLE_CAP = 5;
+      for (const row of rows) {
+        if (row.kept === true) continue;
+        const reason = String(row.reason ?? "unknown");
+        rejectionCounts[reason] = (rejectionCounts[reason] ?? 0) + 1;
+        if (typeof row.url === "string") {
+          const bucket = samplesByReason[reason] ?? (samplesByReason[reason] = []);
+          if (bucket.length < PER_REASON_SAMPLE_CAP) bucket.push(row.url);
+        }
+      }
+      const rejectedSamples: Array<{ url: string; reason: string }> = [];
+      for (const [reason, urls] of Object.entries(samplesByReason)) {
+        for (const url of urls) rejectedSamples.push({ url, reason });
+      }
       return {
         html_bytes: html.length,
         title,
@@ -1692,6 +1714,8 @@ async function executeBrowserCapture(
         observed_api_calls: (captured.requests?.length ?? 0),
         intent_verdict: intentVerdict,
         intent_reason: intentReason,
+        filter_rejections: rejectionCounts,
+        rejected_samples: rejectedSamples,
       };
     })();
 

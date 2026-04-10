@@ -593,6 +593,13 @@ function isSemanticallyAdmissibleResponse(
   sampleRequest: Record<string, unknown>,
   context?: ExtractionContext,
 ): { ok: boolean; reason: string } {
+  // GraphQL endpoints always pass the semantic gate: one URL serves many
+  // operations, so URL tokens never match entity kinds. Downstream
+  // operation-picking (via operationName) handles relevance. Observed
+  // false-reject on zillow.com/graphql/ during bench-local runs.
+  if (/\/graphql(\/|$|\?)/i.test(req.url)) {
+    return { ok: true, reason: "semantic_graphql_bypass" };
+  }
   const kind = inferIntentEntityKind(context?.intent);
   const action = inferIntentActionKind(context?.intent);
   if (!kind) {
@@ -704,7 +711,12 @@ export interface ExtractionContext {
   intent?: string;
 }
 
-export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[], context?: ExtractionContext): EndpointDescriptor[] {
+export interface ExtractionTraceSink {
+  /** Every request evaluated by extractEndpoints, with its kept/rejected reason. */
+  rows?: Array<Record<string, unknown>>;
+}
+
+export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[], context?: ExtractionContext, traceSink?: ExtractionTraceSink): EndpointDescriptor[] {
   const seen = new Set<string>();
   const endpoints: EndpointDescriptor[] = [];
   const traceRows: Array<Record<string, unknown>> = [];
@@ -733,7 +745,17 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       // API endpoints may have large/truncated/missing response bodies.
       // Admit them anyway if the URL pattern is clearly an API endpoint.
       const urlPath = (() => { try { return new URL(req.url).pathname; } catch { return ""; } })();
-      const isApiUrl = /\/(api|graphql|youtubei|__ssr_data__)\b/i.test(urlPath) || /\.(json)(\?|$)/.test(req.url);
+      // Recognise common SPA data-fetch URL conventions as API endpoints even
+      // when the body is missing/HTML. Zillow uses /async-create-search-page-state,
+      // Next.js uses /_next/data/, many SPAs use /xhr/, /ajax/, /rest/, /v1/,
+      // /v2/, and paths ending in -state or -data are a strong convention for
+      // server-state fetches.
+      const isApiUrl =
+        /\/(api|graphql|youtubei|__ssr_data__|_next\/data|xhr|ajax|rest)\b/i.test(urlPath) ||
+        /\/v\d+\//i.test(urlPath) ||
+        /\/async[-_]/i.test(urlPath) ||
+        /[-_](state|data|feed|timeline|search|list|results)(\?|$|\/)/i.test(urlPath) ||
+        /\.(json)(\?|$)/.test(req.url);
 
       // For GraphQL: extract operationName from request body or URL
       // Handles X.com URL patterns, Facebook doc_id/fb_api_req_friendly_name,
@@ -769,8 +791,25 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
         const reqHost = new URL(req.url).hostname;
         const reqDomain = getRegistrableDomain(reqHost);
         if (!affinityDomains.has(reqDomain)) {
-          traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "domain_mismatch" });
-          continue;
+          // Allow sibling registrable domains that share the brand root
+          // (e.g. zillow.com ↔ zillowstatic.com, twitter.com ↔ twimg.com is
+          // intentionally not matched; we only accept a prefix/suffix
+          // overlap of the brand token, not arbitrary same-company domains).
+          const reqBrand = reqDomain.split(".")[0] ?? "";
+          let siblingOk = false;
+          if (reqBrand.length >= 4) {
+            for (const a of affinityDomains) {
+              const aBrand = a.split(".")[0] ?? "";
+              if (aBrand.length >= 4 && (reqBrand.startsWith(aBrand) || aBrand.startsWith(reqBrand))) {
+                siblingOk = true;
+                break;
+              }
+            }
+          }
+          if (!siblingOk) {
+            traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "domain_mismatch" });
+            continue;
+          }
         }
       } catch {
         traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "bad_url" });
@@ -1022,6 +1061,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     })),
   });
 
+  if (traceSink) traceSink.rows = traceRows;
   return endpoints;
 }
 

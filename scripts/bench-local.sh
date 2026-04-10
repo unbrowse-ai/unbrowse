@@ -103,6 +103,7 @@ row = {
     'captured_api_calls': (meta or {}).get('observed_api_calls','') if isinstance(meta, dict) else '',
     'captured_intent_verdict': (meta or {}).get('intent_verdict','') if isinstance(meta, dict) else '',
     'captured_intent_reason': (meta or {}).get('intent_reason','') if isinstance(meta, dict) else '',
+    'filter_rejections': json.dumps((meta or {}).get('filter_rejections', {}), sort_keys=True) if isinstance(meta, dict) else '',
 }
 print(json.dumps(row))
 PY
