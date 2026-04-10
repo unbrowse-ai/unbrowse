@@ -44,3 +44,24 @@ get xkcd comic|https://xkcd.com/info.0.json
 get ghibli films|https://ghibliapi.vercel.app/films
 get starwars person|https://swapi.dev/api/people/1/
 get exchange rates|https://open.er-api.com/v6/latest/USD
+get booking reviews|https://www.booking.com/hotel/us/the-plaza.html
+get indeed jobs|https://www.indeed.com/jobs?q=software+engineer
+get kdp product|https://www.amazon.com/dp/B07P8XF4C7
+get expedia hotel|https://www.expedia.com/San-Francisco-Hotels.d178326.Travel-Guide-Hotels
+get kayak flights|https://www.kayak.com/flights/SFO-NYC/2026-05-01
+get polymarket event|https://polymarket.com/event/will-btc-hit-100k
+get semanticscholar paper|https://www.semanticscholar.org/paper/Attention-Is-All-You-Need-Vaswani-Shazeer/204e3073870fae3d05bcbc2f6a8e263d9b72e776
+get google scholar paper|https://scholar.google.com/scholar?q=transformer+attention
+get brave search|https://search.brave.com/search?q=unbrowse+ai
+get etherscan tx|https://etherscan.io/tx/0x2bb4d8e1c5a60a65a76e3e17a06f8a3c63d8c3a9f6d35a4e18d5c1e0a1e5e5e5
+get coinmarketcap coin|https://coinmarketcap.com/currencies/bitcoin/
+get yahoo finance ticker|https://finance.yahoo.com/quote/AAPL
+get crunchbase company|https://www.crunchbase.com/organization/openai
+get angellist startup|https://wellfound.com/company/openai
+get producthunt product|https://www.producthunt.com/products/openai
+get stackoverflow answer|https://stackoverflow.com/questions/tagged/webscraping
+get github user|https://github.com/lewistham9x
+get hackernoon article|https://hackernoon.com/
+get substack article|https://stratechery.com/
+get linkedin jobs|https://www.linkedin.com/jobs/search/?keywords=software+engineer
+get indeed company|https://www.indeed.com/cmp/Openai
