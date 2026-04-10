@@ -26,7 +26,8 @@ def classify(row: dict) -> str:
     bs_raw = row.get("browser_block_signals") or ""
     has_ops = row.get("has_available_operations") in (True, "True", "true")
     n_ops = int(row.get("n_operations") or 0)
-    trace_ok = row.get("trace_success") in (True, "True", "true")
+    trace_raw = row.get("trace_success")
+    trace_ok = trace_raw in (True, "True", "true")
     src = row.get("source") or ""
     err = row.get("error_code") or ""
 
@@ -49,7 +50,11 @@ def classify(row: dict) -> str:
     diag = row.get("capture_diagnostic") or ""
     if diag in ("no_endpoints_extracted", "all_endpoints_filtered_by_noise_rules"):
         return "BROWSER_BLOCK"
-    if err == "auth_required":
+    # Empty row — no source, no trace, no ops. CLI never returned a
+    # top-level response, almost always a clean timeout. Treat as block.
+    if not src and trace_raw in (None, "None", "") and not has_ops:
+        return "BROWSER_BLOCK"
+    if err == "auth_required" or row.get("auth_recommended") in (True, "True", "true"):
         return "AUTH_GATED"
     if has_ops and n_ops > 0:
         return "PASS"

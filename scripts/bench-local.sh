@@ -107,6 +107,7 @@ row = {
     'browser_block_signals': json.dumps((meta or {}).get('browser_block_signals', []), sort_keys=True) if isinstance(meta, dict) else '',
     'capture_diagnostic': r.get('capture_diagnostic', '') if isinstance(r, dict) else '',
     'total_endpoints_captured': r.get('total_endpoints_captured', '') if isinstance(r, dict) else '',
+    'auth_recommended': r.get('auth_recommended', False) if isinstance(r, dict) else False,
 }
 print(json.dumps(row))
 PY
@@ -238,7 +239,14 @@ for r in rows:
         # yielded nothing usable — effectively a block from the agent's
         # perspective. Same bucket as vendor-classified block.
         buckets['BROWSER_BLOCK'].append(r['url'])
-    elif err == 'auth_required':
+    elif not src and trace_ok is None and has_ops is not True:
+        # No source + no trace + no ops + no signals → the CLI never
+        # returned a top-level response object. Almost always because
+        # both attempts hit a clean timeout (wayfair/bestbuy/asos).
+        # That's a BROWSER_BLOCK: the site is stuck/blocked at the
+        # browser level and we couldn't even finish a capture.
+        buckets['BROWSER_BLOCK'].append(r['url'])
+    elif err == 'auth_required' or r.get('auth_recommended') is True:
         buckets['AUTH_GATED'].append(r['url'])
     elif has_ops and n_ops > 0:
         buckets['PASS'].append(r['url'])
