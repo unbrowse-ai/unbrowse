@@ -3771,7 +3771,7 @@ export async function resolveAndExecute(
     try {
       const directRes = await fetch(context.url, {
         headers: { "Accept": "application/json, text/html;q=0.5", "User-Agent": "unbrowse/1.0" },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(15000),  // 15s — slow APIs like NASA cold-start need headroom
         redirect: "follow",
       });
       const ct = directRes.headers.get("content-type") ?? "";
@@ -3795,7 +3795,10 @@ export async function resolveAndExecute(
           timing: t,
         };
       }
-    } catch { /* not a direct JSON API — continue to browser */ }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`[direct-fetch] ${context.url} skipped: ${msg.slice(0, 100)}`);
+    }
   }
 
   if (process.env.UNBROWSE_LOCAL_ONLY === "1" && !forceCapture) {
