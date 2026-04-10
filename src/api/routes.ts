@@ -833,7 +833,23 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
     };
     try {
-      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, skip_robots_check, intent, contextUrl: context_url, client_scope: clientScope });
+      let execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, skip_robots_check, intent, contextUrl: context_url, client_scope: clientScope });
+
+      // Auto-recovery: if endpoint_not_found, the local skill cache may be stale.
+      // Re-fetch from marketplace (which has the latest endpoints) and retry.
+      if (
+        !execResult.trace.success &&
+        (execResult.result as Record<string, unknown>)?.error === "endpoint_not_found" &&
+        typeof execParams.endpoint_id === "string"
+      ) {
+        const freshSkill = await getSkill(skill_id, clientScope);
+        if (freshSkill && freshSkill.endpoints.some((e) => e.endpoint_id === execParams.endpoint_id)) {
+          console.log(`[exec] endpoint ${execParams.endpoint_id} found in fresh marketplace skill — retrying`);
+          skill = freshSkill;
+          execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, skip_robots_check, intent, contextUrl: context_url, client_scope: clientScope });
+        }
+      }
+
       saveTrace(execResult.trace);
       if (execResult.trace.endpoint_id) {
         recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace, skill).catch(() => {});
