@@ -183,18 +183,39 @@ if [ -n "$SKILL" ] && [ -n "$EP" ]; then
 fi
 
 # Browse: can the agent drive a browser?
+#
+# IMPORTANT: every browse task MUST be recorded, even on failure. Earlier
+# versions only called `record` inside the `if go succeeded` branch, which
+# caused the 4 browse tasks to silently vanish from the artifact when
+# kuri/browser failed. The judge then couldn't tell apart "not run" from
+# "skipped" from "failed". Now every attempt is logged and the final
+# verdict in the artifact tells the truth.
+BROWSE_GO=""
+BROWSE_OK=0
 for attempt in 1 2 3; do
-  GO=$(unbrowse go 'https://example.com' 2>/dev/null) || true
-  if echo "$GO" | python3 -c "import sys,json; exit(0 if json.loads(sys.stdin.read()).get('ok') else 1)" 2>/dev/null; then
-    SESSION=$(echo "$GO" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['session_id'])" 2>/dev/null)
-    record "browse_go" "$GO"
-    record "browse_eval" "$(unbrowse eval --session "$SESSION" "JSON.stringify({title:document.title,h1:document.querySelector('h1')?.textContent,bodyLen:document.body.innerHTML.length})" 2>/dev/null)"
-    record "browse_snap_head" "$(unbrowse snap --session "$SESSION" 2>/dev/null | head -15)"
-    record "browse_close" "$(unbrowse close --session "$SESSION" 2>/dev/null)"
+  BROWSE_GO=$(unbrowse go 'https://example.com' 2>&1 || echo '{"error":"command_failed"}')
+  if echo "$BROWSE_GO" | python3 -c "import sys,json; exit(0 if json.loads(sys.stdin.read()).get('ok') else 1)" 2>/dev/null; then
+    BROWSE_OK=1
     break
   fi
   sleep 5
 done
+# Always record browse_go — success or failure
+record "browse_go" "$BROWSE_GO"
+
+if [ "$BROWSE_OK" = "1" ]; then
+  SESSION=$(echo "$BROWSE_GO" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['session_id'])" 2>/dev/null)
+  record "browse_eval" "$(unbrowse eval --session "$SESSION" "JSON.stringify({title:document.title,h1:document.querySelector('h1')?.textContent,bodyLen:document.body.innerHTML.length})" 2>&1 || echo '{"error":"command_failed"}')"
+  record "browse_snap_head" "$(unbrowse snap --session "$SESSION" 2>&1 | head -15 || echo 'snap_failed')"
+  record "browse_close" "$(unbrowse close --session "$SESSION" 2>&1 || echo '{"error":"command_failed"}')"
+else
+  # Browse go failed 3x — record the dependent tasks as explicit failures
+  # so the judge sees them and the gate blocks. Previously these silently
+  # disappeared from the artifact.
+  record "browse_eval" '{"error":"skipped_browse_go_failed"}'
+  record "browse_snap_head" 'skipped_browse_go_failed'
+  record "browse_close" '{"error":"skipped_browse_go_failed"}'
+fi
 
 # ── System state after tests — what did Unbrowse leave running? ──
 record "system_after" "$(python3 -c "
