@@ -286,3 +286,21 @@ get nps park|https://www.nps.gov/yose/index.htm
 get masterclass|https://www.masterclass.com/categories
 get skillshare|https://www.skillshare.com/en/browse
 get grubhub|https://www.grubhub.com/
+get crunchyroll show|https://www.crunchyroll.com/videos/popular
+get mangadex title|https://mangadex.org/titles
+get scribd doc|https://www.scribd.com/explore
+get wattpad story|https://www.wattpad.com/stories
+get seatgeek event|https://seatgeek.com/explore
+get raindrop collection|https://raindrop.io/
+get miro board|https://miro.com/templates/
+get excalidraw|https://excalidraw.com/
+get investopedia term|https://www.investopedia.com/terms/m/machine-learning.asp
+get morningstar stock|https://www.morningstar.com/markets
+get turbotax|https://turbotax.intuit.com/
+get ancestry family|https://www.ancestry.com/search/
+get accuweather forecast|https://www.accuweather.com/en/us/san-francisco/94103/weather-forecast/347629
+get metamask docs|https://metamask.io/faqs/
+get about me page|https://about.me/
+get linktree profile|https://linktr.ee/
+get substack newsletter|https://substack.com/discover
+get quickbooks|https://quickbooks.intuit.com/
