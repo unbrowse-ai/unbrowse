@@ -1413,6 +1413,84 @@ async function executeBrowserCapture(
   const extractionTrace: { rows?: Array<Record<string, unknown>> } = {};
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
 
+  // Compute structured capture metadata once — used on every failure-path
+  // early return so the agent can judge browser-block vs product-bug from
+  // one consistent shape. Called lazily so happy-path has no overhead.
+  const computeCapturedMeta = () => {
+    const html = captured.html ?? "";
+    const titleMatch = html.toLowerCase().match(/<title[^>]*>([^<]{0,200})<\/title>/);
+    const title = titleMatch ? titleMatch[1].trim() : "";
+    const stripped = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+    const text = stripped.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    let intentVerdict: "pass" | "fail" | "skip" = "skip";
+    let intentReason = "no_semantic_assessment";
+    if (text && intent) {
+      try {
+        const assessment = assessIntentResult(text, intent);
+        intentVerdict = assessment.verdict;
+        intentReason = assessment.reason;
+      } catch { /* best effort */ }
+    }
+    const rows = extractionTrace.rows ?? [];
+    const rejectionCounts: Record<string, number> = {};
+    const samplesByReason: Record<string, string[]> = {};
+    const PER_REASON_SAMPLE_CAP = 5;
+    for (const row of rows) {
+      if (row.kept === true) continue;
+      const reason = String(row.reason ?? "unknown");
+      rejectionCounts[reason] = (rejectionCounts[reason] ?? 0) + 1;
+      if (typeof row.url === "string") {
+        const bucket = samplesByReason[reason] ?? (samplesByReason[reason] = []);
+        if (bucket.length < PER_REASON_SAMPLE_CAP) bucket.push(row.url);
+      }
+    }
+    const rejectedSamples: Array<{ url: string; reason: string }> = [];
+    for (const [reason, urls] of Object.entries(samplesByReason)) {
+      for (const u of urls) rejectedSamples.push({ url: u, reason });
+    }
+    const blockSignals: string[] = [];
+    const titleLower = title.toLowerCase();
+    if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|cloudflare|press and hold/i.test(titleLower)) {
+      blockSignals.push("challenge_title");
+    }
+    const vendorHits = new Set<string>();
+    for (const req of captured.requests ?? []) {
+      const u = req.url ?? "";
+      if (/perimeterx|px-cloud|px-cdn|pxhd\.net/i.test(u)) vendorHits.add("perimeterx");
+      if (/datadome|js\.datadome|dd\.datadome/i.test(u)) vendorHits.add("datadome");
+      if (/akamaihd|ak-challenge|_Incapsula|incapsula/i.test(u)) vendorHits.add("imperva_incapsula");
+      if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i.test(u)) vendorHits.add("cloudflare");
+      if (/hcaptcha|recaptcha|arkoselabs|funcaptcha/i.test(u)) vendorHits.add("captcha_vendor");
+      if (/shape\.security|f5\.com\/shape/i.test(u)) vendorHits.add("shape_security");
+      if (/kasada|client\.kasada/i.test(u)) vendorHits.add("kasada");
+    }
+    for (const v of vendorHits) blockSignals.push(`vendor:${v}`);
+    const apiCallCount = captured.requests?.length ?? 0;
+    const noisyRejections =
+      (rejectionCounts.not_api_like ?? 0) +
+      (rejectionCounts.score_non_positive ?? 0);
+    if (apiCallCount > 0 && apiCallCount <= 20 && noisyRejections >= Math.max(1, Math.floor(apiCallCount * 0.6))) {
+      blockSignals.push("sparse_capture_mostly_noise");
+    }
+    // Detect an "empty page load" — browser got no HTML at all. Usually means
+    // the browser was blocked before the document loaded, or the page is a
+    // client-side-rendered SPA that the capture missed.
+    if (html.length < 500 && apiCallCount === 0) {
+      blockSignals.push("empty_capture");
+    }
+    return {
+      html_bytes: html.length,
+      title,
+      text_bytes: text.length,
+      observed_api_calls: apiCallCount,
+      intent_verdict: intentVerdict,
+      intent_reason: intentReason,
+      filter_rejections: rejectionCounts,
+      rejected_samples: rejectedSamples,
+      browser_block_signals: blockSignals,
+    };
+  };
+
   // Detect structured search forms from captured HTML and attach to search-like endpoints
   if (captured.html) {
     const detectedForms = detectSearchForms(captured.html);
@@ -1655,69 +1733,12 @@ async function executeBrowserCapture(
         result: {
           error: "low_quality_dom_extraction",
           message: `Structured DOM extraction was rejected for ${url}: ${pageArtifact.quality_note}`,
+          captured_meta: computeCapturedMeta(),
         },
       };
     }
 
-    // Compute structured capture metadata instead of classifying in product.
-    // Downstream harnesses (bench-local, bench-triage, or an agent reviewing
-    // artifacts) make the pass/fail/block call from this metadata, so we
-    // don't maintain site-specific blocklists here.
-    //
-    // Fields:
-    //   html_bytes          — raw captured HTML length
-    //   title               — <title> contents (first 200 chars, trimmed)
-    //   text_bytes          — length after stripping <script>/<style> blocks
-    //   observed_api_calls  — network requests captured (0 = passive capture empty)
-    //   intent_verdict      — assessIntentResult on the stripped text
-    //   intent_reason       — why the semantic assessment classified it that way
-    const capturedMeta = (() => {
-      const html = captured.html ?? "";
-      const titleMatch = html.toLowerCase().match(/<title[^>]*>([^<]{0,200})<\/title>/);
-      const title = titleMatch ? titleMatch[1].trim() : "";
-      const stripped = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
-      const text = stripped.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      let intentVerdict: "pass" | "fail" | "skip" = "skip";
-      let intentReason = "no_semantic_assessment";
-      if (text && intent) {
-        try {
-          const assessment = assessIntentResult(text, intent);
-          intentVerdict = assessment.verdict;
-          intentReason = assessment.reason;
-        } catch { /* best effort */ }
-      }
-      // Summarise extractor rejections so the agent can see WHICH filter ate
-      // each captured request. On SPA-heavy sites (tripadvisor, zillow) the
-      // browser sees 100+ requests but extractEndpoints rejects all of them —
-      // without this, the rejection reasons are invisible to the agent.
-      const rows = extractionTrace.rows ?? [];
-      const rejectionCounts: Record<string, number> = {};
-      const samplesByReason: Record<string, string[]> = {};
-      const PER_REASON_SAMPLE_CAP = 5;
-      for (const row of rows) {
-        if (row.kept === true) continue;
-        const reason = String(row.reason ?? "unknown");
-        rejectionCounts[reason] = (rejectionCounts[reason] ?? 0) + 1;
-        if (typeof row.url === "string") {
-          const bucket = samplesByReason[reason] ?? (samplesByReason[reason] = []);
-          if (bucket.length < PER_REASON_SAMPLE_CAP) bucket.push(row.url);
-        }
-      }
-      const rejectedSamples: Array<{ url: string; reason: string }> = [];
-      for (const [reason, urls] of Object.entries(samplesByReason)) {
-        for (const url of urls) rejectedSamples.push({ url, reason });
-      }
-      return {
-        html_bytes: html.length,
-        title,
-        text_bytes: text.length,
-        observed_api_calls: (captured.requests?.length ?? 0),
-        intent_verdict: intentVerdict,
-        intent_reason: intentReason,
-        filter_rejections: rejectionCounts,
-        rejected_samples: rejectedSamples,
-      };
-    })();
+    const capturedMeta = computeCapturedMeta();
 
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
