@@ -8,6 +8,19 @@
 
 ### Bug Fixes
 
+* add agentmail and @x402/fetch to skill package dependencies ([30bb279](https://github.com/unbrowse-ai/unbrowse-dev/commit/30bb279f32104ddf49bdf00cd66024de71a5edd3))
+* disable multi-broker default — single Kuri broker prevents stale tab registry ([700c4b7](https://github.com/unbrowse-ai/unbrowse-dev/commit/700c4b7a2bab573743a84501458bd6a7ed10595e))
+* recover stale vecdb endpoint IDs instead of dropping them ([#422](https://github.com/unbrowse-ai/unbrowse-dev/issues/422)) ([1a5b909](https://github.com/unbrowse-ai/unbrowse-dev/commit/1a5b9094c6756980e89a1f7d12de11ef17bd7be9))
+* revert release-it hook to fast unit tests only ([631d4ab](https://github.com/unbrowse-ai/unbrowse-dev/commit/631d4abb61be19a692e28115c71fcde9353f623a))
+
+## [3.7.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.6.0...v3.7.0-preview.0) (2026-04-10)
+
+### Features
+
+* release-and-verify primitive — cut preview + remote blank-slate smoke ([f8ebf7f](https://github.com/unbrowse-ai/unbrowse-dev/commit/f8ebf7fa2685e42d3c370a432f7ea9a376553551))
+
+### Bug Fixes
+
 * disable multi-broker default — single Kuri broker prevents stale tab registry ([700c4b7](https://github.com/unbrowse-ai/unbrowse-dev/commit/700c4b7a2bab573743a84501458bd6a7ed10595e))
 
 ## [3.6.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.6.0-preview.0...v3.6.0) (2026-04-09)
