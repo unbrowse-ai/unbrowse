@@ -88,7 +88,8 @@ CLI_ENV=(
   UNBROWSE_URL="http://127.0.0.1:$PORT"
 )
 
-env "${CLI_ENV[@]}" "$BIN" go "https://example.com" >/tmp/unbrowse-packaged-cli-go.json 2>&1 || BROWSER_AVAILABLE=false
+# Redirect stderr separately — CLI prints [domain-cache] etc. to stderr which breaks JSON parsing
+env "${CLI_ENV[@]}" "$BIN" go "https://example.com" >/tmp/unbrowse-packaged-cli-go.json 2>/tmp/unbrowse-packaged-cli-go.log || BROWSER_AVAILABLE=false
 
 # If go returned a browse error (not ok:true), skip browser checks
 if [[ "$BROWSER_AVAILABLE" == "true" ]] && ! grep -q '"ok":true' /tmp/unbrowse-packaged-cli-go.json; then
@@ -108,7 +109,7 @@ if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
 
   # eval must return real content — catches multi-broker tab-on-about:blank bug
   env "${CLI_ENV[@]}" "$BIN" eval --session "$SESSION_ID" "document.title" \
-    >/tmp/unbrowse-packaged-cli-eval.json 2>&1
+    >/tmp/unbrowse-packaged-cli-eval.json 2>/dev/null
   if grep -q '"error"' /tmp/unbrowse-packaged-cli-eval.json; then
     echo "[packaged-cli-smoke] FAIL: eval returned error after go success — tab likely not navigated" >&2
     cat /tmp/unbrowse-packaged-cli-eval.json >&2
@@ -117,7 +118,7 @@ if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
 
   # snap must return a non-empty a11y tree
   env "${CLI_ENV[@]}" "$BIN" snap --session "$SESSION_ID" --filter interactive \
-    >/tmp/unbrowse-packaged-cli-snap.txt 2>&1
+    >/tmp/unbrowse-packaged-cli-snap.txt 2>/dev/null
   if ! grep -q '\[e0\]' /tmp/unbrowse-packaged-cli-snap.txt; then
     echo "[packaged-cli-smoke] FAIL: snap returned empty a11y tree" >&2
     cat /tmp/unbrowse-packaged-cli-snap.txt >&2
@@ -126,7 +127,7 @@ if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
 
   # close must succeed
   env "${CLI_ENV[@]}" "$BIN" close --session "$SESSION_ID" \
-    >/tmp/unbrowse-packaged-cli-close.json 2>&1
+    >/tmp/unbrowse-packaged-cli-close.json 2>/dev/null
   grep -q '"ok":true' /tmp/unbrowse-packaged-cli-close.json
 else
   echo "[packaged-cli-smoke] WARN: browser smoke skipped (Chrome/Kuri not available)"
