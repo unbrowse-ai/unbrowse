@@ -108,55 +108,68 @@ parse_run() {
 
 # Turbobox helpers
 tb_exec_sync() {
-  # Short sync exec (< 80s). Returns the plain output string.
+  # Short sync exec (< 80s). Writes the plain `output` string to stdout.
+  # Sync exec does NOT truncate output the way /exec/background does,
+  # so use this for short commands (file fetches, quick probes).
   local box_id="$1" cmd="$2"
+  local tmp
+  tmp=$(mktemp)
   curl -s -X POST "$TURBOBOX_URL/v1/boxes/$box_id/exec" \
     -H "Content-Type: text/plain" \
-    --data-binary "$cmd" --max-time 90 2>&1 | python3 -c "
-import sys, json
-try:
-  d = json.loads(sys.stdin.read(), strict=False)
-  print(d.get('output','') if isinstance(d, dict) else '')
-except Exception:
-  pass
-"
+    --data-binary "$cmd" --max-time 90 > "$tmp" 2>&1
+  python3 -c "import json; print(json.load(open('$tmp'), strict=False).get('output','') if isinstance(json.load(open('$tmp'), strict=False), dict) else '')" 2>/dev/null
+  rm -f "$tmp"
+}
+
+tb_fetch_file() {
+  # Read a file from inside the box via sync exec. Used to bypass the 8KB
+  # truncation limit on /exec/background output.
+  local box_id="$1" path="$2"
+  tb_exec_sync "$box_id" "cat '$path' 2>/dev/null"
 }
 
 tb_exec_bg() {
-  # Background exec + poll for longer-running commands. Returns the output.
+  # Background exec + poll for longer-running commands. Writes the inner
+  # `output` field directly to stdout without ever holding the full response
+  # in a shell variable (bash command substitution truncates/corrupts large
+  # bodies in some environments).
   local box_id="$1" cmd="$2" max_wait="${3:-900}"
+  local tmp="$(mktemp)"
   local start_resp job_id attempt=0
   while [ "$attempt" -lt 3 ]; do
     attempt=$((attempt+1))
-    start_resp=$(curl -s -X POST "$TURBOBOX_URL/v1/boxes/$box_id/exec/background" \
+    curl -s -X POST "$TURBOBOX_URL/v1/boxes/$box_id/exec/background" \
       -H "Content-Type: text/plain" \
-      --data-binary "$cmd" --max-time 30 2>&1)
-    job_id=$(echo "$start_resp" | python3 -c "import sys,json; print(json.loads(sys.stdin.read(),strict=False).get('job_id',''))" 2>/dev/null)
+      --data-binary "$cmd" --max-time 30 > "$tmp" 2>&1
+    job_id=$(python3 -c "import json; print(json.load(open('$tmp'), strict=False).get('job_id',''))" 2>/dev/null)
     [ -n "$job_id" ] && break
     sleep 1
   done
   if [ -z "$job_id" ]; then
-    echo "[tb_exec_bg] bg start failed: $start_resp" >&2
+    cat "$tmp" >&2
+    rm -f "$tmp"
     return 1
   fi
-  local waited=0 poll=5 notfound=0 poll_resp status
+  local waited=0 poll=5 notfound=0 status
   while [ "$waited" -lt "$max_wait" ]; do
     sleep "$poll"
     waited=$((waited + poll))
-    poll_resp=$(curl -s "$TURBOBOX_URL/v1/boxes/$box_id/exec/background/$job_id" --max-time 20 2>&1)
-    if printf '%s' "$poll_resp" | grep -qE 'BoxNotFound|not found|Forbidden'; then
+    curl -s "$TURBOBOX_URL/v1/boxes/$box_id/exec/background/$job_id" --max-time 30 > "$tmp" 2>&1
+    if grep -qE 'BoxNotFound|not found|Forbidden' "$tmp"; then
       notfound=$((notfound+1))
-      [ "$notfound" -ge 3 ] && return 1
+      [ "$notfound" -ge 3 ] && { rm -f "$tmp"; return 1; }
       continue
     fi
-    status=$(echo "$poll_resp" | python3 -c "import sys,json; print(json.loads(sys.stdin.read(),strict=False).get('status',''))" 2>/dev/null)
+    status=$(python3 -c "import json; print(json.load(open('$tmp'), strict=False).get('status',''))" 2>/dev/null)
     case "$status" in
       completed|failed|killed|stopped)
-        echo "$poll_resp" | python3 -c "import sys,json; print(json.loads(sys.stdin.read(),strict=False).get('output',''))"
+        python3 -c "import json; print(json.load(open('$tmp'), strict=False).get('output',''))"
+        rm -f "$tmp"
         return 0
         ;;
     esac
   done
+  rm -f "$tmp"
   return 1
 }
 
@@ -181,9 +194,12 @@ cmd_new() {
 
   echo "[new] spawning sandbox for run $run_id..."
   local spawn_resp box_id
+  # ttl=3600 (hard kill deadline), idle_timeout=3600 (bypass the 15-min
+  # default idle stop — agents are slow reviewers and boxes must outlive
+  # the whole review cycle).
   spawn_resp=$(curl -s -X POST "$TURBOBOX_URL/v1/boxes" \
     -H "Content-Type: application/json" \
-    -d '{"image":"ubuntu","cpu":2000,"memory":2048,"ttl":1800}')
+    -d '{"image":"ubuntu","cpu":2000,"memory":2048,"ttl":3600,"idle_timeout":3600}')
   box_id=$(echo "$spawn_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
   if [ -z "$box_id" ]; then
     echo "[new] ✗ spawn failed: $spawn_resp" >&2
@@ -229,14 +245,14 @@ echo "UNBROWSE_BIN=\$(which unbrowse 2>/dev/null)"
 ls /root/.npm-global/lib/node_modules/unbrowse/bin/ 2>/dev/null
 BOXEOF
 )
-  local out
-  out=$(tb_exec_bg "$box_id" "$script" 300)
-  python3 -c "
-import json, re
-out = '''$out'''
+  local out_file="$RUN_DIR/.install.raw"
+  tb_exec_bg "$box_id" "$script" 300 > "$out_file"
+  RUN_DIR_ARG="$RUN_DIR" python3 <<'PYEOF'
+import json, os, re
+out = open(os.environ['RUN_DIR_ARG'] + '/.install.raw').read()
 rc = 1
-for m in re.finditer(r'INSTALL_RC=(\d+)', out):
-    rc = int(m.group(1))
+m = re.search(r'INSTALL_RC=(\d+)', out)
+if m: rc = int(m.group(1))
 ver = ''
 m = re.search(r'INSTALLED_VERSION=(\S+)', out)
 if m: ver = m.group(1)
@@ -248,9 +264,9 @@ json.dump({
   'installed_version': ver,
   'unbrowse_bin': binp,
   'tail': out[-1000:],
-}, open('$RUN_DIR/install.json','w'), indent=2)
+}, open(os.environ['RUN_DIR_ARG'] + '/install.json','w'), indent=2)
 print(f'[install] rc={rc} version={ver}')
-"
+PYEOF
   echo ""
   echo "review: cat $RUN_DIR/install.json"
   echo "next:   bash scripts/cold-start-bench.sh setup --run $RUN_ID"
@@ -277,13 +293,14 @@ ls -la /root/.unbrowse/agent.json 2>&1
 cat /root/.unbrowse/agent.json 2>/dev/null | head -c 400
 BOXEOF
 )
-  local out
-  out=$(tb_exec_bg "$box_id" "$script" 180)
-  python3 -c "
-import json, re
-out = '''$out'''
-rc_m = re.search(r'SETUP_RC=(\d+)', out)
-rc = int(rc_m.group(1)) if rc_m else 1
+  local out_file="$RUN_DIR/.setup.raw"
+  tb_exec_bg "$box_id" "$script" 180 > "$out_file"
+  RUN_DIR_ARG="$RUN_DIR" python3 <<'PYEOF'
+import json, os, re
+out = open(os.environ['RUN_DIR_ARG'] + '/.setup.raw').read()
+rc = 1
+m = re.search(r'SETUP_RC=(\d+)', out)
+if m: rc = int(m.group(1))
 health = ''
 hm = re.search(r'=== HEALTH ===\n(.+?)\n===', out, re.S)
 if hm: health = hm.group(1).strip()
@@ -293,9 +310,9 @@ json.dump({
   'health_excerpt': health[:2000],
   'agent_file_present': agent_file_present,
   'tail': out[-2000:],
-}, open('$RUN_DIR/setup.json','w'), indent=2)
+}, open(os.environ['RUN_DIR_ARG'] + '/setup.json','w'), indent=2)
 print(f'[setup] rc={rc} agent_file={agent_file_present}')
-"
+PYEOF
   echo ""
   echo "review: cat $RUN_DIR/setup.json"
   echo "agent: decide if setup + agentmail bootstrap looks healthy before proceeding"
@@ -317,36 +334,46 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.
 export UNBROWSE_NON_INTERACTIVE=1
 export UNBROWSE_TOS_ACCEPTED=1
 START=\$(date +%s%3N)
-timeout 180 unbrowse resolve --intent "$intent" --url "$url" --force-capture 2>&1
+timeout 180 unbrowse resolve --intent "$intent" --url "$url" --force-capture > /tmp/resolve.log 2>&1
 END=\$(date +%s%3N)
 echo RESOLVE_MS=\$((END-START))
+echo RESOLVE_LOG_SIZE=\$(wc -c < /tmp/resolve.log)
 BOXEOF
 )
-  local out
-  out=$(tb_exec_bg "$box_id" "$script" 300)
-  python3 -c "
-import json, re, sys
-out = '''$out'''
-ms_m = re.search(r'RESOLVE_MS=(\d+)', out)
-ms = int(ms_m.group(1)) if ms_m else 0
-# Find the resolve JSON payload
+  local out_file="$RUN_DIR/.resolve.raw"
+  # Background exec for the bg-job wall-clock, stdout just carries the summary
+  local summary_file="$RUN_DIR/.resolve.summary"
+  tb_exec_bg "$box_id" "$script" 300 > "$summary_file"
+  # Fetch the full resolve log via sync exec (bypasses 8KB bg truncation)
+  tb_fetch_file "$box_id" "/tmp/resolve.log" > "$out_file"
+  RUN_DIR_ARG="$RUN_DIR" python3 <<'PYEOF'
+import json, os, re
+out = open(os.environ['RUN_DIR_ARG'] + '/.resolve.raw').read()
+summary = open(os.environ['RUN_DIR_ARG'] + '/.resolve.summary').read() if os.path.exists(os.environ['RUN_DIR_ARG'] + '/.resolve.summary') else ''
+ms = 0
+m = re.search(r'RESOLVE_MS=(\d+)', summary)
+if m: ms = int(m.group(1))
+# Find the resolve JSON payload — look for the top-level object containing
+# both "trace" and "result" keys (that's the resolve response shape)
 d = {}
-for m in re.finditer(r'\{\"(?:trace|result|skill_id|error)\"', out):
+for m in re.finditer(r'\{"trace"\s*:', out):
     try:
         d = json.JSONDecoder(strict=False).raw_decode(out[m.start():])[0]
         break
     except Exception:
         continue
 result = d.get('result', {}) if isinstance(d, dict) else {}
-ops = result.get('available_operations') or result.get('available_endpoints') or []
+ops = []
+if isinstance(result, dict):
+    ops = result.get('available_operations') or result.get('available_endpoints') or []
 # Extract skill id from multiple possible locations
 skill_id = ''
 if isinstance(result, dict):
     skill_id = result.get('skill_id','')
-if not skill_id:
-    skill_id = (d.get('skill') or {}).get('skill_id','') if isinstance(d.get('skill'), dict) else ''
-if not skill_id:
-    skill_id = (d.get('trace') or {}).get('skill_id','') if isinstance(d.get('trace'), dict) else ''
+if not skill_id and isinstance(d.get('skill'), dict):
+    skill_id = d['skill'].get('skill_id','')
+if not skill_id and isinstance(d.get('trace'), dict):
+    skill_id = d['trace'].get('skill_id','')
 json.dump({
   'elapsed_ms': ms,
   'skill_id': skill_id,
@@ -355,11 +382,13 @@ json.dump({
   'endpoint_count': len(ops),
   'available_endpoints': ops,
   'raw_tail': out[-2000:],
-}, open('$RUN_DIR/resolve.json','w'), indent=2)
+}, open(os.environ['RUN_DIR_ARG'] + '/resolve.json','w'), indent=2)
 print(f'[resolve] ms={ms} skill_id={skill_id} endpoints={len(ops)}')
-if result.get('error'):
-    print(f'[resolve] error: {result.get(\"error\")} / {result.get(\"message\",\"\")[:100]}')
-"
+if isinstance(result, dict) and result.get('error'):
+    err = result.get('error','')
+    msg = result.get('message','')[:100]
+    print(f'[resolve] error: {err} / {msg}')
+PYEOF
   echo ""
   echo "review: cat $RUN_DIR/resolve.json"
   echo "agent: look at available_endpoints, pick the one whose description matches the intent"
@@ -387,28 +416,32 @@ except: print('')
 export HOME=/root
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.npm-global/bin
 export UNBROWSE_NON_INTERACTIVE=1
-unbrowse skill $skill_id 2>&1
+unbrowse skill $skill_id > /tmp/skill.log 2>&1
+echo SKILL_RC=\$?
 BOXEOF
 )
-  local out
-  out=$(tb_exec_bg "$box_id" "$script" 60)
-  python3 -c "
-import json, re
-out = '''$out'''
+  local out_file="$RUN_DIR/.skill.raw"
+  tb_exec_bg "$box_id" "$script" 60 > "$RUN_DIR/.skill.summary"
+  tb_fetch_file "$box_id" "/tmp/skill.log" > "$out_file"
+  RUN_DIR_ARG="$RUN_DIR" SKILL_ID_ARG="$skill_id" python3 <<'PYEOF'
+import json, os, re
+out = open(os.environ['RUN_DIR_ARG'] + '/.skill.raw').read()
 d = {}
 for m in re.finditer(r'\{', out):
     try:
         d = json.JSONDecoder(strict=False).raw_decode(out[m.start():])[0]
-        break
+        if isinstance(d, dict) and (d.get('endpoints') or d.get('skill_id')):
+            break
     except Exception:
         continue
 json.dump({
-  'skill_id': '$skill_id',
+  'skill_id': os.environ['SKILL_ID_ARG'],
   'skill_detail': d,
   'raw_tail': out[-1500:],
-}, open('$RUN_DIR/skill.json','w'), indent=2)
-print(f'[inspect] captured skill detail ({len(d.get(\"endpoints\",[]))} endpoints)')
-"
+}, open(os.environ['RUN_DIR_ARG'] + '/skill.json','w'), indent=2)
+ep_count = len(d.get('endpoints',[])) if isinstance(d, dict) else 0
+print(f'[inspect] captured skill detail ({ep_count} endpoints)')
+PYEOF
   echo ""
   echo "review: cat $RUN_DIR/skill.json  (read semantic.description_out, action_kind, response_schema per endpoint)"
   echo "agent: judge reverse-engineer quality — is each endpoint semantically populated?"
@@ -429,42 +462,46 @@ cmd_execute() {
   skill_id=$(python3 -c "import json; print(json.load(open('$RUN_DIR/resolve.json'))['skill_id'])")
   echo "[execute] skill=$skill_id endpoint=$endpoint (agent-chosen)"
 
+  local safe_ep
+  safe_ep=$(echo "$endpoint" | tr -c 'a-zA-Z0-9_-' '_')
   local script
   script=$(cat <<BOXEOF
 export HOME=/root
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.npm-global/bin
 export UNBROWSE_NON_INTERACTIVE=1
 START=\$(date +%s%3N)
-timeout 60 unbrowse execute --skill $skill_id --endpoint $endpoint --raw 2>&1
+timeout 60 unbrowse execute --skill $skill_id --endpoint $endpoint --raw > /tmp/execute-$safe_ep.log 2>&1
 END=\$(date +%s%3N)
 echo EXECUTE_MS=\$((END-START))
 BOXEOF
 )
-  local out
-  out=$(tb_exec_bg "$box_id" "$script" 120)
-  local safe_ep
-  safe_ep=$(echo "$endpoint" | tr -c 'a-zA-Z0-9_-' '_')
-  python3 -c "
-import json, re
-out = '''$out'''
-ms_m = re.search(r'EXECUTE_MS=(\d+)', out)
-ms = int(ms_m.group(1)) if ms_m else 0
+  local out_file="$RUN_DIR/.execute-$safe_ep.raw"
+  tb_exec_bg "$box_id" "$script" 120 > "$RUN_DIR/.execute-$safe_ep.summary"
+  tb_fetch_file "$box_id" "/tmp/execute-$safe_ep.log" > "$out_file"
+  RUN_DIR_ARG="$RUN_DIR" ENDPOINT_ARG="$endpoint" SKILL_ID_ARG="$skill_id" SAFE_EP_ARG="$safe_ep" python3 <<'PYEOF'
+import json, os, re
+out = open(os.environ['RUN_DIR_ARG'] + '/.execute-' + os.environ['SAFE_EP_ARG'] + '.raw').read()
+summary_path = os.environ['RUN_DIR_ARG'] + '/.execute-' + os.environ['SAFE_EP_ARG'] + '.summary'
+summary = open(summary_path).read() if os.path.exists(summary_path) else ''
+ms = 0
+m = re.search(r'EXECUTE_MS=(\d+)', summary)
+if m: ms = int(m.group(1))
 d = {}
-for m in re.finditer(r'\{\"(?:trace|result|error)\"', out):
+for m in re.finditer(r'\{"trace"\s*:', out):
     try:
         d = json.JSONDecoder(strict=False).raw_decode(out[m.start():])[0]
         break
     except Exception:
         continue
 json.dump({
-  'endpoint_id': '$endpoint',
-  'skill_id': '$skill_id',
+  'endpoint_id': os.environ['ENDPOINT_ARG'],
+  'skill_id': os.environ['SKILL_ID_ARG'],
   'elapsed_ms': ms,
   'execute_response': d,
   'raw_tail': out[-2000:],
-}, open('$RUN_DIR/execute-$safe_ep.json','w'), indent=2)
+}, open(os.environ['RUN_DIR_ARG'] + '/execute-' + os.environ['SAFE_EP_ARG'] + '.json','w'), indent=2)
 print(f'[execute] ms={ms}')
-"
+PYEOF
   echo ""
   echo "review: cat $RUN_DIR/execute-$safe_ep.json"
   echo "agent: judge the response semantically — does it match the intent for real?"
@@ -489,29 +526,32 @@ END=\$(date +%s%3N)
 echo RERUN_MS=\$((END-START))
 BOXEOF
 )
-  local out
-  out=$(tb_exec_bg "$box_id" "$script" 60)
-  python3 -c "
-import json, re
-out = '''$out'''
-ms_m = re.search(r'RERUN_MS=(\d+)', out)
-ms = int(ms_m.group(1)) if ms_m else 0
+  local out_file="$RUN_DIR/.rerun.raw"
+  tb_exec_bg "$box_id" "$script" 60 > "$out_file"
+  RUN_DIR_ARG="$RUN_DIR" python3 <<'PYEOF'
+import json, os, re
+out = open(os.environ['RUN_DIR_ARG'] + '/.rerun.raw').read()
+ms = 0
+m = re.search(r'RERUN_MS=(\d+)', out)
+if m: ms = int(m.group(1))
 d = {}
-for m in re.finditer(r'\{\"(?:trace|result|error)\"', out):
+for m in re.finditer(r'\{"trace"\s*:', out):
     try:
         d = json.JSONDecoder(strict=False).raw_decode(out[m.start():])[0]
         break
     except Exception:
         continue
 result = d.get('result', {}) if isinstance(d, dict) else {}
+source = result.get('source','') if isinstance(result, dict) else ''
+ops = result.get('available_operations') or result.get('available_endpoints') or [] if isinstance(result, dict) else []
 json.dump({
   'elapsed_ms': ms,
-  'source': result.get('source','') if isinstance(result, dict) else '',
-  'endpoint_count': len(result.get('available_operations') or result.get('available_endpoints') or []) if isinstance(result, dict) else 0,
+  'source': source,
+  'endpoint_count': len(ops),
   'raw_tail': out[-1000:],
-}, open('$RUN_DIR/rerun.json','w'), indent=2)
-print(f'[rerun-resolve] ms={ms} source={result.get(\"source\",\"?\")}')
-"
+}, open(os.environ['RUN_DIR_ARG'] + '/rerun.json','w'), indent=2)
+print(f'[rerun-resolve] ms={ms} source={source or "?"}')
+PYEOF
   echo ""
   echo "review: cat $RUN_DIR/rerun.json  (compare elapsed_ms to resolve.json — cache hit should be <500ms)"
 }
@@ -532,19 +572,19 @@ cmd_verdict() {
     echo "[verdict] --step STEP --state STATE required" >&2
     exit 2
   fi
-  python3 -c "
+  RUN_DIR_ARG="$RUN_DIR" STEP_ARG="$step" STATE_ARG="$state" NOTE_ARG="$note" python3 <<'PYEOF'
 import json, os, time
-f = '$RUN_DIR/verdict.json'
+f = os.environ['RUN_DIR_ARG'] + '/verdict.json'
 d = json.load(open(f)) if os.path.exists(f) else {'entries': []}
 d.setdefault('entries', []).append({
   'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-  'step': '$step',
-  'state': '$state',
-  'note': '$note',
+  'step': os.environ['STEP_ARG'],
+  'state': os.environ['STATE_ARG'],
+  'note': os.environ['NOTE_ARG'],
 })
 json.dump(d, open(f,'w'), indent=2)
-print(f'[verdict] {\"$step\"}={\"$state\"} logged')
-"
+print(f'[verdict] {os.environ["STEP_ARG"]}={os.environ["STATE_ARG"]} logged')
+PYEOF
 }
 
 cmd_finalize() {
