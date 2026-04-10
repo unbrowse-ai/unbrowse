@@ -227,3 +227,18 @@ get compound finance|https://compound.finance/markets
 get trello board|https://trello.com/inspiration
 get linear docs|https://linear.app/docs
 get chess com|https://www.chess.com/play/computer
+get geogebra app|https://www.geogebra.org/geometry
+get grammarly docs|https://www.grammarly.com/blog/
+get census data|https://www.census.gov/quickfacts/fact/table/US
+get cointelegraph news|https://cointelegraph.com/news
+get decrypt news|https://decrypt.co/news
+get snapshot space|https://snapshot.org/
+get justwatch show|https://www.justwatch.com/us/tv-show/breaking-bad
+get elevenlabs|https://elevenlabs.io/app/speech-synthesis
+get runway ml|https://runwayml.com/research
+get monkeytype|https://monkeytype.com/
+get timeanddate|https://www.timeanddate.com/worldclock/
+get bitwarden|https://bitwarden.com/help/
+get typeform template|https://www.typeform.com/templates/
+get tinkercad project|https://www.tinkercad.com/
+get languagetool|https://languagetool.org/
