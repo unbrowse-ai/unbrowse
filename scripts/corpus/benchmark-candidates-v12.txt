@@ -1,0 +1,20 @@
+get wired article|https://www.wired.com/category/science/
+get arstechnica article|https://arstechnica.com/science/
+get theverge article|https://www.theverge.com/tech
+get engadget article|https://www.engadget.com/
+get britannica entry|https://www.britannica.com/topic/computer-science
+get history article|https://www.history.com/topics/us-government
+get lonelyplanet destination|https://www.lonelyplanet.com/usa/san-francisco
+get sourceforge project|https://sourceforge.net/directory/
+get imgur image|https://imgur.com/gallery/
+get pastebin paste|https://pastebin.com/trends
+get deepl translate|https://www.deepl.com/translator
+get udacity course|https://www.udacity.com/courses/all
+get mit ocw course|https://ocw.mit.edu/courses/find-by-topic/
+get curve finance|https://curve.fi/dex
+get aave protocol|https://app.aave.com/markets/
+get compound finance|https://compound.finance/markets
+get asana templates|https://asana.com/templates
+get trello board|https://trello.com/inspiration
+get linear docs|https://linear.app/docs
+get chess com|https://www.chess.com/play/computer
