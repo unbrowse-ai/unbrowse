@@ -1,0 +1,20 @@
+get archive org|https://archive.org/details/texts
+get project gutenberg|https://www.gutenberg.org/browse/scores/top
+get standard ebooks|https://standardebooks.org/ebooks
+get libgen|https://libgen.is/
+get zlibrary|https://z-lib.org/
+get pirate bay|https://thepiratebay.org/
+get nitter|https://nitter.net/jack
+get invidious|https://inv.nadeko.net/
+get teddit|https://teddit.net/
+get libreddit|https://libreddit.freedit.eu/
+get privatebin|https://privatebin.net/
+get cryptpad|https://cryptpad.fr/
+get element chat|https://app.element.io/
+get matrix rooms|https://matrix.org/ecosystem/clients/
+get mastodon instance|https://mastodon.social/explore
+get bluesky feed|https://bsky.app/profile/jay.bsky.team
+get lemmy community|https://lemmy.ml/communities
+get peertube video|https://joinpeertube.org/browse-instances
+get wiktionary page|https://en.wiktionary.org/wiki/example
+get metafilter post|https://www.metafilter.com/
