@@ -3421,8 +3421,19 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // (not synonym-expanded, to avoid dilution). Each matching core intent token gives a
     // massive bonus that overrides structural noise from schema richness.
     if (descriptionMeta.source === "agent" && descriptionMeta.display && rawTokens.length > 0) {
+      // Split camelCase BEFORE lowercase so GraphQL op names like
+      // CollectionItemsCountQuery become [collection, items, count, query]
+      // instead of a single token that never matches "collection".
+      // Observed on opensea.io: endpoint 'CollectionItemsCountQuery' was
+      // scored -9.4 for intent 'opensea collection' because the camelCase
+      // was never split into searchable tokens.
       const descTokens = new Set(
-        descriptionMeta.display.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/)
+        descriptionMeta.display
+          .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+          .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .split(/\s+/)
           .filter((w) => w.length > 1 && !STOPWORDS.has(w))
           .map((w) => stem(w))
       );
