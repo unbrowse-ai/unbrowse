@@ -121,6 +121,7 @@ else:
     out['config_exists'] = False
 out['kuri_extracted'] = os.path.exists(os.path.expanduser('~/.unbrowse/bin/kuri'))
 out['traces_dir_exists'] = os.path.exists(os.path.expanduser('~/.unbrowse/traces'))
+out['has_agentmail_key'] = bool(os.environ.get('AGENTMAIL_API_KEY',''))
 # Server reachable
 try:
     r = subprocess.run(['curl','-s','-o','/dev/null','-w','%{http_code}','http://localhost:6969/health','--max-time','3'], capture_output=True, text=True, timeout=5)
@@ -128,6 +129,29 @@ try:
 except: out['server_http_code'] = 'error'
 print(json.dumps(out))
 " 2>/dev/null || echo '{}')"
+
+# Agentmail auto-registration: a fresh agent should be able to create an
+# email identity without human intervention. If AGENTMAIL_API_KEY is set,
+# try creating a session. If not, record that as a real gap.
+record "onboarding_agentmail" "$(
+if [ -n \"\${AGENTMAIL_API_KEY:-}\" ]; then
+  unbrowse login-auto example.com --send-to nobody@example.com --subject probe --body probe 2>&1 | python3 -c \"
+import sys, json
+raw = sys.stdin.read()
+# Find JSON in output
+for line in raw.split(chr(10)):
+    try:
+        d = json.loads(line.strip())
+        if 'email' in d or 'error' in d:
+            print(json.dumps({'has_email_identity': 'email' in d, 'error': d.get('error'), 'email_domain': d.get('email','').split('@')[-1] if '@' in d.get('email','') else None}))
+            exit(0)
+    except: pass
+print(json.dumps({'has_email_identity': False, 'error': 'no JSON in login-auto output', 'raw_preview': raw[:100]}))
+\" 2>/dev/null
+else
+  echo '{\"has_email_identity\":false,\"error\":\"AGENTMAIL_API_KEY not set\"}'
+fi
+)"
 record "health" "$(unbrowse health 2>/dev/null || echo '{\"error\":\"health_failed\"}')"
 
 # Resolve: does the marketplace return endpoints?
