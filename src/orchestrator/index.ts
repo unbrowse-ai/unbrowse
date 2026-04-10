@@ -1,5 +1,6 @@
 import {
   cachePublishedSkill,
+  findExistingSkillForDomain,
   getAgentId,
   getLocalWalletContext,
   isX402Error,
@@ -675,8 +676,15 @@ function withContextReplayEndpoint(
     ...skill,
     endpoints: [canonical, ...skill.endpoints],
   };
-  // Persist so the canonical endpoint is executable, not just a phantom in the response
-  cachePublishedSkill(augmented);
+  // Persist only if this is a new canonical endpoint — avoid overwriting cache on every resolve
+  try {
+    const existing = findExistingSkillForDomain(skill.domain);
+    if (!existing || !existing.endpoints.some((ep) => ep.endpoint_id === canonical.endpoint_id)) {
+      cachePublishedSkill(augmented);
+    }
+  } catch {
+    // Non-critical — canonical will still work in-memory for this resolve
+  }
   return augmented;
 }
 
@@ -3626,9 +3634,18 @@ export async function resolveAndExecute(
       if (!marketplaceSkillMatchesContext(skill, queryIntent, context?.url)) continue;
       if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
       let endpointId = extractEndpointId(c.metadata) ?? undefined;
-      // Validate vecdb endpoint still exists on the skill — stale vectors may reference deleted endpoints
+      // Validate vecdb endpoint still exists on the skill — stale vectors may reference old IDs
       if (endpointId && !skill.endpoints.some((ep) => ep.endpoint_id === endpointId)) {
-        endpointId = undefined;
+        // Try URL-based recovery: vecdb metadata often has the URL template
+        const vecUrl = c.metadata?.url_template as string | undefined;
+        const urlMatch = vecUrl ? skill.endpoints.find((ep) => ep.url_template === vecUrl) : undefined;
+        if (urlMatch) {
+          console.log(`[marketplace] vecdb endpoint ${endpointId} stale → recovered via URL match: ${urlMatch.endpoint_id}`);
+          endpointId = urlMatch.endpoint_id;
+        } else {
+          console.log(`[marketplace] vecdb endpoint ${endpointId} not found on skill ${skillId} — dropping to skill-level match`);
+          endpointId = undefined;
+        }
       }
       ranked.push({
         candidate: c,
