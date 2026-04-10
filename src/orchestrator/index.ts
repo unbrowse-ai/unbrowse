@@ -4014,6 +4014,43 @@ export async function resolveAndExecute(
     throw error;
   }
   timing.execute_ms = Date.now() - te0;
+
+  // Recover from Kuri crash: if live-capture returned connection_failed or
+  // capture_failed, force-restart Kuri and retry once. Kuri occasionally
+  // SIGSEGVs on heavy SPAs (see unbrowse-ai/unbrowse#105) and subsequent
+  // requests would inherit the dead broker state.
+  const captureErrCheck = (result as Record<string, unknown> | null)?.error;
+  if (captureErrCheck === "connection_failed" || captureErrCheck === "capture_failed") {
+    console.warn(`[capture] ${captureErrCheck} detected — restarting Kuri and retrying once`);
+    try {
+      const kuri = await import("../kuri/client.js");
+      await kuri.stop().catch(() => {});
+      await new Promise((r) => setTimeout(r, 500));
+    } catch { /* best effort */ }
+    try {
+      const retryCaptureSkill = await getOrCreateBrowserCaptureSkill();
+      const retryOut = await withAbortableOpTimeout(
+        "live_capture_retry",
+        LIVE_CAPTURE_TIMEOUT_MS,
+        (signal) =>
+          executeSkill(retryCaptureSkill, { ...params, url: context.url, intent }, undefined, {
+            ...options,
+            intent,
+            contextUrl: context?.url,
+            signal,
+          }),
+      );
+      if (retryOut.trace.success || !(retryOut.result as Record<string, unknown>)?.error) {
+        trace = retryOut.trace;
+        result = retryOut.result;
+        learned_skill = retryOut.learned_skill;
+        console.log(`[capture] retry after Kuri restart succeeded`);
+      }
+    } catch (retryErr) {
+      console.warn(`[capture] retry failed: ${retryErr instanceof Error ? retryErr.message : retryErr}`);
+    }
+  }
+
   const captureResult = result as Record<string, unknown> | null;
   const authRecommended = captureResult?.auth_recommended === true;
 
