@@ -67,10 +67,13 @@ def load(path: Path):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("usage: bench-local-triage.py <results.jsonl|evidence.csv>", file=sys.stderr)
+    argv = sys.argv[1:]
+    json_out = "--json" in argv
+    argv = [a for a in argv if not a.startswith("--")]
+    if len(argv) != 1:
+        print("usage: bench-local-triage.py <results.jsonl|evidence.csv> [--json]", file=sys.stderr)
         sys.exit(2)
-    path = Path(sys.argv[1])
+    path = Path(argv[0])
     rows = load(path)
     buckets = defaultdict(list)
     for r in rows:
@@ -80,6 +83,22 @@ def main():
     passes = len(buckets["PASS"])
     blocked = len(buckets["BROWSER_BLOCK"]) + len(buckets["AUTH_GATED"])
     reachable = total - blocked
+
+    if json_out:
+        summary = {
+            "total": total,
+            "pass": passes,
+            "product_fail": len(buckets["PRODUCT_FAIL"]),
+            "sparse_review": len(buckets["SPARSE_REVIEW"]),
+            "browser_block": len(buckets["BROWSER_BLOCK"]),
+            "auth_gated": len(buckets["AUTH_GATED"]),
+            "reachable": reachable,
+            "raw_pass_rate": round(passes / total, 4) if total else 0,
+            "product_reachable_pass_rate": round(passes / reachable, 4) if reachable else 0,
+            "buckets": {k: [r.get("url") for r in v] for k, v in buckets.items()},
+        }
+        print(json.dumps(summary, indent=2))
+        return
 
     print(f"\n=== bench-local triage: {path} ===\n")
     for k in ("PASS", "PRODUCT_FAIL", "SPARSE_REVIEW", "BROWSER_BLOCK", "AUTH_GATED"):
