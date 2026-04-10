@@ -1,0 +1,20 @@
+get desmos graph|https://www.desmos.com/calculator
+get geogebra app|https://www.geogebra.org/geometry
+get linguee translation|https://www.linguee.com/english-french
+get grammarly docs|https://www.grammarly.com/blog/
+get biorxiv paper|https://www.biorxiv.org/content/10.1101/2024.01.01.123456v1
+get census data|https://www.census.gov/quickfacts/fact/table/US
+get bls stats|https://www.bls.gov/cps/
+get cointelegraph news|https://cointelegraph.com/news
+get decrypt news|https://decrypt.co/news
+get snapshot space|https://snapshot.org/
+get justwatch show|https://www.justwatch.com/us/tv-show/breaking-bad
+get elevenlabs|https://elevenlabs.io/app/speech-synthesis
+get runway ml|https://runwayml.com/research
+get monkeytype|https://monkeytype.com/
+get timeanddate|https://www.timeanddate.com/worldclock/
+get bitwarden|https://bitwarden.com/help/
+get typeform template|https://www.typeform.com/templates/
+get tinkercad project|https://www.tinkercad.com/
+get languagetool|https://languagetool.org/
+get privacy page|https://privacy.com/personal
