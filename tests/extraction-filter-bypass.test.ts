@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { extractEndpoints } from "../src/reverse-engineer/index.js";
+import { rankEndpoints } from "../src/execution/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 
 function req(overrides: Partial<RawRequest>): RawRequest {
@@ -139,6 +140,60 @@ describe("extractor filter bypasses (regression probes)", () => {
       { pageUrl: "https://www.linkedin.com/feed/", intent: "get feed posts" },
     );
     expect(endpoints.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("rankEndpoints splits camelCase in descriptions so CollectionItemsCountQuery matches 'collection' intent", () => {
+    // opensea.io regression: the GraphQL op CollectionItemsCountQuery
+    // was scored -9.4 for intent 'opensea collection' because the
+    // description tokenizer lowercased before splitting, turning
+    // CollectionItemsCountQuery into ONE token. Fix splits camelCase
+    // before lowercasing so 'collection' in the op name lights up the
+    // +100 description match bonus.
+    const endpoint = {
+      endpoint_id: "opensea-collection",
+      method: "GET" as const,
+      url_template: "https://gql.opensea.io/graphql",
+      description: "[GraphQL: CollectionItemsCountQuery] Returns message status with myagent, extensions, and auth",
+      semantic: {
+        description_source: "agent" as const,
+        description_out: "[GraphQL: CollectionItemsCountQuery] Returns message status with myagent, extensions, and auth",
+      },
+      headers_template: {},
+      query: {},
+      idempotency: "safe" as const,
+      verification_status: "unverified" as const,
+      reliability_score: 0.5,
+    };
+    const genericEndpoint = {
+      endpoint_id: "opensea-features",
+      method: "GET" as const,
+      url_template: "https://features.opensea.io/api/frontend",
+      description: "Returns resource details with toggles, names, and enabled",
+      semantic: {
+        description_source: "agent" as const,
+        description_out: "Returns resource details with toggles, names, and enabled",
+      },
+      headers_template: {},
+      query: {},
+      idempotency: "safe" as const,
+      verification_status: "unverified" as const,
+      reliability_score: 0.5,
+    };
+    const ranked = rankEndpoints(
+      [genericEndpoint, endpoint] as any,
+      "opensea collection",
+      "opensea.io",
+      "https://opensea.io/collection/boredapeyachtclub",
+    );
+    expect(ranked.length).toBeGreaterThanOrEqual(1);
+    // The CollectionItemsCountQuery endpoint should outrank the generic
+    // features/toggles endpoint for a 'collection' intent.
+    const top = ranked[0];
+    expect(top).toBeDefined();
+    expect(top?.endpoint.endpoint_id).toBe("opensea-collection");
+    // And it must score above the relevance threshold (>= 0) so
+    // isCachedSkillRelevantForIntent accepts it.
+    expect(top?.score).toBeGreaterThanOrEqual(0);
   });
 
   it("still rejects clearly non-sibling domains (brand prefix must overlap)", () => {
