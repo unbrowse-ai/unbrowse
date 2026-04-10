@@ -4,6 +4,28 @@
 
 ### Features
 
+* auto-retry live-capture once after connection_failed ([eeee998](https://github.com/unbrowse-ai/unbrowse-dev/commit/eeee998643ad7ff069d069336898dffe5471259f)), closes [#105](https://github.com/unbrowse-ai/unbrowse-dev/issues/105)
+* capture system state (processes, ports, memory) in agent-xp harness ([c2ec027](https://github.com/unbrowse-ai/unbrowse-dev/commit/c2ec027948d30f2a4f418df5e17fdcedaa8eb020))
+* coverage harness + fuzzy query param derivation ([2f925d7](https://github.com/unbrowse-ai/unbrowse-dev/commit/2f925d714eb5d66a011b538fb44f51e8c89c5ca2))
+* dogfood-loop primitive samples real intents from trace history ([9b07ffc](https://github.com/unbrowse-ai/unbrowse-dev/commit/9b07ffcdb1eac7a770c01f2e72652c64e8895ab9))
+
+### Bug Fixes
+
+* avoid cheerio .not() chainable — use each() with manual filter ([089aabe](https://github.com/unbrowse-ai/unbrowse-dev/commit/089aabee98bc2fd417783a16957497779bf8a70d))
+* bump direct-fetch timeout to 15s, log failures instead of swallowing ([83f6e3e](https://github.com/unbrowse-ai/unbrowse-dev/commit/83f6e3e1ecc8aef9296b25553e3d8036af2c0699))
+* direct-fetch always tries JSON, works for plain JSON API URLs ([34a9434](https://github.com/unbrowse-ai/unbrowse-dev/commit/34a9434a8ee0ea6b97baac296af722f73971019e))
+* record() writes raw to tempfile to avoid bash quote escaping ([f4e6fbd](https://github.com/unbrowse-ai/unbrowse-dev/commit/f4e6fbdc6b4d1ea51e79f65efec8570a607cb212))
+* strip_logs helper — CLI mixes logs into stdout, filter to JSON only ([5d92466](https://github.com/unbrowse-ai/unbrowse-dev/commit/5d92466d55dcd9aa4eca3a4c32083f1ff8004717))
+* strip_logs uses raw_decode for multi-line JSON ([3eb4208](https://github.com/unbrowse-ai/unbrowse-dev/commit/3eb4208756738107fd6f7698d00899a2de5b992a))
+
+### Refactoring
+
+* coverage harness reads live traces, no curated test cases ([95b455c](https://github.com/unbrowse-ai/unbrowse-dev/commit/95b455ccb7bf058dc9c1fda9a1f1b988491e995b))
+
+## [3.7.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.7.0-preview.1...v3.7.0-preview.2) (2026-04-10)
+
+### Features
+
 * capture system state (processes, ports, memory) in agent-xp harness ([c2ec027](https://github.com/unbrowse-ai/unbrowse-dev/commit/c2ec027948d30f2a4f418df5e17fdcedaa8eb020))
 * coverage harness + fuzzy query param derivation ([2f925d7](https://github.com/unbrowse-ai/unbrowse-dev/commit/2f925d714eb5d66a011b538fb44f51e8c89c5ca2))
 
