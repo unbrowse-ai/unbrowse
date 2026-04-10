@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.8.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.1...v3.8.0-preview.2) (2026-04-11)
+
+### Refactors
+
+* drop hardcoded anti-bot blocklist, emit captured_meta instead ([1523c78](https://github.com/unbrowse-ai/unbrowse-dev/commit/1523c785))
+
 ## [3.8.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.0...v3.8.0-preview.1) (2026-04-11)
 
 ### Fixes
