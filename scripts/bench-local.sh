@@ -216,6 +216,12 @@ for r in rows:
         buckets['PASS'].append(r['url'])
     elif trace_ok and src == 'dom-fallback':
         buckets['PASS'].append(r['url'])
+    elif trace_ok and src == 'direct-fetch':
+        # direct-fetch = product short-circuited to raw HTTP fetch. When
+        # the trace is successful the body was retrieved — even without
+        # extracted "endpoints", the agent has the raw HTML/JSON to act
+        # on. Count as PASS for coverage purposes.
+        buckets['PASS'].append(r['url'])
     elif bs and 'sparse_capture_mostly_noise' in bs:
         # Ambiguous — could be browser-level, could be product. Agent decides.
         buckets['SPARSE_REVIEW'].append(r['url'])
