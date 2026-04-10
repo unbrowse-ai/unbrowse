@@ -1456,13 +1456,23 @@ async function executeBrowserCapture(
     const vendorHits = new Set<string>();
     for (const req of captured.requests ?? []) {
       const u = req.url ?? "";
-      if (/perimeterx|px-cloud|px-cdn|pxhd\.net/i.test(u)) vendorHits.add("perimeterx");
-      if (/datadome|js\.datadome|dd\.datadome/i.test(u)) vendorHits.add("datadome");
-      if (/akamaihd|ak-challenge|_Incapsula|incapsula/i.test(u)) vendorHits.add("imperva_incapsula");
+      // PerimeterX: vendor CDN hosts + first-party proxied patterns. PX is
+      // usually served through the site's own domain via a UUID/UUID path
+      // that ends in ips.js (bot-detection script) or /tl (telemetry). The
+      // KP_UIDz= query param is a PX session identifier used on every call.
+      if (
+        /perimeterx|px-cloud|px-cdn|pxhd\.net/i.test(u) ||
+        /KP_UIDz=/.test(u) ||
+        /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(ips\.js|tl|xhr|init)/i.test(u)
+      ) {
+        vendorHits.add("perimeterx");
+      }
+      if (/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i.test(u)) vendorHits.add("datadome");
+      if (/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i.test(u)) vendorHits.add("imperva_incapsula");
       if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i.test(u)) vendorHits.add("cloudflare");
       if (/hcaptcha|recaptcha|arkoselabs|funcaptcha/i.test(u)) vendorHits.add("captcha_vendor");
-      if (/shape\.security|f5\.com\/shape/i.test(u)) vendorHits.add("shape_security");
-      if (/kasada|client\.kasada/i.test(u)) vendorHits.add("kasada");
+      if (/shape\.security|f5\.com\/shape|ShapeSecurity/i.test(u)) vendorHits.add("shape_security");
+      if (/kasada|client\.kasada|ips\.kasada/i.test(u)) vendorHits.add("kasada");
     }
     for (const v of vendorHits) blockSignals.push(`vendor:${v}`);
     const apiCallCount = captured.requests?.length ?? 0;
