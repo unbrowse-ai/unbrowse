@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.7.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.7.0-preview.1...v3.7.0-preview.2) (2026-04-10)
+
+### Features
+
+* capture system state (processes, ports, memory) in agent-xp harness ([c2ec027](https://github.com/unbrowse-ai/unbrowse-dev/commit/c2ec027948d30f2a4f418df5e17fdcedaa8eb020))
+* coverage harness + fuzzy query param derivation ([2f925d7](https://github.com/unbrowse-ai/unbrowse-dev/commit/2f925d714eb5d66a011b538fb44f51e8c89c5ca2))
+
+### Bug Fixes
+
+* record() writes raw to tempfile to avoid bash quote escaping ([f4e6fbd](https://github.com/unbrowse-ai/unbrowse-dev/commit/f4e6fbdc6b4d1ea51e79f65efec8570a607cb212))
+* strip_logs helper — CLI mixes logs into stdout, filter to JSON only ([5d92466](https://github.com/unbrowse-ai/unbrowse-dev/commit/5d92466d55dcd9aa4eca3a4c32083f1ff8004717))
+* strip_logs uses raw_decode for multi-line JSON ([3eb4208](https://github.com/unbrowse-ai/unbrowse-dev/commit/3eb4208756738107fd6f7698d00899a2de5b992a))
+
 ## [3.7.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.7.0-preview.0...v3.7.0-preview.1) (2026-04-10)
 
 ### Features
