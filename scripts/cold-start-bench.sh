@@ -284,13 +284,24 @@ export HOME=/root
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.npm-global/bin
 export UNBROWSE_NON_INTERACTIVE=1
 export UNBROWSE_TOS_ACCEPTED=1
-unbrowse setup --no-start 2>&1 | tail -20
+unbrowse setup --no-start > /tmp/setup-out.log 2>&1
 echo SETUP_RC=$?
 echo === HEALTH ===
 unbrowse health 2>&1 | head -20
-echo === AGENT_FILE ===
-ls -la /root/.unbrowse/agent.json 2>&1
-cat /root/.unbrowse/agent.json 2>/dev/null | head -c 400
+echo === CONFIG_FILE ===
+# unbrowse saves its API key + agent profile here
+ls -la /root/.unbrowse/config.json 2>&1
+python3 -c "
+import json, os
+p = '/root/.unbrowse/config.json'
+if os.path.exists(p):
+    d = json.load(open(p))
+    redacted = {k: (v if k != 'api_key' else '<redacted>') for k,v in d.items()}
+    print('config_keys:', sorted(d.keys()))
+    print(json.dumps(redacted, indent=2))
+else:
+    print('MISSING')
+" 2>&1
 BOXEOF
 )
   local out_file="$RUN_DIR/.setup.raw"
@@ -304,14 +315,18 @@ if m: rc = int(m.group(1))
 health = ''
 hm = re.search(r'=== HEALTH ===\n(.+?)\n===', out, re.S)
 if hm: health = hm.group(1).strip()
-agent_file_present = 'agent.json' in out and 'No such file' not in out
+config_present = 'config_keys' in out and "api_key'" in out
+api_key_saved = "'api_key'" in out
+agent_id_saved = "'agent_id'" in out
 json.dump({
   'setup_rc': rc,
   'health_excerpt': health[:2000],
-  'agent_file_present': agent_file_present,
-  'tail': out[-2000:],
+  'config_present': config_present,
+  'api_key_saved': api_key_saved,
+  'agent_id_saved': agent_id_saved,
+  'tail': out[-2500:],
 }, open(os.environ['RUN_DIR_ARG'] + '/setup.json','w'), indent=2)
-print(f'[setup] rc={rc} agent_file={agent_file_present}')
+print(f'[setup] rc={rc} config_present={config_present} api_key_saved={api_key_saved} agent_id_saved={agent_id_saved}')
 PYEOF
   echo ""
   echo "review: cat $RUN_DIR/setup.json"
