@@ -137,11 +137,22 @@ while IFS='|' read -r goal url; do
   echo "[bench-local] ($i/$N) $url" >&2
   timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" </dev/null > "$out_file" 2>&1
   cli_exit=$?
-  # Log exit codes so process-level failures (timeout=124, SIGKILL=137,
-  # CLI crash=non-zero) are visible in the stream instead of getting
-  # swallowed as "empty output → source=none".
   if [ "$cli_exit" -ne 0 ]; then
     echo "  [bench-local] cli exit=$cli_exit (timeout=124, killed=137)" >&2
+  fi
+  # Auto-retry once on empty output (process died silently, zombie from
+  # prior run, kuri sigsegv cascade). Yelp hit this pattern in the 29-URL
+  # bench but passed on direct retry — the harness should absorb that
+  # flake instead of letting it pollute the evidence.
+  if [ ! -s "$out_file" ] || [ "$(wc -c < "$out_file")" -lt 200 ]; then
+    echo "  [bench-local] empty output, killing residuals and retrying once" >&2
+    pkill -9 -f 'unbrowse|kuri' 2>/dev/null || true
+    sleep 0.5
+    timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" </dev/null > "$out_file" 2>&1
+    cli_exit=$?
+    if [ "$cli_exit" -ne 0 ]; then
+      echo "  [bench-local] retry cli exit=$cli_exit" >&2
+    fi
   fi
   record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url")
   echo "$record" >> "$OUT_DIR/results.jsonl"
