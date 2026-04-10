@@ -438,6 +438,16 @@ export async function processGithubWebhook(
     return result;
   }
 
+  // Compute repo once up-front so the issues + PR branches can both reference it.
+  // Previously the PR branch defined `const repo` at line 493 which created a
+  // block-scoped use-before-declaration for the issues branch above it.
+  const basePlan = parseWebhookPlan(eventName, payload);
+  const repo = basePlan.repo;
+  const prNumber = basePlan.prNumber;
+  if (!repo) {
+    return { ok: false, status: 400, kind: "failed", note: "payload missing repository.full_name" };
+  }
+
   // Issues: dispatch pr-agent with operation "triage" for new bug issues
   if (eventName === "issues") {
     const issuePayload = payload as GithubWebhookPayload & { issue?: { number?: number; title?: string; labels?: PullRequestLabel[] } };
@@ -487,13 +497,6 @@ export async function processGithubWebhook(
       await markDeliveryProcessed(env, deliveryId, result);
       return result;
     }
-  }
-
-  const basePlan = parseWebhookPlan(eventName, payload);
-  const repo = basePlan.repo;
-  const prNumber = basePlan.prNumber;
-  if (!repo) {
-    return { ok: false, status: 400, kind: "failed", note: "payload missing repository.full_name" };
   }
 
   const allowedRepos = parseAllowedRepos(env.GITHUB_WEBHOOK_ALLOWED_REPOS);

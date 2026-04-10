@@ -32,9 +32,10 @@ export async function sendSponsorPayment(
 ): Promise<TransferResult> {
   const secretKey = env.CASCADE_SIGNER_SECRET_KEY?.trim();
   const rpcUrl = env.CASCADE_RPC_URL?.trim();
+  const rpcWsUrl = env.CASCADE_RPC_WS_URL?.trim();
 
-  if (!secretKey || !rpcUrl) {
-    return { success: false, error: "missing signer key or RPC URL" };
+  if (!secretKey || !rpcUrl || !rpcWsUrl) {
+    return { success: false, error: "missing signer key, RPC URL, or RPC WS URL" };
   }
 
   if (!recipientAddress?.trim() || amountUc <= 0) {
@@ -49,8 +50,9 @@ export async function sendSponsorPayment(
     const kit = await import("@solana/kit");
     const { getTransferInstruction } = await import("@solana-program/token");
 
-    // Create RPC + signer
+    // Create RPC + subscriptions + signer
     const rpc = kit.createSolanaRpc(rpcUrl);
+    const rpcSubscriptions = kit.createSolanaRpcSubscriptions(rpcWsUrl);
     const signer = await kit.createKeyPairSignerFromBytes(await decodeSecretKey(secretKey));
     const senderAddress = kit.address(signer.address);
     const recipientAddr = kit.address(recipientAddress.trim());
@@ -79,9 +81,9 @@ export async function sendSponsorPayment(
     );
 
     const signedTx = await kit.signTransactionMessageWithSigners(tx);
-    const signature = await kit.sendAndConfirmTransactionFactory({ rpc })(signedTx, {
-      commitment: "confirmed",
-    });
+    const sendAndConfirm = kit.sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions });
+    await sendAndConfirm(signedTx as any, { commitment: "confirmed" });
+    const signature = kit.getSignatureFromTransaction(signedTx);
 
     console.log(`[sponsor-pay] sent ${amountUc} µ¢ USDC to ${recipientAddress}: ${signature}`);
     return { success: true, signature: String(signature) };

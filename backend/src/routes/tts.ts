@@ -54,6 +54,8 @@ ttsRoutes.post("/tts/generate", async (c) => {
   }
 
   const voiceId = body.voice_id || c.env.CARTESIA_VOICE_ID;
+  if (!voiceId) return c.json({ error: "CARTESIA_VOICE_ID not configured and no voice_id supplied" }, 500);
+  if (!c.env.CARTESIA_API_KEY) return c.json({ error: "CARTESIA_API_KEY not configured" }, 500);
 
   const response = await fetch("https://api.cartesia.ai/tts/bytes", {
     method: "POST",
@@ -112,6 +114,9 @@ ttsRoutes.post("/tts/generate-segments", async (c) => {
   }
 
   const voiceId = body.voice_id || c.env.CARTESIA_VOICE_ID;
+  if (!voiceId) return c.json({ error: "CARTESIA_VOICE_ID not configured and no voice_id supplied" }, 500);
+  const apiKey = c.env.CARTESIA_API_KEY;
+  if (!apiKey) return c.json({ error: "CARTESIA_API_KEY not configured" }, 500);
 
   const results = await Promise.all(
     body.segments.map(async (seg, i) => {
@@ -119,7 +124,7 @@ ttsRoutes.post("/tts/generate-segments", async (c) => {
         method: "POST",
         headers: {
           "Cartesia-Version": "2025-04-16",
-          "X-API-Key": c.env.CARTESIA_API_KEY,
+          "X-API-Key": apiKey,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

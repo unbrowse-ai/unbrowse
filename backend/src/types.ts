@@ -32,6 +32,9 @@ export interface Env {
   TURBOBOX_URL: string;
   R2_BUCKET: R2Bucket;
   FAL_KEY: string;
+  // Cartesia TTS (voice synthesis for demo pipeline)
+  CARTESIA_API_KEY?: string;
+  CARTESIA_VOICE_ID?: string;
 }
 
 // --- Agent identity ---
