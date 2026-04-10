@@ -43,17 +43,47 @@ out_path = sys.argv[1]
 goal = sys.argv[2]
 url = sys.argv[3]
 raw = open(out_path).read()
-d = {}
+
+# Find the TOP-LEVEL response object. Previous version took the first
+# {"trace"...} match which matched nested trace objects inside a larger
+# response (e.g. the skill.endpoints[].trace nested entry) and returned
+# the wrong shape. The top-level response always has BOTH trace and
+# result/skill at depth 0 and is usually the biggest decoded object.
+# Strategy: try every candidate match, keep the LARGEST successfully
+# decoded object that has a top-level 'result' or 'available_operations'
+# key — that's always the one the agent cares about.
+candidates = []
 for m in re.finditer(r'\{"(?:trace|result|error|skill_id)"', raw):
     try:
-        d, _ = json.JSONDecoder(strict=False).raw_decode(raw[m.start():])
-        break
+        obj, _ = json.JSONDecoder(strict=False).raw_decode(raw[m.start():])
+        if isinstance(obj, dict):
+            candidates.append((len(json.dumps(obj)), obj))
     except Exception:
         continue
+# Prefer the largest candidate that has a meaningful top-level shape
+candidates.sort(key=lambda x: x[0], reverse=True)
+d = {}
+for _, obj in candidates:
+    r0 = obj.get('result') if isinstance(obj.get('result'), dict) else None
+    if obj.get('available_operations') or obj.get('available_endpoints'):
+        d = obj
+        break
+    if r0 and (r0.get('available_operations') or r0.get('available_endpoints') or r0.get('error')):
+        d = obj
+        break
+if not d and candidates:
+    d = candidates[0][1]  # fall back to the biggest
+
 r = d.get('result', {}) if isinstance(d, dict) else {}
+# Some responses (direct-fetch) put the data at top level with trace, not under "result".
+# In that case, r is empty but d has trace/source/success at top.
 trace = d.get('trace', {}) if isinstance(d, dict) else {}
 source = d.get('source', '') if isinstance(d, dict) else ''
 meta = r.get('captured_meta') if isinstance(r, dict) else None
+# If the response has available_operations at top level (some shapes do), use that
+top_ops = d.get('available_operations') or d.get('available_endpoints') or []
+if top_ops and not r.get('available_operations') and not r.get('available_endpoints'):
+    r['available_operations'] = top_ops
 
 # Pure evidence extraction — every field the agent needs to judge in-thread.
 # No classification, no verdict, no threshold checks.
