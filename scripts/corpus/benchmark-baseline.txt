@@ -1,0 +1,15 @@
+get latest posts|https://news.ycombinator.com
+list top stories|https://news.ycombinator.com
+get package info|https://pypi.org
+search packages|https://www.npmjs.com
+get company metadata|https://www.linkedin.com
+search reddit posts|https://www.reddit.com
+get profile metadata|https://www.tiktok.com
+list github repos|https://github.com/trending
+get countries|https://restcountries.com
+get pokemon info|https://pokeapi.co
+get spacex launches|https://www.spacex.com
+get random user|https://randomuser.me
+get cat fact|https://catfact.ninja
+get dog breed|https://dog.ceo
+get joke|https://api.chucknorris.io
