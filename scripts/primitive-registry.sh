@@ -34,6 +34,12 @@ declare -a PRIMITIVES=(
   "release-with-visibility|scripts/release-with-visibility.sh|wrap release-it with forced stdout capture|release-it dying silently in background shells"
   "release-and-verify|scripts/release-and-verify.sh|full release pipeline with remote blank-slate smoke|release works locally, fails on fresh install"
   "leak-guard|scripts/leak-guard.sh|prevent operational primitives from leaking to public paths|sensitive harness names appearing in SKILL.md, npm tarball, or public mirror"
+  "benchmark-over-time|scripts/benchmark-over-time.sh|track agent-experience success rate across releases on same corpus|regressions from version to version going unnoticed"
+  "benchmark-historical|scripts/benchmark-historical.sh|retroactively benchmark past npm versions on blank-slate remote|improvement curve hidden by forward-only data"
+  "benchmark-turbobox-parallel|scripts/benchmark-turbobox-parallel.sh|benchmark many versions in parallel turbobox sandboxes|serial remote benchmarks taking hours, no blast radius"
+  "auto-deprecate|scripts/auto-deprecate.sh|deprecate npm versions that fail the benchmark|broken versions remaining installable and poisoning new users"
+  "job-state|scripts/job-state.sh|shared library to register long-running jobs for observability|background jobs failing silently with no way to peek"
+  "peek|scripts/peek.sh|list and probe live state of any registered long-running job|having to guess what a backgrounded script is doing and when it's stuck"
 )
 
 check_primitive() {
