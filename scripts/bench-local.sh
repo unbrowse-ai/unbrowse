@@ -146,7 +146,10 @@ while IFS='|' read -r goal url; do
   # prior run, kuri sigsegv cascade). Yelp hit this pattern in the 29-URL
   # bench but passed on direct retry — the harness should absorb that
   # flake instead of letting it pollute the evidence.
-  if [ ! -s "$out_file" ] || [ "$(wc -c < "$out_file")" -lt 200 ]; then
+  # Skip retry if the first attempt was a clean timeout (exit=124) — the
+  # site is blocked/stuck at the browser level and a retry will time out
+  # the same way, wasting 90s per URL. v6 wayfair/bestbuy hit this.
+  if { [ ! -s "$out_file" ] || [ "$(wc -c < "$out_file")" -lt 200 ]; } && [ "$cli_exit" -ne 124 ]; then
     echo "  [bench-local] empty output, killing residuals and retrying once" >&2
     pkill -9 -f 'unbrowse|kuri' 2>/dev/null || true
     sleep 0.5
