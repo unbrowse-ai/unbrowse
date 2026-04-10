@@ -57,7 +57,7 @@ RESOLVE=$(unbrowse resolve --intent 'get package info' --url 'https://pypi.org/p
 SKILL=$(echo "$RESOLVE" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
 EP=$(echo "$RESOLVE" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
 if [ -n "$SKILL" ] && [ -n "$EP" ]; then
-  record "execute_pypi_flask" "$(unbrowse execute --skill "$SKILL" --endpoint "$EP" --raw --pretty 2>/dev/null)"
+  record "execute_pypi_flask" "$(unbrowse execute --skill "$SKILL" --endpoint "$EP" --url 'https://pypi.org/project/flask/' --raw --pretty 2>/dev/null)"
 fi
 
 # Parameterized search: can the agent fill template params?
@@ -65,7 +65,7 @@ RESOLVE_NPM=$(unbrowse resolve --intent 'search packages' --url 'https://registr
 SKILL_NPM=$(echo "$RESOLVE_NPM" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
 EP_NPM=$(echo "$RESOLVE_NPM" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
 if [ -n "$SKILL_NPM" ] && [ -n "$EP_NPM" ]; then
-  record "execute_npm_search" "$(unbrowse execute --skill "$SKILL_NPM" --endpoint "$EP_NPM" --params '{"q":"express"}' --raw --pretty 2>/dev/null)"
+  record "execute_npm_search" "$(unbrowse execute --skill "$SKILL_NPM" --endpoint "$EP_NPM" --url 'https://registry.npmjs.org/-/v1/search?text=express' --params '{"q":"express"}' --raw --pretty 2>/dev/null)"
 fi
 
 # Feedback: does the loop close?
