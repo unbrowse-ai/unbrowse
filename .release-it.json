@@ -33,6 +33,7 @@
     "after:bump": [
       "bun scripts/sync-skill-md.ts",
       "bun scripts/generate-release-notes.ts --version ${version}",
+      "bun scripts/append-coverage-to-notes.ts",
       "bun scripts/release-announce.ts --write"
     ]
   }
