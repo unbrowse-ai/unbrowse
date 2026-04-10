@@ -1,0 +1,20 @@
+get spotify artist|https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02
+get soundcloud artist|https://soundcloud.com/discover
+get bandcamp album|https://bandcamp.com/discover
+get vimeo video|https://vimeo.com/staffpicks
+get coursera course|https://www.coursera.org/courses?query=machine%20learning
+get udemy course|https://www.udemy.com/courses/search/?q=python
+get khan academy|https://www.khanacademy.org/math
+get airbnb listing|https://www.airbnb.com/s/San-Francisco
+get espn scores|https://www.espn.com/nfl/
+get steam game|https://store.steampowered.com/app/1172470/Apex_Legends/
+get quora question|https://www.quora.com/What-is-machine-learning
+get wiktionary word|https://en.wiktionary.org/wiki/serendipity
+get unsplash photos|https://unsplash.com/s/photos/nature
+get allrecipes recipe|https://www.allrecipes.com/recipes/96/salad/
+get webmd article|https://www.webmd.com/default.htm
+get codepen pen|https://codepen.io/trending
+get replit project|https://replit.com/@replit/Node-js
+get mapquest location|https://www.mapquest.com/us/california/san-francisco
+get usa gov page|https://www.usa.gov/
+get ziprecruiter jobs|https://www.ziprecruiter.com/candidate/search?search=software+engineer
