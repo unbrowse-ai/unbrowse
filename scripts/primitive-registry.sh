@@ -38,9 +38,10 @@ declare -a PRIMITIVES=(
   "benchmark-historical|scripts/benchmark-historical.sh|retroactively benchmark past npm versions on blank-slate remote|improvement curve hidden by forward-only data"
   "benchmark-turbobox-parallel|scripts/benchmark-turbobox-parallel.sh|benchmark many versions in parallel turbobox sandboxes|serial remote benchmarks taking hours, no blast radius"
   "auto-deprecate|scripts/auto-deprecate.sh|deprecate npm versions that fail the benchmark|broken versions remaining installable and poisoning new users"
-  "job-state|scripts/job-state.sh|shared library to register long-running jobs for observability|background jobs failing silently with no way to peek"
-  "peek|scripts/peek.sh|list and probe live state of any registered long-running job|having to guess what a backgrounded script is doing and when it's stuck"
 )
+# Aiko-generic primitives live in ~/agent-factory/bin/<name>/<name> and belong
+# to the public Aiko surface, not unbrowse. This registry only tracks the
+# unbrowse-specific harness.
 
 check_primitive() {
   local entry="$1"
