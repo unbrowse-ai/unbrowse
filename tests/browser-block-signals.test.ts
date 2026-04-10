@@ -57,6 +57,12 @@ describe("detectBrowserBlockSignals", () => {
     it("detects imperva via reese84", () => {
       expect(detect({ requestUrls: ["https://www.example.com/reese84/abc"] })).toContain("vendor:imperva_incapsula");
     });
+    it("detects Akamai Bot Manager via sensor_data path", () => {
+      expect(detect({ requestUrls: ["https://www.walmart.com/akam/11/sensor_data"] })).toContain("vendor:akamai_bot_manager");
+    });
+    it("detects Akamai Bot Manager via akam.net", () => {
+      expect(detect({ requestUrls: ["https://cdn.akam.net/bot-defender.js"] })).toContain("vendor:akamai_bot_manager");
+    });
     it("detects reCAPTCHA as captcha_vendor", () => {
       expect(detect({ requestUrls: ["https://www.google.com/recaptcha/api.js"] })).toContain("vendor:captcha_vendor");
     });

@@ -3232,6 +3232,10 @@ export function detectBrowserBlockSignals(input: {
     }
     if (/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i.test(u)) vendorHits.add("datadome");
     if (/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i.test(u)) vendorHits.add("imperva_incapsula");
+    // Akamai Bot Manager — used by walmart, delta, target, many retail
+    // Detected via: _abck cookie usage, akam.net, bot-defender, /_bm/ paths,
+    // and Akamai sensor_data collection endpoint.
+    if (/akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i.test(u)) vendorHits.add("akamai_bot_manager");
     if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i.test(u)) vendorHits.add("cloudflare");
     if (/hcaptcha|recaptcha|arkoselabs|funcaptcha/i.test(u)) vendorHits.add("captcha_vendor");
     if (/shape\.security|f5\.com\/shape|ShapeSecurity/i.test(u)) vendorHits.add("shape_security");
