@@ -60,7 +60,7 @@ Every row in `results.jsonl` / `evidence.csv` includes:
 - `captured_html_bytes`, `captured_text_bytes`, `captured_title`, `captured_api_calls`
 - `captured_intent_verdict`, `captured_intent_reason` — `assessIntentResult` on stripped text
 - `filter_rejections` — JSON map of `{reason: count}` from extractEndpoints (`not_api_like`, `score_non_positive`, `body_not_json_or_html`, `domain_mismatch`, `semantic_entity_mismatch`, `rsc_payload`, `ad_response`, `cloudflare_challenge`, `protobuf_unparseable`)
-- `browser_block_signals` — JSON list of signals: `challenge_title`, `vendor:cloudflare|perimeterx|datadome|imperva_incapsula|captcha_vendor|shape_security|kasada`, `sparse_capture_mostly_noise`, `empty_capture`
+- `browser_block_signals` — JSON list of signals: `challenge_title`, `vendor:cloudflare|perimeterx|datadome|imperva_incapsula|captcha_vendor|shape_security|kasada`, `sparse_capture_mostly_noise`, `empty_capture`, `no_html_many_apis` (kuri getPageHtml failed but network fired)
 
 ### Agent rubric for classifying bench-local rows
 
@@ -68,7 +68,7 @@ Apply in order (first match wins):
 
 | Bucket | Condition | Counted? |
 |---|---|---|
-| `BROWSER_BLOCK` | `browser_block_signals` contains `vendor:*` or `challenge_title` | Excluded from coverage |
+| `BROWSER_BLOCK` | `browser_block_signals` contains `vendor:*`, `challenge_title`, or `no_html_many_apis` | Excluded from coverage |
 | `AUTH_GATED` | `error_code == "auth_required"` | Excluded from coverage |
 | `PASS` | `has_available_operations == true && n_operations > 0` | ✓ Pass |
 | `PASS` | `trace_success == true && source == "dom-fallback"` | ✓ Pass |

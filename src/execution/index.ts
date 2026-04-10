@@ -1488,6 +1488,14 @@ async function executeBrowserCapture(
     if (html.length < 500 && apiCallCount === 0) {
       blockSignals.push("empty_capture");
     }
+    // Detect "network fired, HTML missing" — the browser DID make many
+    // requests (page was loading) but captured.html is empty. This is a
+    // capture-layer issue, not a product filter issue, and is distinct
+    // from browser-blocked. Observed on math.stackexchange.com/questions/*
+    // where Kuri captured 120 requests but getPageHtml() returned nothing.
+    if (html.length < 500 && apiCallCount >= 30) {
+      blockSignals.push("no_html_many_apis");
+    }
     return {
       html_bytes: html.length,
       title,
