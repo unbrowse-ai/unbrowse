@@ -273,3 +273,16 @@ get mastodon instance|https://mastodon.social/explore
 get lemmy community|https://lemmy.ml/communities
 get wiktionary page|https://en.wiktionary.org/wiki/example
 get metafilter post|https://www.metafilter.com/
+get walgreens store|https://www.walgreens.com/storelocator/find.jsp
+get chase homepage|https://www.chase.com/
+get bofa homepage|https://www.bankofamerica.com/
+get verizon|https://www.verizon.com/plans/
+get att wireless|https://www.att.com/wireless/
+get marriott hotel|https://www.marriott.com/default.mi
+get hertz rental|https://www.hertz.com/rentacar/reservation/
+get louvre collection|https://collections.louvre.fr/en/
+get met museum|https://www.metmuseum.org/art/collection
+get nps park|https://www.nps.gov/yose/index.htm
+get masterclass|https://www.masterclass.com/categories
+get skillshare|https://www.skillshare.com/en/browse
+get grubhub|https://www.grubhub.com/
