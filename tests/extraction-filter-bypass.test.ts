@@ -95,6 +95,52 @@ describe("extractor filter bypasses (regression probes)", () => {
     expect(reachedCandidate).toBe(true);
   });
 
+  it("rejects framework-plumbing graphql ops even through the bypass", () => {
+    // LinkedIn voyager uses queryId=voyagerFeedDashGlobalNavs for the top
+    // nav chrome — it's graphql but returns no data the agent needs.
+    // The graphql bypass must NOT admit this; it should reject via
+    // graphql_noise_operation. (sister test:
+    // reverse-engineer-admission.test.ts 'drops parsed JSON for
+    // global-nav/feed payloads during people search')
+    const endpoints = extractEndpoints(
+      [req({
+        url: "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerFeedDashGlobalNavs.123",
+        method: "GET",
+        request_body: undefined,
+        response_body: '{"data":{"viewer":{"urn":"urn:li:fsd_profile:abc"}}}',
+      })],
+      undefined,
+      { pageUrl: "https://www.linkedin.com/search/results/people/?keywords=openai", intent: "search people" },
+    );
+    expect(endpoints.length).toBe(0);
+  });
+
+  it("still admits real graphql data ops (FeedDashMainFeed passes the bypass)", () => {
+    // Negative control — the bypass must still work for real data ops
+    // even though the noise-op filter applies to the same URL shape.
+    // LinkedIn's main feed uses queryId=voyagerFeedDashMainFeed.X which
+    // should pass (no globalnav/sidenav substring).
+    const endpoints = extractEndpoints(
+      [req({
+        url: "https://www.linkedin.com/voyager/api/graphql?variables=(count:3,start:0)&queryId=voyagerFeedDashMainFeed.abc",
+        method: "GET",
+        request_body: undefined,
+        response_body: JSON.stringify({
+          data: {
+            elements: [{
+              actor: { name: { text: "Lewis" } },
+              socialDetail: { totalSocialActivityCounts: { numLikes: 5, numComments: 2 } },
+            }],
+            paging: { count: 3, start: 0 },
+          },
+        }),
+      })],
+      undefined,
+      { pageUrl: "https://www.linkedin.com/feed/", intent: "get feed posts" },
+    );
+    expect(endpoints.length).toBeGreaterThanOrEqual(1);
+  });
+
   it("still rejects clearly non-sibling domains (brand prefix must overlap)", () => {
     // Sibling bypass must not accept arbitrary domains — e.g. googleapis.com
     // from a page on zillow.com shares no brand prefix.
