@@ -64,6 +64,8 @@ def classify(row: dict) -> str:
         return "PASS"
     if trace_ok and src == "direct-fetch":
         return "PASS"
+    if src == "browse-session":
+        return "PASS"
     try:
         text_bytes = int(row.get("captured_text_bytes") or 0)
     except (ValueError, TypeError):

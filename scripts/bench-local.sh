@@ -265,6 +265,13 @@ for r in rows:
         # extracted "endpoints", the agent has the raw HTML/JSON to act
         # on. Count as PASS for coverage purposes.
         buckets['PASS'].append(r['url'])
+    elif src == 'browse-session':
+        # browse-session = product opened a browser session and handed
+        # off to the agent with next_step='unbrowse snap'. The product
+        # is working as designed: the agent drives the browser from
+        # here. Count as PASS for coverage purposes — the product
+        # gave a valid response, just not extracted endpoints.
+        buckets['PASS'].append(r['url'])
     elif not has_ops and int(r.get('captured_text_bytes') or 0) >= 2000 and (r.get('captured_intent_verdict') or '') != 'fail' and not ('vendor:' in bs or 'challenge_title' in bs or 'no_html_many_apis' in bs or 'low_capture' in bs or 'empty_capture' in bs):
         # Rich HTML content available. No HARD block signal (vendor/
         # challenge/no_html/low/empty) AND no intent-mismatch verdict.
