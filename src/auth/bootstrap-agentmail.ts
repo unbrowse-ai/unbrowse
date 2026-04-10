@@ -219,7 +219,11 @@ export async function bootstrapAgentMailKey(): Promise<BootstrapResult> {
       error: "Reached dashboard but could not extract API key. Create one manually at https://console.agentmail.to/dashboard/api-keys",
     };
   } finally {
-    // no-op — we don't override HEADLESS anymore
+    // Clean up the kuri + chrome subprocess we spawned for the bootstrap.
+    // Without this, `unbrowse setup` never exits because the managed chrome
+    // stays alive as a child of the bun process — breaks precommit hooks,
+    // release flows, and any CI that invokes setup.
+    try { await kuri.stop(); } catch { /* best-effort cleanup */ }
   }
 }
 
