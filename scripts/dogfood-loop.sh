@@ -214,7 +214,22 @@ elif isinstance(r, dict):
     elif err:
         verdict = 'PRODUCT_FAIL'; reason = err[:40]
     elif r:
-        verdict = 'PASS'; reason = f'keys={list(r.keys())[:3]}'
+        # Check for Cloudflare/anti-bot garbage that looks like a pass but isn't.
+        # Heuristics: title == 'Just a moment...', description mentions 'cloudflare',
+        # only extracted fields are CF challenge metadata, or data empty.
+        flat = json.dumps(r).lower()
+        cf_markers = ['just a moment', 'cloudflare', 'enable javascript', 'ray id', 'attention required', 'blocked | ripley']
+        if any(m in flat for m in cf_markers):
+            verdict = 'BROWSER_BLOCK'; reason = 'cloudflare_challenge_page'
+        else:
+            # Also check: does the result have any domain-specific content,
+            # or just the shell of a challenge page (title/desc/h1 only)?
+            keys = list(r.keys()) if isinstance(r, dict) else []
+            if keys == ['title', 'heading_1', 'heading_2', 'description']:
+                # Pure metadata extraction — very likely a block page
+                verdict = 'BROWSER_BLOCK'; reason = 'metadata_only_extraction'
+            else:
+                verdict = 'PASS'; reason = f'keys={keys[:3]}'
 # Write record
 with open('$RESULTS_FILE') as f: results = json.load(f)
 results['attempts'].append({
