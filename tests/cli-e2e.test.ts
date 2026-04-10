@@ -391,6 +391,49 @@ describe("CLI end-to-end", () => {
     expect(execute.body.result?.error).not.toBe("auth_required");
   }, 240_000);
 
+  it("browse session: go + eval + snap + close works end-to-end on example.com", async () => {
+    // This test catches the multi-broker regression where go reports success
+    // but the tab never navigates (stays on about:blank) and all CDP commands fail.
+    //
+    // The go command needs Kuri (browser engine) — if it can't connect, skip gracefully
+    // like the other browser-dependent tests. But if go succeeds, eval/snap MUST work.
+    // Try auto-start first; if Kuri/Chrome isn't available, skip gracefully.
+    // In CI the cli-e2e job builds Kuri before running tests.
+    // Locally, `unbrowse health` should be running for this to work.
+    const go = await runCliWithAutoStart(["go", "https://example.com"]);
+    if (go.body.error === "recoverable_browse_failure" || go.body.error === "connection_failed") {
+      console.log(`SKIP: Kuri/Chrome not available for browse session test (${go.body.error}: ${go.body.message ?? "no detail"})`);
+      return;
+    }
+    expect(go.code).toBe(0);
+    expect(go.body.ok).toBe(true);
+    expect(go.body.session_id).toBeTruthy();
+    expect(go.body.tab_id).toBeTruthy();
+
+    const sessionId = go.body.session_id;
+
+    // eval must return real page content — not CDP error, not empty.
+    // This is the key assertion: if eval fails here, the tab never navigated.
+    const evalResult = await runCli(["eval", "--session", sessionId, "document.title"]);
+    expect(evalResult.code).toBe(0);
+    expect(evalResult.body.result).toBeTruthy();
+    expect(evalResult.body.result).not.toEqual({ error: "CDP command failed" });
+    expect(typeof evalResult.body.result).toBe("string");
+    expect(evalResult.body.result.length).toBeGreaterThan(0);
+
+    // snap must return a non-empty a11y tree
+    const snap = await runCli(["snap", "--session", sessionId]);
+    expect(snap.code).toBe(0);
+    // snap outputs raw text when not --pretty, check stdout directly
+    expect(snap.stdout).toContain("[e0]");
+    expect(snap.stdout).toContain("Example Domain");
+
+    // close must succeed and checkpoint
+    const close = await runCli(["close", "--session", sessionId]);
+    expect(close.code).toBe(0);
+    expect(close.body.ok).toBe(true);
+  }, 90_000);
+
   it("resolve + execute stays on the CLI path for auth-gated LinkedIn people search when browser creds exist", async () => {
     const cookies = await getAuthCookies("linkedin.com");
     if (!cookies || cookies.length === 0) {

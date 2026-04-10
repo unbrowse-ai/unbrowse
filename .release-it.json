@@ -29,7 +29,7 @@
     "releaseNotes": "cat .release-notes.md"
   },
   "hooks": {
-    "before:init": "bun test tests/path-params.test.ts tests/utils.test.ts",
+    "before:init": "bun test tests/path-params.test.ts tests/utils.test.ts tests/cli-e2e.test.ts",
     "after:bump": [
       "bun scripts/sync-skill-md.ts",
       "bun scripts/generate-release-notes.ts --version ${version}",
