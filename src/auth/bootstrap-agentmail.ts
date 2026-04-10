@@ -66,36 +66,46 @@ export async function bootstrapAgentMailKey(): Promise<BootstrapResult> {
     let onDashboard = typeof currentUrl === "string" && currentUrl.includes("/dashboard");
 
     if (!onDashboard) {
-      // Try to find and click GitHub OAuth button
-      log("bootstrap-agentmail", "not logged in — looking for GitHub OAuth");
-      const githubBtn = await kuri.evaluate(tabId, `(() => {
-        // Clerk renders OAuth buttons — look for GitHub
+      // AgentMail console uses Clerk and offers Google OAuth (not GitHub).
+      // Verified Apr 2026: buttons visible are "Google" and "Continue" (email).
+      // Strategy: try whatever social OAuth button exists (Google preferred),
+      // fall back to manual if no social session is available.
+      log("bootstrap-agentmail", "not logged in — looking for social OAuth");
+      const clickResult = await kuri.evaluate(tabId, `(() => {
+        // Clerk's social button class pattern
+        const socialBtns = document.querySelectorAll('.cl-socialButtonsBlockButton, [data-provider]');
+        for (const btn of socialBtns) {
+          const text = (btn.textContent || '').toLowerCase();
+          const provider = btn.getAttribute('data-provider') || '';
+          // Match any social provider — Google, GitHub, etc.
+          if (text || provider) {
+            btn.click();
+            return 'clicked:' + (provider || text.slice(0, 20));
+          }
+        }
+        // Fallback: look for any button with a known OAuth provider name
         const btns = document.querySelectorAll('button, a');
         for (const btn of btns) {
           const text = (btn.textContent || '').toLowerCase();
-          const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-          if (text.includes('github') || ariaLabel.includes('github') ||
-              btn.querySelector('img[alt*="github" i], svg[aria-label*="github" i]')) {
+          if (text.includes('google') || text.includes('github') || text.includes('continue with')) {
             btn.click();
-            return 'clicked';
+            return 'clicked:' + text.slice(0, 30);
           }
         }
-        // Also check for social login containers
-        const social = document.querySelector('.cl-socialButtonsBlockButton__github, [data-provider="github"]');
-        if (social) { social.click(); return 'clicked'; }
         return 'not_found';
       })()`);
+      const clickStr = typeof clickResult === "string" ? clickResult : String(clickResult);
+      log("bootstrap-agentmail", `social button result: ${clickStr}`);
 
-      if (githubBtn === "clicked") {
-        log("bootstrap-agentmail", "clicked GitHub OAuth — waiting for redirect");
-        // Wait for GitHub OAuth to complete (cookies should handle it)
+      if (clickStr.startsWith("clicked")) {
+        log("bootstrap-agentmail", "clicked social OAuth — waiting for redirect");
         const start = Date.now();
         while (Date.now() - start < AUTH_TIMEOUT_MS) {
           await new Promise(r => setTimeout(r, 2_000));
           currentUrl = await kuri.getCurrentUrl(tabId);
           if (typeof currentUrl === "string" && currentUrl.includes("/dashboard")) {
             onDashboard = true;
-            log("bootstrap-agentmail", "GitHub OAuth completed — on dashboard");
+            log("bootstrap-agentmail", "OAuth completed — on dashboard");
             break;
           }
         }
@@ -103,10 +113,19 @@ export async function bootstrapAgentMailKey(): Promise<BootstrapResult> {
 
       if (!onDashboard) {
         log("bootstrap-agentmail", "could not auto-login — manual setup needed");
+        // Capture what the page looks like so agents can diagnose
+        const pageInfo = await kuri.evaluate(tabId, `JSON.stringify({
+          url: window.location.href,
+          title: document.title,
+          visible_buttons: Array.from(document.querySelectorAll('button,a'))
+            .map(e => (e.textContent || '').trim().slice(0, 30))
+            .filter(t => t)
+            .slice(0, 10),
+        })`).catch(() => "{}");
         return {
           success: false,
           method: "manual",
-          error: "Could not auto-login to AgentMail console. Sign up at https://console.agentmail.to and create an API key manually.",
+          error: `Could not auto-login to AgentMail console. Page state: ${pageInfo}. Sign up at https://console.agentmail.to and create an API key manually, then: export AGENTMAIL_API_KEY=<key>`,
         };
       }
     }

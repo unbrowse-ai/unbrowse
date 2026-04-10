@@ -48,18 +48,40 @@ with open(os.environ['RESULTS'], 'w') as f: json.dump(d, f)
 
 # ── Step 0: wipe prior state (simulate fresh agent) ──
 echo "[drop-in] WIPING prior state..." >&2
-pkill -u "$USER" -f 'unbrowse|kuri|node.*unbrowse' 2>/dev/null || true
-sleep 1
-rm -rf ~/.unbrowse 2>/dev/null || true
-# Keep ~/.npm-global but remove the unbrowse install
+# Kill ALL unbrowse/kuri processes owned by this user — twice, with SIGKILL
+pkill -9 -u "$USER" -f 'unbrowse' 2>/dev/null || true
+pkill -9 -u "$USER" -f 'kuri' 2>/dev/null || true
+pkill -9 -u "$USER" -f 'node.*server.js' 2>/dev/null || true
+sleep 2
+
+# Uninstall before wiping config, so postinstall can't recreate it
 NPM_BIN="${HOME}/.npm-global/bin"
-if [ -f "$NPM_BIN/unbrowse" ]; then
-  npm uninstall -g unbrowse 2>/dev/null || rm -f "$NPM_BIN/unbrowse"
+if [ -f "$NPM_BIN/unbrowse" ] || [ -d "${HOME}/.npm-global/lib/node_modules/unbrowse" ]; then
+  npm uninstall -g unbrowse 2>/dev/null || true
+  # Force-remove residual symlinks and lib dir
+  rm -f "$NPM_BIN/unbrowse" 2>/dev/null || true
+  rm -rf "${HOME}/.npm-global/lib/node_modules/unbrowse" 2>/dev/null || true
 fi
 
-# Verify wipe
-if [ -d ~/.unbrowse ] || [ -f "$NPM_BIN/unbrowse" ]; then
-  record "wipe" "FAIL" "$(ls -la ~/.unbrowse $NPM_BIN/unbrowse 2>&1 | head -5)"
+# Now wipe ~/.unbrowse — no process should be recreating it
+rm -rf ~/.unbrowse 2>/dev/null || true
+sleep 1
+
+# Verify wipe (account for background processes that might race)
+wipe_ok=true
+if [ -d ~/.unbrowse ]; then
+  # Try once more in case a lingering process recreated it
+  pkill -9 -u "$USER" -f 'unbrowse|kuri' 2>/dev/null || true
+  sleep 1
+  rm -rf ~/.unbrowse 2>/dev/null || true
+  [ -d ~/.unbrowse ] && wipe_ok=false
+fi
+if [ -f "$NPM_BIN/unbrowse" ]; then
+  wipe_ok=false
+fi
+
+if [ "$wipe_ok" != "true" ]; then
+  record "wipe" "FAIL" "$(ls -la ~/.unbrowse/ 2>&1 | head -3; ls -la $NPM_BIN/unbrowse 2>&1 | head -1)"
   python3 -c "import json; print(json.dumps(json.load(open('$RESULTS')), indent=2))"
   exit 1
 fi
