@@ -1,0 +1,20 @@
+get walgreens store|https://www.walgreens.com/storelocator/find.jsp
+get cvs store|https://www.cvs.com/minuteclinic
+get chase homepage|https://www.chase.com/
+get bofa homepage|https://www.bankofamerica.com/
+get geico quote|https://www.geico.com/
+get progressive insurance|https://www.progressive.com/
+get verizon|https://www.verizon.com/plans/
+get att wireless|https://www.att.com/wireless/
+get united airlines|https://www.united.com/en/us/
+get marriott hotel|https://www.marriott.com/default.mi
+get hertz rental|https://www.hertz.com/rentacar/reservation/
+get gasbuddy prices|https://www.gasbuddy.com/gas-prices
+get louvre collection|https://collections.louvre.fr/en/
+get met museum|https://www.metmuseum.org/art/collection
+get moma artwork|https://www.moma.org/collection/
+get nps park|https://www.nps.gov/yose/index.htm
+get masterclass|https://www.masterclass.com/categories
+get skillshare|https://www.skillshare.com/en/browse
+get instacart|https://www.instacart.com/store
+get grubhub|https://www.grubhub.com/
