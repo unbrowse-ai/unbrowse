@@ -1,15 +1,46 @@
 get latest posts|https://news.ycombinator.com
 list top stories|https://news.ycombinator.com
-get package info|https://pypi.org
-search packages|https://www.npmjs.com
-get company metadata|https://www.linkedin.com
-search reddit posts|https://www.reddit.com
-get profile metadata|https://www.tiktok.com
+get package info|https://pypi.org/project/flask/
+search packages|https://www.npmjs.com/search?q=express
+get company metadata|https://www.linkedin.com/company/openai/
+search reddit posts|https://www.reddit.com/r/programming/
+get profile metadata|https://www.tiktok.com/@tiktok
 list github repos|https://github.com/trending
-get countries|https://restcountries.com
-get pokemon info|https://pokeapi.co
-get spacex launches|https://www.spacex.com
-get random user|https://randomuser.me
-get cat fact|https://catfact.ninja
-get dog breed|https://dog.ceo
-get joke|https://api.chucknorris.io
+get countries|https://restcountries.com/v3.1/name/germany
+get pokemon info|https://pokeapi.co/api/v2/pokemon/pikachu
+get spacex launches|https://api.spacexdata.com/v5/launches/latest
+get random user|https://randomuser.me/api/
+get cat fact|https://catfact.ninja/fact
+get dog breed|https://dog.ceo/api/breeds/list/all
+get joke|https://api.chucknorris.io/jokes/random
+get stackoverflow question|https://stackoverflow.com/questions/tagged/typescript
+get wikipedia article|https://en.wikipedia.org/wiki/API
+get arxiv paper|https://arxiv.org/abs/2604.00694
+get weather|https://wttr.in/Singapore?format=j1
+search amazon product|https://www.amazon.com/s?k=laptop
+get youtube video|https://www.youtube.com/watch?v=dQw4w9WgXcQ
+get instagram profile|https://www.instagram.com/openai/
+get medium article|https://medium.com/@sam.altman/what-i-wish-someone-had-told-me-3c0cee64fe2
+get bitcoin price|https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd
+get github repo details|https://api.github.com/repos/facebook/react
+get hn story|https://news.ycombinator.com/item?id=1
+get twitter profile|https://twitter.com/sama
+search google|https://www.google.com/search?q=openai
+get bbc article|https://www.bbc.com/news
+get reuters article|https://www.reuters.com/
+search ebay|https://www.ebay.com/sch/i.html?_nkw=laptop
+get mdn article|https://developer.mozilla.org/en-US/docs/Web/API
+get devto article|https://dev.to/top/week
+get imdb movie|https://www.imdb.com/title/tt0111161/
+get nasa apod|https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY
+get openlibrary book|https://openlibrary.org/works/OL45804W.json
+get jsonplaceholder posts|https://jsonplaceholder.typicode.com/posts
+get country by code|https://restcountries.com/v3.1/alpha/us
+get crypto trending|https://api.coingecko.com/api/v3/search/trending
+get ip info|https://ipapi.co/json/
+get quote|https://zenquotes.io/api/random
+get advice|https://api.adviceslip.com/advice
+get xkcd comic|https://xkcd.com/info.0.json
+get ghibli films|https://ghibliapi.vercel.app/films
+get starwars person|https://swapi.dev/api/people/1/
+get exchange rates|https://open.er-api.com/v6/latest/USD

@@ -39,12 +39,16 @@ TURBOBOX_URL="${TURBOBOX_URL:-https://sandbox.trilok.ai}"
 VERSIONS=""
 LAST_N=0
 CORPUS_SIZE=30
+CORPUS_OFFSET=0
+CORPUS_FILE_OVERRIDE=""
 IMAGE="ubuntu"
 for arg in "$@"; do
   case "$arg" in
     --versions) shift; VERSIONS="${1:-}"; shift || true ;;
     --last-n) shift; LAST_N="${1:-5}"; shift || true ;;
     --corpus-size) shift; CORPUS_SIZE="${1:-30}"; shift || true ;;
+    --corpus-offset) shift; CORPUS_OFFSET="${1:-0}"; shift || true ;;
+    --corpus-file) shift; CORPUS_FILE_OVERRIDE="${1:-}"; shift || true ;;
     --image) shift; IMAGE="${1:-dev}"; shift || true ;;
   esac
 done
@@ -81,7 +85,10 @@ for arg in "$@"; do
   esac
 done
 
-if [ "$USE_TRACES" = "true" ]; then
+if [ -n "$CORPUS_FILE_OVERRIDE" ] && [ -f "$CORPUS_FILE_OVERRIDE" ]; then
+  # Explicit override wins — agent passes a specific file (e.g. a failure slice)
+  tail -n "+$((CORPUS_OFFSET+1))" "$CORPUS_FILE_OVERRIDE" | head -n "$CORPUS_SIZE" > "$CORPUS_FILE"
+elif [ "$USE_TRACES" = "true" ]; then
   python3 << PYEOF > "$CORPUS_FILE"
 import glob, json, os
 from collections import Counter
@@ -101,7 +108,8 @@ for (goal, dom), _ in pairs.most_common($CORPUS_SIZE):
     print(f'{goal}|{url}')
 PYEOF
 elif [ -f "$BASELINE_CORPUS" ]; then
-  head -n "$CORPUS_SIZE" "$BASELINE_CORPUS" > "$CORPUS_FILE"
+  # Support --corpus-offset so we can chunk the baseline into kill-safe batches
+  tail -n "+$((CORPUS_OFFSET+1))" "$BASELINE_CORPUS" | head -n "$CORPUS_SIZE" > "$CORPUS_FILE"
 fi
 
 if [ ! -s "$CORPUS_FILE" ]; then
@@ -169,13 +177,23 @@ exec_in_box() {
     echo "$start_resp"
     return 1
   fi
-  # Poll up to 30 minutes
-  local waited=0 max=1800 poll=5
+  # Poll up to 15 minutes. Exit early on 404/BoxNotFound so an externally
+  # destroyed box doesn't leave the script stuck.
+  local waited=0 max=900 poll=5 notfound_count=0
   while [ "$waited" -lt "$max" ]; do
     sleep "$poll"
     waited=$((waited + poll))
     local poll_resp status
     poll_resp=$(curl -s "$TURBOBOX_URL/v1/boxes/$box_id/exec/background/$job_id" --max-time 20 2>&1)
+    # Detect a destroyed box: turbobox returns {"error":"BoxNotFound"} or 403
+    if printf '%s' "$poll_resp" | grep -qE 'BoxNotFound|not found|Forbidden'; then
+      notfound_count=$((notfound_count + 1))
+      if [ "$notfound_count" -ge 3 ]; then
+        echo "$poll_resp"
+        return 1
+      fi
+      continue
+    fi
     status=$(echo "$poll_resp" | python3 -c "import sys,json; print(json.loads(sys.stdin.read(), strict=False).get('status',''))" 2>/dev/null)
     case "$status" in
       completed|failed|killed|stopped)
@@ -239,21 +257,33 @@ for m in re.finditer(r'\{"(?:trace|result|error|skill_id)"', raw):
     except Exception:
         continue
 r = d.get('result', {}) if isinstance(d, dict) else {}
-# Pass: resolve returned an endpoint or operation the agent can execute
+trace = d.get('trace', {}) if isinstance(d, dict) else {}
+source = d.get('source', '') if isinstance(d, dict) else ''
+# PASS signals:
+#   a) resolve returned available_operations/available_endpoints — agent can pick and execute
 if isinstance(r, dict) and (r.get('available_operations') or r.get('available_endpoints')):
+    print('pass')
+    sys.exit(0)
+#   b) direct-fetch short-circuit: unbrowse detected a raw JSON endpoint and returned the data.
+#      Without this, direct-fetch wins were wrongly classified as fails because the output
+#      doesn't include an available_operations array.
+if (source == 'direct-fetch' or trace.get('skill_id') == 'direct-fetch') and trace.get('success') is True and not (isinstance(r, dict) and r.get('error')):
     print('pass')
     sys.exit(0)
 # Block: browser/environment couldn't complete (not a product fault).
 # Matches Lewis's goal framing: "100% coverage unless browser-level blocked."
 BLOCK_ERRORS = {
-    'auth_required',      # site needs login
-    'no_endpoints',       # site has no API we could extract
+    'auth_required',      # site needs login — agent can't proceed without creds
     'capture_failed',     # Kuri failed to launch / browser couldn't run
     'kuri_crash',         # Kuri crashed mid-capture
     'connection_failed',  # can't reach the browser broker
     'browser_block',      # Cloudflare / anti-bot page
-    'timeout',            # live capture exceeded budget
 }
+# NOT in BLOCK_ERRORS (these are PRODUCT failures we must fix):
+#   no_endpoints — the site has APIs we failed to discover (pypi/github/etc.)
+#   timeout      — our pipeline exceeded budget; could be product perf or browser,
+#                  expose as fail so the agent judges which and fixes the product
+#                  path when relevant
 err = ''
 if isinstance(r, dict):
     err = r.get('error','')
@@ -275,7 +305,7 @@ print('fail')
 PYEOF
 )
 
-  script="set +e; export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.npm-global/bin; export UNBROWSE_NON_INTERACTIVE=1; export UNBROWSE_TOS_ACCEPTED=1; npm config set prefix /root/.npm-global >/dev/null 2>&1; npm install -g unbrowse@$ver 2>&1 | tail -1; unbrowse --version; echo '$corpus_content' | base64 -d > /tmp/corpus.txt; echo '$classifier_py' | base64 -d > /tmp/classify.py; pass=0; fail=0; block=0; total=0; while IFS='|' read -r goal url <&3; do [ -z \"\$url\" ] && continue; total=\$((total+1)); out=\$(timeout 120 unbrowse resolve --intent \"\$goal\" --url \"\$url\" </dev/null 2>/dev/null); ok=\$(printf '%s' \"\$out\" | python3 /tmp/classify.py 2>/dev/null); [ -z \"\$ok\" ] && ok=fail; case \"\$ok\" in pass) pass=\$((pass+1));; block) block=\$((block+1));; *) fail=\$((fail+1));; esac; echo \"PROGRESS [$ver] \$url -> \$ok (total=\$total pass=\$pass fail=\$fail block=\$block)\"; done 3< /tmp/corpus.txt; printf '{\"version\":\"$ver\",\"pass\":%d,\"fail\":%d,\"block\":%d,\"total\":%d}\n' \$pass \$fail \$block \$total"
+  script="set +e; export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.npm-global/bin; export UNBROWSE_NON_INTERACTIVE=1; export UNBROWSE_TOS_ACCEPTED=1; npm config set prefix /root/.npm-global >/dev/null 2>&1; npm install -g unbrowse@$ver 2>&1 | tail -1; unbrowse --version; echo '$corpus_content' | base64 -d > /tmp/corpus.txt; echo '$classifier_py' | base64 -d > /tmp/classify.py; pass=0; fail=0; block=0; total=0; while IFS='|' read -r goal url <&3; do [ -z \"\$url\" ] && continue; total=\$((total+1)); out=\$(timeout 120 unbrowse resolve --intent \"\$goal\" --url \"\$url\" </dev/null 2>/dev/null); ok=\$(printf '%s' \"\$out\" | python3 /tmp/classify.py 2>/dev/null); [ -z \"\$ok\" ] && ok=fail; case \"\$ok\" in pass) pass=\$((pass+1));; block) block=\$((block+1));; *) fail=\$((fail+1));; esac; echo \"PROGRESS [$ver] \$url -> \$ok (total=\$total pass=\$pass fail=\$fail block=\$block)\"; if [ \"\$ok\" = \"fail\" ]; then echo \"FAIL_DETAIL_BEGIN [$ver] \$url\"; printf '%s' \"\$out\" | tail -c 2000; echo; echo \"FAIL_DETAIL_END\"; fi; done 3< /tmp/corpus.txt; printf '{\"version\":\"$ver\",\"pass\":%d,\"fail\":%d,\"block\":%d,\"total\":%d}\n' \$pass \$fail \$block \$total"
 
   exec_in_box "$box_id" "$script" > "$result_file" 2>&1
   echo "[bench] $ver done"

@@ -1659,6 +1659,67 @@ async function executeBrowserCapture(
       };
     }
 
+    // Anti-bot / auth-wall detection: before falling through to the generic
+    // no_endpoints error, inspect the captured HTML for known degradation
+    // signals. If the page is a login wall, captcha, or anti-bot challenge,
+    // emit browser_block (which is correctly classified as a browser-level
+    // block by downstream harnesses) rather than no_endpoints (which reads
+    // as a product gap the agent/harness should try to fix).
+    const antiBotSignal = (() => {
+      const html = captured.html ?? "";
+      if (!html) return "empty_capture";
+      const lower = html.toLowerCase();
+      const titleMatch = lower.match(/<title[^>]*>([^<]{0,200})<\/title>/);
+      const title = titleMatch ? titleMatch[1].trim() : "";
+      // Known anti-bot / login page title patterns
+      const blockTitles = [
+        "robot check",           // amazon
+        "access denied",         // akamai / imperva
+        "just a moment",         // cloudflare challenge
+        "attention required",    // cloudflare
+        "please verify",         // hcaptcha / arkose
+        "security check",
+        "are you a robot",
+      ];
+      for (const marker of blockTitles) {
+        if (title.includes(marker)) return `anti_bot_title:${marker}`;
+      }
+      // Auth-wall title signals
+      const authTitles = ["log in", "sign in", "log in to", "sign in to"];
+      if (authTitles.some((t) => title === t || title.startsWith(t + " ")) || title === "login") {
+        return `auth_wall_title:${title}`;
+      }
+      // Body-level markers — captcha scripts / anti-bot vendors
+      if (lower.includes("g-recaptcha") || lower.includes("hcaptcha.com") || lower.includes("cf-challenge-form")) {
+        return "captcha_present";
+      }
+      // Suspiciously small body (less than 5KB) usually means the site served
+      // a stub page to our headless browser — real content pages are larger.
+      if (html.length < 5000 && !lower.includes("<script")) {
+        return `tiny_body:${html.length}b`;
+      }
+      return null;
+    })();
+
+    if (antiBotSignal) {
+      const trace: ExecutionTrace = stampTrace({
+        trace_id: traceId,
+        skill_id: skill.skill_id,
+        endpoint_id: "browser-capture",
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        success: false,
+        error: "browser_block",
+      });
+      return {
+        trace,
+        result: {
+          error: "browser_block",
+          message: `Browser capture detected a block signal at ${url}: ${antiBotSignal}. The site served a degraded/challenge page to the headless browser. Real-browser cookies via autoExtract may be required.`,
+        },
+      };
+    }
+
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
       skill_id: skill.skill_id,

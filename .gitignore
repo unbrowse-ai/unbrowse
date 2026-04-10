@@ -88,3 +88,7 @@ tmp/
 codedb.snapshot
 .kuri/
 submodules/foundry/
+
+# bench artifacts (session-local)
+.bench-local/
+.traction-snapshots/

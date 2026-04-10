@@ -3775,25 +3775,52 @@ export async function resolveAndExecute(
         redirect: "follow",
       });
       const ct = directRes.headers.get("content-type") ?? "";
-      if (directRes.ok && (ct.includes("application/json") || ct.includes("+json") || ct.includes("text/json"))) {
-        const data = await directRes.json();
-        const trace: ExecutionTrace = {
-          trace_id: nanoid(),
-          skill_id: "direct-fetch",
-          endpoint_id: "direct-fetch",
-          started_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
-          success: true,
-        };
-        const t = finalize("direct-fetch", data, "direct-fetch", undefined as any, trace);
-        console.log(`[direct-fetch] ${context.url} returned JSON directly — skipping browser`);
-        return {
-          result: data,
-          trace,
-          source: "direct-fetch" as any,
-          skill: undefined as any,
-          timing: t,
-        };
+      const ctSaysJson = ct.includes("application/json") || ct.includes("+json") || ct.includes("text/json");
+      if (directRes.ok) {
+        let data: unknown = undefined;
+        if (ctSaysJson) {
+          data = await directRes.json();
+        } else {
+          // Body-sniff fallback: some APIs (adviceslip, numbersapi, etc.) return
+          // valid JSON with text/html or text/plain content-type headers. Read
+          // the body and try to parse — if it parses AND looks like structured
+          // data (object or array), treat as a direct JSON endpoint anyway.
+          // Cap at 2MB to avoid pulling a real HTML page into memory.
+          const bodyText = await directRes.text();
+          if (bodyText.length < 2_000_000) {
+            const trimmed = bodyText.trimStart();
+            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+              try {
+                const parsed = JSON.parse(bodyText);
+                if (parsed !== null && typeof parsed === "object") {
+                  data = parsed;
+                  console.log(`[direct-fetch] ${context.url} body-sniff hit: ct="${ct}" but body parses as JSON`);
+                }
+              } catch {
+                // Not JSON, fall through to browser capture
+              }
+            }
+          }
+        }
+        if (data !== undefined) {
+          const trace: ExecutionTrace = {
+            trace_id: nanoid(),
+            skill_id: "direct-fetch",
+            endpoint_id: "direct-fetch",
+            started_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+            success: true,
+          };
+          const t = finalize("direct-fetch", data, "direct-fetch", undefined as any, trace);
+          console.log(`[direct-fetch] ${context.url} returned JSON directly — skipping browser`);
+          return {
+            result: data,
+            trace,
+            source: "direct-fetch" as any,
+            skill: undefined as any,
+            timing: t,
+          };
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
