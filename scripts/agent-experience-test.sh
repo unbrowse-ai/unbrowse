@@ -57,15 +57,25 @@ call() {
 
 record() {
   local task="$1" raw="$2"
-  python3 -c "
-import json, sys
-with open('$RESULTS_FILE') as f: results = json.load(f)
+  # Write raw to a temp file to avoid bash quote escaping hell
+  local tmpf
+  tmpf=$(mktemp)
+  printf '%s' "$raw" > "$tmpf"
+  TASK_NAME="$task" RAW_FILE="$tmpf" RESULTS_FILE="$RESULTS_FILE" python3 -c "
+import json, os
+task = os.environ['TASK_NAME']
+raw_file = os.environ['RAW_FILE']
+results_file = os.environ['RESULTS_FILE']
+with open(results_file) as f: results = json.load(f)
+with open(raw_file) as f: raw = f.read()
 try:
-    data = json.loads('''$(echo "$raw" | sed "s/'/\\\\'/g")''')
-except: data = '''$(echo "$raw" | head -c 500 | sed "s/'/\\\\'/g")'''
-results['tasks'].append({'task': '$task', 'output': data})
-with open('$RESULTS_FILE', 'w') as f: json.dump(results, f)
+    data = json.loads(raw) if raw.strip() else raw
+except Exception:
+    data = raw
+results['tasks'].append({'task': task, 'output': data})
+with open(results_file, 'w') as f: json.dump(results, f)
 " 2>/dev/null
+  rm -f "$tmpf"
 }
 
 # ── System state before Unbrowse touches anything ──
