@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.7.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.7.0-preview.0...v3.7.0-preview.1) (2026-04-10)
+
+### Features
+
+* agent experience test primitive — verify full agent workflow on blank slate ([ab99b2f](https://github.com/unbrowse-ai/unbrowse-dev/commit/ab99b2f3bd6c35dba540656c52a7946e660e21a5))
+* agent-judged experience test — artifacts not assertions ([3a89e71](https://github.com/unbrowse-ai/unbrowse-dev/commit/3a89e71519533e9836ec63a390ef2fdc3dfd099e))
+
+### Bug Fixes
+
+* add npm global bin to PATH in remote verify script ([ff61cc0](https://github.com/unbrowse-ai/unbrowse-dev/commit/ff61cc0ac8b3f5b6cae9c4e02fcf424561f65766))
+* auto-recover stale skill cache on endpoint_not_found ([ee90727](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee90727ca7f0a1eae309565dd4ba5e2112ce0341))
+* stable endpoint IDs + canonical recovery for resolve→execute gap ([af1e3e0](https://github.com/unbrowse-ai/unbrowse-dev/commit/af1e3e0a32f2774208e6b219e97c22275b4117b3))
+
 ## [3.7.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.7.0-preview.0...v3.7.0) (2026-04-10)
 
 ## [3.7.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.6.0...v3.7.0-preview.0) (2026-04-10)
