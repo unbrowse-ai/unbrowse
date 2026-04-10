@@ -593,11 +593,32 @@ function isSemanticallyAdmissibleResponse(
   sampleRequest: Record<string, unknown>,
   context?: ExtractionContext,
 ): { ok: boolean; reason: string } {
-  // GraphQL endpoints always pass the semantic gate: one URL serves many
+  // GraphQL endpoints usually pass the semantic gate: one URL serves many
   // operations, so URL tokens never match entity kinds. Downstream
   // operation-picking (via operationName) handles relevance. Observed
   // false-reject on zillow.com/graphql/ during bench-local runs.
+  //
+  // Exception: if the operation/query identifier itself matches known
+  // noise patterns (global-nav, feed dash, notification, tracking, side
+  // rail), the bypass should NOT apply. These are framework-plumbing
+  // graphql calls that burn quota without returning data the agent cares
+  // about. Example: linkedin voyager/api/graphql?queryId=voyagerFeedDashGlobalNavs.X
   if (/\/graphql(\/|$|\?)/i.test(req.url)) {
+    // Framework-plumbing graphql ops (nav, notifications, feed dash,
+    // side rails, telemetry) burn through the shortlist without giving
+    // the agent anything useful. Reject if the operation/queryId name
+    // matches noise patterns. Checks opName first, then falls back to
+    // scanning the URL/request_body for the same patterns so vendor
+    // conventions like LinkedIn's queryId=voyagerFeedDashGlobalNavs are
+    // caught (queryId isn't an operationName per se).
+    const noiseOpRe = /globalnav|sidenav|navdash|topnav|nav_|notification|notif_|preloadstate|tracking|telemetry|pingback|heartbeat|presence|rightrail|gno_|viewertracking/i;
+    const opName = extractGraphQLOperationName(req.url, req.request_body) ?? "";
+    const opMatchesNoise = !!opName && noiseOpRe.test(opName);
+    const urlMatchesNoise = noiseOpRe.test(req.url);
+    const bodyMatchesNoise = typeof req.request_body === "string" && noiseOpRe.test(req.request_body.slice(0, 500));
+    if (opMatchesNoise || urlMatchesNoise || bodyMatchesNoise) {
+      return { ok: false, reason: "graphql_noise_operation" };
+    }
     return { ok: true, reason: "semantic_graphql_bypass" };
   }
   const kind = inferIntentEntityKind(context?.intent);
