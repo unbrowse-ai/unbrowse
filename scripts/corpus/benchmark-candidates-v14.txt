@@ -1,0 +1,20 @@
+get cppreference|https://en.cppreference.com/w/cpp
+get python docs|https://docs.python.org/3/library/itertools.html
+get go docs|https://pkg.go.dev/net/http
+get rust docs|https://doc.rust-lang.org/std/
+get ruby docs|https://ruby-doc.org/core-3.2.0/
+get java docs|https://docs.oracle.com/en/java/javase/21/docs/api/
+get wiki how|https://www.wikihow.com/Main-Page
+get snopes fact|https://www.snopes.com/fact-check/
+get politifact|https://www.politifact.com/
+get stackoverflow blog|https://stackoverflow.blog/
+get martin fowler|https://martinfowler.com/
+get phpbb forum|https://www.phpbb.com/
+get ruby gems|https://rubygems.org/gems
+get packagist|https://packagist.org/packages/
+get go packages|https://pkg.go.dev/
+get crates io|https://crates.io/crates
+get maven central|https://central.sonatype.com/search?q=spring
+get jupyter docs|https://docs.jupyter.org/en/latest/
+get pandas docs|https://pandas.pydata.org/docs/
+get numpy docs|https://numpy.org/doc/stable/
