@@ -14,7 +14,7 @@ get news story|https://www.bbc.com/news
 get nyt article|https://www.nytimes.com/section/technology
 get reuters story|https://www.reuters.com/world/
 get tiktok trending|https://www.tiktok.com/trending
-get twitch streamer|https://www.twitch.tv/directory
+get twitch directory|https://www.twitch.tv/directory
 get youtube channel|https://www.youtube.com/@MrBeast
 get apple app|https://apps.apple.com/us/app/chatgpt/id6448311069
 get play store app|https://play.google.com/store/apps/details?id=com.openai.chatgpt

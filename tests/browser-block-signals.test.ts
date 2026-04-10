@@ -1,0 +1,110 @@
+// Unit tests for detectBrowserBlockSignals — the signal detector behind
+// browser_block_signals in captured_meta. These lock in every detection
+// rule so the agent/harness can rely on consistent classification.
+
+import { describe, expect, it } from "bun:test";
+import { detectBrowserBlockSignals } from "../src/execution/index.js";
+
+function detect(overrides: Partial<Parameters<typeof detectBrowserBlockSignals>[0]> = {}) {
+  return detectBrowserBlockSignals({
+    requestUrls: [],
+    title: "",
+    htmlLength: 5000,
+    rejectionCounts: {},
+    ...overrides,
+  });
+}
+
+describe("detectBrowserBlockSignals", () => {
+  it("returns empty array for a normal successful capture", () => {
+    expect(detect({
+      requestUrls: ["https://example.com/api/data"],
+      title: "Example Domain",
+      htmlLength: 10000,
+    })).toEqual([]);
+  });
+
+  describe("challenge_title", () => {
+    it("fires on cloudflare just-a-moment", () => {
+      expect(detect({ title: "Just a moment..." })).toContain("challenge_title");
+    });
+    it("fires on attention required", () => {
+      expect(detect({ title: "Attention Required! | Cloudflare" })).toContain("challenge_title");
+    });
+    it("fires on captcha", () => {
+      expect(detect({ title: "Please complete the captcha" })).toContain("challenge_title");
+    });
+    it("does NOT fire on normal page titles", () => {
+      expect(detect({ title: "Home | Example Corp" })).not.toContain("challenge_title");
+    });
+  });
+
+  describe("vendor detection", () => {
+    it("detects cloudflare via challenge URLs", () => {
+      expect(detect({ requestUrls: ["https://challenges.cloudflare.com/turnstile/v0/api.js"] })).toContain("vendor:cloudflare");
+    });
+    it("detects datadome", () => {
+      expect(detect({ requestUrls: ["https://js.datadome.co/tags.js"] })).toContain("vendor:datadome");
+    });
+    it("detects first-party PerimeterX via KP_UIDz= param", () => {
+      expect(detect({ requestUrls: ["https://www.realtor.com/some/path?KP_UIDz=abc123"] })).toContain("vendor:perimeterx");
+    });
+    it("detects first-party PerimeterX via UUID/UUID/ips.js path", () => {
+      expect(detect({
+        requestUrls: ["https://www.example.com/149e9513-01fa-4fb0-aad4-566afd725d1b/2d206a39-8ed7-437e-a3be-862e0f06eea3/ips.js"],
+      })).toContain("vendor:perimeterx");
+    });
+    it("detects imperva via reese84", () => {
+      expect(detect({ requestUrls: ["https://www.example.com/reese84/abc"] })).toContain("vendor:imperva_incapsula");
+    });
+    it("detects reCAPTCHA as captcha_vendor", () => {
+      expect(detect({ requestUrls: ["https://www.google.com/recaptcha/api.js"] })).toContain("vendor:captcha_vendor");
+    });
+    it("emits multiple vendors when multiple hit", () => {
+      const signals = detect({
+        requestUrls: [
+          "https://challenges.cloudflare.com/x",
+          "https://js.datadome.co/y",
+        ],
+      });
+      expect(signals).toContain("vendor:cloudflare");
+      expect(signals).toContain("vendor:datadome");
+    });
+  });
+
+  describe("sparse_capture_mostly_noise", () => {
+    it("fires when ≤20 requests AND ≥60% rejected as noise", () => {
+      expect(detect({
+        requestUrls: Array.from({ length: 5 }, (_, i) => `https://ex.com/${i}`),
+        rejectionCounts: { not_api_like: 3, score_non_positive: 1 },
+      })).toContain("sparse_capture_mostly_noise");
+    });
+    it("does NOT fire when many requests captured (>20)", () => {
+      expect(detect({
+        requestUrls: Array.from({ length: 50 }, (_, i) => `https://ex.com/${i}`),
+        rejectionCounts: { not_api_like: 30 },
+      })).not.toContain("sparse_capture_mostly_noise");
+    });
+    it("does NOT fire when most requests were real data", () => {
+      expect(detect({
+        requestUrls: Array.from({ length: 10 }, (_, i) => `https://ex.com/${i}`),
+        rejectionCounts: { not_api_like: 1 },
+      })).not.toContain("sparse_capture_mostly_noise");
+    });
+  });
+
+  describe("empty_capture vs no_html_many_apis", () => {
+    it("empty_capture fires when no html AND no requests", () => {
+      expect(detect({ htmlLength: 0, requestUrls: [] })).toContain("empty_capture");
+    });
+    it("no_html_many_apis fires when no html but many requests (kuri getPageHtml failed)", () => {
+      const urls = Array.from({ length: 100 }, (_, i) => `https://ex.com/${i}`);
+      expect(detect({ htmlLength: 0, requestUrls: urls })).toContain("no_html_many_apis");
+    });
+    it("neither fires when html is present", () => {
+      const signals = detect({ htmlLength: 10000, requestUrls: ["https://ex.com/1"] });
+      expect(signals).not.toContain("empty_capture");
+      expect(signals).not.toContain("no_html_many_apis");
+    });
+  });
+});
