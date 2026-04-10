@@ -72,6 +72,7 @@ Apply in order (first match wins):
 | `AUTH_GATED` | `error_code == "auth_required"` | Excluded from coverage |
 | `PASS` | `has_available_operations == true && n_operations > 0` | ✓ Pass |
 | `PASS` | `trace_success == true && source == "dom-fallback"` | ✓ Pass |
+| `PASS` | `trace_success == true && source == "direct-fetch"` | ✓ Pass (raw body returned) |
 | `SPARSE_REVIEW` | `browser_block_signals` contains only `sparse_capture_mostly_noise` (no vendor) | Agent judges in-thread |
 | `PRODUCT_FAIL` | anything else | ✗ Fail |
 

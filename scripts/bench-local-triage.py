@@ -52,6 +52,8 @@ def classify(row: dict) -> str:
         return "PASS"
     if trace_ok and src == "dom-fallback":
         return "PASS"
+    if trace_ok and src == "direct-fetch":
+        return "PASS"
     if bs and "sparse_capture_mostly_noise" in bs:
         return "SPARSE_REVIEW"
     return "PRODUCT_FAIL"
