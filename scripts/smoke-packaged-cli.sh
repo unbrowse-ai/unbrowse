@@ -90,10 +90,14 @@ CLI_ENV=(
 
 env "${CLI_ENV[@]}" "$BIN" go "https://example.com" >/tmp/unbrowse-packaged-cli-go.json 2>&1 || BROWSER_AVAILABLE=false
 
+# If go returned a browse error (not ok:true), skip browser checks
+if [[ "$BROWSER_AVAILABLE" == "true" ]] && ! grep -q '"ok":true' /tmp/unbrowse-packaged-cli-go.json; then
+  BROWSER_AVAILABLE=false
+fi
+
 grep -q '"status":"ok"' /tmp/unbrowse-packaged-cli-health.json
 
 if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
-  grep -q '"ok":true' /tmp/unbrowse-packaged-cli-go.json
 
   # Extract session_id for subsequent commands
   SESSION_ID="$(node -p 'JSON.parse(require("fs").readFileSync("/tmp/unbrowse-packaged-cli-go.json","utf-8")).session_id' 2>/dev/null || true)"
