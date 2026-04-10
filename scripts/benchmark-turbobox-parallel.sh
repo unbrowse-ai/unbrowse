@@ -16,6 +16,8 @@
 #
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Register with the Aiko job-state primitive so `peek` can see live progress
 # even when this script is running in the background. job-state lives in the
 # agent-factory primitives so it's available to every project, not unbrowse.
@@ -64,10 +66,23 @@ if [ -z "$VERSIONS" ]; then
   exit 1
 fi
 
-# ── Step 2: Build corpus from live trace history ──
-# Sample top unique (goal, domain) pairs from recent traces.
+# ── Step 2: Build corpus ──
+# Prefer the baseline corpus file (reproducible across runs) unless the
+# --from-traces flag is passed. The baseline is the stable multi-version
+# comparison surface — adding new rows means adding new probe coverage,
+# per the "features extend the benchmark" principle.
 CORPUS_FILE=$(mktemp)
-python3 << PYEOF > "$CORPUS_FILE"
+BASELINE_CORPUS="$SCRIPT_DIR/corpus/benchmark-baseline.txt"
+
+USE_TRACES=false
+for arg in "$@"; do
+  case "$arg" in
+    --from-traces) USE_TRACES=true ;;
+  esac
+done
+
+if [ "$USE_TRACES" = "true" ]; then
+  python3 << PYEOF > "$CORPUS_FILE"
 import glob, json, os
 from collections import Counter
 traces = sorted(glob.glob(os.path.expanduser('~/.unbrowse/traces/*-success-*.json')))[-1000:]
@@ -81,12 +96,19 @@ for f in traces:
         if goal and dom:
             pairs[(goal, dom)] += 1
     except: pass
-# Top N unique pairs by frequency
 for (goal, dom), _ in pairs.most_common($CORPUS_SIZE):
-    # Domain root as URL — canonical recovery on execute will resolve the right endpoint
     url = f'https://{dom}'
     print(f'{goal}|{url}')
 PYEOF
+elif [ -f "$BASELINE_CORPUS" ]; then
+  head -n "$CORPUS_SIZE" "$BASELINE_CORPUS" > "$CORPUS_FILE"
+fi
+
+if [ ! -s "$CORPUS_FILE" ]; then
+  echo "[turbobox-parallel] ✗ corpus is empty (no baseline and no traces)" >&2
+  job_done "$JOB_ID" "failed" "corpus_empty"
+  exit 1
+fi
 
 CORPUS_N=$(wc -l < "$CORPUS_FILE" | tr -d ' ')
 echo "[turbobox-parallel] corpus: $CORPUS_N (goal, url) pairs from live traces"
@@ -128,12 +150,21 @@ spawn_box() {
 exec_in_box() {
   # Background exec + poll. Cloudflare edge cuts sync exec at ~100s so we must
   # use /exec/background and poll the job until it finishes.
+  # Retries the /exec/background POST up to 3 times on 502/empty body.
   local box_id="$1" cmd="$2"
-  local start_resp job_id
-  start_resp=$(curl -s -X POST "$TURBOBOX_URL/v1/boxes/$box_id/exec/background" \
-    -H "Content-Type: text/plain" \
-    --data-binary "$cmd" --max-time 30 2>&1)
-  job_id=$(echo "$start_resp" | python3 -c "import sys,json; print(json.loads(sys.stdin.read(), strict=False).get('job_id',''))" 2>/dev/null)
+  local start_resp job_id attempt=0
+  while [ "$attempt" -lt 3 ]; do
+    attempt=$((attempt+1))
+    start_resp=$(curl -s -X POST "$TURBOBOX_URL/v1/boxes/$box_id/exec/background" \
+      -H "Content-Type: text/plain" \
+      --data-binary "$cmd" --max-time 30 2>&1)
+    job_id=$(echo "$start_resp" | python3 -c "import sys,json; print(json.loads(sys.stdin.read(), strict=False).get('job_id',''))" 2>/dev/null)
+    if [ -n "$job_id" ]; then
+      break
+    fi
+    echo "[exec_in_box] attempt $attempt: no job_id (resp head: $(echo "$start_resp" | head -c 120))" >&2
+    sleep 1
+  done
   if [ -z "$job_id" ]; then
     echo "$start_resp"
     return 1
