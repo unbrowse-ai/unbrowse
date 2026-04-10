@@ -1,0 +1,70 @@
+{
+  "artifact": ".bench-evidence/agent-xp-preview2.json",
+  "total_tasks": 10,
+  "required_total": 7,
+  "required_passed": 7,
+  "required_failed": 0,
+  "gate_pass": true,
+  "verdicts": [
+    {
+      "task": "system_before",
+      "required": false,
+      "verdict": "skip",
+      "reason": "diagnostic"
+    },
+    {
+      "task": "version",
+      "required": true,
+      "verdict": "pass",
+      "reason": "3.8.0-preview.2"
+    },
+    {
+      "task": "onboarding",
+      "required": true,
+      "verdict": "pass",
+      "reason": "binary_on_path, config, api_key all set"
+    },
+    {
+      "task": "onboarding_agentmail",
+      "required": false,
+      "verdict": "fail",
+      "reason": "error=AGENTMAIL_API_KEY not set"
+    },
+    {
+      "task": "health",
+      "required": true,
+      "verdict": "pass",
+      "reason": "status ok v=3.8.0-preview.2"
+    },
+    {
+      "task": "resolve_pypi_flask",
+      "required": true,
+      "verdict": "pass",
+      "reason": "2 operations returned"
+    },
+    {
+      "task": "execute_pypi_flask",
+      "required": true,
+      "verdict": "pass",
+      "reason": "result has 6 keys"
+    },
+    {
+      "task": "execute_npm_search",
+      "required": true,
+      "verdict": "pass",
+      "reason": "result has 3 keys"
+    },
+    {
+      "task": "feedback",
+      "required": true,
+      "verdict": "pass",
+      "reason": "ok:true"
+    },
+    {
+      "task": "system_after",
+      "required": false,
+      "verdict": "skip",
+      "reason": "diagnostic"
+    }
+  ]
+}
