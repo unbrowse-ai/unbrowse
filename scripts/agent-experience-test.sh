@@ -31,16 +31,22 @@ RESULTS_FILE="/tmp/agent-xp-results.json"
 echo '{"tasks":[]}' > "$RESULTS_FILE"
 
 # Strip unbrowse log lines like [domain-cache], [route-cache], [unbrowse] and
-# capture-pipeline noise, leaving only JSON payload. The CLI mixes logs into
-# stdout, so we filter to lines starting with { or [.
+# capture-pipeline noise, leaving only JSON payload. The CLI mixes logs with
+# JSON on stdout. JSON can be single-line or pretty-printed multi-line.
 strip_logs() {
   python3 -c "
-import sys
-lines = sys.stdin.read().split(chr(10))
-json_lines = [l for l in lines if l.strip().startswith(('{', '['))]
-# Prefer the longest line (usually the JSON body)
-if json_lines:
-    print(max(json_lines, key=len))
+import sys, json
+raw = sys.stdin.read()
+decoder = json.JSONDecoder()
+# Find first { or [ and decode greedy JSON from there
+for i, ch in enumerate(raw):
+    if ch in '{[':
+        try:
+            obj, _ = decoder.raw_decode(raw[i:])
+            print(json.dumps(obj))
+            sys.exit(0)
+        except json.JSONDecodeError:
+            continue
 " 2>/dev/null
 }
 
