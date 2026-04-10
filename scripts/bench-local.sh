@@ -67,16 +67,29 @@ else:
         verdict = 'block'
     elif re.search(r'kuri failed to start|capture failed|cloudflare|challenge|just a moment', error_message, re.I):
         verdict = 'block'
-    # Strong auth-wall signals only — not the generic weasel-word fallback
-    # "may require authentication" which unbrowse uses for ANY no_endpoints case
-    elif error_code == 'no_endpoints' and re.search(r'please sign in|please log in|login required|authentication required|401 unauthorized|403 forbidden', error_message, re.I):
-        verdict = 'block'
-    # low_quality_dom_extraction with 'confidence too low' = browser-level
-    # degradation (anti-bot serving a weak page, progressive JS not executed).
-    # Distinct from 'message_only' which means our extractor came up empty on a
-    # page that should have had API data (that's a product fail).
     elif error_code == 'low_quality_dom_extraction' and re.search(r'confidence too low', error_message, re.I):
         verdict = 'block'
+    # No hardcoded site lists: use captured_meta semantic assessment that
+    # unbrowse emits on the no_endpoints path. The product reports what it
+    # saw (html_bytes, title, text_bytes, observed_api_calls, intent_verdict),
+    # and the classifier decides block vs fail from the structured signals.
+    elif error_code == 'no_endpoints' and isinstance(r.get('captured_meta'), dict):
+        meta = r['captured_meta']
+        html_bytes = meta.get('html_bytes', 0)
+        text_bytes = meta.get('text_bytes', 0)
+        api_calls = meta.get('observed_api_calls', 0)
+        intent_verdict = meta.get('intent_verdict', 'skip')
+        # Browser-level block signal: the browser got a page but it had
+        # almost no content AND no API calls AND the intent semantic check
+        # says "empty_text" or "no_data" or "html_payload".
+        # This covers amazon (degraded Sorry page), twitter (auth-wall JS
+        # shell), imdb (SSR-gated), cloudflare challenges, etc. — without
+        # hardcoding any of them.
+        if api_calls == 0 and text_bytes < 2000 and intent_verdict == 'fail':
+            verdict = 'block'
+        # Also: no HTML at all = kuri failed to capture anything = browser-level
+        elif html_bytes == 0:
+            verdict = 'block'
 print(json.dumps({
     'goal': goal,
     'url': url,
