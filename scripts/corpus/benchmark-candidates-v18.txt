@@ -1,0 +1,20 @@
+get hunter io|https://hunter.io/search
+get clearbit enrichment|https://clearbit.com/
+get zerobounce|https://www.zerobounce.net/
+get semrush docs|https://www.semrush.com/kb/
+get mozbar guide|https://moz.com/learn/seo
+get backlinko guide|https://backlinko.com/hub/seo
+get neil patel|https://neilpatel.com/blog/
+get ahrefs blog|https://ahrefs.com/blog
+get searchengineland|https://searchengineland.com/
+get serpstat blog|https://serpstat.com/blog/
+get openreview paper|https://openreview.net/forum?id=EWGGZqBFL7
+get paperswithcode|https://paperswithcode.com/sota
+get connectedpapers|https://www.connectedpapers.com/
+get scholar papers|https://academic.microsoft.com/home
+get duckdb docs|https://duckdb.org/docs/
+get sqlite docs|https://www.sqlite.org/docs.html
+get postgres docs|https://www.postgresql.org/docs/current/
+get mongodb docs|https://www.mongodb.com/docs/
+get redis docs|https://redis.io/docs/
+get elastic docs|https://www.elastic.co/guide/index.html
