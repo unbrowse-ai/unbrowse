@@ -49,6 +49,12 @@ describe("detectBrowserBlockSignals", () => {
     it("fires on 'Page not found'", () => {
       expect(detect({ title: "Page Not Found" })).toContain("challenge_title");
     });
+    it("fires on 'error 404 - this page does not exist' (workable pattern)", () => {
+      expect(detect({ title: "Error 404 - This page does not exist" })).toContain("challenge_title");
+    });
+    it("fires on 'This page can't be found'", () => {
+      expect(detect({ title: "This page can't be found" })).toContain("challenge_title");
+    });
     it("does NOT fire on normal page titles", () => {
       expect(detect({ title: "Home | Example Corp" })).not.toContain("challenge_title");
     });
