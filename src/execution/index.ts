@@ -18,6 +18,12 @@ import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
+
+function stableEndpointId(method: string, urlTemplate: string): string {
+  if (!method || !urlTemplate) return nanoid();
+  return createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url").slice(0, 21);
+}
+import { createHash } from "node:crypto";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
@@ -771,10 +777,11 @@ export function buildPageArtifactCapture(
   const validSearchForm = searchForms.find((spec: SearchFormSpec) => isStructuredSearchForm(spec));
 
   const response_schema = inferSchema([extracted.data]);
+  const computedTemplate = templatizeQueryParams(url);
   const endpoint: EndpointDescriptor = {
-    endpoint_id: nanoid(),
+    endpoint_id: stableEndpointId("GET", computedTemplate),
     method: "GET",
-    url_template: templatizeQueryParams(url),
+    url_template: computedTemplate,
     idempotency: "safe" as const,
     verification_status: "verified" as const,
     reliability_score: extracted.confidence,
@@ -1409,7 +1416,7 @@ async function executeBrowserCapture(
       }
 
       endpoints.push({
-        endpoint_id: nanoid(),
+        endpoint_id: stableEndpointId("GET", epUrl),
         method: "GET",
         url_template: epUrl,
         query: epQuery,

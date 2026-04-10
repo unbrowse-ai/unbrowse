@@ -1,4 +1,10 @@
 import { nanoid } from "nanoid";
+import { createHash } from "node:crypto";
+
+function stableEndpointId(method: string, urlTemplate: string): string {
+  if (!method || !urlTemplate) return nanoid();
+  return createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url").slice(0, 21);
+}
 import { readFileSync } from "node:fs";
 import { log } from "../logger.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
@@ -279,7 +285,7 @@ export async function cacheBrowseRequests(params: {
 
     const urlTemplate = templatizeQueryParams(sessionUrl);
     const endpoint: EndpointDescriptor = {
-      endpoint_id: nanoid(),
+      endpoint_id: stableEndpointId("GET", urlTemplate),
       method: "GET",
       url_template: urlTemplate,
       idempotency: "safe",
