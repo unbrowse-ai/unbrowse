@@ -105,6 +105,8 @@ row = {
     'captured_intent_reason': (meta or {}).get('intent_reason','') if isinstance(meta, dict) else '',
     'filter_rejections': json.dumps((meta or {}).get('filter_rejections', {}), sort_keys=True) if isinstance(meta, dict) else '',
     'browser_block_signals': json.dumps((meta or {}).get('browser_block_signals', []), sort_keys=True) if isinstance(meta, dict) else '',
+    'capture_diagnostic': r.get('capture_diagnostic', '') if isinstance(r, dict) else '',
+    'total_endpoints_captured': r.get('total_endpoints_captured', '') if isinstance(r, dict) else '',
 }
 print(json.dumps(row))
 PY
