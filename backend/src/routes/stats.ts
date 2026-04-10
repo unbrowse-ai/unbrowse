@@ -320,6 +320,7 @@ statsRoutes.get("/stats/fees", bearerAuth, async (c) => {
 // GET /v1/stats/fees/:agentId — per-agent fee ledger (admin)
 statsRoutes.get("/stats/fees/:agentId", bearerAuth, async (c) => {
   const agentId = c.req.param("agentId");
+  if (!agentId) return c.json({ error: "agentId required" }, 400);
   try {
     const ledger = await getAgentFeeLedger(c.env, agentId);
     if (!ledger) return c.json({ error: "no fee records for agent" }, 404);
@@ -344,6 +345,7 @@ statsRoutes.get("/stats/attribution", bearerAuth, async (c) => {
 // GET /v1/stats/attribution/:indexerId — per-indexer attribution ledger (admin)
 statsRoutes.get("/stats/attribution/:indexerId", bearerAuth, async (c) => {
   const indexerId = c.req.param("indexerId");
+  if (!indexerId) return c.json({ error: "indexerId required" }, 400);
   try {
     const ledger = await getIndexerLedger(c.env, indexerId);
     if (!ledger) return c.json({ error: "no attribution records for indexer" }, 404);

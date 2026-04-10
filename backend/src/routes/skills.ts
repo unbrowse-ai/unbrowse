@@ -241,6 +241,7 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
 // PATCH /v1/skills/:id -- update skill metadata (e.g. base_price_usd)
 skillRoutes.patch("/skills/:id", bearerAuth, requireSignedClient, async (c) => {
   const skillId = c.req.param("id");
+  if (!skillId) return c.json({ error: "skill id required" }, 400);
   const body = await c.req.json<{ base_price_usd?: number; split_config?: string | null }>();
 
   const skill = await getSkill(c.env, skillId);
@@ -271,12 +272,15 @@ skillRoutes.patch("/skills/:id", bearerAuth, requireSignedClient, async (c) => {
 
 // PATCH /v1/skills/:id/endpoints/:eid -- update endpoint score/status/schema
 skillRoutes.patch("/skills/:id/endpoints/:eid", bearerAuth, requireSignedClient, async (c) => {
+  const skillId = c.req.param("id");
+  const endpointId = c.req.param("eid");
+  if (!skillId || !endpointId) return c.json({ error: "skill and endpoint ids required" }, 400);
   const { score, status, response_schema } = await c.req.json<{ score?: number; status?: string; response_schema?: import("../types.js").ResponseSchema }>();
   if (score != null || status) {
-    await updateEndpointScore(c.env, c.req.param("id"), c.req.param("eid"), score ?? 0, status as any);
+    await updateEndpointScore(c.env, skillId, endpointId, score ?? 0, status as any);
   }
   if (response_schema) {
-    await updateEndpointSchema(c.env, c.req.param("id"), c.req.param("eid"), response_schema);
+    await updateEndpointSchema(c.env, skillId, endpointId, response_schema);
   }
   return c.json({ ok: true });
 });
@@ -287,9 +291,12 @@ skillRoutes.post("/skills/:id/endpoints/:eid/annotate", bearerAuth, async (c) =>
     constraints?: Array<{ param: string; rule: string; message: string }>;
     annotations?: Array<{ text: string }>;
   }>();
-  const skill = await getSkill(c.env, c.req.param("id"));
+  const skillId = c.req.param("id");
+  const endpointId = c.req.param("eid");
+  if (!skillId || !endpointId) return c.json({ error: "skill and endpoint ids required" }, 400);
+  const skill = await getSkill(c.env, skillId);
   if (!skill) return c.json({ error: "Skill not found" }, 404);
-  const endpoint = skill.endpoints.find((e) => e.endpoint_id === c.req.param("eid"));
+  const endpoint = skill.endpoints.find((e) => e.endpoint_id === endpointId);
   if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
   const agentId = c.get("agent_id");

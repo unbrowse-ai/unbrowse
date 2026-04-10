@@ -56,6 +56,7 @@ graphRoutes.get("/graph/predict/:domain", bearerAuth, requireSignedClient, async
   const domain = c.req.param("domain");
   const from = c.req.query("from");
   const k = parseInt(c.req.query("k") ?? "5", 10);
+  if (!domain) return c.json({ error: "domain path param required" }, 400);
   if (!from) return c.json({ error: "from query param required" }, 400);
   try {
     const agentId = c.get("agent_id");
