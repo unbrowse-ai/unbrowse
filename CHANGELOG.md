@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.8.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.0...v3.8.0-preview.1) (2026-04-11)
+
+### Fixes
+
+* smoke cleanup SIGKILLs orphan bun server with timeout ([5ee2310](https://github.com/unbrowse-ai/unbrowse-dev/commit/5ee231047bca48008fa4bf721f76ceefbb9d91d0))
+* backend: restore typecheck after cooked merge ([0b4e8a9](https://github.com/unbrowse-ai/unbrowse-dev/commit/0b4e8a9559f93a8ec1fa6a164538d71c1778b292))
+
+### Features
+
+* coverage delta auto-appended to release notes ([728d98a](https://github.com/unbrowse-ai/unbrowse-dev/commit/728d98a9ba3e0d79d9fa3368d7d0712110e11ccd))
+
 ## [3.8.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.7.1...v3.8.0-preview.0) (2026-04-10)
 
 ### Features
