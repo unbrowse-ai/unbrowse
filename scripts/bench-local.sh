@@ -11,6 +11,10 @@
 #   bash scripts/bench-local.sh --corpus-file F      # override
 set -uo pipefail
 
+# Ensure unbrowse is on PATH — non-login SSH shells don't source .zshrc/.bashrc
+# so the npm-global bin is missing. Without this the whole bench is a no-op.
+export PATH="$HOME/.npm-global/bin:/opt/nanobrew/prefix/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+
 CORPUS="scripts/corpus/benchmark-baseline.txt"
 OFFSET=0
 SIZE=0
