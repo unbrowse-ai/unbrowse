@@ -45,7 +45,18 @@ def classify(row: dict) -> str:
         except Exception:
             bs = str(bs_raw)
 
-    if bs and ("vendor:" in bs or "challenge_title" in bs or "no_html_many_apis" in bs or "low_capture" in bs or "empty_capture" in bs):
+    REAL_BLOCK_VENDORS = ("vendor:cloudflare", "vendor:perimeterx", "vendor:datadome",
+                          "vendor:akamai_bot_manager", "vendor:imperva_incapsula",
+                          "vendor:shape_security", "vendor:kasada")
+    has_real_vendor = bs and any(v in bs for v in REAL_BLOCK_VENDORS)
+    if bs and ("challenge_title" in bs or "no_html_many_apis" in bs or "low_capture" in bs or "empty_capture" in bs or has_real_vendor):
+        return "BROWSER_BLOCK"
+    # captcha_vendor alone + thin text → still block
+    try:
+        text_bytes_for_cv = int(row.get("captured_text_bytes") or 0)
+    except (ValueError, TypeError):
+        text_bytes_for_cv = 0
+    if bs and "vendor:captcha_vendor" in bs and text_bytes_for_cv < 2000:
         return "BROWSER_BLOCK"
     diag = row.get("capture_diagnostic") or ""
     if diag in ("no_endpoints_extracted", "all_endpoints_filtered_by_noise_rules"):
@@ -81,7 +92,14 @@ def classify(row: dict) -> str:
     except (ValueError, TypeError):
         text_bytes = 0
     intent_verdict = row.get("captured_intent_verdict") or ""
-    hard_block = bs and any(s in bs for s in ("vendor:", "challenge_title", "no_html_many_apis", "low_capture", "empty_capture"))
+    # captcha_vendor is often included defensively without blocking
+    # (e.g. reCAPTCHA script present but page content loaded fine).
+    # Other vendors (cloudflare/perimeterx/datadome/etc) actively block.
+    REAL_BLOCK_VENDORS = ("vendor:cloudflare", "vendor:perimeterx", "vendor:datadome",
+                          "vendor:akamai_bot_manager", "vendor:imperva_incapsula",
+                          "vendor:shape_security", "vendor:kasada")
+    hard_block = bs and (any(s in bs for s in ("challenge_title", "no_html_many_apis", "low_capture", "empty_capture"))
+                          or any(v in bs for v in REAL_BLOCK_VENDORS))
     if not has_ops and not hard_block and text_bytes >= 2000 and intent_verdict != "fail":
         return "PASS"
     if bs and "sparse_capture_mostly_noise" in bs:

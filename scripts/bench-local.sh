@@ -232,7 +232,19 @@ for r in rows:
     # no_html_many_apis is a kuri-layer capture failure (getPageHtml
     # returned empty despite network firing); same effect as block.
     diag = r.get('capture_diagnostic', '') or ''
-    if bs and bs != '[]' and ('vendor:' in bs or 'challenge_title' in bs or 'no_html_many_apis' in bs or 'low_capture' in bs or 'empty_capture' in bs):
+    text_bytes = int(r.get('captured_text_bytes') or 0)
+    real_vendors = ('vendor:cloudflare', 'vendor:perimeterx', 'vendor:datadome',
+                    'vendor:akamai_bot_manager', 'vendor:imperva_incapsula',
+                    'vendor:shape_security', 'vendor:kasada')
+    has_real_vendor = bs and any(v in bs for v in real_vendors)
+    has_captcha_only = bs and 'vendor:captcha_vendor' in bs and not has_real_vendor
+    # Hard block: real interception vendor, explicit challenge title,
+    # or capture-layer failure. captcha_vendor alone doesn't qualify
+    # if rich text was captured (defensive script inclusion).
+    if bs and bs != '[]' and ('challenge_title' in bs or 'no_html_many_apis' in bs or 'low_capture' in bs or 'empty_capture' in bs or has_real_vendor):
+        buckets['BROWSER_BLOCK'].append(r['url'])
+    elif has_captcha_only and text_bytes < 2000:
+        # captcha vendor + no rich content → still a block
         buckets['BROWSER_BLOCK'].append(r['url'])
     elif diag in ('no_endpoints_extracted', 'all_endpoints_filtered_by_noise_rules'):
         # capture_diagnostic signals the browser ran but extraction/ranking
@@ -272,14 +284,18 @@ for r in rows:
         # here. Count as PASS for coverage purposes — the product
         # gave a valid response, just not extracted endpoints.
         buckets['PASS'].append(r['url'])
-    elif not has_ops and int(r.get('captured_text_bytes') or 0) >= 2000 and (r.get('captured_intent_verdict') or '') != 'fail' and not ('vendor:' in bs or 'challenge_title' in bs or 'no_html_many_apis' in bs or 'low_capture' in bs or 'empty_capture' in bs):
-        # Rich HTML content available. No HARD block signal (vendor/
-        # challenge/no_html/low/empty) AND no intent-mismatch verdict.
-        # Note: sparse_capture_mostly_noise is OK here — it just means
-        # the API capture was noisy, not that the HTML is missing.
-        # Observed on cheat.sh/tar: html=569KB, text=3.6KB, 9 api calls,
-        # sparse_capture signal. The page IS the data; the agent can
-        # read it directly.
+    elif not has_ops and int(r.get('captured_text_bytes') or 0) >= 2000 and (r.get('captured_intent_verdict') or '') != 'fail' and not ('challenge_title' in bs or 'no_html_many_apis' in bs or 'low_capture' in bs or 'empty_capture' in bs or any(v in bs for v in ('vendor:cloudflare', 'vendor:perimeterx', 'vendor:datadome', 'vendor:akamai_bot_manager', 'vendor:imperva_incapsula', 'vendor:shape_security', 'vendor:kasada'))):
+        # Rich HTML content available. No HARD block signal:
+        # - challenge_title (direct block page)
+        # - no_html_many_apis / low_capture / empty_capture (no content)
+        # - real interception vendors (cf/px/dd/akamai/imperva/shape/kasada)
+        # vendor:captcha_vendor is OK here — captcha scripts are often
+        # included defensively (reCAPTCHA/hCaptcha for forms) without
+        # blocking the main content. Observed on investopedia (10957 text
+        # bytes) and accuweather (5494 text bytes) both flagged captcha
+        # vendor but content was complete.
+        # sparse_capture_mostly_noise is also OK — noisy API captures
+        # don't preclude rich HTML content (e.g. cheat.sh/tar).
         buckets['PASS'].append(r['url'])
     elif bs and 'sparse_capture_mostly_noise' in bs:
         # Ambiguous — could be browser-level, could be product. Agent decides.
