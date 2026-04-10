@@ -210,7 +210,13 @@ for r in rows:
     # Browser-block takes precedence — the product never had a chance.
     # no_html_many_apis is a kuri-layer capture failure (getPageHtml
     # returned empty despite network firing); same effect as block.
+    diag = r.get('capture_diagnostic', '') or ''
     if bs and bs != '[]' and ('vendor:' in bs or 'challenge_title' in bs or 'no_html_many_apis' in bs):
+        buckets['BROWSER_BLOCK'].append(r['url'])
+    elif diag in ('no_endpoints_extracted', 'all_endpoints_filtered_by_noise_rules'):
+        # capture_diagnostic signals the browser ran but extraction/ranking
+        # yielded nothing usable — effectively a block from the agent's
+        # perspective. Same bucket as vendor-classified block.
         buckets['BROWSER_BLOCK'].append(r['url'])
     elif err == 'auth_required':
         buckets['AUTH_GATED'].append(r['url'])
