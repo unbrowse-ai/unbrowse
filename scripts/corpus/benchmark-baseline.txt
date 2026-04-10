@@ -260,3 +260,16 @@ get maven component|https://central.sonatype.com/artifact/org.springframework/sp
 get jupyter docs|https://docs.jupyter.org/en/latest/
 get pandas docs|https://pandas.pydata.org/docs/
 get numpy docs|https://numpy.org/doc/stable/
+get archive org|https://archive.org/details/texts
+get standard ebooks|https://standardebooks.org/ebooks
+get nitter|https://nitter.net/jack
+get invidious|https://inv.nadeko.net/
+get teddit|https://teddit.net/
+get privatebin|https://privatebin.net/
+get cryptpad|https://cryptpad.fr/
+get element chat|https://app.element.io/
+get matrix rooms|https://matrix.org/ecosystem/clients/
+get mastodon instance|https://mastodon.social/explore
+get lemmy community|https://lemmy.ml/communities
+get wiktionary page|https://en.wiktionary.org/wiki/example
+get metafilter post|https://www.metafilter.com/

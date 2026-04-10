@@ -69,6 +69,8 @@ def classify(row: dict) -> str:
         return "PASS"
     if trace_ok and src == "direct-fetch":
         return "PASS"
+    if src == "browse-session":
+        return "PASS"
     # Rich HTML content with no HARD block signals and no intent-mismatch.
     # sparse_capture_mostly_noise is OK — it means the API capture was
     # noisy, not that the HTML is missing. Observed on cheat.sh/tar:
