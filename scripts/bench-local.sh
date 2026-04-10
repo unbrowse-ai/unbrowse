@@ -30,8 +30,10 @@ OUT_DIR=".bench-local"
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
-# Classifier + per-URL record builder in one script
-cat > "$OUT_DIR/classify.py" <<'PY'
+# Per-URL evidence extractor. No verdict column — agent-in-thread judges
+# by reading the CSV. The harness only extracts and presents signals that
+# would inform the judgment.
+cat > "$OUT_DIR/extract.py" <<'PY'
 import sys, json, re
 out_path = sys.argv[1]
 goal = sys.argv[2]
@@ -47,60 +49,28 @@ for m in re.finditer(r'\{"(?:trace|result|error|skill_id)"', raw):
 r = d.get('result', {}) if isinstance(d, dict) else {}
 trace = d.get('trace', {}) if isinstance(d, dict) else {}
 source = d.get('source', '') if isinstance(d, dict) else ''
-verdict = 'fail'
-error_code = ''
-error_message = ''
-# PASS signals:
-#   a) resolve returned available_operations/available_endpoints for agent to pick
-#   b) direct-fetch short-circuit: trace.success == true with source == "direct-fetch"
-#      and a non-error result (raw data, no explicit error field)
-if isinstance(r, dict) and (r.get('available_operations') or r.get('available_endpoints')):
-    verdict = 'pass'
-elif (source == 'direct-fetch' or trace.get('skill_id') == 'direct-fetch') and trace.get('success') is True and not (isinstance(r, dict) and r.get('error')):
-    verdict = 'pass'
-else:
-    # Extract error for classification
-    error_code = r.get('error','') if isinstance(r, dict) else (d.get('error','') if isinstance(d, dict) else '')
-    error_message = r.get('message','') if isinstance(r, dict) else ''
-    BLOCK_ERRORS = {'auth_required','capture_failed','kuri_crash','connection_failed','browser_block'}
-    if error_code in BLOCK_ERRORS:
-        verdict = 'block'
-    elif re.search(r'kuri failed to start|capture failed|cloudflare|challenge|just a moment', error_message, re.I):
-        verdict = 'block'
-    elif error_code == 'low_quality_dom_extraction' and re.search(r'confidence too low', error_message, re.I):
-        verdict = 'block'
-    # No hardcoded site lists: use captured_meta semantic assessment that
-    # unbrowse emits on the no_endpoints path. The product reports what it
-    # saw (html_bytes, title, text_bytes, observed_api_calls, intent_verdict),
-    # and the classifier decides block vs fail from the structured signals.
-    elif error_code == 'no_endpoints' and isinstance(r.get('captured_meta'), dict):
-        meta = r['captured_meta']
-        html_bytes = meta.get('html_bytes', 0)
-        text_bytes = meta.get('text_bytes', 0)
-        api_calls = meta.get('observed_api_calls', 0)
-        intent_verdict = meta.get('intent_verdict', 'skip')
-        # Browser-level block signals — all generic, no site names:
-        #
-        # 1. No HTML at all — kuri couldn't capture anything
-        # 2. <500 bytes of visible text after stripping script/style — no real
-        #    content page has that little text. Tracking beacons and dormant
-        #    scripts don't count as content. amazon's degraded "Sorry!" page
-        #    fires analytics pings but has ~28 bytes of real text.
-        # 3. intent_verdict == "fail" with low text — semantic check rejected
-        #    the page AND the page is small → the browser got a decoy
-        if html_bytes == 0:
-            verdict = 'block'
-        elif text_bytes < 500:
-            verdict = 'block'
-        elif text_bytes < 2000 and intent_verdict == 'fail':
-            verdict = 'block'
-print(json.dumps({
+meta = r.get('captured_meta') if isinstance(r, dict) else None
+
+# Pure evidence extraction — every field the agent needs to judge in-thread.
+# No classification, no verdict, no threshold checks.
+row = {
     'goal': goal,
     'url': url,
-    'verdict': verdict,
-    'error_code': error_code,
-    'error_message': error_message[:500],
-}))
+    'source': source,                              # '', 'direct-fetch', 'live-capture', 'marketplace', 'cache'
+    'trace_success': trace.get('success') if isinstance(trace, dict) else None,
+    'trace_skill_id': trace.get('skill_id') if isinstance(trace, dict) else '',
+    'has_available_operations': bool(isinstance(r, dict) and (r.get('available_operations') or r.get('available_endpoints'))),
+    'n_operations': len(r.get('available_operations') or r.get('available_endpoints') or []) if isinstance(r, dict) else 0,
+    'error_code': r.get('error','') if isinstance(r, dict) else (d.get('error','') if isinstance(d, dict) else ''),
+    'error_message': (r.get('message','') if isinstance(r, dict) else '')[:300],
+    'captured_html_bytes': (meta or {}).get('html_bytes','') if isinstance(meta, dict) else '',
+    'captured_text_bytes': (meta or {}).get('text_bytes','') if isinstance(meta, dict) else '',
+    'captured_title': ((meta or {}).get('title','') if isinstance(meta, dict) else '')[:100],
+    'captured_api_calls': (meta or {}).get('observed_api_calls','') if isinstance(meta, dict) else '',
+    'captured_intent_verdict': (meta or {}).get('intent_verdict','') if isinstance(meta, dict) else '',
+    'captured_intent_reason': (meta or {}).get('intent_reason','') if isinstance(meta, dict) else '',
+}
+print(json.dumps(row))
 PY
 
 if [ ! -f "$CORPUS" ]; then
@@ -130,40 +100,46 @@ while IFS='|' read -r goal url; do
   out_file="$OUT_DIR/${i}_${slug:0:60}.out"
   echo "[bench-local] ($i/$N) $url" >&2
   timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" </dev/null > "$out_file" 2>&1 || true
-  record=$(python3 "$OUT_DIR/classify.py" "$out_file" "$goal" "$url")
-  verdict=$(printf '%s' "$record" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['verdict'])")
-  echo "[bench-local]   → $verdict" >&2
+  record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url")
   echo "$record" >> "$OUT_DIR/results.jsonl"
+  # Show a compact one-line evidence summary for the agent watching the run.
+  # No pass/fail/block verdict — the agent reads results.jsonl / .csv at the end.
+  printf '%s' "$record" | python3 -c "
+import sys, json
+d = json.loads(sys.stdin.read())
+parts = []
+if d.get('has_available_operations'): parts.append(f\"ops={d['n_operations']}\")
+if d.get('source'): parts.append(f\"src={d['source']}\")
+if d.get('error_code'): parts.append(f\"err={d['error_code']}\")
+if d.get('captured_html_bytes') != '': parts.append(f\"html={d['captured_html_bytes']}\")
+if d.get('captured_text_bytes') != '': parts.append(f\"text={d['captured_text_bytes']}\")
+if d.get('captured_api_calls') != '': parts.append(f\"apis={d['captured_api_calls']}\")
+if d.get('captured_title'): parts.append(f\"title={d['captured_title'][:40]!r}\")
+print('  ' + ' | '.join(parts), file=sys.stderr)
+"
   pkill -9 -f 'unbrowse|kuri' 2>/dev/null || true
   sleep 0.3
 done < "$SLICE"
 
 rm -f "$SLICE"
 
-# Aggregate
+# Render the evidence CSV the agent will read. No verdict, no rate, no gate.
 python3 - "$OUT_DIR/results.jsonl" <<'PY'
-import sys, json
+import sys, json, csv
 rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
-p = sum(1 for r in rows if r['verdict']=='pass')
-f = sum(1 for r in rows if r['verdict']=='fail')
-b = sum(1 for r in rows if r['verdict']=='block')
-u = sum(1 for r in rows if r['verdict']=='upstream')
-rate = round(100*p/(p+f), 1) if (p+f) > 0 else 0
-summary = {
-    'total': len(rows),
-    'pass': p,
-    'fail': f,
-    'block': b,
-    'upstream': u,
-    'product_success_rate': rate,
-    'per_url': rows,
-}
-json.dump(summary, open('.bench-local/summary.json', 'w'), indent=2)
-print(json.dumps(summary, indent=2))
-print(f"\n[bench-local] pass={p} fail={f} block={b} upstream={u} rate={rate}%", file=sys.stderr)
-if f > 0:
-    print("[bench-local] PRODUCT FAILS:", file=sys.stderr)
+if not rows:
+    print("[bench-local] no rows collected", file=sys.stderr)
+    sys.exit(0)
+fieldnames = list(rows[0].keys())
+with open('.bench-local/evidence.csv', 'w', newline='') as f:
+    w = csv.DictWriter(f, fieldnames=fieldnames)
+    w.writeheader()
     for r in rows:
-        if r['verdict'] == 'fail':
-            print(f"  ✗ {r['url']}  {r['error_code']} — {r['error_message'][:80]}", file=sys.stderr)
+        w.writerow(r)
+# Dump the JSONL back out as the agent-consumable artifact.
+print(json.dumps({'rows': rows, 'count': len(rows)}, indent=2))
+print(f"\n[bench-local] wrote {len(rows)} rows to .bench-local/evidence.csv", file=sys.stderr)
+print("[bench-local] per-URL raw outputs in .bench-local/*.out", file=sys.stderr)
+print("[bench-local] results.jsonl has the same rows in JSON Lines format", file=sys.stderr)
+print("[bench-local] — agent reads the artifacts and judges in-thread. harness does not classify.", file=sys.stderr)
 PY
