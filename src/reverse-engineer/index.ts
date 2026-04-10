@@ -611,7 +611,12 @@ function isSemanticallyAdmissibleResponse(
     // scanning the URL/request_body for the same patterns so vendor
     // conventions like LinkedIn's queryId=voyagerFeedDashGlobalNavs are
     // caught (queryId isn't an operationName per se).
-    const noiseOpRe = /globalnav|sidenav|navdash|topnav|nav_|notification|notif_|preloadstate|tracking|telemetry|pingback|heartbeat|presence|rightrail|gno_|viewertracking/i;
+    // `metadata` as a graphql op = framework plumbing on linkedin voyager
+    // (companyMetadata, profileMetadata, viewerMetadata). These return
+    // tracking ids + navigation context, not the data the agent cares about.
+    // Only applies to /graphql/ URLs — regular /metadata/ REST endpoints
+    // (e.g. video metadata) are untouched.
+    const noiseOpRe = /globalnav|sidenav|navdash|topnav|nav_|notification|notif_|preloadstate|tracking|telemetry|pingback|heartbeat|presence|rightrail|gno_|viewertracking|metadata$|\bmetadata\b/i;
     const opName = extractGraphQLOperationName(req.url, req.request_body) ?? "";
     const opMatchesNoise = !!opName && noiseOpRe.test(opName);
     const urlMatchesNoise = noiseOpRe.test(req.url);
