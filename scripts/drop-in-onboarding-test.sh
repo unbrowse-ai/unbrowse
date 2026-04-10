@@ -68,9 +68,23 @@ record "wipe" "PASS" "clean slate confirmed"
 # ── Step 1: install from npm (no skill, no config) ──
 export PATH="$HOME/.npm-global/bin:/usr/local/bin:$PATH"
 INSTALL_LOG=$(mktemp)
+npm cache clean --force 2>/dev/null || true
 if npm install -g unbrowse@preview > "$INSTALL_LOG" 2>&1; then
-  version=$("$NPM_BIN/unbrowse" --version 2>/dev/null || echo "not found")
-  record "npm_install" "PASS" "installed $version"
+  # Verify: the binary symlink resolves AND points to the installed package version
+  cli_version=$("$NPM_BIN/unbrowse" --version 2>/dev/null || echo "not found")
+  pkg_version=$(python3 -c "
+import json, os
+p = os.path.expanduser('~/.npm-global/lib/node_modules/unbrowse/package.json')
+try: print(json.load(open(p))['version'])
+except: print('missing')
+" 2>/dev/null)
+  symlink_target=$(readlink "$NPM_BIN/unbrowse" 2>/dev/null || echo "not-a-symlink")
+  symlink_ok=$([ -e "$NPM_BIN/unbrowse" ] && echo "yes" || echo "BROKEN")
+  if [ "$cli_version" = "$pkg_version" ] && [ "$symlink_ok" = "yes" ]; then
+    record "npm_install" "PASS" "installed $cli_version (symlink ok)"
+  else
+    record "npm_install" "FAIL" "drift detected: cli=$cli_version pkg=$pkg_version symlink=$symlink_ok target=$symlink_target"
+  fi
 else
   record "npm_install" "FAIL" "$(tail -20 $INSTALL_LOG)"
   rm -f "$INSTALL_LOG"
