@@ -25,8 +25,14 @@ for arg in "$@"; do
 done
 
 PKG="unbrowse"
+
+# Force fresh read — npm view caches aggressively and can report stale
+# state right after a publish. Invalidate the local cache first.
+npm cache clean --force 2>/dev/null || true
+
 echo "[dist-tag-sync] BEFORE:"
-npm view "$PKG" dist-tags --json 2>&1 | python3 -m json.tool
+# Use npm dist-tag ls for authoritative fresh read (not cached like npm view)
+npm dist-tag ls "$PKG" 2>&1 || npm view "$PKG" dist-tags --json 2>&1 | python3 -m json.tool
 
 # Fetch all versions
 ALL_VERSIONS=$(npm view "$PKG" versions --json 2>/dev/null)
@@ -58,9 +64,9 @@ LATEST_PREVIEW=$(echo "$TARGETS" | cut -d'|' -f2)
 
 echo "[dist-tag-sync] computed: latest=$LATEST_STABLE preview=$LATEST_PREVIEW"
 
-# Current dist-tags
-CURRENT_LATEST=$(npm view "$PKG" dist-tags.latest 2>/dev/null || echo "")
-CURRENT_PREVIEW=$(npm view "$PKG" dist-tags.preview 2>/dev/null || echo "")
+# Current dist-tags — use npm dist-tag ls for fresh reads (not cached)
+CURRENT_LATEST=$(npm dist-tag ls "$PKG" 2>/dev/null | grep -E "^latest:" | awk '{print $2}')
+CURRENT_PREVIEW=$(npm dist-tag ls "$PKG" 2>/dev/null | grep -E "^preview:" | awk '{print $2}')
 
 DRIFT=0
 if [ -n "$LATEST_STABLE" ] && [ "$CURRENT_LATEST" != "$LATEST_STABLE" ]; then
@@ -81,8 +87,21 @@ fi
 if [ "$DRIFT" -eq 0 ]; then
   echo "[dist-tag-sync] ✓ dist-tags already in sync"
 else
-  echo "[dist-tag-sync] AFTER:"
-  npm view "$PKG" dist-tags --json 2>&1 | python3 -m json.tool
+  echo "[dist-tag-sync] AFTER (fresh read via npm dist-tag ls):"
+  sleep 2  # tiny delay for registry propagation
+  npm dist-tag ls "$PKG" 2>&1
+  # Verify the fix actually took effect
+  NEW_LATEST=$(npm dist-tag ls "$PKG" 2>/dev/null | grep -E "^latest:" | awk '{print $2}')
+  NEW_PREVIEW=$(npm dist-tag ls "$PKG" 2>/dev/null | grep -E "^preview:" | awk '{print $2}')
+  if [ -n "$LATEST_STABLE" ] && [ "$NEW_LATEST" != "$LATEST_STABLE" ]; then
+    echo "[dist-tag-sync] ✗ FAIL: latest is still '$NEW_LATEST' after sync attempt"
+    exit 1
+  fi
+  if [ -n "$LATEST_PREVIEW" ] && [ "$NEW_PREVIEW" != "$LATEST_PREVIEW" ]; then
+    echo "[dist-tag-sync] ✗ FAIL: preview is still '$NEW_PREVIEW' after sync attempt"
+    exit 1
+  fi
+  echo "[dist-tag-sync] ✓ drift corrected"
 fi
 
 if [ "$CHECK_ONLY" = "true" ] && [ "$DRIFT" -ne 0 ]; then
