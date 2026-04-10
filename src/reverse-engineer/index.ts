@@ -3,6 +3,18 @@ import type { CsrfPlan, EndpointDescriptor, EndpointPathBindingCandidate, WsMess
 import { inferSchema } from "../transform/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
+import { createHash } from "node:crypto";
+
+/**
+ * Generate a deterministic endpoint ID from method + url_template.
+ * Same endpoint always gets the same ID across resolves, graph builds, and caches.
+ * Falls back to nanoid() if inputs are missing.
+ */
+function stableEndpointId(method: string, urlTemplate: string): string {
+  if (!method || !urlTemplate) return nanoid();
+  const hash = createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url");
+  return hash.slice(0, 21); // same length as nanoid
+}
 import { inferEndpointSemantic, resolveEndpointPathBindings } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
@@ -868,10 +880,11 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // Attach GraphQL operation info if detected
     const endpointGraphqlOp = /graphql/i.test(req.url) ? extractGraphQLOperationName(req.url, req.request_body) : undefined;
 
+    const computedUrlTemplate = qTemplateStr ? `${pathTemplate}${pathTemplate.includes("?") ? "&" : "?"}${qTemplateStr}` : pathTemplate;
     let endpoint: EndpointDescriptor = {
-      endpoint_id: nanoid(),
+      endpoint_id: stableEndpointId(req.method, computedUrlTemplate),
       method: req.method as EndpointDescriptor["method"],
-      url_template: qTemplateStr ? `${pathTemplate}${pathTemplate.includes("?") ? "&" : "?"}${qTemplateStr}` : pathTemplate,
+      url_template: computedUrlTemplate,
       description: buildEndpointDescription(req, sampleRequest, sampleResponse),
       headers_template: sanitizeHeaders(req.request_headers),
       query: sanitizedQParams,
@@ -973,7 +986,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       }
 
       const endpoint: EndpointDescriptor = {
-        endpoint_id: nanoid(),
+        endpoint_id: stableEndpointId("WS", wsUrl),
         method: "WS",
         url_template: wsUrl,
         idempotency: "safe",
