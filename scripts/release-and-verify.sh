@@ -84,6 +84,10 @@ if [[ "$SKIP_REMOTE" != "1" ]]; then
     VERSION="$1"
     log() { echo "[remote-verify] $(date +%H:%M:%S) $*"; }
 
+    # Ensure npm global bin is on PATH
+    NPM_GLOBAL_BIN="$(npm root -g 2>/dev/null | sed 's|/lib/node_modules||')"/bin
+    export PATH="$NPM_GLOBAL_BIN:$HOME/.npm-global/bin:/usr/local/bin:$PATH"
+
     # Clean slate: remove any existing unbrowse
     log "cleaning previous install..."
     pkill -9 -f 'unbrowse|kuri' 2>/dev/null || true
@@ -93,7 +97,7 @@ if [[ "$SKIP_REMOTE" != "1" ]]; then
     # Install specific version
     log "installing unbrowse@$VERSION..."
     npm install -g "unbrowse@$VERSION"
-    INSTALLED="$(unbrowse --version)"
+    INSTALLED="$(unbrowse --version 2>/dev/null || echo 'binary not found')"
     log "installed: $INSTALLED"
 
     # Setup (headless, non-interactive)
