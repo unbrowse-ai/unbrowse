@@ -197,3 +197,17 @@ get trulia listing|https://www.trulia.com/San_Francisco,CA/
 get feedly feed|https://feedly.com/i/discover
 get smartnews|https://www.smartnews.com/
 get flipboard article|https://flipboard.com/topic/technology
+get mit page|https://www.mit.edu/about/
+get harvard page|https://www.harvard.edu/about-harvard/
+get artsy artwork|https://www.artsy.net/collect
+get google fonts|https://fonts.google.com/specimen/Roboto
+get iconify icon|https://icon-sets.iconify.design/material-symbols/
+get emojipedia|https://emojipedia.org/smiling-face-with-heart-eyes
+get wirecutter review|https://www.nytimes.com/wirecutter/reviews/
+get justia law|https://www.justia.com/
+get drugs com drug|https://www.drugs.com/condition/anxiety.html
+get mayo clinic|https://www.mayoclinic.org/diseases-conditions
+get space com article|https://www.space.com/news
+get wikivoyage place|https://en.wikivoyage.org/wiki/San_Francisco
+get wikiquote page|https://en.wikiquote.org/wiki/Albert_Einstein
+get dune dashboard|https://dune.com/browse/dashboards
