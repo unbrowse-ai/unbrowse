@@ -185,3 +185,15 @@ get speedtest net|https://www.speedtest.net/
 get wolframalpha|https://www.wolframalpha.com/input?i=pi
 get npm trends|https://npmtrends.com/react-vs-vue
 get bundlephobia|https://bundlephobia.com/package/react
+get github gist|https://gist.github.com/discover
+get gitkraken docs|https://www.gitkraken.com/learn/git
+get cheat sh tool|https://cheat.sh/tar
+get modal labs|https://modal.com/docs
+get dribbble shot|https://dribbble.com/shots
+get behance project|https://www.behance.net/search/projects
+get replicate model|https://replicate.com/explore
+get petfinder pet|https://www.petfinder.com/pet-search
+get trulia listing|https://www.trulia.com/San_Francisco,CA/
+get feedly feed|https://feedly.com/i/discover
+get smartnews|https://www.smartnews.com/
+get flipboard article|https://flipboard.com/topic/technology
