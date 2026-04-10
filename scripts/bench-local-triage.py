@@ -69,15 +69,18 @@ def classify(row: dict) -> str:
         return "PASS"
     if trace_ok and src == "direct-fetch":
         return "PASS"
-    # Rich HTML content with no block signals and no intent-mismatch —
-    # the agent can read the captured HTML directly (dom-fallback analog).
-    # Observed on cheat.sh/tar: 569KB HTML / 3.6KB text / 9 apis.
+    # Rich HTML content with no HARD block signals and no intent-mismatch.
+    # sparse_capture_mostly_noise is OK — it means the API capture was
+    # noisy, not that the HTML is missing. Observed on cheat.sh/tar:
+    # 569KB HTML / 3.6KB text / 9 apis / sparse signal. The page IS the
+    # data; agent can read it directly.
     try:
         text_bytes = int(row.get("captured_text_bytes") or 0)
     except (ValueError, TypeError):
         text_bytes = 0
     intent_verdict = row.get("captured_intent_verdict") or ""
-    if not has_ops and not bs and text_bytes >= 2000 and intent_verdict != "fail":
+    hard_block = bs and any(s in bs for s in ("vendor:", "challenge_title", "no_html_many_apis", "low_capture", "empty_capture"))
+    if not has_ops and not hard_block and text_bytes >= 2000 and intent_verdict != "fail":
         return "PASS"
     if bs and "sparse_capture_mostly_noise" in bs:
         return "SPARSE_REVIEW"
