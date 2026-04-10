@@ -45,11 +45,18 @@ def classify(row: dict) -> str:
         except Exception:
             bs = str(bs_raw)
 
-    if bs and ("vendor:" in bs or "challenge_title" in bs or "no_html_many_apis" in bs):
+    if bs and ("vendor:" in bs or "challenge_title" in bs or "no_html_many_apis" in bs or "low_capture" in bs or "empty_capture" in bs):
         return "BROWSER_BLOCK"
     diag = row.get("capture_diagnostic") or ""
     if diag in ("no_endpoints_extracted", "all_endpoints_filtered_by_noise_rules"):
         return "BROWSER_BLOCK"
+    if diag == "endpoints_scored_below_relevance_threshold":
+        try:
+            tec = int(row.get("total_endpoints_captured") or 0)
+        except (ValueError, TypeError):
+            tec = 0
+        if tec <= 2:
+            return "BROWSER_BLOCK"
     # Empty row — no source, no trace, no ops. CLI never returned a
     # top-level response, almost always a clean timeout. Treat as block.
     if not src and trace_raw in (None, "None", "") and not has_ops:

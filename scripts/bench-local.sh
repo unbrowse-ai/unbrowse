@@ -232,12 +232,19 @@ for r in rows:
     # no_html_many_apis is a kuri-layer capture failure (getPageHtml
     # returned empty despite network firing); same effect as block.
     diag = r.get('capture_diagnostic', '') or ''
-    if bs and bs != '[]' and ('vendor:' in bs or 'challenge_title' in bs or 'no_html_many_apis' in bs):
+    if bs and bs != '[]' and ('vendor:' in bs or 'challenge_title' in bs or 'no_html_many_apis' in bs or 'low_capture' in bs or 'empty_capture' in bs):
         buckets['BROWSER_BLOCK'].append(r['url'])
     elif diag in ('no_endpoints_extracted', 'all_endpoints_filtered_by_noise_rules'):
         # capture_diagnostic signals the browser ran but extraction/ranking
         # yielded nothing usable — effectively a block from the agent's
         # perspective. Same bucket as vendor-classified block.
+        buckets['BROWSER_BLOCK'].append(r['url'])
+    elif diag == 'endpoints_scored_below_relevance_threshold' and int(r.get('total_endpoints_captured') or 0) <= 2:
+        # Only a handful of endpoints captured AND all scored below
+        # threshold — the real data APIs weren't in the capture stream
+        # (browser saw only telemetry/analytics). Yandex captured 1
+        # endpoint (mc.yandex.ru/watch — Metrica beacon). Effectively
+        # a browser block.
         buckets['BROWSER_BLOCK'].append(r['url'])
     elif not src and trace_ok is None and has_ops is not True:
         # No source + no trace + no ops + no signals → the CLI never
