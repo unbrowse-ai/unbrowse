@@ -78,9 +78,29 @@ export function deriveTemplateParamsFromContextUrl(
     for (const [key, value] of templateUrl.searchParams.entries()) {
       const placeholder = value.match(/^\{([^}]+)\}$/)?.[1];
       if (!placeholder) continue;
+      // 1. Direct key match: template has ?text={q}, actual has ?text=openai
       const actualValue = actualUrl.searchParams.get(key);
       if (actualValue != null && actualValue !== "") {
         out[placeholder] = actualValue;
+        continue;
+      }
+      // 2. Placeholder name match: template has ?text={q}, actual has ?q=openai
+      const byPlaceholderName = actualUrl.searchParams.get(placeholder);
+      if (byPlaceholderName != null && byPlaceholderName !== "") {
+        out[placeholder] = byPlaceholderName;
+        continue;
+      }
+      // 3. Common search alias fallback: if placeholder looks like a search query,
+      //    try common query param names used by search UIs
+      const lowerPlaceholder = placeholder.toLowerCase();
+      if (/^(q|query|search|text|keyword|keywords|term|terms)$/.test(lowerPlaceholder)) {
+        for (const alias of ["q", "query", "search", "text", "keyword", "keywords", "term"]) {
+          const v = actualUrl.searchParams.get(alias);
+          if (v != null && v !== "") {
+            out[placeholder] = v;
+            break;
+          }
+        }
       }
     }
     return out;
