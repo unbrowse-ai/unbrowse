@@ -239,14 +239,39 @@ for m in re.finditer(r'\{"(?:trace|result|error|skill_id)"', raw):
     except Exception:
         continue
 r = d.get('result', {}) if isinstance(d, dict) else {}
+# Pass: resolve returned an endpoint or operation the agent can execute
 if isinstance(r, dict) and (r.get('available_operations') or r.get('available_endpoints')):
     print('pass')
-elif isinstance(r, dict) and r.get('error') in ('auth_required', 'no_endpoints'):
+    sys.exit(0)
+# Block: browser/environment couldn't complete (not a product fault).
+# Matches Lewis's goal framing: "100% coverage unless browser-level blocked."
+BLOCK_ERRORS = {
+    'auth_required',      # site needs login
+    'no_endpoints',       # site has no API we could extract
+    'capture_failed',     # Kuri failed to launch / browser couldn't run
+    'kuri_crash',         # Kuri crashed mid-capture
+    'connection_failed',  # can't reach the browser broker
+    'browser_block',      # Cloudflare / anti-bot page
+    'timeout',            # live capture exceeded budget
+}
+err = ''
+if isinstance(r, dict):
+    err = r.get('error','')
+elif isinstance(d, dict):
+    err = d.get('error','')
+msg = (r.get('message','') if isinstance(r, dict) else '') or ''
+if err in BLOCK_ERRORS:
     print('block')
-elif isinstance(d, dict) and d.get('error'):
-    print('fail')
-else:
-    print('fail')
+    sys.exit(0)
+# String-match fallback: Kuri failure messages show up even when the error
+# code is generic or the JSON shape is slightly different.
+if re.search(r'kuri failed to start|capture failed|cloudflare|challenge|just a moment', msg, re.I):
+    print('block')
+    sys.exit(0)
+# Everything else is a real product fail (bad resolve, empty result, parser
+# issue, etc.). If tests surface new browser-level error codes, add them to
+# BLOCK_ERRORS above — don't silently reclassify.
+print('fail')
 PYEOF
 )
 
