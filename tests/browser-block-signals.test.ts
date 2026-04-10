@@ -43,8 +43,29 @@ describe("detectBrowserBlockSignals", () => {
     it("fires on unusual traffic (Google)", () => {
       expect(detect({ title: "Unusual traffic from your computer network" })).toContain("challenge_title");
     });
+    it("fires on 404 not found title", () => {
+      expect(detect({ title: "404: not_found" })).toContain("challenge_title");
+    });
+    it("fires on 'Page not found'", () => {
+      expect(detect({ title: "Page Not Found" })).toContain("challenge_title");
+    });
     it("does NOT fire on normal page titles", () => {
       expect(detect({ title: "Home | Example Corp" })).not.toContain("challenge_title");
+    });
+  });
+
+  describe("low_capture", () => {
+    it("fires when html<500 AND 1-29 apis captured (allmovie pattern)", () => {
+      expect(detect({ htmlLength: 141, requestUrls: ["https://ex.com/1"] })).toContain("low_capture");
+    });
+    it("does NOT fire when html is healthy", () => {
+      expect(detect({ htmlLength: 10000, requestUrls: ["https://ex.com/1"] })).not.toContain("low_capture");
+    });
+    it("does NOT fire when ≥30 apis (no_html_many_apis takes over)", () => {
+      const urls = Array.from({ length: 50 }, (_, i) => `https://ex.com/${i}`);
+      const signals = detect({ htmlLength: 100, requestUrls: urls });
+      expect(signals).not.toContain("low_capture");
+      expect(signals).toContain("no_html_many_apis");
     });
   });
 

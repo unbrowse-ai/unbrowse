@@ -3214,7 +3214,7 @@ export function detectBrowserBlockSignals(input: {
   const { requestUrls, title, htmlLength, rejectionCounts } = input;
   const signals: string[] = [];
   const titleLower = title.toLowerCase();
-  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|cloudflare|press and hold|request could not be satisfied|403 forbidden|site blocked|unusual traffic|security check/i.test(titleLower)) {
+  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|cloudflare|press and hold|request could not be satisfied|403 forbidden|site blocked|unusual traffic|security check|^404|not.found|not_found|page not found|page doesn't exist/i.test(titleLower)) {
     signals.push("challenge_title");
   }
   const vendorHits = new Set<string>();
@@ -3254,6 +3254,13 @@ export function detectBrowserBlockSignals(input: {
   }
   if (htmlLength < 500 && apiCallCount >= 30) {
     signals.push("no_html_many_apis");
+  }
+  // Between empty_capture (0 apis) and no_html_many_apis (>=30), there's
+  // a middle case: tiny HTML + 1-29 apis. Observed on allmovie.com:
+  // html=141, apis=1. The browser barely loaded and only saw one request
+  // (probably the main document). Treat same as other low-capture blocks.
+  if (htmlLength < 500 && apiCallCount > 0 && apiCallCount < 30) {
+    signals.push("low_capture");
   }
   return signals;
 }
