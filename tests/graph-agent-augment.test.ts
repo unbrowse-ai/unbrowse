@@ -174,4 +174,49 @@ describe("agent semantic augmentation", () => {
     expect(sentEndpointIds).not.toContain("noise-1");
     expect(sentEndpointIds).not.toContain("noise-2");
   });
+
+  it("pins deterministic sampling params so same capture yields same labels", async () => {
+    // Regression: cold-start-bench caught HN homepage endpoint getting
+    // resource_kind=comment on one run and resource_kind=post on another.
+    // Root cause: the chat-completions request was missing temperature/seed,
+    // so OpenAI defaulted to temperature=1 and returned different labels for
+    // identical inputs. Fix pins temperature=0, top_p=0, seed=1.
+    const endpoint: EndpointDescriptor = {
+      endpoint_id: "deterministic-check",
+      method: "GET",
+      url_template: "https://news.ycombinator.com/",
+      description: "Returns stories",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.9,
+      semantic: {
+        action_kind: "list",
+        resource_kind: "post",
+        description_out: "Returns stories",
+        requires: [],
+        provides: [{ key: "title", source: "response", semantic_type: "input" }],
+        negative_tags: [],
+        confidence: 0.7,
+      },
+    };
+
+    let sentBody: Record<string, unknown> | null = null;
+    await augmentEndpointsWithAgent([endpoint], {
+      intent: "list top stories",
+      domain: "news.ycombinator.com",
+      provider: { url: "https://example.test/v1/chat/completions", key: "test-key", model: "gpt-test" },
+      fetchImpl: async (_url, init) => {
+        sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ endpoints: [] }) } }],
+        }));
+      },
+    });
+
+    expect(sentBody).not.toBeNull();
+    expect(sentBody?.temperature).toBe(0);
+    expect(sentBody?.top_p).toBe(0);
+    expect(sentBody?.seed).toBe(1);
+    expect(sentBody?.response_format).toEqual({ type: "json_object" });
+  });
 });

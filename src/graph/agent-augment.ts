@@ -261,6 +261,14 @@ async function callAgent(
       body: JSON.stringify({
         model: provider.model,
         response_format: { type: "json_object" },
+        // Pin determinism: the same captured endpoint must produce the
+        // same semantic labels on repeat captures. Without this, action_kind
+        // and resource_kind can drift (e.g. HN homepage labeled `post` one
+        // run and `comment` another), which breaks agent UX because the
+        // description the agent reads is not stable across captures.
+        temperature: 0,
+        top_p: 0,
+        seed: 1,
         messages: [
           { role: "system", content: prompt },
           {
