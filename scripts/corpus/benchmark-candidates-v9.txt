@@ -1,0 +1,20 @@
+get docker hub image|https://hub.docker.com/_/nginx
+get gitlab repo|https://gitlab.com/gitlab-org/gitlab
+get openstreetmap node|https://www.openstreetmap.org/about
+get kaggle dataset|https://www.kaggle.com/datasets
+get regex101 pattern|https://regex101.com/
+get g2 review|https://www.g2.com/products/slack/reviews
+get capterra listing|https://www.capterra.com/p/135003/Slack/
+get trustpilot review|https://www.trustpilot.com/review/amazon.com
+get lastfm artist|https://www.last.fm/music/The+Beatles
+get discogs release|https://www.discogs.com/release/249504
+get openlibrary book|https://openlibrary.org/works/OL45804W
+get google books|https://www.google.com/books/edition/_/1234
+get ipinfo lookup|https://ipinfo.io/8.8.8.8
+get dnsdumpster|https://dnsdumpster.com/
+get speedtest net|https://www.speedtest.net/
+get downdetector status|https://downdetector.com/
+get wolframalpha|https://www.wolframalpha.com/input?i=pi
+get stackblitz starter|https://stackblitz.com/starters
+get npm trends|https://npmtrends.com/react-vs-vue
+get bundlephobia|https://bundlephobia.com/package/react
