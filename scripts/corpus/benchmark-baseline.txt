@@ -65,3 +65,16 @@ get hackernoon article|https://hackernoon.com/
 get substack article|https://stratechery.com/
 get linkedin jobs|https://www.linkedin.com/jobs/search/?keywords=software+engineer
 get indeed company|https://www.indeed.com/cmp/Openai
+get wikipedia article|https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)
+get arxiv paper|https://arxiv.org/abs/1706.03762
+get github issue|https://github.com/facebook/react/issues/1
+get medium article|https://medium.com/tag/ai
+get rotten tomatoes movie|https://www.rottentomatoes.com/m/the_shawshank_redemption
+get goodreads book|https://www.goodreads.com/book/show/3735293
+get opensea collection|https://opensea.io/collection/boredapeyachtclub
+get defillama protocol|https://defillama.com/protocol/uniswap
+get coingecko coin|https://www.coingecko.com/en/coins/bitcoin
+get huggingface model|https://huggingface.co/openai/whisper-large-v3
+get pypi search|https://pypi.org/search/?q=requests
+get npm package|https://www.npmjs.com/package/react
+get devto article|https://dev.to/t/javascript

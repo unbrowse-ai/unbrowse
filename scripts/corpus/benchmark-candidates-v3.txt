@@ -1,0 +1,20 @@
+get aws docs|https://docs.aws.amazon.com/ec2/
+get mdn reference|https://developer.mozilla.org/en-US/docs/Web/JavaScript
+get cloudflare docs|https://developers.cloudflare.com/workers/
+get stripe docs|https://docs.stripe.com/api
+get openai docs|https://platform.openai.com/docs/api-reference
+get anthropic docs|https://docs.anthropic.com/en/api/
+get vercel docs|https://vercel.com/docs
+get supabase docs|https://supabase.com/docs
+get discord api docs|https://discord.com/developers/docs/intro
+get slack api docs|https://api.slack.com/methods
+get nasa photo|https://apod.nasa.gov/apod/astropix.html
+get weather forecast|https://weather.com/weather/today/l/New+York
+get news story|https://www.bbc.com/news
+get nyt article|https://www.nytimes.com/section/technology
+get reuters story|https://www.reuters.com/world/
+get tiktok trending|https://www.tiktok.com/trending
+get twitch streamer|https://www.twitch.tv/directory
+get youtube channel|https://www.youtube.com/@MrBeast
+get apple app|https://apps.apple.com/us/app/chatgpt/id6448311069
+get play store app|https://play.google.com/store/apps/details?id=com.openai.chatgpt
