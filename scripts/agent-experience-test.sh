@@ -30,6 +30,25 @@ export UNBROWSE_TOS_ACCEPTED=1
 RESULTS_FILE="/tmp/agent-xp-results.json"
 echo '{"tasks":[]}' > "$RESULTS_FILE"
 
+# Strip unbrowse log lines like [domain-cache], [route-cache], [unbrowse] and
+# capture-pipeline noise, leaving only JSON payload. The CLI mixes logs into
+# stdout, so we filter to lines starting with { or [.
+strip_logs() {
+  python3 -c "
+import sys
+lines = sys.stdin.read().split(chr(10))
+json_lines = [l for l in lines if l.strip().startswith(('{', '['))]
+# Prefer the longest line (usually the JSON body)
+if json_lines:
+    print(max(json_lines, key=len))
+" 2>/dev/null
+}
+
+# Call unbrowse and return only the JSON from stdout
+call() {
+  "$@" 2>/dev/null | strip_logs
+}
+
 record() {
   local task="$1" raw="$2"
   python3 -c "
@@ -73,24 +92,24 @@ record "health" "$(unbrowse health 2>/dev/null || echo '{\"error\":\"health_fail
 record "resolve_pypi_flask" "$(unbrowse resolve --intent 'get package info' --url 'https://pypi.org/project/flask/' --pretty 2>/dev/null)"
 
 # Execute: does calling an endpoint return data?
-RESOLVE=$(unbrowse resolve --intent 'get package info' --url 'https://pypi.org/project/flask/' 2>/dev/null)
+RESOLVE=$(call unbrowse resolve --intent 'get package info' --url 'https://pypi.org/project/flask/')
 SKILL=$(echo "$RESOLVE" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
 EP=$(echo "$RESOLVE" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
 if [ -n "$SKILL" ] && [ -n "$EP" ]; then
-  record "execute_pypi_flask" "$(unbrowse execute --skill "$SKILL" --endpoint "$EP" --url 'https://pypi.org/project/flask/' --raw --pretty 2>/dev/null)"
+  record "execute_pypi_flask" "$(call unbrowse execute --skill "$SKILL" --endpoint "$EP" --url 'https://pypi.org/project/flask/' --raw --pretty)"
 fi
 
 # Parameterized search: can the agent fill template params?
-RESOLVE_NPM=$(unbrowse resolve --intent 'search packages' --url 'https://registry.npmjs.org/-/v1/search?text=express' 2>/dev/null)
+RESOLVE_NPM=$(call unbrowse resolve --intent 'search packages' --url 'https://registry.npmjs.org/-/v1/search?text=express')
 SKILL_NPM=$(echo "$RESOLVE_NPM" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
 EP_NPM=$(echo "$RESOLVE_NPM" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
 if [ -n "$SKILL_NPM" ] && [ -n "$EP_NPM" ]; then
-  record "execute_npm_search" "$(unbrowse execute --skill "$SKILL_NPM" --endpoint "$EP_NPM" --url 'https://registry.npmjs.org/-/v1/search?text=express' --params '{"q":"express"}' --raw --pretty 2>/dev/null)"
+  record "execute_npm_search" "$(call unbrowse execute --skill "$SKILL_NPM" --endpoint "$EP_NPM" --url 'https://registry.npmjs.org/-/v1/search?text=express' --params '{"q":"express"}' --raw --pretty)"
 fi
 
 # Feedback: does the loop close?
 if [ -n "$SKILL" ] && [ -n "$EP" ]; then
-  record "feedback" "$(unbrowse feedback --skill "$SKILL" --endpoint "$EP" --rating 5 --outcome success 2>/dev/null)"
+  record "feedback" "$(call unbrowse feedback --skill "$SKILL" --endpoint "$EP" --rating 5 --outcome success)"
 fi
 
 # Browse: can the agent drive a browser?
