@@ -67,7 +67,9 @@
     "release": "release-it",
     "release:preview": "bash scripts/release-and-verify.sh",
     "release:preview:local": "bash scripts/release-and-verify.sh --skip-remote",
-    "release:verify-remote": "bash scripts/release-and-verify.sh --skip-release"
+    "release:verify-remote": "bash scripts/release-and-verify.sh --skip-release",
+    "test:agent-xp": "bash scripts/agent-experience-test.sh",
+    "test:agent-xp:remote": "bash scripts/agent-experience-test.sh --remote lekt8@89.169.121.108"
   },
   "dependencies": {
     "@cascade-fyi/splits-sdk": "^0.11.1",
