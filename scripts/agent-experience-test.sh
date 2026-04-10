@@ -43,6 +43,26 @@ with open('$RESULTS_FILE', 'w') as f: json.dump(results, f)
 " 2>/dev/null
 }
 
+# ── System state before Unbrowse touches anything ──
+record "system_before" "$(python3 -c "
+import json, subprocess, os
+procs = subprocess.run(['ps', 'aux'], capture_output=True, text=True).stdout
+chrome_count = procs.count('chrome')
+kuri_count = procs.count('kuri')
+node_count = procs.count('node')
+unbrowse_count = procs.count('unbrowse')
+ports = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True).stdout if os.path.exists('/usr/sbin/ss') else ''
+mem = subprocess.run(['free', '-m'], capture_output=True, text=True).stdout if os.path.exists('/usr/bin/free') else ''
+print(json.dumps({
+  'chrome_processes': chrome_count,
+  'kuri_processes': kuri_count,
+  'node_processes': node_count,
+  'unbrowse_processes': unbrowse_count,
+  'listening_ports': [l.strip() for l in ports.split(chr(10)) if '6969' in l or '7700' in l or '9222' in l],
+  'memory_mb': mem.split(chr(10))[1].split() if mem and len(mem.split(chr(10))) > 1 else [],
+}))
+" 2>/dev/null || echo '{}')"
+
 # ── Collect evidence ──
 
 # Version + health
@@ -86,6 +106,22 @@ for attempt in 1 2 3; do
   fi
   sleep 5
 done
+
+# ── System state after tests — what did Unbrowse leave running? ──
+record "system_after" "$(python3 -c "
+import json, subprocess, os
+procs = subprocess.run(['ps', 'aux'], capture_output=True, text=True).stdout
+chrome_lines = [l.strip() for l in procs.split(chr(10)) if 'chrome' in l.lower() and 'defunct' not in l]
+kuri_lines = [l.strip()[:80] for l in procs.split(chr(10)) if 'kuri' in l]
+unbrowse_lines = [l.strip()[:80] for l in procs.split(chr(10)) if 'unbrowse' in l and 'agent-xp' not in l]
+zombies = procs.count('<defunct>')
+print(json.dumps({
+  'chrome_alive': len(chrome_lines),
+  'kuri_alive': len(kuri_lines),
+  'unbrowse_alive': len(unbrowse_lines),
+  'zombie_count': zombies,
+}))
+" 2>/dev/null || echo '{}')"
 
 # ── Output the artifact ──
 pkill -9 -f 'unbrowse|kuri' 2>/dev/null || true
