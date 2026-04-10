@@ -79,6 +79,12 @@ fi
 if [[ "$SKIP_REMOTE" != "1" ]]; then
   log "verifying on remote host: $REMOTE_HOST"
 
+  # Run agent experience test on remote blank slate
+  log "running agent experience test..."
+  bash "$ROOT_DIR/scripts/agent-experience-test.sh" --remote "$REMOTE_HOST"
+  log "agent experience test passed"
+
+  # Then do the clean install + version-specific check
   ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$REMOTE_HOST" bash -s "$VERSION" <<'REMOTE_SCRIPT'
     set -euo pipefail
     VERSION="$1"
