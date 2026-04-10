@@ -157,6 +157,23 @@ while IFS='|' read -r goal url; do
     fi
   fi
   record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url")
+  # Second retry: if the record shows no_html_many_apis, the browser
+  # fired lots of requests but Kuri's getPageHtml returned nothing.
+  # Give it a 2x timeout — heavily JS-rendered SPAs sometimes need more
+  # time for the main document to settle. Only retry if it was specifically
+  # this signal, not all failures (don't double the cost of real blocks).
+  if printf '%s' "$record" | grep -q '"no_html_many_apis"'; then
+    retry_timeout=$((TIMEOUT * 2))
+    echo "  [bench-local] no_html_many_apis — retrying once with timeout=${retry_timeout}s" >&2
+    pkill -9 -f 'unbrowse|kuri' 2>/dev/null || true
+    sleep 0.5
+    timeout "$retry_timeout" $CLI_CMD resolve --intent "$goal" --url "$url" </dev/null > "$out_file" 2>&1
+    cli_exit=$?
+    if [ "$cli_exit" -ne 0 ]; then
+      echo "  [bench-local] no_html retry cli exit=$cli_exit" >&2
+    fi
+    record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url")
+  fi
   echo "$record" >> "$OUT_DIR/results.jsonl"
   # Show a compact one-line evidence summary for the agent watching the run.
   # No pass/fail/block verdict — the agent reads results.jsonl / .csv at the end.
