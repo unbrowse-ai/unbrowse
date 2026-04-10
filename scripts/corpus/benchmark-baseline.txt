@@ -96,3 +96,18 @@ get twitch directory|https://www.twitch.tv/directory
 get youtube channel|https://www.youtube.com/@MrBeast
 get apple app|https://apps.apple.com/us/app/chatgpt/id6448311069
 get play store app|https://play.google.com/store/apps/details?id=com.openai.chatgpt
+get instagram profile|https://www.instagram.com/natgeo/
+get reddit subreddit|https://www.reddit.com/r/MachineLearning/
+get threads profile|https://www.threads.net/@zuck
+get ebay listing|https://www.ebay.com/itm/285789010530
+get target product|https://www.target.com/p/apple-airpods-pro-2nd-generation/-/A-85978623
+get etsy listing|https://www.etsy.com/listing/1012345678
+get sec filing|https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000320193
+get bloomberg article|https://www.bloomberg.com/markets
+get wsj article|https://www.wsj.com/tech
+get nature paper|https://www.nature.com/articles/nature14539
+get notion page|https://www.notion.so/product
+get figma community|https://www.figma.com/community
+get data gov dataset|https://data.gov/
+get hackernews item|https://news.ycombinator.com/item?id=1
+get wayback snapshot|https://web.archive.org/web/2025*/openai.com
