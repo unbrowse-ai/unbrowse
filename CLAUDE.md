@@ -71,6 +71,7 @@ Apply in order (first match wins):
 | Bucket | Condition | Counted? |
 |---|---|---|
 | `BROWSER_BLOCK` | `browser_block_signals` contains `vendor:*`, `challenge_title`, or `no_html_many_apis` | Excluded from coverage |
+| `BROWSER_BLOCK` | `capture_diagnostic` in (`no_endpoints_extracted`, `all_endpoints_filtered_by_noise_rules`) | Excluded from coverage |
 | `AUTH_GATED` | `error_code == "auth_required"` | Excluded from coverage |
 | `PASS` | `has_available_operations == true && n_operations > 0` | ✓ Pass |
 | `PASS` | `trace_success == true && source == "dom-fallback"` | ✓ Pass |
