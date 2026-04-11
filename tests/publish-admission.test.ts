@@ -95,10 +95,13 @@ describe("selectMarketplacePublishEndpoints", () => {
 
     const selection = selectMarketplacePublishEndpoints(skill, { limit: 2 });
 
+    // canonical-doc is a dom-fallback page artifact; it must be dropped
+    // when a real API endpoint exists alongside it. Publishing synthetic
+    // page-as-endpoint entries poisons resolve with false cache hits.
     expect(selection.endpoints.map((endpoint) => endpoint.endpoint_id)).toEqual([
       "good-api",
-      "canonical-doc",
     ]);
+    expect(selection.stats.by_reason.dom_fallback_only).toBe(1);
     expect(selection.stats.by_reason.family_dedup).toBe(1);
     expect(selection.stats.by_reason.fragile_graphql).toBe(1);
     expect(selection.stats.by_reason.noise).toBe(1);
@@ -106,6 +109,26 @@ describe("selectMarketplacePublishEndpoints", () => {
     expect(selection.stats.by_reason.ws).toBe(1);
     expect(selection.stats.by_reason.off_domain).toBe(1);
     expect(formatMarketplacePublishSelection(selection)).toContain("fragile_graphql=1");
+  });
+
+  test("rejects skills whose only admitted endpoints are dom-fallback page artifacts", () => {
+    const skill = makeSkill({
+      endpoints: [
+        makeEndpoint({
+          endpoint_id: "page-only",
+          url_template: "https://www.example.com/company/acme",
+          trigger_url: "https://www.example.com/company/acme",
+          response_schema: undefined,
+          semantic: undefined,
+          description: "Captured page artifact",
+          reliability_score: 0.8,
+        }),
+      ],
+    });
+
+    const selection = selectMarketplacePublishEndpoints(skill);
+    expect(selection.endpoints).toHaveLength(0);
+    expect(selection.stats.by_reason.dom_fallback_only).toBe(1);
   });
 
   test("keeps verified graphql endpoints only when they look durable", () => {
