@@ -75,9 +75,14 @@ def classify(row: dict) -> str:
     if err == "auth_required" or row.get("auth_recommended") in (True, "True", "true"):
         return "AUTH_GATED"
     if has_ops and n_ops > 0:
+        # Distinguish real API captures from dom-fallback-only synthetic
+        # "captured page artifact" endpoints. The rubric used to lie by
+        # treating both as PASS; now dom-fallback-only gets its own bucket.
+        if row.get("all_ops_dom_fallback") in (True, "True", "true"):
+            return "PASS_DOM_FALLBACK_ONLY"
         return "PASS"
     if trace_ok and src == "dom-fallback":
-        return "PASS"
+        return "PASS_DOM_FALLBACK_ONLY"
     if trace_ok and src == "direct-fetch":
         return "PASS"
     if src == "browse-session":
@@ -128,28 +133,33 @@ def main():
         buckets[classify(r)].append(r)
 
     total = len(rows)
-    passes = len(buckets["PASS"])
+    real_passes = len(buckets["PASS"])
+    fallback_passes = len(buckets["PASS_DOM_FALLBACK_ONLY"])
+    total_passes = real_passes + fallback_passes
     blocked = len(buckets["BROWSER_BLOCK"]) + len(buckets["AUTH_GATED"])
     reachable = total - blocked
 
     if json_out:
         summary = {
             "total": total,
-            "pass": passes,
+            "pass_real_api": real_passes,
+            "pass_dom_fallback_only": fallback_passes,
+            "pass_total": total_passes,
             "product_fail": len(buckets["PRODUCT_FAIL"]),
             "sparse_review": len(buckets["SPARSE_REVIEW"]),
             "browser_block": len(buckets["BROWSER_BLOCK"]),
             "auth_gated": len(buckets["AUTH_GATED"]),
             "reachable": reachable,
-            "raw_pass_rate": round(passes / total, 4) if total else 0,
-            "product_reachable_pass_rate": round(passes / reachable, 4) if reachable else 0,
+            "real_api_rate": round(real_passes / reachable, 4) if reachable else 0,
+            "dom_fallback_rate": round(fallback_passes / reachable, 4) if reachable else 0,
+            "total_pass_rate": round(total_passes / reachable, 4) if reachable else 0,
             "buckets": {k: [r.get("url") for r in v] for k, v in buckets.items()},
         }
         print(json.dumps(summary, indent=2))
         return
 
     print(f"\n=== bench-local triage: {path} ===\n")
-    for k in ("PASS", "PRODUCT_FAIL", "SPARSE_REVIEW", "BROWSER_BLOCK", "AUTH_GATED"):
+    for k in ("PASS", "PASS_DOM_FALLBACK_ONLY", "PRODUCT_FAIL", "SPARSE_REVIEW", "BROWSER_BLOCK", "AUTH_GATED"):
         items = buckets.get(k, [])
         if not items:
             continue
@@ -169,9 +179,11 @@ def main():
             print(f"  - {url[:100]}  {tag}")
         print()
 
-    print(f"raw pass: {passes}/{total} ({100*passes/total:.0f}%)")
+    print(f"raw pass (real+fallback): {total_passes}/{total} ({100*total_passes/total:.0f}%)")
     if reachable > 0:
-        print(f"product-reachable pass: {passes}/{reachable} ({100*passes/reachable:.0f}%)")
+        print(f"REAL-API pass:          {real_passes}/{reachable} ({100*real_passes/reachable:.0f}%)  — actual API endpoints captured")
+        print(f"dom-fallback-only:      {fallback_passes}/{reachable} ({100*fallback_passes/reachable:.0f}%)  — page HTML returned, no real API")
+        print(f"product-reachable total: {total_passes}/{reachable} ({100*total_passes/reachable:.0f}%)")
 
 
 if __name__ == "__main__":

@@ -69,9 +69,11 @@ def classify(row: dict) -> str:
     if err == "auth_required" or row.get("auth_recommended") in (True, "True", "true"):
         return "AUTH_GATED"
     if has_ops and n_ops > 0:
+        if row.get("all_ops_dom_fallback") in (True, "True", "true"):
+            return "PASS_DOM_FALLBACK_ONLY"
         return "PASS"
     if trace_ok and src == "dom-fallback":
-        return "PASS"
+        return "PASS_DOM_FALLBACK_ONLY"
     if trace_ok and src == "direct-fetch":
         return "PASS"
     if src == "browse-session":

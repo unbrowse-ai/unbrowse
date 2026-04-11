@@ -44,6 +44,29 @@ goal = sys.argv[2]
 url = sys.argv[3]
 raw = open(out_path).read()
 
+def _op_is_dom_fallback(op, page_url):
+    """True if the operation is a synthesized 'return the page' endpoint.
+    Signature: url_template equals the page URL AND resource_kind is one
+    of the synthetic fallback kinds (message/form/resource) AND description
+    matches the synthesized 'Returns/Searches X with ...' pattern."""
+    tmpl = str(op.get('url_template', '') or '')
+    rk = str(op.get('resource_kind', '') or '').lower()
+    desc = str(op.get('description_out') or op.get('description') or '').lower()
+    # Strip trailing slash for comparison
+    norm_tmpl = tmpl.rstrip('/')
+    norm_url = (page_url or '').rstrip('/')
+    url_matches = norm_tmpl == norm_url
+    fallback_kind = rk in ('message', 'form', 'resource', 'page', 'artifact')
+    # The product auto-generates descriptions like
+    # "Returns <resource> details with <fields>" or
+    # "Searches <resource> with <fields>" for dom-fallback
+    auto_desc = (
+        ('returns' in desc and 'with' in desc and 'details' in desc)
+        or ('searches' in desc and 'with' in desc)
+        or 'captured page artifact' in desc
+    )
+    return url_matches and (fallback_kind or auto_desc)
+
 # Find the TOP-LEVEL response object. Previous version took the first
 # {"trace"...} match which matched nested trace objects inside a larger
 # response (e.g. the skill.endpoints[].trace nested entry) and returned
@@ -108,6 +131,19 @@ row = {
     'capture_diagnostic': r.get('capture_diagnostic', '') if isinstance(r, dict) else '',
     'total_endpoints_captured': r.get('total_endpoints_captured', '') if isinstance(r, dict) else '',
     'auth_recommended': r.get('auth_recommended', False) if isinstance(r, dict) else False,
+    # dom-fallback-only detection: every operation's url_template equals
+    # the input URL (the product couldn't find any API calls and instead
+    # synthesized "return the page as an endpoint"). The agent gets HTML
+    # back — useful for DOM-readable content, but NOT an API discovery.
+    # Observed on semrush, moz, backlinko, neilpatel, serpstat — all
+    # synthetic "page-as-endpoint" captures with resource_kind in
+    # {message, form, resource} and url_template == page URL.
+    'all_ops_dom_fallback': (
+        lambda ops, page_url: bool(ops) and all(
+            isinstance(o, dict) and _op_is_dom_fallback(o, page_url)
+            for o in ops
+        )
+    )(r.get('available_operations') or r.get('available_endpoints') or [], url) if isinstance(r, dict) else False,
 }
 print(json.dumps(row))
 PY
@@ -268,9 +304,16 @@ for r in rows:
     elif err == 'auth_required' or r.get('auth_recommended') is True:
         buckets['AUTH_GATED'].append(r['url'])
     elif has_ops and n_ops > 0:
-        buckets['PASS'].append(r['url'])
+        # SPLIT: if every captured op is a dom-fallback synthetic
+        # (captured page artifact / resource_kind=message), that's
+        # NOT real API discovery. The agent gets HTML back, not APIs.
+        # Mark it honestly so coverage numbers reflect real API capture.
+        if r.get('all_ops_dom_fallback'):
+            buckets['PASS_DOM_FALLBACK_ONLY'].append(r['url'])
+        else:
+            buckets['PASS'].append(r['url'])
     elif trace_ok and src == 'dom-fallback':
-        buckets['PASS'].append(r['url'])
+        buckets['PASS_DOM_FALLBACK_ONLY'].append(r['url'])
     elif trace_ok and src == 'direct-fetch':
         # direct-fetch = product short-circuited to raw HTTP fetch. When
         # the trace is successful the body was retrieved — even without
@@ -304,20 +347,24 @@ for r in rows:
         buckets['PRODUCT_FAIL'].append(r['url'])
 
 total = len(rows)
-passes = len(buckets['PASS'])
+real_passes = len(buckets['PASS'])
+fallback_passes = len(buckets['PASS_DOM_FALLBACK_ONLY'])
+total_passes = real_passes + fallback_passes
 blocked = len(buckets['BROWSER_BLOCK']) + len(buckets['AUTH_GATED'])
 reachable = total - blocked
 print(f"\n[bench-local] rubric tally (agent still judges in-thread):", file=sys.stderr)
-for k in ('PASS', 'PRODUCT_FAIL', 'SPARSE_REVIEW', 'BROWSER_BLOCK', 'AUTH_GATED'):
+for k in ('PASS', 'PASS_DOM_FALLBACK_ONLY', 'PRODUCT_FAIL', 'SPARSE_REVIEW', 'BROWSER_BLOCK', 'AUTH_GATED'):
     urls = buckets.get(k, [])
     if not urls:
         continue
-    print(f"  {k:<15} {len(urls):>3}", file=sys.stderr)
+    print(f"  {k:<25} {len(urls):>3}", file=sys.stderr)
     for u in urls:
         print(f"    - {u}", file=sys.stderr)
 if reachable > 0:
-    print(f"\n[bench-local] product-reachable pass: {passes}/{reachable} ({100*passes/reachable:.0f}%)", file=sys.stderr)
-print(f"[bench-local] raw pass: {passes}/{total} ({100*passes/total:.0f}%)", file=sys.stderr)
+    print(f"\n[bench-local] REAL-API pass: {real_passes}/{reachable} ({100*real_passes/reachable:.0f}%)  — captured actual API endpoints", file=sys.stderr)
+    print(f"[bench-local] dom-fallback-only: {fallback_passes}/{reachable} ({100*fallback_passes/reachable:.0f}%)  — page HTML returned, no API discovered", file=sys.stderr)
+    print(f"[bench-local] product-reachable total: {total_passes}/{reachable} ({100*total_passes/reachable:.0f}%)", file=sys.stderr)
+print(f"[bench-local] raw pass (incl. fallback): {total_passes}/{total} ({100*total_passes/total:.0f}%)", file=sys.stderr)
 print(f"\n[bench-local] wrote {len(rows)} rows to .bench-local/evidence.csv", file=sys.stderr)
 print("[bench-local] per-URL raw outputs in .bench-local/*.out", file=sys.stderr)
 print("[bench-local] results.jsonl has the same rows in JSON Lines format", file=sys.stderr)
