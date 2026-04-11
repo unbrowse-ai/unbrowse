@@ -45,14 +45,44 @@ def load_inspect(path: str) -> dict[str, dict]:
 
 
 def classify(row: dict, inspect: dict) -> str:
+    # Prefer the row's own verdict when present — extract.py computes it
+    # per-row using the same classification rule as triage, so reading the
+    # column is a cheap lookup rather than re-deriving the rule here. If
+    # the row is from an older bench-local run that didn't populate
+    # verdict, fall back to the local re-derivation.
+    bench_verdict = row.get("verdict") or ""
+    if bench_verdict in ("PASS", "PASS_WEAK"):
+        # Map the bench verdict back into the delta bucket that cross-
+        # references the inspect ground truth.
+        verdict = (inspect or {}).get("verdict", "")
+        if verdict.startswith("browser_block") or verdict in ("thin_body_no_data", "fetch_failed"):
+            return "PRODUCT_WIN"
+        return "CONFIRMED_PASS"
+    if bench_verdict == "PASS_DOM_FALLBACK_ONLY":
+        verdict = (inspect or {}).get("verdict", "")
+        if verdict.startswith("browser_block") or verdict in ("thin_body_no_data", "fetch_failed"):
+            return "PRODUCT_WIN_DOM_FALLBACK"
+        return "DOM_FALLBACK_WHEN_REAL_AVAILABLE"
+    if bench_verdict == "BROWSER_BLOCK":
+        verdict = (inspect or {}).get("verdict", "")
+        if row.get("cli_timeout") in (True, "True", "true"):
+            return "BENCH_TIMEOUT"
+        return "BLOCKED_BOTH"
+    if bench_verdict == "AUTH_GATED":
+        return "AUTH_GATED"
+    if bench_verdict == "PRODUCT_FAIL":
+        verdict = (inspect or {}).get("verdict", "")
+        if verdict.startswith("browser_block") or verdict in ("thin_body_no_data", "fetch_failed"):
+            return "BLOCKED_BOTH"
+        return "EXTRACTION_GAP"
+
+    # Fallback path for old rows without `verdict`.
     n_ops = int(row.get("n_operations") or 0)
     has_ops = row.get("has_available_operations") in (True, "True", "true")
     dom_fb = row.get("all_ops_dom_fallback") in (True, "True", "true")
     trace_ok = row.get("trace_success") in (True, "True", "true")
     src = row.get("source") or ""
-    # Real data = ops captured AND not all dom-fallback.
     bench_has_data = has_ops and n_ops > 0 and not dom_fb
-    # Dom-fallback path = source reported as dom-fallback OR all ops are page-artifacts.
     bench_dom_fallback = dom_fb or (trace_ok and src == "dom-fallback")
     bench_empty = (not has_ops or n_ops == 0) and not bench_dom_fallback
     verdict = (inspect or {}).get("verdict", "")
@@ -122,6 +152,7 @@ def main() -> None:
         "EXTRACTION_GAP",
         "DOM_FALLBACK_WHEN_REAL_AVAILABLE",
         "BENCH_TIMEOUT",
+        "AUTH_GATED",
         "BLOCKED_BOTH",
         "UNKNOWN",
     ):
