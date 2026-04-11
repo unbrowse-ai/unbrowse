@@ -48,8 +48,13 @@ def classify(row: dict, inspect: dict) -> str:
     n_ops = int(row.get("n_operations") or 0)
     has_ops = row.get("has_available_operations") in (True, "True", "true")
     dom_fb = row.get("all_ops_dom_fallback") in (True, "True", "true")
+    trace_ok = row.get("trace_success") in (True, "True", "true")
+    src = row.get("source") or ""
+    # Real data = ops captured AND not all dom-fallback.
     bench_has_data = has_ops and n_ops > 0 and not dom_fb
-    bench_empty = not has_ops or n_ops == 0
+    # Dom-fallback path = source reported as dom-fallback OR all ops are page-artifacts.
+    bench_dom_fallback = dom_fb or (trace_ok and src == "dom-fallback")
+    bench_empty = (not has_ops or n_ops == 0) and not bench_dom_fallback
     verdict = (inspect or {}).get("verdict", "")
 
     inspect_has_data = any(
@@ -66,11 +71,13 @@ def classify(row: dict, inspect: dict) -> str:
 
     if inspect_blocked and bench_has_data:
         return "PRODUCT_WIN"
+    if inspect_blocked and bench_dom_fallback:
+        return "PRODUCT_WIN_DOM_FALLBACK"
     if inspect_blocked and bench_empty:
         return "BLOCKED_BOTH"
     if inspect_has_data and bench_empty:
         return "EXTRACTION_GAP"
-    if inspect_has_data and dom_fb:
+    if inspect_has_data and bench_dom_fallback:
         return "DOM_FALLBACK_WHEN_REAL_AVAILABLE"
     if inspect_has_data and bench_has_data:
         return "CONFIRMED_PASS"
@@ -105,6 +112,7 @@ def main() -> None:
     for bucket in (
         "CONFIRMED_PASS",
         "PRODUCT_WIN",
+        "PRODUCT_WIN_DOM_FALLBACK",
         "EXTRACTION_GAP",
         "DOM_FALLBACK_WHEN_REAL_AVAILABLE",
         "BLOCKED_BOTH",
@@ -132,14 +140,23 @@ def main() -> None:
 
     # Top-line numbers
     product_reachable = sum(
-        1 for b in ("CONFIRMED_PASS", "PRODUCT_WIN", "EXTRACTION_GAP", "DOM_FALLBACK_WHEN_REAL_AVAILABLE")
+        1 for b in (
+            "CONFIRMED_PASS",
+            "PRODUCT_WIN",
+            "PRODUCT_WIN_DOM_FALLBACK",
+            "EXTRACTION_GAP",
+            "DOM_FALLBACK_WHEN_REAL_AVAILABLE",
+        )
         for _ in buckets.get(b, [])
     )
     real_passes = len(buckets["CONFIRMED_PASS"]) + len(buckets["PRODUCT_WIN"])
+    any_data = real_passes + len(buckets["PRODUCT_WIN_DOM_FALLBACK"]) + len(buckets["DOM_FALLBACK_WHEN_REAL_AVAILABLE"])
     print(f"reachable (data or extractable): {product_reachable}/{total}")
     print(f"real-api pass:                   {real_passes}/{total} ({100*real_passes/total:.0f}% of total)")
+    print(f"any data returned (real+fb):     {any_data}/{total} ({100*any_data/total:.0f}% of total)")
     if product_reachable:
         print(f"real-api / reachable:            {real_passes}/{product_reachable} ({100*real_passes/product_reachable:.0f}%)")
+        print(f"any data / reachable:            {any_data}/{product_reachable} ({100*any_data/product_reachable:.0f}%)")
 
 
 if __name__ == "__main__":
