@@ -82,6 +82,51 @@ def fetch(url: str, timeout: int = 20) -> tuple[int, dict, str]:
         return -1, {"error": str(e)}, ""
 
 
+def inspect_body(body: str, headers: dict) -> dict:
+    """Dispatch based on content-type: JSON APIs get a different verdict
+    than HTML pages. pokeapi/coingecko/catfact etc. are legitimate data
+    sources even with 'thin' bodies."""
+    ct = (headers.get("Content-Type") or headers.get("content-type") or "").lower()
+    if "application/json" in ct or "application/ld+json" in ct:
+        return inspect_json(body)
+    # Some APIs (like pokeapi) serve JSON with text/plain or no ct;
+    # detect by peeking at the first non-whitespace char.
+    stripped = body.lstrip()
+    if stripped[:1] in ("{", "[") and len(body) > 5:
+        try:
+            json.loads(body)
+            return inspect_json(body)
+        except Exception:
+            pass
+    return inspect_html(body)
+
+
+def inspect_json(body: str) -> dict:
+    report = {
+        "size_bytes": len(body),
+        "bytes_past_300k": 0,
+        "spa_markers": {},
+        "jsonld_scripts": 0,
+        "jsonld_types": [],
+        "og_meta": {},
+        "cloudflare_challenge": False,
+        "title": "",
+        "label_candidates": [],
+        "json_direct": True,
+    }
+    try:
+        parsed = json.loads(body)
+        if isinstance(parsed, dict):
+            report["json_top_keys"] = list(parsed.keys())[:10]
+        elif isinstance(parsed, list):
+            report["json_top_keys"] = ["<array>"]
+            if parsed and isinstance(parsed[0], dict):
+                report["json_top_keys"] = list(parsed[0].keys())[:10]
+    except Exception:
+        pass
+    return report
+
+
 def inspect_html(html: str) -> dict:
     """Return structured signal report for the HTML body.
 
@@ -224,6 +269,8 @@ def inspect_html(html: str) -> dict:
 
 
 def verdict(report: dict) -> str:
+    if report.get("json_direct"):
+        return "json_direct_api"
     if report.get("cloudflare_challenge"):
         return "browser_block:cloudflare"
     for name, info in report.get("spa_markers", {}).items():
@@ -246,7 +293,7 @@ def run(url: str, full: bool) -> dict:
     status, headers, body = fetch(url)
     if status < 0:
         return {"url": url, "error": headers.get("error"), "verdict": "fetch_failed"}
-    report = inspect_html(body)
+    report = inspect_body(body, headers)
     report["url"] = url
     report["http_status"] = status
     report["verdict"] = verdict(report)
@@ -260,15 +307,58 @@ def run(url: str, full: bool) -> dict:
 def main() -> None:
     args = sys.argv[1:]
     full = "--full" in args
+    summary = "--summary" in args
+    corpus = None
+    if "--corpus" in args:
+        i = args.index("--corpus")
+        corpus = args[i + 1] if i + 1 < len(args) else None
+        args = args[:i] + args[i + 2:]
     args = [a for a in args if not a.startswith("--")]
-    if not args:
-        print("usage: inspect-page-signals.py <url> [--full]", file=sys.stderr)
-        sys.exit(2)
-    urls = []
-    if args[0] == "-":
+
+    urls: list[str] = []
+    if corpus:
+        # Accept either `url` per line or `goal|url` pipe-separated (bench format).
+        for line in open(corpus):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "|" in line:
+                _, url = line.split("|", 1)
+                urls.append(url.strip())
+            else:
+                urls.append(line)
+    elif args and args[0] == "-":
         urls = [line.strip() for line in sys.stdin if line.strip()]
-    else:
+    elif args:
         urls = args
+    else:
+        print(
+            "usage: inspect-page-signals.py <url> [--full]\n"
+            "       inspect-page-signals.py - < urls.txt\n"
+            "       inspect-page-signals.py --corpus scripts/corpus/benchmark-baseline.txt [--summary]",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    if summary:
+        from collections import Counter
+        verdict_counts: Counter = Counter()
+        per_url: list[tuple[str, int, str]] = []
+        for url in urls:
+            result = run(url, full=False)
+            v = result.get("verdict", "?")
+            verdict_counts[v] += 1
+            per_url.append((url, result.get("http_status", -1), v))
+        print(f"\n=== inspect-page-signals summary: {len(urls)} URLs ===\n")
+        for v, c in verdict_counts.most_common():
+            print(f"  {v:45s} {c:>4}")
+        print()
+        # Dump per-url records sorted by verdict so gaps cluster
+        per_url.sort(key=lambda t: (t[2], t[0]))
+        for url, status, v in per_url:
+            print(f"  {status:>4} {v:45s} {url[:100]}")
+        return
+
     for url in urls:
         result = run(url, full)
         print(json.dumps(result, indent=2, default=str))
