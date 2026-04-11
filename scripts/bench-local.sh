@@ -44,6 +44,7 @@ import sys, json, re
 out_path = sys.argv[1]
 goal = sys.argv[2]
 url = sys.argv[3]
+cli_exit = int(sys.argv[4]) if len(sys.argv) > 4 else 0
 raw = open(out_path).read()
 
 def _op_is_dom_fallback(op, page_url, spa_sourced_endpoint_ids=None):
@@ -165,6 +166,11 @@ row = {
     'capture_diagnostic': r.get('capture_diagnostic', '') if isinstance(r, dict) else '',
     'total_endpoints_captured': r.get('total_endpoints_captured', '') if isinstance(r, dict) else '',
     'auth_recommended': r.get('auth_recommended', False) if isinstance(r, dict) else False,
+    # cli_exit distinguishes a timeout (124) from a clean no-data empty row,
+    # so the rubric and the agent can tell "browser hung" apart from
+    # "browser returned but extraction found nothing".
+    'cli_exit': cli_exit,
+    'cli_timeout': cli_exit == 124,
     # dom-fallback-only detection: every operation's url_template equals
     # the input URL (the product couldn't find any API calls and instead
     # synthesized "return the page as an endpoint"). The agent gets HTML
@@ -240,7 +246,7 @@ while IFS='|' read -r goal url; do
       echo "  [bench-local] retry cli exit=$cli_exit" >&2
     fi
   fi
-  record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url")
+  record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url" "$cli_exit")
   # Second retry: if the record shows no_html_many_apis, the browser
   # fired lots of requests but Kuri's getPageHtml returned nothing.
   # Give it a 2x timeout — heavily JS-rendered SPAs sometimes need more
@@ -256,7 +262,7 @@ while IFS='|' read -r goal url; do
     if [ "$cli_exit" -ne 0 ]; then
       echo "  [bench-local] no_html retry cli exit=$cli_exit" >&2
     fi
-    record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url")
+    record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url" "$cli_exit")
   fi
   echo "$record" >> "$OUT_DIR/results.jsonl"
   # Show a compact one-line evidence summary for the agent watching the run.

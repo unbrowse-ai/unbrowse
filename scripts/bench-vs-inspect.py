@@ -69,6 +69,12 @@ def classify(row: dict, inspect: dict) -> str:
     )
     inspect_blocked = verdict.startswith("browser_block") or verdict == "thin_body_no_data" or verdict == "fetch_failed"
 
+    # cli_timeout is an explicit signal that the bench harness killed the
+    # CLI at the configured timeout. Not a product fail — the browser was
+    # still working. Flag it as its own bucket so the agent can decide
+    # whether to retry with a longer timeout.
+    if row.get("cli_timeout") in (True, "True", "true"):
+        return "BENCH_TIMEOUT"
     if inspect_blocked and bench_has_data:
         return "PRODUCT_WIN"
     if inspect_blocked and bench_dom_fallback:
@@ -115,6 +121,7 @@ def main() -> None:
         "PRODUCT_WIN_DOM_FALLBACK",
         "EXTRACTION_GAP",
         "DOM_FALLBACK_WHEN_REAL_AVAILABLE",
+        "BENCH_TIMEOUT",
         "BLOCKED_BOTH",
         "UNKNOWN",
     ):
