@@ -105,6 +105,42 @@ function sliceBalancedObject(src: string, startIdx: number): string | null {
   return null;
 }
 
+/**
+ * Brace/bracket-balanced extraction starting exactly at startIdx. Unlike
+ * sliceBalancedObject, this accepts both { and [ as the opening char and
+ * returns null if startIdx isn't one of them. Used for RSC stream frames
+ * which interleave objects and arrays inside the combined __next_f stream.
+ */
+function sliceBalancedAny(src: string, startIdx: number): string | null {
+  const open = src[startIdx];
+  if (open !== "{" && open !== "[") return null;
+  const closeCh = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let stringChar = "";
+  let escaped = false;
+  for (let i = startIdx; i < src.length; i++) {
+    const c = src[i];
+    if (escaped) { escaped = false; continue; }
+    if (inString) {
+      if (c === "\\") { escaped = true; continue; }
+      if (c === stringChar) { inString = false; }
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      inString = true;
+      stringChar = c;
+      continue;
+    }
+    if (c === open) depth += 1;
+    else if (c === closeCh) {
+      depth -= 1;
+      if (depth === 0) return src.substring(startIdx, i + 1);
+    }
+  }
+  return null;
+}
+
 function findWindowAssignmentPayload(html: string, varName: string): string | null {
   // Match window.VAR = { ... with optional whitespace and semicolon. Body
   // pulled via brace-balanced walk, not a non-greedy regex that would
@@ -199,6 +235,64 @@ export function extractSPAData(html: string): SPAExtraction[] {
         });
       }
     } catch { /* malformed apollo state */ }
+  }
+
+  // --- Next.js 13+ App Router streaming: self.__next_f.push([1,"..."])
+  // Pages Router ships all data in <script id="__NEXT_DATA__">, but the
+  // newer App Router streams serialized server components in many
+  // self.__next_f.push([...]) calls throughout the document. Each push
+  // contains a prefix byte and a JSON-escaped string that, when joined
+  // and parsed, holds the real page data. Any Next.js 13+ site (Vercel
+  // default) ships like this — skipping it means missing most modern
+  // Next.js hydration. ---
+  const nextFPayloads: string[] = [];
+  const nextFRe = /self\.__next_f\.push\(\s*\[\s*\d+\s*,\s*("(?:[^"\\]|\\.)*")/g;
+  let nextFMatch: RegExpExecArray | null;
+  while ((nextFMatch = nextFRe.exec(html))) {
+    try {
+      const decoded = JSON.parse(nextFMatch[1]);
+      if (typeof decoded === "string" && decoded.length > 0) {
+        nextFPayloads.push(decoded);
+      }
+    } catch { /* malformed push */ }
+  }
+  if (nextFPayloads.length > 0) {
+    const combined = nextFPayloads.join("");
+    // RSC streams embed many JSON objects separated by newlines with a
+    // `<id>:<json>` prefix. Walk the combined stream and pull out each
+    // brace-balanced { ... } or [ ... ] fragment — a non-greedy regex
+    // would silently truncate at the first inner `}` / `]` (same silent
+    // failure as the non-greedy window.__X__ regex fixed earlier).
+    const fragments: unknown[] = [];
+    for (let i = 0; i < combined.length; i++) {
+      const c = combined[i];
+      if (c !== "{" && c !== "[") continue;
+      const body = sliceBalancedAny(combined, i);
+      if (!body) continue;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed && typeof parsed === "object") {
+          fragments.push(parsed);
+        }
+      } catch { /* skip non-JSON at this position */ }
+      i += body.length - 1;
+    }
+    // Keep the top 3 richest fragments. No hard floor — even a small
+    // object may be the real page data on simple pages.
+    const scored = fragments
+      .filter((f) => f && typeof f === "object")
+      .map((f) => ({ data: f, count: countDataElements(f) }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+    for (const entry of scored) {
+      if (entry.count >= 2) {
+        results.push({
+          type: "spa-initial-state",
+          data: entry.data,
+          element_count: entry.count,
+        });
+      }
+    }
   }
 
   return results;
