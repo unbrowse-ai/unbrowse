@@ -44,14 +44,27 @@ goal = sys.argv[2]
 url = sys.argv[3]
 raw = open(out_path).read()
 
-def _op_is_dom_fallback(op, page_url):
+def _op_is_dom_fallback(op, page_url, spa_sourced_endpoint_ids=None):
     """True if the operation is a synthesized 'return the page' endpoint.
     Signature: url_template equals the page URL AND resource_kind is one
     of the synthetic fallback kinds (message/form/resource) AND description
-    matches the synthesized 'Returns/Searches X with ...' pattern."""
+    matches the synthesized 'Returns/Searches X with ...' pattern.
+
+    Exception: if the operation is sourced from SPA-embedded data
+    (Next.js __NEXT_DATA__, Nuxt __NUXT__, __INITIAL_STATE__,
+    __PRELOADED_STATE__), it's real SSR payload data, not a dom-scrape
+    fallback — treat as a real endpoint."""
+    ep_id = op.get('endpoint_id') or op.get('operation_id') or ''
+    if spa_sourced_endpoint_ids and ep_id in spa_sourced_endpoint_ids:
+        return False
     tmpl = str(op.get('url_template', '') or '')
     rk = str(op.get('resource_kind', '') or '').lower()
     desc = str(op.get('description_out') or op.get('description') or '').lower()
+    # SSR-embedded data description (set by buildPageArtifactCapture when
+    # extraction_method starts with "spa-") is an explicit real-endpoint
+    # marker even before we consult skill.endpoints.
+    if 'ssr embedded data' in desc or desc.startswith('ssr ') or 'spa-' in desc:
+        return False
     # Strip trailing slash for comparison
     norm_tmpl = tmpl.rstrip('/')
     norm_url = (page_url or '').rstrip('/')
@@ -66,6 +79,25 @@ def _op_is_dom_fallback(op, page_url):
         or 'captured page artifact' in desc
     )
     return url_matches and (fallback_kind or auto_desc)
+
+
+def _spa_sourced_endpoint_ids(skill):
+    """Return the set of endpoint_ids in skill.endpoints whose
+    dom_extraction.extraction_method starts with 'spa-'. These came from
+    SPA-embedded SSR data and should never be classified as dom-fallback."""
+    ids = set()
+    if not isinstance(skill, dict):
+        return ids
+    for ep in skill.get('endpoints') or []:
+        if not isinstance(ep, dict):
+            continue
+        dx = ep.get('dom_extraction') or {}
+        method = str(dx.get('extraction_method') or '')
+        if method.startswith('spa-'):
+            eid = ep.get('endpoint_id')
+            if eid:
+                ids.add(eid)
+    return ids
 
 # Find the TOP-LEVEL response object. Previous version took the first
 # {"trace"...} match which matched nested trace objects inside a larger
@@ -139,11 +171,15 @@ row = {
     # synthetic "page-as-endpoint" captures with resource_kind in
     # {message, form, resource} and url_template == page URL.
     'all_ops_dom_fallback': (
-        lambda ops, page_url: bool(ops) and all(
-            isinstance(o, dict) and _op_is_dom_fallback(o, page_url)
+        lambda ops, page_url, spa_ids: bool(ops) and all(
+            isinstance(o, dict) and _op_is_dom_fallback(o, page_url, spa_ids)
             for o in ops
         )
-    )(r.get('available_operations') or r.get('available_endpoints') or [], url) if isinstance(r, dict) else False,
+    )(
+        r.get('available_operations') or r.get('available_endpoints') or [],
+        url,
+        _spa_sourced_endpoint_ids(r.get('skill') if isinstance(r, dict) else None),
+    ) if isinstance(r, dict) else False,
 }
 print(json.dumps(row))
 PY

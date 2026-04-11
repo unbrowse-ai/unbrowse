@@ -85,6 +85,13 @@ function looksOpaqueIdentifier(value: string): boolean {
 }
 
 function isCanonicalDocumentReplay(endpoint: EndpointDescriptor): boolean {
+  // SPA-sourced data (Next.js __NEXT_DATA__, Nuxt __NUXT__, Redux
+  // __INITIAL_STATE__, etc.) is NOT a dom-fallback page artifact even when
+  // url_template matches the trigger URL — it's the real SSR payload the
+  // server shipped to hydrate the page, equivalent to calling the
+  // framework's internal data API. Treat it as a durable real endpoint.
+  const extractionMethod = endpoint.dom_extraction?.extraction_method ?? "";
+  if (extractionMethod.startsWith("spa-")) return false;
   if (/captured page artifact/i.test(endpoint.description ?? "")) return true;
   if (!endpoint.trigger_url) return false;
   try {
