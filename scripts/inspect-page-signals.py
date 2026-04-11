@@ -342,10 +342,43 @@ def main() -> None:
 
     if summary:
         from collections import Counter
+        # Incremental save: each URL result is appended to .bench-local/inspect.jsonl
+        # as we go. Resumes by skipping URLs already in the file. Long scans
+        # can be killed and restarted without losing work.
+        state_path = ".bench-local/inspect.jsonl"
+        import os
+        os.makedirs(".bench-local", exist_ok=True)
+        seen: dict[str, dict] = {}
+        if os.path.exists(state_path):
+            for line in open(state_path):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    if "url" in row:
+                        seen[row["url"]] = row
+                except Exception:
+                    continue
+        done_cnt = 0
+        for url in seen:
+            done_cnt += 1
+        if done_cnt:
+            print(f"[inspect] resuming from {state_path}: {done_cnt} URLs already done", file=sys.stderr)
+
+        with open(state_path, "a") as fh:
+            for url in urls:
+                if url in seen:
+                    continue
+                result = run(url, full=False)
+                fh.write(json.dumps(result, default=str) + "\n")
+                fh.flush()
+                seen[url] = result
+
         verdict_counts: Counter = Counter()
         per_url: list[tuple[str, int, str]] = []
         for url in urls:
-            result = run(url, full=False)
+            result = seen.get(url, {"verdict": "not_scanned", "http_status": -1})
             v = result.get("verdict", "?")
             verdict_counts[v] += 1
             per_url.append((url, result.get("http_status", -1), v))
