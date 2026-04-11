@@ -1286,6 +1286,15 @@ export function extractFromDOMWithHint(
  * the best match for the given intent.
  */
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
+  // Extract SPA-embedded data from the FULL untruncated HTML. Next.js SSR
+  // pages often place <script id="__NEXT_DATA__"> near the end of the
+  // document (past byte 300K on large pages like coinmarketcap). Truncating
+  // first silently nuked the only real structured payload on those sites,
+  // forcing the pipeline to fall back to noisy DOM repeated-elements
+  // extraction. Extract SPA data BEFORE any truncation — it's O(n) regex
+  // on raw string, doesn't instantiate cheerio, and is cheap.
+  const spaStructures = extractSPAData(html);
+
   // Cap HTML size to prevent cheerio from hanging on massive pages
   const MAX_HTML_SIZE = 300_000;
   let workingHtml = html;
@@ -1305,9 +1314,6 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
       }
     }
   }
-
-  // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
-  const spaStructures = extractSPAData(workingHtml);
   const flashStructures = extractFlashNoticeSpecial(workingHtml, intent);
   const cleaned = cleanDOM(workingHtml);
   const githubStructures = extractGitHubSpecial(workingHtml, intent);

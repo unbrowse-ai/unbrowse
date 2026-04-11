@@ -30,6 +30,9 @@ def classify(row: dict) -> str:
     trace_ok = trace_raw in (True, "True", "true")
     src = row.get("source") or ""
     err = row.get("error_code") or ""
+    # SSR-embedded SPA data is real structured payload, not a dom fallback.
+    # bench-local.sh writes all_ops_dom_fallback already accounting for
+    # this exception, so we trust the row's pre-computed flag.
 
     # Parse the signals list if it's a JSON string from the CSV.
     bs = ""
