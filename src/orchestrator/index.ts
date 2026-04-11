@@ -802,7 +802,26 @@ export function isCachedSkillRelevantForIntent(
     }
     if (collectExplicitSearchContextBindingKeys(contextUrl).size > 0) return false;
   }
-  return (top?.score ?? Number.NEGATIVE_INFINITY) >= 0;
+  // Primary gate: positive relevance score wins outright.
+  if ((top?.score ?? Number.NEGATIVE_INFINITY) >= 0) return true;
+  // Weak-relevance fallback: when the best endpoint is slightly negative
+  // (e.g. opensea's features.opensea.io/api/frontend scored -1.4) but is
+  // on the same registrable domain as the request context, return it
+  // rather than dropping the whole skill. Dropping yields "no relevant
+  // endpoint discovered" which is worse for the agent than a weakly-
+  // scored on-domain API call they can inspect and decide on.
+  if (top && top.score >= -5 && contextUrl) {
+    try {
+      const epHost = new URL(top.endpoint.url_template).hostname;
+      const ctxHost = new URL(contextUrl).hostname;
+      const epReg = getRegistrableDomain(epHost);
+      const ctxReg = getRegistrableDomain(ctxHost);
+      if (epReg && ctxReg && epReg === ctxReg) return true;
+    } catch {
+      /* malformed URL — fall through to reject */
+    }
+  }
+  return false;
 }
 
 export function assessLocalExecutionResult(
