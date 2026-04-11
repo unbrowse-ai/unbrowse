@@ -20,6 +20,7 @@ OFFSET=0
 SIZE=0
 TIMEOUT=90
 CLI_CMD="unbrowse"
+FORCE_CAPTURE=0
 for arg in "$@"; do
   case "$arg" in
     --corpus-file) shift; CORPUS="${1:-}"; shift || true ;;
@@ -27,6 +28,7 @@ for arg in "$@"; do
     --size) shift; SIZE="${1:-0}"; shift || true ;;
     --timeout) shift; TIMEOUT="${1:-90}"; shift || true ;;
     --use-source) shift; CLI_CMD="bun src/cli.ts" ;;
+    --force-capture) shift; FORCE_CAPTURE=1 ;;
   esac
 done
 
@@ -210,7 +212,9 @@ while IFS='|' read -r goal url; do
   slug=$(printf '%s' "$url" | tr '/:?&=.' '_')
   out_file="$OUT_DIR/${i}_${slug:0:60}.out"
   echo "[bench-local] ($i/$N) $url" >&2
-  timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" </dev/null > "$out_file" 2>&1
+  force_flag=""
+  [ "$FORCE_CAPTURE" -eq 1 ] && force_flag="--force-capture"
+  timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" $force_flag </dev/null > "$out_file" 2>&1
   cli_exit=$?
   if [ "$cli_exit" -ne 0 ]; then
     echo "  [bench-local] cli exit=$cli_exit (timeout=124, killed=137)" >&2

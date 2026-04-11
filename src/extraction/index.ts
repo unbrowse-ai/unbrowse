@@ -69,6 +69,53 @@ function extractFlashNoticeSpecial(html: string, intent: string): ExtractedStruc
  * Extract structured data embedded by SPA frameworks BEFORE cleanDOM strips scripts.
  * Must be called on raw HTML.
  */
+/**
+ * Brace-balanced object extraction from a JS source string starting at the
+ * first `{`. Handles nested braces, strings, and escaped characters. Returns
+ * the substring containing the complete top-level `{...}` or null if
+ * unterminated. Needed because `\{[\s\S]*?\}` non-greedy regexes silently
+ * match the first inner `}` and truncate the payload on any nested object.
+ */
+function sliceBalancedObject(src: string, startIdx: number): string | null {
+  const first = src.indexOf("{", startIdx);
+  if (first < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let stringChar = "";
+  let escaped = false;
+  for (let i = first; i < src.length; i++) {
+    const c = src[i];
+    if (escaped) { escaped = false; continue; }
+    if (inString) {
+      if (c === "\\") { escaped = true; continue; }
+      if (c === stringChar) { inString = false; }
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      inString = true;
+      stringChar = c;
+      continue;
+    }
+    if (c === "{") depth += 1;
+    else if (c === "}") {
+      depth -= 1;
+      if (depth === 0) return src.substring(first, i + 1);
+    }
+  }
+  return null;
+}
+
+function findWindowAssignmentPayload(html: string, varName: string): string | null {
+  // Match window.VAR = { ... with optional whitespace and semicolon. Body
+  // pulled via brace-balanced walk, not a non-greedy regex that would
+  // silently truncate at the first inner `}` of a nested object.
+  const assignRe = new RegExp(String.raw`window\.${varName}\s*=\s*(\{)`, "i");
+  const m = assignRe.exec(html);
+  if (!m) return null;
+  const startIdx = m.index + m[0].length - 1; // position of the `{`
+  return sliceBalancedObject(html, startIdx);
+}
+
 export function extractSPAData(html: string): SPAExtraction[] {
   const results: SPAExtraction[] = [];
 
@@ -88,11 +135,13 @@ export function extractSPAData(html: string): SPAExtraction[] {
     } catch { /* malformed __NEXT_DATA__ */ }
   }
 
-  // --- Nuxt.js: window.__NUXT__={...} or <script>window.__NUXT__=... ---
-  const nuxtMatch = html.match(/window\.__NUXT__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
-  if (nuxtMatch) {
+  // --- Nuxt.js: window.__NUXT__={...}. Nuxt bodies may be JS (not JSON),
+  // so JSON.parse is best-effort; if it fails we still try eval-free
+  // structure discovery via the outer wrapper keys. ---
+  const nuxtPayload = findWindowAssignmentPayload(html, "__NUXT__");
+  if (nuxtPayload) {
     try {
-      const parsed = JSON.parse(nuxtMatch[1]);
+      const parsed = JSON.parse(nuxtPayload);
       const data = parsed?.data?.[0] ?? parsed?.state ?? parsed;
       if (data && typeof data === "object" && Object.keys(data).length > 0) {
         results.push({
@@ -101,14 +150,14 @@ export function extractSPAData(html: string): SPAExtraction[] {
           element_count: countDataElements(data),
         });
       }
-    } catch { /* malformed __NUXT__ — often not pure JSON, skip */ }
+    } catch { /* Nuxt bodies are often JS literals, not JSON — skip */ }
   }
 
   // --- Generic: window.__INITIAL_STATE__ ---
-  const initialStateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
-  if (initialStateMatch) {
+  const initialStatePayload = findWindowAssignmentPayload(html, "__INITIAL_STATE__");
+  if (initialStatePayload) {
     try {
-      const parsed = JSON.parse(initialStateMatch[1]);
+      const parsed = JSON.parse(initialStatePayload);
       if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
         results.push({
           type: "spa-initial-state",
@@ -120,10 +169,10 @@ export function extractSPAData(html: string): SPAExtraction[] {
   }
 
   // --- Generic: window.__PRELOADED_STATE__ ---
-  const preloadedMatch = html.match(/window\.__PRELOADED_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
-  if (preloadedMatch) {
+  const preloadedPayload = findWindowAssignmentPayload(html, "__PRELOADED_STATE__");
+  if (preloadedPayload) {
     try {
-      const parsed = JSON.parse(preloadedMatch[1]);
+      const parsed = JSON.parse(preloadedPayload);
       if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
         results.push({
           type: "spa-preloaded-state",
@@ -132,6 +181,24 @@ export function extractSPAData(html: string): SPAExtraction[] {
         });
       }
     } catch { /* malformed __PRELOADED_STATE__ */ }
+  }
+
+  // --- Apollo Client: window.__APOLLO_STATE__ or <script>window.__APOLLO_STATE__={...}<\/script>.
+  // Goodreads and many React/GraphQL apps ship their entire Apollo cache
+  // here. Keys are cache IDs like "Book:3735293"; values are the real
+  // structured records the page rendered from. ---
+  const apolloPayload = findWindowAssignmentPayload(html, "__APOLLO_STATE__");
+  if (apolloPayload) {
+    try {
+      const parsed = JSON.parse(apolloPayload);
+      if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+        results.push({
+          type: "spa-initial-state",
+          data: parsed,
+          element_count: countDataElements(parsed),
+        });
+      }
+    } catch { /* malformed apollo state */ }
   }
 
   return results;
