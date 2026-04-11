@@ -163,6 +163,59 @@ function findWindowAssignmentPayload(html: string, varName: string): string | nu
  * Walks dehydratedState and returns an array of the per-query `data`
  * objects so the intent scorer sees the actual content.
  */
+/**
+ * Unwrap React Infinite Query's pagination wrapper. When a query's data
+ * shape is `{ pages: [...], pageParams: [...] }`, the real content is
+ * inside each page's data payload. Flatten pages into a single array so
+ * the intent scorer sees the actual entries (articles, products, etc.)
+ * rather than a wrapper object with no intent-matching fields.
+ *
+ * Shapes handled:
+ *   { pages: [{data: [...]}, ...] }     → merged array from all pages
+ *   { pages: [{items: [...]}, ...] }    → merged
+ *   { pages: [[...], ...] }             → merged
+ *   { pages: [{any_key: {data: [...]}}] } → dives one level
+ */
+function unwrapInfiniteQuery(data: unknown): unknown[] {
+  if (!data || typeof data !== "object") return [];
+  const d = data as Record<string, unknown>;
+  const pages = d.pages;
+  if (!Array.isArray(pages) || pages.length === 0) return [];
+  // Not an infinite-query wrapper unless pageParams also present.
+  if (!("pageParams" in d)) return [];
+  const merged: unknown[] = [];
+  for (const page of pages) {
+    if (Array.isArray(page)) {
+      merged.push(...page);
+    } else if (page && typeof page === "object") {
+      const p = page as Record<string, unknown>;
+      // Common keys that hold the entry list in paginated responses.
+      const listKeys = ["data", "items", "results", "articles", "posts", "nodes", "records"];
+      let found = false;
+      for (const k of listKeys) {
+        const v = p[k];
+        if (Array.isArray(v)) {
+          merged.push(...v);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        // Dive one level — look for any array-typed field.
+        for (const v of Object.values(p)) {
+          if (Array.isArray(v) && v.length > 0) {
+            merged.push(...v);
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) merged.push(page);
+    }
+  }
+  return merged;
+}
+
 function unwrapDehydratedState(pageProps: unknown): unknown[] {
   if (!pageProps || typeof pageProps !== "object") return [];
   const dh = (pageProps as Record<string, unknown>).dehydratedState;
@@ -175,7 +228,17 @@ function unwrapDehydratedState(pageProps: unknown): unknown[] {
     const state = (q as Record<string, unknown>).state;
     if (!state || typeof state !== "object") continue;
     const data = (state as Record<string, unknown>).data;
-    if (data != null) extracted.push(data);
+    if (data == null) continue;
+    // If this query is a React Infinite Query paginated cache, flatten
+    // the pages array into a single entry list — otherwise the intent
+    // scorer sees only `{pages, pageParams}` keys and rejects the SPA
+    // source in favor of DOM.
+    const infinitePages = unwrapInfiniteQuery(data);
+    if (infinitePages.length > 0) {
+      extracted.push(infinitePages);
+    } else {
+      extracted.push(data);
+    }
   }
   return extracted;
 }
