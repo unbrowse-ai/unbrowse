@@ -52,8 +52,16 @@ mkdir -p .bench-local
 
 if [ "$SKIP_INSPECT" -eq 0 ]; then
   echo ""
-  echo "=== Phase 1: inspect-page-signals (ground truth) ==="
-  python3 "$SCRIPT_DIR/inspect-page-signals.py" --corpus "$CORPUS" --summary > .bench-local/coverage-inspect.txt 2>&1
+  echo "=== Phase 1: web-inspect (ground truth) ==="
+  # Generic web signal extractor lives in aiko (~/agent-factory/bin/web-inspect).
+  # Fall back to the in-tree copy when running on a machine without aiko
+  # (CI boxes, fresh clones). The two are kept in sync via the aiko primitive.
+  if command -v web-inspect >/dev/null 2>&1; then
+    INSPECT_CMD="web-inspect"
+  else
+    INSPECT_CMD="python3 $SCRIPT_DIR/inspect-page-signals.py"
+  fi
+  $INSPECT_CMD --corpus "$CORPUS" --summary > .bench-local/coverage-inspect.txt 2>&1
   tail -n 40 .bench-local/coverage-inspect.txt | head -25
 fi
 
