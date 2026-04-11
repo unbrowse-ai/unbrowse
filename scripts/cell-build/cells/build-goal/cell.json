@@ -1,0 +1,59 @@
+{
+  "cell_id": "build-goal",
+  "kind": "composed",
+  "phase": "probation",
+  "intent_signatures": [
+    "build out the cell architecture described in docs/endpoint-as-cell.md",
+    "every gap in the doc becomes a child cell with its own verification",
+    "harness is the pre-prod gate: do not ship anything until every child cell is green"
+  ],
+  "capabilities": [
+    "build",
+    "verify",
+    "gate"
+  ],
+  "usage_instructions": "Run scripts/cell-build/check.sh. Green means every child cell passed its verify.sh. Yellow or red means work remains and nothing should ship.",
+  "children": [
+    {
+      "cell_id": "docs-hunter",
+      "bind": {}
+    }
+  ],
+  "walk": "parallel",
+  "verification": {
+    "history": [
+      {
+        "ts": "2026-04-11T02:43:26Z",
+        "verdict": "warn",
+        "exit_code": 2,
+        "summary": "[build-goal] state.json missing \u2014 run check.sh at least once",
+        "client_sha": "39850bd6"
+      },
+      {
+        "ts": "2026-04-11T02:43:52Z",
+        "verdict": "pass",
+        "exit_code": 0,
+        "summary": "[build-goal] all 1 child cells green",
+        "client_sha": "39850bd6"
+      }
+    ],
+    "current_health": "healthy",
+    "last_fail_at": "2026-04-11T02:43:26Z",
+    "last_pass_at": "2026-04-11T02:43:52Z"
+  },
+  "telemetry": {
+    "total_runs": 0,
+    "success_runs": 0
+  },
+  "dependencies": {
+    "requires": [],
+    "enables": [],
+    "observed_with": []
+  },
+  "self_heal": {
+    "fallback_chain": [],
+    "tried_strategies": []
+  },
+  "contributors": [],
+  "notes": "The build-goal cell IS this request. Its verification walks every child cell in scripts/cell-build/cells/ and succeeds only when all of them pass. This makes the request itself a harness primitive \u2014 Lewis's instruction: 'make this request a harness primitive itself'."
+}
