@@ -77,4 +77,40 @@ describe("extractSPAData: SPA payload parsing", () => {
     // Should return empty — nothing extractable.
     expect(extractSPAData(html).length).toBe(0);
   });
+
+  it("extracts data from Next.js 13+ App Router streaming self.__next_f.push calls", () => {
+    // Real-world shape: each push carries [1, "<id>:<json>\n"] where the
+    // inner string is JSON-encoded — quotes are escaped with \" in the
+    // browser's raw HTML. JSON.stringify-ing the payload twice gives us
+    // the correct double-escaped literal that matches the wire format.
+    const bigPayload = JSON.stringify({
+      product: {
+        id: "widget-42",
+        name: "A Widget",
+        price: 129.99,
+        attributes: { color: "red", weight: 2.5 },
+        reviews: [
+          { author: "Alice", rating: 5 },
+          { author: "Bob", rating: 4 },
+        ],
+      },
+    });
+    // JSON.stringify the inner string a second time — that gives us the
+    // `\"product\":` escaped form that Next.js actually emits, wrapped in
+    // outer `"`. We then build the final HTML via string concatenation
+    // rather than a template literal because template literals eat the
+    // backslash-escape at compile time and the runtime would see bare
+    // `"` inside the `[1, "..."]` list, which is not valid JS.
+    const push1 = JSON.stringify("1:" + bigPayload + "\n");
+    const push0 = JSON.stringify("0:x\n");
+    const html =
+      "<script>self.__next_f=self.__next_f||[];self.__next_f.push([1," + push0 + "])</script>" +
+      "<script>self.__next_f.push([1," + push1 + "])</script>";
+    const spa = extractSPAData(html);
+    const appRouterHit = spa.find((s) => s.type === "spa-initial-state");
+    expect(appRouterHit).toBeDefined();
+    const data = appRouterHit!.data as Record<string, unknown>;
+    expect((data.product as any).name).toBe("A Widget");
+    expect((data.product as any).reviews.length).toBe(2);
+  });
 });
