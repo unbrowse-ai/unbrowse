@@ -152,6 +152,34 @@ function findWindowAssignmentPayload(html: string, varName: string): string | nu
   return sliceBalancedObject(html, startIdx);
 }
 
+/**
+ * React Query / TanStack Query hydration unwrapper. Many modern React
+ * sites (decrypt.co, wired.com, theverge.com, etc.) put the real page
+ * content inside `pageProps.dehydratedState.queries[*].state.data` —
+ * the raw pageProps itself is just framework metadata (i18n, variables,
+ * active terms). Returning the outer pageProps lets the intent matcher
+ * reject the SPA in favor of DOM repeated-elements scraping.
+ *
+ * Walks dehydratedState and returns an array of the per-query `data`
+ * objects so the intent scorer sees the actual content.
+ */
+function unwrapDehydratedState(pageProps: unknown): unknown[] {
+  if (!pageProps || typeof pageProps !== "object") return [];
+  const dh = (pageProps as Record<string, unknown>).dehydratedState;
+  if (!dh || typeof dh !== "object") return [];
+  const queries = (dh as Record<string, unknown>).queries;
+  if (!Array.isArray(queries)) return [];
+  const extracted: unknown[] = [];
+  for (const q of queries) {
+    if (!q || typeof q !== "object") continue;
+    const state = (q as Record<string, unknown>).state;
+    if (!state || typeof state !== "object") continue;
+    const data = (state as Record<string, unknown>).data;
+    if (data != null) extracted.push(data);
+  }
+  return extracted;
+}
+
 export function extractSPAData(html: string): SPAExtraction[] {
   const results: SPAExtraction[] = [];
 
@@ -162,11 +190,37 @@ export function extractSPAData(html: string): SPAExtraction[] {
       const parsed = JSON.parse(nextDataMatch[1]);
       const pageProps = parsed?.props?.pageProps;
       if (pageProps && typeof pageProps === "object" && Object.keys(pageProps).length > 0) {
-        results.push({
-          type: "spa-nextjs",
-          data: pageProps,
-          element_count: countDataElements(pageProps),
-        });
+        // React Query unwrap: many Next.js sites stash real content inside
+        // pageProps.dehydratedState.queries[*].state.data. Surface each
+        // query's data payload as its own SPA structure so the intent
+        // scorer can pick the one matching the current request.
+        const dehydrated = unwrapDehydratedState(pageProps);
+        for (const qdata of dehydrated) {
+          if (qdata && typeof qdata === "object") {
+            results.push({
+              type: "spa-nextjs",
+              data: qdata,
+              element_count: countDataElements(qdata),
+            });
+          }
+        }
+        // Always also surface the raw pageProps as a fallback (minus
+        // the already-unwrapped dehydratedState to avoid duplicating it).
+        const rawPageProps =
+          dehydrated.length > 0
+            ? Object.fromEntries(
+                Object.entries(pageProps as Record<string, unknown>).filter(
+                  ([key]) => key !== "dehydratedState",
+                ),
+              )
+            : (pageProps as Record<string, unknown>);
+        if (rawPageProps && Object.keys(rawPageProps).length > 0) {
+          results.push({
+            type: "spa-nextjs",
+            data: rawPageProps,
+            element_count: countDataElements(rawPageProps),
+          });
+        }
       }
     } catch { /* malformed __NEXT_DATA__ */ }
   }

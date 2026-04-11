@@ -78,6 +78,64 @@ describe("extractSPAData: SPA payload parsing", () => {
     expect(extractSPAData(html).length).toBe(0);
   });
 
+  it("unwraps React Query dehydratedState into per-query data payloads", () => {
+    // decrypt.co-class: pageProps is dominated by framework metadata
+    // (i18n, variables, activeTerm), and the real content lives in
+    // dehydratedState.queries[*].state.data. Prior to unwrap the intent
+    // matcher saw only the metadata keys and rejected the SPA source
+    // in favor of noisy DOM repeated-elements.
+    const payload = JSON.stringify({
+      props: {
+        pageProps: {
+          _nextI18Next: { initialLocale: "en" },
+          variables: { slug: "news" },
+          activeTerm: { name: "news" },
+          dehydratedState: {
+            mutations: [],
+            queries: [
+              {
+                queryKey: ["articles", "news"],
+                queryHash: "x",
+                state: {
+                  data: {
+                    articles: [
+                      { id: 1, title: "Bitcoin hits new high", author: "Alice" },
+                      { id: 2, title: "Ethereum upgrade launches", author: "Bob" },
+                    ],
+                    total: 2,
+                  },
+                  status: "success",
+                },
+              },
+              {
+                queryKey: ["sidebar"],
+                queryHash: "y",
+                state: {
+                  data: { trending: ["btc", "eth"], featured: ["sol"] },
+                  status: "success",
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    const html = `<script id="__NEXT_DATA__" type="application/json">${payload}</script>`;
+    const spa = extractSPAData(html);
+    // Expect the per-query data structures to be surfaced as distinct SPA
+    // structures (first two are the unwrapped queries, the third is the
+    // raw pageProps with dehydratedState stripped).
+    expect(spa.length).toBe(3);
+    const articlesData = spa.find((s) => {
+      const d = s.data as Record<string, unknown>;
+      return Array.isArray(d.articles);
+    });
+    expect(articlesData).toBeDefined();
+    const articles = (articlesData!.data as any).articles;
+    expect(articles.length).toBe(2);
+    expect(articles[0].title).toBe("Bitcoin hits new high");
+  });
+
   it("extracts data from Next.js 13+ App Router streaming self.__next_f.push calls", () => {
     // Real-world shape: each push carries [1, "<id>:<json>\n"] where the
     // inner string is JSON-encoded — quotes are escaped with \" in the
