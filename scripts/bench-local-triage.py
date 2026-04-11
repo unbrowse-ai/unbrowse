@@ -75,6 +75,12 @@ def classify(row: dict) -> str:
     # top-level response, almost always a clean timeout. Treat as block.
     if not src and trace_raw in (None, "None", "") and not has_ops:
         return "BROWSER_BLOCK"
+    # Explicit timeout marker from the harness. CLI was killed at the
+    # bench-local TIMEOUT cap — usually a heavy JS-rendered page that the
+    # browser is still settling. Classify as browser-block so it doesn't
+    # inflate product_fail; re-running with a longer timeout may recover.
+    if row.get("cli_timeout") in (True, "True", "true"):
+        return "BROWSER_BLOCK"
     if err == "auth_required" or row.get("auth_recommended") in (True, "True", "true"):
         return "AUTH_GATED"
     if has_ops and n_ops > 0:
