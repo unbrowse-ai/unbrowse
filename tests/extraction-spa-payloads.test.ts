@@ -136,6 +136,53 @@ describe("extractSPAData: SPA payload parsing", () => {
     expect(articles[0].title).toBe("Bitcoin hits new high");
   });
 
+  it("flattens React Infinite Query pagination wrapper inside dehydratedState", () => {
+    // decrypt.co pattern: dehydratedState.queries[?].state.data is
+    // {pages, pageParams} — React Infinite Query's paginated cache. The
+    // real articles live inside pages[*].data (or items/results/etc.).
+    // Without flattening, the SPA structure looks like {pages, pageParams}
+    // which has no intent-matching content and loses to DOM scraping.
+    const payload = JSON.stringify({
+      props: {
+        pageProps: {
+          dehydratedState: {
+            queries: [
+              {
+                queryKey: ["ArticlePreviews"],
+                state: {
+                  data: {
+                    pages: [
+                      {
+                        data: [
+                          { id: 1, title: "Bitcoin news one", slug: "btc-1" },
+                          { id: 2, title: "Ethereum news two", slug: "eth-2" },
+                        ],
+                      },
+                      {
+                        data: [
+                          { id: 3, title: "Solana news three", slug: "sol-3" },
+                        ],
+                      },
+                    ],
+                    pageParams: [null, 2],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    const html = `<script id="__NEXT_DATA__" type="application/json">${payload}</script>`;
+    const spa = extractSPAData(html);
+    // Should surface a flat array of 3 articles from the paginated pages.
+    const articles = spa.find((s) => Array.isArray(s.data) && (s.data as any[]).length === 3);
+    expect(articles).toBeDefined();
+    const arr = articles!.data as any[];
+    expect(arr[0].title).toBe("Bitcoin news one");
+    expect(arr[2].slug).toBe("sol-3");
+  });
+
   it("extracts data from Next.js 13+ App Router streaming self.__next_f.push calls", () => {
     // Real-world shape: each push carries [1, "<id>:<json>\n"] where the
     // inner string is JSON-encoded — quotes are escaped with \" in the
