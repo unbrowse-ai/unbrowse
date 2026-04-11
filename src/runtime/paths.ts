@@ -29,7 +29,12 @@ export function isBundledVirtualEntrypoint(entrypoint: string): boolean {
 }
 
 export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): string[] {
-  if (path.extname(entrypoint) !== ".ts") return [entrypoint];
+  if (path.extname(entrypoint) !== ".ts") {
+    // Node's ESM loader rejects bare "C:\..." on Windows with
+    // ERR_UNSUPPORTED_ESM_URL_SCHEME. Wrap as file:// so process.argv[1]
+    // is a valid ESM specifier on every platform. Fixes #76.
+    return [pathToFileURL(entrypoint).href];
+  }
   if (process.versions.bun) return [entrypoint];
 
   try {
@@ -45,8 +50,15 @@ export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): s
 }
 
 export function isMainModule(metaUrl: string): boolean {
-  const entry = process.argv[1];
+  let entry = process.argv[1];
   if (!entry) return false;
+  // runtimeArgsForEntrypoint hands the child a file:// URL for bare .js
+  // entries. realpathSync throws on URL strings, and the catch-branch's
+  // path.resolve would then return a garbage path so this function always
+  // returned false — main() silently never ran. Unwrap first.
+  if (entry.startsWith("file://")) {
+    try { entry = fileURLToPath(entry); } catch { /* fall through */ }
+  }
 
   const modulePath = fileURLToPath(metaUrl);
   try {
