@@ -82,4 +82,38 @@ describe("runtime paths", () => {
     expect(isBundledVirtualEntrypoint("/$bunfs/root/mcp.js")).toBe(true);
     expect(isBundledVirtualEntrypoint("/tmp/unbrowse/dist/mcp.js")).toBe(false);
   });
+
+  // Regression guards for unbrowse-ai/unbrowse#76 (Windows ESM URL scheme).
+  it("wraps bare .js entrypoints as file:// URLs so Node ESM accepts them on Windows", () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-runtime-paths-js-"));
+    tmpDirs.push(tmpDir);
+
+    const jsEntry = path.join(tmpDir, "dist", "cli.js");
+    mkdirSync(path.dirname(jsEntry), { recursive: true });
+    writeFileSync(jsEntry, "// cli\n");
+
+    const args = runtimeArgsForEntrypoint(pathToFileURL(path.join(tmpDir, "meta.js")).href, jsEntry);
+
+    expect(args).toHaveLength(1);
+    expect(args[0]).toMatch(/^file:\/\//);
+    // Regression: bare absolute path was the broken state on Windows.
+    expect(args[0]).not.toBe(jsEntry);
+  });
+
+  it("isMainModule unwraps a file:// process.argv[1] so main() still runs after the #76 fix", () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-runtime-paths-ismain-"));
+    tmpDirs.push(tmpDir);
+
+    const jsEntry = path.join(tmpDir, "cli.js");
+    writeFileSync(jsEntry, "// cli\n");
+
+    const originalArgv1 = process.argv[1];
+    process.argv[1] = pathToFileURL(jsEntry).href; // this is what runtimeArgsForEntrypoint now hands node
+
+    try {
+      expect(isMainModule(pathToFileURL(jsEntry).href)).toBe(true);
+    } finally {
+      process.argv[1] = originalArgv1;
+    }
+  });
 });
