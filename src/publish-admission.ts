@@ -10,6 +10,7 @@ export type PublishAdmissionReason =
   | "noise"
   | "fragile_graphql"
   | "no_durable_signal"
+  | "dom_fallback_only"
   | "family_dedup"
   | "over_limit";
 
@@ -64,6 +65,7 @@ function freshReasonCounts(): Record<PublishAdmissionReason, number> {
     noise: 0,
     fragile_graphql: 0,
     no_durable_signal: 0,
+    dom_fallback_only: 0,
     family_dedup: 0,
     over_limit: 0,
   };
@@ -247,6 +249,33 @@ export function selectMarketplacePublishEndpoints(
       score: scoreEndpoint(endpoint),
     });
   }
+
+  // Harness-harness rubric fix: never publish a skill whose only admitted
+  // endpoints are dom-fallback page artifacts. Caching a synthetic
+  // "return the HTML page" endpoint poisons resolve — future lookups get
+  // a cache hit on a fake endpoint and the real API never gets discovered.
+  // If there's a mix, drop the page artifacts and keep the real ones.
+  const hasRealEndpoint = candidates.some((c) => !isCanonicalDocumentReplay(c.endpoint));
+  if (!hasRealEndpoint) {
+    reasons.dom_fallback_only += candidates.length;
+    return {
+      endpoints: [],
+      stats: {
+        total: skill.endpoints?.length ?? 0,
+        kept: 0,
+        by_reason: reasons,
+      },
+    };
+  }
+  const filteredCandidates = candidates.filter((c) => {
+    if (isCanonicalDocumentReplay(c.endpoint)) {
+      reasons.dom_fallback_only += 1;
+      return false;
+    }
+    return true;
+  });
+  candidates.length = 0;
+  candidates.push(...filteredCandidates);
 
   candidates.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
