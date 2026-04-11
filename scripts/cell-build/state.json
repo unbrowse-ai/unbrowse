@@ -1,0 +1,6 @@
+{"generated_at":"2026-04-11T02:43:52Z","client_sha":"39850bd6","cells":[
+{"cell": "build-goal", "verdict": "pass", "exit_code": 0, "summary": "[build-goal] all 1 child cells green"}
+,
+{"cell": "docs-hunter", "verdict": "pass", "exit_code": 0, "summary": "docs-hunter green stripe.com=3 github.com=3"}
+],
+"summary":{"green":2,"yellow":0,"red":0}}
