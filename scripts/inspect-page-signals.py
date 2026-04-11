@@ -64,17 +64,57 @@ def _balanced_object(src: str, start: int) -> str | None:
     return None
 
 
+def _decode_body(raw: bytes, content_encoding: str) -> str:
+    """Handle gzip/deflate/brotli — urllib doesn't auto-decode compressed
+    responses and silently returns binary garbage when the server chooses
+    to compress. This was a third silent failure caught mid-session: yahoo
+    finance returned 370KB of gzip that inspect reported as 'no markers'."""
+    enc = (content_encoding or "").lower()
+    try:
+        if "gzip" in enc:
+            import gzip
+            return gzip.decompress(raw).decode("utf-8", errors="replace")
+        if "deflate" in enc:
+            import zlib
+            try:
+                return zlib.decompress(raw).decode("utf-8", errors="replace")
+            except zlib.error:
+                return zlib.decompress(raw, -zlib.MAX_WBITS).decode("utf-8", errors="replace")
+        if "br" in enc:
+            try:
+                import brotli  # type: ignore
+                return brotli.decompress(raw).decode("utf-8", errors="replace")
+            except ImportError:
+                # brotli isn't in the stdlib — fall through to raw decode
+                pass
+    except Exception:
+        pass
+    return raw.decode("utf-8", errors="replace")
+
+
 def fetch(url: str, timeout: int = 20) -> tuple[int, dict, str]:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": USER_AGENT,
+            # Only ask for encodings we can actually decode. Brotli is
+            # omitted to avoid the brotli dependency on stock Python.
+            "Accept-Encoding": "gzip, deflate",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+        },
+    )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             status = resp.status
             headers = dict(resp.headers.items())
-            body = resp.read().decode("utf-8", errors="replace")
+            raw = resp.read()
+            body = _decode_body(raw, headers.get("Content-Encoding", ""))
             return status, headers, body
     except urllib.error.HTTPError as e:
         try:
-            body = e.read().decode("utf-8", errors="replace")
+            raw = e.read()
+            body = _decode_body(raw, dict(e.headers.items() if e.headers else {}).get("Content-Encoding", ""))
         except Exception:
             body = ""
         return e.code, dict(e.headers.items()) if e.headers else {}, body
@@ -265,6 +305,25 @@ def inspect_html(html: str) -> dict:
         label_candidates.add(mm.group(1))
     report["label_candidates"] = sorted(label_candidates)[:15]
 
+    # Client-side SPA detection: React/Vue/Angular apps ship an empty
+    # mount point and hydrate via JS. Curl sees the shell HTML with no
+    # data — the real content only appears after the browser runs the
+    # framework. Detect by looking for known mount-point IDs with
+    # minimal sibling content inside.
+    mount_points = []
+    for mm in re.finditer(
+        r'<div[^>]*id="(__next|root|app|__nuxt|___gatsby|svelte)"',
+        html,
+        re.I,
+    ):
+        mount_points.append(mm.group(1))
+    if mount_points:
+        report["csr_mount_points"] = mount_points
+    # Body "emptiness" heuristic: count <main>/<article>/<section>
+    # content tags. A near-empty shell → CSR SPA.
+    content_tags = len(re.findall(r"<(?:main|article|section)[^>]*>", html, re.I))
+    report["content_tag_count"] = content_tags
+
     return report
 
 
@@ -284,9 +343,15 @@ def verdict(report: dict) -> str:
         return "thin_body_no_data"
     if report.get("label_candidates"):
         return "label_value_candidates"
+    # CSR SPA: known framework mount-point ID present with minimal
+    # content tags → needs browser rendering. Distinct from a real HTML
+    # page that just happens to lack structured data markers.
+    if report.get("csr_mount_points") and report.get("content_tag_count", 0) < 5:
+        mps = report["csr_mount_points"]
+        return f"csr_spa_needs_browser:{mps[0] if mps else 'unknown'}"
     if report.get("og_meta"):
         return "og_meta_only"
-    return "no_structured_signals"
+    return "html_content_no_markers"
 
 
 def run(url: str, full: bool) -> dict:
