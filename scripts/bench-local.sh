@@ -180,7 +180,11 @@ row = {
     )(
         r.get('available_operations') or r.get('available_endpoints') or [],
         url,
-        _spa_sourced_endpoint_ids(r.get('skill') if isinstance(r, dict) else None),
+        # skill lives at top level of the CLI response, sibling to `result`,
+        # not inside result. Reading r.get('skill') was a silent no-op and
+        # caused every spa-nextjs endpoint to still be classified as
+        # dom-fallback in the rubric because the spa-sourced set was empty.
+        _spa_sourced_endpoint_ids(d.get('skill') if isinstance(d, dict) else None),
     ) if isinstance(r, dict) else False,
 }
 print(json.dumps(row))
