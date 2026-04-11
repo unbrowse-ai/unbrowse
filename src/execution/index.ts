@@ -5,6 +5,7 @@ import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "..
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { resolveAuthTokens } from "./token-resolver.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
+import { selectMarketplacePublishEndpoints } from "../publish-admission.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
@@ -961,7 +962,8 @@ async function trySeedStructuredDocumentSkill(
 
   let learned: SkillManifest = localDraft;
   const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
-  if (validation.valid) {
+  const admission = selectMarketplacePublishEndpoints(localDraft);
+  if (validation.valid && admission.endpoints.length > 0) {
     try {
       const { operation_graph: _graph, ...publishDraft } = localDraft;
       const published = await publishSkill(publishDraft);
@@ -973,6 +975,8 @@ async function trySeedStructuredDocumentSkill(
     } catch {
       learned = localDraft;
     }
+  } else if (admission.endpoints.length === 0) {
+    console.warn(`[publish] direct publish skipped for ${localDraft.skill_id}: ${admission.stats.by_reason.dom_fallback_only > 0 ? "dom_fallback_only" : "no admitted endpoints"}`);
   }
   try { cachePublishedSkill(learned); } catch { /* best-effort */ }
   const seededRequest: RawRequest = {
@@ -1149,7 +1153,8 @@ async function trySeedPublicDocumentFetchSkill(
 
   let learned: SkillManifest = localDraft;
   const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
-  if (validation.valid) {
+  const admission = selectMarketplacePublishEndpoints(localDraft);
+  if (validation.valid && admission.endpoints.length > 0) {
     try {
       const { operation_graph: _graph, ...publishDraft } = localDraft;
       const published = await publishSkill(publishDraft);
@@ -1161,6 +1166,8 @@ async function trySeedPublicDocumentFetchSkill(
     } catch {
       learned = localDraft;
     }
+  } else if (admission.endpoints.length === 0) {
+    console.warn(`[publish] direct publish skipped for ${localDraft.skill_id}: ${admission.stats.by_reason.dom_fallback_only > 0 ? "dom_fallback_only" : "no admitted endpoints"}`);
   }
   try { cachePublishedSkill(learned); } catch { /* best-effort */ }
   const seededRequest: RawRequest = {
@@ -1665,12 +1672,17 @@ async function executeBrowserCapture(
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
 
-        // Only publish to marketplace if quality passes
+        // Only publish to marketplace if quality passes AND admission gate admits
+        // a real endpoint. Dom-fallback-only skills poison resolve with fake
+        // cache hits that hide the real API behind a synthetic page artifact.
         let learned: SkillManifest | undefined = domDraft;
         try {
           const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
-          if (validation.valid) {
+          const admission = selectMarketplacePublishEndpoints(domDraft);
+          if (validation.valid && admission.endpoints.length > 0) {
             learned = await publishSkill(domDraft);
+          } else if (admission.endpoints.length === 0) {
+            console.warn(`[publish] dom-artifact publish skipped for ${domDraft.skill_id}: dom_fallback_only (kept local-only)`);
           }
         } catch { /* publish failure is non-fatal */ }
         if (learned) {
@@ -3214,7 +3226,7 @@ export function detectBrowserBlockSignals(input: {
   const { requestUrls, title, htmlLength, rejectionCounts } = input;
   const signals: string[] = [];
   const titleLower = title.toLowerCase();
-  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|cloudflare|press and hold|request could not be satisfied|403 forbidden|\b404\b|\b502\b|\b503\b|\b504\b|bad gateway|service unavailable|gateway timeout|site blocked|unusual traffic|security check|not[ _.]?found|page (does )?not exist|page doesn't exist|this page can't be|server error/i.test(titleLower)) {
+  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|human verification|are you a robot|bot check|cloudflare|press and hold|request could not be satisfied|403 forbidden|\b404\b|\b502\b|\b503\b|\b504\b|bad gateway|service unavailable|gateway timeout|site blocked|unusual traffic|security check|not[ _.]?found|page (does )?not exist|page doesn't exist|this page can't be|server error/i.test(titleLower)) {
     signals.push("challenge_title");
   }
   const vendorHits = new Set<string>();
