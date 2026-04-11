@@ -193,6 +193,64 @@ row = {
         _spa_sourced_endpoint_ids(d.get('skill') if isinstance(d, dict) else None),
     ) if isinstance(r, dict) else False,
 }
+
+# Classify as a first-class row column — so downstream tools (and the
+# agent) don't have to re-derive the verdict. Must match the rule in
+# bench-local-triage.py's classify() exactly; keep them in sync or the
+# two will drift and produce silent contradictions.
+def _classify(row):
+    bs_raw = row.get("browser_block_signals") or ""
+    try:
+        bs = json.loads(bs_raw) if isinstance(bs_raw, str) and bs_raw.startswith("[") else []
+        bs_str = ",".join(bs) if isinstance(bs, list) else str(bs)
+    except Exception:
+        bs_str = str(bs_raw)
+    has_ops = row.get("has_available_operations")
+    n_ops_v = row.get("n_operations") or 0
+    trace_ok = row.get("trace_success") is True
+    src = row.get("source") or ""
+    err = row.get("error_code") or ""
+    REAL_BLOCK_VENDORS = (
+        "vendor:cloudflare", "vendor:perimeterx", "vendor:datadome",
+        "vendor:akamai_bot_manager", "vendor:imperva_incapsula",
+        "vendor:shape_security", "vendor:kasada",
+    )
+    has_real_vendor = bs_str and any(v in bs_str for v in REAL_BLOCK_VENDORS)
+    if bs_str and ("challenge_title" in bs_str or "no_html_many_apis" in bs_str or "low_capture" in bs_str or "empty_capture" in bs_str or has_real_vendor):
+        return "BROWSER_BLOCK"
+    try:
+        text_bytes = int(row.get("captured_text_bytes") or 0)
+    except (ValueError, TypeError):
+        text_bytes = 0
+    if bs_str and "vendor:captcha_vendor" in bs_str and text_bytes < 2000:
+        return "BROWSER_BLOCK"
+    diag = row.get("capture_diagnostic") or ""
+    if diag in ("no_endpoints_extracted", "all_endpoints_filtered_by_noise_rules"):
+        return "BROWSER_BLOCK"
+    if not src and row.get("trace_success") is None and not has_ops:
+        return "BROWSER_BLOCK"
+    if row.get("cli_timeout"):
+        return "BROWSER_BLOCK"
+    if err == "auth_required" or row.get("auth_recommended") is True:
+        return "AUTH_GATED"
+    if has_ops and n_ops_v > 0:
+        if row.get("all_ops_dom_fallback"):
+            return "PASS_DOM_FALLBACK_ONLY"
+        return "PASS"
+    if trace_ok and src == "dom-fallback":
+        return "PASS_DOM_FALLBACK_ONLY"
+    if trace_ok and src == "direct-fetch":
+        return "PASS"
+    if src == "browse-session":
+        return "PASS"
+    if trace_ok:
+        # Trace success but unrecognized source — surface as weak pass so
+        # direct-fetch-style paths that return usable data aren't mis-
+        # classified as product fail.
+        return "PASS_WEAK"
+    return "PRODUCT_FAIL"
+
+row["verdict"] = _classify(row)
 print(json.dumps(row))
 PY
 
