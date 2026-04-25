@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.0...v4.0.1) (2026-04-25)
+
+### Refactoring
+
+* make API key optional ([d71820b](https://github.com/unbrowse-ai/unbrowse-dev/commit/d71820b3838bf0a29185bf155272ad709dd45e74))
+
 ## [4.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0...v4.0.0) (2026-04-25)
 
 ### ⚠ BREAKING CHANGES
