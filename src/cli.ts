@@ -846,14 +846,9 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
   });
   info("Running setup checks");
 
-  // Ensure the agent is registered BEFORE the server starts — closes the
-  // race where the server boots without a key and the first resolve returns
-  // api_key_required. ensureRegistered is idempotent and fast if already done.
-  try {
-    await ensureRegistered({ promptForEmail: false, exitOnFailure: false });
-  } catch (err) {
-    info(`[setup] background registration issue: ${err instanceof Error ? err.message : err}`);
-  }
+  // Registration is optional — setup no longer registers implicitly. Users
+  // can opt in later with `unbrowse register` if they want to publish, earn,
+  // or access server-side analytics.
 
   const report = await runSetup({
     cwd: process.cwd(),
@@ -927,9 +922,9 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     return;
   }
 
-  if (!getApiKey()) {
-    await ensureRegistered({ promptForEmail: true });
-  }
+  // Registration is optional. Skip during setup — users can run `unbrowse
+  // register` later if they want to publish, earn, or access server-side
+  // analytics. Setup just installs deps and starts the local server.
 
   try {
     await ensureLocalServer(BASE_URL, false, import.meta.url);
@@ -1057,6 +1052,7 @@ export const CLI_REFERENCE = {
     { name: "earnings", usage: "[--json]", desc: "Show your credit balance, earnings from indexing, and spending" },
     { name: "corpus-test", usage: "--url <url> [--id <id>] [--retries N]", desc: "Capture a single URL with retry logic; keeps best result across N attempts" },
     { name: "corpus-run", usage: "--corpus <file> --out <file> [--retries N]", desc: "Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot" },
+    { name: "register", usage: "[--no-prompt]", desc: "Optional: register an API key to publish skills, check earnings, and access backend analytics" },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -1786,6 +1782,22 @@ async function cmdClose(flags: Record<string, string | boolean>): Promise<void> 
 }
 
 // ---------------------------------------------------------------------------
+// register — opt-in registration for publishing, earnings, and backend analytics
+// ---------------------------------------------------------------------------
+
+async function cmdRegister(flags: Record<string, unknown>) {
+  if (getApiKey()) {
+    info("Already registered. API key loaded from env or ~/.unbrowse/config.json");
+    return;
+  }
+  await ensureRegistered({ promptForEmail: !flags["no-prompt"], exitOnFailure: false });
+  if (getApiKey()) {
+    info("Registration complete. You can now publish skills and check earnings.");
+  } else {
+    info("Registration skipped or failed. Unbrowse still works locally — publish/earnings are disabled.");
+  }
+}
+// ---------------------------------------------------------------------------
 // sessions-scan — discover logged-in sessions across all browsers
 // ---------------------------------------------------------------------------
 
@@ -2148,6 +2160,7 @@ async function main(): Promise<void> {
   if (command === "flywheel") return cmdFlywheel(flags);
   if (command === "earnings") return cmdEarnings(flags);
   if (command === "sessions-scan") return cmdSessionsScan(flags);
+  if (command === "register") return cmdRegister(flags);
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
@@ -2156,7 +2169,7 @@ async function main(): Promise<void> {
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
-    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear",
+    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -2225,6 +2238,7 @@ async function main(): Promise<void> {
     case "corpus-test": return cmdCorpusTest(flags);
     case "corpus-run": return cmdCorpusRun(flags);
     case "sessions-scan": return cmdSessionsScan(flags);
+    case "register": return cmdRegister(flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }

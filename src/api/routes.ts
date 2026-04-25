@@ -495,25 +495,19 @@ export async function registerRoutes(app: FastifyInstance) {
   // accepting requests before the key is written. Wait up to 10s for the
   // background registration to complete before returning 401 — this closes
   // the race where the first resolve lands between server-up and key-ready.
-  app.addHook("onRequest", async (req, reply) => {
+  // API key is optional. If no key is configured, most local operations still
+  // work — only routes that genuinely need the backend (publish, earnings,
+  // payments) will fail gracefully at their own call sites with actionable
+  // messages. Registration is lazy and happens in the background on first use.
+  app.addHook("onRequest", async (req, _reply) => {
     if (req.url === "/health" || req.url === "/v1/stats" || req.url.startsWith("/v1/settings")) return;
-
-    let key = getApiKey();
-    if (!key) {
-      // Wait for background registration (race-close on fresh install)
-      try {
-        const { waitForBackgroundRegistration } = await import("../client/index.js");
-        await waitForBackgroundRegistration(10_000);
-        key = getApiKey();
-      } catch { /* best effort */ }
-    }
-    if (!key) {
-      return reply.code(401).send({
-        error: "api_key_required",
-        message: "No API key configured. Run `unbrowse setup` to register, or set UNBROWSE_API_KEY manually.",
-        docs_url: "https://unbrowse.ai",
-      });
-    }
+    if (getApiKey()) return;
+    // No key yet — give any in-flight background registration a moment to land,
+    // but never block the request or 401 on missing key.
+    try {
+      const { waitForBackgroundRegistration } = await import("../client/index.js");
+      await waitForBackgroundRegistration(2_000);
+    } catch { /* best effort */ }
   });
 
   app.get("/v1/settings", async (_req, reply) => {
