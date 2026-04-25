@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env, OrchestrationTiming } from "../types.js";
-import { bearerAuth } from "../middleware/auth.js";
+import { bearerAuth, optionalAuth } from "../middleware/auth.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { recordPerf, getPerf, recordAgentPerf } from "../services/perf.js";
 import { validateSkillManifest } from "../services/validator.js";
@@ -179,7 +179,7 @@ statsRoutes.use("/stats/feedback", agentRateLimit({ limit: 60, window: 60, prefi
 
 // POST /v1/stats/perf — record orchestration timing
 statsRoutes.use("/stats/perf", agentRateLimit({ limit: 120, window: 60, prefix: "perf" }));
-statsRoutes.post("/stats/perf", bearerAuth, async (c) => {
+statsRoutes.post("/stats/perf", optionalAuth, async (c) => {
   const timing = await c.req.json<OrchestrationTiming>();
   if (!timing || typeof timing.total_ms !== "number") {
     return c.json({ error: "invalid timing data" }, 400);
@@ -210,7 +210,7 @@ statsRoutes.post("/stats/perf", bearerAuth, async (c) => {
 
 // POST /v1/stats/diagnostics — agent-reported speed/accuracy diagnostics
 statsRoutes.use("/stats/diagnostics", agentRateLimit({ limit: 120, window: 60, prefix: "diagnostics" }));
-statsRoutes.post("/stats/diagnostics", bearerAuth, async (c) => {
+statsRoutes.post("/stats/diagnostics", optionalAuth, async (c) => {
   const body = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
@@ -235,7 +235,7 @@ statsRoutes.post("/stats/diagnostics", bearerAuth, async (c) => {
 });
 
 // POST /v1/stats/execution — record execution + recompute score + Tier 1 attribution
-statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
+statsRoutes.post("/stats/execution", optionalAuth, async (c) => {
   const body = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
@@ -288,7 +288,7 @@ statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
 });
 
 // POST /v1/stats/feedback — record feedback + recompute score
-statsRoutes.post("/stats/feedback", bearerAuth, async (c) => {
+statsRoutes.post("/stats/feedback", optionalAuth, async (c) => {
   const { skill_id, endpoint_id, rating } = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
