@@ -895,33 +895,9 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     info("  npx @crossmint/lobster-cli setup");
   }
 
-  // Email provider status — bootstrap AgentMail if not configured
-  if (!report.agent_mail.configured) {
-    info("AgentMail not configured — attempting to bootstrap via console.agentmail.to...");
-    try {
-      const { bootstrapAgentMailKey } = await import("./auth/bootstrap-agentmail.js");
-      const result = await bootstrapAgentMailKey();
-      if (result.success) {
-        info(`AgentMail API key obtained (${result.method}) — autonomous email login enabled`);
-        report.agent_mail.configured = true;
-      } else {
-        info(`AgentMail bootstrap: ${result.error}`);
-      }
-    } catch (err) {
-      info(`AgentMail bootstrap failed: ${err instanceof Error ? err.message : err}`);
-    }
-  }
-
   const hasGcloud = (() => { try { const { existsSync } = require("fs"); const { homedir } = require("os"); const { join } = require("path"); return existsSync(join(homedir(), ".config", "gcloud", "application_default_credentials.json")); } catch { return false; } })();
-  const emailProviders: string[] = [];
-  if (hasGcloud) emailProviders.push("Gmail (via GWS)");
-  if (report.agent_mail.configured) emailProviders.push("AgentMail");
-
-  if (emailProviders.length > 0) {
-    info(`Email providers: ${emailProviders.join(", ")} — autonomous login enabled`);
-  } else {
-    info("No email provider configured — agents can't auto-register on gated sites.");
-    info("Options: export AGENTMAIL_API_KEY=<key> (https://agentmail.to) or gcloud auth login (Gmail)");
+  if (hasGcloud) {
+    info("Email provider: Gmail (via GWS) — autonomous login enabled");
   }
 
   await recordInstallTelemetryEvent("setup", {
@@ -1810,91 +1786,6 @@ async function cmdClose(flags: Record<string, string | boolean>): Promise<void> 
 }
 
 // ---------------------------------------------------------------------------
-// login-auto — autonomous email-based login/registration via AgentMail
-// ---------------------------------------------------------------------------
-
-async function cmdLoginAuto(args: string[], flags: Record<string, unknown>) {
-  const urlOrDomain = (args[0] ?? flags.url ?? flags.domain) as string | undefined;
-  if (!urlOrDomain) return die("usage: unbrowse login-auto <domain-or-url> [--wait-otp | --wait-link | --send-to <email>]");
-
-  const domain = (() => {
-    try { return new URL(urlOrDomain.startsWith("http") ? urlOrDomain : `https://${urlOrDomain}`).hostname.replace(/^www\./, ""); }
-    catch { return urlOrDomain; }
-  })();
-
-  const { autonomousEmailLogin, isAgentMailAvailable } = await import("./auth/agent-mail.js");
-  if (!isAgentMailAvailable()) {
-    // Before giving up, try to bootstrap the key via the browser flow
-    info(`[login-auto] AGENTMAIL_API_KEY not set — attempting auto-bootstrap via console.agentmail.to`);
-    try {
-      const { bootstrapAgentMailKey } = await import("./auth/bootstrap-agentmail.js");
-      const bootstrap = await bootstrapAgentMailKey();
-      if (bootstrap.success && bootstrap.api_key) {
-        process.env.AGENTMAIL_API_KEY = bootstrap.api_key;
-        info(`[login-auto] bootstrapped AgentMail key via ${bootstrap.method ?? "browser"}`);
-      } else {
-        return die(`AGENTMAIL_API_KEY not set and bootstrap failed: ${bootstrap.error ?? "unknown"}. Get a key at https://agentmail.to and run: export AGENTMAIL_API_KEY=<key>`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return die(`AGENTMAIL_API_KEY not set and bootstrap errored: ${msg}. Get a key at https://agentmail.to and run: export AGENTMAIL_API_KEY=<key>`);
-    }
-  }
-
-  info(`[login-auto] creating agent email for ${domain}...`);
-  const session = await autonomousEmailLogin(domain);
-
-  info(`[login-auto] email: ${session.email}`);
-
-  // --send-to: send an email from the agent inbox (for sites that require incoming email verification)
-  const sendTo = flags["send-to"] as string | undefined;
-  if (sendTo) {
-    const subject = (flags.subject as string) ?? `Verify ${domain}`;
-    const body = (flags.body as string) ?? `This is an automated verification email from Unbrowse agent for ${domain}.`;
-    info(`[login-auto] sending email to ${sendTo}...`);
-    const result = await session.sendEmail(sendTo, subject, body);
-    output({ email: session.email, sent_to: sendTo, message_id: result.messageId, domain });
-    return;
-  }
-
-  // --wait-otp: poll for an OTP code
-  if (flags["wait-otp"]) {
-    const timeout = Number(flags.timeout) || 90_000;
-    info(`[login-auto] waiting for OTP from ${domain} (${Math.round(timeout / 1000)}s timeout)...`);
-    const otp = await session.waitForOtp(timeout);
-    if (otp) {
-      info(`[login-auto] OTP: ${otp}`);
-      output({ email: session.email, otp, domain });
-    } else {
-      info(`[login-auto] no OTP received`);
-      output({ email: session.email, otp: null, domain, error: "timeout" });
-    }
-    return;
-  }
-
-  // --wait-link: poll for a verification/magic link
-  if (flags["wait-link"]) {
-    const timeout = Number(flags.timeout) || 90_000;
-    info(`[login-auto] waiting for verification link from ${domain} (${Math.round(timeout / 1000)}s timeout)...`);
-    const link = await session.waitForLink(timeout);
-    if (link) {
-      info(`[login-auto] link: ${link}`);
-      output({ email: session.email, link, domain });
-    } else {
-      info(`[login-auto] no verification link received`);
-      output({ email: session.email, link: null, domain, error: "timeout" });
-    }
-    return;
-  }
-
-  // Default: return the email for the agent/user to use
-  info(`[login-auto] use this email to register/login on ${domain}`);
-  info(`[login-auto] then: unbrowse login-auto ${domain} --wait-otp`);
-  info(`[login-auto]   or: unbrowse login-auto ${domain} --wait-link`);
-  output({ email: session.email, inbox_id: session.inboxId, domain });
-}
-
-// ---------------------------------------------------------------------------
 // sessions-scan — discover logged-in sessions across all browsers
 // ---------------------------------------------------------------------------
 
@@ -2257,7 +2148,6 @@ async function main(): Promise<void> {
   if (command === "flywheel") return cmdFlywheel(flags);
   if (command === "earnings") return cmdEarnings(flags);
   if (command === "sessions-scan") return cmdSessionsScan(flags);
-  if (command === "login-auto") return cmdLoginAuto(args, flags);
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
@@ -2266,7 +2156,7 @@ async function main(): Promise<void> {
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
-    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "login-auto",
+    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -2335,7 +2225,6 @@ async function main(): Promise<void> {
     case "corpus-test": return cmdCorpusTest(flags);
     case "corpus-run": return cmdCorpusRun(flags);
     case "sessions-scan": return cmdSessionsScan(flags);
-    case "login-auto": return cmdLoginAuto(args, flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }

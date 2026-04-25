@@ -10,7 +10,6 @@ import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
 import { authRuntime } from "../auth/runtime.js";
-import { autonomousLogin } from "../auth/autonomous-login.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
@@ -1376,57 +1375,25 @@ async function executeBrowserCapture(
   const redirectedToLogin = captured.final_url !== url && (() => { try { return LOGIN_PATHS.test(new URL(String(captured.final_url)).pathname); } catch { return false; } })();
 
   if (redirectedToAuth || redirectedToLogin) {
-    // Try autonomous login before returning auth_required to the agent
-    try {
-      const loginResult = await autonomousLogin(captured.final_url, targetDomain);
-      if (loginResult.success) {
-        log("exec", `autonomous login succeeded for ${targetDomain} (${loginResult.method}, ${loginResult.duration_ms}ms) — retrying capture`);
-        // Retry the capture with fresh auth
-        const freshCookies = await getAuthCookies(targetDomain);
-        if (freshCookies) {
-          const retryCaptured = await captureSession(url, authHeaders, freshCookies, intent);
-          // Re-check if still redirecting to login
-          const retryFinalDomain = (() => { try { return new URL(retryCaptured.final_url).hostname; } catch { return targetDomain; } })();
-          const retryStillBlocked = (retryFinalDomain !== targetDomain && AUTH_PROVIDERS.test(retryFinalDomain)) ||
-            (retryCaptured.final_url !== url && (() => { try { return LOGIN_PATHS.test(new URL(String(retryCaptured.final_url)).pathname); } catch { return false; } })());
-          if (!retryStillBlocked) {
-            // Success! Use the retry result and continue with normal flow
-            captured = retryCaptured;
-            // Fall through to normal processing below
-          }
-        }
-      }
-    } catch (loginErr) {
-      log("exec", `autonomous login attempt failed for ${targetDomain}: ${loginErr instanceof Error ? loginErr.message : loginErr}`);
-    }
-
-    // Re-check after autonomous login attempt
-    const postLoginDomain = (() => { try { return new URL(captured.final_url).hostname; } catch { return targetDomain; } })();
-    const stillBlocked = (postLoginDomain !== targetDomain && AUTH_PROVIDERS.test(postLoginDomain)) ||
-      (captured.final_url !== url && (() => { try { return LOGIN_PATHS.test(new URL(String(captured.final_url)).pathname); } catch { return false; } })());
-
-    if (stillBlocked) {
-      const trace: ExecutionTrace = stampTrace({
-        trace_id: traceId,
-        skill_id: skill.skill_id,
-        endpoint_id: "browser-capture",
-        started_at: startedAt,
-        completed_at: new Date().toISOString(),
-        success: false,
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "auth_required",
+    });
+    return {
+      trace,
+      result: {
         error: "auth_required",
-      });
-      return {
-        trace,
-        result: {
-          error: "auth_required",
-          provider: getRegistrableDomain(postLoginDomain),
-          login_url: captured.final_url,
-          message: `Site requires authentication. Call POST /v1/auth/login with {"url": "${captured.final_url}"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers.`,
-        },
-      };
-    }
+        provider: getRegistrableDomain(finalDomain),
+        login_url: captured.final_url,
+        message: `Site requires authentication. Call POST /v1/auth/login with {"url": "${captured.final_url}"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers.`,
+      },
+    };
   }
-
   const extractionTrace: { rows?: Array<Record<string, unknown>> } = {};
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
 

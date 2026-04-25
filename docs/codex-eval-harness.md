@@ -153,7 +153,6 @@ Notes:
 - current corpus mixes:
   - popularity-backed logged-in consumer sites from Similarweb's U.S. ranking
   - scripted demo login sites that should pass without user credentials
-- AgentMail-style registration/OTP bootstrap is reserved as a future strategy; current runner records that case type as unsupported instead of pretending it passed
 - canonical product-success suite lives in `evals/codex-cases.product-success.json`
 - stress suite lives in `evals/codex-cases.stress.json`
 - merged bulk-seed corpus lives in `evals/codex-cases.bulk-seed.json`

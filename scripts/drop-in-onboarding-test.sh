@@ -126,7 +126,6 @@ try:
         'ran_setup': True,
         'has_agent_id': bool(d.get('agent_id')),
         'wallet_configured': d.get('wallet',{}).get('configured',False),
-        'agentmail_configured': d.get('agent_mail',{}).get('configured',False),
     }))
 except Exception as e:
     print(json.dumps({'error': str(e)[:100]}))
