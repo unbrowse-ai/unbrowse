@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.2...v4.0.3) (2026-04-25)
+
+### Bug Fixes
+
+* **kuri:** bump to 117b7f4 — fixes EventBuffer use-after-free SIGSEGV ([b2907c9](https://github.com/unbrowse-ai/unbrowse-dev/commit/b2907c9da8fe483a6542a05a21b10a9fbaec5ea1))
+
 ## [4.0.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.1...v4.0.2) (2026-04-25)
 
 ### Bug Fixes
