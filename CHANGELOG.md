@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0...v4.0.0) (2026-04-25)
+
+### ⚠ BREAKING CHANGES
+
+* AGENTMAIL_API_KEY, `unbrowse login-auto`, and all autonomous email-auth paths are gone.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+### Refactoring
+
+* remove AgentMail integration ([31e0f96](https://github.com/unbrowse-ai/unbrowse-dev/commit/31e0f967b06a11795640c2e280585f0599748826))
+
 ## Unreleased
 
 ### BREAKING CHANGES
