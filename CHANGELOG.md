@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.8.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.3...v3.8.0-preview.4) (2026-04-25)
+
+### Bug Fixes
+
+* **mcp:** rename annotate tool's parameters to inputSchema ([f2cec9f](https://github.com/unbrowse-ai/unbrowse-dev/commit/f2cec9f1a815aa6e9565bfd6a1ec17bc837b0838))
+* **runtime:** wrap js entrypoint as file:// URL and teach isMainModule to unwrap it ([1f2363b](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f2363b9d7c1f6c6dc65e83944f148799e3c22a7))
+
 ## [3.8.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.2...v3.8.0-preview.3) (2026-04-11)
 
 ### Features
