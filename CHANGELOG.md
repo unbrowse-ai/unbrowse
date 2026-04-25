@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.1...v4.0.2) (2026-04-25)
+
+### Bug Fixes
+
+* **backend:** allow anonymous stats writes ([5a6e32f](https://github.com/unbrowse-ai/unbrowse-dev/commit/5a6e32fa49248a9437d98f84771c59a6415c1300))
+
 ## [4.0.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.0...v4.0.1) (2026-04-25)
 
 ### Refactoring
