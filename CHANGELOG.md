@@ -1,5 +1,7 @@
 # Changelog
 
+## [6.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v5.0.0...v6.0.0) (2026-04-25)
+
 ## [5.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.3...v5.0.0) (2026-04-25)
 
 ### ⚠ BREAKING CHANGES
