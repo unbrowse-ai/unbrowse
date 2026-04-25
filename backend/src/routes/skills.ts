@@ -26,7 +26,7 @@ function schedule(c: Context, task: Promise<unknown>): void {
 // Public read routes -- auth required for list, rate-limited
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
 
-// Skills list requires Unkey auth (prevents 30MB unauthenticated dumps)
+// Skills list requires auth (prevents 30MB unauthenticated dumps)
 publicSkillRoutes.use("/skills", bearerAuth, rateLimit({ limit: 60, window: 60, prefix: "skills-list" }));
 
 // GET /v1/skills -- list all

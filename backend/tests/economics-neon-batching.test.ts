@@ -5,8 +5,6 @@ import type { Env } from "../src/types.js";
 
 const env: Env = {
   API_KEY: "admin",
-  UNKEY_ROOT_KEY: "root",
-  UNKEY_API_ID: "api",
   DATABASE_URL: "postgres://test",
   EMERGENTDB_API_KEY: "unused",
   NEBIUS_API_KEY: "nebius",

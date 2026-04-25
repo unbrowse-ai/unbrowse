@@ -21,14 +21,6 @@ CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
-UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
-
-# Secrets:
-# - RELEASE_MANIFEST_SIGNING_SECRET
-
-[[routes]]
-pattern = "beta-api.unbrowse.ai/*"
-zone_id = "73934a4d815fde770167414fc3ead04b"
 
 [env.staging]
 name = "unbrowse-backend-staging"
@@ -49,7 +41,6 @@ CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
-UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
 [env.experiments]
 name = "unbrowse-backend-experiments"
@@ -70,4 +61,3 @@ CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
-UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"

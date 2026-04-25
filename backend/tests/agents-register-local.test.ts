@@ -5,8 +5,6 @@ import { CURRENT_TOS_VERSION } from "../src/tos.js";
 
 const env: Env = {
   API_KEY: "local-test",
-  UNKEY_ROOT_KEY: "local-test",
-  UNKEY_API_ID: "api",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
@@ -14,7 +12,7 @@ const env: Env = {
 };
 
 describe("local worker registration", () => {
-  it("returns the admin key when Unkey is stubbed for local dev", async () => {
+  it("returns the admin key when local admin registration is enabled", async () => {
     const res = await app.fetch(new Request("http://local.test/v1/agents/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

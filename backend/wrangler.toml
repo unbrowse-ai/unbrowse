@@ -18,34 +18,6 @@ CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
-UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
-
-[[kv_namespaces]]
-binding = "STATS_KV"
-id = "1d315d7cda1742b785cf5d23c892c5d7"
-preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
-
-[[routes]]
-pattern = "beta-api.unbrowse.ai/*"
-zone_id = "73934a4d815fde770167414fc3ead04b"
-
-# Secrets (set via `wrangler secret put`):
-# - API_KEY
-# - UNKEY_ROOT_KEY
-# - DATABASE_URL
-# - EMERGENTDB_API_KEY
-# - NEBIUS_API_KEY
-# - GITHUB_WEBHOOK_SECRET
-# - GITHUB_PR_BOT_TOKEN
-# - GITHUB_PR_AGENT_WORKFLOW
-# - GITHUB_PR_AGENT_WORKFLOW_REF
-# - TELEGRAM_BOT_TOKEN
-# - TELEGRAM_CHAT_ID
-# - RELEASE_MANIFEST_SIGNING_SECRET
-# - UNBROWSE_CASCADE_SIGNER_SECRET_KEY  (base58 Solana secret for Cascade split creation)
-# - UNBROWSE_CASCADE_PLATFORM_WALLET    (= PAYMENT_RECIPIENT, for Cascade split recipients)
-# - UNBROWSE_CASCADE_RPC_URL            (Solana mainnet RPC, e.g. Helius)
-# - UNBROWSE_CASCADE_RPC_WS_URL         (Solana mainnet RPC WebSocket)
 
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
@@ -68,7 +40,6 @@ CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
-UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
 # --- Lewis experiments environment ---
 # Deploy: wrangler deploy --env experiments
@@ -91,4 +62,3 @@ CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
-UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"

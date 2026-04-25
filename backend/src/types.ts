@@ -1,8 +1,6 @@
 export interface Env {
   API_KEY: string;
   LANDING_PUBLISH_KEY?: string;
-  UNKEY_ROOT_KEY: string;
-  UNKEY_API_ID: string;
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
   NEBIUS_API_KEY: string;
@@ -40,7 +38,7 @@ export interface Env {
 // --- Agent identity ---
 
 export interface AgentProfile {
-  agent_id: string;       // Unkey keyId
+  agent_id: string;       // Local key hash (SHA-256 of ubr_<hex>)
   name: string;
   created_at: string;
   wallet_address?: string;

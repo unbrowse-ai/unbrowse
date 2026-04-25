@@ -6,8 +6,6 @@ import { statsKV } from "../src/services/kv.js";
 const env: Env = {
   API_KEY: "admin",
   LANDING_PUBLISH_KEY: "landing-secret",
-  UNKEY_ROOT_KEY: "root",
-  UNKEY_API_ID: "api",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
