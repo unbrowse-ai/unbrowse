@@ -2,6 +2,7 @@ import type { Env, AgentProfile } from "../types.js";
 import { statsKV } from "./kv.js";
 import { CURRENT_TOS_VERSION } from "../tos.js";
 import { grantCredits } from "./credits.js";
+import { createLocalKey } from "./keys.js";
 
 const MAX_ACTIVITY_DAYS = 90;
 const agentWriteQueue = new Map<string, Promise<void>>();
@@ -81,33 +82,8 @@ export async function ensureAgentProfile(
   return profile;
 }
 
-async function createUnkeyKey(
-  rootKey: string,
-  apiId: string,
-  name: string
-): Promise<{ keyId: string; key: string }> {
-  const res = await fetch("https://api.unkey.com/v2/keys.createKey", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${rootKey}`,
-    },
-    body: JSON.stringify({
-      apiId,
-      prefix: "ubr",
-      name,
-      meta: { agent_name: name, created_at: new Date().toISOString() },
-    }),
-  });
-  const json = await res.json() as { data?: { keyId: string; key: string }; error?: { message: string } };
-  if (!res.ok || !json.data) {
-    throw new Error(json.error?.message ?? `Unkey API error: ${res.status}`);
-  }
-  return json.data;
-}
-
 function useLocalAdminRegistration(env: Env): boolean {
-  return env.UNKEY_ROOT_KEY === "local-test" && env.API_KEY === "local-test";
+  return env.API_KEY === "local-test";
 }
 
 export async function registerAgent(
@@ -134,7 +110,7 @@ export async function registerAgent(
     return { agent_id: "__admin__", api_key: env.API_KEY };
   }
 
-  const data = await createUnkeyKey(env.UNKEY_ROOT_KEY, env.UNKEY_API_ID, trimmed);
+  const data = await createLocalKey(env, trimmed);
 
   const profile: AgentProfile = {
     agent_id: data.keyId,

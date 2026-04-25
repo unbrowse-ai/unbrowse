@@ -10,8 +10,6 @@ import {
 
 const env: Env = {
   API_KEY: "admin",
-  UNKEY_ROOT_KEY: "root",
-  UNKEY_API_ID: "api",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,

@@ -4,8 +4,6 @@ import type { Env } from "../src/types.js";
 
 const BASE_ENV: Env = {
   API_KEY: "test-api-key",
-  UNKEY_ROOT_KEY: "test-unkey-root",
-  UNKEY_API_ID: "test-unkey-api",
   EMERGENTDB_API_KEY: "test-emergent",
   NEBIUS_API_KEY: "test-nebius",
   STATS_KV: {} as KVNamespace,
