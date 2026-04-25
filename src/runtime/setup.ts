@@ -38,10 +38,6 @@ export type SetupReport = {
   wallet: WalletCheckResult & {
     message: string;
   };
-  agent_mail: {
-    configured: boolean;
-    message: string;
-  };
 };
 
 function hasBinary(name: string): boolean {
@@ -267,11 +263,5 @@ export async function runSetup(options?: {
     opencode: writeOpenCodeCommand(options?.opencode ?? "auto", cwd),
     update_hints: configureUpdateHintHooks(import.meta.url, installSource),
     wallet,
-    agent_mail: {
-      configured: Boolean(process.env.AGENTMAIL_API_KEY),
-      message: process.env.AGENTMAIL_API_KEY
-        ? "AgentMail configured — autonomous email login enabled."
-        : "AgentMail not configured. Set AGENTMAIL_API_KEY to enable autonomous email login/registration. Get a key at https://agentmail.to",
-    },
   };
 }

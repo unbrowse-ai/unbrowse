@@ -430,8 +430,7 @@ Or filter `available_endpoints` by `action_kind`, URL pattern, or description in
 Three auth strategies, tried in order:
 
 1. **Browser cookies (automatic)** — extracts cookies from Chrome/Firefox SQLite databases. If you're logged into a site in Chrome, it just works.
-2. **Agent email (autonomous)** — creates a disposable inbox via AgentMail, registers/logs in, catches the OTP or magic link. No human needed. Requires `AGENTMAIL_API_KEY`.
-3. **Interactive browser** — opens a visible browser for manual login. Cookies stored and reused.
+2. **Interactive browser** — opens a visible browser for manual login. Cookies stored and reused.
 
 If `auth_required` is returned:
 

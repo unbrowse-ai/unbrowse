@@ -33,7 +33,6 @@ const EXPECTED_TASKS = [
 	"system_before",
 	"version",
 	"onboarding",
-	"onboarding_agentmail",
 	"health",
 	"resolve_pypi_flask",
 	"execute_pypi_flask",

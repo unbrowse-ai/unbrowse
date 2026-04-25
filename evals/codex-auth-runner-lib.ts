@@ -5,8 +5,7 @@ import type { HarnessCase } from "./codex-harness-lib.js";
 export type AuthBootstrapStrategy =
   | "cookie_reuse"
   | "scripted_login"
-  | "interactive_login"
-  | "agentmail_register";
+  | "interactive_login";
 
 export type AuthBootstrapStep =
   | { action: "fill"; selector: string; value: string }
@@ -124,7 +123,7 @@ function parseBootstrap(value: unknown): AuthBootstrapConfig | null {
   const record = asObject(value);
   if (!record) return null;
   const strategy = typeof record.strategy === "string" ? record.strategy : "";
-  if (!["cookie_reuse", "scripted_login", "interactive_login", "agentmail_register"].includes(strategy)) {
+  if (!["cookie_reuse", "scripted_login", "interactive_login"].includes(strategy)) {
     return null;
   }
   return {

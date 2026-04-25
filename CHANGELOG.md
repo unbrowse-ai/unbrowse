@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### BREAKING CHANGES
+
+* **auth:** remove AgentMail integration entirely — `unbrowse login-auto` command, `/v1/auth/agent-mail`, `/v1/auth/autonomous`, `/v1/email/*` routes, the `agentmail` npm dependency, and the auto-bootstrap at `setup` time. Autonomous email-based registration is gone; use browser cookie extraction or interactive login instead.
+
 ## [3.8.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.4...v3.8.0) (2026-04-25)
 
 ## [3.8.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.3...v3.8.0-preview.4) (2026-04-25)

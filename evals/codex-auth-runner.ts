@@ -401,18 +401,6 @@ async function bootstrapCase(testCase: AuthEvalCase): Promise<BootstrapOutcome> 
       return scriptedLogin(testCase);
     case "interactive_login":
       return interactiveLoginBootstrap(testCase);
-    case "agentmail_register":
-      return {
-        strategy: testCase.auth_bootstrap.strategy,
-        status: "skip",
-        reason: "agentmail_bootstrap_not_wired",
-        cookies_found: 0,
-        matched_required_cookies: [],
-        login_url: testCase.auth_bootstrap.login_url,
-        success_url: testCase.auth_bootstrap.success_url,
-        elapsed_ms: 0,
-        used_existing_session: false,
-      };
   }
 }
 

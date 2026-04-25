@@ -1,6 +1,5 @@
 import { log } from "../logger.js";
 import { getStoredAuth, extractBrowserAuth, getAuthCookies } from "./index.js";
-import { autonomousLogin } from "./autonomous-login.js";
 
 export type AuthStrategy = "login_if_needed" | "ensure_account" | "refresh_session" | "none";
 
@@ -14,9 +13,8 @@ export interface AuthDependency {
 export interface AuthResult {
   authenticated: boolean;
   session_token?: string;
-  method?: "cookies" | "agent-mail" | "interactive" | "cached";
+  method?: "cookies" | "interactive" | "cached";
 }
-
 export interface AuthRuntime {
   resolveAuth(dep: AuthDependency): Promise<AuthResult>;
   isSessionValid(domain: string): Promise<boolean>;
@@ -28,8 +26,7 @@ export interface AuthRuntime {
  * Auth runtime with real fallback chain:
  *   1. Cached session (in-memory)
  *   2. Stored vault cookies (browser-extracted or previous login)
- *   3. Autonomous login via AgentMail + Kuri (no human needed)
- *   4. Return false — caller surfaces auth_required to agent
+ *   3. Return false — caller surfaces auth_required to agent
  */
 export class LocalAuthRuntime implements AuthRuntime {
   private sessions = new Map<string, { token: string; expires: number; method?: string }>();
@@ -100,20 +97,6 @@ export class LocalAuthRuntime implements AuthRuntime {
         return true;
       }
     } catch { /* not available */ }
-
-    // Try fully autonomous login (AgentMail + Kuri browser automation)
-    const url = loginUrl ?? `https://${domain}/login`;
-    try {
-      const result = await autonomousLogin(url, domain);
-      if (result.success) {
-        this.setSession(domain, "autonomous-login", 3600_000);
-        log("auth-runtime", `loginIfNeeded resolved via autonomous login for ${domain} (${result.method}, ${result.duration_ms}ms)`);
-        return true;
-      }
-      log("auth-runtime", `autonomous login failed for ${domain}: ${result.error}`);
-    } catch (err) {
-      log("auth-runtime", `autonomous login error for ${domain}: ${err instanceof Error ? err.message : err}`);
-    }
 
     return false;
   }

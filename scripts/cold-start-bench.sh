@@ -10,7 +10,7 @@
 # Run directory layout: ~/.unbrowse/cold-start/<run-id>/
 #   box.json              — sandbox id + target url + intent + version
 #   install.json          — npm install result, version
-#   setup.json            — setup + agentmail bootstrap state, health snapshot
+#   setup.json            — setup state, health snapshot
 #   resolve.json          — force-capture resolve output, available endpoints
 #   skill.json            — indexed skill detail for the captured skill
 #   execute-<epid>.json   — one per agent-initiated execute call
@@ -25,7 +25,7 @@
 #     Install unbrowse@<version> inside the run's sandbox. Writes install.json.
 #
 #   cold-start-bench setup --run R
-#     Run unbrowse setup (agentmail bootstrap, tos, key registration).
+#     Run unbrowse setup (tos, key registration).
 #     Writes setup.json with health snapshot.
 #
 #   cold-start-bench resolve --run R
@@ -330,7 +330,7 @@ print(f'[setup] rc={rc} config_present={config_present} api_key_saved={api_key_s
 PYEOF
   echo ""
   echo "review: cat $RUN_DIR/setup.json"
-  echo "agent: decide if setup + agentmail bootstrap looks healthy before proceeding"
+  echo "agent: decide if setup looks healthy before proceeding"
   echo "next:  bash scripts/cold-start-bench.sh resolve --run $RUN_ID"
 }
 
