@@ -1,5 +1,7 @@
 # Changelog
 
+## [3.8.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.4...v3.8.0) (2026-04-25)
+
 ## [3.8.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v3.8.0-preview.3...v3.8.0-preview.4) (2026-04-25)
 
 ### Bug Fixes
