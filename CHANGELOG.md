@@ -1,5 +1,27 @@
 # Changelog
 
+## [5.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.3...v5.0.0) (2026-04-25)
+
+### ⚠ BREAKING CHANGES
+
+* All previously issued Unkey-backed API keys are revoked.
+Users must run `unbrowse register` to get new locally-managed keys.
+
+### Refactoring
+
+* replace Unkey with local API key system ([ca7d2dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/ca7d2dd5f671cc00c94e90f7aef9d4c96bd2876c))
+
+## [5.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.3...v5.0.0) (2026-04-25)
+
+### ⚠ BREAKING CHANGES
+
+* All previously issued Unkey-backed API keys are revoked.
+Users must run `unbrowse register` to get new locally-managed keys.
+
+### Refactoring
+
+* replace Unkey with local API key system ([ca7d2dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/ca7d2dd5f671cc00c94e90f7aef9d4c96bd2876c))
+
 ## [4.0.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.2...v4.0.3) (2026-04-25)
 
 ### Bug Fixes
