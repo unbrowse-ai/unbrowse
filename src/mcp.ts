@@ -1741,7 +1741,7 @@ const tools: ToolDefinition[] = [
   {
     name: "unbrowse_annotate",
     description: "Contribute constraints or best practices for an endpoint. Call this after executing an endpoint to share what you learned (required params, gotchas, tips) with other agents.",
-    parameters: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         skill: { type: "string", description: "Skill ID" },
