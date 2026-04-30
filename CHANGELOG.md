@@ -5,10 +5,18 @@
 ### Agent UX
 
 * `unbrowse execute` now accepts `-p key=val` (and `--param key=val`) repeated flags for replay parameters. Previously these were silently dropped as positional args, causing `invalid_replay_params` with no path forward. Existing `--params '{json}'` still works; `-p` takes precedence on key collisions. Help text updated.
+* `browser-capture` `no_endpoints` failures now return an actionable `next_step` (`open_browse_session` or `abandon_or_authenticate`) with concrete `suggested_commands` instead of a one-word error.
+* Resolve shortlists no longer surface phantom DOM-extracted homepages as fabricated "search" operations (G1), captured error envelopes (`{status:fail, errors[].severity:CRITICAL}`) presented as data endpoints (C5), or wrong-template literal leaks (e.g., r/programming returned for r/singularity intent — A1).
+* GraphQL POST endpoints at non-`/graphql/` URLs (Facebook persisted queries, LinkedIn `/voyager/api/...`, Apollo `extensions{persistedQuery}`) are now detected by request-body shape and admitted (A4).
+* SSR payloads past 300KB (Next.js `__NEXT_DATA__`, JSON-LD blocks at document end) are no longer silently truncated before extraction (B4).
+* Stale endpoints organically deprecate: `recordDagSessionAction` now decays `reliability_score` per failure (-0.10) and per success (+0.05), so endpoints that consistently fail drift below `MIN_PUBLISH_RELIABILITY` and stop appearing in shortlists (E1).
+* DOM-extracted operations with fully-resolved URLs and no required params now report `runnable: true` (C7). Walmart's homepage SSR payload — verified directly executable via `unbrowse execute --raw` — was previously reported as `runnable: false`, misleading agents into not even trying.
 
 ### Internal
 
-* Added `harness/recursive/` — a transparent observation layer that wraps real `unbrowse` calls so the calling agent's friction becomes corpus rows + patch hints. Six layers (Observation → Persistence → Reflection → Cognition → Replay → Cold-seed) with a strict no-grep-verdicts contract enforced by 6 architectural-contract tests + 7 behavior tests. `harness/recursive/mine-sessions.sh` seeded the corpus from 11,317 historical jsonl session files. New issue class **G1 phantom-endpoint hallucination** named in `harness/recursive/judge.md` after lawnet.sg returned a fabricated search endpoint built from homepage marketing copy.
+* Added `harness/recursive/` — a transparent observation layer that wraps real `unbrowse` calls so the calling agent's friction becomes corpus rows + patch hints. Six layers (Observation → Persistence → Reflection → Cognition → Replay → Cold-seed) with a strict no-grep-verdicts contract enforced by 6 architectural-contract tests + 7 behavior tests. `harness/recursive/mine-sessions.sh` seeded the corpus from 11,317 historical jsonl session files; second mining sweep added walmart.com which immediately surfaced C7 via direct execute.
+* Two new issue classes named in `harness/recursive/judge.md`: **G1** phantom-endpoint hallucination (lawnet.sg homepage marketed as search), **C5** captured-error-response (instagram.com `useragent mismatch` shortlist noise), **C7** runnable-false-on-directly-callable-URL (walmart.com SSR endpoint).
+* Added `docs/architecture-capture-and-dag.md` documenting capture sources, replay precision, generalisation guarantee, and the operation DAG.
 
 ## [6.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v5.0.0...v6.0.0) (2026-04-25)
 
