@@ -899,35 +899,8 @@ const tools: ToolDefinition[] = [
     },
   },
   {
-    name: "unbrowse_run",
-    description: "ONE-SHOT for any website task. Resolves intent, executes top-1 endpoint, returns raw data. Use this FIRST instead of unbrowse_resolve+unbrowse_execute when you just want the answer. Falls back to unbrowse_go when no skill matches. Per CLAUDE.md Agent UX North Star: less steps.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        intent: { type: "string", description: "Natural-language task. e.g. 'search hackernews', 'get pypi requests package', 'github user torvalds'." },
-        url: { type: "string", description: "Exact page URL the user is on. Must be an HTTPS URL." },
-        params: { type: "object", description: "Replay params filled into URL template slots (e.g. {q: 'foo', limit: 10})." },
-      },
-      required: ["intent", "url"],
-      additionalProperties: false,
-    },
-    annotations: { readOnlyHint: false, openWorldHint: true },
-    handler: async (args) => {
-      await ensureServerReady();
-      const body: Record<string, unknown> = {
-        intent: args.intent,
-        params: { url: args.url, ...(args.params as Record<string, unknown> ?? {}) },
-        context: { url: args.url },
-        execute: true,
-        projection: { raw: true },
-      };
-      const result = await api("POST", "/v1/intent/resolve", body);
-      return successResult(result, "Resolved + executed. If no data, check next_step in the response for what to do next.");
-    },
-  },
-  {
     name: "unbrowse_resolve",
-    description: "START HERE for every website task. Resolves an intent against cached/published routes. If endpoints are returned, pick one and call unbrowse_execute. If no_cached_match, proceed to unbrowse_go to browse and index the site. Do not call unbrowse_go or unbrowse_execute without calling this first.",
+    description: "START HERE for every website task. Returns ranked shortlist of cached endpoints. Read the shortlist, pick the one that matches your intent (use the example_response_compact and requires fields as evidence), then call unbrowse_execute with that endpoint_id. Two tool calls is the contract — there is no auto-exec. If no_cached_match, fall through to unbrowse_go to capture fresh.",
     inputSchema: {
       type: "object",
       properties: {

@@ -292,8 +292,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
 | `upgrade` |  | Check latest release and print the right upgrade command |
-| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [--execute] [--raw] [opts]` | Search cached indexed/published routes and optionally execute the top trusted endpoint |
-| `run` | `--intent "..." --url "..." [-p key=val ...]` | One-shot: resolve + execute top-1 endpoint with --raw output. Use when you just want the data |
+| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Returns ranked shortlist of endpoints for an intent. Pick one and call execute. (Two tool calls is the contract — autoexec is opt-in via --execute, not the default.) |
 | `explain` | `--intent "..." --url "..." [--top N]` | Emit top-N candidate endpoints + evidence for an LLM judge to pick from (no heuristic verdict — primitives + agent judgment) |
 | `execute` | `--skill ID --endpoint ID [-p key=val ...] [--params '{json}'] [opts]` | Execute a specific endpoint. Pass replay params via repeated -p key=val flags or --params with a JSON object |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
