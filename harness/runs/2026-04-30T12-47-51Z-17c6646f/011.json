@@ -1,0 +1,41 @@
+{
+  "intent": "get jupiter swap quote SOL to USDC",
+  "url": "https://jup.ag/",
+  "exit_code": 0,
+  "duration_ms": 2999,
+  "timed_out": false,
+  "kuri_pids_alive_after_run": [],
+  "visible_chrome_present": false,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/011.log",
+  "source": "marketplace",
+  "browser_avoided": null,
+  "top_reasoning": "Best match: SSR embedded data (spa-initial-state) for get token price quote (score: 67.04143656277029)",
+  "confidence": 0,
+  "endpoint_count_in_skill": 1,
+  "error": null,
+  "available_operations": [
+    {
+      "method": "GET",
+      "url_template": "https://developers.jup.ag/docs/price",
+      "endpoint_id": "NFZv072oJHSCKpH3rD0dD",
+      "description": "SSR embedded data (spa-initial-state) for get token price quote"
+    }
+  ],
+  "available_endpoints": [
+    {
+      "method": "GET",
+      "url": "https://developers.jup.ag/docs/price",
+      "score": 67,
+      "description": "SSR embedded data (spa-initial-state) for get token price quote",
+      "needs_params": false
+    }
+  ],
+  "suggested_next_operation_id": null,
+  "diagnostic": {
+    "confidence": 0,
+    "top_reasoning": "Best match: SSR embedded data (spa-initial-state) for get token price quote (score: 67.04143656277029)",
+    "known_issues": [],
+    "endpoint_count": 1,
+    "cache_source": "marketplace"
+  }
+}

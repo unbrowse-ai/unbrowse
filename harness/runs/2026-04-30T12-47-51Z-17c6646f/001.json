@@ -1,0 +1,41 @@
+{
+  "intent": "get top stories",
+  "url": "https://news.ycombinator.com",
+  "exit_code": 0,
+  "duration_ms": 4298,
+  "timed_out": false,
+  "kuri_pids_alive_after_run": [],
+  "visible_chrome_present": false,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/001.log",
+  "source": "marketplace",
+  "browser_avoided": null,
+  "top_reasoning": "Best match: Captured page artifact for fetch top stories from Hacker News (score: 291.0828731255405)",
+  "confidence": 0,
+  "endpoint_count_in_skill": 1,
+  "error": null,
+  "available_operations": [
+    {
+      "method": "GET",
+      "url_template": "https://news.ycombinator.com/",
+      "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+      "description": "Returns trending comments with titles, link, and rank"
+    }
+  ],
+  "available_endpoints": [
+    {
+      "method": "GET",
+      "url": "https://news.ycombinator.com/",
+      "score": 291.1,
+      "description": "Returns trending comments with titles, link, and rank",
+      "needs_params": false
+    }
+  ],
+  "suggested_next_operation_id": null,
+  "diagnostic": {
+    "confidence": 0,
+    "top_reasoning": "Best match: Captured page artifact for fetch top stories from Hacker News (score: 291.0828731255405)",
+    "known_issues": [],
+    "endpoint_count": 1,
+    "cache_source": "marketplace"
+  }
+}

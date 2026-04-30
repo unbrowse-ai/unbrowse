@@ -263,6 +263,9 @@ export interface CaptureResult {
     known_bindings: Record<string, unknown>;
     suggested_next: string[];
   };
+  // === Harness #2: Visual context for agents ===
+  // Screenshots at key capture points. Keys: "pre", "post", "interactions"
+  screenshots?: Record<string, string>;
 }
 
 export interface RawRequest {
@@ -502,7 +505,7 @@ export const INTERCEPTOR_SCRIPT = `(function() {
   window.__unbrowse_intercepted = [];
   var MAX_BODY = 2 * 1024 * 1024;
   var MAX_JS_BODY = 2 * 1024 * 1024;
-  var MAX_ENTRIES = 500;
+  var MAX_ENTRIES = 2000;
 
   // Intercept fetch
   var origFetch = window.fetch;
@@ -1463,6 +1466,13 @@ export async function captureSession(
     // Navigate to target URL
     await phase("navigate", () => kuri.navigate(tabId, url));
 
+    // === Harness #2: Pre-capture screenshot (what the page looks like before JS execution) ===
+    const screenshots: Record<string, string> = {};
+    try {
+      screenshots.pre = await phase("screenshot:pre", () => kuri.screenshot(tabId));
+      log("capture", "pre-capture screenshot taken");
+    } catch { /* screenshot may fail, continue */ }
+
     // Re-inject via evaluate as a last resort for sites that clear window globals
     // (some challenge pages wipe the window object). addInitScript above handles
     // the normal case; this evaluate is a safety net for post-navigation state.
@@ -1498,6 +1508,12 @@ export async function captureSession(
 
     // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
     await phase("waitForContentReady", () => waitForContentReady(tabId, url, intent, responseBodies));
+
+    // === Harness #2: Post-load screenshot (what the page looks like after JS renders) ===
+    try {
+      screenshots.post = await phase("screenshot:post", () => kuri.screenshot(tabId));
+      log("capture", "post-capture screenshot taken");
+    } catch { /* screenshot may fail, continue */ }
 
     // Incremental collection: drain intercepted data after content ready
     await drainIntercepted();
@@ -1803,6 +1819,8 @@ export async function captureSession(
         ws_messages: undefined,
         html,
         js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined,
+        // Harness #2: Visual context
+        screenshots: Object.keys(screenshots).length > 0 ? screenshots : undefined,
       };
     }
   } catch (error) {

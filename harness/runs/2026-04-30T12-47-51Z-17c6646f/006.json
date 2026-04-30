@@ -1,0 +1,54 @@
+{
+  "intent": "get singularity subreddit posts",
+  "url": "https://www.reddit.com/r/singularity/",
+  "exit_code": 0,
+  "duration_ms": 3131,
+  "timed_out": false,
+  "kuri_pids_alive_after_run": [],
+  "visible_chrome_present": false,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/006.log",
+  "source": "marketplace",
+  "browser_avoided": null,
+  "top_reasoning": "Best match: Structured replay for singularity subreddit posts (score: 771.2708890461051)",
+  "confidence": 0,
+  "endpoint_count_in_skill": 2,
+  "error": null,
+  "available_operations": [
+    {
+      "method": "GET",
+      "url_template": "https://www.reddit.com/r/singularity/.json",
+      "endpoint_id": "qzF2ZEcQ_22ReCqF4-Dr7",
+      "description": "Structured replay for singularity subreddit posts"
+    },
+    {
+      "method": "GET",
+      "url_template": "https://www.reddit.com/r/programming/.json",
+      "endpoint_id": "Uoju8N3pCnQimo6bGLPWe",
+      "description": "Structured replay for get subreddit posts"
+    }
+  ],
+  "available_endpoints": [
+    {
+      "method": "GET",
+      "url": "https://www.reddit.com/r/singularity/.json",
+      "score": 771.3,
+      "description": "Structured replay for singularity subreddit posts",
+      "needs_params": false
+    },
+    {
+      "method": "GET",
+      "url": "https://www.reddit.com/r/programming/.json",
+      "score": 524.7,
+      "description": "Structured replay for get subreddit posts",
+      "needs_params": false
+    }
+  ],
+  "suggested_next_operation_id": null,
+  "diagnostic": {
+    "confidence": 0,
+    "top_reasoning": "Best match: Structured replay for singularity subreddit posts (score: 771.2708890461051)",
+    "known_issues": [],
+    "endpoint_count": 2,
+    "cache_source": "marketplace"
+  }
+}

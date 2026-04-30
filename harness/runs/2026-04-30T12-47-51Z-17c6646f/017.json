@@ -1,0 +1,41 @@
+{
+  "intent": "search pubmed papers",
+  "url": "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning",
+  "exit_code": 0,
+  "duration_ms": 3178,
+  "timed_out": false,
+  "kuri_pids_alive_after_run": [],
+  "visible_chrome_present": false,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/017.log",
+  "source": "marketplace",
+  "browser_avoided": null,
+  "top_reasoning": "Best match: Captured search form artifact for pubmed search machine learning (score: 157.71193168298336)",
+  "confidence": 0,
+  "endpoint_count_in_skill": 1,
+  "error": null,
+  "available_operations": [
+    {
+      "method": "GET",
+      "url_template": "https://pubmed.ncbi.nlm.nih.gov/?term={term}",
+      "endpoint_id": "POdv28Pb1ZfRuPeK_xrDu",
+      "description": "Searches forms with relevance score, titles, and heading 1"
+    }
+  ],
+  "available_endpoints": [
+    {
+      "method": "GET",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/?term={term}",
+      "score": 157.7,
+      "description": "Searches forms with relevance score, titles, and heading 1",
+      "needs_params": true
+    }
+  ],
+  "suggested_next_operation_id": null,
+  "diagnostic": {
+    "confidence": 0,
+    "top_reasoning": "Best match: Captured search form artifact for pubmed search machine learning (score: 157.71193168298336)",
+    "known_issues": [],
+    "endpoint_count": 1,
+    "cache_source": "marketplace"
+  }
+}

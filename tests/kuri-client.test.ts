@@ -281,12 +281,18 @@ exit 1
       attachToExistingChrome: false,
     });
 
+    // New contract (Apr 2026): headless defaults to true on every platform so
+    // production unbrowse never floods the user's screen. Attach-to-existing-Chrome
+    // requires explicit HEADLESS=false because canAttachToExistingChrome = !headless.
     expect(kuri.resolveKuriLaunchConfig({} as NodeJS.ProcessEnv)).toEqual({
-      headless: false,
+      headless: true,
       attachToExistingChrome: false,
     });
 
+    // Attach paths now require explicit HEADLESS=false alongside the attach intent.
+    // TODO: revisit whether KURI_ATTACH_EXISTING_CHROME=1 should imply HEADLESS=false.
     expect(kuri.resolveKuriLaunchConfig({
+      HEADLESS: "false",
       UNBROWSE_IMPORT_BROWSER_COOKIES: "0",
     } as NodeJS.ProcessEnv)).toEqual({
       headless: false,
@@ -294,13 +300,17 @@ exit 1
     });
 
     expect(kuri.resolveKuriLaunchConfig({
+      HEADLESS: "false",
       KURI_ATTACH_EXISTING_CHROME: "1",
     } as NodeJS.ProcessEnv)).toEqual({
       headless: false,
       attachToExistingChrome: true,
     });
 
+    // Clean-room overrides attach intent; HEADLESS=false here only proves clean-room
+    // wins over attach when both are requested.
     expect(kuri.resolveKuriLaunchConfig({
+      HEADLESS: "false",
       UNBROWSE_LOCAL_ONLY: "1",
     } as NodeJS.ProcessEnv)).toEqual({
       headless: false,

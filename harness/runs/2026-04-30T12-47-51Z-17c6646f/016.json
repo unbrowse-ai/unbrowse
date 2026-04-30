@@ -1,0 +1,12 @@
+{
+  "intent": "search openlibrary books",
+  "url": "https://openlibrary.org/search?q=dune",
+  "exit_code": 124,
+  "duration_ms": 45030,
+  "timed_out": true,
+  "kuri_pids_alive_after_run": [],
+  "visible_chrome_present": false,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/016.log",
+  "parse_error": true,
+  "log_tail": "[domain-cache] loaded 17 entries from disk\n[route-cache] loaded 11 entries from disk\n[unbrowse] Still working. Searching cached routes...\n"
+}

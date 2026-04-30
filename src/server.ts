@@ -69,6 +69,10 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   // No eager start — avoids launching Chrome on every server restart.
   // Registration is allowed to finish in the background so /health is not
   // blocked by remote Worker latency during server bootstrap.
+  // In non-interactive mode (server/HARNESS), skip ToS prompts entirely.
+  if (process.env.UNBROWSE_NON_INTERACTIVE === "1" || !process.stdin.isTTY) {
+    process.env.UNBROWSE_SKIP_TOS_CHECK = "1";
+  }
   void startBackgroundRegistration();
 
   const app = Fastify({ logger: options.logger ?? true });
@@ -97,4 +101,16 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
 
 export function installServerExitCleanup(pidFile?: string): void {
   process.on("exit", () => clearPidFile(pidFile));
+}
+
+// CLI entry point: `bun src/server.ts`
+if (import.meta.main) {
+  const host = process.argv[2] ?? "127.0.0.1";
+  const rawPort = parseInt(process.argv[3]);
+  const port = isNaN(rawPort) ? undefined : rawPort; // let startUnbrowseServer use env fallback
+  const server = await startUnbrowseServer({ host, port, logger: true });
+  console.log(`[server] listening on http://${server.host}:${server.port}`);
+  console.log(`[server] version ${PACKAGE_VERSION}`);
+  console.log("[server] new: /v1/trace/:id, /v1/skills/:id/validate (self-improvement harness)");
+  installServerExitCleanup();
 }

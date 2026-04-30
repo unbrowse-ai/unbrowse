@@ -1,0 +1,4 @@
+step: 1
+session: default
+scope: Step 1 teachings line rejected by fractal repair gate — gate requires ab: (agent-browser runtime evidence) and dw: (DeepWiki citation) but every attempt is rejected as ab(stale-no-agent-browser-call-this-turn). Need 5 adversarial angles to find root cause.
+started_at: 2026-04-29T05:01:47.074Z

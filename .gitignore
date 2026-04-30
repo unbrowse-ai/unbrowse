@@ -93,6 +93,7 @@ submodules/foundry/
 # bench artifacts (session-local)
 .bench-local/
 .traction-snapshots/
+.harness-out/
 
 # strategy / moat docs — local-only, never commit
 docs/endpoint-as-cell.md

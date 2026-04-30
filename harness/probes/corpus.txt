@@ -1,0 +1,24 @@
+# intent|url — agent-experience harness corpus (no assertions; agent judges)
+# Anchor (should be easy)
+get top stories|https://news.ycombinator.com
+search hacker news|https://hn.algolia.com/?q=openai
+search rust crates|https://crates.io/search?q=serde
+get package info|https://www.npmjs.com/package/openai
+search github repos|https://github.com/search?q=openai&type=repositories
+# A1-class (semantic param ranking)
+get singularity subreddit posts|https://www.reddit.com/r/singularity/
+get programming subreddit posts|https://www.reddit.com/r/programming/
+# x.com — the agent-experience.md A4 + ranker stress
+get home timeline|https://x.com/home
+search tweets about AI agents|https://x.com/search?q=AI+agents&src=typed_query
+tweets from elonmusk|https://x.com/elonmusk
+# SSR-heavy / agent-experience.md A2/A3
+get jupiter swap quote SOL to USDC|https://jup.ag/
+# H1 / H7
+get linkedin feed posts|https://www.linkedin.com/feed/
+search hotels in Tokyo|https://www.priceline.com/relax/at/tokyo
+# Cold-cache live-capture cluster (timeouts in earlier L4)
+search beatsaver maps|https://beatsaver.com/?q=camellia
+list NUS modules|https://nusmods.com/modules
+search openlibrary books|https://openlibrary.org/search?q=dune
+search pubmed papers|https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning

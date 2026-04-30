@@ -1,0 +1,12 @@
+{
+  "intent": "get linkedin feed posts",
+  "url": "https://www.linkedin.com/feed/",
+  "exit_code": 124,
+  "duration_ms": 45029,
+  "timed_out": true,
+  "kuri_pids_alive_after_run": [],
+  "visible_chrome_present": false,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/012.log",
+  "parse_error": true,
+  "log_tail": "[domain-cache] loaded 16 entries from disk\n[route-cache] loaded 10 entries from disk\n[unbrowse] Still working. Searching cached routes...\n"
+}

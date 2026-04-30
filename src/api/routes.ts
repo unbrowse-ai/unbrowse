@@ -1,4 +1,7 @@
 import type { FastifyInstance } from "fastify";
+import * as os from "os";
+import * as path from "path";
+import { readdirSync, readFileSync } from "fs";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
@@ -548,10 +551,36 @@ export async function registerRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /v1/trace/:trace_id — Harness #2: Retrieve execution trace with diagnostic context
+  app.get("/v1/trace/:trace_id", async (req, reply) => {
+    const { trace_id } = req.params as { trace_id: string };
+    // Traces are stored per-skill in ~/.unbrowse/traces/
+    const traceDir = path.join(
+      process.env.UNBROWSE_TRACE_DIR ?? path.join(os.homedir(), ".unbrowse", "traces"),
+    );
+    if (trace_id === "latest") {
+      // Return most recent trace
+      try {
+        const files = readdirSync(traceDir).filter((f) => f.endsWith(".json")).sort().reverse();
+        if (files.length === 0) return reply.send({ message: "No traces found", trace_id: "latest" });
+        const trace = JSON.parse(readFileSync(join(traceDir, files[0]), "utf-8"));
+        return reply.send({ trace_id: "latest", ...trace });
+      } catch {
+        return reply.send({ message: "No traces found (trace directory may not exist yet)", trace_id: "latest" });
+      }
+    }
+    try {
+      const trace = JSON.parse(readFileSync(join(traceDir, `${trace_id}.json`), "utf-8"));
+      return reply.send({ trace_id, ...trace });
+    } catch {
+      return reply.code(404).send({ error: `Trace ${trace_id} not found` });
+    }
+  });
+
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, visual_context } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
@@ -561,6 +590,7 @@ export async function registerRoutes(app: FastifyInstance) {
       dry_run?: boolean;
       force_capture?: boolean;
       skip_robots_check?: boolean;
+      visual_context?: boolean;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
@@ -587,6 +617,20 @@ export async function registerRoutes(app: FastifyInstance) {
         discovery_queries: 1,
       })).catch(() => {});
 
+      // Harness #2: inject visual context (screenshot) for agent empathy
+      if (visual_context && context?.url) {
+        try {
+          const tabId = await kuri.newTab(context.url);
+          if (tabId) {
+            await new Promise((r) => setTimeout(r, 3000));
+            const screenshot = await kuri.screenshot(tabId);
+            if (screenshot) (res as Record<string, unknown>).visual_context = { screenshot };
+          }
+        } catch {
+          // Visual context unavailable — return without it
+        }
+      }
+
       return reply.send(res);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
@@ -610,6 +654,57 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!skill) skill = await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     return reply.send(skill);
+  });
+
+  // GET /v1/skills/:skill_id/validate — Harness #2: Validate skill quality with screenshots
+  app.get("/v1/skills/:skill_id/validate", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const { skill_id } = req.params as { skill_id: string };
+    const { url, capture } = req.query as { url?: string; capture?: string };
+
+    let skill = await getSkill(skill_id, clientScope);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    // Collect endpoint match data
+    const validations = skill.endpoints.map((ep) => ({
+      endpoint_id: ep.endpoint_id,
+      url_template: ep.url_template,
+      description: ep.description ?? "N/A",
+      has_response_schema: !!ep.response_schema,
+      has_description: !!ep.description,
+    }));
+
+    const result: Record<string, unknown> = {
+      skill_id,
+      domain: skill.domain,
+      endpoint_count: skill.endpoints.length,
+      validations,
+      message: "Validation summary. Compare endpoint descriptions with actual page content for quality assessment.",
+    };
+
+    // Harness #2: if URL provided + capture=true, take an actual screenshot
+    const screenshotUrl = capture === "true" && url ? url : url;
+    if (screenshotUrl) {
+      let screenshot: string | null = null;
+      try {
+        const tabId = await kuri.newTab(screenshotUrl);
+        if (tabId) {
+          // Wait for page to load, then screenshot
+          await new Promise((r) => setTimeout(r, 3000));
+          screenshot = await kuri.screenshot(tabId);
+        }
+      } catch {
+        // Screenshot may fail (no Kuri available) — continue without it
+      }
+      if (screenshot) {
+        result.screenshot = screenshot;
+        result.screenshot_hint = null;
+      } else {
+        result.screenshot_hint = `Screenshot capture unavailable (Kuri not running?). Browse ${screenshotUrl} manually to compare with endpoint descriptions.`;
+      }
+    }
+
+    return reply.send(result);
   });
 
   // POST /v1/skills/:skill_id/review — agent submits reviewed descriptions + synthetic examples
