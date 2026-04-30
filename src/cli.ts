@@ -713,17 +713,24 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       return;
     }
 
-    // Auto-wrap large responses with extraction_hints when no flags given
+    // Auto-wrap VERY-large responses with extraction_hints when no flags given.
+    // Per CLAUDE.md Agent UX North Star "Works for what was asked: --raw is
+    // the default truth" — agents calling execute with no flags expect data,
+    // not a schema preview. The previous 2KB threshold was too aggressive: a
+    // 30-row JSON list (~5KB) would fire extraction_hints, forcing the agent
+    // to retry with --raw or --extract. Bumped to 64KB so only genuinely huge
+    // responses (full HTML pages, mega-arrays) trigger the hint path.
+    const AUTOEXTRACT_HINT_THRESHOLD = 65_536;
     if (!rawFlag && !pathFlag && !extractFlag && !schemaFlag) {
       const raw = JSON.stringify(result.result);
-      if (raw && raw.length > 2048) {
+      if (raw && raw.length > AUTOEXTRACT_HINT_THRESHOLD) {
         const schema = schemaOf(result.result);
         output({
           trace: result.trace,
           ...(result.impact ? { impact: result.impact } : {}),
           ...(result.next_actions ? { next_actions: result.next_actions } : {}),
           extraction_hints: {
-            message: "Response is large. Use --path/--extract/--limit to filter, or --schema to see structure, or --raw for full response.",
+            message: `Response is ${Math.round(raw.length / 1024)}KB (over ${AUTOEXTRACT_HINT_THRESHOLD / 1024}KB). Use --path/--extract/--limit to filter, --schema for structure, or --raw for full response.`,
             schema_tree: schema,
             response_bytes: raw.length,
           },
