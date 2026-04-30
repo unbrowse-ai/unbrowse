@@ -149,12 +149,16 @@ function isSkillDomainEndpoint(skill: SkillManifest, endpoint: EndpointDescripto
 
 function isLikelyNoiseEndpoint(endpoint: EndpointDescriptor): boolean {
   const haystack = [endpoint.url_template, endpoint.description ?? ""].join(" ").toLowerCase();
-  // A9 fix — telemetry/event endpoints with `_` separator weren't matching
-  // \blog\b because `_` is a word character in regex. Now explicitly match
-  // log_event / track_event / click_event / page_view / impression patterns.
+  // A9/A11 fix — telemetry/event endpoints with `_` separator weren't matching
+  // \blog\b because `_` is a word character in regex. A11 broadened to catch
+  // app_open_times/upload (tiktok), global-footer/graphql (chrome), eligibility
+  // checks (feature gates).
   return (
     /(recaptcha|captcha|csrf|telemetry|analytics|tracking|logging|metrics|beacon|consent|cookie[-_ ]?banner|feature[-_ ]?flag|oauth|session[-_/ ]?refresh|auth[-_/ ]?refresh|header-action|badge)/i.test(haystack) ||
-    /\/(log[-_]?events?|track[-_]?events?|click[-_]?events?|page[-_]?views?|impressions?|user[-_]?actions?|client[-_]?logs?|error[-_]?logs?|stats[-_]?events?)\b/i.test(haystack)
+    /\/(log[-_]?events?|track[-_]?events?|click[-_]?events?|page[-_]?views?|impressions?|user[-_]?actions?|client[-_]?logs?|error[-_]?logs?|stats[-_]?events?)\b/i.test(haystack) ||
+    /\/(app[-_]?open[-_]?times?|app[-_]?launch[-_]?times?|session[-_]?times?|usage[-_]?stats?)\b/i.test(haystack) ||
+    /\/(eligibility|feature[-_]?gates?|feature[-_]?config|ab[-_]?tests?|experiments?[-_]?state)\b/i.test(haystack) ||
+    /\/(global[-_]?footer|global[-_]?header|page[-_]?chrome|nav[-_]?config|footer[-_]?config|header[-_]?config)\b/i.test(haystack)
   );
 }
 function isFragileGraphqlEndpoint(endpoint: EndpointDescriptor): boolean {
