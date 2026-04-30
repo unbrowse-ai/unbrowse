@@ -149,11 +149,14 @@ function isSkillDomainEndpoint(skill: SkillManifest, endpoint: EndpointDescripto
 
 function isLikelyNoiseEndpoint(endpoint: EndpointDescriptor): boolean {
   const haystack = [endpoint.url_template, endpoint.description ?? ""].join(" ").toLowerCase();
-  return /(recaptcha|captcha|csrf|telemetry|analytics|tracking|logging|metrics|beacon|consent|cookie[-_ ]?banner|feature[-_ ]?flag|oauth|session[-_/ ]?refresh|auth[-_/ ]?refresh|header-action|badge)/i.test(
-    haystack,
+  // A9 fix — telemetry/event endpoints with `_` separator weren't matching
+  // \blog\b because `_` is a word character in regex. Now explicitly match
+  // log_event / track_event / click_event / page_view / impression patterns.
+  return (
+    /(recaptcha|captcha|csrf|telemetry|analytics|tracking|logging|metrics|beacon|consent|cookie[-_ ]?banner|feature[-_ ]?flag|oauth|session[-_/ ]?refresh|auth[-_/ ]?refresh|header-action|badge)/i.test(haystack) ||
+    /\/(log[-_]?events?|track[-_]?events?|click[-_]?events?|page[-_]?views?|impressions?|user[-_]?actions?|client[-_]?logs?|error[-_]?logs?|stats[-_]?events?)\b/i.test(haystack)
   );
 }
-
 function isFragileGraphqlEndpoint(endpoint: EndpointDescriptor): boolean {
   try {
     const url = new URL(endpoint.url_template);
