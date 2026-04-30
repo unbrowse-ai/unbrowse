@@ -1471,7 +1471,22 @@ export function getSkillChunk(
       if (seen.size >= maxOperations) break;
     }
   }
-  const operations = graph.operations.filter((operation) => seen.has(operation.operation_id) && !isOperationHardExcluded(operation, opts?.intent));
+  // D4 fix — dedupe operations by (method, url_template). Two captures of the
+  // same GraphQL POST (e.g. x.com HomeTimeline) get separate operation_ids
+  // but share URL+method; the marketplace publish gate's family-dedup
+  // doesn't apply at resolve-time chunk construction, so duplicates were
+  // surfacing in available_operations. Keep the higher-scored copy.
+  // Caught via harness/recursive/ on x.com.
+  const _filtered = graph.operations.filter((operation) => seen.has(operation.operation_id) && !isOperationHardExcluded(operation, opts?.intent));
+  const _byKey = new Map<string, SkillOperationNode>();
+  for (const op of _filtered) {
+    const key = `${op.method}|${op.url_template ?? ""}`;
+    const existing = _byKey.get(key);
+    if (!existing || operationScore(op, opts?.intent) > operationScore(existing, opts?.intent)) {
+      _byKey.set(key, op);
+    }
+  }
+  const operations = Array.from(_byKey.values());
   const edges = graph.edges.filter((edge) => seen.has(edge.from_operation_id) && seen.has(edge.to_operation_id));
   const visibleOperations = operations.length > 0 ? operations : graph.operations.filter((operation) => seen.has(operation.operation_id));
   const availableOperationIds = operations
