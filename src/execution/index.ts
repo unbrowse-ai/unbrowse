@@ -4132,29 +4132,58 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       }
     }
 
-    // A10 — cross-subdomain skill leak. When contextUrl is provided AND the
-    // endpoint hostname differs from contextUrl hostname (registrable domain
-    // matches but subdomain differs), demote unless the endpoint is on the
-    // common shared-API subdomain (`api.*`, `gql.*`, `graphql.*`). Caught via
-    // harness/recursive/ on youtube.com — searching www.youtube.com/@MrBeast
-    // returned music.youtube.com endpoints because skill-domain matched on
-    // registrable domain alone.
+    // A10/A12 — cross-subdomain + cross-brand skill leak. When contextUrl is
+    // provided AND the endpoint hostname differs, demote. A10 (same brand,
+    // different subdomain — e.g. music.youtube.com endpoint for
+    // www.youtube.com query): -300. A12 (different registrable domain
+    // entirely — e.g. notion.com skill returned for notion.so query): -800.
+    // Allow common shared-API subdomains (api.*, gql.*, etc.) since those
+    // legitimately serve any www. page.
     if (contextUrl) {
       try {
         const ctxHost = new URL(contextUrl).hostname.toLowerCase();
         const epHost = new URL(ep.url_template).hostname.toLowerCase();
         if (ctxHost !== epHost) {
-          // Strip leading `www.` for comparison
           const ctxBare = ctxHost.replace(/^www\./, "");
           const epBare = epHost.replace(/^www\./, "");
           if (ctxBare !== epBare) {
-            // Allow common shared-API subdomains (api., gql., graphql., etc.)
-            // — those legitimately serve endpoints for any www. page.
             const epIsSharedApi = /^(api|gql|graphql|rest|services?|backend)\./i.test(epHost);
-            if (!epIsSharedApi) {
+            const ctxRegistrable = ctxBare.split(".").slice(-2).join(".");
+            const epRegistrable = epBare.split(".").slice(-2).join(".");
+            if (ctxRegistrable !== epRegistrable) {
+              // A12 — different registrable domain (e.g., notion.so query vs
+              // notion.com / api.foreign.com endpoint). Bury regardless of
+              // shared-API status; api.* on a foreign brand is still foreign.
+              score -= 800;
+            } else if (!epIsSharedApi) {
+              // A10 — same brand, different subdomain, NOT a shared-API host.
+              // music.youtube.com endpoint for www.youtube.com query.
               score -= 300;
             }
           }
+        }
+      } catch { /* skip */ }
+
+      // A1.2 — contextUrl path-segment overlap bonus. When a captured
+      // endpoint URL contains a path segment that's also in the user's
+      // contextUrl pathname, that's a strong signal it's the right
+      // endpoint for THIS query. Real-world friction: stripe.com/pricing
+      // query returned stripe.com/en-sg/notifications as #1 because the
+      // notifications endpoint had richer captured schema. Now: pricing
+      // segment in contextUrl + pricing segment in endpoint URL → +200,
+      // pushing the right one to top.
+      try {
+        const ctxPath = new URL(contextUrl).pathname;
+        const ctxSegs = new Set(
+          ctxPath.split("/").filter(Boolean)
+            .map((s) => s.toLowerCase().replace(/\.[a-z0-9]+$/i, ""))
+            .filter((s) => s.length >= 3),
+        );
+        const epPath2 = new URL(ep.url_template).pathname.toLowerCase();
+        const epSegs = epPath2.split("/").filter(Boolean).map((s) => s.replace(/\.[a-z0-9]+$/i, ""));
+        const overlapSegs = epSegs.filter((s) => ctxSegs.has(s) && s.length >= 3);
+        if (overlapSegs.length > 0) {
+          score += 200 * overlapSegs.length;
         }
       } catch { /* skip */ }
     }

@@ -12,11 +12,26 @@ Baselines (Apr 2): 611 stars, 5.4K npm downloads, 819 keys, 197 WAU, 88 executio
 
 Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-optimize by running new use cases, identifying where too many steps are needed, and fixing the pipeline so fewer steps are required next time.
 
+## Agent UX North Star
+
+Every code change is judged against the calling agent's experience. The four invariants:
+
+1. **Less steps.** A correct intent should route to the right endpoint and return real data in one resolve+execute. Anything that forces the agent to re-resolve, retry with different flags, or reinterpret a vague error is a regression.
+2. **Less errors.** Filter the wrong/noise/error-shaped endpoints OUT at admission and resolve so the shortlist contains only callable ones. Better: zero ops with an actionable `next_step` than three ops where two are wrong.
+3. **Correct retrieval.** The endpoint that surfaces #1 must be the one that actually answers the intent. URL must reflect the user's contextUrl entity (A8). Wrong-template / cross-subdomain / phantom / captured-error endpoints must rank below real ones (A1, A1.1, A10, G1, C5).
+4. **Works for what was asked.** If the intent is "search jmail for X", the agent gets X back, not the schema, not extraction_hints. `--raw` semantics are the default truth; `--extract` is a convenience.
+
+**Browser-open is failure mode, not feature.** Every browser-open during normal operation is a multi-second, multi-step event the agent must drive. Optimize for never opening one:
+- Kuri runs `--headless=new` on every platform (`src/kuri/client.ts:resolveKuriLaunchConfig`). Production must NEVER pop a window onto the user's screen. Visible windows only on `HEADLESS=false` for explicit dev/auth flows.
+- Resolve must exhaust marketplace + cache + entity-substituted captured URLs (A8) before falling back to live capture.
+- When live capture is unavoidable, return an actionable `next_step` (`open_browse_session` / `abandon_or_authenticate`) with concrete `suggested_commands`. Never a one-word error.
+- Same-host empty-resolve must hard-handoff (resolve_hard_handoff) instead of letting the agent loop re-resolving.
+
 **Stickiness strategy:** Make Unbrowse the default browser for every agent via plugin + MCP. If Unbrowse is the MCP server agents call for ANY web task, it becomes infrastructure — not a tool you choose, but the layer everything routes through. Priority: OpenClaw plugin (exists v0.7.13), Claude MCP server (exists), LangChain/CrewAI integrations (code written).
 ## Architecture
 
 - **Kuri is the primary browser** (Zig-native CDP broker, 464KB, ~3ms cold start). Unbrowse is the intelligence layer on top.
-- **`HEADLESS=false`** is required when spawning Kuri — enables stealth extension (anti-bot) + `--user-data-dir` for persistent Chrome profile.
+- **Kuri defaults to headless on every platform** (Apr 2026 change in `src/kuri/client.ts:resolveKuriLaunchConfig`). Chrome runs `--headless=new`, which keeps the stealth extension and `--user-data-dir` persistence working. Set `HEADLESS=false` (or `KURI_HEADLESS=false`) only for dev/auth paths that need a visible window — `src/auth/index.ts` already does this for interactive auth, and the dev-side harness opts in the same way. Production unbrowse must never pop a window onto the user's screen.
 - **Cookie injection**: on `go`/`goto`, cookies are extracted from user's real Chrome/Firefox SQLite DB and injected into Kuri's tab via `setCookie`. Kuri auth profiles (Keychain) are loaded/saved per domain automatically.
 - **Passive capture**: HAR recording + fetch/XHR interceptor (`INTERCEPTOR_SCRIPT`) run on every browse session. On `close` or navigation, captured traffic goes through the full enrichment pipeline.
 - **Full enrichment pipeline** (same for passive and explicit capture): `extractEndpoints` → `extractAuthHeaders` → `storeCredential` → `mergeEndpoints` (with existing domain skill) → `generateLocalDescription` → `augmentEndpointsWithAgent` (LLM semantic metadata) → `buildSkillOperationGraph` → `cachePublishedSkill` → `queueBackgroundIndex` (marketplace publish).
@@ -89,17 +104,26 @@ Read `rejected_samples` and `captured_title` for that row's `.out` file. If the 
 
 Look at `filter_rejections`: if one bucket dominates, read the corresponding rejected_samples to see if real data endpoints were dropped. Use the pattern from commit 688c79ad (graphql bypass, sibling-subdomain bypass, SPA URL convention bypass) to add targeted filter relaxations. Always add a matching test to `tests/extraction-filter-bypass.test.ts` so the unblock can't silently regress.
 
-## Codex Eval Harness
+## Agent-Experience Harness (canonical evaluator)
 
-### Agent Eval (manual, agent-driven)
+The agent-experience harness is the source of truth for "is unbrowse working
+for real intents?" — a harness-collects / agent-judges flow with no regex/grep
+verdicts. Replaces the prior codex-harness eval pipeline (Apr 2026).
 
-- Skill: `/unbrowse-eval` — the agent browses each site, indexes, resolves, executes, and verifies
-- Cases: `evals/codex-cases.popular-sites.json`
-- Results: `evals/unbrowse-eval-last-run.json`
-- Programmatic shortlist (resolve-only): `bun run eval:agent`
-- Add cases: `/unbrowse-eval --add` or edit the JSON directly
-- Each case runs from a fresh state (kill unbrowse/kuri between cases)
-- The eval set should grow over time — add sites you test manually
+- Run: `bun run agent-xp` (corpus) or `bun run agent-xp:judge` (corpus + judge banner)
+- Corpus: `harness/probes/corpus.txt` (one `intent|url` per line; grow as needed)
+- Probe runner: `harness/probes/agent-experience.sh`
+- Judge protocol: `harness/probes/JUDGE.md`
+- Per-run artifacts: `harness/runs/<run-id>/{NNN.json, NNN.log, manifest.json}`
+
+The harness only collects evidence (source, available_operations,
+available_endpoints, kuri_pids_alive_after_run, visible_chrome_present,
+durations, diagnostic). The verdict comes from an LLM agent reading
+`manifest.json` against `JUDGE.md` — not from any assertion in this repo.
+
+Structural invariants (headless default, spawn-gate, mirror parity, vendor
+binary presence) stay as `bun test tests/*.test.ts` — those check things
+heuristics CAN catch in 250ms.
 
 ### Codex Eval (programmatic, resolve-only)
 
@@ -144,6 +168,28 @@ Look at `filter_rejections`: if one bucket dominates, read the corresponding rej
   - direct execute commands
 - If auth is needed, make sure local vault/browser cookies already exist first
 - Do not add new parallel eval harnesses; extend `evals/codex-harness.ts` or its helpers instead
+
+## Ranker philosophy: heuristics OUT, primitives + LLM judge IN
+
+The deterministic ranker (`rankEndpoints` in `src/execution/index.ts`) keeps
+only EVIDENCE-DERIVED, GENERIC signals: BM25 over the endpoint's own text,
+URL-path keyword overlap with intent, schema richness, host pattern (api./io./
+docs.), method tiebreak, response-shape bonuses. Per-domain registries (e.g.
+"if domain == x.com and path == /search then op SearchTimeline +220") are
+banned — they don't generalize and they masquerade as judgment.
+
+When BM25 ties or descriptions are sparse (typical on GraphQL ops with shallow
+agent-augmented metadata), disambiguation is delegated to an LLM judge via the
+`unbrowse rank --intent X --url Y` primitive (script: `harness/probes/rank-
+evidence.sh`). The primitive emits the top-N candidates' evidence as JSON; the
+agent or a judge sub-agent reads the evidence and picks. The verdict is NOT a
+regex.
+
+Same principle for GraphQL ergonomics: `decomposeGraphqlEndpoint` parses the
+captured `variables` JSON shape and surfaces flat keys with example values
+(structural primitive, not a registry). It does NOT carry a `q → rawQuery`
+alias table — agents read `agentParams[].key` to see the real field names, or
+an LLM judge reshapes flat user input into the GraphQL shape on the way in.
 
 ## Releases
 
