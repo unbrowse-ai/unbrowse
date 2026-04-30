@@ -77,4 +77,29 @@ describe("A9 — telemetry-event endpoints filtered as noise", () => {
     const sel = selectMarketplacePublishEndpoints(makeSkill("example.com", [ep]));
     expect(sel.stats.by_reason.noise).toBe(0);
   });
+
+  // A11 — broader telemetry-noise patterns
+  test("tiktok app_open_times/upload rejected as noise (A11)", () => {
+    const ep = makeEndpoint("https://www.tiktok.com/tiktok/v1/app_open_times/upload/");
+    const sel = selectMarketplacePublishEndpoints(makeSkill("tiktok.com", [ep]));
+    expect(sel.stats.by_reason.noise).toBe(1);
+  });
+
+  test("tiktok eligibility/v2 (feature gate) rejected as noise (A11)", () => {
+    const ep = makeEndpoint("https://www.tiktok.com/tiktok/ppf/api/eligibility/v2");
+    const sel = selectMarketplacePublishEndpoints(makeSkill("tiktok.com", [ep]));
+    expect(sel.stats.by_reason.noise).toBe(1);
+  });
+
+  test("tiktok global-footer/graphql (page chrome) rejected as noise (A11)", () => {
+    const ep = makeEndpoint("https://www.tiktok.com/api/global-footer/graphql");
+    const sel = selectMarketplacePublishEndpoints(makeSkill("tiktok.com", [ep]));
+    expect(sel.stats.by_reason.noise).toBe(1);
+  });
+
+  test("/feature_gates rejected as noise (A11)", () => {
+    const ep = makeEndpoint("https://example.com/api/v1/feature_gates");
+    const sel = selectMarketplacePublishEndpoints(makeSkill("example.com", [ep]));
+    expect(sel.stats.by_reason.noise).toBe(1);
+  });
 });

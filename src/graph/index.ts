@@ -1151,9 +1151,13 @@ export function isOperationHardExcluded(op: SkillOperationNode, intent?: string)
   if (tags.has("status") && !intentHasAny(intent, ["status", "health", "incident", "maintenance"])) return true;
   if (tags.has("config") && !intentHasAny(intent, ["config", "setting", "settings", "preference", "preferences"])) return true;
   if (/\b(intercom|ping|beacon|track|tracking|telemetry|metrics|log\.json|promoted_content)\b/.test(text)) return true;
-  // A9 — telemetry-event patterns with `_` separator (log_event, track_event,
-  // page_view, etc.) that don't match \b...\b due to `_` being a word char.
+  // A9/A11 — telemetry-event patterns with `_` separator (log_event, track_event,
+  // page_view, app_open_times, etc.) that don't match \b...\b due to `_` being
+  // a word char.
   if (/\/(log[-_]?events?|track[-_]?events?|click[-_]?events?|page[-_]?views?|impressions?|user[-_]?actions?|client[-_]?logs?|error[-_]?logs?|stats[-_]?events?)\b/i.test(text)) return true;
+  if (/\/(app[-_]?open[-_]?times?|app[-_]?launch[-_]?times?|session[-_]?times?|usage[-_]?stats?)\b/i.test(text)) return true;
+  if (/\/(eligibility|feature[-_]?gates?|feature[-_]?config|ab[-_]?tests?|experiments?[-_]?state)\b/i.test(text)) return true;
+  if (/\/(global[-_]?footer|global[-_]?header|page[-_]?chrome|nav[-_]?config|footer[-_]?config|header[-_]?config)\b/i.test(text)) return true;
   return false;
 }
 

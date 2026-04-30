@@ -1714,6 +1714,26 @@ async function executeBrowserCapture(
           error: "low_quality_dom_extraction",
           message: `Structured DOM extraction was rejected for ${url}: ${pageArtifact.quality_note}`,
           captured_meta: computeCapturedMeta(),
+          // F2.1 — bring low-quality DOM rejection up to F2 parity with
+          // actionable next_step. Caught via harness/recursive/ on
+          // facebook.com/Meta/about which returned this error with no
+          // path forward for the agent.
+          next_step: {
+            action: "open_browse_session",
+            reason:
+              `Page rendered but DOM extraction quality was too low to publish a skill. ` +
+              `Rejection reason: ${pageArtifact.quality_note}. The page likely needs ` +
+              `interaction (sign-in, click-to-expand, lazy-load scroll) before structured ` +
+              `data appears, OR this surface has no machine-extractable shape.`,
+            suggested_commands: [
+              `unbrowse go --url "${url}"`,
+              `unbrowse snap  # inspect page state`,
+              `# if behind auth: sign in via Chrome (cookies auto-import on next go)`,
+              `# if interactive: unbrowse click <ref> / fill / submit`,
+              `unbrowse close  # publishes any newly captured endpoints`,
+              `# or: route this intent to a different domain that has a real API`,
+            ],
+          },
         },
       };
     }
