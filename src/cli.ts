@@ -1096,7 +1096,8 @@ export const CLI_REFERENCE = {
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
-    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Search cached indexed/published routes and optionally execute the top trusted endpoint" },
+    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [--execute] [--raw] [opts]', desc: "Search cached indexed/published routes and optionally execute the top trusted endpoint" },
+    { name: "run", usage: '--intent "..." --url "..." [-p key=val ...]', desc: "One-shot: resolve + execute top-1 endpoint with --raw output. Use when you just want the data" },
     { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Emit top-N candidate endpoints + evidence for an LLM judge to pick from (no heuristic verdict — primitives + agent judgment)" },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}'] [opts]", desc: "Execute a specific endpoint. Pass replay params via repeated -p key=val flags or --params with a JSON object" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
@@ -2284,6 +2285,15 @@ async function main(): Promise<void> {
     case "mcp": return cmdMcp(flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
+    case "run": {
+      // UX-3: `unbrowse run --intent X --url Y` — single-step shortcut.
+      // Resolves + auto-executes top-1 endpoint. Equivalent to
+      // `resolve --execute --raw` but without the agent having to know
+      // the two-step pattern. Per CLAUDE.md North Star: less steps.
+      flags.execute = true;
+      flags.raw = true;
+      return cmdResolve(flags);
+    }
     case "explain": return cmdExplain(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);

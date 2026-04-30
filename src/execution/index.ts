@@ -2358,7 +2358,14 @@ export async function executeEndpoint(
   //     like /api/v1/json that are shared across endpoints)
   //   - The captured url_template has no remaining {param} slots after
   //     interpolate() (we're not stomping on a parameterised endpoint)
-  const __callerUrl = typeof mergedParams.url === "string" ? mergedParams.url : "";
+  // UX-2: default URL inference. When the agent calls execute without --url,
+  // fall back to the captured endpoint's trigger_url (the page where the
+  // request was originally observed). Lets the agent skip the redundant
+  // --url flag for direct executes against a known endpoint.
+  // Per CLAUDE.md Agent UX North Star: less steps.
+  const __callerUrl = typeof mergedParams.url === "string" && mergedParams.url
+    ? mergedParams.url
+    : (endpoint.trigger_url ?? "");
   if (__callerUrl && !/\{[^}]+\}/.test(url)) {
     try {
       const cap = new URL(url);
