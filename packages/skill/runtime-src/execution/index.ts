@@ -1714,11 +1714,32 @@ async function executeBrowserCapture(
           error: "low_quality_dom_extraction",
           message: `Structured DOM extraction was rejected for ${url}: ${pageArtifact.quality_note}`,
           captured_meta: computeCapturedMeta(),
+          // F2.1 — bring low-quality DOM rejection up to F2 parity with
+          // actionable next_step. Caught via harness/recursive/ on
+          // facebook.com/Meta/about which returned this error with no
+          // path forward for the agent.
+          next_step: {
+            action: "open_browse_session",
+            reason:
+              `Page rendered but DOM extraction quality was too low to publish a skill. ` +
+              `Rejection reason: ${pageArtifact.quality_note}. The page likely needs ` +
+              `interaction (sign-in, click-to-expand, lazy-load scroll) before structured ` +
+              `data appears, OR this surface has no machine-extractable shape.`,
+            suggested_commands: [
+              `unbrowse go --url "${url}"`,
+              `unbrowse snap  # inspect page state`,
+              `# if behind auth: sign in via Chrome (cookies auto-import on next go)`,
+              `# if interactive: unbrowse click <ref> / fill / submit`,
+              `unbrowse close  # publishes any newly captured endpoints`,
+              `# or: route this intent to a different domain that has a real API`,
+            ],
+          },
         },
       };
     }
 
     const capturedMeta = computeCapturedMeta();
+    const capturedHasNetwork = (capturedMeta?.api_calls ?? 0) > 0 || (capturedMeta?.html_bytes ?? 0) > 0;
 
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
@@ -1731,12 +1752,35 @@ async function executeBrowserCapture(
     });
     return {
       trace,
-        result: {
-          error: "no_endpoints",
-          message: `No API endpoints or structured DOM data found at ${url}. The site may require authentication or may not expose machine-readable data from this page.`,
-          captured_meta: capturedMeta,
-        },
-      };
+      result: {
+        error: "no_endpoints",
+        message: `No API endpoints or structured DOM data found at ${url}. The site may require authentication or may not expose machine-readable data from this page.`,
+        captured_meta: capturedMeta,
+        // Make the failure agent-actionable: tell the caller what to do next
+        // instead of leaving them with a 27s wait and a one-word error.
+        // Friction discovered via harness/recursive/ on saucedemo.com (corpus row).
+        next_step: capturedHasNetwork
+          ? {
+              action: "open_browse_session",
+              reason: "Network/HTML was captured but no extractable API or DOM data; the site likely needs interaction (form fill, click, scroll) before data appears.",
+              suggested_commands: [
+                `unbrowse go --url "${url}"`,
+                `unbrowse snap`,
+                `# inspect interactive elements, then fill/click/submit`,
+                `unbrowse close  # publishes any newly captured endpoints`,
+              ],
+            }
+          : {
+              action: "abandon_or_authenticate",
+              reason: "Capture returned no network traffic and no HTML — the page is likely blocked, requires auth, or rendered nothing for the current cookie context.",
+              suggested_commands: [
+                `# 1. authenticate in Chrome first (cookies are auto-imported)`,
+                `unbrowse go --url "${url}"  # if a Chrome session has cookies`,
+                `# 2. or accept that this domain has no machine-readable surface and route the intent elsewhere`,
+              ],
+            },
+      },
+    };
   }
 
   // Reuse existing skill for this domain to preserve skill_id and learned exec_strategy.
@@ -2296,11 +2340,83 @@ export async function executeEndpoint(
     }
   }
   let url = interpolate(urlTemplate, mergedParams);
+
+  // A8 fix — URL entity templatification at execute time.
+  // Real-world friction caught via harness/recursive/ on en.wikipedia.org:
+  // a captured op had `url_template: https://en.wikipedia.org/wiki/Quantum_computing`
+  // (a specific page from a previous capture). When the agent calls execute
+  // with `--url https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)`,
+  // we should honor the user's URL since it's the same path-shape with one
+  // differing entity segment. Generalises to any "entity-in-path" capture
+  // (twitter user pages, github repos, opensea collections, wiki articles).
+  //
+  // Tells (must satisfy ALL):
+  //   - mergedParams.url (caller-supplied contextUrl) is set
+  //   - It's the same hostname as the resolved URL
+  //   - It has the same number of path segments
+  //   - The differing segments are entity-shaped (length ≥ 3, not API tokens
+  //     like /api/v1/json that are shared across endpoints)
+  //   - The captured url_template has no remaining {param} slots after
+  //     interpolate() (we're not stomping on a parameterised endpoint)
+  // UX-2: default URL inference. When the agent calls execute without --url,
+  // fall back to the captured endpoint's trigger_url (the page where the
+  // request was originally observed). Lets the agent skip the redundant
+  // --url flag for direct executes against a known endpoint.
+  // Per CLAUDE.md Agent UX North Star: less steps.
+  const __callerUrl = typeof mergedParams.url === "string" && mergedParams.url
+    ? mergedParams.url
+    : (endpoint.trigger_url ?? "");
+  if (__callerUrl && !/\{[^}]+\}/.test(url)) {
+    try {
+      const cap = new URL(url);
+      const ctx = new URL(__callerUrl);
+      if (cap.hostname === ctx.hostname) {
+        const capSegs = cap.pathname.split("/").filter(Boolean);
+        const ctxSegs = ctx.pathname.split("/").filter(Boolean);
+        if (capSegs.length === ctxSegs.length && capSegs.length > 0) {
+          // Count differing segments. If exactly one differs and it's an
+          // entity-shaped segment (not a shared API token), substitute.
+          const SHARED = new Set([
+            "api", "v1", "v2", "v3", "graphql", "rest", "rpc", "data", "json",
+            "wiki", "user", "users", "post", "posts", "item", "items", "page",
+            "pages", "search", "find", "list", "feed", "home", "hot", "top",
+            "new", "best", "details", "detail", "info", "profile", "profiles",
+            "collection", "collections", "product", "products", "p", "i", "s",
+          ]);
+          let diffCount = 0;
+          let diffIdx = -1;
+          for (let i = 0; i < capSegs.length; i++) {
+            if (capSegs[i].toLowerCase() === ctxSegs[i].toLowerCase()) continue;
+            diffCount += 1;
+            diffIdx = i;
+          }
+          if (diffCount === 1) {
+            const capSeg = capSegs[diffIdx].toLowerCase();
+            const ctxSeg = ctxSegs[diffIdx].toLowerCase();
+            // Both must be entity-shaped (not shared tokens). If either is a
+            // shared API token, we're not actually doing entity substitution.
+            const capIsEntity = !SHARED.has(capSeg) && capSeg.length >= 3 && !/^\d+$/.test(capSeg);
+            const ctxIsEntity = !SHARED.has(ctxSeg) && ctxSeg.length >= 3 && !/^\d+$/.test(ctxSeg);
+            if (capIsEntity && ctxIsEntity) {
+              // Honor the caller's URL — same path shape, just a different
+              // entity value. Preserve the captured query string + fragment
+              // since those are the operation contract; the entity is the
+              // only thing the caller is overriding.
+              const newPathname = ctx.pathname; // includes leading slash
+              const rewritten = `${cap.protocol}//${cap.hostname}${cap.port ? `:${cap.port}` : ""}${newPathname}${cap.search}${cap.hash}`;
+              log("exec", `A8 entity-substitute: ${capSegs[diffIdx]} → ${ctxSegs[diffIdx]} on ${cap.hostname}`);
+              url = rewritten;
+            }
+          }
+        }
+      }
+    } catch { /* URL parse failure — skip alignment */ }
+  }
   // SSRF protection: reject private IPs, loopback, link-local, and non-HTTP protocols
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname;
-    if (!/^(https?)$/i.test(parsed.protocol)) {
+    if (!/^https?:$/i.test(parsed.protocol)) {
       throw new Error(`blocked unsafe protocol: ${parsed.protocol} (allowed: http, https)`);
     }
     const privateRe = /^(localhost|127\.|::1|fe80:|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0|fc00::|fd00:)/i;
@@ -3960,6 +4076,158 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         ).length;
         const fillRatio = filled / Math.max(allTemplateParams.length, 1);
         score += Math.round(fillRatio * 20);
+      }
+    }
+
+    // === A1 fix: leaked-literal path-segment penalty ===
+    // If a captured endpoint has a non-templated path segment that doesn't
+    // appear in the user's intent OR the contextUrl, it almost certainly
+    // came from a different capture session and shouldn't apply here.
+    // Real-world friction caught via harness/recursive/ on reddit.com:
+    // querying r/singularity surfaced a captured r/programming endpoint
+    // with rich data (because it was previously executed) — wrong
+    // subreddit. Universal rule: literal segments must be sourced from
+    // intent, contextUrl, or be a domain-shared component.
+    {
+      let pathSegs: string[] = [];
+      try {
+        pathSegs = new URL(ep.url_template).pathname.split("/").filter(Boolean);
+      } catch { /* noop */ }
+      const intentLower = (intent ?? "").toLowerCase();
+      let ctxLower = "";
+      try { ctxLower = (contextUrl ? new URL(contextUrl).pathname : "").toLowerCase(); } catch { /* noop */ }
+      // Generic noise tokens that legitimately appear in many APIs and shouldn't trigger the penalty
+      const SHARED_PATH_TOKENS = new Set([
+        "api", "v1", "v2", "v3", "graphql", "rest", "rpc", "data", "json", "xml",
+        "search", "list", "get", "post", "fetch", "query", "users", "user",
+        "items", "item", "posts", "post", "feed", "home", "hot", "top", "new", "best", "rising",
+        "page", "pages", "feeds", "details", "detail", "info", "profile", "profiles",
+        "me", "self", "public", "private", "draft", "drafts", "comments", "comment",
+        "web", "mobile", "desktop", "main", "index", "edge", "next", "static",
+      ]);
+      let leakedLiterals = 0;
+      for (const seg of pathSegs) {
+        const segLower = seg.toLowerCase();
+        // Skip templated `{param}` slots
+        if (/^\{[^}]+\}$/.test(seg)) continue;
+        // Skip extensions / very short / numeric-only / opaque IDs
+        if (segLower.length < 3) continue;
+        if (/^\d+$/.test(segLower)) continue;
+        if (/^[0-9a-f]{16,}$/i.test(segLower)) continue;
+        if (segLower.startsWith(".")) continue;
+        // Skip generic API shared tokens
+        if (SHARED_PATH_TOKENS.has(segLower)) continue;
+        // Stripped of trailing extensions like .json
+        const segStem = segLower.replace(/\.[a-z0-9]+$/i, "");
+        if (segStem.length < 3) continue;
+        // Sourced from intent or context — fine
+        if (intentLower.includes(segStem)) continue;
+        if (ctxLower.includes(segStem)) continue;
+        // Not in intent or contextUrl: leaked literal
+        leakedLiterals += 1;
+      }
+      if (leakedLiterals > 0) {
+        // Heavy penalty per leaked literal so a wrong-subreddit / wrong-user /
+        // wrong-product endpoint can't outrank a legit one even if it has
+        // richer captured schema.
+        // A1.1: when ≥3 distinct leaked literals exist, apply quadratic so a
+        // truly off-target capture (ebay /nap/napkinapi/v1/ticketing/redeem
+        // for an "ebay search listings" intent) gets buried regardless of
+        // its base bonuses.
+        const penaltyMultiplier = leakedLiterals >= 3 ? leakedLiterals * 2 : 1;
+        score -= leakedLiterals * 200 * penaltyMultiplier;
+      }
+    }
+
+    // A10/A12 — cross-subdomain + cross-brand skill leak. When contextUrl is
+    // provided AND the endpoint hostname differs, demote. A10 (same brand,
+    // different subdomain — e.g. music.youtube.com endpoint for
+    // www.youtube.com query): -300. A12 (different registrable domain
+    // entirely — e.g. notion.com skill returned for notion.so query): -800.
+    // Allow common shared-API subdomains (api.*, gql.*, etc.) since those
+    // legitimately serve any www. page.
+    if (contextUrl) {
+      try {
+        const ctxHost = new URL(contextUrl).hostname.toLowerCase();
+        const epHost = new URL(ep.url_template).hostname.toLowerCase();
+        if (ctxHost !== epHost) {
+          const ctxBare = ctxHost.replace(/^www\./, "");
+          const epBare = epHost.replace(/^www\./, "");
+          if (ctxBare !== epBare) {
+            const epIsSharedApi = /^(api|gql|graphql|rest|services?|backend)\./i.test(epHost);
+            const ctxRegistrable = ctxBare.split(".").slice(-2).join(".");
+            const epRegistrable = epBare.split(".").slice(-2).join(".");
+            if (ctxRegistrable !== epRegistrable) {
+              // A12 — different registrable domain (e.g., notion.so query vs
+              // notion.com / api.foreign.com endpoint). Bury regardless of
+              // shared-API status; api.* on a foreign brand is still foreign.
+              score -= 800;
+            } else if (!epIsSharedApi) {
+              // A10 — same brand, different subdomain, NOT a shared-API host.
+              // music.youtube.com endpoint for www.youtube.com query.
+              score -= 300;
+            }
+          }
+        }
+      } catch { /* skip */ }
+
+      // A1.2 — contextUrl path-segment overlap bonus. When a captured
+      // endpoint URL contains a path segment that's also in the user's
+      // contextUrl pathname, that's a strong signal it's the right
+      // endpoint for THIS query. Real-world friction: stripe.com/pricing
+      // query returned stripe.com/en-sg/notifications as #1 because the
+      // notifications endpoint had richer captured schema. Now: pricing
+      // segment in contextUrl + pricing segment in endpoint URL → +200,
+      // pushing the right one to top.
+      try {
+        const ctxPath = new URL(contextUrl).pathname;
+        const ctxSegs = new Set(
+          ctxPath.split("/").filter(Boolean)
+            .map((s) => s.toLowerCase().replace(/\.[a-z0-9]+$/i, ""))
+            .filter((s) => s.length >= 3),
+        );
+        const epPath2 = new URL(ep.url_template).pathname.toLowerCase();
+        const epSegs = epPath2.split("/").filter(Boolean).map((s) => s.replace(/\.[a-z0-9]+$/i, ""));
+        const overlapSegs = epSegs.filter((s) => ctxSegs.has(s) && s.length >= 3);
+        if (overlapSegs.length > 0) {
+          score += 200 * overlapSegs.length;
+        }
+      } catch { /* skip */ }
+    }
+
+
+    // A13 — read-intent demotes write-flavored endpoints. When the user's
+    // intent contains search/list/find/browse/get-flavored verbs but the
+    // endpoint URL or method indicates a write/mutation (cart/add/checkout/
+    // buy/order/create/update/delete/POST mutation), the endpoint is wrong
+    // for the intent regardless of how rich its captured schema is.
+    // Real-world friction: amazon "usb-c cable" search returned
+    // /cart/add-to-cart/patc-template as #1 because the cart endpoint had
+    // richer schema than the search results page.
+    if (intent) {
+      const intentLower2 = intent.toLowerCase();
+      const isReadIntent =
+        /\b(search|find|list|browse|get|fetch|read|view|show|display|trending|popular|latest|results|results)\b/i.test(intentLower2) &&
+        !/\b(create|add|buy|order|checkout|book|reserve|send|post|publish|delete|update|edit|modify|remove)\b/i.test(intentLower2);
+      if (isReadIntent) {
+        const epPathLower = (() => {
+          try { return new URL(ep.url_template).pathname.toLowerCase(); }
+          catch { return ep.url_template.toLowerCase(); }
+        })();
+        const epActionKind = (ep.semantic?.action_kind ?? "").toLowerCase();
+        // URL-path tokens that signal write/mutation — strong demotion
+        const WRITE_PATH = /\/(cart|checkout|order|orders|buy|purchase|payment|payments|book|booking|reserve|signup|register|subscribe|delete|remove|update|edit|modify|add[-_]to[-_]?cart|add[-_]to[-_]?wishlist|favorite|like|unlike|follow|unfollow|vote|report|flag|abuse)\b/i;
+        if (WRITE_PATH.test(epPathLower)) {
+          score -= 400;
+        }
+        // action_kind from semantic: create/update/delete/send → demote
+        if (/^(create|update|delete|send|post|publish|reply|mutate)/i.test(epActionKind)) {
+          score -= 250;
+        }
+        // POST without graphql / RPC hint on a read intent — penalize
+        if (ep.method === "POST" && !/(graphql|rpc|search|query|fetch|list|get)/i.test(epPathLower)) {
+          score -= 100;
+        }
       }
     }
 
