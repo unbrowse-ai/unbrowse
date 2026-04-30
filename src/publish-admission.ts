@@ -11,6 +11,8 @@ export type PublishAdmissionReason =
   | "fragile_graphql"
   | "no_durable_signal"
   | "dom_fallback_only"
+  | "phantom_endpoint"
+  | "captured_error_response"
   | "family_dedup"
   | "over_limit";
 
@@ -54,7 +56,6 @@ function readProbabilityEnv(name: string, fallback: number): number {
   const parsed = Number.parseFloat(process.env[name] ?? "");
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : fallback;
 }
-
 function freshReasonCounts(): Record<PublishAdmissionReason, number> {
   return {
     ws: 0,
@@ -66,6 +67,8 @@ function freshReasonCounts(): Record<PublishAdmissionReason, number> {
     fragile_graphql: 0,
     no_durable_signal: 0,
     dom_fallback_only: 0,
+    phantom_endpoint: 0,
+    captured_error_response: 0,
     family_dedup: 0,
     over_limit: 0,
   };
@@ -176,6 +179,98 @@ function isFragileGraphqlEndpoint(endpoint: EndpointDescriptor): boolean {
   }
 }
 
+/**
+ * G1 phantom-endpoint hallucination detector (issue class added 2026-04-30
+ * after lawnet.sg returned a fabricated "search" operation built from
+ * homepage marketing copy).
+ *
+ * Tells (must satisfy ALL):
+ *   - DOM-extracted (dom_extraction set) — not from network observation
+ *   - URL is the homepage trigger replay (canonical document, non-API path)
+ *   - No required user-supplied params (the "operation" takes no inputs)
+ *   - No array-of-items shape in response schema or example_fields
+ *     (real list/search endpoints have results[]/items[] etc.; phantom
+ *     ones have only scalar fields parsed from page chrome)
+ *
+ * Result of admitting these into the marketplace: agents see `success:true`
+ * reports on a homepage and report phantom victories. See judge.md G1
+ * patch-hint anchor.
+ */
+function isPhantomDocumentEndpoint(endpoint: EndpointDescriptor): boolean {
+  if (!endpoint.dom_extraction) return false;
+  if (!isCanonicalDocumentReplay(endpoint)) return false;
+
+  const requires = endpoint.semantic?.requires ?? [];
+  const hasUserParams = requires.some(
+    (r) => r.required && r.semantic_type !== "page-context",
+  );
+  if (hasUserParams) return false; // legit input-driven endpoint
+
+  // Real list/search/feed pages have an array-of-items shape.
+  const schema = endpoint.response_schema as Record<string, unknown> | undefined;
+  if (schema && typeof schema === "object") {
+    const properties = (schema.properties ?? {}) as Record<string, unknown>;
+    for (const val of Object.values(properties)) {
+      const propType = (val as Record<string, unknown> | undefined)?.type;
+      if (propType === "array") return false;
+    }
+    if ((schema.type as string | undefined) === "array") return false;
+  }
+
+  const exampleFields = endpoint.semantic?.example_fields ?? [];
+  if (exampleFields.some((f) => typeof f === "string" && /\[\]/.test(f))) return false;
+
+  return true;
+}
+
+/**
+ * Captured-error-response detector. Real-world friction caught via
+ * harness/recursive/ on instagram.com (2026-04-30): the resolve shortlist
+ * surfaced 10 endpoints, several of which were captured 4xx/error responses
+ * (`{message:"useragent mismatch", status:"fail"}`,
+ *  `{errors:[{severity:"CRITICAL"}], status:"fail"}`). These shouldn't reach
+ * the marketplace because the captured "successful response" is actually
+ * the API's error envelope — the schema is the error shape, not the data.
+ *
+ * Tells (must satisfy ALL):
+ *   - The example_response_compact has a top-level `status` of "fail" or "error",
+ *     OR a top-level `errors` array with at least one element,
+ *     OR a top-level `error` truthy field
+ *   - AND the response_schema's top-level properties are a subset of typical
+ *     error envelopes (no real content fields like results/items/data/<resource>).
+ *
+ * This is structural (universal across domains): no per-site rules.
+ */
+function isCapturedErrorResponse(endpoint: EndpointDescriptor): boolean {
+  const example = endpoint.semantic?.example_response_compact as Record<string, unknown> | undefined;
+  if (!example || typeof example !== "object" || Array.isArray(example)) return false;
+
+  const status = String(example.status ?? "").toLowerCase();
+  const hasFailStatus = status === "fail" || status === "error" || status === "failed";
+  const errors = example.errors;
+  const hasErrorsArray = Array.isArray(errors) && errors.length > 0;
+  const hasErrorField = example.error !== undefined && example.error !== null && example.error !== "";
+  if (!hasFailStatus && !hasErrorsArray && !hasErrorField) return false;
+
+  // Confirm the schema is error-shaped, not a legit body that happens to
+  // include a status field. Legit data endpoints have content fields beyond
+  // {message,status,errors,error,code,severity}.
+  const schema = endpoint.response_schema as Record<string, unknown> | undefined;
+  const errorOnlyKeys = new Set(["message", "status", "error", "errors", "code", "severity", "reason", "detail", "details"]);
+  if (schema && typeof schema === "object") {
+    const properties = (schema.properties ?? {}) as Record<string, unknown>;
+    const propKeys = Object.keys(properties);
+    if (propKeys.length === 0) return true; // no schema content at all
+    const hasContentKey = propKeys.some((k) => !errorOnlyKeys.has(k.toLowerCase()));
+    if (hasContentKey) return false;
+    return true;
+  }
+
+  // No schema — fall back to the example keys themselves
+  const exampleKeys = Object.keys(example);
+  return exampleKeys.every((k) => errorOnlyKeys.has(k.toLowerCase()));
+}
+
 function normalizedPathname(pathname: string): string {
   return pathname
     .split("/")
@@ -233,6 +328,8 @@ function rejectionReason(skill: SkillManifest, endpoint: EndpointDescriptor): Pu
   if (!isSkillDomainEndpoint(skill, endpoint)) return "off_domain";
   if (isLikelyNoiseEndpoint(endpoint)) return "noise";
   if (isFragileGraphqlEndpoint(endpoint) && !isVerifiedDurable(endpoint)) return "fragile_graphql";
+  if (isPhantomDocumentEndpoint(endpoint)) return "phantom_endpoint";
+  if (isCapturedErrorResponse(endpoint)) return "captured_error_response";
   if (!hasDurableSignal(endpoint)) return "no_durable_signal";
   return null;
 }
