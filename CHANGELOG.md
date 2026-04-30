@@ -1,5 +1,26 @@
 # Changelog
 
+## [6.1.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.0.0...v6.1.0-preview.0) (2026-04-30)
+
+### Features
+
+* harness/recursive/ + 7 agent-UX fixes driven through it ([5b85f77](https://github.com/unbrowse-ai/unbrowse-dev/commit/5b85f77b8b26ea918f05b0eb53a68f027a71a882))
+* one-shot CLI/MCP `run` + default URL inference (UX-2/UX-3/UX-4) ([810a970](https://github.com/unbrowse-ai/unbrowse-dev/commit/810a9708e26f8288170e2e35d5b0792677fce7f2))
+
+### Bug Fixes
+
+* A8-display — rewrite resolve url_template to caller's contextUrl ([f5fb93e](https://github.com/unbrowse-ai/unbrowse-dev/commit/f5fb93ebab1062764b021755bc78dfcb4b7580c3))
+* broader telemetry filter (A11) + actionable low_quality_dom error (F2.1) ([629e566](https://github.com/unbrowse-ai/unbrowse-dev/commit/629e5668a7a47225da9d56f778ff951eff33cca2)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+* bump auto-extraction_hints threshold from 2KB to 64KB (UX-1) ([f152d9a](https://github.com/unbrowse-ai/unbrowse-dev/commit/f152d9ad062e0a121b4158f8f43b53bd55e02385))
+* cross-brand demotion (A12) + contextUrl path-overlap bonus (A1.2) ([ff0e37c](https://github.com/unbrowse-ai/unbrowse-dev/commit/ff0e37cfd689a8491b273c963923bdb061cec211)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+* dedupe duplicate GraphQL ops in shortlist (D4) + entity-substitute captured URLs at execute (A8) ([093e2dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/093e2ddd23aab4200e58090a2a25b8de3d9259c7))
+* deeper leak penalty (A1.1) + cross-subdomain demotion (A10) ([f1da9df](https://github.com/unbrowse-ai/unbrowse-dev/commit/f1da9dfee24b4906d050b428d892535e977677b7))
+* defensive aliases read in graphql agentParams projection ([c2f22cd](https://github.com/unbrowse-ai/unbrowse-dev/commit/c2f22cd090a338d037da3460ea2fbcaedb74d891))
+* filter telemetry-event endpoints with _ separator (A9) ([dd1e316](https://github.com/unbrowse-ai/unbrowse-dev/commit/dd1e316d193c2b6550dd7b519af8e3943d19f53b))
+* read-intent demotes write-flavored endpoints (A13) ([867754b](https://github.com/unbrowse-ai/unbrowse-dev/commit/867754b46048ff8ca6950327856ac5aeffe49910)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+* SSRF protocol regex never matched, blocking every execute ([f41c872](https://github.com/unbrowse-ai/unbrowse-dev/commit/f41c872d1c4330390c58c88440e4b174fa431c1f))
+* surface runnable:true on directly-callable URLs (C7) + ranker shortlist alignment ([a3a28f1](https://github.com/unbrowse-ai/unbrowse-dev/commit/a3a28f120c62245a5b186c079c5b52de0e534d00)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+
 ## Unreleased
 
 ### Agent UX
