@@ -2416,7 +2416,7 @@ export async function executeEndpoint(
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname;
-    if (!/^(https?)$/i.test(parsed.protocol)) {
+    if (!/^https?:$/i.test(parsed.protocol)) {
       throw new Error(`blocked unsafe protocol: ${parsed.protocol} (allowed: http, https)`);
     }
     const privateRe = /^(localhost|127\.|::1|fe80:|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0|fc00::|fd00:)/i;
