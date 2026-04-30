@@ -899,6 +899,33 @@ const tools: ToolDefinition[] = [
     },
   },
   {
+    name: "unbrowse_run",
+    description: "ONE-SHOT for any website task. Resolves intent, executes top-1 endpoint, returns raw data. Use this FIRST instead of unbrowse_resolve+unbrowse_execute when you just want the answer. Falls back to unbrowse_go when no skill matches. Per CLAUDE.md Agent UX North Star: less steps.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        intent: { type: "string", description: "Natural-language task. e.g. 'search hackernews', 'get pypi requests package', 'github user torvalds'." },
+        url: { type: "string", description: "Exact page URL the user is on. Must be an HTTPS URL." },
+        params: { type: "object", description: "Replay params filled into URL template slots (e.g. {q: 'foo', limit: 10})." },
+      },
+      required: ["intent", "url"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      const body: Record<string, unknown> = {
+        intent: args.intent,
+        params: { url: args.url, ...(args.params as Record<string, unknown> ?? {}) },
+        context: { url: args.url },
+        execute: true,
+        projection: { raw: true },
+      };
+      const result = await api("POST", "/v1/intent/resolve", body);
+      return successResult(result, "Resolved + executed. If no data, check next_step in the response for what to do next.");
+    },
+  },
+  {
     name: "unbrowse_resolve",
     description: "START HERE for every website task. Resolves an intent against cached/published routes. If endpoints are returned, pick one and call unbrowse_execute. If no_cached_match, proceed to unbrowse_go to browse and index the site. Do not call unbrowse_go or unbrowse_execute without calling this first.",
     inputSchema: {
@@ -1760,6 +1787,68 @@ const tools: ToolDefinition[] = [
       if (!body.constraints && !body.annotations) return errorResult("Provide constraints and/or annotations");
       const result = await api("POST", `/v1/skills/${skillId}/endpoints/${endpointId}/annotate`, body);
       return successResult(result, "Annotation saved. Other agents will see your contribution when using this endpoint.");
+    },
+  },
+  // === Harness #2: Visual context MCP tools ===
+  {
+    name: "unbrowse_diagnose",
+    description: "Capture visual + structured context for diagnosing an unbrowse failure. Takes a screenshot of the current page and returns it alongside the current resolve diagnostic. Use when resolve/execute fails and you need to see what the page actually looks like (auth wall, loading spinner, empty state).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        session_id: { type: "string", description: "Optional browse session id." },
+        context: { type: "string", description: "Description of what was being attempted when it failed." },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      const sessionId = typeof args.session_id === "string" ? args.session_id : undefined;
+      const screenshot = await api("GET", "/v1/browse/screenshot", sessionId ? { session_id: sessionId } : undefined) as Record<string, unknown>;
+      const diagnostic = await api("GET", "/v1/stats/health", undefined) as Record<string, unknown>;
+      return successResult({
+        screenshot: typeof screenshot.screenshot === "string" ? screenshot.screenshot : null,
+        tab_id: (screenshot as { tab_id?: string }).tab_id ?? null,
+        diagnosis_context: args.context ?? null,
+        status: diagnostic,
+      }, "Diagnosis capture complete. Screenshot + context returned.");
+    },
+  },
+  {
+    name: "unbrowse_trace",
+    description: "Get the full execution trace for the most recent resolve/execute call, including diagnostic confidence scores, endpoint scores, and visual context. Use to understand WHY a specific endpoint was or wasn't selected.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        trace_id: { type: "string", description: "Optional specific trace ID. Defaults to most recent." },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      const result = await api("GET", `/v1/trace/${args.trace_id ?? "latest"}`, undefined);
+      return successResult(result, "Execution trace with diagnostic context.");
+    },
+  },
+  {
+    name: "unbrowse_validate",
+    description: "Validate a captured skill's quality by taking screenshots of the page while exercising its endpoints. Helps diagnose if a skill's endpoints actually match the live page. Returns screenshots at key interaction points alongside endpoint response data.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill_id: { type: "string", description: "Skill ID to validate." },
+        url: { type: "string", description: "Page URL to validate against." },
+      },
+      required: ["skill_id"],
+      additionalProperties: false,
+    },
+    annotations: { openWorldHint: true },
+    handler: async (args) => {
+      await ensureServerReady();
+      const result = await api("GET", `/v1/skills/${args.skill_id}/validate`, args.url ? { url: args.url } : undefined);
+      return successResult(result, "Skill validation complete. Returns screenshots + endpoint match quality.");
     },
   },
 ];
