@@ -16,10 +16,10 @@ Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-
 
 Every code change is judged against the calling agent's experience. The four invariants:
 
-1. **Less steps.** A correct intent should route to the right endpoint and return real data in one resolve+execute. Anything that forces the agent to re-resolve, retry with different flags, or reinterpret a vague error is a regression.
-2. **Less errors.** Filter the wrong/noise/error-shaped endpoints OUT at admission and resolve so the shortlist contains only callable ones. Better: zero ops with an actionable `next_step` than three ops where two are wrong.
-3. **Correct retrieval.** The endpoint that surfaces #1 must be the one that actually answers the intent. URL must reflect the user's contextUrl entity (A8). Wrong-template / cross-subdomain / phantom / captured-error endpoints must rank below real ones (A1, A1.1, A10, G1, C5).
-4. **Works for what was asked.** If the intent is "search jmail for X", the agent gets X back, not the schema, not extraction_hints. `--raw` semantics are the default truth; `--extract` is a convenience.
+1. **Two tool calls is the contract — never one.** Resolve returns a ranked shortlist with rich evidence (URL, score, sample values, requires/yields, schema, action_kind). The agent's LLM picks which endpoint matches the intent and calls execute. Auto-exec is opt-in (`--execute` flag, opt-out by default). The picker is the calling LLM, not us. Our job is to filter wrong endpoints out of the shortlist and surface the right evidence on the rest.
+2. **Less errors.** Filter the wrong/noise/error-shaped endpoints OUT at admission and resolve so the shortlist contains only callable, intent-relevant ones. Better: zero ops with an actionable `next_step` than three ops where two are wrong.
+3. **Correct retrieval.** When the agent picks an endpoint and calls execute, the URL must reflect the user's contextUrl entity (A8). Wrong-template / cross-subdomain / cross-brand / phantom / captured-error / write-on-read endpoints must rank below real ones (A1, A1.1, A1.2, A10, A12, A13, G1, C5).
+4. **Works for what was asked.** If the intent is "search jmail for X", the agent gets X back, not the schema, not extraction_hints. `--raw` semantics are the default truth (auto-extract only fires above 64KB); `--extract` is a convenience.
 
 **Browser-open is failure mode, not feature.** Every browser-open during normal operation is a multi-second, multi-step event the agent must drive. Optimize for never opening one:
 - Kuri runs `--headless=new` on every platform (`src/kuri/client.ts:resolveKuriLaunchConfig`). Production must NEVER pop a window onto the user's screen. Visible windows only on `HEADLESS=false` for explicit dev/auth flows.
