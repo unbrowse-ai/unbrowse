@@ -2320,6 +2320,71 @@ export async function executeEndpoint(
     }
   }
   let url = interpolate(urlTemplate, mergedParams);
+
+  // A8 fix — URL entity templatification at execute time.
+  // Real-world friction caught via harness/recursive/ on en.wikipedia.org:
+  // a captured op had `url_template: https://en.wikipedia.org/wiki/Quantum_computing`
+  // (a specific page from a previous capture). When the agent calls execute
+  // with `--url https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)`,
+  // we should honor the user's URL since it's the same path-shape with one
+  // differing entity segment. Generalises to any "entity-in-path" capture
+  // (twitter user pages, github repos, opensea collections, wiki articles).
+  //
+  // Tells (must satisfy ALL):
+  //   - mergedParams.url (caller-supplied contextUrl) is set
+  //   - It's the same hostname as the resolved URL
+  //   - It has the same number of path segments
+  //   - The differing segments are entity-shaped (length ≥ 3, not API tokens
+  //     like /api/v1/json that are shared across endpoints)
+  //   - The captured url_template has no remaining {param} slots after
+  //     interpolate() (we're not stomping on a parameterised endpoint)
+  const __callerUrl = typeof mergedParams.url === "string" ? mergedParams.url : "";
+  if (__callerUrl && !/\{[^}]+\}/.test(url)) {
+    try {
+      const cap = new URL(url);
+      const ctx = new URL(__callerUrl);
+      if (cap.hostname === ctx.hostname) {
+        const capSegs = cap.pathname.split("/").filter(Boolean);
+        const ctxSegs = ctx.pathname.split("/").filter(Boolean);
+        if (capSegs.length === ctxSegs.length && capSegs.length > 0) {
+          // Count differing segments. If exactly one differs and it's an
+          // entity-shaped segment (not a shared API token), substitute.
+          const SHARED = new Set([
+            "api", "v1", "v2", "v3", "graphql", "rest", "rpc", "data", "json",
+            "wiki", "user", "users", "post", "posts", "item", "items", "page",
+            "pages", "search", "find", "list", "feed", "home", "hot", "top",
+            "new", "best", "details", "detail", "info", "profile", "profiles",
+            "collection", "collections", "product", "products", "p", "i", "s",
+          ]);
+          let diffCount = 0;
+          let diffIdx = -1;
+          for (let i = 0; i < capSegs.length; i++) {
+            if (capSegs[i].toLowerCase() === ctxSegs[i].toLowerCase()) continue;
+            diffCount += 1;
+            diffIdx = i;
+          }
+          if (diffCount === 1) {
+            const capSeg = capSegs[diffIdx].toLowerCase();
+            const ctxSeg = ctxSegs[diffIdx].toLowerCase();
+            // Both must be entity-shaped (not shared tokens). If either is a
+            // shared API token, we're not actually doing entity substitution.
+            const capIsEntity = !SHARED.has(capSeg) && capSeg.length >= 3 && !/^\d+$/.test(capSeg);
+            const ctxIsEntity = !SHARED.has(ctxSeg) && ctxSeg.length >= 3 && !/^\d+$/.test(ctxSeg);
+            if (capIsEntity && ctxIsEntity) {
+              // Honor the caller's URL — same path shape, just a different
+              // entity value. Preserve the captured query string + fragment
+              // since those are the operation contract; the entity is the
+              // only thing the caller is overriding.
+              const newPathname = ctx.pathname; // includes leading slash
+              const rewritten = `${cap.protocol}//${cap.hostname}${cap.port ? `:${cap.port}` : ""}${newPathname}${cap.search}${cap.hash}`;
+              log("exec", `A8 entity-substitute: ${capSegs[diffIdx]} → ${ctxSegs[diffIdx]} on ${cap.hostname}`);
+              url = rewritten;
+            }
+          }
+        }
+      }
+    } catch { /* URL parse failure — skip alignment */ }
+  }
   // SSRF protection: reject private IPs, loopback, link-local, and non-HTTP protocols
   try {
     const parsed = new URL(url);
