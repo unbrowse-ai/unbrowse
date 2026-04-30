@@ -2434,14 +2434,17 @@ export async function resolveAndExecute(
               if (_gql.isGraphql && _gql.agentParams.length > 0) {
                 // Surface flat agent-friendly params instead of the opaque {variables, features} slots.
                 // Agents pass `q` / `rawQuery` / etc; the executor reconstructs the GraphQL JSON.
-                return _gql.agentParams.map((ap) => ({
-                  key: ap.aliases.length > 0 ? ap.aliases[0] : ap.key,
-                  type: ap.semantic_type,
-                  required: ap.required,
-                  example: ap.example,
-                  graphql_variables_path: ap.variables_path,
-                  ...(ap.aliases.length > 0 ? { aliases: [ap.key, ...ap.aliases.slice(1)] } : {}),
-                }));
+                return _gql.agentParams.map((ap) => {
+                  const aliases = (ap as { aliases?: string[] }).aliases ?? [];
+                  return {
+                    key: aliases.length > 0 ? aliases[0] : ap.key,
+                    type: ap.semantic_type,
+                    required: ap.required,
+                    example: ap.example,
+                    graphql_variables_path: ap.variables_path,
+                    ...(aliases.length > 0 ? { aliases: [ap.key, ...aliases.slice(1)] } : {}),
+                  };
+                });
               }
               return r.endpoint.semantic?.requires?.map((b) => ({
                 key: b.key,
