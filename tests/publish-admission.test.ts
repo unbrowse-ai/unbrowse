@@ -272,3 +272,188 @@ describe("selectMarketplacePublishEndpoints", () => {
     expect(selection.endpoints.map((endpoint) => endpoint.endpoint_id)).not.toContain("analytics-noise");
   });
 });
+
+// G1 phantom-endpoint hallucination guard — added after lawnet.sg returned a
+// fabricated "search" operation built from homepage marketing copy. The
+// detector must reject DOM-extracted homepage replays that have no required
+// user params and no array-of-items response shape, while still admitting
+// legitimate DOM-extracted list/feed endpoints.
+describe("G1 phantom-endpoint admission gate", () => {
+  test("rejects DOM-extracted homepage with no params and no array shape", () => {
+    const phantom = makeEndpoint({
+      endpoint_id: "phantom-search",
+      url_template: "https://www.lawnet.sg/lawnet/web/lawnet/home",
+      trigger_url: "https://www.lawnet.sg/lawnet/web/lawnet/home",
+      dom_extraction: { extraction_method: "dom-fallback" } as any,
+      description: "Searches posts with titles, link, and url",
+      response_schema: {
+        type: "object",
+        properties: {
+          post_name: { type: "string" },
+          status_name: { type: "string" },
+          tweet_url: { type: "string" },
+        },
+      },
+      semantic: {
+        action_kind: "search",
+        resource_kind: "form",
+        requires: [],
+        example_fields: ["post_name", "status_name", "tweet_url"],
+      },
+    });
+    const skill = makeSkill({ domain: "lawnet.sg", endpoints: [phantom] });
+    const selection = selectMarketplacePublishEndpoints(skill);
+    expect(selection.endpoints).toHaveLength(0);
+    expect(selection.stats.by_reason.phantom_endpoint).toBe(1);
+  });
+
+  test("admits a legit DOM-extracted list endpoint with array-of-items shape", () => {
+    const legit = makeEndpoint({
+      endpoint_id: "legit-list",
+      url_template: "https://shop.example.com/products",
+      trigger_url: "https://shop.example.com/products",
+      dom_extraction: { extraction_method: "dom-fallback" } as any,
+      description: "Product list page",
+      response_schema: {
+        type: "object",
+        properties: {
+          products: { type: "array" },
+        },
+      },
+      semantic: {
+        action_kind: "list",
+        resource_kind: "product",
+        requires: [],
+        example_fields: ["products[].name", "products[].price"],
+      },
+    });
+    const skill = makeSkill({ domain: "shop.example.com", endpoints: [legit] });
+    const selection = selectMarketplacePublishEndpoints(skill);
+    // The phantom gate must not fire — the existing dom-fallback-only
+    // post-filter will still drop a single-endpoint dom skill, but that's a
+    // separate path. We're only verifying G1 didn't kill it.
+    expect(selection.stats.by_reason.phantom_endpoint).toBe(0);
+  });
+
+  test("admits a DOM-extracted endpoint that takes a required user param", () => {
+    const inputDriven = makeEndpoint({
+      endpoint_id: "input-driven",
+      url_template: "https://www.lawnet.sg/lawnet/web/lawnet/home",
+      trigger_url: "https://www.lawnet.sg/lawnet/web/lawnet/home",
+      dom_extraction: { extraction_method: "dom-fallback" } as any,
+      response_schema: { type: "object", properties: { result: { type: "string" } } },
+      semantic: {
+        action_kind: "search",
+        resource_kind: "judgment",
+        requires: [{ key: "q", required: true, semantic_type: "input", source: "url_template" } as any],
+        example_fields: ["result"],
+      },
+    });
+    const skill = makeSkill({ domain: "lawnet.sg", endpoints: [inputDriven] });
+    const selection = selectMarketplacePublishEndpoints(skill);
+    expect(selection.stats.by_reason.phantom_endpoint).toBe(0);
+  });
+});
+
+// Captured-error-response guard — added 2026-04-30 after harness/recursive/
+// drove instagram.com and surfaced shortlist endpoints whose captured
+// "successful" response was actually the API's error envelope:
+// {message:"useragent mismatch", status:"fail"} or
+// {errors:[{severity:"CRITICAL"}], status:"fail"}.
+describe("captured_error_response admission gate", () => {
+  test("rejects endpoint whose captured sample is {status:fail, message:...}", () => {
+    const errorish = makeEndpoint({
+      endpoint_id: "ig-useragent-mismatch",
+      url_template: "https://www.instagram.com/api/v1/users/web_profile_info/?username={username}",
+      response_schema: {
+        type: "object",
+        properties: { message: { type: "string" }, status: { type: "string" } },
+      },
+      semantic: {
+        action_kind: "fetch",
+        resource_kind: "profile",
+        requires: [],
+        example_fields: ["message", "status"],
+        example_response_compact: { message: "useragent mismatch", status: "fail" } as any,
+      },
+    });
+    const skill = makeSkill({ domain: "instagram.com", endpoints: [errorish] });
+    const selection = selectMarketplacePublishEndpoints(skill);
+    expect(selection.endpoints).toHaveLength(0);
+    expect(selection.stats.by_reason.captured_error_response).toBe(1);
+  });
+
+  test("rejects graphql endpoint with errors[].severity:CRITICAL captured", () => {
+    const graphqlError = makeEndpoint({
+      endpoint_id: "ig-graphql-critical",
+      url_template: "https://www.instagram.com/graphql/safequery",
+      response_schema: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
+          errors: { type: "array" },
+          status: { type: "string" },
+        },
+      },
+      semantic: {
+        action_kind: "fetch",
+        resource_kind: "data",
+        requires: [],
+        example_response_compact: {
+          message: "invalid request",
+          errors: [{ message: "execution error", severity: "CRITICAL" }],
+          status: "fail",
+        } as any,
+      },
+    });
+    const skill = makeSkill({ domain: "instagram.com", endpoints: [graphqlError] });
+    const selection = selectMarketplacePublishEndpoints(skill);
+    expect(selection.stats.by_reason.captured_error_response).toBe(1);
+  });
+
+  test("admits legit endpoint that happens to include a status:'success' field", () => {
+    const legit = makeEndpoint({
+      endpoint_id: "legit-with-status-ok",
+      url_template: "https://api.example.com/items",
+      response_schema: {
+        type: "object",
+        properties: {
+          status: { type: "string" },
+          items: { type: "array" },
+        },
+      },
+      semantic: {
+        action_kind: "list",
+        resource_kind: "item",
+        requires: [],
+        example_response_compact: { status: "ok", items: [{ id: 1 }] } as any,
+      },
+    });
+    const skill = makeSkill({ domain: "api.example.com", endpoints: [legit] });
+    const selection = selectMarketplacePublishEndpoints(skill);
+    expect(selection.stats.by_reason.captured_error_response).toBe(0);
+  });
+
+  test("admits endpoint with status:'fail' in body but real content fields beyond error keys", () => {
+    // E.g., a search returning {results: [...], status: "fail"} for a partial result.
+    // Only the schema being purely error-shaped triggers the filter.
+    const partialFail = makeEndpoint({
+      endpoint_id: "partial-fail-with-content",
+      url_template: "https://api.example.com/search",
+      response_schema: {
+        type: "object",
+        properties: {
+          results: { type: "array" },
+          status: { type: "string" },
+        },
+      },
+      semantic: {
+        requires: [],
+        example_response_compact: { results: [], status: "fail" } as any,
+      },
+    });
+    const skill = makeSkill({ domain: "api.example.com", endpoints: [partialFail] });
+    const selection = selectMarketplacePublishEndpoints(skill);
+    expect(selection.stats.by_reason.captured_error_response).toBe(0);
+  });
+});

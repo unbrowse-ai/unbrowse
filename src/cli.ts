@@ -42,18 +42,28 @@ let walletNudgeShown = false;
 // Arg parser
 // ---------------------------------------------------------------------------
 
-export function parseArgs(argv: string[]): { command: string; args: string[]; flags: Record<string, string | boolean> } {
+export function parseArgs(argv: string[]): { command: string; args: string[]; flags: Record<string, string | boolean>; params: Record<string, string> } {
   const raw = argv.slice(2); // skip runtime + script
   const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : "help";
   const rest = command === "help" ? raw : raw.slice(1);
   const positional: string[] = [];
   const flags: Record<string, string | boolean> = {};
+  const params: Record<string, string> = {};
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a.startsWith("--")) {
+    if (a === "-p" || a === "--param") {
+      const next = rest[i + 1];
+      if (next && next.includes("=")) {
+        const eq = next.indexOf("=");
+        params[next.slice(0, eq)] = next.slice(eq + 1);
+        i++;
+      } else {
+        die(`-p requires key=value, got: ${next ?? "<end of args>"}`);
+      }
+    } else if (a.startsWith("--")) {
       const key = a.slice(2);
       const next = rest[i + 1];
-      if (!next || next.startsWith("--")) {
+      if (!next || next.startsWith("--") || next === "-p" || next === "--param") {
         flags[key] = true;
       } else {
         flags[key] = next;
@@ -63,7 +73,7 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
       positional.push(a);
     }
   }
-  return { command, args: positional, flags };
+  return { command, args: positional, flags, params };
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +256,65 @@ function telemetryDomainFromInput(domain?: string, url?: string): string | null 
   } catch {
     return null;
   }
+}
+
+
+async function cmdExplain(flags: Record<string, string | boolean>): Promise<void> {
+  const intent = flags.intent as string | undefined;
+  const url = flags.url as string | undefined;
+  const top = parseInt((flags.top as string) ?? "5", 10) || 5;
+  if (!intent || !url) {
+    process.stderr.write("usage: unbrowse explain --intent \"...\" --url \"...\" [--top N]\n");
+    process.exit(2);
+  }
+  const body: Record<string, unknown> = {
+    intent,
+    params: { url },
+    context: { url },
+    projection: { raw: true },
+  };
+  let result: Record<string, unknown>;
+  try {
+    result = (await api("POST", "/v1/intent/resolve", body)) as Record<string, unknown>;
+  } catch (err) {
+    process.stderr.write(`explain failed: ${(err as Error).message}\n`);
+    process.exit(1);
+  }
+  const r = (result.result as Record<string, unknown>) ?? result;
+  const ae = (r.available_endpoints as Array<Record<string, unknown>> | undefined) ?? [];
+  const ao = (r.available_operations as Array<Record<string, unknown>> | undefined) ?? [];
+  const out = {
+    intent,
+    context_url: url,
+    diagnostic: r.diagnostic,
+    shortlist_for_judgment: ae.slice(0, top).map((ep, i) => ({
+      rank: i,
+      endpoint_id: ep.endpoint_id,
+      method: ep.method,
+      url: ep.url,
+      score: ep.score,
+      description: ep.description,
+      input_params: ep.input_params,
+      schema_summary: ep.schema_summary,
+      example_fields: ep.example_fields,
+      sample_values: ep.sample_values,
+      needs_params: ep.needs_params,
+      trigger_url: ep.trigger_url,
+    })),
+    agent_facing_shortlist: ao.slice(0, top).map((op, i) => ({
+      rank: i,
+      endpoint_id: op.endpoint_id,
+      method: op.method,
+      url_template: op.url_template ?? op.url,
+      description: op.description_out ?? op.description,
+    })),
+    judgment_question:
+      `Given the intent ${JSON.stringify(intent)} on ${JSON.stringify(url)}, ` +
+      `which of the candidate endpoints in shortlist_for_judgment best satisfies the intent? ` +
+      `Reply with the endpoint_id of the best match and a one-line reason. ` +
+      `If none match, say defer_to_capture.`,
+  };
+  process.stdout.write(JSON.stringify(out, null, 2) + "\n");
 }
 
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
@@ -546,6 +615,11 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     }
     if (flags.params) {
       body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
+    }
+    // Merge -p key=val flags (parsed in parseArgs, stashed on flags._params).
+    const cliKv = (flags as Record<string, unknown>)._params as Record<string, string> | undefined;
+    if (cliKv && Object.keys(cliKv).length > 0) {
+      body.params = { ...(body.params as Record<string, unknown>), ...cliKv };
     }
     if (flags.url) {
       body.context_url = flags.url;
@@ -1016,7 +1090,8 @@ export const CLI_REFERENCE = {
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
     { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Search cached indexed/published routes and optionally execute the top trusted endpoint" },
-    { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
+    { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Emit top-N candidate endpoints + evidence for an LLM judge to pick from (no heuristic verdict — primitives + agent judgment)" },
+    { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}'] [opts]", desc: "Execute a specific endpoint. Pass replay params via repeated -p key=val flags or --params with a JSON object" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
     { name: "annotate", usage: "--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:message']", desc: "Contribute best practices or constraints for an endpoint" },
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/schema metadata back to a captured skill before publish" },
@@ -2136,7 +2211,11 @@ async function cmdConnectChrome(): Promise<void> {
   console.error("Could not connect to Chrome. Make sure all Chrome windows are closed and try again.");
 }
 async function main(): Promise<void> {
-  const { command, args, flags } = parseArgs(process.argv);
+  const { command, args, flags, params: cliParams } = parseArgs(process.argv);
+  // Stash CLI -p key=val params on flags object so command handlers can read them.
+  if (Object.keys(cliParams).length > 0) {
+    (flags as Record<string, unknown>)._params = cliParams;
+  }
   const noAutoStart = !!flags["no-auto-start"];
 
   if (command === "help" || flags.help) {
@@ -2198,6 +2277,7 @@ async function main(): Promise<void> {
     case "mcp": return cmdMcp(flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
+    case "explain": return cmdExplain(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
     case "annotate": return cmdAnnotate(flags);

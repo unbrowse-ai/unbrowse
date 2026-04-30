@@ -88,6 +88,17 @@ const PENALTY_STEP = 0.08;
 const CONFIDENCE_MIN = 0.1;
 const CONFIDENCE_MAX = 1.0;
 
+// E1 fix — feedback-driven reliability decay. Endpoints that fail repeatedly
+// must drift below MIN_PUBLISH_RELIABILITY (0.2) so the existing
+// `low_reliability` admission gate buries them. Without this, a skill
+// captured once with `reliability_score: 0.9` keeps that score forever even
+// if every subsequent execute fails. Verification runs offline; this is the
+// online signal.
+const ENDPOINT_RELIABILITY_BOOST = 0.05;
+const ENDPOINT_RELIABILITY_PENALTY = 0.10;
+const ENDPOINT_RELIABILITY_MIN = 0;
+const ENDPOINT_RELIABILITY_MAX = 1;
+
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
@@ -142,6 +153,23 @@ export function recordDagSessionAction(
         edges: adjustEdgeConfidences(skill.operation_graph!.edges, opId, delta),
         generated_at: new Date().toISOString(),
       },
+      // E1 fix: decay/boost endpoint reliability so stale endpoints drift
+      // below MIN_PUBLISH_RELIABILITY and stop being admitted by the
+      // marketplace publish gate.
+      endpoints: skill.endpoints.map((endpoint) => {
+        if (endpoint.endpoint_id !== endpointId) return endpoint;
+        const cur = typeof endpoint.reliability_score === "number" ? endpoint.reliability_score : 0.5;
+        const nextScore = succeeded
+          ? clamp(cur + ENDPOINT_RELIABILITY_BOOST, ENDPOINT_RELIABILITY_MIN, ENDPOINT_RELIABILITY_MAX)
+          : clamp(cur - ENDPOINT_RELIABILITY_PENALTY, ENDPOINT_RELIABILITY_MIN, ENDPOINT_RELIABILITY_MAX);
+        return {
+          ...endpoint,
+          reliability_score: nextScore,
+          ...(succeeded
+            ? { last_succeeded_at: new Date().toISOString() }
+            : { last_failed_at: new Date().toISOString() }),
+        };
+      }),
     };
     cachePublishedSkill(updated);
   });

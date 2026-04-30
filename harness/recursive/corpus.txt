@@ -1,0 +1,26 @@
+# intent | url | expected_signal
+# expected_signal: one of resolve_match, execute_data, no_browser_open
+# Comments with # are ignored. Failures auto-append below.
+# AUTH_GATED domains are kept so the harness can verify they classify out of coverage cleanly.
+
+# --- seed ---
+search jmail.world for elon musk | https://jmail.world/?q=elon+musk | execute_data  # step6 e2e: -p key=val flags were silently dropped (parseArgs treated them as positional). Fixed cli.ts:parseArgs + cmdExecute._params merge. Issue: C2 param-fill silent + F2 error not actionable.
+get top hackernews stories | https://news.ycombinator.com/ | execute_data
+get a github user profile | https://github.com/torvalds | execute_data
+load my x.com timeline | https://x.com/home | resolve_match
+search reddit for r/singularity hot posts | https://reddit.com/r/singularity/hot | execute_data
+search linkedin for software jobs | https://linkedin.com/jobs/search/?keywords=software | execute_data
+
+# --- mined from 11,317 sessions × 38,833 unbrowse-tagged events (Apr 2026) ---
+search lawnet.sg for "leave to adduce new evidence" | https://www.lawnet.sg | execute_data  # mined: hits=979 no_endpoint,slow + ministry-W3: PHANTOM ENDPOINT — homepage marketed as search, needs_params:false, no honest no-api signal. issue: G1 phantom-endpoint hallucination.
+get pypi package info for requests | https://pypi.org/project/requests/ | execute_data  # mined: hits=673 no_endpoint
+search airbnb listings in tokyo | https://www.airbnb.com/s/Tokyo--Japan/homes | execute_data  # mined: hits=335 no_endpoint,slow
+fetch tiktok user profile | https://www.tiktok.com/@charlidamelio | execute_data  # mined: hits=303 auth,no_endpoint
+search youtube music for an artist | https://music.youtube.com/search?q=daft+punk | execute_data  # mined: hits=193 auth,no_endpoint
+get wikipedia article summary for "transformer" | https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture) | execute_data  # mined: hits=178 no_endpoint
+fetch instagram public profile | https://www.instagram.com/natgeo/ | execute_data  # mined: hits=157 auth,no_endpoint
+get opensea collection stats | https://opensea.io/collection/boredapeyachtclub | execute_data  # mined: hits=139 no_endpoint
+get products from saucedemo inventory | https://www.saucedemo.com/inventory.html | execute_data  # mined: hits=104 no_endpoint,slow
+fetch facebook public page | https://www.facebook.com/MetaAI | execute_data  # mined: hits=80 auth,no_endpoint
+search imdb for a movie | https://www.imdb.com/find/?q=oppenheimer | execute_data  # mined: hits=72 no_endpoint,slow
+get opensea graphql collection data | https://gql.opensea.io | execute_data  # mined: hits=58 no_endpoint

@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# unbrowse-traced — transparent wrapper around `unbrowse` that records
+# every invocation + result to runs/<session>/calls.jsonl.
+#
+# The CALLING AGENT runs this exactly like `unbrowse`. The harness does
+# nothing autonomous — it just makes the agent's real work observable so
+# reflect.sh can turn friction into corpus rows.
+#
+# Usage (agent-facing):
+#   harness/recursive/unbrowse-traced resolve --intent "..." --url "..."
+#   harness/recursive/unbrowse-traced execute --skill X --endpoint Y --raw
+#
+# Session id:
+#   defaults to UNBROWSE_TRACE_SESSION env var, else today's UTC date.
+set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+SESSION="${UNBROWSE_TRACE_SESSION:-$(date -u +session-%Y%m%d)}"
+OUT="$HERE/runs/$SESSION"
+mkdir -p "$OUT"
+LOG="$OUT/calls.jsonl"
+[[ -f "$LOG" ]] || : > "$LOG"
+UNBROWSE="${UNBROWSE_BIN:-$(command -v unbrowse || echo /opt/nanobrew/prefix/bin/unbrowse)}"
+
+ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+t0="$(python3 -c 'import time;print(int(time.time()*1000))')"
+
+# Run the real unbrowse, capturing both streams without altering the agent's UX.
+stdout_file="$(mktemp)"; stderr_file="$(mktemp)"
+"$UNBROWSE" "$@" >"$stdout_file" 2>"$stderr_file"
+rc=$?
+t1="$(python3 -c 'import time;print(int(time.time()*1000))')"
+
+# Pass through to the agent verbatim.
+cat "$stdout_file"
+cat "$stderr_file" >&2
+
+# Record. Use PID + nanosecond for unique sidecar names so concurrent
+# invocations in the same session don't clobber each other (the old
+# wc-l-based seq raced because two callers read the same line count
+# before either appended). Portable across macOS and Linux mktemp.
+seq="$$.$(python3 -c 'import time;print(int(time.time()*1e9))')"
+keep_stdout="$OUT/$seq.stdout"
+keep_stderr="$OUT/$seq.stderr"
+mv "$stdout_file" "$keep_stdout"
+mv "$stderr_file" "$keep_stderr"
+
+# JSONL append. If python3 is missing or the heredoc fails, fall back to
+# a minimal shell-emitted row so the trace is never silently lost.
+if ! python3 - "$LOG" "$ts" "$rc" "$t0" "$t1" "$keep_stdout" "$keep_stderr" "$@" <<'PY' 2>/dev/null
+import json, sys
+log, ts, rc, t0, t1, sout, serr, *argv = sys.argv[1:]
+def head(p, n=4000):
+    try:
+        with open(p, 'r', errors='replace') as f: s = f.read()
+        return s if len(s) <= n else s[:n] + f'\n…[truncated {len(s)-n} bytes]'
+    except Exception: return ''
+row = {
+    'ts': ts,
+    'verb': argv[0] if argv else '',
+    'argv': argv,
+    'exit': int(rc),
+    'duration_ms': int(t1) - int(t0),
+    'stdout_path': sout,
+    'stderr_path': serr,
+    'stdout_excerpt': head(sout),
+    'stderr_excerpt': head(serr, 1500),
+}
+with open(log, 'a') as f:
+    f.write(json.dumps(row, ensure_ascii=False) + '\n')
+PY
+then
+  # Fallback: minimal row, written via shell. Better than silent loss.
+  printf '{"ts":"%s","verb":"%s","argv_count":%d,"exit":%s,"duration_ms":%s,"stdout_path":"%s","stderr_path":"%s","fallback":"python3_failed"}\n' \
+    "$ts" "${1-}" "$#" "$rc" "$((t1 - t0))" "$keep_stdout" "$keep_stderr" >> "$LOG"
+  echo "unbrowse-traced: python3 row append failed; wrote fallback row" >&2
+fi
+
+exit "$rc"

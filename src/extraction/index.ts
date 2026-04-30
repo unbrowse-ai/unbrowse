@@ -246,46 +246,57 @@ function unwrapDehydratedState(pageProps: unknown): unknown[] {
 export function extractSPAData(html: string): SPAExtraction[] {
   const results: SPAExtraction[] = [];
 
-  // --- Next.js: <script id="__NEXT_DATA__" type="application/json"> ---
-  const nextDataMatch = html.match(/<script\s+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
-  if (nextDataMatch) {
-    try {
-      const parsed = JSON.parse(nextDataMatch[1]);
-      const pageProps = parsed?.props?.pageProps;
-      if (pageProps && typeof pageProps === "object" && Object.keys(pageProps).length > 0) {
-        // React Query unwrap: many Next.js sites stash real content inside
-        // pageProps.dehydratedState.queries[*].state.data. Surface each
-        // query's data payload as its own SPA structure so the intent
-        // scorer can pick the one matching the current request.
-        const dehydrated = unwrapDehydratedState(pageProps);
-        for (const qdata of dehydrated) {
-          if (qdata && typeof qdata === "object") {
+  // --- Next.js Pages Router: <script id="__NEXT_DATA__" type="application/json"> ---
+  // B4 fix: don't terminate on </script> via non-greedy regex — that fails
+  // when embedded data contains a literal "</script>" string (rare but real:
+  // Next.js sites that embed user-submitted HTML in pageProps). Find the
+  // opening tag, then walk forward until the closing </script> at the
+  // matching nesting level (Next.js __NEXT_DATA__ scripts never nest, so a
+  // simple forward search is correct).
+  const nextDataOpen = /<script\s+id="__NEXT_DATA__"[^>]*>/i.exec(html);
+  if (nextDataOpen) {
+    const startIdx = nextDataOpen.index + nextDataOpen[0].length;
+    const endIdx = html.indexOf("</script>", startIdx);
+    if (endIdx > startIdx) {
+      const body = html.substring(startIdx, endIdx);
+      try {
+        const parsed = JSON.parse(body);
+        const pageProps = parsed?.props?.pageProps;
+        if (pageProps && typeof pageProps === "object" && Object.keys(pageProps).length > 0) {
+          // React Query unwrap: many Next.js sites stash real content inside
+          // pageProps.dehydratedState.queries[*].state.data. Surface each
+          // query's data payload as its own SPA structure so the intent
+          // scorer can pick the one matching the current request.
+          const dehydrated = unwrapDehydratedState(pageProps);
+          for (const qdata of dehydrated) {
+            if (qdata && typeof qdata === "object") {
+              results.push({
+                type: "spa-nextjs",
+                data: qdata,
+                element_count: countDataElements(qdata),
+              });
+            }
+          }
+          // Always also surface the raw pageProps as a fallback (minus
+          // the already-unwrapped dehydratedState to avoid duplicating it).
+          const rawPageProps =
+            dehydrated.length > 0
+              ? Object.fromEntries(
+                  Object.entries(pageProps as Record<string, unknown>).filter(
+                    ([key]) => key !== "dehydratedState",
+                  ),
+                )
+              : (pageProps as Record<string, unknown>);
+          if (rawPageProps && Object.keys(rawPageProps).length > 0) {
             results.push({
               type: "spa-nextjs",
-              data: qdata,
-              element_count: countDataElements(qdata),
+              data: rawPageProps,
+              element_count: countDataElements(rawPageProps),
             });
           }
         }
-        // Always also surface the raw pageProps as a fallback (minus
-        // the already-unwrapped dehydratedState to avoid duplicating it).
-        const rawPageProps =
-          dehydrated.length > 0
-            ? Object.fromEntries(
-                Object.entries(pageProps as Record<string, unknown>).filter(
-                  ([key]) => key !== "dehydratedState",
-                ),
-              )
-            : (pageProps as Record<string, unknown>);
-        if (rawPageProps && Object.keys(rawPageProps).length > 0) {
-          results.push({
-            type: "spa-nextjs",
-            data: rawPageProps,
-            element_count: countDataElements(rawPageProps),
-          });
-        }
-      }
-    } catch { /* malformed __NEXT_DATA__ */ }
+      } catch { /* malformed __NEXT_DATA__ */ }
+    }
   }
 
   // --- Nuxt.js: window.__NUXT__={...}. Nuxt bodies may be JS (not JSON),
@@ -410,6 +421,36 @@ export function extractSPAData(html: string): SPAExtraction[] {
         });
       }
     }
+  }
+  // --- JSON-LD: <script type="application/ld+json">...</script> ---
+  // B4 fix: pre-truncation pass. cleanDOM/cheerio runs on the
+  // already-truncated HTML at line 1596 — so any JSON-LD block past
+  // byte 300_000 was silently dropped before. Many news/article/recipe
+  // sites place schema.org metadata at the document end. Walk the full
+  // html for ALL ld+json blocks here so the truncation step downstream
+  // can't lose them.
+  const ldRe = /<script[^>]*type=["']application\/ld\+json["'][^>]*>/gi;
+  let ldMatch: RegExpExecArray | null;
+  while ((ldMatch = ldRe.exec(html))) {
+    const startIdx = ldMatch.index + ldMatch[0].length;
+    const endIdx = html.indexOf("</script>", startIdx);
+    if (endIdx <= startIdx) continue;
+    const body = html.substring(startIdx, endIdx).trim();
+    if (!body) continue;
+    try {
+      const parsed = JSON.parse(body);
+      // ld+json is often a single object or an array of @graph nodes.
+      const items = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>)["@graph"]) ? (parsed as Record<string, unknown>)["@graph"] as unknown[] : [parsed]);
+      for (const item of items) {
+        if (item && typeof item === "object") {
+          results.push({
+            type: "spa-initial-state",
+            data: item,
+            element_count: countDataElements(item),
+          });
+        }
+      }
+    } catch { /* malformed ld+json — skip */ }
   }
 
   return results;

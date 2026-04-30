@@ -1260,8 +1260,22 @@ export async function executeSkill(
   }
 
   // Use the caller's intent for ranking when available, fall back to skill's original intent
-  const endpoint = selectBestEndpoint(skill.endpoints, options?.intent ?? skill.intent_signature, skill.domain, options?.contextUrl);
-  return executeEndpoint(skill, endpoint, params, projection, options);
+  try {
+    const endpoint = selectBestEndpoint(skill.endpoints, options?.intent ?? skill.intent_signature, skill.domain, options?.contextUrl);
+    return executeEndpoint(skill, endpoint, params, projection, options);
+  } catch (err) {
+  // handle "No endpoints available" and other selection failures gracefully
+  const trace: ExecutionTrace = {
+    trace_id: nanoid(),
+    skill_id: skill.skill_id,
+    endpoint_id: "none",
+    started_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+    success: false,
+    error: err instanceof Error ? err.message : "endpoint_selection_failed",
+  };
+  return { trace, result: { error: "no_endpoints", message: err instanceof Error ? err.message : "Failed to select an endpoint", available_endpoints: skill.endpoints.map(e => ({ endpoint_id: e.endpoint_id, description: e.description })) } };
+  }
 }
 
 async function executeBrowserCapture(
@@ -1705,6 +1719,7 @@ async function executeBrowserCapture(
     }
 
     const capturedMeta = computeCapturedMeta();
+    const capturedHasNetwork = (capturedMeta?.api_calls ?? 0) > 0 || (capturedMeta?.html_bytes ?? 0) > 0;
 
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
@@ -1717,12 +1732,35 @@ async function executeBrowserCapture(
     });
     return {
       trace,
-        result: {
-          error: "no_endpoints",
-          message: `No API endpoints or structured DOM data found at ${url}. The site may require authentication or may not expose machine-readable data from this page.`,
-          captured_meta: capturedMeta,
-        },
-      };
+      result: {
+        error: "no_endpoints",
+        message: `No API endpoints or structured DOM data found at ${url}. The site may require authentication or may not expose machine-readable data from this page.`,
+        captured_meta: capturedMeta,
+        // Make the failure agent-actionable: tell the caller what to do next
+        // instead of leaving them with a 27s wait and a one-word error.
+        // Friction discovered via harness/recursive/ on saucedemo.com (corpus row).
+        next_step: capturedHasNetwork
+          ? {
+              action: "open_browse_session",
+              reason: "Network/HTML was captured but no extractable API or DOM data; the site likely needs interaction (form fill, click, scroll) before data appears.",
+              suggested_commands: [
+                `unbrowse go --url "${url}"`,
+                `unbrowse snap`,
+                `# inspect interactive elements, then fill/click/submit`,
+                `unbrowse close  # publishes any newly captured endpoints`,
+              ],
+            }
+          : {
+              action: "abandon_or_authenticate",
+              reason: "Capture returned no network traffic and no HTML — the page is likely blocked, requires auth, or rendered nothing for the current cookie context.",
+              suggested_commands: [
+                `# 1. authenticate in Chrome first (cookies are auto-imported)`,
+                `unbrowse go --url "${url}"  # if a Chrome session has cookies`,
+                `# 2. or accept that this domain has no machine-readable surface and route the intent elsewhere`,
+              ],
+            },
+      },
+    };
   }
 
   // Reuse existing skill for this domain to preserve skill_id and learned exec_strategy.
@@ -2267,7 +2305,49 @@ export async function executeEndpoint(
       // URL parse failure — skip query merge
     }
   }
+  // GraphQL ergonomics: if the endpoint takes opaque {variables}/{features}
+  // JSON slots, reconstruct them from the agent's flat params + the captured
+  // example shape. This lets agents pass `q="..."` (or rawQuery) and we fill
+  // in querySource/count/product defaults plus features feature-flags blob.
+  const __gqlDecomp = decomposeGraphqlEndpoint(endpoint);
+  if (__gqlDecomp.isGraphql) {
+    const __gqlEnc = buildGraphqlRequestParams(__gqlDecomp, mergedParams as Record<string, unknown>);
+    if (mergedParams.variables == null || mergedParams.variables === "{variables}") {
+      mergedParams.variables = encodeURIComponent(__gqlEnc.variables);
+    }
+    if (mergedParams.features == null || mergedParams.features === "{features}") {
+      mergedParams.features = encodeURIComponent(__gqlEnc.features);
+    }
+  }
   let url = interpolate(urlTemplate, mergedParams);
+  // SSRF protection: reject private IPs, loopback, link-local, and non-HTTP protocols
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname;
+    if (!/^(https?)$/i.test(parsed.protocol)) {
+      throw new Error(`blocked unsafe protocol: ${parsed.protocol} (allowed: http, https)`);
+    }
+    const privateRe = /^(localhost|127\.|::1|fe80:|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0|fc00::|fd00:)/i;
+    if (privateRe.test(hostname)) {
+      throw new Error(`blocked SSRF: target ${hostname} is a private/internal address`);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("blocked")) {
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: err.message,
+        }),
+        result: { error: "ssrf_blocked", message: err.message },
+      };
+    }
+    throw err;
+  }
   let body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
   if (workflowRecipe) {
@@ -2429,7 +2509,17 @@ export async function executeEndpoint(
       });
       let data: unknown;
       const text = await res.text();
-      try { data = JSON.parse(text); } catch { data = text; }
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      const isJson = contentType.includes("application/json");
+      if (isJson) {
+        try { data = JSON.parse(text); } catch { data = text; }
+      } else if (res.ok && endpoint.response_schema) {
+        // Expected JSON response but got non-JSON content type — mark as format mismatch
+        log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)}`);
+        data = { _format_mismatch: true, received_content_type: contentType, data: text };
+      } else {
+        try { data = JSON.parse(text); } catch { data = text; }
+      }
       last = { data, status: res.status };
 
       // Learn constraints from API validation errors
@@ -3258,7 +3348,126 @@ export function detectBrowserBlockSignals(input: {
  * Rank endpoints by relevance to intent using BM25 + structural bonuses.
  * Exported so routes.ts can surface the ranked list to the agent.
  */
-export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string, contextUrl?: string): RankedEndpoint[] {
+
+/**
+ * GraphQL endpoints (especially X.com / LinkedIn / TikTok) capture as URL
+ * templates with opaque {variables} and {features} JSON slots. Agents shouldn't
+ * have to hand-craft those JSON blobs — they should pass flat params like q,
+ * count, cursor and the executor reconstructs the GraphQL request shape from
+ * the captured example.
+ *
+ * decomposeGraphqlEndpoint detects GraphQL endpoints, parses the captured
+ * example_request.variables JSON into per-leaf agent params, and returns the
+ * shape the resolver and executor need.
+ */
+export interface GraphqlDecomposition {
+  isGraphql: boolean;
+  operationName?: string;
+  variablesTemplate?: Record<string, unknown>;
+  featuresTemplate?: string;
+  /** Flat agent-friendly params derived from variables.top_level_keys */
+  agentParams: Array<{
+    key: string;
+    semantic_type: string;
+    required: boolean;
+    example: unknown;
+    /** Path inside variables JSON, e.g. "rawQuery" or "userId" */
+    variables_path: string;
+  }>;
+}
+
+export function decomposeGraphqlEndpoint(endpoint: EndpointDescriptor): GraphqlDecomposition {
+  const url = endpoint.url_template ?? "";
+  const looksGraphql =
+    /\/graphql\//i.test(url) ||
+    /\bvariables=\{variables\}/.test(url) ||
+    (Array.isArray(endpoint.semantic?.requires) &&
+      endpoint.semantic!.requires.some((r) => r.key === "variables") &&
+      endpoint.semantic!.requires.some((r) => r.key === "features"));
+  if (!looksGraphql) return { isGraphql: false, agentParams: [] };
+
+  // Operation name = last URL segment (before query string)
+  let operationName: string | undefined;
+  try {
+    const segs = new URL(url).pathname.split("/").filter(Boolean);
+    if (segs.length) operationName = segs[segs.length - 1];
+  } catch { /* ignore */ }
+
+  const exampleReq = (endpoint.semantic?.example_request ?? endpoint.body ?? {}) as Record<string, unknown>;
+  let variablesTemplate: Record<string, unknown> | undefined;
+  const rawVariables = exampleReq.variables;
+  if (rawVariables && typeof rawVariables === "object") {
+    variablesTemplate = rawVariables as Record<string, unknown>;
+  } else if (typeof rawVariables === "string") {
+    try { variablesTemplate = JSON.parse(rawVariables); } catch { /* ignore */ }
+  }
+  let featuresTemplate: string | undefined;
+  const rawFeatures = exampleReq.features;
+  if (typeof rawFeatures === "string") featuresTemplate = rawFeatures;
+  else if (rawFeatures && typeof rawFeatures === "object") featuresTemplate = JSON.stringify(rawFeatures);
+
+  // Build agentParams from variables top-level keys.
+  const agentParams: GraphqlDecomposition["agentParams"] = [];
+  if (variablesTemplate) {
+    for (const [key, value] of Object.entries(variablesTemplate)) {
+      // Skip placeholder-only keys ({variables_seentweetids_0} etc.)
+      if (typeof value === "string" && /^\{[a-z0-9_]+_\d+\}$/i.test(value)) continue;
+      // Skip arrays of placeholders (the captured payload's seenTweetIds shape)
+      if (Array.isArray(value) && value.every((v) => typeof v === "string" && /^\{[a-z0-9_]+_\d+\}$/i.test(v))) continue;
+      // Surface scalar leaves only — skip nested objects and arrays of objects
+      if (value && typeof value === "object" && !Array.isArray(value)) continue;
+      agentParams.push({
+        key,
+        semantic_type: typeof value === "string" ? "string" : typeof value === "number" ? "number" : typeof value === "boolean" ? "boolean" : "input",
+        required: false,
+        example: value,
+        variables_path: key,
+      });
+    }
+  }
+
+  return {
+    isGraphql: true,
+    operationName,
+    variablesTemplate,
+    featuresTemplate,
+    agentParams,
+  };
+}
+
+/**
+ * Build the URL-encoded {variables, features} pair for a GraphQL endpoint
+ * given agent-supplied flat params. Falls back to captured example values
+ * for any field the agent didn't provide. Used by executeEndpoint when it
+ * detects a GraphQL endpoint.
+ */
+export function buildGraphqlRequestParams(
+  decomp: GraphqlDecomposition,
+  agentParams: Record<string, unknown>,
+): { variables: string; features: string } {
+  const vars: Record<string, unknown> = decomp.variablesTemplate ? JSON.parse(JSON.stringify(decomp.variablesTemplate)) : {};
+  // Drop placeholder pseudo-values from the example so they don't leak into the request
+  for (const [k, v] of Object.entries(vars)) {
+    if (typeof v === "string" && /^\{[a-z0-9_]+_\d+\}$/i.test(v)) delete vars[k];
+    if (Array.isArray(v) && v.every((x) => typeof x === "string" && /^\{[a-z0-9_]+_\d+\}$/i.test(x))) delete vars[k];
+  }
+  // Fill from agent params by direct key match. Agents read agentParams[].key
+  // (the actual GraphQL variables key with its example value) and pass that
+  // verbatim. No alias registry — if the agent wants `q` to map to `rawQuery`,
+  // they can read decomp.agentParams to see the real key, or an LLM judge can
+  // reshape the params on the way in.
+  for (const [k, v] of Object.entries(agentParams)) {
+    if (vars[k] !== undefined || decomp.agentParams.some((p) => p.variables_path === k)) {
+      vars[k] = v;
+    }
+  }
+  return {
+    variables: JSON.stringify(vars),
+    features: decomp.featuresTemplate ?? "{}",
+  };
+}
+
+export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string, contextUrl?: string, params?: Record<string, unknown>): RankedEndpoint[] {
   // --- Hard-filter: hosts that NEVER contain useful data ---
   const NOISE_HOSTS = /(id5-sync\.com|btloader\.com|presage\.io|onetrust\.com|adsrvr\.org|googlesyndication\.com|adtrafficquality\.google|amazon-adsystem\.com|crazyegg\.com|challenges\.cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|protechts\.net|demdex\.net|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|cloudflareinsights\.com|fonts\.googleapis\.com|recaptcha|waa-pa\.|signaler-pa\.|ogads-pa\.|reddit\.com\/pixels?|pixel-config\.|dns-finder\.com|cookieconsentpub|firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|apis\.google\.com|connect\.facebook\.net|bat\.bing\.com|static\.cloudflareinsights\.com|cdn\.mxpnl\.com|js\.hs-analytics\.net|snap\.licdn\.com|clc\.stackoverflow\.com|px\.ads|t\.co\/i|analytics\.|telemetry\.|stats\.)/i;
 
@@ -3676,6 +3885,31 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (SESSION_PLUMBING.test(pathname) || SESSION_PLUMBING.test(ep.url_template)) score -= 30;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 40;
 
+    // === Generic ranker signals (no per-domain registries) ===
+    // Heuristics are OUT, primitives + LLM judging are IN. The ranker keeps only
+    // signals that derive from evidence on the endpoint itself (host, path,
+    // schema, method) — never a hand-coded `if domain === "x.com"` switch.
+    // Domain-specific disambiguation comes from `unbrowse rank --judge` (LLM).
+
+    // (1) Demote developer-docs hosts when the intent looks transactional.
+    //     Universal: docs.* / developers.* almost never serve runnable data.
+    if (intent && /\b(quote|swap|trade|buy|sell|search|find|get|fetch|list)\b/i.test(intent)) {
+      if (/^(developers?|docs?|documentation|api[-_]?docs?|reference|reference-docs?)\./i.test(hostname)) {
+        score -= 200;
+      }
+      if (/^\/(docs?|documentation|reference|guide|guides|api-reference)(\/|$)/i.test(pathname)) {
+        score -= 120;
+      }
+    }
+
+    // (2) Method tiebreak when same operation appears as both GET and POST.
+    //     Agnostic of platform — read intent, prefer GET for reads, POST for writes.
+    if (looksLikeApiEndpoint) {
+      const writeIntent = !!intent && /\b(post|create|send|publish|reply|delete|update|edit)\b/i.test(intent);
+      if (ep.method === "GET" && !writeIntent) score += 0.5;
+      else if (ep.method === "POST" && writeIntent) score += 0.5;
+    }
+
     // Penalize surviving infra-like paths that couldn't be hard-filtered
     // (whitepaper/summaries, server-timestamp, fingerprint, static config pages)
     if (/\/(whitepaper|_stm|phantom|pfb|fingerprint|timesync|server[-_]?time)\b/i.test(ep.url_template)) score -= 100;
@@ -3702,6 +3936,110 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     }
     if (descriptionMeta.needs_review && isCapturedPageArtifact) {
       score -= 120;
+    }
+
+    // === Semantic param alignment (A1 fix) ===
+    // When the agent provides params and the endpoint has template slots ({param}),
+    // check if the param value semantically belongs to this endpoint.
+    // This prevents wrong-template matches (e.g., r/singularity matching r/programming).
+    if (params && Object.keys(params).length > 0) {
+      const urlParams = extractUrlParams(ep.url_template);
+      const schemaParams = extractSchemaParams(ep.response_schema);
+      const allTemplateParams = [...new Set([...urlParams, ...schemaParams])];
+
+      for (const [paramName, paramVal] of Object.entries(params)) {
+        if (paramVal == null || paramVal === "") continue;
+        const valStr = String(paramVal);
+
+        if (allTemplateParams.includes(paramName)) {
+          // The param name matches a template slot — give baseline bonus
+          score += 15;
+
+          // Strong signal: the param VALUE appears in the URL template, description, or response_schema
+          // This confirms it's THE right slot, not just a same-shaped slot from a different capture
+          const haystack = [ep.url_template, ep.description ?? "", JSON.stringify(ep.response_schema ?? "")].join(" ").toLowerCase();
+          if (haystack.includes(valStr.toLowerCase())) {
+            score += 80;
+          }
+
+          // Cross-check: for URL-path params, if the response_schema contains this param's value
+          // it's a very strong match (the endpoint returns data FOR this specific value)
+          if (urlParams.includes(paramName) && ep.response_schema && typeof ep.response_schema === "object") {
+            const schemaStr = JSON.stringify(ep.response_schema).toLowerCase();
+            if (schemaStr.includes(valStr.toLowerCase()) && !haystack.includes(valStr.toLowerCase())) {
+              score += 50; // schema cross-check bonus
+            }
+          }
+        } else {
+          // Param doesn't match any template slot — possible extra context, small bonus
+          score += 3;
+        }
+      }
+
+      // Bonus: same-template endpoints where MORE params are fillable rank higher
+      // (more user intent alignment = more likely correct endpoint)
+      if (allTemplateParams.length > 0) {
+        const filled = Object.entries(params).filter(([k, v]) =>
+          v != null && v !== "" && allTemplateParams.includes(k)
+        ).length;
+        const fillRatio = filled / Math.max(allTemplateParams.length, 1);
+        score += Math.round(fillRatio * 20);
+      }
+    }
+
+    // === A1 fix: leaked-literal path-segment penalty ===
+    // If a captured endpoint has a non-templated path segment that doesn't
+    // appear in the user's intent OR the contextUrl, it almost certainly
+    // came from a different capture session and shouldn't apply here.
+    // Real-world friction caught via harness/recursive/ on reddit.com:
+    // querying r/singularity surfaced a captured r/programming endpoint
+    // with rich data (because it was previously executed) — wrong
+    // subreddit. Universal rule: literal segments must be sourced from
+    // intent, contextUrl, or be a domain-shared component.
+    {
+      let pathSegs: string[] = [];
+      try {
+        pathSegs = new URL(ep.url_template).pathname.split("/").filter(Boolean);
+      } catch { /* noop */ }
+      const intentLower = (intent ?? "").toLowerCase();
+      let ctxLower = "";
+      try { ctxLower = (contextUrl ? new URL(contextUrl).pathname : "").toLowerCase(); } catch { /* noop */ }
+      // Generic noise tokens that legitimately appear in many APIs and shouldn't trigger the penalty
+      const SHARED_PATH_TOKENS = new Set([
+        "api", "v1", "v2", "v3", "graphql", "rest", "rpc", "data", "json", "xml",
+        "search", "list", "get", "post", "fetch", "query", "users", "user",
+        "items", "item", "posts", "post", "feed", "home", "hot", "top", "new", "best", "rising",
+        "page", "pages", "feeds", "details", "detail", "info", "profile", "profiles",
+        "me", "self", "public", "private", "draft", "drafts", "comments", "comment",
+        "web", "mobile", "desktop", "main", "index", "edge", "next", "static",
+      ]);
+      let leakedLiterals = 0;
+      for (const seg of pathSegs) {
+        const segLower = seg.toLowerCase();
+        // Skip templated `{param}` slots
+        if (/^\{[^}]+\}$/.test(seg)) continue;
+        // Skip extensions / very short / numeric-only / opaque IDs
+        if (segLower.length < 3) continue;
+        if (/^\d+$/.test(segLower)) continue;
+        if (/^[0-9a-f]{16,}$/i.test(segLower)) continue;
+        if (segLower.startsWith(".")) continue;
+        // Skip generic API shared tokens
+        if (SHARED_PATH_TOKENS.has(segLower)) continue;
+        // Stripped of trailing extensions like .json
+        const segStem = segLower.replace(/\.[a-z0-9]+$/i, "");
+        if (segStem.length < 3) continue;
+        // Sourced from intent or context — fine
+        if (intentLower.includes(segStem)) continue;
+        if (ctxLower.includes(segStem)) continue;
+        // Not in intent or contextUrl: leaked literal
+        leakedLiterals += 1;
+      }
+      if (leakedLiterals > 0) {
+        // Heavy penalty per leaked literal so a wrong-subreddit / wrong-user /
+        // wrong-product endpoint can't outrank a legit one even if it has
+        // richer captured schema.
+        score -= leakedLiterals * 200;
+      }
     }
 
     return { endpoint: ep, score };
@@ -3751,4 +4089,33 @@ function isSpaShell(html: string): boolean {
 
   // SPA shells have very little text — just "Loading..." or empty divs
   return text.length < 200;
+}
+
+/** Extract parameter names from a URL template: `/posts/{id}` → `["id"]`. */
+function extractUrlParams(template: string): string[] {
+  const matches = template.match(/\{([^}]+)\}/g);
+  if (!matches) return [];
+  return matches.map((m) => m.slice(1, -1));
+}
+
+/** Extract parameter names from a response schema's shape info. */
+function extractSchemaParams(schema: unknown): string[] {
+  if (!schema || typeof schema !== "object") return [];
+  const obj = schema as Record<string, unknown>;
+  const params: string[] = [];
+  // response_schema can have `properties`, `required`, `items` nested structures
+  const properties = obj.properties;
+  if (properties && typeof properties === "object") {
+    for (const key of Object.keys(properties as Record<string, unknown>)) {
+      params.push(key);
+    }
+  }
+  // Also check `required` array
+  const required = obj.required;
+  if (Array.isArray(required)) {
+    for (const key of required) {
+      if (typeof key === "string") params.push(key);
+    }
+  }
+  return params;
 }

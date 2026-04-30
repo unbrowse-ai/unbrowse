@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Agent UX
+
+* `unbrowse execute` now accepts `-p key=val` (and `--param key=val`) repeated flags for replay parameters. Previously these were silently dropped as positional args, causing `invalid_replay_params` with no path forward. Existing `--params '{json}'` still works; `-p` takes precedence on key collisions. Help text updated.
+
+### Internal
+
+* Added `harness/recursive/` — a transparent observation layer that wraps real `unbrowse` calls so the calling agent's friction becomes corpus rows + patch hints. Six layers (Observation → Persistence → Reflection → Cognition → Replay → Cold-seed) with a strict no-grep-verdicts contract enforced by 6 architectural-contract tests + 7 behavior tests. `harness/recursive/mine-sessions.sh` seeded the corpus from 11,317 historical jsonl session files. New issue class **G1 phantom-endpoint hallucination** named in `harness/recursive/judge.md` after lawnet.sg returned a fabricated search endpoint built from homepage marketing copy.
+
 ## [6.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v5.0.0...v6.0.0) (2026-04-25)
 
 ## [5.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v4.0.3...v5.0.0) (2026-04-25)

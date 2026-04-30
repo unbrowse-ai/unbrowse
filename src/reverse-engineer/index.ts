@@ -343,6 +343,47 @@ function isJsonResponseBody(body: string | undefined): boolean {
   }
 }
 
+/**
+ * Detect a GraphQL request by inspecting the request body shape (works for
+ * any URL, not just /graphql/ paths). A POST is graphql-like if the body
+ * parses as JSON or url-encoded form and contains either:
+ *   - `operationName` (the gold standard — every persisted GraphQL op has one)
+ *   - `query` field that starts with `query`/`mutation`/`subscription`
+ *   - `variables` field accompanying `extensions` (Apollo persisted-query shape)
+ *   - `doc_id` or `fb_api_req_friendly_name` (Facebook persisted-query)
+ *
+ * A4 fix (issue catalogue): caught via harness/recursive/ — GraphQL POSTs at
+ * non-graphql URLs (Facebook /api/graphql, LinkedIn /voyager/api/...) were
+ * scored as plain POSTs and dropped on score_non_positive.
+ */
+function isGraphqlRequestBody(body: string | undefined): boolean {
+  if (!body || body.length < 8) return false;
+  const trimmed = body.trim();
+  // JSON shape: parse and check for operationName/query/extensions
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const candidates = Array.isArray(parsed) ? parsed.slice(0, 3) : [parsed];
+      for (const c of candidates) {
+        if (!c || typeof c !== "object") continue;
+        const obj = c as Record<string, unknown>;
+        if (typeof obj.operationName === "string" && obj.operationName.length > 0) return true;
+        if (typeof obj.doc_id === "string" || typeof obj.doc_id === "number") return true;
+        if (typeof obj.fb_api_req_friendly_name === "string") return true;
+        const q = typeof obj.query === "string" ? obj.query : "";
+        if (/^\s*(query|mutation|subscription)\b/i.test(q)) return true;
+        if ("variables" in obj && "extensions" in obj) return true;
+      }
+    } catch { /* not JSON */ }
+  }
+  // URL-encoded form: variables=...&extensions=... or operationName=...
+  if (/(^|&)operationName=/i.test(trimmed)) return true;
+  if (/(^|&)variables=.+(^|&)extensions=/i.test(trimmed)) return true;
+  if (/(^|&)doc_id=\d+/.test(trimmed)) return true;
+  if (/(^|&)fb_api_req_friendly_name=/.test(trimmed)) return true;
+  return false;
+}
+
 function hasAdmissibleParsedBody(body: string | undefined): boolean {
   return isJsonResponseBody(body) || isHtmlResponseBody(body);
 }
@@ -689,8 +730,16 @@ function scoreRequest(req: RawRequest): number {
   let score = 0;
   // GET is preferred — safe, idempotent, more useful for data retrieval
   if (req.method === "GET") score += 2;
-  // GraphQL POST endpoints are known data APIs — give them the same method bonus as GET
-  if (req.method === "POST" && /graphql/i.test(req.url)) score += 2;
+  // GraphQL POST endpoints are known data APIs — give them the same method bonus as GET.
+  // Detect by URL pattern OR by request-body shape ({operationName, query, variables}).
+  // The body-shape check catches GraphQL POSTs that don't have "graphql" in their URL
+  // (X.com used to use only /i/api/graphql/... but custom domains and endpoints like
+  // Facebook's /api/graphql or LinkedIn's /voyager/api/voyagerTimelineFeed are common).
+  if (req.method === "POST") {
+    const urlIsGraphql = /graphql/i.test(req.url);
+    const bodyIsGraphql = isGraphqlRequestBody(req.request_body);
+    if (urlIsGraphql || bodyIsGraphql) score += 2;
+  }
   if (RPC_HINTS.test(req.url)) score += 3;
   if (SKIP_JS_BUNDLES.test(req.url)) score -= 10;
   const ct = req.response_headers?.["content-type"] ?? "";
@@ -735,6 +784,8 @@ export interface ExtractionContext {
   finalUrl?: string;
   /** The user's intent string */
   intent?: string;
+  /** Screenshot data from capture (pre/post/interactions) — passed to OrchestratorResult */
+  screenshots?: Record<string, string>;
 }
 
 export interface ExtractionTraceSink {
@@ -791,18 +842,26 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       // Next.js uses /_next/data/, many SPAs use /xhr/, /ajax/, /rest/, /v1/,
       // /v2/, and paths ending in -state or -data are a strong convention for
       // server-state fetches.
+      // A4 fix: detect graphql by REQUEST BODY shape too (operationName, doc_id,
+      // fb_api_req_friendly_name, persisted-query extensions). This catches
+      // GraphQL POSTs at non-graphql URLs (e.g. Facebook /api/graphql,
+      // LinkedIn /voyager/api/voyagerTimelineFeed) that previously fell through
+      // to body_not_json_or_html.
+      const bodyIsGraphql = isGraphqlRequestBody(req.request_body);
+
       const isApiUrl =
         /\/(api|graphql|youtubei|__ssr_data__|_next\/data|xhr|ajax|rest)\b/i.test(urlPath) ||
         /\/v\d+\//i.test(urlPath) ||
         /\/async[-_]/i.test(urlPath) ||
         /[-_](state|data|feed|timeline|search|list|results)(\?|$|\/)/i.test(urlPath) ||
-        /\.(json)(\?|$)/.test(req.url);
+        /\.(json)(\?|$)/.test(req.url) ||
+        bodyIsGraphql;
 
-      // For GraphQL: extract operationName from request body or URL
-      // Handles X.com URL patterns, Facebook doc_id/fb_api_req_friendly_name,
-      // Instagram query_hash, and URL-encoded form bodies
+      // For GraphQL: extract operationName from request body or URL.
+      // Try the body-shape path even when URL doesn't match — Facebook persisted
+      // queries via doc_id, Apollo extensions{persistedQuery}, etc.
       let graphqlOpName: string | undefined;
-      if (/graphql/i.test(req.url)) {
+      if (/graphql/i.test(req.url) || bodyIsGraphql) {
         graphqlOpName = extractGraphQLOperationName(req.url, req.request_body);
       }
 
@@ -1127,7 +1186,12 @@ function isApiLike(req: RawRequest): boolean {
     return false;
   }
   // Skip tiny responses — config/status/empty endpoints, not data
-  if (req.response_body && req.response_body.length < 20) return false;
+  // Exception: GraphQL POSTs and other POSTs with request_body — the response may
+  // be small/empty (e.g., mutation acknowledgments) but the request_body contains
+  // the operation doc_id/query that makes the endpoint reproducible.
+  if (req.response_body && req.response_body.length < 20) {
+    if (!(req.method === "POST" && !!req.request_body)) return false;
+  }
   return true;
 }
 
