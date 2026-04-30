@@ -4103,8 +4103,40 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         // Heavy penalty per leaked literal so a wrong-subreddit / wrong-user /
         // wrong-product endpoint can't outrank a legit one even if it has
         // richer captured schema.
-        score -= leakedLiterals * 200;
+        // A1.1: when ≥3 distinct leaked literals exist, apply quadratic so a
+        // truly off-target capture (ebay /nap/napkinapi/v1/ticketing/redeem
+        // for an "ebay search listings" intent) gets buried regardless of
+        // its base bonuses.
+        const penaltyMultiplier = leakedLiterals >= 3 ? leakedLiterals * 2 : 1;
+        score -= leakedLiterals * 200 * penaltyMultiplier;
       }
+    }
+
+    // A10 — cross-subdomain skill leak. When contextUrl is provided AND the
+    // endpoint hostname differs from contextUrl hostname (registrable domain
+    // matches but subdomain differs), demote unless the endpoint is on the
+    // common shared-API subdomain (`api.*`, `gql.*`, `graphql.*`). Caught via
+    // harness/recursive/ on youtube.com — searching www.youtube.com/@MrBeast
+    // returned music.youtube.com endpoints because skill-domain matched on
+    // registrable domain alone.
+    if (contextUrl) {
+      try {
+        const ctxHost = new URL(contextUrl).hostname.toLowerCase();
+        const epHost = new URL(ep.url_template).hostname.toLowerCase();
+        if (ctxHost !== epHost) {
+          // Strip leading `www.` for comparison
+          const ctxBare = ctxHost.replace(/^www\./, "");
+          const epBare = epHost.replace(/^www\./, "");
+          if (ctxBare !== epBare) {
+            // Allow common shared-API subdomains (api., gql., graphql., etc.)
+            // — those legitimately serve endpoints for any www. page.
+            const epIsSharedApi = /^(api|gql|graphql|rest|services?|backend)\./i.test(epHost);
+            if (!epIsSharedApi) {
+              score -= 300;
+            }
+          }
+        }
+      } catch { /* skip */ }
     }
 
     return { endpoint: ep, score };
