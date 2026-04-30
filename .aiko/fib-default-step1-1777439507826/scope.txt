@@ -1,0 +1,3 @@
+Step 1 gate keeps rejecting because the teachings line ab: tag validation fails. The gate requires ab: to point at a real agent-browser RUNTIME artifact (screenshot .png/.jpg, console:<error>, network:<request>, eval:<result>, or string containing agent-browser/localhost:/9222/cdp/devtools). Build/test logs are REJECTED.
+
+Root cause: we need to capture a REAL runtime artifact. The dev server IS running on localhost:3000 (200). We must use agent-browser to connect, take a screenshot, and reference it in the teachings line.

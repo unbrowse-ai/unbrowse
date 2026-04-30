@@ -3,18 +3,18 @@
     "issue": 155,
     "title": "Add BM25 lexical channel to skill search alongside vector similarity",
     "passed": true,
-    "duration": 11236
+    "duration": 8840
   },
   {
     "issue": 152,
     "title": "mergeEndpoints silently drops richer rediscoveries of existing endpoints",
     "passed": true,
-    "duration": 9920
+    "duration": 12315
   },
   {
     "issue": 144,
     "title": "Batch path template mining for captures without context URLs",
     "passed": true,
-    "duration": 12418
+    "duration": 6737
   }
 ]

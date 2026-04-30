@@ -1,0 +1,41 @@
+{
+  "name": "unbrowse-self-improvement",
+  "version": "1.0.0",
+  "description": "Dev-side harness for unbrowse-to-unbrowse self-repair via agent-driven reverse engineering",
+  "north_star": "Reduce browser-open rate from 41.1% by replacing heuristics with agent reasoning backed by visual context",
+  "primitives": [
+    "go",
+    "snap",
+    "screenshot",
+    "resolve",
+    "execute",
+    "feedback",
+    "review",
+    "publish",
+    "skills",
+    "cleanup-stale"
+  ],
+  "phases": [
+    {
+      "name": "diagnose",
+      "prompt": "diagnosis.md",
+      "goal": "Analyze capture data and visual context to identify root cause of failures"
+    },
+    {
+      "name": "repair",
+      "prompt": "repair.md",
+      "goal": "Apply fixes using identified primitives and code edits"
+    },
+    {
+      "name": "verify",
+      "prompt": "verify.md",
+      "goal": "Re-run against known failure cases to confirm fix"
+    }
+  ],
+  "success_criteria": [
+    "Browser-open rate drops below 25%",
+    "LinkedIn resolve-hit → execute-success ratio improves from 0% to 50%+",
+    "X.com timeline resolves without browser open",
+    "GitHub stale skill matches drop by 50%"
+  ]
+}

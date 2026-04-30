@@ -939,3 +939,77 @@ describe("rankEndpoints semantic intent adjustment", () => {
     if (localesIdx !== -1) expect(tokenIdx).toBeLessThan(localesIdx);
   });
 });
+
+describe("rankEndpoints with params (harness signal)", () => {
+  test("params containing template value boosts matching endpoints", () => {
+    const endpoints = [
+      {
+        endpoint_id: "user-post",
+        method: "GET",
+        url: "https://example.com/api/users/{user_id}/posts",
+        url_template: "https://example.com/api/users/{user_id}/posts",
+        template_params: [{ name: "user_id", type: "string", required: true }],
+        description: "list posts by user",
+        response_schema: { type: "object", properties: { items: { type: "array" }, user_id: { type: "string" } } },
+        request_body_schema: null,
+      },
+      {
+        endpoint_id: "user-settings",
+        method: "GET",
+        url: "https://example.com/api/users/{user_id}/settings",
+        url_template: "https://example.com/api/users/{user_id}/settings",
+        template_params: [{ name: "user_id", type: "string", required: true }],
+        description: "get user settings",
+        response_schema: { type: "object", properties: { settings: { type: "object" }, user_id: { type: "string" } } },
+        request_body_schema: null,
+      },
+    ];
+
+    // With params: { user_id: "alice123" }
+    const ranked = rankEndpoints(endpoints, "list posts by alice", undefined, undefined, { user_id: "alice123" });
+
+    // The "list posts" endpoint should rank higher because both template param matches AND response_schema contains "user_id"
+    const postsIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "user-post");
+    const settingsIdx = ranked.findIndex((c) => c.endpoint.endpoint_id === "user-settings");
+    expect(postsIdx).toBeLessThan(settingsIdx);
+  });
+
+  test("params absent does not break ranking", () => {
+    const endpoints = [
+      {
+        endpoint_id: "search",
+        method: "GET",
+        url: "https://example.com/api/search",
+        url_template: "https://example.com/api/search",
+        template_params: [],
+        description: "search",
+        response_schema: { type: "object", properties: { results: { type: "array" } } },
+        request_body_schema: null,
+      },
+    ];
+
+    const ranked = rankEndpoints(endpoints, "search products", undefined, undefined, {});
+    expect(ranked.length).toBe(1);
+    expect(ranked[0].endpoint.endpoint_id).toBe("search");
+  });
+
+  test("params with value in response_schema boosts score", () => {
+    const endpoints = [
+      {
+        endpoint_id: "order-by-user",
+        method: "GET",
+        url: "https://example.com/api/orders/{user_id}",
+        url_template: "https://example.com/api/orders/{user_id}",
+        template_params: [{ name: "user_id", type: "string", required: true }],
+        description: "get orders for user",
+        response_schema: { type: "object", properties: { user_id: { type: "string" }, orders: { type: "array" } } },
+        request_body_schema: null,
+      },
+    ];
+
+    const ranked = rankEndpoints(endpoints, "get my orders", undefined, undefined, { user_id: "u123" });
+    expect(ranked.length).toBe(1);
+    // The param value "u123" should match in both template params (baseline +15) AND response_schema (additional +50)
+    expect(ranked[0].score).toBeGreaterThan(0);
+  });
+});

@@ -1,0 +1,81 @@
+{
+  "intent": "tweets from elonmusk",
+  "url": "https://x.com/elonmusk",
+  "exit_code": 0,
+  "duration_ms": 3223,
+  "timed_out": false,
+  "kuri_pids_alive_after_run": [],
+  "visible_chrome_present": false,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/010.log",
+  "source": "marketplace",
+  "browser_avoided": null,
+  "top_reasoning": "Best match: [GraphQL: SearchTimeline] Returns posts timeline with search by raw query, component, and element (score: 123)",
+  "confidence": 0,
+  "endpoint_count_in_skill": 15,
+  "error": null,
+  "available_operations": [
+    {
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/XN_HccZ9SU-miQVvwTAlFQ/SearchTimeline?variables={variables}&features={features}",
+      "endpoint_id": "0k4XXwJKLJP9o13dQMPW6",
+      "description": "Returns posts timeline with search by raw query, component, and controllerdata"
+    },
+    {
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+      "endpoint_id": "--iUvJt_KUbzjUwR0EPZf",
+      "description": "[GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata"
+    },
+    {
+      "method": "POST",
+      "url_template": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+      "endpoint_id": "SmIm-7j5SJtDUNPx7p2GJ",
+      "description": "[GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata"
+    }
+  ],
+  "available_endpoints": [
+    {
+      "method": "GET",
+      "url": "https://x.com/i/api/graphql/R0u1RWRf748KzyGBXvOYRA/SearchTimeline?variables={variables}&features={features}",
+      "score": 123,
+      "description": "Returns posts timeline with search by raw query, component, and element",
+      "needs_params": false
+    },
+    {
+      "method": "GET",
+      "url": "https://x.com/i/api/graphql/XN_HccZ9SU-miQVvwTAlFQ/SearchTimeline?variables={variables}&features={features}",
+      "score": 123,
+      "description": "Returns posts timeline with search by raw query, component, and controllerdata",
+      "needs_params": false
+    },
+    {
+      "method": "POST",
+      "url": "https://x.com/i/api/1.1/graphql/error_log.json",
+      "score": 117.5,
+      "description": "Creates post",
+      "needs_params": false
+    },
+    {
+      "method": "GET",
+      "url": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+      "score": 43,
+      "description": "Returns posts timeline with home, component, and controllerdata",
+      "needs_params": false
+    },
+    {
+      "method": "POST",
+      "url": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+      "score": 37.5,
+      "description": "Returns posts timeline with home, component, and controllerdata",
+      "needs_params": false
+    }
+  ],
+  "suggested_next_operation_id": null,
+  "diagnostic": {
+    "confidence": 0,
+    "top_reasoning": "Best match: [GraphQL: SearchTimeline] Returns posts timeline with search by raw query, component, and element (score: 123)",
+    "known_issues": [],
+    "endpoint_count": 15,
+    "cache_source": "marketplace"
+  }
+}

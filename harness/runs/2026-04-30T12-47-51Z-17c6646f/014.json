@@ -1,0 +1,77 @@
+{
+  "intent": "search beatsaver maps",
+  "url": "https://beatsaver.com/?q=camellia",
+  "exit_code": 0,
+  "duration_ms": 36211,
+  "timed_out": false,
+  "kuri_pids_alive_after_run": [
+    "54730",
+    "54731"
+  ],
+  "visible_chrome_present": true,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/014.log",
+  "source": "live-capture",
+  "browser_avoided": null,
+  "top_reasoning": "Best match: Captured search form artifact for search beatsaver maps (score: 190.52927469805917)",
+  "confidence": 0,
+  "endpoint_count_in_skill": 4,
+  "error": null,
+  "available_operations": [
+    {
+      "method": "GET",
+      "url_template": "https://beatsaver.com/api/search/text/0?q={q}",
+      "endpoint_id": "ZHuQKfvE4bShJW4t01u5f",
+      "description": "Searches 0 with docs, info using q"
+    },
+    {
+      "method": "GET",
+      "url_template": "https://beatsaver.com/api/search/text/1?q={q}",
+      "endpoint_id": "YsuhzBkkij1V7M8jIUxUb",
+      "description": "Searches 1 with docs, info using q"
+    },
+    {
+      "method": "GET",
+      "url_template": "https://beatsaver.com/api/users/name/camellia",
+      "endpoint_id": "NcUH62RN4--XSNz9dYrS6",
+      "description": "Returns user details with success and errors"
+    }
+  ],
+  "available_endpoints": [
+    {
+      "method": "GET",
+      "url": "https://beatsaver.com/?q={q}",
+      "score": 190.5,
+      "description": "Searches forms with link, url, and titles",
+      "needs_params": true
+    },
+    {
+      "method": "GET",
+      "url": "https://beatsaver.com/api/search/text/0?q={q}",
+      "score": 99.1,
+      "description": "Searches 0 with docs, info using q",
+      "needs_params": false
+    },
+    {
+      "method": "GET",
+      "url": "https://beatsaver.com/api/search/text/1?q={q}",
+      "score": 99.1,
+      "description": "Searches 1 with docs, info using q",
+      "needs_params": false
+    },
+    {
+      "method": "GET",
+      "url": "https://beatsaver.com/api/users/name/camellia",
+      "score": 87.1,
+      "description": "Returns user details with success and errors",
+      "needs_params": false
+    }
+  ],
+  "suggested_next_operation_id": null,
+  "diagnostic": {
+    "confidence": 0,
+    "top_reasoning": "Best match: Captured search form artifact for search beatsaver maps (score: 190.52927469805917)",
+    "known_issues": [],
+    "endpoint_count": 4,
+    "cache_source": "live-capture"
+  }
+}

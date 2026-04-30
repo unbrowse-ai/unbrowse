@@ -495,6 +495,15 @@ export interface EndpointStats {
   last_success_at?: string;
 }
 
+export interface ResolveResultDiagnostic {
+  confidence: number;
+  top_reasoning: string;
+  known_issues: string[];
+  endpoint_count: number;
+  cache_source: string;
+  suggested_next_actions?: string[];
+}
+
 export interface ExecutionOptions {
   confirm_unsafe?: boolean;
   /** Explicit user confirmation for domains/actions that may violate third-party site terms. */

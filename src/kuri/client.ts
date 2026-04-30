@@ -218,9 +218,29 @@ function falseyEnv(value: string | undefined): boolean {
 
 export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): KuriLaunchConfig {
   const explicitHeadless = env.KURI_HEADLESS ?? env.HEADLESS;
-  const headless = explicitHeadless !== undefined
-    ? envFlag(explicitHeadless)
-    : (process.platform === "linux" && !env.DISPLAY); // auto-headless when no display on Linux
+  // Default to headless on every platform so production unbrowse never pops a
+  // visible browser onto the user's screen. Dev/auth flows set HEADLESS=false
+  // explicitly (see src/auth/index.ts and harness/ scripts) when they need to
+  // see what the browser is doing.
+  // Tri-state parse: only an explicitly truthy or explicitly falsy value
+  // overrides the safe default. Anything unrecognized (typo, empty string,
+  // untrimmed whitespace, "yes"/"on") falls back to headless=true with a
+  // stderr warning so misconfigs don't silently flood the user's screen.
+  let headless: boolean;
+  if (explicitHeadless === undefined) {
+    headless = true;
+  } else if (envFlag(explicitHeadless)) {
+    headless = true;
+  } else if (falseyEnv(explicitHeadless)) {
+    headless = false;
+  } else {
+    if (typeof process !== "undefined" && process.stderr && typeof process.stderr.write === "function") {
+      process.stderr.write(
+        `[unbrowse] Ignoring unrecognized KURI_HEADLESS/HEADLESS value ${JSON.stringify(explicitHeadless)}; defaulting to headless=true. Use "true"/"1" or "false"/"0".\n`,
+      );
+    }
+    headless = true;
+  }
   const cleanRoom = envFlag(env.UNBROWSE_LOCAL_ONLY) || envFlag(env.KURI_CLEAN_ROOM);
   const browserCookieOptOut = falseyEnv(env.UNBROWSE_IMPORT_BROWSER_COOKIES);
   const explicitAttach = envFlag(env.KURI_ATTACH_EXISTING_CHROME ?? env.UNBROWSE_ATTACH_EXISTING_CHROME);

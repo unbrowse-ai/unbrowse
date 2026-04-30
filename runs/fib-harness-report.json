@@ -1,0 +1,987 @@
+{
+  "advisories": [],
+  "checks": [
+    {
+      "blocking": true,
+      "check_id": "install_setup.drop_in_script_exists",
+      "detail": "Drop-in onboarding harness exists for blank-slate install/setup verification.",
+      "domain": "install_setup",
+      "evidence_refs": [
+        "scripts/drop-in-onboarding-test.sh"
+      ],
+      "ok": true,
+      "problem_code": "missing_drop_in_harness",
+      "repair_hint": "add or restore scripts/drop-in-onboarding-test.sh so onboarding can be proved from zero state",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "install_setup.drop_in_script_covers_full_path",
+      "detail": "Drop-in harness covers install -> setup -> resolve -> execute.",
+      "domain": "install_setup",
+      "evidence_refs": [
+        "scripts/drop-in-onboarding-test.sh"
+      ],
+      "ok": true,
+      "problem_code": "drop_in_path_incomplete",
+      "repair_hint": "make the drop-in harness prove install, setup, resolve, and execute in one blank-slate run",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "install_setup.agent_xp_script_wired",
+      "detail": "Package script exposes the agent experience collector with one command.",
+      "domain": "install_setup",
+      "evidence_refs": [
+        "package.json",
+        "scripts/agent-experience-test.sh"
+      ],
+      "ok": true,
+      "problem_code": "missing_agent_xp_entrypoint",
+      "repair_hint": "wire package.json test:agent-xp to scripts/agent-experience-test.sh",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "install_setup.cli_setup_surface_present",
+      "detail": "CLI carries setup surface and example usage.",
+      "domain": "install_setup",
+      "evidence_refs": [
+        "src/cli.ts"
+      ],
+      "ok": true,
+      "problem_code": "cli_setup_surface_missing",
+      "repair_hint": "restore setup command wiring and help examples in src/cli.ts",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "first_task_success.product_success_cases_present",
+      "detail": "Product-success corpus is task-shaped (cases=14, seeded=1).",
+      "domain": "first_task_success",
+      "evidence_refs": [
+        "evals/codex-cases.product-success.json"
+      ],
+      "ok": true,
+      "problem_code": "product_success_corpus_missing",
+      "repair_hint": "restore a public task-shaped product-success corpus with at least one seeded-parameter case",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "first_task_success.product_success_guard_test_present",
+      "detail": "Product-success corpus has a structural guard test.",
+      "domain": "first_task_success",
+      "evidence_refs": [
+        "tests/codex-product-success-cases.test.ts"
+      ],
+      "ok": true,
+      "problem_code": "product_success_guard_missing",
+      "repair_hint": "add or restore tests/codex-product-success-cases.test.ts to guard public task cases",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": false,
+      "check_id": "first_task_success.persisted_public_run_passes",
+      "detail": "Latest persisted public run passes all cases (pass=14, total=14).",
+      "domain": "first_task_success",
+      "evidence_refs": [
+        "evals/history/autonomous.jsonl"
+      ],
+      "ok": true,
+      "problem_code": "missing_public_success_history",
+      "repair_hint": "run the canonical product-success harness and persist a passing artifact before promoting this claim",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "warning"
+    },
+    {
+      "blocking": true,
+      "check_id": "auth_path.sessions_scan_surface_present",
+      "detail": "CLI exposes browser-session discovery for auth reuse.",
+      "domain": "auth_path",
+      "evidence_refs": [
+        "src/cli.ts"
+      ],
+      "ok": true,
+      "problem_code": "sessions_scan_missing",
+      "repair_hint": "restore sessions-scan command wiring in src/cli.ts",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "auth_path.auth_required_guidance_present",
+      "detail": "CLI surfaces explicit auth_required guidance without silent side effects.",
+      "domain": "auth_path",
+      "evidence_refs": [
+        "src/cli.ts"
+      ],
+      "ok": true,
+      "problem_code": "auth_guidance_missing",
+      "repair_hint": "make resolve auth_required surface a concrete unbrowse login command",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "auth_path.agent_xp_guard_test_present",
+      "detail": "CLI auth_required behavior has a dedicated guard test.",
+      "domain": "auth_path",
+      "evidence_refs": [
+        "tests/cli-agent-experience.test.ts"
+      ],
+      "ok": true,
+      "problem_code": "auth_guard_test_missing",
+      "repair_hint": "restore CLI auth_required regression coverage",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "browser_ops.cli_browse_verbs_present",
+      "detail": "CLI exposes the browse primitives agents need for live fallback.",
+      "domain": "browser_ops",
+      "evidence_refs": [
+        "src/cli.ts"
+      ],
+      "ok": true,
+      "problem_code": "browse_verbs_missing",
+      "repair_hint": "restore go/snap/click/fill/submit/close browse verbs in src/cli.ts",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "browser_ops.resolve_handoff_present",
+      "detail": "Resolve path hands agents into a live browser session with explicit next steps.",
+      "domain": "browser_ops",
+      "evidence_refs": [
+        "src/orchestrator/index.ts"
+      ],
+      "ok": true,
+      "problem_code": "browse_handoff_missing",
+      "repair_hint": "restore browse-session handoff messaging in resolveAndExecute",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "browser_ops.agent_xp_records_browse_failures",
+      "detail": "Agent-XP collector records browse evidence even when browser startup fails.",
+      "domain": "browser_ops",
+      "evidence_refs": [
+        "scripts/agent-experience-test.sh"
+      ],
+      "ok": true,
+      "problem_code": "browse_evidence_drop",
+      "repair_hint": "ensure agent experience artifact always records browse tasks, including failure paths",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "hostile_site_boundary.cloudflare_signal_tests_present",
+      "detail": "Browser-block detector explicitly covers Cloudflare challenge signals.",
+      "domain": "hostile_site_boundary",
+      "evidence_refs": [
+        "tests/browser-block-signals.test.ts"
+      ],
+      "ok": true,
+      "problem_code": "cloudflare_signal_tests_missing",
+      "repair_hint": "restore explicit Cloudflare/browser-block regression tests",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "hostile_site_boundary.autonomous_harness_terminalizes_cf",
+      "detail": "Autonomous harness turns Cloudflare/browser challenges into an explicit blocked terminal.",
+      "domain": "hostile_site_boundary",
+      "evidence_refs": [
+        "evals/codex-autonomous-harness-lib.ts"
+      ],
+      "ok": true,
+      "problem_code": "cloudflare_terminal_missing",
+      "repair_hint": "restore cloudflare_blocked terminal classification in autonomous harness failure taxonomy",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "hostile_site_boundary.public_cases_allow_cf_boundary",
+      "detail": "Public expansion corpus encodes Cloudflare browser blocks as an allowed terminal boundary.",
+      "domain": "hostile_site_boundary",
+      "evidence_refs": [
+        "evals/codex-cases.public-expansion.json"
+      ],
+      "ok": true,
+      "problem_code": "cf_boundary_not_encoded",
+      "repair_hint": "add at least one public expansion case whose validate.terminal_ok includes cloudflare_blocked",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "agent_guidance.agent_xp_view_detects_silent_drops",
+      "detail": "Agent-XP view surfaces silent drops instead of hiding them.",
+      "domain": "agent_guidance",
+      "evidence_refs": [
+        "scripts/agent-xp-view.ts"
+      ],
+      "ok": true,
+      "problem_code": "agent_xp_visibility_missing",
+      "repair_hint": "restore missing-task visibility in scripts/agent-xp-view.ts",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "agent_guidance.eval_loop_documented",
+      "detail": "Docs explain the judge loop and the blocked-terminal contract.",
+      "domain": "agent_guidance",
+      "evidence_refs": [
+        "docs/codex-eval-harness.md"
+      ],
+      "ok": true,
+      "problem_code": "codex_eval_loop_doc_missing",
+      "repair_hint": "restore the eval loop docs and blocked-terminal guidance in docs/codex-eval-harness.md",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    },
+    {
+      "blocking": true,
+      "check_id": "agent_guidance.onboarding_entrypoints_exposed",
+      "detail": "Package scripts expose the agent-XP collector and canonical product-success run.",
+      "domain": "agent_guidance",
+      "evidence_refs": [
+        "package.json"
+      ],
+      "ok": true,
+      "problem_code": "agent_entrypoints_missing",
+      "repair_hint": "expose both agent-XP and canonical product-success scripts in package.json",
+      "schema_version": "unbrowse_capability_harness_check_v1",
+      "severity": "error"
+    }
+  ],
+  "claim_judgements": {
+    "agent_guidance": {
+      "blocking": false,
+      "claim_id": "agent_guidance",
+      "detail": "Agents get clear entrypoints, artifact visibility, and a documented judge loop.",
+      "evidence_refs": [
+        "scripts/agent-xp-view.ts",
+        "docs/codex-eval-harness.md",
+        "package.json"
+      ],
+      "status": "pass"
+    },
+    "auth_path": {
+      "blocking": false,
+      "claim_id": "auth_path",
+      "detail": "Auth path has explicit session-reuse, auth_required guidance, and regression coverage.",
+      "evidence_refs": [
+        "src/cli.ts",
+        "tests/cli-agent-experience.test.ts",
+        "AGENTS.md"
+      ],
+      "status": "pass"
+    },
+    "browser_ops": {
+      "blocking": false,
+      "claim_id": "browser_ops",
+      "detail": "Browser fallback path is explicit, command-complete, and observable in artifacts.",
+      "evidence_refs": [
+        "src/cli.ts",
+        "src/orchestrator/index.ts",
+        "scripts/agent-experience-test.sh"
+      ],
+      "status": "pass"
+    },
+    "first_task_success": {
+      "blocking": false,
+      "claim_id": "first_task_success",
+      "detail": "Public first-task success has task-shaped corpus, guard tests, and recent persisted all-pass evidence.",
+      "evidence_refs": [
+        "evals/codex-cases.product-success.json",
+        "tests/codex-product-success-cases.test.ts",
+        "evals/history/autonomous.jsonl"
+      ],
+      "status": "pass"
+    },
+    "hostile_site_boundary": {
+      "blocking": false,
+      "claim_id": "hostile_site_boundary",
+      "detail": "Hostile-site boundary is explicit: Cloudflare/browser gates stop as blocked, not as fake product success.",
+      "evidence_refs": [
+        "tests/browser-block-signals.test.ts",
+        "evals/codex-autonomous-harness-lib.ts",
+        "evals/codex-cases.public-expansion.json"
+      ],
+      "status": "pass"
+    },
+    "install_setup": {
+      "blocking": false,
+      "claim_id": "install_setup",
+      "detail": "Blank-slate onboarding path is runnable from repo scripts and CLI docs.",
+      "evidence_refs": [
+        "scripts/drop-in-onboarding-test.sh",
+        "scripts/agent-experience-test.sh",
+        "src/cli.ts",
+        "package.json"
+      ],
+      "status": "pass"
+    }
+  },
+  "fib_harness": {
+    "active_arc": {
+      "break_phase": {
+        "evidence": [
+          "all_claims_pass"
+        ],
+        "name": "break_to_outer_judgement",
+        "pending_escalations": [],
+        "phase": 7,
+        "status": "pass"
+      },
+      "phases": [
+        {
+          "evidence": [
+            "AGENTS.md",
+            "docs/codex-eval-harness.md",
+            "docs/workflow-harness.md",
+            "docs/2026-03-31-orchestrator-analysis.md",
+            "evals/history/autonomous.jsonl",
+            "evals/codex-autonomous-last-run.json",
+            "evals/codex-auth-eval-last-run.json"
+          ],
+          "name": "plan_from_repo_truth",
+          "phase": 1,
+          "status": "pass"
+        },
+        {
+          "evidence": [
+            "src/cli.ts",
+            "src/orchestrator/index.ts",
+            "evals/codex-autonomous-harness-lib.ts",
+            "scripts/agent-experience-test.sh",
+            "tests/cli-agent-experience.test.ts",
+            "tests/browser-block-signals.test.ts"
+          ],
+          "name": "observe_runtime_tests_artifacts",
+          "phase": 2,
+          "status": "pass"
+        },
+        {
+          "evidence": [
+            "install_setup:pass",
+            "first_task_success:pass",
+            "auth_path:pass",
+            "browser_ops:pass",
+            "hostile_site_boundary:pass",
+            "agent_guidance:pass"
+          ],
+          "name": "compress_claim_packet",
+          "phase": 3,
+          "status": "pass"
+        },
+        {
+          "evidence": [
+            "blocking_problem_codes:0",
+            "advisories:0"
+          ],
+          "name": "score_integrity",
+          "phase": 4,
+          "status": "pass"
+        },
+        {
+          "evidence": [
+            "install_setup",
+            "first_task_success",
+            "auth_path",
+            "browser_ops",
+            "hostile_site_boundary",
+            "agent_guidance"
+          ],
+          "name": "spawn_child_claim_lanes",
+          "phase": 5,
+          "status": "pass"
+        },
+        {
+          "evidence": [
+            "pending_escalations:0"
+          ],
+          "name": "collect_child_claim_lanes",
+          "phase": 6,
+          "status": "pass"
+        }
+      ],
+      "promotion_phase": {
+        "escalation_status": "clear",
+        "evidence": [
+          "capability_contract_supported"
+        ],
+        "name": "parent_consequence",
+        "next_action": "promote",
+        "phase": 8,
+        "status": "promote",
+        "stop_reason": "capability_contract_supported"
+      }
+    },
+    "arc_id": "unbrowse_capability_harness",
+    "children": [
+      {
+        "active_arc": {
+          "break_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "break_to_claim_judgement",
+            "phase": 7,
+            "status": "pass"
+          },
+          "phases": [
+            {
+              "evidence": [
+                "install_setup"
+              ],
+              "name": "declare_claim_boundary",
+              "phase": 1,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "problems:0"
+              ],
+              "name": "observe_claim_inputs",
+              "phase": 2,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "advisories:0"
+              ],
+              "name": "compress_claim_state",
+              "phase": 3,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "claim_status:pass"
+              ],
+              "name": "score_claim_integrity",
+              "phase": 4,
+              "status": "pass"
+            },
+            {
+              "evidence": [],
+              "name": "spawn_claim_repairs",
+              "phase": 5,
+              "status": "hold"
+            },
+            {
+              "evidence": [],
+              "name": "collect_claim_evidence",
+              "phase": 6,
+              "status": "pass"
+            }
+          ],
+          "promotion_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "claim_consequence",
+            "next_action": "promote",
+            "phase": 8,
+            "status": "promote"
+          }
+        },
+        "advisories": [],
+        "arc_id": "unbrowse_capability_harness:install_setup",
+        "parallel_children": [],
+        "parent_arc_id": "unbrowse_capability_harness",
+        "problems": [],
+        "schema_version": "unbrowse_capability_harness_fib_scope_v1",
+        "scope_kind": "claim",
+        "scope_name": "install_setup"
+      },
+      {
+        "active_arc": {
+          "break_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "break_to_claim_judgement",
+            "phase": 7,
+            "status": "pass"
+          },
+          "phases": [
+            {
+              "evidence": [
+                "first_task_success"
+              ],
+              "name": "declare_claim_boundary",
+              "phase": 1,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "problems:0"
+              ],
+              "name": "observe_claim_inputs",
+              "phase": 2,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "advisories:0"
+              ],
+              "name": "compress_claim_state",
+              "phase": 3,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "claim_status:pass"
+              ],
+              "name": "score_claim_integrity",
+              "phase": 4,
+              "status": "pass"
+            },
+            {
+              "evidence": [],
+              "name": "spawn_claim_repairs",
+              "phase": 5,
+              "status": "hold"
+            },
+            {
+              "evidence": [],
+              "name": "collect_claim_evidence",
+              "phase": 6,
+              "status": "pass"
+            }
+          ],
+          "promotion_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "claim_consequence",
+            "next_action": "promote",
+            "phase": 8,
+            "status": "promote"
+          }
+        },
+        "advisories": [],
+        "arc_id": "unbrowse_capability_harness:first_task_success",
+        "parallel_children": [],
+        "parent_arc_id": "unbrowse_capability_harness",
+        "problems": [],
+        "schema_version": "unbrowse_capability_harness_fib_scope_v1",
+        "scope_kind": "claim",
+        "scope_name": "first_task_success"
+      },
+      {
+        "active_arc": {
+          "break_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "break_to_claim_judgement",
+            "phase": 7,
+            "status": "pass"
+          },
+          "phases": [
+            {
+              "evidence": [
+                "auth_path"
+              ],
+              "name": "declare_claim_boundary",
+              "phase": 1,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "problems:0"
+              ],
+              "name": "observe_claim_inputs",
+              "phase": 2,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "advisories:0"
+              ],
+              "name": "compress_claim_state",
+              "phase": 3,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "claim_status:pass"
+              ],
+              "name": "score_claim_integrity",
+              "phase": 4,
+              "status": "pass"
+            },
+            {
+              "evidence": [],
+              "name": "spawn_claim_repairs",
+              "phase": 5,
+              "status": "hold"
+            },
+            {
+              "evidence": [],
+              "name": "collect_claim_evidence",
+              "phase": 6,
+              "status": "pass"
+            }
+          ],
+          "promotion_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "claim_consequence",
+            "next_action": "promote",
+            "phase": 8,
+            "status": "promote"
+          }
+        },
+        "advisories": [],
+        "arc_id": "unbrowse_capability_harness:auth_path",
+        "parallel_children": [],
+        "parent_arc_id": "unbrowse_capability_harness",
+        "problems": [],
+        "schema_version": "unbrowse_capability_harness_fib_scope_v1",
+        "scope_kind": "claim",
+        "scope_name": "auth_path"
+      },
+      {
+        "active_arc": {
+          "break_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "break_to_claim_judgement",
+            "phase": 7,
+            "status": "pass"
+          },
+          "phases": [
+            {
+              "evidence": [
+                "browser_ops"
+              ],
+              "name": "declare_claim_boundary",
+              "phase": 1,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "problems:0"
+              ],
+              "name": "observe_claim_inputs",
+              "phase": 2,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "advisories:0"
+              ],
+              "name": "compress_claim_state",
+              "phase": 3,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "claim_status:pass"
+              ],
+              "name": "score_claim_integrity",
+              "phase": 4,
+              "status": "pass"
+            },
+            {
+              "evidence": [],
+              "name": "spawn_claim_repairs",
+              "phase": 5,
+              "status": "hold"
+            },
+            {
+              "evidence": [],
+              "name": "collect_claim_evidence",
+              "phase": 6,
+              "status": "pass"
+            }
+          ],
+          "promotion_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "claim_consequence",
+            "next_action": "promote",
+            "phase": 8,
+            "status": "promote"
+          }
+        },
+        "advisories": [],
+        "arc_id": "unbrowse_capability_harness:browser_ops",
+        "parallel_children": [],
+        "parent_arc_id": "unbrowse_capability_harness",
+        "problems": [],
+        "schema_version": "unbrowse_capability_harness_fib_scope_v1",
+        "scope_kind": "claim",
+        "scope_name": "browser_ops"
+      },
+      {
+        "active_arc": {
+          "break_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "break_to_claim_judgement",
+            "phase": 7,
+            "status": "pass"
+          },
+          "phases": [
+            {
+              "evidence": [
+                "hostile_site_boundary"
+              ],
+              "name": "declare_claim_boundary",
+              "phase": 1,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "problems:0"
+              ],
+              "name": "observe_claim_inputs",
+              "phase": 2,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "advisories:0"
+              ],
+              "name": "compress_claim_state",
+              "phase": 3,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "claim_status:pass"
+              ],
+              "name": "score_claim_integrity",
+              "phase": 4,
+              "status": "pass"
+            },
+            {
+              "evidence": [],
+              "name": "spawn_claim_repairs",
+              "phase": 5,
+              "status": "hold"
+            },
+            {
+              "evidence": [],
+              "name": "collect_claim_evidence",
+              "phase": 6,
+              "status": "pass"
+            }
+          ],
+          "promotion_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "claim_consequence",
+            "next_action": "promote",
+            "phase": 8,
+            "status": "promote"
+          }
+        },
+        "advisories": [],
+        "arc_id": "unbrowse_capability_harness:hostile_site_boundary",
+        "parallel_children": [],
+        "parent_arc_id": "unbrowse_capability_harness",
+        "problems": [],
+        "schema_version": "unbrowse_capability_harness_fib_scope_v1",
+        "scope_kind": "claim",
+        "scope_name": "hostile_site_boundary"
+      },
+      {
+        "active_arc": {
+          "break_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "break_to_claim_judgement",
+            "phase": 7,
+            "status": "pass"
+          },
+          "phases": [
+            {
+              "evidence": [
+                "agent_guidance"
+              ],
+              "name": "declare_claim_boundary",
+              "phase": 1,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "problems:0"
+              ],
+              "name": "observe_claim_inputs",
+              "phase": 2,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "advisories:0"
+              ],
+              "name": "compress_claim_state",
+              "phase": 3,
+              "status": "pass"
+            },
+            {
+              "evidence": [
+                "claim_status:pass"
+              ],
+              "name": "score_claim_integrity",
+              "phase": 4,
+              "status": "pass"
+            },
+            {
+              "evidence": [],
+              "name": "spawn_claim_repairs",
+              "phase": 5,
+              "status": "hold"
+            },
+            {
+              "evidence": [],
+              "name": "collect_claim_evidence",
+              "phase": 6,
+              "status": "pass"
+            }
+          ],
+          "promotion_phase": {
+            "evidence": [
+              "claim_status:pass"
+            ],
+            "name": "claim_consequence",
+            "next_action": "promote",
+            "phase": 8,
+            "status": "promote"
+          }
+        },
+        "advisories": [],
+        "arc_id": "unbrowse_capability_harness:agent_guidance",
+        "parallel_children": [],
+        "parent_arc_id": "unbrowse_capability_harness",
+        "problems": [],
+        "schema_version": "unbrowse_capability_harness_fib_scope_v1",
+        "scope_kind": "claim",
+        "scope_name": "agent_guidance"
+      }
+    ],
+    "parallel_children": [
+      "unbrowse_capability_harness:install_setup",
+      "unbrowse_capability_harness:first_task_success",
+      "unbrowse_capability_harness:auth_path",
+      "unbrowse_capability_harness:browser_ops",
+      "unbrowse_capability_harness:hostile_site_boundary",
+      "unbrowse_capability_harness:agent_guidance"
+    ],
+    "parent_arc_id": null,
+    "pending_escalations": [],
+    "schema_version": "unbrowse_capability_harness_fib_scope_v1",
+    "scope_kind": "harness",
+    "scope_name": "unbrowse_capability_harness"
+  },
+  "final": {
+    "advisory_count": 0,
+    "blocking_claims": [],
+    "blocking_problem_codes": [],
+    "escalation_status": "clear",
+    "fib_arc_id": "unbrowse_capability_harness",
+    "next_action": "promote",
+    "output_path": "runs/fib-harness-report.json",
+    "overall_status": "pass",
+    "pending_escalations": [],
+    "problem_count": 0,
+    "promotion_readiness": "ready",
+    "stop_reason": "capability_contract_supported",
+    "truth_status": "pass",
+    "unproved_claims": [],
+    "watch_claims": []
+  },
+  "plan": {
+    "claims_under_test": [
+      "install_setup",
+      "first_task_success",
+      "auth_path",
+      "browser_ops",
+      "hostile_site_boundary",
+      "agent_guidance"
+    ],
+    "codex_history_inputs": {
+      "hidden_history_available": false,
+      "latest_history_ts": "2026-04-05T14:02:40.764Z",
+      "note": "Only persisted Codex traces or harness artifacts on disk count as available history.",
+      "persisted_sources": [
+        "evals/history/autonomous.jsonl",
+        "evals/codex-autonomous-last-run.json",
+        "evals/codex-auth-eval-last-run.json"
+      ]
+    },
+    "next_questions": [
+      "All planning surfaces present; phase 7 can promote unless runtime evidence is stale or contradicted."
+    ],
+    "repo_inputs": {
+      "artifact_paths": [
+        "evals/codex-cases.product-success.json",
+        "evals/codex-cases.public-expansion.json",
+        "evals/history/autonomous.jsonl",
+        "evals/codex-autonomous-last-run.json",
+        "evals/codex-auth-eval-last-run.json"
+      ],
+      "docs": [
+        "AGENTS.md",
+        "docs/codex-eval-harness.md",
+        "docs/workflow-harness.md",
+        "docs/2026-03-31-orchestrator-analysis.md"
+      ],
+      "git_history_checked": true,
+      "git_history_excerpt": [
+        "b92aaabf feat(rubric): 502/503/504 challenge + dom_content_available PASS",
+        "73aad003 feat(capture-meta): expand challenge_title regex + v8 baseline promotion",
+        "94c53dfe feat(capture-meta): low_capture signal + 404 challenge + tiny-capture rubric",
+        "38c1f191 feat(capture-meta): widen challenge_title regex for CloudFront/403/unusual-traffic",
+        "7f448ff9 feat(capture-meta): detect Akamai Bot Manager vendor signal",
+        "88ebb3c4 refactor+test(capture-meta): extract detectBrowserBlockSignals + unit tests",
+        "84a546a9 feat: harness awareness harness + LLM judges for agent-xp + bench",
+        "1523c785 refactor: drop hardcoded anti-bot blocklist, emit captured_meta instead"
+      ],
+      "runtime_paths": [
+        "src/cli.ts",
+        "src/orchestrator/index.ts",
+        "evals/codex-autonomous-harness-lib.ts",
+        "scripts/agent-experience-test.sh",
+        "scripts/drop-in-onboarding-test.sh",
+        "scripts/agent-xp-view.ts"
+      ],
+      "test_paths": [
+        "tests/cli-agent-experience.test.ts",
+        "tests/browser-block-signals.test.ts",
+        "tests/codex-product-success-cases.test.ts",
+        "tests/test_unbrowse_capability_harness.py"
+      ]
+    },
+    "schema_version": "unbrowse_capability_harness_plan_v1",
+    "summary": "Judge whether this repo currently enforces drop-in onboarding, first-task public success, auth/browser handoff, and explicit Cloudflare-browser-block boundaries for agents."
+  },
+  "problems": [],
+  "schema_version": "unbrowse_capability_harness_v1"
+}

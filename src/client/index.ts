@@ -728,6 +728,11 @@ async function checkTosStatus(options?: { exitOnFailure?: boolean }): Promise<bo
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(options?: { promptForEmail?: boolean; exitOnFailure?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
+  // Harness/server mode: skip ToS prompts entirely
+  if (process.env.UNBROWSE_SKIP_TOS_CHECK === "1") {
+    console.log("[unbrowse] ToS check skipped (non-interactive/server mode)");
+    return;
+  }
   const exitOnFailure = options?.exitOnFailure ?? true;
   const usableKey = await findUsableApiKey();
   if (usableKey) {

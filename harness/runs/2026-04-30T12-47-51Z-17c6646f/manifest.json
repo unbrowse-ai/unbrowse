@@ -1,0 +1,872 @@
+{
+  "run_id": "2026-04-30T12-47-51Z-17c6646f",
+  "probe_count": 17,
+  "probes": [
+    {
+      "intent": "get top stories",
+      "url": "https://news.ycombinator.com",
+      "exit_code": 0,
+      "duration_ms": 4298,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/001.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Captured page artifact for fetch top stories from Hacker News (score: 291.0828731255405)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 1,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://news.ycombinator.com/",
+          "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+          "description": "Returns trending comments with titles, link, and rank"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://news.ycombinator.com/",
+          "score": 291.1,
+          "description": "Returns trending comments with titles, link, and rank",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Captured page artifact for fetch top stories from Hacker News (score: 291.0828731255405)",
+        "known_issues": [],
+        "endpoint_count": 1,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "search hacker news",
+      "url": "https://hn.algolia.com/?q=openai",
+      "exit_code": 0,
+      "duration_ms": 3013,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/002.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Structured replay for search hacker news (score: 538.8365145745761)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 1,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+          "endpoint_id": "PneGGCBWDaJ5igMCsEh6E",
+          "description": "Structured replay for search hacker news"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+          "score": 538.8,
+          "description": "Structured replay for search hacker news",
+          "needs_params": true
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Structured replay for search hacker news (score: 538.8365145745761)",
+        "known_issues": [],
+        "endpoint_count": 1,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "search rust crates",
+      "url": "https://crates.io/search?q=serde",
+      "exit_code": 0,
+      "duration_ms": 3337,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/003.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Searches Crates with crates, meta using page, per_page, q (score: 334.01897930989435)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 2,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+          "endpoint_id": "PrArpVK0kyyszEKdrPXJD",
+          "description": "Searches Crates with crates, meta using page, per_page, q"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://crates.io/api/v1/site_metadata",
+          "endpoint_id": "pjQbrDvLCm4-EFywyGoaj",
+          "description": "Returns resource details with deployed sha, commit, and read only"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+          "score": 334,
+          "description": "Searches Crates with crates, meta using page, per_page, q",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://crates.io/api/v1/site_metadata",
+          "score": 52.8,
+          "description": "Returns resource details with deployed sha, commit, and read only",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Searches Crates with crates, meta using page, per_page, q (score: 334.01897930989435)",
+        "known_issues": [],
+        "endpoint_count": 2,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "get package info",
+      "url": "https://www.npmjs.com/package/openai",
+      "exit_code": 0,
+      "duration_ms": 4419,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/004.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Structured replay for get package info (score: 425.9364670005492)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 1,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://registry.npmjs.org/openai",
+          "endpoint_id": "-j0gSXJsM_dsIYJZEKj4_",
+          "description": "Structured replay for get package info"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
+          "endpoint_id": "ZsPVVIuXWx8hfeB-0f2wA",
+          "description": "Structured replay for search packages"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://registry.npmjs.org/openai",
+          "score": 425.9,
+          "description": "Structured replay for get package info",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Structured replay for get package info (score: 425.9364670005492)",
+        "known_issues": [],
+        "endpoint_count": 1,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "search github repos",
+      "url": "https://github.com/search?q=openai&type=repositories",
+      "exit_code": 0,
+      "duration_ms": 3760,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/005.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Structured replay for github repos (score: 669.8432620072115)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 2,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://api.github.com/search/repositories?q={q}&per_page=20",
+          "endpoint_id": "k-Svk8yxGGUx_IZTjkzDL",
+          "description": "Structured replay for github repos"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://github.com/trending",
+          "endpoint_id": "oMUQhJEd9q4-VvKPsTFaH",
+          "description": "Searches forms with names, url, and descriptions"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://api.github.com/search/repositories?q={q}&per_page=20",
+          "score": 669.8,
+          "description": "Structured replay for github repos",
+          "needs_params": true
+        },
+        {
+          "method": "GET",
+          "url": "https://github.com/trending",
+          "score": 226,
+          "description": "Searches forms with names, url, and descriptions",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Structured replay for github repos (score: 669.8432620072115)",
+        "known_issues": [],
+        "endpoint_count": 2,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "get singularity subreddit posts",
+      "url": "https://www.reddit.com/r/singularity/",
+      "exit_code": 0,
+      "duration_ms": 3131,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/006.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Structured replay for singularity subreddit posts (score: 771.2708890461051)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 2,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://www.reddit.com/r/singularity/.json",
+          "endpoint_id": "qzF2ZEcQ_22ReCqF4-Dr7",
+          "description": "Structured replay for singularity subreddit posts"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://www.reddit.com/r/programming/.json",
+          "endpoint_id": "Uoju8N3pCnQimo6bGLPWe",
+          "description": "Structured replay for get subreddit posts"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://www.reddit.com/r/singularity/.json",
+          "score": 771.3,
+          "description": "Structured replay for singularity subreddit posts",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://www.reddit.com/r/programming/.json",
+          "score": 524.7,
+          "description": "Structured replay for get subreddit posts",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Structured replay for singularity subreddit posts (score: 771.2708890461051)",
+        "known_issues": [],
+        "endpoint_count": 2,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "get programming subreddit posts",
+      "url": "https://www.reddit.com/r/programming/",
+      "exit_code": 0,
+      "duration_ms": 2992,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/007.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Structured replay for get subreddit posts (score: 729.4941301179645)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 1,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://www.reddit.com/r/programming/.json",
+          "endpoint_id": "Uoju8N3pCnQimo6bGLPWe",
+          "description": "Structured replay for get subreddit posts"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://www.reddit.com/r/programming/.json",
+          "score": 729.5,
+          "description": "Structured replay for get subreddit posts",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Structured replay for get subreddit posts (score: 729.4941301179645)",
+        "known_issues": [],
+        "endpoint_count": 1,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "get home timeline",
+      "url": "https://x.com/home",
+      "exit_code": 0,
+      "duration_ms": 3181,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/008.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: [GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata (score: 819.6850731531207)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 15,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "endpoint_id": "--iUvJt_KUbzjUwR0EPZf",
+          "description": "[GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata"
+        },
+        {
+          "method": "POST",
+          "url_template": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "endpoint_id": "SmIm-7j5SJtDUNPx7p2GJ",
+          "description": "[GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://x.com/i/api/graphql/R0u1RWRf748KzyGBXvOYRA/SearchTimeline?variables={variables}&features={features}",
+          "endpoint_id": "N-9dnu1j9XsWKfjsqo6tq",
+          "description": "[GraphQL: SearchTimeline] Returns posts timeline with search by raw query, component, and element"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "score": 819.7,
+          "description": "Returns posts timeline with home, component, and controllerdata",
+          "needs_params": false
+        },
+        {
+          "method": "POST",
+          "url": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "score": 814.2,
+          "description": "Returns posts timeline with home, component, and controllerdata",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/XN_HccZ9SU-miQVvwTAlFQ/SearchTimeline?variables={variables}&features={features}",
+          "score": 430,
+          "description": "Returns posts timeline with search by raw query, component, and controllerdata",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/R0u1RWRf748KzyGBXvOYRA/SearchTimeline?variables={variables}&features={features}",
+          "score": 429.6,
+          "description": "Returns posts timeline with search by raw query, component, and element",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/sVqjh1GOtv__xqFDTgPkuA/ExploreSidebar?variables={variables}&features={features}",
+          "score": 218.2,
+          "description": "Returns posts timeline with explore sidebar, key, and confirmation",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: [GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata (score: 819.6850731531207)",
+        "known_issues": [],
+        "endpoint_count": 15,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "search tweets about AI agents",
+      "url": "https://x.com/search?q=AI+agents&src=typed_query",
+      "exit_code": 0,
+      "duration_ms": 3175,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/009.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: [GraphQL: SearchTimeline] Returns posts timeline with search by raw query, component, and element (score: 343)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 16,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://x.com/i/api/graphql/XN_HccZ9SU-miQVvwTAlFQ/SearchTimeline?variables={variables}&features={features}",
+          "endpoint_id": "0k4XXwJKLJP9o13dQMPW6",
+          "description": "Returns posts timeline with search by raw query, component, and controllerdata"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "endpoint_id": "--iUvJt_KUbzjUwR0EPZf",
+          "description": "[GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata"
+        },
+        {
+          "method": "POST",
+          "url_template": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "endpoint_id": "SmIm-7j5SJtDUNPx7p2GJ",
+          "description": "[GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/R0u1RWRf748KzyGBXvOYRA/SearchTimeline?variables={variables}&features={features}",
+          "score": 343,
+          "description": "Returns posts timeline with search by raw query, component, and element",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/XN_HccZ9SU-miQVvwTAlFQ/SearchTimeline?variables={variables}&features={features}",
+          "score": 343,
+          "description": "Returns posts timeline with search by raw query, component, and controllerdata",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://x.com/search?q={q}&src={src}",
+          "score": 178.7,
+          "description": "Searches resources with ids, handles, and url",
+          "needs_params": true
+        },
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "score": 123,
+          "description": "Returns posts timeline with home, component, and controllerdata",
+          "needs_params": false
+        },
+        {
+          "method": "POST",
+          "url": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "score": 117.5,
+          "description": "Returns posts timeline with home, component, and controllerdata",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: [GraphQL: SearchTimeline] Returns posts timeline with search by raw query, component, and element (score: 343)",
+        "known_issues": [],
+        "endpoint_count": 16,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "tweets from elonmusk",
+      "url": "https://x.com/elonmusk",
+      "exit_code": 0,
+      "duration_ms": 3223,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/010.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: [GraphQL: SearchTimeline] Returns posts timeline with search by raw query, component, and element (score: 123)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 15,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://x.com/i/api/graphql/XN_HccZ9SU-miQVvwTAlFQ/SearchTimeline?variables={variables}&features={features}",
+          "endpoint_id": "0k4XXwJKLJP9o13dQMPW6",
+          "description": "Returns posts timeline with search by raw query, component, and controllerdata"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "endpoint_id": "--iUvJt_KUbzjUwR0EPZf",
+          "description": "[GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata"
+        },
+        {
+          "method": "POST",
+          "url_template": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "endpoint_id": "SmIm-7j5SJtDUNPx7p2GJ",
+          "description": "[GraphQL: HomeTimeline] Returns posts timeline with home, component, and controllerdata"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/R0u1RWRf748KzyGBXvOYRA/SearchTimeline?variables={variables}&features={features}",
+          "score": 123,
+          "description": "Returns posts timeline with search by raw query, component, and element",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/XN_HccZ9SU-miQVvwTAlFQ/SearchTimeline?variables={variables}&features={features}",
+          "score": 123,
+          "description": "Returns posts timeline with search by raw query, component, and controllerdata",
+          "needs_params": false
+        },
+        {
+          "method": "POST",
+          "url": "https://x.com/i/api/1.1/graphql/error_log.json",
+          "score": 117.5,
+          "description": "Creates post",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "score": 43,
+          "description": "Returns posts timeline with home, component, and controllerdata",
+          "needs_params": false
+        },
+        {
+          "method": "POST",
+          "url": "https://x.com/i/api/graphql/Yf4WJo0fW46TnqrHUw_1Ow/HomeTimeline",
+          "score": 37.5,
+          "description": "Returns posts timeline with home, component, and controllerdata",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: [GraphQL: SearchTimeline] Returns posts timeline with search by raw query, component, and element (score: 123)",
+        "known_issues": [],
+        "endpoint_count": 15,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "get jupiter swap quote SOL to USDC",
+      "url": "https://jup.ag/",
+      "exit_code": 0,
+      "duration_ms": 2999,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/011.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: SSR embedded data (spa-initial-state) for get token price quote (score: 67.04143656277029)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 1,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://developers.jup.ag/docs/price",
+          "endpoint_id": "NFZv072oJHSCKpH3rD0dD",
+          "description": "SSR embedded data (spa-initial-state) for get token price quote"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://developers.jup.ag/docs/price",
+          "score": 67,
+          "description": "SSR embedded data (spa-initial-state) for get token price quote",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: SSR embedded data (spa-initial-state) for get token price quote (score: 67.04143656277029)",
+        "known_issues": [],
+        "endpoint_count": 1,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "get linkedin feed posts",
+      "url": "https://www.linkedin.com/feed/",
+      "exit_code": 124,
+      "duration_ms": 45029,
+      "timed_out": true,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/012.log",
+      "parse_error": true,
+      "log_tail": "[domain-cache] loaded 16 entries from disk\n[route-cache] loaded 10 entries from disk\n[unbrowse] Still working. Searching cached routes...\n"
+    },
+    {
+      "intent": "search hotels in Tokyo",
+      "url": "https://www.priceline.com/relax/at/tokyo",
+      "exit_code": 0,
+      "duration_ms": 3263,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/013.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: SSR embedded data (spa-preloaded-state) for search hotels in Tokyo (score: 444.73693168298337)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 1,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://www.priceline.com/relax/at/tokyo",
+          "endpoint_id": "_BYmBemor4bYNcdMB4o2N",
+          "description": "SSR embedded data (spa-preloaded-state) for search hotels in Tokyo"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://www.priceline.com/relax/at/tokyo",
+          "score": 444.7,
+          "description": "SSR embedded data (spa-preloaded-state) for search hotels in Tokyo",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: SSR embedded data (spa-preloaded-state) for search hotels in Tokyo (score: 444.73693168298337)",
+        "known_issues": [],
+        "endpoint_count": 1,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "search beatsaver maps",
+      "url": "https://beatsaver.com/?q=camellia",
+      "exit_code": 0,
+      "duration_ms": 36211,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [
+        "54730",
+        "54731"
+      ],
+      "visible_chrome_present": true,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/014.log",
+      "source": "live-capture",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Captured search form artifact for search beatsaver maps (score: 190.52927469805917)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 4,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://beatsaver.com/api/search/text/0?q={q}",
+          "endpoint_id": "ZHuQKfvE4bShJW4t01u5f",
+          "description": "Searches 0 with docs, info using q"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://beatsaver.com/api/search/text/1?q={q}",
+          "endpoint_id": "YsuhzBkkij1V7M8jIUxUb",
+          "description": "Searches 1 with docs, info using q"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://beatsaver.com/api/users/name/camellia",
+          "endpoint_id": "NcUH62RN4--XSNz9dYrS6",
+          "description": "Returns user details with success and errors"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://beatsaver.com/?q={q}",
+          "score": 190.5,
+          "description": "Searches forms with link, url, and titles",
+          "needs_params": true
+        },
+        {
+          "method": "GET",
+          "url": "https://beatsaver.com/api/search/text/0?q={q}",
+          "score": 99.1,
+          "description": "Searches 0 with docs, info using q",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://beatsaver.com/api/search/text/1?q={q}",
+          "score": 99.1,
+          "description": "Searches 1 with docs, info using q",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://beatsaver.com/api/users/name/camellia",
+          "score": 87.1,
+          "description": "Returns user details with success and errors",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Captured search form artifact for search beatsaver maps (score: 190.52927469805917)",
+        "known_issues": [],
+        "endpoint_count": 4,
+        "cache_source": "live-capture"
+      }
+    },
+    {
+      "intent": "list NUS modules",
+      "url": "https://nusmods.com/modules",
+      "exit_code": 0,
+      "duration_ms": 3040,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/015.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Returns resources with modulecode, semesters, and titles (score: 331.7029701223762)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 3,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://api.nusmods.com/v2/{academic_year}/moduleList.json",
+          "endpoint_id": "C7JUhDCW0edUpv0AuLMsr",
+          "description": "Returns resources with modulecode, semesters, and titles"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://api.nusmods.com/v2/{academic_year}/semesters/{semester}/venues.json",
+          "endpoint_id": "rETpaAIZKjqmzKgD6tx38",
+          "description": "Returns resource details"
+        },
+        {
+          "method": "GET",
+          "url_template": "https://api.nusmods.com/v2/{academic_year}/semesters/{semester}/venueInformation.json",
+          "endpoint_id": "DqVc17hF1kF2fanrsIqY4",
+          "description": "Returns resource details"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://api.nusmods.com/v2/{academic_year}/moduleList.json",
+          "score": 331.7,
+          "description": "Returns resources with modulecode, semesters, and titles",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://api.nusmods.com/v2/{academic_year}/semesters/{semester}/venues.json",
+          "score": 113.4,
+          "description": "Returns resource details",
+          "needs_params": false
+        },
+        {
+          "method": "GET",
+          "url": "https://api.nusmods.com/v2/{academic_year}/semesters/{semester}/venueInformation.json",
+          "score": 105.1,
+          "description": "Returns resource details",
+          "needs_params": false
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Returns resources with modulecode, semesters, and titles (score: 331.7029701223762)",
+        "known_issues": [],
+        "endpoint_count": 3,
+        "cache_source": "marketplace"
+      }
+    },
+    {
+      "intent": "search openlibrary books",
+      "url": "https://openlibrary.org/search?q=dune",
+      "exit_code": 124,
+      "duration_ms": 45030,
+      "timed_out": true,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/016.log",
+      "parse_error": true,
+      "log_tail": "[domain-cache] loaded 17 entries from disk\n[route-cache] loaded 11 entries from disk\n[unbrowse] Still working. Searching cached routes...\n"
+    },
+    {
+      "intent": "search pubmed papers",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning",
+      "exit_code": 0,
+      "duration_ms": 3178,
+      "timed_out": false,
+      "kuri_pids_alive_after_run": [],
+      "visible_chrome_present": false,
+      "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-04-30T12-47-51Z-17c6646f/017.log",
+      "source": "marketplace",
+      "browser_avoided": null,
+      "top_reasoning": "Best match: Captured search form artifact for pubmed search machine learning (score: 157.71193168298336)",
+      "confidence": 0,
+      "endpoint_count_in_skill": 1,
+      "error": null,
+      "available_operations": [
+        {
+          "method": "GET",
+          "url_template": "https://pubmed.ncbi.nlm.nih.gov/?term={term}",
+          "endpoint_id": "POdv28Pb1ZfRuPeK_xrDu",
+          "description": "Searches forms with relevance score, titles, and heading 1"
+        }
+      ],
+      "available_endpoints": [
+        {
+          "method": "GET",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/?term={term}",
+          "score": 157.7,
+          "description": "Searches forms with relevance score, titles, and heading 1",
+          "needs_params": true
+        }
+      ],
+      "suggested_next_operation_id": null,
+      "diagnostic": {
+        "confidence": 0,
+        "top_reasoning": "Best match: Captured search form artifact for pubmed search machine learning (score: 157.71193168298336)",
+        "known_issues": [],
+        "endpoint_count": 1,
+        "cache_source": "marketplace"
+      }
+    }
+  ]
+}
