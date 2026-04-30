@@ -4188,6 +4188,42 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       } catch { /* skip */ }
     }
 
+
+    // A13 — read-intent demotes write-flavored endpoints. When the user's
+    // intent contains search/list/find/browse/get-flavored verbs but the
+    // endpoint URL or method indicates a write/mutation (cart/add/checkout/
+    // buy/order/create/update/delete/POST mutation), the endpoint is wrong
+    // for the intent regardless of how rich its captured schema is.
+    // Real-world friction: amazon "usb-c cable" search returned
+    // /cart/add-to-cart/patc-template as #1 because the cart endpoint had
+    // richer schema than the search results page.
+    if (intent) {
+      const intentLower2 = intent.toLowerCase();
+      const isReadIntent =
+        /\b(search|find|list|browse|get|fetch|read|view|show|display|trending|popular|latest|results|results)\b/i.test(intentLower2) &&
+        !/\b(create|add|buy|order|checkout|book|reserve|send|post|publish|delete|update|edit|modify|remove)\b/i.test(intentLower2);
+      if (isReadIntent) {
+        const epPathLower = (() => {
+          try { return new URL(ep.url_template).pathname.toLowerCase(); }
+          catch { return ep.url_template.toLowerCase(); }
+        })();
+        const epActionKind = (ep.semantic?.action_kind ?? "").toLowerCase();
+        // URL-path tokens that signal write/mutation — strong demotion
+        const WRITE_PATH = /\/(cart|checkout|order|orders|buy|purchase|payment|payments|book|booking|reserve|signup|register|subscribe|delete|remove|update|edit|modify|add[-_]to[-_]?cart|add[-_]to[-_]?wishlist|favorite|like|unlike|follow|unfollow|vote|report|flag|abuse)\b/i;
+        if (WRITE_PATH.test(epPathLower)) {
+          score -= 400;
+        }
+        // action_kind from semantic: create/update/delete/send → demote
+        if (/^(create|update|delete|send|post|publish|reply|mutate)/i.test(epActionKind)) {
+          score -= 250;
+        }
+        // POST without graphql / RPC hint on a read intent — penalize
+        if (ep.method === "POST" && !/(graphql|rpc|search|query|fetch|list|get)/i.test(epPathLower)) {
+          score -= 100;
+        }
+      }
+    }
+
     return { endpoint: ep, score };
   });
 
