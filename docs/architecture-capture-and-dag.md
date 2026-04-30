@@ -175,22 +175,52 @@ When BM25 ties, disambiguation is delegated to an LLM judge via
 
 The architecture is sound; specific paths still need work. Tracked in
 `docs/agent-experience-issues.md` and live-corpus rows in
-`harness/recursive/corpus.txt`:
+`harness/recursive/corpus.txt`. Status as of 2026-04-30:
 
-- **A1** wrong-template match — `bindingFamilyKey` collisions across
-  captures from different params let the wrong endpoint win.
-- **A4** GraphQL POST endpoints with massive bodies filtered before the
-  structural decomposer sees them.
-- **B4** SSR payload silent truncation past `MAX_HTML_SIZE` on heavy
-  Next/Apollo/Nuxt pages.
-- **C2** `-p key=val` was silently dropped by the CLI — *fixed* (see
-  `tests/cli-parse-p-flag.test.ts`).
-- **E1** stale skills don't auto-deprecate; dag-feedback notes failures
-  but doesn't prune.
-- **G1** phantom-endpoint hallucination — DOM-artifact path can fabricate
-  a "search" op from a homepage when no real surface exists. Patch hint
-  anchored in `harness/recursive/judge.md`.
+**Closed (with regression tests):**
 
+- **A1** wrong-template literal-leak — `rankEndpoints` penalises -200 per
+  non-templated URL segment that doesn't appear in intent or contextUrl.
+  Caught r/programming returning for r/singularity intent.
+- **A4** GraphQL POST detection by request-body shape (operationName,
+  doc_id, fb_api_req_friendly_name, variables+extensions) regardless of
+  URL. Catches Facebook persisted queries, LinkedIn voyager, Apollo.
+- **B4** SSR payload silent truncation past `MAX_HTML_SIZE`. JSON-LD and
+  `__NEXT_DATA__` extracted before truncation now; multiple ld+json blocks
+  all surfaced; `__NEXT_DATA__` uses indexOf forward walk.
+- **C2** `-p key=val` silently dropped — fixed in CLI parser.
+- **C5** captured-error-response (new class) — endpoints whose captured
+  example is the API's error envelope (`{status:fail, errors:[…CRITICAL]}`)
+  with only error-shaped schema keys get rejected at admission.
+- **C7** runnable-false-on-directly-callable-URL (new class) — operations
+  with no required bindings AND a fully-resolved URL now report
+  `runnable: true` even when not in `chunk.available_operation_ids`.
+- **E1** stale endpoints don't auto-deprecate — `recordDagSessionAction`
+  now decays `reliability_score` per failure so the existing
+  `MIN_PUBLISH_RELIABILITY=0.2` gate filters organically.
+- **F2** browser-capture `no_endpoints` returns actionable `next_step`
+  (`open_browse_session` vs `abandon_or_authenticate`) with concrete
+  suggested commands instead of a one-word error.
+- **G1** phantom-endpoint hallucination (new class) — DOM-extracted
+  homepage replays with no params and no array-of-items shape get
+  rejected at the admission gate.
+
+**Still open:**
+
+- **A2** stale cached skill returned without freshness check (separate
+  from E1's reliability decay; this is about the skill cache itself).
+- **A3** SSR-only sites with no real API — partially mitigated by B4
+  capture, but the agent UX of "this page renders but has no callable
+  API" still needs sharper signalling.
+- **B1** Kuri HAR misses async fetch/XHR on some SPAs.
+- **C3** `--extract` returns `[]` when raw body has data (path mismatch).
+- **C4** execute error doesn't tell agent what to do (overlaps F2 but
+  for HTTP errors, not browser-capture errors).
+- **D1-D3** browse-session handoff: vague next_step, passive capture
+  not aggressive enough during handoff, cold Kuri start times out.
+- **H1** LinkedIn execute returns empty data despite resolve success.
+- **H2-H7** various per-domain blind spots flagged in the 447-session
+  analysis.
 ## 7. Where to read the code
 
 | Concern | Path |

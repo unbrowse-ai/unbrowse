@@ -1042,16 +1042,81 @@ function buildOperationNode(endpoint: EndpointDescriptor): SkillOperationNode {
 
 function operationScore(op: SkillOperationNode, intent?: string): number {
   if (!intent) return 0;
+  const intentLower = intent.toLowerCase();
   const intentTokens = tokenize(intent);
-  const opTokens = tokenize([
+  // Include url_template + trigger_url + method so path keywords (e.g. /search,
+  // GraphQL op names, REST resource segments) factor into the shortlist score.
+  // Without this the shortlist sees only description_out/response_summary which
+  // are often empty or generic on cached skills, so noise endpoints (Viewer,
+  // GetUserClaims) outrank task-specific ones (SearchTimeline, UserByScreenName).
+  const opText = [
+    op.method,
+    op.url_template,
+    op.trigger_url ?? "",
     op.action_kind,
     op.resource_kind,
+    op.description_in ?? "",
     op.description_out ?? "",
     op.response_summary ?? "",
     ...(op.example_fields ?? []),
-  ].join(" "));
+  ].join(" ");
+  const opTokens = tokenize(opText);
+  const opTextLower = opText.toLowerCase();
   let score = 0;
   for (const token of intentTokens) if (opTokens.includes(singularize(token))) score += 2;
+
+  // === Mirrored heuristics from rankEndpoints (execution/index.ts) ===
+  // The shortlist must agree with what selectBestEndpoint will pick at execute
+  // time, otherwise the agent sees endpoint A as #1 but execute runs endpoint B.
+  const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(op.url_template);
+  const urlPath = (() => { try { return new URL(op.url_template).pathname.toLowerCase(); } catch { return op.url_template.toLowerCase(); } })();
+
+  // Search/list/feed + posts/tweets intent → reward search/timeline/feed-style ops
+  if (/\b(search|list|find|feed|timeline|stream|home|latest|trending|discover|browse)\b/i.test(intentLower) &&
+      /\b(post|posts|tweet|tweets|status|statuses|update|updates|article|articles)\b/i.test(intentLower)) {
+    if (looksLikeApiEndpoint && /(search|timeline|feed|stream|result|results|entries|posts|tweets|statuses|updates)/i.test(opTextLower)) {
+      score += 18;
+    }
+    if (/(sidebar|recommend|recommendations|usersbyrestids|userclaims|viewer|spotlight|pinned)/i.test(opTextLower)) {
+      score -= 14;
+    }
+  }
+
+  // "tweets from <handle>" / "posts by <user>" / "<user> profile" → user-timeline pattern.
+  // Detect entity-detail intents that imply a per-user feed.
+  if (/\b(tweets|posts|statuses|updates)\s+(from|by|of)\b/i.test(intentLower) ||
+      /\b(profile|user|member)\b/i.test(intentLower)) {
+    if (/(userbyscreenname|userbyresttid|usertweets|userprofile|memberprofile|public_identifier|screen_name|screenname|username)/i.test(opTextLower)) {
+      score += 16;
+    }
+    // Home/main feeds are wrong for per-user intent
+    if (/(hometimeline|mainfeed|main_feed|globalnav|launchpad)/i.test(opTextLower)) {
+      score -= 10;
+    }
+  }
+
+  // Auth/identity ops (Viewer, GetUserClaims, csrf, session) — almost never the user-facing answer
+  if (/(getuserclaims|^viewer$|\bviewer\b|csrf|sessiontoken|usercredential)/i.test(opTextLower) &&
+      !/\b(auth|login|session|token|csrf|whoami|me)\b/i.test(intentLower)) {
+    score -= 12;
+  }
+
+  // Path-segment keyword bonus — if the URL path contains an intent token, it's a strong signal
+  if (urlPath) {
+    for (const token of intentTokens) {
+      const t = singularize(token);
+      if (t.length >= 3 && urlPath.includes(t)) {
+        score += 4;
+        break;
+      }
+    }
+  }
+
+  // Reward dom_extraction for list intents on pages without API capture
+  if (/\b(list|search|find|browse|trending|latest)\b/i.test(intentLower) && /\bsearch\b|\btrending\b|\bdiscover\b/i.test(urlPath)) {
+    score += 4;
+  }
+
   score -= operationSoftPenalty(op, intent);
   return score;
 }
@@ -1493,7 +1558,17 @@ export function toAgentWorkflowDagView(
     description_out: operation.description_out,
     requires: summarizeBindingKeys(operation.requires),
     yields: summarizeBindingKeys(operation.provides),
-    runnable: runnableOperationIds.has(operation.operation_id),
+    // C7 fix — when an operation has no required bindings AND its
+    // url_template has no unresolved {param} slots, the URL itself IS the
+    // operation. Mark it runnable even if isOperationHardExcluded
+    // (computed against the FULL graph) excluded it from the chunk's
+    // available_operation_ids. Real-world friction: walmart.com homepage
+    // SSR payload was reaching the agent as runnable:false despite being
+    // directly executable (verified by `unbrowse execute --raw`).
+    runnable:
+      runnableOperationIds.has(operation.operation_id) ||
+      (isRunnable(operation, knownBindings) &&
+        !/\{[^}]+\}/.test(operation.url_template ?? "")),
     prefetch_get_operations: getOperationPrefetchTargets(graph, operation.operation_id, knownBindings)
       .filter((target) => chunk.operations.some((candidate) => candidate.operation_id === target.operation.operation_id))
       .map(toAgentPrefetchOperation),

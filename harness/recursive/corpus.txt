@@ -24,3 +24,4 @@ get products from saucedemo inventory | https://www.saucedemo.com/inventory.html
 fetch facebook public page | https://www.facebook.com/MetaAI | execute_data  # mined: hits=80 auth,no_endpoint
 search imdb for a movie | https://www.imdb.com/find/?q=oppenheimer | execute_data  # mined: hits=72 no_endpoint,slow
 get opensea graphql collection data | https://gql.opensea.io | execute_data  # mined: hits=58 no_endpoint
+fetch data from walmart.com | https://walmart.com | execute_data  # mined: hits=104 auth,no_endpoint,slow
