@@ -11,7 +11,7 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
+import { buildCanonicalDocumentEndpoint, decomposeGraphqlEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
 import {
   getSkillChunk,
   getEndpointDescriptionMetadata,
@@ -1168,10 +1168,15 @@ async function withDomainCaptureLock<T>(domain: string, fn: () => Promise<T>): P
   }
 }
 
+export interface ResolveResultWithDiagnostic {
+  available_operations?: Array<{ operation: string; url?: string; method?: string; requires_auth?: boolean; description?: string }>;
+  diagnostic?: import("../types/skill.js").ResolveResultDiagnostic;
+}
+
 export interface OrchestratorResult {
-  result: unknown;
+  result: ResolveResultWithDiagnostic | unknown;
   trace: ExecutionTrace;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass" | "route-cache" | "browser-action" | "defer";
   skill: SkillManifest;
   timing: OrchestrationTiming;
 }
@@ -2250,7 +2255,7 @@ export async function resolveAndExecute(
       known_bindings: knownBindings,
       include_full_relevant_graph: true,
     });
-    let epRanked = rankEndpoints(endpointScopedSkill.endpoints, queryIntent, endpointScopedSkill.domain, context?.url);
+    let epRanked = rankEndpoints(endpointScopedSkill.endpoints, queryIntent, endpointScopedSkill.domain, context?.url, params);
     // Graph-aware reachability filter
     const deferGraph = ensureSkillOperationGraph(endpointScopedSkill);
     const reachableIds = computeReachableEndpoints(deferGraph, knownBindings);
@@ -2263,6 +2268,69 @@ export async function resolveAndExecute(
       epRanked = epRanked.filter((ranked) => reachableEndpointIds.has(ranked.endpoint.endpoint_id));
     }
     const workflowDag = toAgentWorkflowDagView(chunk, deferGraph, knownBindings);
+    // Re-order workflowDag.operations to match rankEndpoints — otherwise the
+    // agent reads `available_operations` (workflowDag) and sees one ranking
+    // while executeSkill internally uses rankEndpoints and runs a different
+    // top-1. Symptom on x.com: shortlist always returned [HomeTimeline,
+    // HomeTimeline, SearchTimeline] regardless of intent, because the chunk
+    // builder used a much weaker scorer. Synchronize them here.
+    const epRankedScoreByEndpointId = new Map(
+      epRanked.map((r) => [r.endpoint.endpoint_id, r.score] as const),
+    );
+    const sortedOperations = [...workflowDag.operations].sort((a, b) => {
+      const sa = epRankedScoreByEndpointId.get(a.endpoint_id) ?? -Infinity;
+      const sb = epRankedScoreByEndpointId.get(b.endpoint_id) ?? -Infinity;
+      return sb - sa;
+    });
+    workflowDag.operations = sortedOperations;
+    if (workflowDag.suggested_next_operation_id !== undefined && sortedOperations.length > 0) {
+      workflowDag.suggested_next_operation_id = sortedOperations[0].operation_id;
+    }
+
+    // A8-display fix — rewrite each operation's url_template to reflect what
+    // execute will actually fetch when the caller's contextUrl differs from
+    // the captured URL by exactly one entity-shaped path segment. Without
+    // this, the agent looks at the resolve response and sees the captured
+    // URL (e.g., github.com/trending) instead of their own (github.com/torvalds)
+    // and may give up before trying to execute. The execute-time A8 logic in
+    // src/execution/index.ts:executeEndpoint will rewrite again with the same
+    // rules, so this is purely a UX-truth display fix — no behavioral change
+    // beyond what would happen anyway.
+    const __ctxUrl = context?.url;
+    if (__ctxUrl) {
+      const A8_SHARED = new Set([
+        "api", "v1", "v2", "v3", "graphql", "rest", "rpc", "data", "json",
+        "wiki", "user", "users", "post", "posts", "item", "items", "page",
+        "pages", "search", "find", "list", "feed", "home", "hot", "top",
+        "new", "best", "details", "detail", "info", "profile", "profiles",
+        "collection", "collections", "product", "products", "p", "i", "s",
+      ]);
+      for (const op of workflowDag.operations) {
+        const tmpl = op.url_template ?? "";
+        if (!tmpl || /\{[^}]+\}/.test(tmpl)) continue; // skip parameterised
+        try {
+          const cap = new URL(tmpl);
+          const ctx = new URL(__ctxUrl);
+          if (cap.hostname !== ctx.hostname) continue;
+          const cs = cap.pathname.split("/").filter(Boolean);
+          const xs = ctx.pathname.split("/").filter(Boolean);
+          if (cs.length !== xs.length || cs.length === 0) continue;
+          let diffCount = 0, diffIdx = -1;
+          for (let i = 0; i < cs.length; i++) {
+            if (cs[i].toLowerCase() === xs[i].toLowerCase()) continue;
+            diffCount += 1;
+            diffIdx = i;
+          }
+          if (diffCount !== 1) continue;
+          const cseg = cs[diffIdx].toLowerCase();
+          const xseg = xs[diffIdx].toLowerCase();
+          if (A8_SHARED.has(cseg) || A8_SHARED.has(xseg)) continue;
+          if (cseg.length < 3 || xseg.length < 3) continue;
+          if (/^\d+$/.test(cseg) || /^\d+$/.test(xseg)) continue;
+          op.url_template = `${cap.protocol}//${cap.hostname}${cap.port ? `:${cap.port}` : ""}${ctx.pathname}${cap.search}${cap.hash}`;
+        } catch { /* skip */ }
+      }
+    }
     const dagOperationByEndpointId = new Map(
       workflowDag.operations.map((operation) => [operation.endpoint_id, operation] as const),
     );
@@ -2301,6 +2369,42 @@ export async function resolveAndExecute(
       didStepUnlockNextStep: false,
       requiredRecovery: false,
     });
+    // === H6: Resolve loop short-circuit ===
+    // When epRanked is empty for a same-host resolve, return a hard handoff stub
+    // so agents don't keep re-resolving the same host expecting different results.
+    const isSameHostResolve = !!context?.url && !!endpointScopedSkill.domain;
+    const hostMatches = isSameHostResolve && new URL(context.url).hostname === endpointScopedSkill.domain;
+    if (epRanked.length === 0 && hostMatches) {
+      return {
+        result: {
+          status: "resolve_hard_handoff",
+          message: `No cached API available for this intent on ${endpointScopedSkill.domain}.`
+            + ` Browser session required — drive interactively (snap/click/fill) or try a different task.`,
+          domain: endpointScopedSkill.domain,
+          suggested_next_action: "unbrowse snap --filter interactive",
+          commands: [
+            "unbrowse snap --filter interactive",
+            "unbrowse click <ref>",
+            "unbrowse fill <ref> <value>",
+            "unbrowse press Enter",
+            "unbrowse text",
+            "unbrowse close",
+          ],
+          diagnostic: {
+            confidence: 0,
+            top_reasoning: `No endpoints on ${endpointScopedSkill.domain} matched intent "${queryIntent}"`,
+            known_issues: [`All ${endpointScopedSkill.endpoints.length} cached endpoints failed intent relevance check`],
+            endpoint_count: 0,
+            cache_source: source,
+          },
+        },
+        trace: deferTrace,
+        source: "deferral" as any,
+        skill: undefined as any,
+        timing: finalize("deferral" as any, null, "deferral", undefined as any, deferTrace),
+      };
+    }
+
     return {
       result: {
         message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${endpointScopedSkill.skill_id}/execute with params.endpoint_id.`,
@@ -2325,12 +2429,27 @@ export async function resolveAndExecute(
             schema_summary: r.endpoint.response_schema
               ? summarizeSchema(r.endpoint.response_schema)
               : null,
-            input_params: r.endpoint.semantic?.requires?.map((b) => ({
-              key: b.key,
-              type: b.type ?? b.semantic_type,
-              required: b.required ?? false,
-              example: b.example_value,
-            })) ?? [],
+            input_params: (() => {
+              const _gql = decomposeGraphqlEndpoint(r.endpoint);
+              if (_gql.isGraphql && _gql.agentParams.length > 0) {
+                // Surface flat agent-friendly params instead of the opaque {variables, features} slots.
+                // Agents pass `q` / `rawQuery` / etc; the executor reconstructs the GraphQL JSON.
+                return _gql.agentParams.map((ap) => ({
+                  key: ap.aliases.length > 0 ? ap.aliases[0] : ap.key,
+                  type: ap.semantic_type,
+                  required: ap.required,
+                  example: ap.example,
+                  graphql_variables_path: ap.variables_path,
+                  ...(ap.aliases.length > 0 ? { aliases: [ap.key, ...ap.aliases.slice(1)] } : {}),
+                }));
+              }
+              return r.endpoint.semantic?.requires?.map((b) => ({
+                key: b.key,
+                type: b.type ?? b.semantic_type,
+                required: b.required ?? false,
+                example: b.example_value,
+              })) ?? [];
+            })(),
             description_in: r.endpoint.semantic?.description_in,
             example_fields: r.endpoint.semantic?.example_fields?.slice(0, 12),
             sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
@@ -2338,15 +2457,43 @@ export async function resolveAndExecute(
             trigger_url: r.endpoint.trigger_url,
             needs_params: r.endpoint.semantic?.requires?.some((b) => b.required) ?? false,
             prefetch_get_operations: dagOperationByEndpointId.get(r.endpoint.endpoint_id)?.prefetch_get_operations ?? [],
+            // Confidence: 0.0-1.0 derived from score for F2 (confidence scoring)
+            confidence: Math.min(1, Math.max(0, Math.round(r.score / 1000) * 10) / 10),
           };
         }),
         ...extraFields,
+        // Harness #2: Diagnostic context for agents
+        diagnostic: {
+          confidence: epRanked.length > 0
+            ? Math.min(1, Math.max(0, Math.round(epRanked[0].score / 10000) / 10))
+            : 0,
+          top_reasoning: epRanked.length > 0
+            ? `Best match: ${epRanked[0].endpoint.description ?? epRanked[0].endpoint.url_template} (score: ${epRanked[0].score})`
+            : "No endpoints matched this intent",
+          known_issues: epRanked.length === 0 ? [`${source}: no endpoints found for intent "${queryIntent}"`] : [],
+          endpoint_count: epRanked.length,
+          cache_source: source,
+        },
       },
       trace: deferTrace,
       source,
       skill: endpointScopedSkill,
       timing: finalize(source, null, endpointScopedSkill.skill_id, endpointScopedSkill, deferTrace),
     };
+  }
+
+  /** Generate fallback interaction suggestions for diagnostic context. */
+  function getFallbackInteractions(pageUrl?: string): string[] {
+    if (!pageUrl) return ["Try specifying a domain in context, or check if the service has an active skill in the marketplace."];
+    try {
+      const hostname = new URL(pageUrl).hostname;
+      return [
+        `Try navigating to https://${hostname} first to discover the API: unbrowse go https://${hostname}`,
+        "Then run snap --filter interactive to discover endpoints on the live page.",
+      ];
+    } catch {
+      return ["Rephrase the intent with more specific domain or URL context."];
+    }
   }
 
   function buildNoCachedMatch(reason = "No cached endpoint matched this intent yet."): OrchestratorResult {
@@ -2374,6 +2521,17 @@ export async function resolveAndExecute(
         intent: queryIntent,
         domain: requestedDomain ?? null,
         url: context?.url ?? null,
+        // Harness #2 + A6: Diagnostic context + actionable error
+        diagnostic: {
+          confidence: 0,
+          top_reasoning: reason,
+          known_issues: ["no_cached_match", "intent not covered by any skill in marketplace"],
+          endpoint_count: 0,
+          cache_source: "no_cache",
+        },
+        suggested_next_action: requestedDomain
+          ? `Try capturing this domain first: unbrowse go https://${requestedDomain} then snap/click/fill to discover the API.`
+          : "Capture the target URL with `unbrowse go <url>` to discover available APIs.",
       },
       trace: missTrace,
       source: "marketplace",
@@ -2621,7 +2779,7 @@ export async function resolveAndExecute(
     skill: SkillManifest,
     source: "marketplace" | "live-capture",
   ): Promise<OrchestratorResult | null> {
-    let epRanked = rankEndpoints(skill.endpoints, queryIntent, skill.domain, context?.url);
+    let epRanked = rankEndpoints(skill.endpoints, queryIntent, skill.domain, context?.url, resolvedParams);
     const originalRanked = epRanked;
     const chunk = getSkillChunk(skill, {
       intent: queryIntent,
@@ -3344,8 +3502,18 @@ export async function resolveAndExecute(
       // data we have and shouldn't lose to stale marketplace results. The enrichment
       // pipeline hasn't run yet so response_schema/descriptions may be missing.
       const isFreshLocalCapture = skill && (Date.now() - domainCached.ts < 1_800_000); // 30min — trust recent local captures
-      const isStrictRelevant = skill && isCachedSkillRelevantForIntent(skill, queryIntent, context?.url);
-      if (skill && (isFreshLocalCapture || isStrictRelevant)) {
+
+      // === Staleness check (A2+E1 fix) ===
+      // Skip low-scoring skills that are older than 3 days — they likely need re-capture.
+      const skillAgeHours = (Date.now() - domainCached.ts) / (1000 * 60 * 60);
+      const skillScore = (skill as { score?: number } | undefined)?.score;
+      const isStaleLowScore = skillAgeHours > 72 && (skillScore === undefined || skillScore < 40);
+      if (isStaleLowScore) {
+        console.log(
+          `[domain-cache] skipping stale low-score skill ${skill?.skill_id.slice(0, 15)} (score=${skillScore}, age=${Math.round(skillAgeHours)}h)`,
+        );
+        domainSkillCache.delete(domainKey);
+      } else if (skill && (isFreshLocalCapture || isCachedSkillRelevantForIntent(skill, queryIntent, context?.url))) {
         console.log(`[domain-cache] hit for ${domainKey} → skill ${skill.skill_id.slice(0, 15)} (fresh=${isFreshLocalCapture})`);
         const result = await buildDeferralWithAutoExec(skill, "marketplace");
         // Fresh local captures: don't fall back to live capture on auto-exec failure.
@@ -3359,7 +3527,7 @@ export async function resolveAndExecute(
           return result.orchestratorResult;
         }
       } else if (skill) {
-        const ranked = rankEndpoints(skill.endpoints, queryIntent, skill.domain, context?.url);
+        const ranked = rankEndpoints(skill.endpoints, queryIntent, skill.domain, context?.url, params);
         const top = ranked[0];
         console.log(
           `[domain-cache] skip strict check for ${domainKey}, attempting fallback: no strictly relevant endpoint for "${queryIntent}"` +
@@ -4136,6 +4304,7 @@ export async function resolveAndExecute(
       queryIntent,
       resolvedSkill.domain,
       context?.url,
+      params,
     );
     const rejectedTrace: ExecutionTrace = {
       ...trace,
