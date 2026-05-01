@@ -2329,8 +2329,34 @@ export async function executeEndpoint(
   // JSON slots, reconstruct them from the agent's flat params + the captured
   // example shape. This lets agents pass `q="..."` (or rawQuery) and we fill
   // in querySource/count/product defaults plus features feature-flags blob.
-  const __gqlDecomp = decomposeGraphqlEndpoint(endpoint);
+  let __gqlDecomp = decomposeGraphqlEndpoint(endpoint);
   if (__gqlDecomp.isGraphql) {
+    // D8: if THIS endpoint's example_request.variables is empty/missing but
+    // the skill has a sibling endpoint with the same GraphQL operationName
+    // that DOES have a populated variables template, borrow it. Otherwise
+    // x.com (and similar) returns 422 GRAPHQL_VALIDATION_FAILED for missing
+    // required variables (e.g. `includePromotedContent must be defined`).
+    // Caught via harness/recursive/ on x.com home timeline — there were
+    // duplicate HomeTimeline endpoints, one fully populated, one empty.
+    if (
+      __gqlDecomp.operationName &&
+      (!__gqlDecomp.variablesTemplate || Object.keys(__gqlDecomp.variablesTemplate).length === 0)
+    ) {
+      const siblings = (skill.endpoints ?? []).filter((e) => e.endpoint_id !== endpoint.endpoint_id);
+      for (const sib of siblings) {
+        const sibDecomp = decomposeGraphqlEndpoint(sib);
+        if (
+          sibDecomp.isGraphql &&
+          sibDecomp.operationName === __gqlDecomp.operationName &&
+          sibDecomp.variablesTemplate &&
+          Object.keys(sibDecomp.variablesTemplate).length > 0
+        ) {
+          log("exec", `D8 graphql-template-borrow: ${endpoint.endpoint_id} → ${sib.endpoint_id} for ${__gqlDecomp.operationName}`);
+          __gqlDecomp = sibDecomp;
+          break;
+        }
+      }
+    }
     const __gqlEnc = buildGraphqlRequestParams(__gqlDecomp, mergedParams as Record<string, unknown>);
     if (mergedParams.variables == null || mergedParams.variables === "{variables}") {
       mergedParams.variables = encodeURIComponent(__gqlEnc.variables);
