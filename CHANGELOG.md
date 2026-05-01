@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.2.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.1...v6.2.2) (2026-05-01)
+
+### Bug Fixes
+
+* article extractor reads full html + wins on article intent unconditionally ([df4c658](https://github.com/unbrowse-ai/unbrowse-dev/commit/df4c65824d96ca8b2f5e495bed466041def64cc6))
+
 ## [6.2.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.0...v6.2.1) (2026-05-01)
 
 ### Bug Fixes
