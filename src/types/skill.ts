@@ -559,6 +559,8 @@ export interface ExecutionOptions {
   payment_verified?: boolean;
   /** Skip robots.txt compliance check (e.g. for testing or trusted internal domains) */
   skip_robots_check?: boolean;
+  /** Phase 8.1 — wall-clock budget in ms for the parallel resolve race. Default 8000. */
+  budget_ms?: number;
 }
 
 export interface ValidationResult {

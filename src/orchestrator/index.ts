@@ -58,6 +58,7 @@ import {
   hashRoutingState,
   sanitizeRoutingEventBatch,
 } from "../routing-telemetry.js";
+import { runResolveRace } from "./resolve-race.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
@@ -3403,6 +3404,147 @@ export async function resolveAndExecute(
     return null; // All candidates failed, fall through to deferral
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Phase 8.1 — Per-call latency budget + parallel race.
+  //
+  // Fires recipe || marketplace || probe in parallel under a wall-clock budget.
+  //  - recipe winner   → return successful execute result
+  //  - marketplace win → return deferral with the cached skill
+  //  - probe-only win  → no skill yet, return no_match with probe evidence
+  //  - deadline (none) → return no_match with `next_step: unbrowse capture ...`
+  //
+  // Skipped when:
+  //  - no contextUrl (no URL to probe / find a domain skill from)
+  //  - force_capture (caller explicitly wants browser capture)
+  //  - agentChoseEndpoint (caller already picked an endpoint_id)
+  //
+  // When skipped, the existing serial flow runs unchanged. When active, the
+  // race is the resolve path — no live-capture/browser fallback fires from this
+  // function. (Plan 08-02 extracts the browser-capture verb entirely.)
+  // ---------------------------------------------------------------------------
+  const budgetMs = Math.max(50, Math.floor(options?.budget_ms ?? 8000));
+  if (context?.url && !forceCapture && !agentChoseEndpoint) {
+    const raceContextUrl = context.url;
+    const localSnapshot = (() => {
+      try {
+        const dom = new URL(raceContextUrl).hostname;
+        return findBestLocalDomainSnapshot(dom, queryIntent, raceContextUrl) ?? null;
+      } catch { return null; }
+    })();
+    const knownSkillId = localSnapshot?.skill_id
+      ?? domainSkillCache.get(getDomainReuseKey(raceContextUrl) ?? "")?.skillId
+      ?? null;
+
+    const raceOutcome = await runResolveRace({
+      contextUrl: raceContextUrl,
+      intent: queryIntent,
+      params,
+      budgetMs,
+      findLocalSkill: () => localSnapshot,
+      knownSkillId,
+      clientScope,
+    });
+    decisionTrace.budget_race = {
+      budget_ms: budgetMs,
+      total_ms: raceOutcome.ms,
+      tried: raceOutcome.tried.map((t) => ({
+        name: t.name,
+        status: t.status,
+        ms: t.ms,
+        ...(t.reason ? { reason: t.reason } : {}),
+      })),
+      winner: raceOutcome.winner ? raceOutcome.winner.kind : null,
+    };
+
+    if (raceOutcome.winner) {
+      const w = raceOutcome.winner;
+      if (w.kind === "recipe") {
+        const recipeTrace: ExecutionTrace = {
+          trace_id: w.trace_id,
+          skill_id: w.skill.skill_id,
+          endpoint_id: w.endpoint.endpoint_id,
+          started_at: new Date(t0).toISOString(),
+          completed_at: new Date().toISOString(),
+          success: w.status >= 200 && w.status < 400,
+          status_code: w.status,
+        };
+        return {
+          result: {
+            status: "ok",
+            source: "recipe-replay",
+            data: w.data,
+            decision_trace: decisionTrace,
+            ms: w.ms,
+          },
+          trace: recipeTrace,
+          source: "marketplace",
+          skill: w.skill,
+          timing: finalize("marketplace", w.data, w.skill.skill_id, w.skill, recipeTrace),
+        };
+      }
+      if (w.kind === "marketplace") {
+        return buildDeferral(w.skill, "marketplace", { decision_trace: decisionTrace });
+      }
+      // probe-only winner: structurally fetchable but no skill known. Same UX
+      // as no_match — surface probe evidence + next_step capture.
+      const probeTrace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: "",
+        endpoint_id: "",
+        started_at: new Date(t0).toISOString(),
+        completed_at: new Date().toISOString(),
+        success: false,
+      };
+      const probeResult = {
+        status: "no_match" as const,
+        tried: raceOutcome.tried.map((t) => t.name),
+        ms: raceOutcome.ms,
+        probe_evidence: { status: w.status, content_type: w.content_type, byte_length: w.byte_length },
+        next_step: {
+          command: `unbrowse capture --url ${JSON.stringify(raceContextUrl)} --intent ${JSON.stringify(intent)}`,
+          est_ms: 8000,
+          creates_skill: true,
+        },
+        decision_trace: decisionTrace,
+      };
+      return {
+        result: probeResult,
+        trace: probeTrace,
+        source: "live-capture" as any,
+        skill: undefined as any,
+        timing: finalize("live-capture", probeResult, undefined, undefined, probeTrace),
+      };
+    }
+
+    // No winner within budget → no_match with capture next_step. Never opens Kuri.
+    const noMatchTrace: ExecutionTrace = {
+      trace_id: nanoid(),
+      skill_id: "",
+      endpoint_id: "",
+      started_at: new Date(t0).toISOString(),
+      completed_at: new Date().toISOString(),
+      success: false,
+    };
+    const noMatchResult = {
+      status: "no_match" as const,
+      tried: raceOutcome.tried.map((t) => t.name),
+      ms: raceOutcome.ms,
+      next_step: {
+        command: `unbrowse capture --url ${JSON.stringify(raceContextUrl)} --intent ${JSON.stringify(intent)}`,
+        est_ms: 8000,
+        creates_skill: true,
+      },
+      decision_trace: decisionTrace,
+    };
+    return {
+      result: noMatchResult,
+      trace: noMatchTrace,
+      source: "live-capture" as any,
+      skill: undefined as any,
+      timing: finalize("live-capture", noMatchResult, undefined, undefined, noMatchTrace),
+    };
+  }
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
   const requestedDomainCacheKey = getDomainReuseKey(context?.url ?? requestedDomain);
   const resolveCacheKey = buildResolveCacheKey(requestedDomain, intent, context?.url);
