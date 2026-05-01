@@ -2913,7 +2913,12 @@ export async function executeEndpoint(
     // Mirror the cause into `result` so callers don't see {} with no signal.
     // (Normally, !success leaves data alone — but on status===0 / network errors,
     // data is undefined which slimTrace renders as {}.)
-    if (data == null) {
+    // Treat null, undefined, and `{}` (empty plain object) as "no signal" —
+    // mirror the cause so the agent reads it from result, not just trace.
+    const isEmptyData = data == null || (
+      typeof data === "object" && !Array.isArray(data) && Object.keys(data as object).length === 0
+    );
+    if (isEmptyData) {
       data = {
         error: status === 0 ? "network_failure" : `http_${status}`,
         message: trace.error,

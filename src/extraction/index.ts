@@ -976,6 +976,82 @@ function extractDefinitionSpecial(html: string, intent: string): ExtractedStruct
   }];
 }
 
+/**
+ * Extract article body content for read-style intents (wikipedia article, blog post,
+ * reference page). Targets `<main>`, `<article>`, or `#mw-content-text` and returns
+ * a structured doc with title + summary + sections rather than the link-list noise
+ * that the generic DOM walker would surface.
+ *
+ * Caught via harness/recursive against en.wikipedia.org/wiki/Quantum_computing —
+ * the generic extractor was returning github.com reference links instead of the
+ * article body.
+ */
+function extractArticleBodySpecial(html: string, intent: string): ExtractedStructure[] {
+  const intentLower = intent.toLowerCase();
+  const articleIntent = /(wikipedia|article|wiki page|page on|read|content of|body of|summary of|about )/i.test(intentLower);
+  // Also fire when the page is wikipedia-shaped even if intent doesn't say so —
+  // mw-content-text and mw-parser-output are unmistakable.
+  const looksWikipedia = /id="mw-content-text"|class="mw-parser-output"/i.test(html);
+  if (!articleIntent && !looksWikipedia) return [];
+  const $ = cheerio.load(html);
+  // Wikipedia: #mw-content-text > .mw-parser-output. Generic: <article> or <main>.
+  // Skip <main> on wikipedia because it's an outer shell that includes nav.
+  const root = looksWikipedia
+    ? $(".mw-parser-output").first()
+    : $("article, [role='article']").first().length > 0
+      ? $("article, [role='article']").first()
+      : $("main").first();
+  if (!root.length) return [];
+  const title = cleanText($("h1").first().text());
+  if (!title) return [];
+
+  // Strip noise: edit links, references-list, navboxes, infobox tables, citations.
+  root.find(".mw-editsection, .reference, .references, .navbox, .infobox, .reflist, .hatnote, .ambox, .toc, sup.reference, style, script, .sidebar").remove();
+
+  // Summary: first <p> with substantive text.
+  let summary = "";
+  root.find("> p, .mw-parser-output > p, p").each((_, el) => {
+    if (summary.length >= 80) return false;
+    const t = cleanText($(el).text());
+    if (t.length >= 80) summary = t;
+    return undefined;
+  });
+
+  // Sections: collect h2/h3 + following paragraphs into an array.
+  const sections: Array<{ heading: string; text: string }> = [];
+  let current: { heading: string; parts: string[] } | null = null;
+  root.find("h2, h3, p, li").each((_, el) => {
+    const tag = (el as { tagName?: string }).tagName?.toLowerCase?.() ?? (el as { name?: string }).name ?? "";
+    const txt = cleanText($(el).text());
+    if (!txt) return;
+    if (tag === "h2" || tag === "h3") {
+      if (current && current.parts.length) sections.push({ heading: current.heading, text: current.parts.join("\n").slice(0, 1500) });
+      // Skip stub headings like "References", "External links", "See also".
+      if (/^(references?|external links?|see also|notes?|further reading|bibliography|sources?)$/i.test(txt)) {
+        current = null;
+      } else {
+        current = { heading: txt, parts: [] };
+      }
+    } else if (current && (tag === "p" || tag === "li") && txt.length > 20) {
+      if (current.parts.join("\n").length < 1500) current.parts.push(txt);
+    }
+  });
+  if (current && current.parts.length) sections.push({ heading: current.heading, text: current.parts.join("\n").slice(0, 1500) });
+
+  if (!summary && sections.length === 0) return [];
+
+  return [{
+    type: "article",
+    data: {
+      title,
+      summary: summary || undefined,
+      sections: sections.slice(0, 12),
+      section_count: sections.length,
+    },
+    element_count: 1 + sections.length,
+  }];
+}
+
 function extractCourseSearchSpecial(html: string, intent: string): ExtractedStructure[] {
   if (!/\b(course|courses)\b/i.test(intent)) return [];
   if (!/ProductCard|CommonCard-titleLink|RatingStat|partnerNames/i.test(html)) return [];
@@ -1643,7 +1719,8 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const trendStructures = extractTrendSpecial(workingHtml, intent);
   const definitionStructures = extractDefinitionSpecial(workingHtml, intent);
   const courseStructures = extractCourseSearchSpecial(workingHtml, intent);
-  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const articleStructures = extractArticleBodySpecial(workingHtml, intent);
+  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {
