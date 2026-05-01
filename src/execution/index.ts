@@ -2353,6 +2353,10 @@ export async function executeEndpoint(
         ) {
           log("exec", `D8 graphql-template-borrow: ${endpoint.endpoint_id} → ${sib.endpoint_id} for ${__gqlDecomp.operationName}`);
           __gqlDecomp = sibDecomp;
+          if (!endpoint.body && sib.body) {
+            endpoint = { ...endpoint, body: sib.body, method: sib.method ?? endpoint.method, headers_template: sib.headers_template ?? endpoint.headers_template };
+            log("exec", `D8 graphql-body-borrow: ${endpoint.endpoint_id} ← ${sib.endpoint_id}.body (${Object.keys(sib.body as object).length} keys)`);
+          }
           break;
         }
       }
