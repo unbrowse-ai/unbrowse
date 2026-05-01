@@ -15,6 +15,7 @@ import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
+import { probeUrl, decideFromProbe } from "./probe.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
@@ -2719,47 +2720,62 @@ export async function executeEndpoint(
     ? translateWorkflowStrategy(workflowRecipe.steps[0].strategy)
     : undefined;
   let workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy;
+  void preferredWorkflowStrategy;
+  void hasAuth;
+  void hasStructuredReplay;
 
-  if (endpoint.dom_extraction && isSafe) {
-    if (hasStructuredReplay) {
+  // ---------------------------------------------------------------------------
+  // Phase 7.1 — Probe-first executor.
+  //
+  // Replaces the old strategy-prediction switch (hasStructuredReplay /
+  // endpoint.exec_strategy / per-host registry). Every dispatch is now derived
+  // from probe evidence: status + content-type + body size. The old per-host
+  // deriveStructuredDataReplay registry stays in source for serverFetch() to
+  // use as a URL hint, but it does NOT decide strategy here. (Phase 8 cleanup
+  // removes the registry entirely.)
+  // ---------------------------------------------------------------------------
+  const decisionTrace: Array<Record<string, unknown>> = [];
+
+  const probeCookies = cookies.map((c) => ({ name: c.name, value: c.value }));
+  const probe = await probeUrl(url, {
+    cookies: probeCookies,
+    headers: { ...authHeaders },
+  });
+  decisionTrace.push({
+    step: "probe",
+    method: probe.method_used,
+    status: probe.status,
+    content_type: probe.content_type,
+    byte_length: probe.byte_length,
+    ms: probe.ms,
+    ...(probe.error ? { error: probe.error } : {}),
+  });
+
+  const decision = decideFromProbe({
+    probe,
+    has_trigger_url: !!endpoint.trigger_url,
+    intent_wants_dom: !!endpoint.dom_extraction,
+  });
+  decisionTrace.push({
+    step: "decision",
+    strategy: decision.strategy,
+    reason: decision.reason,
+  });
+
+  switch (decision.strategy) {
+    case "server": {
       result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-      if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-        result = await executeDomExtractionEndpoint(
-          endpoint,
-          url,
-          options?.intent ?? skill.intent_signature,
-          authHeaders,
-          cookies,
-        );
-      }
-    } else {
-      result = await executeDomExtractionEndpoint(
-        endpoint,
-        url,
-        options?.intent ?? skill.intent_signature,
-        authHeaders,
-        cookies,
-      );
+      decisionTrace.push({ step: "server_fetch", status: result.status });
+      workflowChosenStrategy = workflowChosenStrategy ?? "server";
+      break;
     }
-  } else if (hasAuth) {
-    // Authed execution: learned strategy → skip doomed tiers
-    //   1. Server fetch (fast — works for Twitter, simple APIs)
-    //   2. Trigger-and-intercept (navigate to page, let site's JS make the call)
-    //   3. Browser in-page fetch (last resort)
-    let strategy: "server" | "trigger-intercept" | "browser" | undefined;
-
-    // Endpoint-level learned strategy (strong signal — proven for this specific endpoint).
-    // Domain-level prediction is only used as a tiebreaker, never to skip server-fetch entirely,
-    // because different endpoints on the same domain may have different requirements.
-    const endpointStrategy = preferredWorkflowStrategy ?? endpoint.exec_strategy;
-
-    if (hasStructuredReplay) {
-      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-      if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-        strategy = "server";
-        workflowChosenStrategy = "server";
-      } else if (endpoint.trigger_url && isSafe) {
-        // Build trigger URL with agent's params applied — don't replay original captured search
+    case "trigger-intercept": {
+      if (!endpoint.trigger_url || !isSafe) {
+        // Defensive — decideFromProbe checks has_trigger_url already.
+        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        decisionTrace.push({ step: "browser_fallback", reason: "no trigger_url or unsafe method", status: result.status });
+        workflowChosenStrategy = workflowChosenStrategy ?? "browser-fetch";
+      } else {
         let triggerUrl = endpoint.trigger_url;
         if (Object.keys(mergedParams).length > 0) {
           try {
@@ -2773,166 +2789,42 @@ export async function executeEndpoint(
           } catch { /* keep original trigger_url */ }
         }
         result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-        // Same fallback as the learned-strategy branch — see comment there.
-        const isSelfFetchableFirst = endpoint.method === "GET" && /\.(json)(\?|$)|\/api\//i.test(url);
-        if (result.status === 0 && isSelfFetchableFirst) {
-          log("exec", `trigger-intercept timed out; trying serverFetch for self-fetchable ${url}`);
-          result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-          if (result.status >= 200 && result.status < 400) {
-            strategy = "server";
-            workflowChosenStrategy = "server";
-          } else {
-            strategy = "trigger-intercept";
-            workflowChosenStrategy = "trigger-intercept";
-          }
-        } else {
-          strategy = "trigger-intercept";
-          workflowChosenStrategy = "trigger-intercept";
-        }
-      } else {
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
-        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-      }
-    } else if (endpointStrategy === "server") {
-      // Proven: server-fetch works for this endpoint
-      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-      if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
-        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-      } else {
-        strategy = "server";
-        workflowChosenStrategy = "server";
-      }
-    } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
-      // Proven: this endpoint needs trigger-intercept
-      let triggerUrl = endpoint.trigger_url;
-      if (Object.keys(mergedParams).length > 0) {
-        try {
-          const tu = new URL(endpoint.trigger_url);
-          for (const [k, v] of Object.entries(mergedParams)) {
-            if (v != null && !reservedMetaParams.has(k)) tu.searchParams.set(k, String(v));
-          }
-          triggerUrl = tu.toString();
-        } catch { /* keep original */ }
-      }
-      log("exec", `using learned strategy trigger-intercept via ${triggerUrl}`);
-      result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-      // Fallback: trigger-intercept times out at status:0 when the page itself
-      // IS the JSON endpoint (e.g. reddit /comments/{id}/{slug}/.json) — no
-      // outgoing fetch ever fires because the page IS the response. For self-
-      // fetchable URLs (GET, ends in .json or /api/), try serverFetch and let
-      // the strategy re-learn to "server" on success.
-      const isSelfFetchable = endpoint.method === "GET" && /\.(json)(\?|$)|\/api\//i.test(url);
-      if (result.status === 0 && isSelfFetchable) {
-        log("exec", `trigger-intercept timed out; trying serverFetch for self-fetchable ${url}`);
-        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-        if (result.status >= 200 && result.status < 400) {
-          strategy = "server";
-          workflowChosenStrategy = "server";
-        }
-      } else {
-        strategy = "trigger-intercept";
+        decisionTrace.push({ step: "trigger_intercept", trigger_url: triggerUrl, status: result.status });
         workflowChosenStrategy = "trigger-intercept";
       }
-    } else if (endpointStrategy === "browser") {
-      if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
-        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-        if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-          strategy = "server";
-          workflowChosenStrategy = "server";
-        } else {
-          log("exec", `server replay rejected stale learned browser strategy for ${endpoint.endpoint_id}; falling back to browser`);
-          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-          strategy = "browser";
-          workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-        }
-      } else {
-        log("exec", `using learned strategy browser`);
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
-        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-      }
-    } else {
-      // No endpoint-level strategy — always try server-fetch first (fastest path).
-      // Fall back to trigger-intercept or browser if server returns 4xx.
-      try {
-        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-        if (result.status >= 200 && result.status < 400) {
-          // For API endpoints, trust the server response — no fallback to browser
-          const isApiEndpoint = /\/(api|graphql)\b/i.test(endpoint.url_template) || /\.(json)(\?|$)/.test(endpoint.url_template);
-          if (!isApiEndpoint && shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
-            workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-          } else {
-            strategy = "server";
-            workflowChosenStrategy = "server";
-          }
-        } else {
-          log("exec", `server fetch returned ${result.status}, falling back`);
-          // For self-fetchable JSON/API URLs (GET, ends in .json or contains
-          // /api/), the page IS the JSON endpoint — there's nothing for
-          // triggerAndIntercept to wait for. Returning the 4xx directly is
-          // honest and 15s faster than letting the agent wait for an
-          // interception that will never happen. Reddit's bot-block hits
-          // here on /comments/{id}/{slug}/.json.
-          const isSelfFetchableNS = endpoint.method === "GET" && /\.(json)(\?|$)|\/api\//i.test(url);
-          if (isSelfFetchableNS) {
-            log("exec", `self-fetchable URL — keeping ${result.status} instead of waiting on trigger-intercept`);
-            strategy = "server";
-            workflowChosenStrategy = "server";
-          } else if (endpoint.trigger_url && isSafe) {
-            let triggerUrl = endpoint.trigger_url;
-            if (Object.keys(mergedParams).length > 0) {
-              try {
-                const tu = new URL(endpoint.trigger_url);
-                for (const [k, v] of Object.entries(mergedParams)) {
-                  if (v != null && !reservedMetaParams.has(k)) tu.searchParams.set(k, String(v));
-                }
-                triggerUrl = tu.toString();
-              } catch { /* keep original */ }
-            }
-            result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-            strategy = "trigger-intercept";
-            workflowChosenStrategy = "trigger-intercept";
-          } else {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
-            workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-          }
-        }
-      } catch {
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
-        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-      }
+      break;
     }
-
-    // Persist learned strategy at endpoint level only.
-    // Domain-level cache removed: it over-generalizes (e.g., one 400 on LinkedIn
-    // locked all endpoints into trigger-intercept even though server-fetch works for most).
-    if (strategy && result.status >= 200 && result.status < 400 && strategy !== endpoint.exec_strategy) {
-      log("exec", `learned exec_strategy=${strategy} for endpoint ${endpoint.endpoint_id}`);
-      endpoint.exec_strategy = strategy;
-      try { cachePublishedSkill(skill, options?.client_scope); } catch (e) { log("exec", `failed to cache strategy: ${e}`); }
-    }
-  } else if (isSafe) {
-    // No auth: fetch-first for safe GETs — fall back to browser if SPA shell or error
-    try {
-      result = await withRetry(() => serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride), (r) => isRetryableStatus(r.status));
-      if (typeof result.data === "string" && isHtml(result.data)) {
-        if (isSpaShell(result.data)) {
-          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        }
-      }
-    } catch {
+    case "browser": {
       result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+      decisionTrace.push({ step: "browser", status: result.status });
+      workflowChosenStrategy = workflowChosenStrategy
+        ?? (workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch");
+      break;
     }
-  } else {
-    // No auth, non-GET: server fetch
-    result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+    case "return-error": {
+      // Synthesise a result so downstream code is uniform. The agent reads
+      // the actual server status and decides next move — no more 15s
+      // trigger-intercept timeouts on dead URLs.
+      result = {
+        status: probe.status,
+        data: {
+          error: `http_${probe.status}`,
+          message: `Probe returned status ${probe.status}; returned to caller without escalating.`,
+          probe_method: probe.method_used,
+          ...(probe.content_type ? { content_type: probe.content_type } : {}),
+        },
+        trace_id: nanoid(),
+      };
+      decisionTrace.push({ step: "return_error", status: probe.status });
+      workflowChosenStrategy = workflowChosenStrategy ?? "server";
+      break;
+    }
+    default: {
+      // Should never happen — exhaustive switch. Defensive fallback.
+      result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+      decisionTrace.push({ step: "browser_default", status: result.status });
+      workflowChosenStrategy = workflowChosenStrategy ?? "browser-fetch";
+    }
   }
 
   if (workflowRecipe && workflowArtifact && needsWorkflowTokenRefresh(result.status)) {
@@ -2963,6 +2855,10 @@ export async function executeEndpoint(
     success: status >= 200 && status < 300,
     status_code: status,
   });
+
+  // Phase 7.1: stamp probe-derived decision_trace onto the execution trace.
+  // Phase 7.2 promotes this to a top-level field on the response envelope.
+  (trace as ExecutionTrace & { decision_trace?: Array<Record<string, unknown>> }).decision_trace = decisionTrace;
 
   if (!trace.success) {
     trace.error = status === 0
