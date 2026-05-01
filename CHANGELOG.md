@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.2.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.0...v6.2.1) (2026-05-01)
+
+### Bug Fixes
+
+* prefer article-body over JSON-LD when intent is article-shaped ([3bebc65](https://github.com/unbrowse-ai/unbrowse-dev/commit/3bebc65eba470e138aeef53d205b474ead6f62b9))
+
 ## [6.2.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.4...v6.2.0) (2026-05-01)
 
 ### Features
