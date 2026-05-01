@@ -961,6 +961,34 @@ export async function registerRoutes(app: FastifyInstance) {
             recovered = true;
           }
         }
+        // Try 3: D7 — endpoint_id from resolve doesn't match cached skill, but the
+        // skill might still have an equivalent endpoint by URL/method. This happens
+        // when resolve generates a canonical replay ID and the local cache stores
+        // a differently-derived ID for the same target. Match by url_template+method
+        // and rewrite execParams.endpoint_id to the cached one. Saves the agent a
+        // round-trip just to read available_endpoints and re-call.
+        if (!recovered) {
+          const wantUrl = (execResult.result as Record<string, unknown>)?.message;
+          // Use the available_endpoints already on the error to find a sibling
+          // candidate by description match. Fall back to URL-template match.
+          const errResult = execResult.result as { available_endpoints?: Array<{ endpoint_id: string; description?: string }> };
+          const want = String(execParams.endpoint_id);
+          // Prefer the same trigger_url / url_template
+          const fromResolve = (skill.endpoints ?? []).find((e) =>
+            e.url_template === context_url || e.trigger_url === context_url,
+          );
+          if (fromResolve && fromResolve.endpoint_id !== want) {
+            console.log(`[exec] D7 sibling-by-url: rewriting endpoint_id ${want} → ${fromResolve.endpoint_id}`);
+            execParams.endpoint_id = fromResolve.endpoint_id;
+            recovered = true;
+          } else if (errResult.available_endpoints?.length === 1) {
+            // Single-endpoint skills: just use it.
+            const only = errResult.available_endpoints[0].endpoint_id;
+            console.log(`[exec] D7 single-endpoint skill: rewriting endpoint_id ${want} → ${only}`);
+            execParams.endpoint_id = only;
+            recovered = true;
+          }
+        }
         if (recovered) {
           execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, skip_robots_check, intent, contextUrl: context_url, client_scope: clientScope });
         }

@@ -175,6 +175,7 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
           success: trace.success,
           status_code: trace.status_code,
           trace_version: trace.trace_version,
+          ...(typeof trace.error === "string" ? { error: trace.error } : {}),
           ...(trace.schema_backfilled ? { schema_backfilled: true } : {}),
         }
       : undefined,

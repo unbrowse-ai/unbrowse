@@ -2372,9 +2372,15 @@ export async function resolveAndExecute(
     // === H6: Resolve loop short-circuit ===
     // When epRanked is empty for a same-host resolve, return a hard handoff stub
     // so agents don't keep re-resolving the same host expecting different results.
+    // C5b: also handoff when only negative-score endpoints remain — surfacing a
+    // wrong-shape endpoint to the agent (e.g., /trending when they asked for a
+    // user profile) is worse than honestly saying "no match, browse to capture".
+    // The picker is the calling LLM; if every option scored < 0 we have nothing
+    // to actually pick from, so we'd rather give an actionable next_step.
     const isSameHostResolve = !!context?.url && !!endpointScopedSkill.domain;
     const hostMatches = isSameHostResolve && new URL(context.url).hostname === endpointScopedSkill.domain;
-    if (epRanked.length === 0 && hostMatches) {
+    const allNegative = epRanked.length > 0 && epRanked.every((r) => r.score < 0);
+    if ((epRanked.length === 0 || allNegative) && hostMatches) {
       return {
         result: {
           status: "resolve_hard_handoff",
