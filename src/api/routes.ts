@@ -580,7 +580,7 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, visual_context } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, visual_context, budget_ms } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
@@ -591,10 +591,11 @@ export async function registerRoutes(app: FastifyInstance) {
       force_capture?: boolean;
       skip_robots_check?: boolean;
       visual_context?: boolean;
+      budget_ms?: number;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, client_scope: clientScope });
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, client_scope: clientScope, budget_ms });
 
       // Surface timing breakdown
       const res = attachAgentOutcomeHints({ ...result } as Record<string, unknown>, {

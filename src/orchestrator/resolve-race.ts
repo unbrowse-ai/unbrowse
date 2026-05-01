@@ -20,6 +20,12 @@
  *    in `decision_trace`.
  */
 
+
+import { probeUrl } from "../execution/probe.js";
+import { matchResponseSignal, replayRecipe, shouldReplayRecipe } from "../execution/index.js";
+import { getSkillCached } from "../marketplace/index.js";
+import type { SkillManifest, EndpointDescriptor } from "../types/index.js";
+
 export interface Racer<T> {
   /** Stable identifier (e.g. "recipe", "marketplace", "probe"). Surfaces in `tried`. */
   name: string;
@@ -149,4 +155,177 @@ export async function raceWithDeadline<T>(
       }
     }
   });
+}
+
+// ===========================================================================
+// Phase 8.1 — runResolveRace: build the three racers from existing primitives.
+// ===========================================================================
+
+
+export interface RaceWinnerRecipe {
+  kind: "recipe";
+  skill: SkillManifest;
+  endpoint: EndpointDescriptor;
+  status: number;
+  data: unknown;
+  trace_id: string;
+  ms: number;
+}
+
+export interface RaceWinnerMarketplace {
+  kind: "marketplace";
+  skill: SkillManifest;
+  ms: number;
+}
+
+export interface RaceWinnerProbe {
+  kind: "probe";
+  status: number;
+  content_type?: string;
+  byte_length?: number;
+  ms: number;
+}
+
+export type RaceWinner = RaceWinnerRecipe | RaceWinnerMarketplace | RaceWinnerProbe;
+
+export interface RunResolveRaceArgs {
+  contextUrl: string;
+  intent: string;
+  params: Record<string, unknown>;
+  budgetMs: number;
+  /** Look up a local skill manifest (snapshot or domain cache) for the URL. */
+  findLocalSkill?: (url: string, intent: string) => SkillManifest | null;
+  /** Optional: pre-known skill_id to consult marketplace for. */
+  knownSkillId?: string | null;
+  clientScope?: string;
+  cookies?: Array<{ name: string; value: string }>;
+  authHeaders?: Record<string, string>;
+  /** Override marketplace lookup (defaults to getSkillCached). Test seam. */
+  marketplaceLookup?: (skillId: string, scope?: string) => Promise<SkillManifest | null>;
+  /** Override probe (defaults to probeUrl). Test seam. */
+  probeOverride?: (url: string) => Promise<{ status: number; content_type?: string; byte_length?: number }>;
+}
+
+export interface RunResolveRaceResult {
+  winner: RaceWinner | null;
+  tried: RacerOutcome<unknown>[];
+  ms: number;
+}
+
+/**
+ * Build the standard three racers (recipe || marketplace || probe) and run them
+ * under a wall-clock budget. Each racer is only added when its preconditions
+ * are met (e.g. skip recipe when no local skill snapshot is found).
+ */
+export async function runResolveRace(args: RunResolveRaceArgs): Promise<RunResolveRaceResult> {
+  const racers: Racer<RaceWinner>[] = [];
+
+  // Racer 1: recipe replay — only when a local skill exposes a proven_recipe
+  // whose URL substitutes cleanly against the contextUrl.
+  const localSkill = args.findLocalSkill?.(args.contextUrl, args.intent) ?? null;
+  if (localSkill) {
+    const recipeEndpoint = pickRecipeEndpoint(localSkill, args.contextUrl);
+    if (recipeEndpoint && recipeEndpoint.proven_recipe && shouldReplayRecipe(recipeEndpoint.proven_recipe, args.contextUrl)) {
+      racers.push({
+        name: "recipe",
+        start: async () => {
+          const t = Date.now();
+          const out = await replayRecipe(
+            recipeEndpoint.proven_recipe!,
+            args.contextUrl,
+            (args.cookies ?? []).map((c) => ({ name: c.name, value: c.value })),
+            args.authHeaders ?? {},
+            args.params ?? {},
+          );
+          const verdict = matchResponseSignal(out, recipeEndpoint.proven_recipe!.response_signal);
+          if (!verdict.match) {
+            throw new Error(`recipe_mismatch: ${verdict.reason ?? "unknown"}`);
+          }
+          return {
+            kind: "recipe" as const,
+            skill: localSkill,
+            endpoint: recipeEndpoint,
+            status: out.status,
+            data: out.data,
+            trace_id: out.trace_id,
+            ms: Date.now() - t,
+          };
+        },
+        isValid: (r) => r.kind === "recipe" && r.status >= 200 && r.status < 400,
+      });
+    }
+  }
+
+  // Racer 2: marketplace lookup — only when we have a known skill_id to consult.
+  if (args.knownSkillId) {
+    racers.push({
+      name: "marketplace",
+      start: async () => {
+        const t = Date.now();
+        const lookup = args.marketplaceLookup ?? getSkillCached;
+        const skill = await lookup(args.knownSkillId!, args.clientScope);
+        if (!skill) throw new Error("not_found");
+        return { kind: "marketplace" as const, skill, ms: Date.now() - t };
+      },
+      isValid: (r) => r.kind === "marketplace" && Array.isArray((r as RaceWinnerMarketplace).skill.endpoints) && (r as RaceWinnerMarketplace).skill.endpoints.length > 0,
+    });
+  }
+
+  // Racer 3: probe — always available when a URL exists. Uses Phase 7 probeUrl.
+  // We construct an AbortController so the in-flight fetch is canceled when
+  // another racer wins or the deadline fires.
+  const probeCtrl = new AbortController();
+  racers.push({
+    name: "probe",
+    start: async () => {
+      const t = Date.now();
+      const probe = args.probeOverride
+        ? await args.probeOverride(args.contextUrl)
+        : await probeUrl(args.contextUrl, {
+            cookies: args.cookies,
+            headers: { ...(args.authHeaders ?? {}) },
+            timeout_ms: Math.min(2000, Math.max(250, Math.floor(args.budgetMs / 2))),
+          });
+      return {
+        kind: "probe" as const,
+        status: probe.status,
+        content_type: probe.content_type,
+        byte_length: probe.byte_length,
+        ms: Date.now() - t,
+      };
+    },
+    isValid: (r) => {
+      if (r.kind !== "probe") return false;
+      const p = r as RaceWinnerProbe;
+      return p.status >= 200 && p.status < 400 && !!p.content_type;
+    },
+    abort: () => probeCtrl.abort(),
+  });
+
+  const race = await raceWithDeadline<RaceWinner>(racers, args.budgetMs);
+  return {
+    winner: race.winner ? race.winner.result as RaceWinner : null,
+    tried: race.tried as RacerOutcome<unknown>[],
+    ms: race.ms,
+  };
+}
+
+function pickRecipeEndpoint(skill: SkillManifest, contextUrl: string): EndpointDescriptor | undefined {
+  const ctx = (() => { try { return new URL(contextUrl); } catch { return null; } })();
+  if (!ctx) return undefined;
+  const ctxHost = ctx.hostname.replace(/^www\./, "");
+  let best: EndpointDescriptor | undefined;
+  for (const ep of skill.endpoints) {
+    if (!ep.proven_recipe) continue;
+    let epHost = "";
+    try { epHost = new URL(ep.url_template).hostname.replace(/^www\./, ""); } catch { continue; }
+    if (epHost !== ctxHost) continue;
+    if (!shouldReplayRecipe(ep.proven_recipe, contextUrl)) continue;
+    if (!best) { best = ep; continue; }
+    // Prefer endpoints with a richer response_schema as a tiebreak
+    const bestSchema = best.response_schema ? 1 : 0;
+    const epSchema = ep.response_schema ? 1 : 0;
+    if (epSchema > bestSchema) best = ep;
+  }
+  return best;
 }

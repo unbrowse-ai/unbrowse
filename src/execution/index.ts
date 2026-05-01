@@ -3218,7 +3218,7 @@ function interpolateObj(
  * — replaying a malformed URL is worse than running the probe ladder for
  * re-discovery. Generic check, not a per-domain table.
  */
-function shouldReplayRecipe(_recipe: ProvenRecipe, substitutedUrl: string): boolean {
+export function shouldReplayRecipe(_recipe: ProvenRecipe, substitutedUrl: string): boolean {
   return !/\{[a-z0-9_]+\}/i.test(substitutedUrl);
 }
 
@@ -3227,7 +3227,7 @@ function shouldReplayRecipe(_recipe: ProvenRecipe, substitutedUrl: string): bool
  * authHeaders + cookies, interpolate the body with current params, and fetch.
  * Always returns a result (never throws) — status:0 on network failure.
  */
-async function replayRecipe(
+export async function replayRecipe(
   recipe: ProvenRecipe,
   url: string,
   cookies: Array<{ name: string; value: string; domain?: string }>,
@@ -3274,7 +3274,7 @@ async function replayRecipe(
   }
 }
 
-interface MatchVerdict { match: boolean; reason?: string }
+export interface MatchVerdict { match: boolean; reason?: string }
 
 /**
  * Compare a replayed response against the recipe's response_signal. Strict on
@@ -3282,7 +3282,7 @@ interface MatchVerdict { match: boolean; reason?: string }
  * accommodates dynamic timestamps, pagination edges) and structural keys (must
  * have all recorded top-level keys; extra keys are fine).
  */
-function matchResponseSignal(
+export function matchResponseSignal(
   result: { status: number; data: unknown },
   signal: ProvenRecipeResponseSignal,
 ): MatchVerdict {
