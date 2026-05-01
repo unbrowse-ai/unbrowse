@@ -197,21 +197,27 @@ Every site-specific shortcut you add is a tax we pay forever. The 11th site
 gets it wrong, the agent calls a stale URL, no one notices. Below are real
 violations already in the codebase — fix or delete, never extend.
 
-**🚫 BAD: per-host registry in `deriveStructuredDataReplay` (`src/execution/index.ts:410-560`)**
+**✅ CASE STUDY: per-host registry deleted (Phase 8.3)**
 
-```ts
-if (host === "mastodon.social") { /* /search → /api/v2/search */ }
-if (host === "gitlab.com") { /* /explore/projects → /api/v4/projects */ }
-if (host === "github.com") { /* /search → api.github.com/search/repositories */ }
-if (host === "hn.algolia.com") { /* /  → /api/v1/search */ }
-if (host === "huggingface.co") { /* /models → /api/models */ }
-if (host === "developer.mozilla.org") { /* /search → /api/v1/search */ }
+`deriveStructuredDataReplay` had 16 site arms (mastodon, gitlab, github,
+hn.algolia, huggingface, mdn, dev.to, npmjs, pypi, pub.dev, hub.docker,
+rubygems, stackoverflow, jmail.world, reddit). It was @deprecated in
+Phase 7 once the probe-first executor + proven_recipe replay subsumed its
+behaviour generically, and DELETED in Phase 8.3 after one release proved
+no caller depended on it. The companion `endpoint.exec_strategy` field and
+its carry-forward machinery went with it.
+
+The audit grep is now expected to return zero hits in src/:
+
+```bash
+grep -rn 'host === "[a-z]' src/ | grep -v 'auto"\|unknown"\|codex"\|claude"'
 ```
 
-This is exactly what the ranker philosophy bans. It "works" for those 6
-hosts and silently fails for the next 100. Replace with structural primitives:
-read `<link rel="alternate" type="application/json">`, follow LD-JSON
-`mainEntity`, parse OpenSearch descriptors, look at sitemap.xml hints.
+If a host comparison reappears, the same migration pattern applies: write a
+structural primitive that handles the case generically (read
+`<link rel="alternate" type="application/json">`, follow LD-JSON
+`mainEntity`, parse OpenSearch descriptors, look at sitemap.xml hints), ship
+it in a deprecation window, then delete the registry in the next phase.
 
 **🚫 BAD: single-segment-only A8 entity substitution**
 
