@@ -2773,8 +2773,22 @@ export async function executeEndpoint(
           } catch { /* keep original trigger_url */ }
         }
         result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-        strategy = "trigger-intercept";
-        workflowChosenStrategy = "trigger-intercept";
+        // Same fallback as the learned-strategy branch — see comment there.
+        const isSelfFetchableFirst = endpoint.method === "GET" && /\.(json)(\?|$)|\/api\//i.test(url);
+        if (result.status === 0 && isSelfFetchableFirst) {
+          log("exec", `trigger-intercept timed out; trying serverFetch for self-fetchable ${url}`);
+          result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+          if (result.status >= 200 && result.status < 400) {
+            strategy = "server";
+            workflowChosenStrategy = "server";
+          } else {
+            strategy = "trigger-intercept";
+            workflowChosenStrategy = "trigger-intercept";
+          }
+        } else {
+          strategy = "trigger-intercept";
+          workflowChosenStrategy = "trigger-intercept";
+        }
       } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
@@ -2805,8 +2819,23 @@ export async function executeEndpoint(
       }
       log("exec", `using learned strategy trigger-intercept via ${triggerUrl}`);
       result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-      strategy = "trigger-intercept";
-      workflowChosenStrategy = "trigger-intercept";
+      // Fallback: trigger-intercept times out at status:0 when the page itself
+      // IS the JSON endpoint (e.g. reddit /comments/{id}/{slug}/.json) — no
+      // outgoing fetch ever fires because the page IS the response. For self-
+      // fetchable URLs (GET, ends in .json or /api/), try serverFetch and let
+      // the strategy re-learn to "server" on success.
+      const isSelfFetchable = endpoint.method === "GET" && /\.(json)(\?|$)|\/api\//i.test(url);
+      if (result.status === 0 && isSelfFetchable) {
+        log("exec", `trigger-intercept timed out; trying serverFetch for self-fetchable ${url}`);
+        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+        if (result.status >= 200 && result.status < 400) {
+          strategy = "server";
+          workflowChosenStrategy = "server";
+        }
+      } else {
+        strategy = "trigger-intercept";
+        workflowChosenStrategy = "trigger-intercept";
+      }
     } else if (endpointStrategy === "browser") {
       if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
         result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
