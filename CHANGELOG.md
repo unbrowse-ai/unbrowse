@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.2.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.5...v6.2.6) (2026-05-01)
+
+### Bug Fixes
+
+* skip trigger-intercept on self-fetchable URLs in no-strategy branch ([9ed8fd0](https://github.com/unbrowse-ai/unbrowse-dev/commit/9ed8fd0ae2399124720d7eea3a529622ff9ca405))
+
 ## [6.2.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.4...v6.2.5) (2026-05-01)
 
 ### Bug Fixes
