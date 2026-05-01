@@ -222,6 +222,9 @@ export interface EndpointDescriptor {
   constraints?: EndpointConstraint[];
   /** Agent-contributed best practices, tips, and gotchas */
   annotations?: EndpointAnnotation[];
+  /** Phase 7.2: Proven recipe — exact request that produced a known-good response.
+   *  Replayed first by the executor before any probe/dispatch. */
+  proven_recipe?: ProvenRecipe;
 }
 export interface EndpointConstraint {
   /** The parameter or field this constraint applies to */
@@ -244,6 +247,41 @@ export interface EndpointAnnotation {
   agent_id?: string;
   /** When this was contributed */
   created_at: string;
+}
+
+/**
+ * Phase 7.2 — Proven recipe.
+ *
+ * The exact request that produced a known-good response when the endpoint was
+ * captured. Stamped at admission (extractEndpoints) and replayed first by the
+ * executor before any probe/dispatch logic. When the replay matches the
+ * `response_signal`, we're done in <500ms with no extra HEAD/GET probing.
+ */
+export interface ProvenRecipeResponseSignal {
+  /** Exact status from the proven response (e.g. 200) */
+  status: number;
+  /** Lowercased content-type, e.g. "application/json" */
+  content_type?: string;
+  /** 50% of captured byte length (rounded down) — body shrinkage threshold */
+  byte_length_min?: number;
+  /** 200% of captured byte length (rounded up) — body growth threshold */
+  byte_length_max?: number;
+  /** Top-level JSON keys for shape comparison (cheap structural fingerprint) */
+  json_top_keys?: string[];
+}
+
+export interface ProvenRecipe {
+  /** "GET" / "POST" / etc. */
+  method: string;
+  /** Includes {param} slots — entity substitution happens at execute time */
+  url_template: string;
+  /** Exact headers that produced the proven response, with ephemeral headers stripped */
+  headers: Record<string, string>;
+  /** Exact body for POST/PUT/PATCH (undefined for GET) */
+  body?: unknown;
+  response_signal: ProvenRecipeResponseSignal;
+  /** ISO-8601 timestamp of capture */
+  captured_at: string;
 }
 
 export type ExecutionType = "http" | "browser-capture";
