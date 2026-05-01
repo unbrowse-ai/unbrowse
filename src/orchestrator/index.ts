@@ -4813,7 +4813,7 @@ export async function resolveAndExecute(
   return deferred.orchestratorResult;
 }
 
-async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
+export async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
   const existing = await getSkill(BROWSER_CAPTURE_SKILL_ID);
   if (existing) return existing;
 
