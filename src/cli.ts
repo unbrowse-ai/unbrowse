@@ -193,6 +193,7 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   if (typeof obj.login_url === "string") out.login_url = obj.login_url;
   if (typeof obj.provider === "string") out.provider = obj.provider;
   if ("result" in obj) out.result = obj.result;
+  if (Array.isArray(obj.decision_trace)) out.decision_trace = obj.decision_trace;
   if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
   if (obj.impact) out.impact = obj.impact;
   if (obj.next_actions) out.next_actions = obj.next_actions;

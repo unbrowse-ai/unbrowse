@@ -331,6 +331,11 @@ export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
   learned_skill?: SkillManifest;
+  /** Phase 7.2 — top-level dispatch trace.
+   *  Steps the executor took: recipe_replay (if any), probe, decision, server_fetch /
+   *  trigger_intercept / browser / return_error. Mirrored on trace.decision_trace
+   *  for backward compat with 7.1 tests; will become the single source in Phase 8. */
+  decision_trace?: Array<Record<string, unknown>>;
 }
 
 export function projectResultForIntent(data: unknown, intent?: string): unknown {
@@ -3137,7 +3142,7 @@ export async function executeEndpoint(
   }
 
   return {
-    trace, result: resultData,
+    trace, result: resultData, decision_trace: decisionTrace,
   };
 }
 
