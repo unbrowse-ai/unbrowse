@@ -188,7 +188,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | 5. Marketplace Wiring and Telemetry | 2/2 | Complete | 2026-04-01 |
 | 6. Marketplace Payments | 2/2 | Complete | 2026-04-01 |
 | 7. Probe-First Executor + Recipe Replay | 2/2 | Complete | 2026-05-01 |
-| 8. Latency Budget + Parallel Race + Share Pointers | 0/3 | Planning | — |
+| 8. Latency Budget + Parallel Race + Share Pointers | 3/3 | Complete | 2026-05-01 |
 
 ## Coverage
 
