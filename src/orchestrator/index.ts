@@ -3397,15 +3397,24 @@ export async function resolveAndExecute(
       ?? domainSkillCache.get(getDomainReuseKey(raceContextUrl) ?? "")?.skillId
       ?? null;
 
-    const raceOutcome = await runResolveRace({
-      contextUrl: raceContextUrl,
-      intent: queryIntent,
-      params,
-      budgetMs,
-      findLocalSkill: () => localSnapshot,
-      knownSkillId,
-      clientScope,
-    });
+    // Defense-in-depth: wrap the race in an outer deadline. If runResolveRace
+    // ever fails to return (downstream bug, hung racer cleanup), this Promise
+    // race guarantees the caller still gets a no_match within budget+small
+    // slack instead of an indefinite hang.
+    const raceOutcome = await Promise.race([
+      runResolveRace({
+        contextUrl: raceContextUrl,
+        intent: queryIntent,
+        params,
+        budgetMs,
+        findLocalSkill: () => localSnapshot,
+        knownSkillId,
+        clientScope,
+      }),
+      new Promise<{ winner: null; tried: []; ms: number }>((resolve) =>
+        setTimeout(() => resolve({ winner: null, tried: [], ms: budgetMs + 250 }), budgetMs + 250),
+      ),
+    ]);
     decisionTrace.budget_race = {
       budget_ms: budgetMs,
       total_ms: raceOutcome.ms,
@@ -3445,6 +3454,14 @@ export async function resolveAndExecute(
         };
       }
       if (w.kind === "marketplace") {
+        return buildDeferral(w.skill, "marketplace", { decision_trace: decisionTrace });
+      }
+      if (w.kind === "local-skill") {
+        // Locally-cached skill — same UX as marketplace winner but instant,
+        // no network roundtrip. The agent gets a ranked shortlist of
+        // operations from a prior capture of this domain. This is the path
+        // that turns the second-call-to-same-domain into a sub-millisecond
+        // PASS instead of a budget-deadline no_match.
         return buildDeferral(w.skill, "marketplace", { decision_trace: decisionTrace });
       }
       // probe-only winner: structurally fetchable but no skill known. Same UX

@@ -88,7 +88,7 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-async function api(method: string, path: string, body?: unknown): Promise<unknown> {
+async function api(method: string, path: string, body?: unknown, opts?: { timeoutMs?: number }): Promise<unknown> {
   let target = `${BASE_URL}${path}`;
   let requestBody = body;
   if (method === "GET" && body && typeof body === "object") {
@@ -102,14 +102,34 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
     if (query) target += `${target.includes("?") ? "&" : "?"}${query}`;
     requestBody = undefined;
   }
-  const res = await fetch(target, {
-    method,
-    headers: {
-      ...(requestBody ? { "Content-Type": "application/json" } : {}),
-      "x-unbrowse-client-id": CLI_CLIENT_ID,
-    },
-    body: requestBody ? JSON.stringify(requestBody) : undefined,
-  });
+  const ctrl = new AbortController();
+  const timeoutMs = opts?.timeoutMs;
+  const timer = typeof timeoutMs === "number" && timeoutMs > 0
+    ? setTimeout(() => ctrl.abort(), timeoutMs)
+    : null;
+  let res: Response;
+  try {
+    res = await fetch(target, {
+      method,
+      headers: {
+        ...(requestBody ? { "Content-Type": "application/json" } : {}),
+        "x-unbrowse-client-id": CLI_CLIENT_ID,
+      },
+      body: requestBody ? JSON.stringify(requestBody) : undefined,
+      signal: ctrl.signal,
+    });
+  } catch (err) {
+    if (timer) clearTimeout(timer);
+    if ((err as Error)?.name === "AbortError") {
+      return {
+        error: "cli_timeout",
+        message: `CLI gave up waiting on local server after ${timeoutMs}ms. Try: pkill -9 -f 'unbrowse|kuri'`,
+      };
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   if (!res.ok && res.headers.get("content-type")?.includes("json")) {
     return res.json();
   }
@@ -409,8 +429,11 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
     const startedAt = Date.now();
     async function resolveOnce(message = "Still working. Searching cached routes..."): Promise<Record<string, unknown>> {
+      // CLI guard: never wait longer than budget + 30s slack on the local
+      // daemon. Fixes silent hangs where pkill races with daemon startup.
+      const cliTimeoutMs = (typeof body.budget_ms === "number" ? body.budget_ms : 8000) + 30_000;
       return withPendingNotice(
-        api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+        api("POST", "/v1/intent/resolve", body, { timeoutMs: cliTimeoutMs }) as Promise<Record<string, unknown>>,
         message,
       );
     }
