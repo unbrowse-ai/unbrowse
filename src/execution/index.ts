@@ -2864,9 +2864,21 @@ export async function executeEndpoint(
   });
 
   if (!trace.success) {
-    trace.error = status === 404
+    trace.error = status === 0
+      ? `HTTP 0 — network failure or browser fetch was blocked (DNS, TLS, CORS, anti-bot, or kuri tab error). Try \`unbrowse go\` to open a live session, then re-run.`
+      : status === 404
       ? `HTTP 404 — endpoint may be stale. Re-run via POST /v1/intent/resolve to get fresh endpoints.`
       : `HTTP ${status}`;
+    // Mirror the cause into `result` so callers don't see {} with no signal.
+    // (Normally, !success leaves data alone — but on status===0 / network errors,
+    // data is undefined which slimTrace renders as {}.)
+    if (data == null) {
+      data = {
+        error: status === 0 ? "network_failure" : `http_${status}`,
+        message: trace.error,
+        status_code: status,
+      };
+    }
   } else {
     trace.result = data;
   }
