@@ -2315,18 +2315,26 @@ export async function resolveAndExecute(
           const cs = cap.pathname.split("/").filter(Boolean);
           const xs = ctx.pathname.split("/").filter(Boolean);
           if (cs.length !== xs.length || cs.length === 0) continue;
-          let diffCount = 0, diffIdx = -1;
+          // A8-display generalised: any number of differing segments are OK
+          // as long as every diff pair is entity-shaped on both sides. Reddit
+          // r/{sub}/comments/{id}/{slug} differs in 3 segments — the old
+          // diffCount===1 gate left those URLs un-rewritten in the shortlist.
+          let diffCount = 0;
+          const diffIndices: number[] = [];
           for (let i = 0; i < cs.length; i++) {
             if (cs[i].toLowerCase() === xs[i].toLowerCase()) continue;
             diffCount += 1;
-            diffIdx = i;
+            diffIndices.push(i);
           }
-          if (diffCount !== 1) continue;
-          const cseg = cs[diffIdx].toLowerCase();
-          const xseg = xs[diffIdx].toLowerCase();
-          if (A8_SHARED.has(cseg) || A8_SHARED.has(xseg)) continue;
-          if (cseg.length < 3 || xseg.length < 3) continue;
-          if (/^\d+$/.test(cseg) || /^\d+$/.test(xseg)) continue;
+          if (diffCount === 0) continue;
+          const allEntityShaped = diffIndices.every((i) => {
+            const a = cs[i].toLowerCase();
+            const b = xs[i].toLowerCase();
+            const aOk = !A8_SHARED.has(a) && a.length >= 3 && !/^\d+$/.test(a);
+            const bOk = !A8_SHARED.has(b) && b.length >= 3 && !/^\d+$/.test(b);
+            return aOk && bOk;
+          });
+          if (!allEntityShaped) continue;
           op.url_template = `${cap.protocol}//${cap.hostname}${cap.port ? `:${cap.port}` : ""}${ctx.pathname}${cap.search}${cap.hash}`;
         } catch { /* skip */ }
       }

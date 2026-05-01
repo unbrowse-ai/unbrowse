@@ -191,6 +191,70 @@ captured `variables` JSON shape and surfaces flat keys with example values
 alias table — agents read `agentParams[].key` to see the real field names, or
 an LLM judge reshapes flat user input into the GraphQL shape on the way in.
 
+### Anti-patterns: per-domain heuristics that don't generalise (NEVER ADD MORE)
+
+Every site-specific shortcut you add is a tax we pay forever. The 11th site
+gets it wrong, the agent calls a stale URL, no one notices. Below are real
+violations already in the codebase — fix or delete, never extend.
+
+**🚫 BAD: per-host registry in `deriveStructuredDataReplay` (`src/execution/index.ts:410-560`)**
+
+```ts
+if (host === "mastodon.social") { /* /search → /api/v2/search */ }
+if (host === "gitlab.com") { /* /explore/projects → /api/v4/projects */ }
+if (host === "github.com") { /* /search → api.github.com/search/repositories */ }
+if (host === "hn.algolia.com") { /* /  → /api/v1/search */ }
+if (host === "huggingface.co") { /* /models → /api/models */ }
+if (host === "developer.mozilla.org") { /* /search → /api/v1/search */ }
+```
+
+This is exactly what the ranker philosophy bans. It "works" for those 6
+hosts and silently fails for the next 100. Replace with structural primitives:
+read `<link rel="alternate" type="application/json">`, follow LD-JSON
+`mainEntity`, parse OpenSearch descriptors, look at sitemap.xml hints.
+
+**🚫 BAD: single-segment-only A8 entity substitution**
+
+```ts
+if (diffCount === 1) { /* substitute */ }   // pre-fix; ignored reddit posts
+```
+
+Reddit `/r/{sub}/comments/{id}/{slug}` differs in 3 segments. Hardcoding
+`=== 1` was a heuristic disguised as a safety check. Generalise to "any
+number of differing segments where every diff pair is entity-shaped on
+both sides" (now in `src/execution/index.ts` near A8).
+
+**🚫 BAD: confidence switch with hardcoded type list (`computeConfidence`)**
+
+```ts
+case "spa-nextjs": confidence = 0.9;
+case "json-ld":    confidence = 0.9;
+case "itemlist":   confidence = 0.9;
+default:           confidence = 0.3;   // anything new silently fails 0.5 gate
+```
+
+Adding a new extractor type silently fails the quality gate at 0.50 < 0.5.
+Hit this on `article` extractor — needed a new switch arm. Better: derive
+confidence from structural signals (sample size, schema richness, sample
+text length) so unknown types still score reasonably.
+
+**🚫 BAD: any new file containing `if (host === "<domain>")` or
+`if (skill.domain === "<domain>")`**
+
+If you find yourself typing one of these, stop and ask:
+- What URL/page signal is on every site I want to handle, not just this one?
+- Can I read it from the response headers, the HTML metadata, or a manifest?
+- If it's truly site-specific, can it be a captured-skill descriptor instead
+  of code in the runtime?
+
+**Audit cadence:** Run this grep before every minor release:
+
+```bash
+grep -nE 'host === "[a-z]' src/ | grep -v 'auto"\|unknown"\|codex"\|claude"'
+```
+
+Anything new is a new debt. Either rewrite to a generic primitive or delete.
+
 ## Releases
 
 When asked to release, follow this flow:

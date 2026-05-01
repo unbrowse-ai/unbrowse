@@ -400,6 +400,19 @@ export function shouldIgnoreLearnedBrowserStrategy(
   return endpoint.method === "GET" && !endpoint.dom_extraction && !isDocumentLikeUrl(resolvedUrl);
 }
 
+/**
+ * @deprecated PER-DOMAIN REGISTRY — DO NOT EXTEND. See CLAUDE.md anti-patterns.
+ *
+ * Each `if (host === "<domain>")` arm below is the kind of heuristic the
+ * ranker philosophy bans: works for the listed hosts, silently fails for the
+ * rest. Kept load-bearing for now because removing breaks captured skills
+ * that depend on these mappings, but every new site mapping should NOT
+ * land here. Replace with structural primitives (link[rel=alternate],
+ * LD-JSON mainEntity, OpenSearch descriptors, sitemap hints).
+ *
+ * Owner: whoever touches this next is on the hook to start migrating one
+ * arm to a generic primitive and pruning a redundant case.
+ */
 function deriveStructuredDataReplay(url: string, mode: "concrete" | "template"): string {
   try {
     const parsed = new URL(url);
@@ -2426,26 +2439,33 @@ export async function executeEndpoint(
           ]);
           let diffCount = 0;
           let diffIdx = -1;
+          const diffIndices: number[] = [];
           for (let i = 0; i < capSegs.length; i++) {
             if (capSegs[i].toLowerCase() === ctxSegs[i].toLowerCase()) continue;
             diffCount += 1;
             diffIdx = i;
+            diffIndices.push(i);
           }
-          if (diffCount === 1) {
-            const capSeg = capSegs[diffIdx].toLowerCase();
-            const ctxSeg = ctxSegs[diffIdx].toLowerCase();
-            // Both must be entity-shaped (not shared tokens). If either is a
-            // shared API token, we're not actually doing entity substitution.
-            const capIsEntity = !SHARED.has(capSeg) && capSeg.length >= 3 && !/^\d+$/.test(capSeg);
-            const ctxIsEntity = !SHARED.has(ctxSeg) && ctxSeg.length >= 3 && !/^\d+$/.test(ctxSeg);
-            if (capIsEntity && ctxIsEntity) {
-              // Honor the caller's URL — same path shape, just a different
-              // entity value. Preserve the captured query string + fragment
-              // since those are the operation contract; the entity is the
-              // only thing the caller is overriding.
+          // A8 generalised: any number of differing segments are OK as long as
+          // every differing pair is entity-shaped on BOTH sides. Reddit
+          // /r/{sub}/comments/{post_id}/{slug} differs in 3 segments — pre-fix
+          // we required diffCount === 1 and only handled wikipedia/twitter.
+          if (diffCount >= 1) {
+            const allEntityShaped = diffIndices.every((i) => {
+              const a = capSegs[i].toLowerCase();
+              const b = ctxSegs[i].toLowerCase();
+              const aEntity = !SHARED.has(a) && a.length >= 3 && !/^\d+$/.test(a);
+              const bEntity = !SHARED.has(b) && b.length >= 3 && !/^\d+$/.test(b);
+              return aEntity && bEntity;
+            });
+            if (allEntityShaped) {
               const newPathname = ctx.pathname; // includes leading slash
               const rewritten = `${cap.protocol}//${cap.hostname}${cap.port ? `:${cap.port}` : ""}${newPathname}${cap.search}${cap.hash}`;
-              log("exec", `A8 entity-substitute: ${capSegs[diffIdx]} → ${ctxSegs[diffIdx]} on ${cap.hostname}`);
+              if (diffCount === 1) {
+                log("exec", `A8 entity-substitute: ${capSegs[diffIdx]} → ${ctxSegs[diffIdx]} on ${cap.hostname}`);
+              } else {
+                log("exec", `A8 multi-entity-substitute: ${diffCount} segments on ${cap.hostname} (${diffIndices.map((i) => `${capSegs[i]}→${ctxSegs[i]}`).join(", ")})`);
+              }
               url = rewritten;
             }
           }
