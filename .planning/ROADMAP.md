@@ -18,6 +18,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 - [ ] **Phase 5: Marketplace Wiring and Telemetry** — Connect graph DB to marketplace for cross-agent skill sharing; auto-file GitHub issues from agent telemetry
 - [ ] **Phase 6: Marketplace Payments** — Wallet-based payments so skills can be monetized and consumed by other agents
 - [ ] **Phase 7: Probe-First Executor + Recipe Replay** — Strategy is discovered by a HEAD probe, not predicted from a cached `exec_strategy` field. Every execute returns a `decision_trace`. Reverse-engineer-style ladder replaces the prediction switch.
+- [ ] **Phase 8: Latency Budget + Parallel Race + Share Pointers** — Resolve becomes a parallel race (recipe || marketplace || probe) against a per-call `--budget` deadline. `unbrowse capture` becomes its own explicit verb instead of auto-fallback. One config switch (`share_pointers: bool`, default false) governs marketplace publishing; setup prompts the user once with rev-share details.
 
 ---
 
@@ -155,6 +156,27 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 
 ---
 
+### Phase 8: Latency Budget + Parallel Race + Share Pointers
+
+**Goal**: An agent calling `unbrowse resolve` chooses its own latency budget per call. The pipeline races recipe-replay, marketplace lookup, and live HEAD probe in parallel; first valid result wins; deadline returns an honest `no_match` with `tried: [...]` and an optional explicit `unbrowse capture` next-step. Browser-capture stops being a silent fallback inside resolve and becomes its own opt-in verb. One simple config governs marketplace contribution.
+
+**Depends on**: Phase 7 (probe + recipe primitives are the racers Phase 8 parallelises)
+
+**Requirements**: PERF-01, CONTRIB-01, CONTRIB-02
+
+**Success Criteria** (what must be TRUE):
+  1. `unbrowse resolve --budget <ms>` accepts a wall-clock budget per call. The pipeline returns within budget ± 50ms with either a real result or `no_match`. Default budget is 8000ms (preserves existing behavior); recommended fast-path budget is 500ms.
+  2. The three lookup paths — local recipe replay, marketplace lookup, live HEAD probe of the URL — run in parallel via `Promise.race`-with-deadline. The first response with a valid signal wins; losers are aborted via AbortController.
+  3. Marketplace lookup is local-first with a 5-minute TTL. Repeat resolves on the same domain do not round-trip to the backend.
+  4. `unbrowse resolve` NEVER opens a browser tab. Live capture is moved out into an explicit `unbrowse capture --url ... --intent ...` verb. Resolve responses on miss include `next_step: { command: "unbrowse capture --url ...", est_ms: 8000 }` so the agent decides whether to spend the time.
+  5. `~/.unbrowse/config.json` gains a `share_pointers: boolean` field, default `false`. When false, `cachePublishedSkill` skips `queueBackgroundIndex` (no marketplace publish). Local recipe cache and replay still work.
+  6. `unbrowse setup` prompts the user once with three options: keep private (default), share pointers (no rev-share), share + add wallet for rev-share. Existing users on upgrade silently land on `private` with a one-time stderr notice for 5 invocations explaining the change and how to opt back in.
+  7. The deprecated per-host registry `deriveStructuredDataReplay` (mastodon/gitlab/github/hn.algolia/huggingface/mdn) and the now-unused `endpoint.exec_strategy` field are deleted. Their behavior is fully replaced by Phase 7's probe ladder + recipe replay; deletion confirmed by zero CI regressions.
+
+**Plans**: 0/3 (08-01: budget + parallel race; 08-02: share-pointers config + setup flow; 08-03: cleanup deprecated registry + exec_strategy)
+
+---
+
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
@@ -166,7 +188,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | 5. Marketplace Wiring and Telemetry | 2/2 | Complete | 2026-04-01 |
 | 6. Marketplace Payments | 2/2 | Complete | 2026-04-01 |
 | 7. Probe-First Executor + Recipe Replay | 2/2 | Complete | 2026-05-01 |
----
+| 8. Latency Budget + Parallel Race + Share Pointers | 0/3 | Planning | — |
 
 ## Coverage
 
@@ -185,5 +207,8 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | MARKETPLACE-02 | Phase 6 | Wallet payments |
 | EXEC-01 | Phase 7 | Probe-first executor (replaces strategy-prediction switch) |
 | EXEC-02 | Phase 7 | decision_trace + proven_recipe replay |
+| PERF-01 | Phase 8 | Per-call latency budget + parallel race |
+| CONTRIB-01 | Phase 8 | share_pointers config + setup flow |
+| CONTRIB-02 | Phase 8 | Explicit `unbrowse capture` verb (no silent fallback) |
 
-**Coverage: 13/13 requirements mapped. No orphans.**
+**Coverage: 16/16 requirements mapped. No orphans.**
