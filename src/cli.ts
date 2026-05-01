@@ -375,6 +375,15 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     if (flags["force-capture"]) body.force_capture = true;
     if (flags["skip-robots"]) body.skip_robots_check = true;
+    // Phase 8.1 — per-call latency budget for the parallel resolve race.
+    // Default 8000ms when unset; sub-probe values (<200ms) return no_match fast.
+    const budgetFlag = flags.budget;
+    if (typeof budgetFlag === "string") {
+      const parsed = parseInt(budgetFlag, 10);
+      if (Number.isFinite(parsed) && parsed > 0) body.budget_ms = parsed;
+    } else if (typeof budgetFlag === "number" && Number.isFinite(budgetFlag) && (budgetFlag as number) > 0) {
+      body.budget_ms = budgetFlag as number;
+    }
     body.projection = { raw: true };
 
     function execBody(endpointId: string): Record<string, unknown> {
