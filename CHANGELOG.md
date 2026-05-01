@@ -1,5 +1,19 @@
 # Changelog
 
+## [6.3.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.6...v6.3.0) (2026-05-01)
+
+### Features
+
+* **07-01:** add probeUrl + decideFromProbe primitive ([6cfc3e8](https://github.com/unbrowse-ai/unbrowse-dev/commit/6cfc3e8d19ea1e521c06ec81ba95f61150975dcc))
+* **07-02:** add ProvenRecipe types + EndpointDescriptor.proven_recipe ([021be5f](https://github.com/unbrowse-ai/unbrowse-dev/commit/021be5fc3d7a2d62c6a52811a7c63566cf072530))
+* **07-02:** recipe replay step runs before probe ladder in executeEndpoint ([3a53afa](https://github.com/unbrowse-ai/unbrowse-dev/commit/3a53afab313b60eff1baec6ba3d7db63ce4bdc8b))
+* **07-02:** stamp proven_recipe on admitted endpoints from captured req/res ([f17a769](https://github.com/unbrowse-ai/unbrowse-dev/commit/f17a76957e72f53dcf451d0d7111a0010192a7b5))
+* **07-02:** surface decision_trace at top level of ExecutionResult + CLI ([7ebc83b](https://github.com/unbrowse-ai/unbrowse-dev/commit/7ebc83b7e6b6bd205fdeec5b4e2087cbb451d31b))
+
+### Refactoring
+
+* **07-01:** wire probe-first ladder into executeEndpoint ([b7543e9](https://github.com/unbrowse-ai/unbrowse-dev/commit/b7543e9f3357f545464843a6bfd8dba32cdb94b8))
+
 ## [6.2.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.5...v6.2.6) (2026-05-01)
 
 ### Bug Fixes
