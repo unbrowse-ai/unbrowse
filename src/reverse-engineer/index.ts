@@ -1,5 +1,5 @@
 import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
-import type { CsrfPlan, EndpointDescriptor, EndpointPathBindingCandidate, WsMessage } from "../types/index.js";
+import type { CsrfPlan, EndpointDescriptor, EndpointPathBindingCandidate, ProvenRecipe, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
@@ -1039,6 +1039,11 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       // Record which page triggered this API call — used for trigger-and-intercept execution
       trigger_url: context?.pageUrl,
       ...(pathBindingCandidates.length > 0 ? { _path_binding_candidates: pathBindingCandidates } : {}),
+      // Phase 7.2 — stamp the proven recipe from this captured request/response pair.
+      // Skipped silently for non-2xx responses or missing bodies.
+      ...(buildProvenRecipe(req, computedUrlTemplate)
+        ? { proven_recipe: buildProvenRecipe(req, computedUrlTemplate)! }
+        : {}),
     };
     endpoint = resolveEndpointPathBindings(endpoint);
     endpoint.semantic = inferEndpointSemantic(endpoint, {
@@ -1261,6 +1266,94 @@ function sanitizeHeaders(headers: Record<string, string>): Record<string, string
       return !isSensitiveHeader(k);
     })
   );
+}
+
+/**
+ * Phase 7.2 — Strip ephemeral request headers that vary between captures and
+ * replays. Cookie/auth headers are handled separately by the executor (vault +
+ * authHeaders), so we drop them here too. Generic — no per-domain table.
+ *
+ * Removed:
+ * - sec-fetch-* (CORS metadata; chrome regenerates per-request)
+ * - sec-ch-ua-* (client hints; chrome regenerates per-request)
+ * - accept-encoding (transport detail; fetch sets its own)
+ * - content-length (recomputed by fetch)
+ * - cookie / authorization / x-csrf-* (auth — handled by executor)
+ * - host / origin / referer (recomputed from URL)
+ * - user-agent (executor sets a generic UA)
+ * - cache-control / pragma / if-* (caching — irrelevant on replay)
+ */
+function pickReplayHeaders(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers ?? {})) {
+    const lower = k.toLowerCase();
+    if (lower.startsWith("sec-fetch-")) continue;
+    if (lower.startsWith("sec-ch-ua")) continue;
+    if (lower.startsWith("if-")) continue;
+    if (
+      lower === "cookie" ||
+      lower === "authorization" ||
+      lower === "content-length" ||
+      lower === "host" ||
+      lower === "origin" ||
+      lower === "referer" ||
+      lower === "user-agent" ||
+      lower === "accept-encoding" ||
+      lower === "cache-control" ||
+      lower === "pragma" ||
+      lower === "connection" ||
+      lower === "te" ||
+      lower === "upgrade-insecure-requests" ||
+      lower === "x-csrf-token" ||
+      lower === "x-xsrf-token"
+    ) {
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Phase 7.2 — Build a ProvenRecipe from a captured request that produced a
+ * 2xx response with a body. Returns undefined when the request was not
+ * successful (no point replaying a known failure).
+ */
+function buildProvenRecipe(req: RawRequest, urlTemplate: string): ProvenRecipe | undefined {
+  if (req.response_status < 200 || req.response_status >= 300) return undefined;
+  if (!req.response_body) return undefined;
+  const ct = (req.response_headers?.["content-type"] ?? "").toLowerCase();
+  const bodyLen = Buffer.byteLength(req.response_body);
+
+  let json_top_keys: string[] | undefined;
+  if (ct.includes("application/json") || ct.includes("+json")) {
+    try {
+      const parsed = JSON.parse(stripJsonPrefix(req.response_body));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        json_top_keys = Object.keys(parsed).slice(0, 8);
+      }
+    } catch { /* not parseable, skip the fingerprint */ }
+  }
+
+  let body: unknown = undefined;
+  if (req.method !== "GET" && req.method !== "HEAD" && req.request_body) {
+    body = tryParseBody(req.request_body) ?? req.request_body;
+  }
+
+  return {
+    method: req.method,
+    url_template: urlTemplate,
+    headers: pickReplayHeaders(req.request_headers),
+    ...(body !== undefined ? { body } : {}),
+    response_signal: {
+      status: req.response_status,
+      ...(ct ? { content_type: ct } : {}),
+      byte_length_min: Math.floor(bodyLen * 0.5),
+      byte_length_max: Math.ceil(bodyLen * 2),
+      ...(json_top_keys ? { json_top_keys } : {}),
+    },
+    captured_at: req.timestamp || new Date().toISOString(),
+  };
 }
 
 /**
