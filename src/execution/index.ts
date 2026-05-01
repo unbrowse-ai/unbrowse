@@ -2872,7 +2872,18 @@ export async function executeEndpoint(
           }
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
-          if (endpoint.trigger_url && isSafe) {
+          // For self-fetchable JSON/API URLs (GET, ends in .json or contains
+          // /api/), the page IS the JSON endpoint — there's nothing for
+          // triggerAndIntercept to wait for. Returning the 4xx directly is
+          // honest and 15s faster than letting the agent wait for an
+          // interception that will never happen. Reddit's bot-block hits
+          // here on /comments/{id}/{slug}/.json.
+          const isSelfFetchableNS = endpoint.method === "GET" && /\.(json)(\?|$)|\/api\//i.test(url);
+          if (isSelfFetchableNS) {
+            log("exec", `self-fetchable URL — keeping ${result.status} instead of waiting on trigger-intercept`);
+            strategy = "server";
+            workflowChosenStrategy = "server";
+          } else if (endpoint.trigger_url && isSafe) {
             let triggerUrl = endpoint.trigger_url;
             if (Object.keys(mergedParams).length > 0) {
               try {
