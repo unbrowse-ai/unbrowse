@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.2.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.2...v6.2.3) (2026-05-01)
+
+### Bug Fixes
+
+* article extraction confidence — was falling to 0.3 default ([ef38024](https://github.com/unbrowse-ai/unbrowse-dev/commit/ef3802437406decb602835de59cef598248318bb))
+
 ## [6.2.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.1...v6.2.2) (2026-05-01)
 
 ### Bug Fixes
