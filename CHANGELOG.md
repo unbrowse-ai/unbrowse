@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.2...v6.1.3) (2026-05-01)
+
+### Bug Fixes
+
+* D8 also borrows sibling's body template — variables had nowhere to go ([75847fb](https://github.com/unbrowse-ai/unbrowse-dev/commit/75847fb430ddcf3dcf5ff591c786c4853bf1fc5d))
+
 ## [6.1.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.1...v6.1.2) (2026-05-01)
 
 ### Bug Fixes
