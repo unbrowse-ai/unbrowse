@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.1.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.0...v6.1.1) (2026-05-01)
+
+### Bug Fixes
+
+* 3 post-v6.1.0 UX bugs caught by harness against live binary ([2fb62c3](https://github.com/unbrowse-ai/unbrowse-dev/commit/2fb62c3e1c3b184e0130188fc60c6fdfa08eb622))
+
 ## [6.1.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.0-preview.0...v6.1.0) (2026-05-01)
 
 ## [6.1.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.0.0...v6.1.0-preview.0) (2026-04-30)
