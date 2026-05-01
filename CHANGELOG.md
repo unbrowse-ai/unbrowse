@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.1.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.1...v6.1.2) (2026-05-01)
+
+### Bug Fixes
+
+* CLI parser handles --prefixed nanoid IDs + GraphQL borrows sibling vars ([aa9f9b8](https://github.com/unbrowse-ai/unbrowse-dev/commit/aa9f9b834fff75248898086398d60374cc5c9180))
+
 ## [6.1.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.0...v6.1.1) (2026-05-01)
 
 ### Bug Fixes
