@@ -1,4 +1,0 @@
-step: 3
-session: default
-scope: step 3 stuck — missing: dw
-started_at: 2026-04-30T04:22:29.697Z

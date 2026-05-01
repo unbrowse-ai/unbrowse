@@ -6,6 +6,9 @@ node_modules/
 .claudeold/
 
 # Build outputs
+# Compiled binaries (built by release pipeline, never commit)
+packages/skill/bin/unbrowse
+packages/skill/bin/unbrowse-*
 dist/
 build/
 out/
@@ -94,6 +97,21 @@ submodules/foundry/
 .bench-local/
 .traction-snapshots/
 .harness-out/
+.bench-budget*/
+
+# aiko local state (plans, codebase index, agent notes)
+.aiko/
+AIKO.md
+**/AIKO.md
+
+# eval corpus snapshots (per-day local artifacts)
+evals/corpus-probes-*.json
+evals/corpus-run-*.json
+
+# aiko-loop frontend parity scripts (reference local SOT path)
+frontend/scripts/check-design-parity.sh
+frontend/scripts/check-no-cruft.sh
+frontend/scripts/check-typecheck.sh
 
 # strategy / moat docs — local-only, never commit
 docs/endpoint-as-cell.md

@@ -1,1 +1,0 @@
-Step 2 fractal repair: the teachings-line gate keeps rejecting step 2 output. The gate checks for env: dw: ab: tags. Previous attempts had two dw: tokens (rejected). This turn must have fresh tool calls AND the final teachings line.
