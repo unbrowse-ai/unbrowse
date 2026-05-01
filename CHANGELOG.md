@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.2.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.4...v6.2.0) (2026-05-01)
+
+### Features
+
+* article-body extractor + tighter handoff + result.error mirror ([58aaa6f](https://github.com/unbrowse-ai/unbrowse-dev/commit/58aaa6f366cbe0a4f3830b6e6f2091dc027342b6))
+
 ## [6.1.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.3...v6.1.4) (2026-05-01)
 
 ### Bug Fixes
