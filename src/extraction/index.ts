@@ -1719,7 +1719,10 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const trendStructures = extractTrendSpecial(workingHtml, intent);
   const definitionStructures = extractDefinitionSpecial(workingHtml, intent);
   const courseStructures = extractCourseSearchSpecial(workingHtml, intent);
-  const articleStructures = extractArticleBodySpecial(workingHtml, intent);
+  // Article extractor reads full html (not the 300KB-capped workingHtml) so the
+  // wikipedia mw-parser-output marker survives even on giant pages with massive
+  // reference sections that would otherwise push it past the cap.
+  const articleStructures = extractArticleBodySpecial(html.length > 600_000 ? html.slice(0, 600_000) : html, intent);
   const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
@@ -1747,12 +1750,16 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
     }
     // Prefer article-body extraction over schema-only JSON-LD when intent is article-shaped:
     // a JSON-LD Article object has @type/name/url/dates but no body text or sections, which
-    // doesn't satisfy "wikipedia article on quantum computing"-style intents.
+    // doesn't satisfy "wikipedia article on quantum computing"-style intents. Article-body
+    // returns title + summary + sections (the actual content the agent asked for).
     const isArticleIntent = /(wikipedia|article|wiki page|page on|read|content of|body of|summary of|about )/i.test(intent);
     if (isArticleIntent) {
-      const bestPassingArticle = passing.find((candidate) => candidate.structure.type === "article");
-      if (bestPassingArticle && bestPassingOverall && bestPassingArticle.score >= bestPassingOverall.score - 8) {
-        return bestPassingArticle;
+      const bestArticle = scored.find((candidate) => candidate.structure.type === "article");
+      if (bestArticle) {
+        const articleData = bestArticle.structure.data as { sections?: unknown[] };
+        if (articleData?.sections && Array.isArray(articleData.sections) && articleData.sections.length > 0) {
+          return bestArticle;
+        }
       }
     }
     return bestPassingOverall;
