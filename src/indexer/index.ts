@@ -24,6 +24,7 @@ import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../w
 import { getUnbrowseConfigPath } from "../settings.js";
 import { getEndpointDescriptionMetadata } from "../graph/index.js";
 import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
+import { getContributionConfig } from "../config/contribution.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
@@ -426,6 +427,19 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
 
   if (!job.publishAfterIndex) {
     console.error(`[capture-pipeline] remote publish not queued for ${indexed.domain}`);
+    return;
+  }
+
+  // Phase 8.2 — gate marketplace publish on the user's contribution mode.
+  // When share_pointers=false (default), the local index/cache write above
+  // still happened — only the remote publish is skipped. This is a
+  // privacy-preserving default; users opt into sharing via `unbrowse setup`
+  // or `unbrowse mode`.
+  const { contribution } = getContributionConfig();
+  if (!contribution.share_pointers) {
+    console.error(
+      `[capture-pipeline] share_pointers=false — skipping marketplace publish for skill ${indexed.skill.skill_id} (${indexed.domain}). Run \`unbrowse mode\` to opt into sharing.`,
+    );
     return;
   }
 
