@@ -222,7 +222,6 @@ export function isBundleInferredEndpoint(endpoint: Pick<EndpointDescriptor, "des
 }
 
 function isSupportEvidenceEndpoint(endpoint: EndpointDescriptor): boolean {
-  if (isCanonicalReplayEndpoint(endpoint)) return true;
   if (endpoint.dom_extraction && endpoint.response_schema) return true;
   if (isBundleInferredEndpoint(endpoint)) return false;
   return !!endpoint.response_schema;
@@ -406,301 +405,6 @@ export function shouldIgnoreLearnedBrowserStrategy(
   return endpoint.method === "GET" && !endpoint.dom_extraction && !isDocumentLikeUrl(resolvedUrl);
 }
 
-/**
- * @deprecated PER-DOMAIN REGISTRY — DO NOT EXTEND. See CLAUDE.md anti-patterns.
- *
- * Each `if (host === "<domain>")` arm below is the kind of heuristic the
- * ranker philosophy bans: works for the listed hosts, silently fails for the
- * rest. Kept load-bearing for now because removing breaks captured skills
- * that depend on these mappings, but every new site mapping should NOT
- * land here. Replace with structural primitives (link[rel=alternate],
- * LD-JSON mainEntity, OpenSearch descriptors, sitemap hints).
- *
- * Owner: whoever touches this next is on the hook to start migrating one
- * arm to a generic primitive and pruning a redundant case.
- */
-function deriveStructuredDataReplay(url: string, mode: "concrete" | "template"): string {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.replace(/^www\./, "");
-    const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
-    const templateParam = (primary: string): string => `{${primary}}`;
-
-    if (host === "mastodon.social") {
-      if (pathname === "/search" || pathname === "/search/") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://mastodon.social/api/v2/search");
-        replay.searchParams.set("q", mode === "template" ? templateParam("q") : (parsed.searchParams.get("q") ?? ""));
-        replay.searchParams.set("resolve", "false");
-        replay.searchParams.set("type", "statuses");
-        replay.searchParams.set("limit", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-      if (pathname === "/public") {
-        const replay = new URL("https://mastodon.social/api/v1/timelines/public");
-        replay.searchParams.set("limit", "20");
-        return replay.toString();
-      }
-    }
-
-    if (host === "gitlab.com") {
-      if (pathname === "/explore/projects") {
-        if (mode === "concrete" && !parsed.searchParams.get("name") && !parsed.searchParams.get("search")) return url;
-        const replay = new URL("https://gitlab.com/api/v4/projects");
-        const search = parsed.searchParams.get("search");
-        const name = parsed.searchParams.get("name");
-        replay.searchParams.set(
-          "search",
-          mode === "template"
-            ? (search && search.length > 0 ? "{search}" : name && name.length > 0 ? "{name}" : "{q}")
-            : (name ?? search ?? ""),
-        );
-        replay.searchParams.set("simple", "true");
-        replay.searchParams.set("per_page", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      const reserved = new Set([
-        "-",
-        "api",
-        "admin",
-        "dashboard",
-        "explore",
-        "groups",
-        "help",
-        "oauth",
-        "profile",
-        "projects",
-        "search",
-        "session",
-        "users",
-      ]);
-      if (segments.length === 2 && !reserved.has(segments[0])) {
-        return `https://gitlab.com/api/v4/projects/${encodeURIComponent(`${segments[0]}/${segments[1]}`)}`;
-      }
-    }
-
-    if (host === "github.com") {
-      if (pathname === "/search") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://api.github.com/search/repositories");
-        replay.searchParams.set(
-          "q",
-          mode === "template" ? "{q}" : (parsed.searchParams.get("q") ?? ""),
-        );
-        replay.searchParams.set("per_page", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "hn.algolia.com") {
-      if (pathname === "/" || pathname === "") {
-        if (mode === "concrete" && !parsed.searchParams.get("q") && !parsed.searchParams.get("query")) return url;
-        const replay = new URL("https://hn.algolia.com/api/v1/search");
-        replay.searchParams.set(
-          "query",
-          mode === "template" ? "{q}" : (parsed.searchParams.get("q") ?? parsed.searchParams.get("query") ?? ""),
-        );
-        replay.searchParams.set("tags", "story");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "huggingface.co") {
-      if (pathname === "/models" || pathname === "/models/") {
-        if (mode === "concrete" && !parsed.searchParams.get("search") && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://huggingface.co/api/models");
-        replay.searchParams.set(
-          "search",
-          mode === "template"
-            ? (parsed.searchParams.get("search") ? "{search}" : parsed.searchParams.get("q") ? "{q}" : "{search}")
-            : (parsed.searchParams.get("search") ?? parsed.searchParams.get("q") ?? ""),
-        );
-        replay.searchParams.set("limit", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "developer.mozilla.org") {
-      const locale = pathname.split("/").filter(Boolean)[0] || "en-US";
-      if (pathname.endsWith("/search") || pathname === "/search") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://developer.mozilla.org/api/v1/search");
-        replay.searchParams.set(
-          "q",
-          mode === "template" ? "{q}" : (parsed.searchParams.get("q") ?? ""),
-        );
-        replay.searchParams.set(
-          "page",
-          mode === "template"
-            ? (parsed.searchParams.get("page") ? "{page}" : "1")
-            : (parsed.searchParams.get("page") ?? "1"),
-        );
-        replay.searchParams.set("page_size", parsed.searchParams.get("page_size") ?? "20");
-        replay.searchParams.set(
-          "locale",
-          mode === "template"
-            ? (parsed.searchParams.get("locale") ? "{locale}" : locale)
-            : (parsed.searchParams.get("locale") ?? locale),
-        );
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "dev.to") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "t" && segments[1]) {
-        const replay = new URL("https://dev.to/api/articles");
-        replay.searchParams.set("tag", mode === "template" ? "{tag}" : segments[1]);
-        replay.searchParams.set("per_page", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "npmjs.com") {
-      if (pathname === "/search" || pathname === "/search/") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://registry.npmjs.org/-/v1/search");
-        replay.searchParams.set("text", mode === "template" ? templateParam("q") : (parsed.searchParams.get("q") ?? ""));
-        replay.searchParams.set("size", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "package" && segments.length >= 2) {
-        const versionIndex = segments.indexOf("v");
-        const packageName = segments.slice(1, versionIndex === -1 ? undefined : versionIndex).join("/");
-        if (packageName) return `https://registry.npmjs.org/${encodeURIComponent(packageName)}`;
-      }
-    }
-
-    if (host === "pypi.org") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "project" && segments[1]) {
-        return `https://pypi.org/pypi/${encodeURIComponent(segments[1])}/json`;
-      }
-    }
-
-    if (host === "pub.dev") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "packages" && segments[1]) {
-        return `https://pub.dev/api/packages/${encodeURIComponent(segments[1])}`;
-      }
-    }
-
-    if (host === "hub.docker.com") {
-      if (pathname === "/search" || pathname === "/search/") {
-        if (mode === "concrete" && !parsed.searchParams.get("q") && !parsed.searchParams.get("query")) return url;
-        const replay = new URL("https://hub.docker.com/v2/search/repositories/");
-        replay.searchParams.set(
-          "query",
-          mode === "template"
-            ? (parsed.searchParams.get("query") ? "{query}" : "{q}")
-            : (parsed.searchParams.get("q") ?? parsed.searchParams.get("query") ?? ""),
-        );
-        replay.searchParams.set("page_size", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "r" && segments.length >= 4 && segments[3] === "tags") {
-        return `https://hub.docker.com/v2/repositories/${encodeURIComponent(segments[1])}/${encodeURIComponent(segments[2])}/tags/?page_size=25`;
-      }
-    }
-
-    if (host === "rubygems.org") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "gems" && segments[1]) {
-        return `https://rubygems.org/api/v1/gems/${encodeURIComponent(segments[1])}.json`;
-      }
-    }
-
-    if (host === "stackoverflow.com" || host === "serverfault.com" || host === "superuser.com") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "questions" && segments[1] === "tagged" && segments[2]) {
-        const replay = new URL("https://api.stackexchange.com/2.3/questions");
-        replay.searchParams.set("site", host === "stackoverflow.com" ? "stackoverflow" : host.replace(/\.com$/, ""));
-        replay.searchParams.set("tagged", mode === "template" ? "{tag}" : segments[2]);
-        replay.searchParams.set("order", "desc");
-        replay.searchParams.set("sort", "activity");
-        replay.searchParams.set("pagesize", "20");
-        replay.searchParams.set("filter", "default");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "jmail.world") {
-      if (pathname === "/search" || pathname === "/search/") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://jmail.world/api/emails/search");
-        replay.searchParams.set("q", mode === "template" ? "{q}" : (parsed.searchParams.get("q") ?? ""));
-        replay.searchParams.set("limit", mode === "template" ? "{limit}" : (parsed.searchParams.get("limit") ?? "50"));
-        replay.searchParams.set("page", mode === "template" ? "{page}" : (parsed.searchParams.get("page") ?? "1"));
-        replay.searchParams.set("source", mode === "template" ? "{source}" : (parsed.searchParams.get("source") ?? "all"));
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host !== "reddit.com" && host !== "old.reddit.com" && host !== "np.reddit.com") return url;
-    if (/\.json$/i.test(parsed.pathname) || /\/api\/|\/svc\/|graphql/i.test(parsed.pathname)) return url;
-    if (parsed.pathname === "/search" || parsed.pathname === "/search/") {
-      if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-      parsed.pathname = "/search.json";
-      if (mode === "template" && !parsed.searchParams.get("q")) parsed.searchParams.set("q", "{q}");
-      return parsed.toString();
-    }
-    if (parsed.pathname.startsWith("/r/") || parsed.pathname.startsWith("/comments/")) {
-      parsed.pathname = `${parsed.pathname.replace(/\/$/, "")}/.json`;
-      return parsed.toString();
-    }
-    return url;
-  } catch {
-    return url;
-  }
-}
-
-export function deriveStructuredDataReplayUrl(url: string): string {
-  return deriveStructuredDataReplay(url, "concrete");
-}
-
-export function deriveStructuredDataReplayTemplate(url: string): string {
-  return deriveStructuredDataReplay(url, "template");
-}
-
-export function deriveStructuredDataReplayCandidates(url: string): string[] {
-  const primary = deriveStructuredDataReplayUrl(url);
-  const out = new Set<string>([primary]);
-  try {
-    const parsed = new URL(primary);
-    const host = parsed.hostname.replace(/^www\./, "");
-    if (host === "reddit.com" || host === "np.reddit.com") {
-      parsed.hostname = "old.reddit.com";
-      out.add(parsed.toString());
-    }
-  } catch {
-    // ignore
-  }
-  return [...out];
-}
-
-export function deriveStructuredDataReplayCandidatesFromInputs(
-  url: string,
-  params: Record<string, unknown> = {},
-): string[] {
-  const seeded = new Set<string>();
-  const replayTemplate = deriveStructuredDataReplayTemplate(url);
-  if (replayTemplate !== url) {
-    const seededReplay = interpolate(
-      replayTemplate,
-      mergeContextTemplateParams(params, replayTemplate, url),
-    );
-    if (!/\{[^}]+\}/.test(seededReplay)) seeded.add(seededReplay);
-  }
-  for (const replayUrl of deriveStructuredDataReplayCandidates(url)) seeded.add(replayUrl);
-  return [...seeded];
-}
-
 export function buildStructuredReplayHeaders(
   originalUrl: string,
   replayUrl: string,
@@ -710,7 +414,6 @@ export function buildStructuredReplayHeaders(
   try {
     const replayTarget = new URL(replayUrl);
     const originalTarget = new URL(originalUrl);
-    const host = replayTarget.hostname.replace(/^www\./, "");
     const needsApiReplayHeaders =
       replayTarget.hostname !== originalTarget.hostname ||
       /\/api\/|graphql|\/rest\/|\/rpc\/|\/v\d+\//i.test(replayTarget.pathname);
@@ -719,12 +422,6 @@ export function buildStructuredReplayHeaders(
       headers["accept-language"] ??= "en-US,en;q=0.9";
       headers["referer"] ??= originalTarget.toString();
       headers["accept"] ??= "application/json,text/plain,*/*";
-    }
-    if (host === "reddit.com" || host === "old.reddit.com" || host === "np.reddit.com") {
-      headers["user-agent"] ??= DEFAULT_BROWSER_UA;
-      headers["accept-language"] ??= "en-US,en;q=0.9";
-      headers["referer"] ??= originalTarget.toString();
-      headers["accept"] = "application/json,text/plain,*/*";
     }
   } catch {
     return headers;
@@ -857,198 +554,6 @@ export function buildPageArtifactCapture(
   };
 }
 
-export function buildCanonicalDocumentEndpoint(
-  url: string,
-  intent: string,
-  authRequired = false,
-): EndpointDescriptor | undefined {
-  const replayUrl = deriveStructuredDataReplayUrl(url);
-  const replayTemplate = deriveStructuredDataReplayTemplate(url);
-  if (replayUrl === url && replayTemplate === url) return undefined;
-  const canonicalId = createHash("sha1").update(replayTemplate !== url ? replayTemplate : replayUrl).digest("base64url").slice(0, 21);
-  const endpoint: EndpointDescriptor = {
-    endpoint_id: canonicalId,
-    method: "GET",
-    url_template: replayTemplate !== url ? replayTemplate : replayUrl,
-    idempotency: "safe",
-    verification_status: "verified",
-    reliability_score: 0.9,
-    description: `Structured replay for ${intent}`,
-    trigger_url: url,
-  };
-  endpoint.semantic = {
-    ...inferEndpointSemantic(endpoint, {
-      sampleRequest: buildSampleRequestFromUrl(url),
-      observedAt: new Date().toISOString(),
-      sampleRequestUrl: url,
-    }),
-    ...(authRequired ? { auth_required: true } : {}),
-  };
-  return endpoint;
-}
-
-export function isCanonicalReplayEndpoint(endpoint: Pick<EndpointDescriptor, "method" | "url_template" | "trigger_url">): boolean {
-  if (endpoint.method !== "GET" || !endpoint.trigger_url) return false;
-  try {
-    const concrete = deriveStructuredDataReplayUrl(endpoint.trigger_url);
-    const template = deriveStructuredDataReplayTemplate(endpoint.trigger_url);
-    return endpoint.url_template === concrete || endpoint.url_template === template;
-  } catch {
-    return false;
-  }
-}
-
-async function trySeedStructuredDocumentSkill(
-  skill: SkillManifest,
-  url: string,
-  intent: string,
-  params: Record<string, unknown>,
-  targetDomain: string,
-  authHeaders: Record<string, string> | undefined,
-  cookies: Array<{ name: string; value: string; domain: string }> | undefined,
-  usedStoredAuth: boolean,
-): Promise<ExecutionResult | undefined> {
-  const canonicalDocumentEndpoint = buildCanonicalDocumentEndpoint(url, intent, usedStoredAuth);
-  if (!canonicalDocumentEndpoint) return undefined;
-
-  const replayUrls = deriveStructuredDataReplayCandidatesFromInputs(url, params);
-  let headers: Record<string, string> = {
-    accept: "application/json,text/plain,*/*",
-    ...(canonicalDocumentEndpoint.headers_template ?? {}),
-    ...(authHeaders ?? {}),
-  };
-  if (cookies && cookies.length > 0) {
-    headers.cookie = cookies.map((c) => {
-      const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
-      return `${c.name}=${v}`;
-    }).join("; ");
-  }
-
-  let data: unknown;
-  let passed = false;
-  let successfulReplayUrl = replayUrls[0] ?? url;
-  for (const replayUrl of replayUrls) {
-    const res = await fetch(replayUrl, {
-      method: "GET",
-      headers: buildStructuredReplayHeaders(url, replayUrl, headers),
-      redirect: "follow",
-    });
-    const text = await res.text();
-    try { data = JSON.parse(text); } catch { data = text; }
-
-    const assessment = assessIntentResult(data, intent);
-    if (assessment.verdict === "pass") {
-      passed = true;
-      successfulReplayUrl = replayUrl;
-      break;
-    }
-  }
-  if (!passed) return undefined;
-
-  const semanticSample = compactSchemaSample(data);
-  canonicalDocumentEndpoint.response_schema = inferSchema([semanticSample]);
-  canonicalDocumentEndpoint.semantic = {
-    ...inferEndpointSemantic(canonicalDocumentEndpoint, {
-      sampleResponse: semanticSample,
-      sampleRequest: {
-        ...buildSampleRequestFromUrl(url),
-        ...params,
-      },
-      observedAt: new Date().toISOString(),
-      sampleRequestUrl: url,
-    }),
-    ...(usedStoredAuth ? { auth_required: true } : {}),
-  };
-
-  const domain = getRegistrableDomain(targetDomain);
-  const existingSkill = findExistingSkillForDomain(domain, intent);
-  const localEndpoints = await prepareLearnedEndpoints(
-    existingSkill
-      ? mergeEndpoints(existingSkill.endpoints, [canonicalDocumentEndpoint])
-      : [canonicalDocumentEndpoint],
-    intent,
-    domain,
-  );
-
-  const localDraft: SkillManifest = {
-    skill_id: existingSkill?.skill_id ?? nanoid(),
-    version: "1.0.0",
-    schema_version: "1",
-    lifecycle: "active" as const,
-    execution_type: "http" as const,
-    created_at: existingSkill?.created_at ?? new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    name: domain,
-    intent_signature: intent,
-    domain,
-    description: `API skill for ${domain}`,
-    owner_type: "agent" as const,
-    endpoints: localEndpoints,
-    operation_graph: buildSkillOperationGraph(localEndpoints),
-    intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
-  };
-
-  let learned: SkillManifest = localDraft;
-  const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
-  const admission = selectMarketplacePublishEndpoints(localDraft);
-  if (validation.valid && admission.endpoints.length > 0) {
-    try {
-      const { operation_graph: _graph, ...publishDraft } = localDraft;
-      const published = await publishSkill(publishDraft);
-      learned = {
-        ...published,
-        endpoints: localEndpoints,
-        operation_graph: localDraft.operation_graph,
-      };
-    } catch {
-      learned = localDraft;
-    }
-  } else if (admission.endpoints.length === 0) {
-    console.warn(`[publish] direct publish skipped for ${localDraft.skill_id}: ${admission.stats.by_reason.dom_fallback_only > 0 ? "dom_fallback_only" : "no admitted endpoints"}`);
-  }
-  try { cachePublishedSkill(learned); } catch { /* best-effort */ }
-  const seededRequest: RawRequest = {
-    url: successfulReplayUrl,
-    method: "GET",
-    request_headers: headers,
-    response_status: 200,
-    response_headers: {
-      "content-type": typeof data === "string" ? "text/plain" : "application/json",
-    },
-    response_body: typeof data === "string" ? data : JSON.stringify(data),
-    timestamp: new Date().toISOString(),
-  };
-  persistWorkflowArtifactForCapture(
-    learned,
-    {
-      requests: [seededRequest],
-      har_lineage_id: `seeded:${learned.skill_id}:canonical-document`,
-      final_url: successfulReplayUrl,
-      cookies: cookies ?? [],
-      js_bundles: new Map(),
-    },
-    authHeaders,
-  );
-
-  const trace: ExecutionTrace = stampTrace({
-    trace_id: nanoid(),
-    skill_id: learned.skill_id,
-    endpoint_id: "browser-capture",
-    started_at: new Date().toISOString(),
-    completed_at: new Date().toISOString(),
-    success: true,
-    result: {
-      learned_skill_id: learned.skill_id,
-      endpoints_discovered: 1,
-      seeded_from: "canonical_document",
-    },
-  });
-  return {
-    trace,
-    result: trace.result,
-    learned_skill: learned,
-  };
-}
 
 async function trySeedPublicDocumentFetchSkill(
   skill: SkillManifest,
@@ -1328,17 +833,6 @@ async function executeBrowserCapture(
       usedStoredAuth = true;
     }
   }
-  const seeded = await trySeedStructuredDocumentSkill(
-    skill,
-    url,
-    intent,
-    params,
-    targetDomain,
-    authHeaders,
-    cookies,
-    usedStoredAuth,
-  );
-  if (seeded) return seeded;
   const documentSeed = await trySeedPublicDocumentFetchSkill(
     skill,
     url,
@@ -1615,14 +1109,6 @@ async function executeBrowserCapture(
         auth_required: true,
       };
     }
-  }
-
-  const canonicalDocumentEndpoint = buildCanonicalDocumentEndpoint(url, intent, authBackedCapture);
-  if (
-    canonicalDocumentEndpoint &&
-    !cleanEndpoints.some((endpoint) => endpoint.method === canonicalDocumentEndpoint.method && endpoint.url_template === canonicalDocumentEndpoint.url_template)
-  ) {
-    cleanEndpoints.push(canonicalDocumentEndpoint);
   }
 
   const pageArtifact = captured.html
@@ -2557,13 +2043,6 @@ export async function executeEndpoint(
       consumedKeys.add(rawKey);
       consumedKeys.add(bindingKey);
     }
-    if (isCanonicalReplayEndpoint(endpoint)) {
-      try {
-        for (const key of new URL(endpoint.trigger_url!).searchParams.keys()) consumedKeys.add(key);
-      } catch {
-        /* ignore */
-      }
-    }
     // Also mark keys that appeared as {var} in the original URL template
     const templateVarRe = /\{(\w+)\}/g;
     let m: RegExpExecArray | null;
@@ -2593,8 +2072,6 @@ export async function executeEndpoint(
     const allowed = await isAllowedByRobots(url);
     if (!allowed) log("exec", `robots.txt would block ${url} (not enforced)`);
   }
-  const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
-  const hasStructuredReplay = structuredReplayUrl !== url;
 
   const serverFetch = async (
     extraHeaders: Record<string, string> = {},
@@ -2654,7 +2131,7 @@ export async function executeEndpoint(
       }
     }
 
-    const replayUrls = hasStructuredReplay ? deriveStructuredDataReplayCandidates(structuredReplayUrl) : [structuredReplayUrl];
+    const replayUrls = [url];
     let last: { data: unknown; status: number } = { data: null, status: 0 };
 
     for (const replayUrl of replayUrls) {
@@ -2720,24 +2197,16 @@ export async function executeEndpoint(
   );
 
   let result: { data: unknown; status: number; trace_id: string };
-  const hasAuth = cookies.length > 0 || Object.keys(authHeaders).length > 0;
-  const preferredWorkflowStrategy = workflowRecipe?.steps[0]?.strategy
-    ? translateWorkflowStrategy(workflowRecipe.steps[0].strategy)
-    : undefined;
   let workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy;
-  void preferredWorkflowStrategy;
-  void hasAuth;
-  void hasStructuredReplay;
 
   // ---------------------------------------------------------------------------
-  // Phase 7.1 — Probe-first executor.
+  // Phase 7.1 — Probe-first executor (Phase 8 cleanup complete).
   //
-  // Replaces the old strategy-prediction switch (hasStructuredReplay /
-  // endpoint.exec_strategy / per-host registry). Every dispatch is now derived
-  // from probe evidence: status + content-type + body size. The old per-host
-  // deriveStructuredDataReplay registry stays in source for serverFetch() to
-  // use as a URL hint, but it does NOT decide strategy here. (Phase 8 cleanup
-  // removes the registry entirely.)
+  // Every dispatch is derived from probe evidence (status + content-type +
+  // body size) rather than from a pre-flight strategy switch. The legacy
+  // per-host structured-replay registry and the endpoint.exec_strategy field
+  // were deleted in Plan 08-03 once recipe replay (Phase 7.2) absorbed their
+  // remaining use cases.
   // ---------------------------------------------------------------------------
   const decisionTrace: Array<Record<string, unknown>> = [];
 
@@ -2777,14 +2246,10 @@ export async function executeEndpoint(
   }
 
   // ---------------------------------------------------------------------------
-  // Phase 7.1 — Probe-first executor.
-  //
-  // Replaces the old strategy-prediction switch (hasStructuredReplay /
-  // endpoint.exec_strategy / per-host registry). Every dispatch is now derived
-  // from probe evidence: status + content-type + body size. The old per-host
-  // deriveStructuredDataReplay registry stays in source for serverFetch() to
-  // use as a URL hint, but it does NOT decide strategy here. (Phase 8 cleanup
-  // removes the registry entirely.)
+  // Phase 7.1 probe path — runs when recipe replay (above) did not match.
+  // Probe evidence (status + content-type + body size) determines whether to
+  // dispatch via server fetch or fall back to browser capture. The legacy
+  // per-host registry was deleted in Plan 08-03.
   // ---------------------------------------------------------------------------
   if (!recipeMatched) {
     const probeCookies = cookies.map((c) => ({ name: c.name, value: c.value }));
@@ -3816,12 +3281,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const plausibleCandidates = candidates.filter((ep) => isPlausibleForIntent(ep));
   if (plausibilityScopedIntent && plausibleCandidates.length === 0) return [];
   const rankedCandidates = plausibleCandidates.length > 0 ? plausibleCandidates : candidates;
-  const canonicalReplayTriggers = new Set(
-    rankedCandidates
-      .filter((ep) => isCanonicalReplayEndpoint(ep))
-      .map((ep) => ep.trigger_url)
-      .filter((value): value is string => !!value),
-  );
   const structuredApiTriggers = new Set(
     rankedCandidates
       .filter((ep) => {
@@ -3949,7 +3408,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // === Structural bonuses ===
     if (ep.dom_extraction) score += 25;
     if (descriptionMeta.needs_review && ep.dom_extraction) score -= 140;
-    if (isCanonicalReplayEndpoint(ep)) score += 160;
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 180;
     score += semanticIntentAdjustment(ep, intent);
@@ -4053,7 +3511,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(ep.url_template);
     const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
     const isCapturedPageArtifact = /captured (?:search form |page )?artifact/i.test(ep.description ?? "");
-    const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
     const triggerPath = (() => {
       try {
@@ -4192,9 +3649,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
       score = Math.min(score, -400);
-    }
-    if (hasCanonicalReplaySibling && ep.dom_extraction && !isCanonicalReplayEndpoint(ep)) {
-      score -= 260;
     }
     if (descriptionMeta.needs_review && isCapturedPageArtifact) {
       score -= 120;

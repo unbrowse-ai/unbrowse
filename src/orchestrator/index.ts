@@ -11,7 +11,7 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { buildCanonicalDocumentEndpoint, decomposeGraphqlEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
+import { decomposeGraphqlEndpoint, executeSkill, rankEndpoints } from "../execution/index.js";
 import {
   getSkillChunk,
   getEndpointDescriptionMetadata,
@@ -651,42 +651,21 @@ export function promoteExplicitExecution(
   return true;
 }
 
-export function shouldBypassLiveCaptureQueue(url?: string): boolean {
-  if (!url) return false;
-  return deriveStructuredDataReplayUrl(url) !== url || deriveStructuredDataReplayTemplate(url) !== url;
+export function shouldBypassLiveCaptureQueue(_url?: string): boolean {
+  // Phase 8.3 cleanup: per-host structured-replay registry was deleted.
+  // Live capture is no longer bypassed for "known-rewriteable" hosts.
+  return false;
 }
 
 function withContextReplayEndpoint(
   skill: SkillManifest,
-  intent: string,
-  contextUrl?: string,
+  _intent: string,
+  _contextUrl?: string,
 ): SkillManifest {
-  if (!contextUrl) return skill;
-  const canonical = buildCanonicalDocumentEndpoint(contextUrl, intent, !!skill.auth_profile_ref);
-  if (!canonical) return skill;
-  if (
-    skill.endpoints.some(
-      (endpoint) =>
-        endpoint.method === canonical.method &&
-        endpoint.url_template === canonical.url_template,
-    )
-  ) {
-    return skill;
-  }
-  const augmented = {
-    ...skill,
-    endpoints: [canonical, ...skill.endpoints],
-  };
-  // Persist only if this is a new canonical endpoint — avoid overwriting cache on every resolve
-  try {
-    const existing = findExistingSkillForDomain(skill.domain);
-    if (!existing || !existing.endpoints.some((ep) => ep.endpoint_id === canonical.endpoint_id)) {
-      cachePublishedSkill(augmented);
-    }
-  } catch {
-    // Non-critical — canonical will still work in-memory for this resolve
-  }
-  return augmented;
+  // Phase 8.3 cleanup: per-host structured-replay registry was deleted.
+  // The probe-first executor now derives replay URLs at execute time, so this
+  // pre-resolve canonical-endpoint augmentation is a no-op.
+  return skill;
 }
 
 function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
@@ -700,31 +679,13 @@ function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
 }
 
 function buildLocalCanonicalReplaySkill(
-  intent: string,
-  contextUrl: string,
+  _intent: string,
+  _contextUrl: string,
 ): SkillManifest | undefined {
-  const endpoint = buildCanonicalDocumentEndpoint(contextUrl, intent, false);
-  if (!endpoint) return undefined;
-  const domain = new URL(contextUrl).hostname.replace(/^www\./, "");
-  const now = new Date().toISOString();
-  const skill: SkillManifest = {
-    skill_id: `canonical-${createHash("sha1").update(contextUrl).digest("hex").slice(0, 12)}`,
-    version: "1.0.0",
-    schema_version: "1",
-    name: `Canonical replay for ${domain}`,
-    intent_signature: intent,
-    intents: [intent],
-    domain,
-    description: `Deterministic structured replay for ${contextUrl}`,
-    owner_type: "agent",
-    execution_type: "http",
-    endpoints: [endpoint],
-    lifecycle: "active",
-    created_at: now,
-    updated_at: now,
-  };
-  cachePublishedSkill(skill);
-  return skill;
+  // Phase 8.3 cleanup: per-host structured-replay registry was deleted.
+  // No deterministic local canonical skill can be synthesised without it;
+  // the live-capture path is the sole source of truth now.
+  return undefined;
 }
 
 export function isCachedSkillRelevantForIntent(
@@ -4846,13 +4807,6 @@ export function hasUsableEndpoints(skill: SkillManifest): boolean {
   if (!skill.endpoints || skill.endpoints.length === 0) return false;
   return skill.endpoints.some((ep) => {
     try {
-      const isCanonicalReplay =
-        typeof ep.trigger_url === "string" &&
-        !!ep.trigger_url &&
-        (ep.url_template === deriveStructuredDataReplayUrl(ep.trigger_url) ||
-          ep.url_template === deriveStructuredDataReplayTemplate(ep.trigger_url));
-      if (isCanonicalReplay) return true;
-
       const u = new URL(ep.url_template);
       const onDomain = u.hostname === skill.domain || u.hostname.endsWith(`.${skill.domain}`) ||
         getRegistrableDomain(u.hostname) === getRegistrableDomain(skill.domain) ||
