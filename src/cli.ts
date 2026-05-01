@@ -63,7 +63,14 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
     } else if (a.startsWith("--")) {
       const key = a.slice(2);
       const next = rest[i + 1];
-      if (!next || next.startsWith("--") || next === "-p" || next === "--param") {
+      // Flags that always consume the next arg as their value (even if it
+      // starts with -- because nanoid IDs can begin with `-` / `--`).
+      const valueExpectedFlags = new Set(["skill", "endpoint", "intent", "url", "domain", "params", "path", "extract", "limit"]);
+      if (valueExpectedFlags.has(key)) {
+        if (next === undefined) die(`--${key} requires a value`);
+        flags[key] = next;
+        i++;
+      } else if (!next || next.startsWith("--") || next === "-p" || next === "--param") {
         flags[key] = true;
       } else {
         flags[key] = next;
