@@ -1900,6 +1900,9 @@ function computeConfidence(structure: ExtractedStructure, relevanceScore: number
     case "json-ld":
       confidence = 0.9;
       break;
+    case "article":
+      confidence = 0.9;
+      break;
     case "itemlist":
       confidence = 0.9;
       break;
