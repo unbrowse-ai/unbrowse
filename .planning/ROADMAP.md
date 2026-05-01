@@ -17,6 +17,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 - [x] **Phase 4: Endpoint Graph** — Track endpoint relationships; prefetch related endpoints so agents get complete context in one round-trip
 - [ ] **Phase 5: Marketplace Wiring and Telemetry** — Connect graph DB to marketplace for cross-agent skill sharing; auto-file GitHub issues from agent telemetry
 - [ ] **Phase 6: Marketplace Payments** — Wallet-based payments so skills can be monetized and consumed by other agents
+- [ ] **Phase 7: Probe-First Executor + Recipe Replay** — Strategy is discovered by a HEAD probe, not predicted from a cached `exec_strategy` field. Every execute returns a `decision_trace`. Reverse-engineer-style ladder replaces the prediction switch.
 
 ---
 
@@ -134,6 +135,26 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 
 ---
 
+### Phase 7: Probe-First Executor + Recipe Replay
+
+**Goal**: Replace the cached-strategy switch with a probe-first ladder that decides at execute time, surfaces a `decision_trace` on every response, and falls back to recipe replay (proven request shape captured at admission). The reddit `/comments/{id}/{slug}/.json` `trigger_timeout` class of bug — strategy was guessed wrong, no observability into which path ran — disappears at the root.
+
+**Depends on**: Phase 2 (skill cache + endpoint admission), Phase 4 (graph already supplies the URL/metadata that the probe consumes)
+
+**Requirements**: EXEC-01, EXEC-02
+
+**Success Criteria** (what must be TRUE):
+  1. The cached `exec_strategy` field is removed from the executor's decision input. Strategy is chosen each call by reading the result of one cheap probe (HEAD with browser headers + cookies, falling back to a 1-byte ranged GET if HEAD is rejected).
+  2. Every execute response carries a `decision_trace: Array<{step, ...}>` showing every probe + fetch + fallback the executor took, with millisecond timings. Agents can read it; the harness reads it for free.
+  3. Self-fetchable URLs (probe returns 2xx + json/html with substantial body) NEVER call `triggerAndIntercept`. The reddit comments `.json` case returns the actual server status (200/403/404) within ~1s, never the 15s `trigger_timeout`.
+  4. When admission stores an endpoint it persists a `proven_recipe: {method, headers, body, response_signal: {status, content_type, byte_length}}`. Replay is "send the recipe, compare response_signal" — no strategy guessing. Recipe-replay miss escalates to discovery (probe ladder).
+  5. The deprecated per-host registry in `deriveStructuredDataReplay` is removed. Its 6 site arms are replaced by the probe ladder + recipe replay producing the same outcomes for those hosts.
+  6. Bench-local sweep on the corpus shows zero `trigger_timeout` results for endpoints whose URL was directly fetchable. End-to-end latency for cached self-fetchable endpoints drops from ~15s (timeout) to <500ms (probe + fetch).
+
+**Plans**: TBD (07-01: probe-first executor; 07-02: decision_trace + recipe replay)
+
+---
+
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
@@ -144,7 +165,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | 4. Endpoint Graph | 2/2 | Complete | 2026-04-01 |
 | 5. Marketplace Wiring and Telemetry | 2/2 | Complete | 2026-04-01 |
 | 6. Marketplace Payments | 2/2 | Complete | 2026-04-01 |
-
+| 7. Probe-First Executor + Recipe Replay | 2/2 | Complete | 2026-05-01 |
 ---
 
 ## Coverage
@@ -162,5 +183,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | MARKETPLACE-01 | Phase 5 | Graph DB to marketplace wiring |
 | TELEMETRY-01 | Phase 5 | Auto-issue creation (platform plumbing) |
 | MARKETPLACE-02 | Phase 6 | Wallet payments |
+| EXEC-01 | Phase 7 | Probe-first executor (replaces strategy-prediction switch) |
+| EXEC-02 | Phase 7 | decision_trace + proven_recipe replay |
 
-**Coverage: 11/11 requirements mapped. No orphans.**
+**Coverage: 13/13 requirements mapped. No orphans.**
