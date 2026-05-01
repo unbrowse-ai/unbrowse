@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.2.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.4...v6.2.5) (2026-05-01)
+
+### Bug Fixes
+
+* trigger-intercept falls back to serverFetch on self-fetchable URLs ([891f2e4](https://github.com/unbrowse-ai/unbrowse-dev/commit/891f2e454684ee8329d88956ffd00b584d6f86ef))
+
 ## [6.2.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.3...v6.2.4) (2026-05-01)
 
 ### Bug Fixes
