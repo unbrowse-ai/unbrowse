@@ -2378,7 +2378,14 @@ export async function resolveAndExecute(
     // The picker is the calling LLM; if every option scored < 0 we have nothing
     // to actually pick from, so we'd rather give an actionable next_step.
     const isSameHostResolve = !!context?.url && !!endpointScopedSkill.domain;
-    const hostMatches = isSameHostResolve && new URL(context.url).hostname === endpointScopedSkill.domain;
+    // C5b: extend handoff to registrable-domain match (youtube.com vs music.youtube.com,
+    // google.com vs news.google.com). When the cached skill is a sibling subdomain of
+    // the user's contextUrl, an empty/all-negative shortlist still means "no real match
+    // for THIS task" — better to handoff than surface the wrong endpoint.
+    const hostMatches = isSameHostResolve && (
+      new URL(context.url).hostname === endpointScopedSkill.domain ||
+      getRegistrableDomain(new URL(context.url).hostname) === getRegistrableDomain(endpointScopedSkill.domain)
+    );
     const allNegative = epRanked.length > 0 && epRanked.every((r) => r.score < 0);
     if ((epRanked.length === 0 || allNegative) && hostMatches) {
       return {
