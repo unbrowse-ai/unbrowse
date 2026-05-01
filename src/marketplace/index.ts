@@ -9,6 +9,91 @@ export async function listSkills(): Promise<SkillManifest[]> {
 export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
   return client.getSkill(skillId, scopeId);
 }
+// ---------------------------------------------------------------------------
+// Phase 8.1 — In-process marketplace TTL cache.
+//
+// `getSkillCached` wraps `getSkill` with a 5-minute TTL keyed by (scope, skill_id).
+// Cuts repeated round-trips during a hot-path race (recipe || marketplace || probe)
+// from ~2.5s backend timeout to ~1ms map lookup. Bounded LRU (100 entries) so a
+// chatty scope can't pin the heap.
+//
+// `invalidateMarketplaceCache(domain)` is called from `publishSkill` after a
+// successful publish so other agents see the new skill within the publish window.
+// Domain matches any cache entry whose stored skill has that `skill_id` or
+// `domain`. Callers may pass either.
+// ---------------------------------------------------------------------------
+
+interface CacheEntry { skill: SkillManifest; expires: number }
+
+const TTL_MS = 5 * 60 * 1000;
+const MAX_ENTRIES = 100;
+const marketplaceCache = new Map<string, CacheEntry>();
+
+function cacheKey(skillId: string, scope?: string): string {
+  return `${scope ?? "global"}:${skillId}`;
+}
+
+function evictExpiredAndOverflow(): void {
+  const now = Date.now();
+  for (const [k, v] of marketplaceCache) {
+    if (v.expires <= now) marketplaceCache.delete(k);
+  }
+  // LRU-ish: insertion order is iteration order; drop oldest until under cap.
+  while (marketplaceCache.size > MAX_ENTRIES) {
+    const oldest = marketplaceCache.keys().next().value;
+    if (!oldest) break;
+    marketplaceCache.delete(oldest);
+  }
+}
+
+/**
+ * Cached wrapper around `getSkill`. Returns the cached SkillManifest when fresh
+ * (≤ 5 min old), otherwise fetches from backend and stores. Returns null on miss.
+ */
+export async function getSkillCached(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
+  const key = cacheKey(skillId, scopeId);
+  const cached = marketplaceCache.get(key);
+  if (cached && cached.expires > Date.now()) {
+    // refresh LRU position
+    marketplaceCache.delete(key);
+    marketplaceCache.set(key, cached);
+    return cached.skill;
+  }
+  const fresh = await client.getSkill(skillId, scopeId);
+  if (fresh) {
+    marketplaceCache.set(key, { skill: fresh, expires: Date.now() + TTL_MS });
+    evictExpiredAndOverflow();
+  }
+  return fresh;
+}
+
+/**
+ * Drop every cached entry whose skill_id or domain matches the input. Called
+ * by `publishSkill` after a successful publish so subsequent `getSkillCached`
+ * calls from any client_scope re-fetch the new version.
+ */
+export function invalidateMarketplaceCache(skillIdOrDomain: string): void {
+  if (!skillIdOrDomain) return;
+  for (const [key, entry] of marketplaceCache) {
+    if (key.endsWith(`:${skillIdOrDomain}`)) {
+      marketplaceCache.delete(key);
+      continue;
+    }
+    if (entry.skill.skill_id === skillIdOrDomain || entry.skill.domain === skillIdOrDomain) {
+      marketplaceCache.delete(key);
+    }
+  }
+}
+
+/** Test-only: clear the entire cache. */
+export function _clearMarketplaceCacheForTests(): void {
+  marketplaceCache.clear();
+}
+
+/** Test-only: read current cache size. */
+export function _marketplaceCacheSizeForTests(): number {
+  return marketplaceCache.size;
+}
 
 export async function publishSkill(
   draft: Omit<SkillManifest, "skill_id" | "created_at" | "updated_at" | "version"> & {
@@ -37,6 +122,9 @@ export async function publishSkill(
     // Merge draft with backend response — avoids read-after-write race
     const skill = { ...draft, ...backendFields } as SkillManifest;
     client.cachePublishedSkill(skill);
+    // Phase 8.1 — invalidate TTL cache so other agents see the new skill
+    invalidateMarketplaceCache(skill.skill_id);
+    if (skill.domain) invalidateMarketplaceCache(skill.domain);
     return skill;
   } catch (err) {
     console.error("[publish] remote publish failed, using local cache:", (err as Error).message);
