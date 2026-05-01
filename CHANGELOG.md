@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.2.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.3...v6.2.4) (2026-05-01)
+
+### Bug Fixes
+
+* A8 multi-segment substitution + anti-pattern audit in CLAUDE.md ([4508f2c](https://github.com/unbrowse-ai/unbrowse-dev/commit/4508f2ccf17f96414c3cb769808f964d7f97e50f))
+
 ## [6.2.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.2...v6.2.3) (2026-05-01)
 
 ### Bug Fixes
