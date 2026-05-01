@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { ArrowRight, Database, Globe2 } from "lucide-react";
-import { listSkills } from "@/lib/api";
+import { listSkillCards } from "@/lib/api";
 import { AthensParallax } from "@/components/athens-parallax";
 
 export async function RegistryShowcase() {
   let skills: any[] = [];
   try {
-    skills = await listSkills();
+    skills = await listSkillCards({ limit: 30 });
   } catch (e) {
-    // silently fail
+    console.error("[RegistryShowcase] listSkillCards failed:", e);
   }
 
   const displaySkills = skills.filter((s) => s.lifecycle !== "deprecated").slice(0, 30);
@@ -51,9 +51,8 @@ export async function RegistryShowcase() {
             {displaySkills.length > 0 ? (
               <div>
                 {displaySkills.map((skill, i) => {
-                  const avgScore = skill.endpoints.length > 0
-                    ? skill.endpoints.reduce((s: number, e: any) => s + e.reliability_score, 0) / skill.endpoints.length
-                    : 0;
+                  const avgScore = skill.avg_reliability_score ?? 0;
+                  const endpointCount = skill.endpoint_count ?? skill.endpoints?.length ?? 0;
                   return (
                     <Link
                       key={skill.skill_id}
@@ -79,7 +78,7 @@ export async function RegistryShowcase() {
 
                       {/* Stats */}
                       <div className="text-right shrink-0 hidden sm:block">
-                        <div className="text-xs font-mono text-[rgba(255,122,32,0.45)]">{skill.endpoints.length} endpoints</div>
+                        <div className="text-xs font-mono text-[rgba(255,122,32,0.45)]">{endpointCount} endpoints</div>
                         <div className="text-xs font-mono text-orange-500">{Math.round(avgScore * 100)}% reliable</div>
                       </div>
                     </Link>

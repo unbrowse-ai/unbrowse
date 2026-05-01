@@ -26,8 +26,14 @@ function schedule(c: Context, task: Promise<unknown>): void {
 // Public read routes -- auth required for list, rate-limited
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
 
-// Skills list requires auth (prevents 30MB unauthenticated dumps)
-publicSkillRoutes.use("/skills", bearerAuth, rateLimit({ limit: 60, window: 60, prefix: "skills-list" }));
+// Skills list: card view is public (trimmed payload, edge-cached, safe for homepage).
+// Full list still requires auth to prevent unauthenticated 30MB dumps.
+publicSkillRoutes.use("/skills", async (c, next) => {
+  if (c.req.query("view") === "card") {
+    return rateLimit({ limit: 120, window: 60, prefix: "skills-card" })(c, next);
+  }
+  return bearerAuth(c, async () => rateLimit({ limit: 60, window: 60, prefix: "skills-list" })(c, next));
+});
 
 // GET /v1/skills -- list all
 publicSkillRoutes.get("/skills", async (c) => {
