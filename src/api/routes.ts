@@ -16,7 +16,8 @@ import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION } from "../version.js";
-import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
+import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
+import { getContributionConfig } from "../config/contribution.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import {
@@ -635,6 +636,62 @@ export async function registerRoutes(app: FastifyInstance) {
       return reply.send(res);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+
+  // POST /v1/capture — Phase 8.2 standalone capture verb.
+  //
+  // Wraps the existing executeBrowserCapture pipeline (browser-capture meta-skill).
+  // The agent calls this explicitly when it has decided the cost (5–15s of live
+  // browser work) is justified — resolve no longer triggers it implicitly.
+  //
+  // Returns: { skill_id, endpoints_discovered, marketplace_published, ms, ... }.
+  // marketplace_published reflects the share_pointers gate: when contribution
+  // mode is private (default), local cache + snapshot writes happen but the
+  // skill is NOT pushed to the marketplace.
+  app.post("/v1/capture", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const body = (req.body as { url?: string; intent?: string; auth_headers?: Record<string, string>; cookies?: Array<{ name: string; value: string; domain: string }> }) ?? {};
+    const url = body.url;
+    const intent = body.intent ?? "capture";
+    if (!url) return reply.code(400).send({ error: "url required" });
+
+    const t0 = Date.now();
+    try {
+      const skill = await getOrCreateBrowserCaptureSkill();
+      const params: Record<string, unknown> = { url, intent };
+      if (body.auth_headers) params.auth_headers = body.auth_headers;
+      if (body.cookies) params.cookies = body.cookies;
+      const exec = await executeSkill(skill, params, undefined, {
+        intent,
+        contextUrl: url,
+        client_scope: clientScope,
+      });
+
+      const learned = (exec as { learned_skill?: SkillManifest }).learned_skill;
+      const inner = (exec.result as Record<string, unknown> | null) ?? {};
+      const endpoints = learned?.endpoints ?? [];
+      const skillId = learned?.skill_id ?? (typeof inner.learned_skill_id === "string" ? inner.learned_skill_id : undefined);
+      const ms = Date.now() - t0;
+
+      // Mirror the share_pointers gate so the agent sees what actually happened.
+      const sharePointers = getContributionConfig().contribution.share_pointers;
+      const marketplacePublished = sharePointers && endpoints.length > 0 && exec.trace.success === true;
+
+      return reply.send({
+        skill_id: skillId,
+        endpoints_discovered: endpoints.length,
+        marketplace_published: marketplacePublished,
+        ms,
+        endpoints,
+        skill: learned,
+        trace: exec.trace,
+        ...(inner.error ? { error: inner.error, error_message: inner.message } : {}),
+        ...(inner.auth_recommended ? { auth_recommended: true, auth_hint: inner.auth_hint } : {}),
+      });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message, ms: Date.now() - t0 });
     }
   });
 
