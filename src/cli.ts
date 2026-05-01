@@ -30,6 +30,7 @@ import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
 import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
+import { promptContributionMode, maybeShowContributionNotice } from "./cli-setup.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -329,6 +330,7 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = flags.intent as string;
   if (!intent) die("--intent is required");
+  maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
   await ensureCliInstallTracked(hostType);
   await recordFunnelTelemetryEvent("cli_invoked", {
@@ -601,6 +603,7 @@ function schemaOf(value: unknown, depth = 4): unknown {
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
   const skillId = flags.skill as string;
   if (!skillId) die("--skill is required");
+  maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
   await ensureCliInstallTracked(hostType);
   await recordFunnelTelemetryEvent("cli_invoked", {
@@ -1105,6 +1108,68 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 }
 
 // ---------------------------------------------------------------------------
+// Phase 8.2 — `unbrowse mode` standalone command + contribution prompt at end
+// of `unbrowse setup`. The prompt is no-op when the user already chose; `mode`
+// always re-prompts.
+// ---------------------------------------------------------------------------
+
+async function cmdMode(_flags: Record<string, string | boolean>): Promise<void> {
+  await promptContributionMode({ force: true });
+}
+
+// Hook the contribution prompt onto the tail of cmdSetup. Called from main()
+// right after cmdSetup runs.
+async function runPostSetupContributionPrompt(): Promise<void> {
+  try {
+    await promptContributionMode({ force: false });
+  } catch {
+    // Never fail setup because of the prompt.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 8.2 — `unbrowse capture` standalone verb.
+//
+// Live-browser capture is no longer triggered implicitly from resolve. The
+// agent calls `unbrowse capture --url <url> --intent <intent>` explicitly
+// when it has decided the cost (5–15s) is worth it. Server side wraps the
+// existing executeBrowserCapture pipeline at POST /v1/capture.
+// ---------------------------------------------------------------------------
+
+async function cmdCapture(flags: Record<string, string | boolean>): Promise<void> {
+  const url = flags.url as string;
+  const intent = (flags.intent as string) || "capture";
+  if (!url) die("--url is required");
+  maybeShowContributionNotice();
+
+  const t0 = Date.now();
+  const result = await api("POST", "/v1/capture", { url, intent }) as Record<string, unknown>;
+
+  const endpoints = Array.isArray(result.endpoints)
+    ? (result.endpoints as unknown[])
+    : (Array.isArray(result.available_endpoints) ? (result.available_endpoints as unknown[]) : []);
+  const skill = (result.skill as Record<string, unknown> | undefined) ?? null;
+  const skillId = (result.skill_id as string | undefined)
+    ?? (skill?.skill_id as string | undefined)
+    ?? (typeof result.learned_skill_id === "string" ? (result.learned_skill_id as string) : undefined);
+
+  const envelope = {
+    skill_id: skillId,
+    endpoints_discovered: typeof result.endpoints_discovered === "number"
+      ? (result.endpoints_discovered as number)
+      : endpoints.length,
+    marketplace_published: !!result.marketplace_published,
+    ms: typeof result.ms === "number" ? (result.ms as number) : Date.now() - t0,
+    next_step: endpoints.length > 0
+      ? `unbrowse resolve --intent "${intent.replace(/"/g, "\\\"")}" --url "${url.replace(/"/g, "\\\"")}"`
+      : "no endpoints discovered; site may need authentication or different intent",
+    ...(result.error ? { error: result.error } : {}),
+  };
+
+  output(envelope, !!flags.pretty);
+}
+
+// ---------------------------------------------------------------------------
 // CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
 
@@ -1153,6 +1218,8 @@ export const CLI_REFERENCE = {
     { name: "corpus-test", usage: "--url <url> [--id <id>] [--retries N]", desc: "Capture a single URL with retry logic; keeps best result across N attempts" },
     { name: "corpus-run", usage: "--corpus <file> --out <file> [--retries N]", desc: "Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot" },
     { name: "register", usage: "[--no-prompt]", desc: "Optional: register an API key to publish skills, check earnings, and access backend analytics" },
+    { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
+    { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -1738,6 +1805,7 @@ async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<stri
 async function cmdGo(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const url = args[0] ?? flags.url as string;
   if (!url) die("Usage: unbrowse go <url>");
+  maybeShowContributionNotice();
   output(await api("POST", "/v1/browse/go", {
     url,
     ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
@@ -2250,6 +2318,12 @@ async function main(): Promise<void> {
 
   if (command === "setup") {
     await cmdSetup(flags);
+    await runPostSetupContributionPrompt();
+    return;
+  }
+
+  if (command === "mode") {
+    await cmdMode(flags);
     return;
   }
 
@@ -2273,7 +2347,7 @@ async function main(): Promise<void> {
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
-    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register",
+    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "capture",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -2344,6 +2418,8 @@ async function main(): Promise<void> {
     case "corpus-run": return cmdCorpusRun(flags);
     case "sessions-scan": return cmdSessionsScan(flags);
     case "register": return cmdRegister(flags);
+    case "mode": return cmdMode(flags);
+    case "capture": return cmdCapture(flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
