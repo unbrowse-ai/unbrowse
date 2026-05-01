@@ -16,7 +16,7 @@ import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSk
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import { probeUrl, decideFromProbe } from "./probe.js";
-import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
+import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
 
@@ -2736,94 +2736,141 @@ export async function executeEndpoint(
   // ---------------------------------------------------------------------------
   const decisionTrace: Array<Record<string, unknown>> = [];
 
-  const probeCookies = cookies.map((c) => ({ name: c.name, value: c.value }));
-  const probe = await probeUrl(url, {
-    cookies: probeCookies,
-    headers: { ...authHeaders },
-  });
-  decisionTrace.push({
-    step: "probe",
-    method: probe.method_used,
-    status: probe.status,
-    content_type: probe.content_type,
-    byte_length: probe.byte_length,
-    ms: probe.ms,
-    ...(probe.error ? { error: probe.error } : {}),
-  });
+  // ---------------------------------------------------------------------------
+  // Phase 7.2 — Recipe replay (FAST PATH, runs before probe).
+  //
+  // Every endpoint admitted via extractEndpoints carries a proven_recipe — the
+  // exact request that produced a known-good response when this endpoint was
+  // captured. Replaying it is O(1 fetch). When response_signal matches, we're
+  // done in <500ms with no probe needed. When it misses, fall through to the
+  // 7.1 probe ladder for re-discovery (no behavior change vs 7.1).
+  //
+  // Skipped silently when:
+  // - endpoint has no proven_recipe (older skills, bundle-mined endpoints)
+  // - the substituted URL still has leftover {placeholders} (re-discovery is safer)
+  // ---------------------------------------------------------------------------
+  // result + recipeMatched declared at the start of the dispatch block
+  let recipeMatched = false;
 
-  const decision = decideFromProbe({
-    probe,
-    has_trigger_url: !!endpoint.trigger_url,
-    intent_wants_dom: !!endpoint.dom_extraction,
-  });
-  decisionTrace.push({
-    step: "decision",
-    strategy: decision.strategy,
-    reason: decision.reason,
-  });
-
-  switch (decision.strategy) {
-    case "server": {
-      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-      decisionTrace.push({ step: "server_fetch", status: result.status });
-      workflowChosenStrategy = workflowChosenStrategy ?? "server";
-      break;
+  if (endpoint.proven_recipe && shouldReplayRecipe(endpoint.proven_recipe, url)) {
+    const recipeStart = Date.now();
+    const recipeResult = await replayRecipe(endpoint.proven_recipe, url, cookies, authHeaders, mergedParams);
+    const matchVerdict = matchResponseSignal(recipeResult, endpoint.proven_recipe.response_signal);
+    decisionTrace.push({
+      step: "recipe_replay",
+      method: endpoint.proven_recipe.method,
+      status: recipeResult.status,
+      match: matchVerdict.match,
+      ...(matchVerdict.match ? {} : { reason: matchVerdict.reason ?? "unknown" }),
+      ms: Date.now() - recipeStart,
+    });
+    if (matchVerdict.match) {
+      result = recipeResult;
+      recipeMatched = true;
+      workflowChosenStrategy = workflowChosenStrategy ?? "recipe-replay";
     }
-    case "trigger-intercept": {
-      if (!endpoint.trigger_url || !isSafe) {
-        // Defensive — decideFromProbe checks has_trigger_url already.
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        decisionTrace.push({ step: "browser_fallback", reason: "no trigger_url or unsafe method", status: result.status });
-        workflowChosenStrategy = workflowChosenStrategy ?? "browser-fetch";
-      } else {
-        let triggerUrl = endpoint.trigger_url;
-        if (Object.keys(mergedParams).length > 0) {
-          try {
-            const tu = new URL(endpoint.trigger_url);
-            for (const [k, v] of Object.entries(mergedParams)) {
-              if (v != null && !reservedMetaParams.has(k)) {
-                tu.searchParams.set(k, String(v));
-              }
-            }
-            triggerUrl = tu.toString();
-          } catch { /* keep original trigger_url */ }
-        }
-        result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-        decisionTrace.push({ step: "trigger_intercept", trigger_url: triggerUrl, status: result.status });
-        workflowChosenStrategy = "trigger-intercept";
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phase 7.1 — Probe-first executor.
+  //
+  // Replaces the old strategy-prediction switch (hasStructuredReplay /
+  // endpoint.exec_strategy / per-host registry). Every dispatch is now derived
+  // from probe evidence: status + content-type + body size. The old per-host
+  // deriveStructuredDataReplay registry stays in source for serverFetch() to
+  // use as a URL hint, but it does NOT decide strategy here. (Phase 8 cleanup
+  // removes the registry entirely.)
+  // ---------------------------------------------------------------------------
+  if (!recipeMatched) {
+    const probeCookies = cookies.map((c) => ({ name: c.name, value: c.value }));
+    const probe = await probeUrl(url, {
+      cookies: probeCookies,
+      headers: { ...authHeaders },
+    });
+    decisionTrace.push({
+      step: "probe",
+      method: probe.method_used,
+      status: probe.status,
+      content_type: probe.content_type,
+      byte_length: probe.byte_length,
+      ms: probe.ms,
+      ...(probe.error ? { error: probe.error } : {}),
+    });
+
+    const decision = decideFromProbe({
+      probe,
+      has_trigger_url: !!endpoint.trigger_url,
+      intent_wants_dom: !!endpoint.dom_extraction,
+    });
+    decisionTrace.push({
+      step: "decision",
+      strategy: decision.strategy,
+      reason: decision.reason,
+    });
+
+    switch (decision.strategy) {
+      case "server": {
+        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+        decisionTrace.push({ step: "server_fetch", status: result.status });
+        workflowChosenStrategy = workflowChosenStrategy ?? "server";
+        break;
       }
-      break;
-    }
-    case "browser": {
-      result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-      decisionTrace.push({ step: "browser", status: result.status });
-      workflowChosenStrategy = workflowChosenStrategy
-        ?? (workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch");
-      break;
-    }
-    case "return-error": {
-      // Synthesise a result so downstream code is uniform. The agent reads
-      // the actual server status and decides next move — no more 15s
-      // trigger-intercept timeouts on dead URLs.
-      result = {
-        status: probe.status,
-        data: {
-          error: `http_${probe.status}`,
-          message: `Probe returned status ${probe.status}; returned to caller without escalating.`,
-          probe_method: probe.method_used,
-          ...(probe.content_type ? { content_type: probe.content_type } : {}),
-        },
-        trace_id: nanoid(),
-      };
-      decisionTrace.push({ step: "return_error", status: probe.status });
-      workflowChosenStrategy = workflowChosenStrategy ?? "server";
-      break;
-    }
-    default: {
-      // Should never happen — exhaustive switch. Defensive fallback.
-      result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-      decisionTrace.push({ step: "browser_default", status: result.status });
-      workflowChosenStrategy = workflowChosenStrategy ?? "browser-fetch";
+      case "trigger-intercept": {
+        if (!endpoint.trigger_url || !isSafe) {
+          // Defensive — decideFromProbe checks has_trigger_url already.
+          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+          decisionTrace.push({ step: "browser_fallback", reason: "no trigger_url or unsafe method", status: result.status });
+          workflowChosenStrategy = workflowChosenStrategy ?? "browser-fetch";
+        } else {
+          let triggerUrl = endpoint.trigger_url;
+          if (Object.keys(mergedParams).length > 0) {
+            try {
+              const tu = new URL(endpoint.trigger_url);
+              for (const [k, v] of Object.entries(mergedParams)) {
+                if (v != null && !reservedMetaParams.has(k)) {
+                  tu.searchParams.set(k, String(v));
+                }
+              }
+              triggerUrl = tu.toString();
+            } catch { /* keep original trigger_url */ }
+          }
+          result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
+          decisionTrace.push({ step: "trigger_intercept", trigger_url: triggerUrl, status: result.status });
+          workflowChosenStrategy = "trigger-intercept";
+        }
+        break;
+      }
+      case "browser": {
+        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        decisionTrace.push({ step: "browser", status: result.status });
+        workflowChosenStrategy = workflowChosenStrategy
+          ?? (workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch");
+        break;
+      }
+      case "return-error": {
+        // Synthesise a result so downstream code is uniform. The agent reads
+        // the actual server status and decides next move — no more 15s
+        // trigger-intercept timeouts on dead URLs.
+        result = {
+          status: probe.status,
+          data: {
+            error: `http_${probe.status}`,
+            message: `Probe returned status ${probe.status}; returned to caller without escalating.`,
+            probe_method: probe.method_used,
+            ...(probe.content_type ? { content_type: probe.content_type } : {}),
+          },
+          trace_id: nanoid(),
+        };
+        decisionTrace.push({ step: "return_error", status: probe.status });
+        workflowChosenStrategy = workflowChosenStrategy ?? "server";
+        break;
+      }
+      default: {
+        // Should never happen — exhaustive switch. Defensive fallback.
+        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        decisionTrace.push({ step: "browser_default", status: result.status });
+        workflowChosenStrategy = workflowChosenStrategy ?? "browser-fetch";
+      }
     }
   }
 
@@ -3155,6 +3202,110 @@ function interpolateObj(
       params[k] != null ? JSON.stringify(params[k]) : `"{${k}}"`
     )
   ) as Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7.2 — Recipe replay helpers.
+// ---------------------------------------------------------------------------
+
+/**
+ * Skip recipe replay if the substituted URL still has unresolved {placeholders}
+ * — replaying a malformed URL is worse than running the probe ladder for
+ * re-discovery. Generic check, not a per-domain table.
+ */
+function shouldReplayRecipe(_recipe: ProvenRecipe, substitutedUrl: string): boolean {
+  return !/\{[a-z0-9_]+\}/i.test(substitutedUrl);
+}
+
+/**
+ * Replay the proven request: merge the recipe's stable headers with current
+ * authHeaders + cookies, interpolate the body with current params, and fetch.
+ * Always returns a result (never throws) — status:0 on network failure.
+ */
+async function replayRecipe(
+  recipe: ProvenRecipe,
+  url: string,
+  cookies: Array<{ name: string; value: string; domain?: string }>,
+  authHeaders: Record<string, string>,
+  params: Record<string, unknown>,
+): Promise<{ status: number; data: unknown; trace_id: string }> {
+  const headers: Record<string, string> = { ...recipe.headers, ...authHeaders };
+  if (cookies.length > 0) {
+    headers["cookie"] = cookies
+      .map((c) => {
+        const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+        return `${c.name}=${v}`;
+      })
+      .join("; ");
+  }
+
+  let body: string | undefined;
+  if (recipe.body !== undefined && recipe.method !== "GET" && recipe.method !== "HEAD") {
+    if (typeof recipe.body === "string") {
+      body = recipe.body;
+    } else if (recipe.body && typeof recipe.body === "object") {
+      const interpolated = interpolateObj(recipe.body as Record<string, unknown>, params);
+      body = JSON.stringify(interpolated);
+    }
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: recipe.method,
+      headers,
+      body,
+      redirect: "follow",
+    });
+    const text = await res.text();
+    let data: unknown = text;
+    try { data = JSON.parse(text); } catch { /* keep text */ }
+    return { status: res.status, data, trace_id: nanoid() };
+  } catch (err) {
+    return {
+      status: 0,
+      data: { error: (err as Error).message || "network_error" },
+      trace_id: nanoid(),
+    };
+  }
+}
+
+interface MatchVerdict { match: boolean; reason?: string }
+
+/**
+ * Compare a replayed response against the recipe's response_signal. Strict on
+ * status (drift = different status), tolerant on byte_length (50%–200% range
+ * accommodates dynamic timestamps, pagination edges) and structural keys (must
+ * have all recorded top-level keys; extra keys are fine).
+ */
+function matchResponseSignal(
+  result: { status: number; data: unknown },
+  signal: ProvenRecipeResponseSignal,
+): MatchVerdict {
+  if (result.status !== signal.status) {
+    return { match: false, reason: `status_changed: ${signal.status} → ${result.status}` };
+  }
+  const bodyLen = typeof result.data === "string"
+    ? Buffer.byteLength(result.data)
+    : Buffer.byteLength(JSON.stringify(result.data ?? null));
+  if (signal.byte_length_min !== undefined && bodyLen < signal.byte_length_min) {
+    return { match: false, reason: `body_shrunk: ${bodyLen}B < min ${signal.byte_length_min}B` };
+  }
+  if (signal.byte_length_max !== undefined && bodyLen > signal.byte_length_max) {
+    return { match: false, reason: `body_grew: ${bodyLen}B > max ${signal.byte_length_max}B` };
+  }
+  if (
+    signal.json_top_keys &&
+    result.data &&
+    typeof result.data === "object" &&
+    !Array.isArray(result.data)
+  ) {
+    const actual = new Set(Object.keys(result.data as object));
+    const missing = signal.json_top_keys.filter((k) => !actual.has(k));
+    if (missing.length > 0) {
+      return { match: false, reason: `missing_top_keys: ${missing.slice(0, 3).join(",")}` };
+    }
+  }
+  return { match: true };
 }
 
 /**
