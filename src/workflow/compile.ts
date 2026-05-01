@@ -711,7 +711,6 @@ function deriveWorkflowSteps(
     });
   };
 
-  if (endpoint.exec_strategy) addStep(endpoint.exec_strategy === "browser" ? "browser-fetch" : endpoint.exec_strategy, "learned-runtime", endpoint.trigger_url);
   addStep("server", matchedRequests.length > 0 ? "observed-request" : "bundle-inferred");
   if (endpoint.trigger_url) addStep("trigger-intercept", matchedRequests.length > 0 ? "observed-request" : "trigger-url", endpoint.trigger_url);
   if (actionSequence) addStep("browser-action", endpoint.search_form ? "dom-form" : "observed-request", endpoint.trigger_url);

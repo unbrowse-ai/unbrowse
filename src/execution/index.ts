@@ -1288,22 +1288,9 @@ async function executeBrowserCapture(
     };
   }
 
-  // Reuse existing skill for this domain to preserve skill_id and learned exec_strategy.
-  // This prevents duplicate skills accumulating in the marketplace on re-captures.
+  // Reuse existing skill for this domain to preserve skill_id across re-captures.
+  // This prevents duplicate skills accumulating in the marketplace.
   const existingSkill = findExistingSkillForDomain(domain, intent);
-  if (existingSkill) {
-    // Carry forward learned exec_strategy from old endpoints to matching new ones
-    for (const ep of cleanEndpoints) {
-      if (ep.exec_strategy) continue;
-      // Match by URL template (endpoint_id changes on re-capture)
-      const oldMatch = existingSkill.endpoints.find(
-        (old) => old.url_template === ep.url_template && old.method === ep.method
-      );
-      if (oldMatch?.exec_strategy) {
-        ep.exec_strategy = oldMatch.exec_strategy;
-      }
-    }
-  }
 
   // Keep all captured endpoints locally so the resolver can use WS-backed skills,
   // but only publish HTTP endpoints until backend validation supports WS manifests.

@@ -166,7 +166,6 @@ export function mergeEndpoints(
       endpoint_id: dupe.endpoint_id,
       reliability_score: Math.max(dupe.reliability_score ?? 0, ep.reliability_score ?? 0),
       verification_status: dupe.verification_status === "verified" ? dupe.verification_status : ep.verification_status,
-      exec_strategy: ep.exec_strategy ?? dupe.exec_strategy,
       dom_extraction: ep.dom_extraction ?? dupe.dom_extraction,
       semantic: ep.semantic ?? dupe.semantic,
       response_schema: ep.response_schema ?? dupe.response_schema,
