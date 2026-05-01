@@ -109,15 +109,42 @@ export async function raceWithDeadline<T>(
       }
     };
 
+    // Arm the deadline FIRST, before any racer setup runs. Guarantees the
+    // budget is respected even if a racer's start() does blocking sync work
+    // (DNS, sqlite, large-object construction) before its first await.
     const deadlineTimer = setTimeout(() => {
       finalize();
     }, Math.max(1, budgetMs));
 
+    function checkAllSettled() {
+      if (resolved) return;
+      if (settled.every(Boolean)) {
+        clearTimeout(deadlineTimer);
+        finalize();
+      }
+    }
+
+    // Defer racer kickoff onto the next microtask tick so any sync work in
+    // their start() can never starve the deadline timer's eventual delivery.
     racers.forEach((racer, i) => {
       const racerStart = Date.now();
-      Promise.resolve()
-        .then(() => racer.start())
-        .then((result) => {
+      queueMicrotask(() => {
+        if (resolved) return;
+        let p: Promise<T>;
+        try {
+          p = Promise.resolve().then(() => racer.start());
+        } catch (err) {
+          settled[i] = true;
+          outcomes[i] = {
+            name: racer.name,
+            status: "lost",
+            ms: Date.now() - racerStart,
+            reason: (err && (err as Error).message) ? (err as Error).message : "threw",
+          };
+          checkAllSettled();
+          return;
+        }
+        p.then((result) => {
           settled[i] = true;
           if (resolved) return;
           const ms = Date.now() - racerStart;
@@ -132,8 +159,7 @@ export async function raceWithDeadline<T>(
             outcomes[i] = { name: racer.name, status: "lost", ms, reason: "invalid_result" };
             checkAllSettled();
           }
-        })
-        .catch((err) => {
+        }).catch((err) => {
           settled[i] = true;
           if (resolved) return;
           const ms = Date.now() - racerStart;
@@ -145,15 +171,8 @@ export async function raceWithDeadline<T>(
           };
           checkAllSettled();
         });
+      });
     });
-
-    function checkAllSettled() {
-      if (resolved) return;
-      if (settled.every(Boolean)) {
-        clearTimeout(deadlineTimer);
-        finalize();
-      }
-    }
   });
 }
 
@@ -172,6 +191,12 @@ export interface RaceWinnerRecipe {
   ms: number;
 }
 
+export interface RaceWinnerLocalSkill {
+  kind: "local-skill";
+  skill: SkillManifest;
+  ms: number;
+}
+
 export interface RaceWinnerMarketplace {
   kind: "marketplace";
   skill: SkillManifest;
@@ -186,7 +211,7 @@ export interface RaceWinnerProbe {
   ms: number;
 }
 
-export type RaceWinner = RaceWinnerRecipe | RaceWinnerMarketplace | RaceWinnerProbe;
+export type RaceWinner = RaceWinnerRecipe | RaceWinnerLocalSkill | RaceWinnerMarketplace | RaceWinnerProbe;
 
 export interface RunResolveRaceArgs {
   contextUrl: string;
@@ -255,6 +280,23 @@ export async function runResolveRace(args: RunResolveRaceArgs): Promise<RunResol
       });
     }
   }
+
+  // Racer 1.5: local-skill snapshot — when a local skill exists with usable
+  // endpoints, return it INSTANTLY (no network). This is the path that turns
+  // every second-call-to-same-domain from a 500ms deadline-miss into a
+  // sub-millisecond shortlist. Without this, the agent sees no_match on
+  // every cached domain because marketplace lookup takes longer than budget.
+  if (localSkill && Array.isArray(localSkill.endpoints) && localSkill.endpoints.length > 0) {
+    racers.push({
+      name: "local-skill",
+      start: async () => {
+        const t = Date.now();
+        return { kind: "local-skill" as const, skill: localSkill, ms: Date.now() - t };
+      },
+      isValid: (r) => r.kind === "local-skill" && Array.isArray((r as RaceWinnerLocalSkill).skill.endpoints) && (r as RaceWinnerLocalSkill).skill.endpoints.length > 0,
+    });
+  }
+
 
   // Racer 2: marketplace lookup — only when we have a known skill_id to consult.
   if (args.knownSkillId) {

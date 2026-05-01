@@ -275,6 +275,9 @@ sleep 0.3
 i=0
 > "$OUT_DIR/results.jsonl"
 while IFS='|' read -r goal url; do
+  goal="${goal## }"; goal="${goal%% }"
+  url="${url## }"; url="${url%% }"
+  case "$goal" in ''|\#*) continue ;; esac
   [ -z "$url" ] && continue
   i=$((i+1))
   slug=$(printf '%s' "$url" | tr '/:?&=.' '_')
