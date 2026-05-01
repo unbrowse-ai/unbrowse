@@ -2368,6 +2368,17 @@ export async function executeEndpoint(
     if (mergedParams.features == null || mergedParams.features === "{features}") {
       mergedParams.features = encodeURIComponent(__gqlEnc.features);
     }
+    // D8b: graphql POSTs (and any captured body shape) often store the literal
+    // captured payload — including placeholder strings like
+    // `{variables_seentweetids_0}` that interpolateObj doesn't rewrite. Force
+    // the cleaned, freshly-built variables/features into body so x.com (and
+    // similar) receive valid JSON. Strings or nested objects both supported:
+    // we always write strings since x's /graphql endpoint accepts either.
+    if (endpoint.body && typeof endpoint.body === "object" && !Array.isArray(endpoint.body)) {
+      const b = endpoint.body as Record<string, unknown>;
+      if ("variables" in b) b.variables = __gqlEnc.variables;
+      if ("features" in b) b.features = __gqlEnc.features;
+    }
   }
   let url = interpolate(urlTemplate, mergedParams);
 
