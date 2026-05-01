@@ -866,16 +866,11 @@ function writeSkillCache(skill: SkillManifest, scopeId?: string): void {
     if (existing) {
       for (const ep of skill.endpoints) {
         const cached = existing.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
-        if (!ep.exec_strategy && cached?.exec_strategy) {
-          ep.exec_strategy = cached.exec_strategy;
-        }
         if (!ep.response_schema && cached?.response_schema) {
           ep.response_schema = cached.response_schema;
         }
       }
     }
-    const hasStrategy = skill.endpoints.some(e => e.exec_strategy);
-    if (hasStrategy) console.log(`[cache] writing skill ${skill.skill_id} with exec_strategy`);
     writeFileSync(skillCachePath(skill.skill_id), JSON.stringify(skill), "utf-8");
   } catch { /* non-critical — best effort */ }
 }
@@ -891,8 +886,8 @@ export function getRecentLocalSkill(skillId: string, scopeId?: string): SkillMan
 
 /**
  * Find an existing cached skill for the same domain, so re-captures update
- * the existing skill instead of creating duplicates. Preserves skill_id and
- * exec_strategy across re-captures and server restarts.
+ * the existing skill instead of creating duplicates. Preserves skill_id
+ * across re-captures and server restarts.
  */
 function normalizeIntent(value: string | undefined): string {
   return (value ?? "").trim().toLowerCase();

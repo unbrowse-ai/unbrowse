@@ -188,9 +188,6 @@ export interface EndpointDescriptor {
    *  Used for trigger-and-intercept execution: navigate to this page,
    *  let the site's own JS make the API call, and intercept the response. */
   trigger_url?: string;
-  /** Learned execution strategy — set after first successful execution.
-   *  Skips doomed server-fetch on sites that need browser execution (e.g. LinkedIn). */
-  exec_strategy?: "server" | "trigger-intercept" | "browser";
   /** Server-owned graph visibility. Shadow endpoints are persisted but not indexed. */
   graph_visibility?: GraphVisibility;
   /** Server-owned corroboration counters used for staged promotion. */

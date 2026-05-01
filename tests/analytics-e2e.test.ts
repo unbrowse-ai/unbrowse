@@ -156,7 +156,6 @@ describe("analytics e2e", () => {
           idempotency: "safe",
           verification_status: "verified",
           reliability_score: 1,
-          exec_strategy: "server",
         },
       ],
     };
