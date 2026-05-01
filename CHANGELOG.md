@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.1.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.3...v6.1.4) (2026-05-01)
+
+### Bug Fixes
+
+* D8b — write cleaned graphql vars/features into body, not just mergedParams ([1909bb3](https://github.com/unbrowse-ai/unbrowse-dev/commit/1909bb3def6782d4901a7841a4a0cf1fa85475b6))
+
 ## [6.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.1.2...v6.1.3) (2026-05-01)
 
 ### Bug Fixes
