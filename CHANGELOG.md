@@ -1,5 +1,23 @@
 # Changelog
 
+## [6.4.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.3.0...v6.4.0) (2026-05-01)
+
+### Features
+
+* **08-01:** 5-min in-process TTL cache for marketplace lookups ([bcb7995](https://github.com/unbrowse-ai/unbrowse-dev/commit/bcb7995b19ff996a28c0971b5ddc9c21d3a41d33))
+* **08-01:** cli --budget <ms> flag for unbrowse resolve ([3e80a80](https://github.com/unbrowse-ai/unbrowse-dev/commit/3e80a80a9e48652b17112be04c07d12429326773))
+* **08-01:** race primitive with deadline + per-racer abort ([8400288](https://github.com/unbrowse-ai/unbrowse-dev/commit/84002883a88f15c63089d42d71466f38ea36858a))
+* **08-01:** wire race + budget into resolveAndExecute ([24b4990](https://github.com/unbrowse-ai/unbrowse-dev/commit/24b4990d1d852f6d4fc6056f8e8fb7d16a9121fe))
+* **08-02:** contribution config module with private-by-default ([0a3055d](https://github.com/unbrowse-ai/unbrowse-dev/commit/0a3055dcb766c0d06e38e17a2d05ee43047386fd))
+* **08-02:** gate marketplace publish on contribution.share_pointers ([e19f8c1](https://github.com/unbrowse-ai/unbrowse-dev/commit/e19f8c1b6d415f68641cc3f7fdc0681e4e8468a6))
+* **08-02:** unbrowse capture verb + POST /v1/capture endpoint ([15723ac](https://github.com/unbrowse-ai/unbrowse-dev/commit/15723ac581f51102816b668f2552acf6aa97f105))
+* **08-02:** unbrowse setup contribution prompt + unbrowse mode command ([ce3cb22](https://github.com/unbrowse-ai/unbrowse-dev/commit/ce3cb2280399b87f5781c363215462059bf9a0e9))
+
+### Refactoring
+
+* **08-03:** delete deriveStructuredDataReplay registry + canonical-replay surface ([8285387](https://github.com/unbrowse-ai/unbrowse-dev/commit/828538729defbd6c3b7daef144cec545b6f0550f))
+* **08-03:** delete EndpointDescriptor.exec_strategy field + carry-forward ([f1d850f](https://github.com/unbrowse-ai/unbrowse-dev/commit/f1d850f8c8c9d94a9e5d6e015da23ebbb28d9e9f))
+
 ## [6.3.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.2.6...v6.3.0) (2026-05-01)
 
 ### Features
