@@ -1745,6 +1745,16 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
     if (bestPassingSpa && bestPassingOverall && bestPassingSpa.score >= bestPassingOverall.score - 2) {
       return bestPassingSpa;
     }
+    // Prefer article-body extraction over schema-only JSON-LD when intent is article-shaped:
+    // a JSON-LD Article object has @type/name/url/dates but no body text or sections, which
+    // doesn't satisfy "wikipedia article on quantum computing"-style intents.
+    const isArticleIntent = /(wikipedia|article|wiki page|page on|read|content of|body of|summary of|about )/i.test(intent);
+    if (isArticleIntent) {
+      const bestPassingArticle = passing.find((candidate) => candidate.structure.type === "article");
+      if (bestPassingArticle && bestPassingOverall && bestPassingArticle.score >= bestPassingOverall.score - 8) {
+        return bestPassingArticle;
+      }
+    }
     return bestPassingOverall;
   })();
   if (bestPassing) {
