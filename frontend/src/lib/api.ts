@@ -527,3 +527,53 @@ export async function resolveIntent(intent: string): Promise<ChatResolveResult[]
       };
     });
 }
+
+// --- Account-bound key helpers ---
+
+export interface AccountMe {
+  user_id: string;
+  email: string;
+  created_at: string;
+  verified_at?: string;
+  keys_count: number;
+  skills_count: number;
+}
+
+export interface AccountKey {
+  keyId: string;
+}
+
+async function authRequestOrAccountRequired<T>(path: string): Promise<T | null> {
+  const apiKey = readStoredAuth()?.apiKey ?? null;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "GET",
+    headers,
+    signal: AbortSignal.timeout(12000),
+  });
+  if (res.status === 403) {
+    const data = await res.json().catch(() => ({})) as { error?: string };
+    if (data.error === "account_required") return null;
+    throw new Error(data.error ?? `HTTP 403`);
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function getAccountMe(): Promise<AccountMe | null> {
+  return authRequestOrAccountRequired<AccountMe>("/v1/account/me");
+}
+
+export async function getAccountKeys(): Promise<AccountKey[]> {
+  const data = await authRequestOrAccountRequired<{ keys: AccountKey[] }>("/v1/account/keys");
+  return data?.keys ?? [];
+}
+
+export async function getAccountSkills(): Promise<SkillManifest[]> {
+  const data = await authRequestOrAccountRequired<{ skills: SkillManifest[] }>("/v1/account/skills");
+  return data?.skills ?? [];
+}

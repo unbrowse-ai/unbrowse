@@ -138,6 +138,21 @@ authRoutes.get("/auth/email/verify", async (c) => {
     await kv.put(`magic:${token}`, JSON.stringify(updated), { expirationTtl: 60 });
   }
 
+  // Content negotiation: a real browser tab (the user clicking the magic link
+  // in their inbox) sends `Accept: text/html` and lands here. Send those users
+  // to the frontend /login page with the token so the SPA can consume it via
+  // /v1/auth/email/poll, store the api_key, and route into /dashboard. CLI and
+  // programmatic callers (no Accept: text/html, or explicit ?cli=1) keep the
+  // backward-compatible 200 HTML page that the tests assert on.
+  const accept = c.req.header("Accept") ?? c.req.header("accept") ?? "";
+  const cliMode = c.req.query("cli") === "1";
+  const isBrowserTab = !cliMode && accept.toLowerCase().includes("text/html");
+  if (isBrowserTab) {
+    const frontend = (c.env.PUBLIC_FRONTEND_URL ?? "https://www.unbrowse.ai").replace(/\/+$/, "");
+    const location = `${frontend}/login?token=${encodeURIComponent(token)}&signed_in=1`;
+    return c.redirect(location, 302);
+  }
+
   c.header("Content-Type", "text/html; charset=utf-8");
   const returnButton = returnUrl
     ? `<p><a href="${escapeHtml(returnUrl)}" style="display:inline-block;padding:8px 16px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:4px">Return to app</a></p>`

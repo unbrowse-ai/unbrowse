@@ -21,6 +21,7 @@ import { landingRoutes } from "./routes/landing.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { creditRoutes } from "./routes/credits.js";
 import { authRoutes } from "./routes/auth.js";
+import { accountRoutes } from "./routes/account.js";
 import { flushQueuedGithubNotifications } from "./services/github-webhooks.js";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -66,6 +67,7 @@ app.route("/v1", landingRoutes);
 app.route("/v1", webhookRoutes);
 app.route("/v1", creditRoutes);
 app.route("/v1", authRoutes);
+app.route("/v1", accountRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);

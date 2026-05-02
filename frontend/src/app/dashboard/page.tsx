@@ -30,13 +30,23 @@ export default function DashboardPage() {
       <div className="max-w-2xl mx-auto px-6 pt-32 pb-20 text-center">
         <h1 className="text-3xl font-bold mb-4">Agent Dashboard</h1>
         <p className="text-text-secondary mb-8">Register your agent to view your dashboard.</p>
-        <Link
-          href="/#get-started"
-          className="inline-flex items-center gap-2 px-7 py-3.5 bg-orange-500
-                     text-white font-semibold rounded-2xl hover:bg-orange-600 transition-all"
-        >
-          Get Your API Key
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-3 items-center justify-center">
+          <Link
+            href="/#get-started"
+            className="inline-flex items-center gap-2 px-7 py-3.5 bg-orange-500
+                       text-white font-semibold rounded-2xl hover:bg-orange-600 transition-all"
+          >
+            Get Your API Key
+          </Link>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl border border-border
+                       text-text-secondary font-semibold hover:text-text-primary
+                       hover:border-orange-500/30 transition-colors"
+          >
+            Sign in with email
+          </Link>
+        </div>
       </div>
     );
   }

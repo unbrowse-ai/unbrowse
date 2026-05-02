@@ -136,7 +136,7 @@ describe("/v1/auth/email/* end-to-end magic-link flow", () => {
   });
 
   it("4. GET /verify with unknown token returns 410 HTML mentioning expired", async () => {
-    const res = await getReq("/v1/auth/email/verify?token=deadbeefdeadbeefdeadbeefdeadbeef");
+    const res = await getReq("/v1/auth/email/verify?cli=1&token=deadbeefdeadbeefdeadbeefdeadbeef");
     expect(res.status).toBe(410);
     expect(res.headers.get("Content-Type") ?? "").toContain("text/html");
     const text = (await res.text()).toLowerCase();
@@ -148,7 +148,7 @@ describe("/v1/auth/email/* end-to-end magic-link flow", () => {
     expect(startRes.status).toBe(200);
     const { token } = await startRes.json() as { token: string };
 
-    const verifyRes = await getReq(`/v1/auth/email/verify?token=${token}`);
+    const verifyRes = await getReq(`/v1/auth/email/verify?cli=1&token=${token}`);
     expect(verifyRes.status).toBe(200);
     expect(verifyRes.headers.get("Content-Type") ?? "").toContain("text/html");
     const verifyHtml = await verifyRes.text();
@@ -183,7 +183,7 @@ describe("/v1/auth/email/* end-to-end magic-link flow", () => {
     const pendingBody = await pendingRes.json() as { status: string };
     expect(pendingBody.status).toBe("pending");
 
-    const verifyRes = await getReq(`/v1/auth/email/verify?token=${token}`);
+    const verifyRes = await getReq(`/v1/auth/email/verify?cli=1&token=${token}`);
     expect(verifyRes.status).toBe(200);
 
     const verifiedRes = await getReq(`/v1/auth/email/poll?token=${token}`);
@@ -197,12 +197,12 @@ describe("/v1/auth/email/* end-to-end magic-link flow", () => {
     const startRes = await postJson("/v1/auth/email/start", { email: "carol@example.com" });
     const { token } = await startRes.json() as { token: string };
 
-    const first = await getReq(`/v1/auth/email/verify?token=${token}`);
+    const first = await getReq(`/v1/auth/email/verify?cli=1&token=${token}`);
     expect(first.status).toBe(200);
     const firstHtml = await first.text();
     expect(firstHtml.toLowerCase()).toContain("signed in");
 
-    const second = await getReq(`/v1/auth/email/verify?token=${token}`);
+    const second = await getReq(`/v1/auth/email/verify?cli=1&token=${token}`);
     expect(second.status).toBe(200);
     const secondHtml = await second.text();
     expect(secondHtml.toLowerCase()).toContain("signed in");
@@ -223,7 +223,7 @@ describe("/v1/auth/email/* end-to-end magic-link flow", () => {
     // Resend was sent the normalized email
     expect(resendCalls[0]!.body.to).toEqual(["lewis@example.com"]);
 
-    const verifyRes = await getReq(`/v1/auth/email/verify?token=${token}`);
+    const verifyRes = await getReq(`/v1/auth/email/verify?cli=1&token=${token}`);
     expect(verifyRes.status).toBe(200);
 
     const pollRes = await getReq(`/v1/auth/email/poll?token=${token}`);
