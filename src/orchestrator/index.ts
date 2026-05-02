@@ -163,7 +163,14 @@ const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
 export const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; localSkillPath?: string; ts: number }>();
 const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-skill-cache.json");
 
+// Local skill caches: HARD-DISABLED by default. Caching was misleading us
+// (stale skill_ids resolved to 404 on execute, masking real backend search
+// gaps). Force every resolve through the backend so failures are visible.
+// Set UNBROWSE_LOCAL_CACHES=1 to re-enable for offline benchmarks only.
+const LOCAL_CACHES_ENABLED = process.env.UNBROWSE_LOCAL_CACHES === "1";
+
 export function persistDomainCache() {
+  if (!LOCAL_CACHES_ENABLED) return;
   try {
     const dir = dirname(DOMAIN_CACHE_FILE);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -171,22 +178,25 @@ export function persistDomainCache() {
   } catch { /* best effort */ }
 }
 
-try {
-  if (existsSync(DOMAIN_CACHE_FILE)) {
-    const data = JSON.parse(readFileSync(DOMAIN_CACHE_FILE, "utf-8"));
-    for (const [k, v] of Object.entries(data)) {
-      const entry = v as { skillId: string; endpointId?: string; localSkillPath?: string; ts: number };
-      if (Date.now() - entry.ts < 7 * 24 * 60 * 60_000) { // 7 day TTL
-        domainSkillCache.set(k, entry);
+if (LOCAL_CACHES_ENABLED) {
+  try {
+    if (existsSync(DOMAIN_CACHE_FILE)) {
+      const data = JSON.parse(readFileSync(DOMAIN_CACHE_FILE, "utf-8"));
+      for (const [k, v] of Object.entries(data)) {
+        const entry = v as { skillId: string; endpointId?: string; localSkillPath?: string; ts: number };
+        if (Date.now() - entry.ts < 7 * 24 * 60 * 60_000) {
+          domainSkillCache.set(k, entry);
+        }
       }
+      console.error(`[domain-cache] loaded ${domainSkillCache.size} entries from disk`);
     }
-    console.error(`[domain-cache] loaded ${domainSkillCache.size} entries from disk`);
-  }
-} catch { /* fresh start */ }
+  } catch { /* fresh start */ }
+}
 
 // Persist route cache to disk (debounced, with sync flush option)
 let _routeCacheDirty = false;
 function _writeRouteCacheToDisk() {
+  if (!LOCAL_CACHES_ENABLED) { _routeCacheDirty = false; return; }
   try {
     const dir = dirname(ROUTE_CACHE_FILE);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -216,7 +226,7 @@ export function invalidateRouteCacheForDomain(domain: string): void {
       deleted++;
     }
   }
-  if (deleted > 0) {
+  if (deleted > 0 && LOCAL_CACHES_ENABLED) {
     // Flush immediately (not debounced) so other processes see the change
     try {
       const dir = dirname(ROUTE_CACHE_FILE);
@@ -228,20 +238,21 @@ export function invalidateRouteCacheForDomain(domain: string): void {
 }
 routeCacheFlushTimer.unref?.();
 
-// Load route cache from disk on startup
-try {
-  if (existsSync(ROUTE_CACHE_FILE)) {
-    const data = JSON.parse(readFileSync(ROUTE_CACHE_FILE, "utf-8"));
-    for (const [k, v] of Object.entries(data)) {
-      const entry = v as { skillId: string; domain: string; endpointId?: string; localSkillPath?: string; ts: number };
-      // Only load entries less than 24h old
-      if (Date.now() - entry.ts < 24 * 60 * 60_000) {
-        skillRouteCache.set(k, entry);
+// Load route cache from disk on startup (skipped when disk caches disabled)
+if (LOCAL_CACHES_ENABLED) {
+  try {
+    if (existsSync(ROUTE_CACHE_FILE)) {
+      const data = JSON.parse(readFileSync(ROUTE_CACHE_FILE, "utf-8"));
+      for (const [k, v] of Object.entries(data)) {
+        const entry = v as { skillId: string; domain: string; endpointId?: string; localSkillPath?: string; ts: number };
+        if (Date.now() - entry.ts < 24 * 60 * 60_000) {
+          skillRouteCache.set(k, entry);
+        }
       }
+      console.error(`[route-cache] loaded ${skillRouteCache.size} entries from disk`);
     }
-    console.error(`[route-cache] loaded ${skillRouteCache.size} entries from disk`);
-  }
-} catch { /* fresh start */ }
+  } catch { /* fresh start */ }
+}
 const routeResultCache = new Map<
   string,
   {
@@ -287,6 +298,7 @@ export function snapshotPathForCacheKey(cacheKey: string): string {
 }
 
 export function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): string | undefined {
+  if (!LOCAL_CACHES_ENABLED) return undefined;
   try {
     mkdirSync(SKILL_SNAPSHOT_DIR, { recursive: true });
     const target = snapshotPathForCacheKey(cacheKey);
@@ -527,6 +539,7 @@ function promoteLearnedSkill(
   endpointId?: string,
   contextUrl?: string,
 ): void {
+  if (!LOCAL_CACHES_ENABLED) return;
   const localSkillPath = writeSkillSnapshot(cacheKey, skill);
   capturedDomainCache.set(cacheKey, { skill, endpointId, expires: Date.now() + 5 * 60_000 });
   skillRouteCache.set(cacheKey, {
@@ -555,6 +568,7 @@ function cacheResolvedSkill(
   skill: SkillManifest,
   endpointId?: string,
 ): void {
+  if (!LOCAL_CACHES_ENABLED) return;
   const localSkillPath = writeSkillSnapshot(cacheKey, skill);
   skillRouteCache.set(cacheKey, {
     skillId: skill.skill_id,
@@ -573,6 +587,7 @@ function promoteResultSnapshot(
   result: unknown,
   trace: ExecutionTrace,
 ): void {
+  if (!LOCAL_CACHES_ENABLED) return;
   routeResultCache.set(cacheKey, {
     skill,
     endpointId,

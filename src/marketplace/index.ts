@@ -51,10 +51,15 @@ function evictExpiredAndOverflow(): void {
  * (≤ 5 min old), otherwise fetches from backend and stores. Returns null on miss.
  */
 export async function getSkillCached(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
+  // Caching disabled — every call hits the backend so 404s and updates are
+  // visible immediately. Local caches were masking real backend gaps.
+  // Set UNBROWSE_LOCAL_CACHES=1 to re-enable for offline benchmarks.
+  if (process.env.UNBROWSE_LOCAL_CACHES !== "1") {
+    return await client.getSkill(skillId, scopeId);
+  }
   const key = cacheKey(skillId, scopeId);
   const cached = marketplaceCache.get(key);
   if (cached && cached.expires > Date.now()) {
-    // refresh LRU position
     marketplaceCache.delete(key);
     marketplaceCache.set(key, cached);
     return cached.skill;
@@ -63,10 +68,11 @@ export async function getSkillCached(skillId: string, scopeId?: string): Promise
   if (fresh) {
     marketplaceCache.set(key, { skill: fresh, expires: Date.now() + TTL_MS });
     evictExpiredAndOverflow();
+  } else {
+    marketplaceCache.delete(key);
   }
   return fresh;
 }
-
 /**
  * Drop every cached entry whose skill_id or domain matches the input. Called
  * by `publishSkill` after a successful publish so subsequent `getSkillCached`
