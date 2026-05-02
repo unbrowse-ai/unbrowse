@@ -61,11 +61,7 @@ export class EdbKV {
 
   // --- public API ---
 
-  /**
-   * Read a key — always goes through the idx cache first.
-   * Cost: 2 HTTP subrequests if cache is cold (both sub-indexes), then 0 for subsequent gets.
-   * Falls back to a direct qdkv/get only for keys not present in the idx.
-   */
+  /** Cache-first: 2 HTTP if cold (both sub-indexes), 0 for subsequent gets. Falls back to direct qdkv/get for keys not in the idx. */
   async get(key: string, type?: "json"): Promise<string | unknown | null> {
     const entries = await this._idxLoad();
     const hit = entries.find(e => e.k === key);
@@ -122,10 +118,7 @@ export class EdbKV {
     }
   }
 
-  /**
-   * Atomic batch put: N parallel data writes + 1 idx load + 1 idx save.
-   * Values are stored inline in the index for zero-fetch listWithValues.
-   */
+  /** N parallel data writes + 1 idx load + 1 idx save. Values inline so listWithValues stays zero-fetch. */
   async putBatch(pairs: Array<{ key: string; value: string }>, opts?: { expirationTtl?: number }): Promise<void> {
     const ttl = opts?.expirationTtl;
     const results = await Promise.all(pairs.map(({ key, value }) => {
@@ -331,9 +324,6 @@ export class EdbKV {
     _cache.set(this.ns, { entries, expires: Date.now() + IDX_TTL_MS });
   }
 
-  /**
-   * Upsert a key+value into the index. Value is stored inline.
-   */
   private async _idxUpsert(key: string, value: string): Promise<void> {
     const entries = await this._idxLoad();
     const i = entries.findIndex(e => e.k === key);

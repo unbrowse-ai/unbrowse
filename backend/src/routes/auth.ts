@@ -67,7 +67,15 @@ authRoutes.post("/auth/email/start", async (c) => {
     return_url: return_url ?? null,
     status: "pending",
   };
-  await statsKV(c.env).put(`magic:${token}`, JSON.stringify(record), { expirationTtl: 600 });
+  try {
+    await statsKV(c.env).put(`magic:${token}`, JSON.stringify(record), { expirationTtl: 600 });
+  } catch (err) {
+    console.error("magic-link storage failed", (err as Error).message);
+    return c.json({
+      error: "storage_unavailable",
+      message: "Backend storage (EMERGENTDB_API_KEY or DATABASE_URL) not configured — magic-link signup unavailable.",
+    }, 503);
+  }
 
   try {
     await sendMagicLink(c.env, { email: normalizedEmail, token, returnUrl: return_url });

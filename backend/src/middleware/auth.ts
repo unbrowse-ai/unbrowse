@@ -29,7 +29,6 @@ function queueAgentActivity(c: Context<AuthEnv>, agentId: string): void {
   }
 }
 
-/** Verify a local API key against KV-stored hashes. */
 async function verifyKey(env: Env, key: string): Promise<{ valid: boolean; keyId?: string; code?: string }> {
   // Staging: accept any bearer token for dev convenience
   if (env.ENVIRONMENT === "staging") {
@@ -42,7 +41,6 @@ async function verifyKey(env: Env, key: string): Promise<{ valid: boolean; keyId
   return { valid: true, keyId: result.keyId };
 }
 
-/** Verify bearer token and enforce current ToS acceptance. */
 export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -60,7 +58,6 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
     return;
   }
 
-  // Verify via local key store
   const result = await verifyKey(c.env, token);
 
   if (!result.valid) {
@@ -75,7 +72,6 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
     return c.json({ error: "Invalid API key", code: "MISSING_KEY_ID" }, 401);
   }
 
-  // Enforce ToS acceptance
   const profile = await ensureAgentProfile(c.env, result.keyId);
   if (profile && profile.tos_accepted_version !== CURRENT_TOS_VERSION) {
     return c.json({
@@ -149,12 +145,7 @@ export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
   await next();
 }
 
-/**
- * Require a valid signed release manifest from the client.
- * Returns 426 Upgrade Required with update instructions when the client
- * is unsigned or running an outdated/tampered build.
- * Admin keys bypass this check.
- */
+/** Returns 426 when the client lacks or fails release-manifest signature verification. Admin keys bypass. */
 export async function requireSignedClient(c: Context<AuthEnv>, next: Next) {
   const agentId = c.get("agent_id");
   if (agentId === "__admin__") {
