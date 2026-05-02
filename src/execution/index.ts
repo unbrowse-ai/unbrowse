@@ -3068,7 +3068,7 @@ export function detectBrowserBlockSignals(input: {
   const { requestUrls, title, htmlLength, rejectionCounts } = input;
   const signals: string[] = [];
   const titleLower = title.toLowerCase();
-  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|human verification|are you a robot|bot check|cloudflare|press and hold|request could not be satisfied|403 forbidden|\b404\b|\b502\b|\b503\b|\b504\b|bad gateway|service unavailable|gateway timeout|site blocked|unusual traffic|security check|not[ _.]?found|page (does )?not exist|page doesn't exist|this page can't be|server error/i.test(titleLower)) {
+  if (/just a moment|attention required|access denied|pardon our interruption|captcha|verifying you are human|human verification|are you a robot|bot check|cloudflare|press and hold|request could not be satisfied|403 forbidden|\b404\b|\b502\b|\b503\b|\b504\b|bad gateway|service unavailable|gateway timeout|site blocked|unusual traffic|security check|not[ _.]?found|page (does )?not exist|page doesn't exist|this page can't be|server error|client challenge|checking your browser/i.test(titleLower)) {
     signals.push("challenge_title");
   }
   const vendorHits = new Set<string>();
@@ -3091,6 +3091,7 @@ export function detectBrowserBlockSignals(input: {
     // and Akamai sensor_data collection endpoint.
     if (/akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i.test(u)) vendorHits.add("akamai_bot_manager");
     if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i.test(u)) vendorHits.add("cloudflare");
+    if (/\/_fs-ch-[A-Za-z0-9]+\//.test(u)) vendorHits.add("fastly_bot_management");
     if (/hcaptcha|recaptcha|arkoselabs|funcaptcha/i.test(u)) vendorHits.add("captcha_vendor");
     if (/shape\.security|f5\.com\/shape|ShapeSecurity/i.test(u)) vendorHits.add("shape_security");
     if (/kasada|client\.kasada|ips\.kasada/i.test(u)) vendorHits.add("kasada");
