@@ -346,6 +346,43 @@ Omit empty sections. No emojis. No file paths or function names.
 - **Tests must hit real code paths** — no mocks, no stubs, no fake HTTP responses. If a test needs a network call, gate it behind an env var for CI, don't mock it.
 - **Bug fix protocol**: when a bug is reported, write a failing test FIRST that reproduces it, then fix the code and verify the test passes.
 
+### Failing-test triage harness
+
+When you have N failing tests across one or more files, do NOT re-run the
+full suite per fix attempt. Use the per-test isolation harness — it
+caches one suite run and surfaces evidence per failure.
+
+```bash
+# 1. List every failing test as actionable rows (cached for 10 min)
+bun run test:triage              # human-readable
+bun run test:triage:json         # JSON for agent ingestion
+bun run test:triage:next         # just the next failure to fix
+
+# 2. Debug one test with full evidence
+bun run test:isolate <file-pattern> --name "<test name regex>"
+# Emits: parsed assertion (Expected/Received), failing line + 8 lines
+# context, SUT files referenced by the test's imports, recent commits
+# touching those SUT files, full bun test log.
+
+# 3. Force re-run after fixing
+TEST_TRIAGE_REFRESH=1 bun run test:triage
+```
+
+Driver loop for a fixing agent:
+1. `bun run test:triage:json > .triage.json`
+2. For each row: run `isolate_command` from the row, read evidence,
+   fix the SUT, re-run isolate
+3. When isolate returns exit=0, advance to next row
+4. After all rows fixed, `TEST_TRIAGE_REFRESH=1 bun run test:triage` to
+   confirm zero remain
+
+Anti-pattern: never add a "test:p0-p1" / "test:category" / "test:cluster"
+script that runs many tests under one command without surfacing per-test
+evidence — that was the harness we deleted in `975256ac` because it
+couldn't tell us which test broke or why without re-running everything.
+Every new harness MUST expose `--next` and `--isolate` semantics or
+extend `scripts/test-isolate.sh`.
+
 ## Session Start Protocol
 
 When Lewis starts a conversation about pipeline, fundraising, or sprint progress, proactively run these checks:
