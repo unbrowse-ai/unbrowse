@@ -382,10 +382,17 @@ export function getEndpointDescriptionMetadata(endpoint: Pick<EndpointDescriptor
     ? endpoint.semantic?.description_out ?? endpoint.description ?? ""
     : endpoint.semantic?.description_out ?? endpoint.description ?? "").trim();
   const source = display ? (input.source === "agent" || agentAugmented ? "agent" : "auto") : "missing";
+  // Honor explicit description_needs_review flag from the semantic layer
+  // (set by the auto-augmenter when its confidence is low). Without this,
+  // auto-generated descriptions that ARE schema-grounded silently bypass review.
+  const explicitlyNeedsReview = endpoint.semantic?.description_needs_review === true;
   return {
     display,
     source,
-    needs_review: source === "missing" || (source === "auto" && !schemaGrounded),
+    needs_review:
+      explicitlyNeedsReview ||
+      source === "missing" ||
+      (source === "auto" && !schemaGrounded),
     ...(source !== "agent" && !schemaGrounded
       ? { warning: input.warning ?? "Auto-generated description. Review before trusting or publishing." }
       : {}),
