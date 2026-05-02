@@ -3279,6 +3279,15 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       .filter((value): value is string => !!value),
   );
 
+  // Generic structural signal: any sibling candidate is a real API endpoint?
+  // Used to demote captured-page-artifacts when a structured alternative exists,
+  // independent of trigger_url linkage (marketplace skills + test fixtures often lack it).
+  const hasStructuredApiInCorpus = rankedCandidates.some((ep) => {
+    const url = ep.url_template.toLowerCase();
+    const looksLikeApi = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(url);
+    return looksLikeApi && !ep.dom_extraction && !/captured (?:search form |page )?artifact/i.test(ep.description ?? "");
+  });
+
   // Tokenize intent with synonym expansion for better recall
   const rawTokens = intent ? tokenize(intent) : [];
   const queryTokens = rawTokens.length > 0 ? expandQuery(rawTokens) : [];
@@ -3530,6 +3539,14 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     }
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
       score -= 1000;
+    }
+
+    // Generic global rule (no per-intent gating): when an endpoint is a captured
+    // page artifact AND any sibling in the corpus is a real API endpoint for the
+    // same domain/intent class, bury the page artifact below the API. Replaces
+    // the trigger_url-based check that Phase 8.3 left brittle on test fixtures.
+    if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
+      score = Math.min(score - 800, -2000);
     }
 
     if (intent && COMPANY_INTENT.test(intent)) {
