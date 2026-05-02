@@ -366,7 +366,7 @@ function classifyDescriptionInput(description?: string): {
   return { source: "agent" };
 }
 
-export function getEndpointDescriptionMetadata(endpoint: Pick<EndpointDescriptor, "description" | "semantic">): {
+export function getEndpointDescriptionMetadata(endpoint: Pick<EndpointDescriptor, "description" | "semantic" | "dom_extraction">): {
   display: string;
   source: "agent" | "auto" | "missing";
   needs_review: boolean;
@@ -382,10 +382,17 @@ export function getEndpointDescriptionMetadata(endpoint: Pick<EndpointDescriptor
     ? endpoint.semantic?.description_out ?? endpoint.description ?? ""
     : endpoint.semantic?.description_out ?? endpoint.description ?? "").trim();
   const source = display ? (input.source === "agent" || agentAugmented ? "agent" : "auto") : "missing";
-  // Honor explicit description_needs_review flag from the semantic layer
-  // (set by the auto-augmenter when its confidence is low). Without this,
-  // auto-generated descriptions that ARE schema-grounded silently bypass review.
-  const explicitlyNeedsReview = endpoint.semantic?.description_needs_review === true;
+  // Honor explicit description_needs_review when:
+  //   - description isn't a captured-page-artifact stub (inferEndpointSemantic
+  //     auto-sets the flag for those, can't trust it), AND
+  //   - endpoint has no dom_extraction (DOM-extraction recipes are already
+  //     review-friendly: the agent sees the captured shape).
+  // Agent-authored or generic-template descriptions on real API endpoints:
+  // honor the explicit flag (workflow-publish-export gate scenario).
+  const explicitlyNeedsReview =
+    endpoint.semantic?.description_needs_review === true &&
+    !isCapturedArtifactDescription(endpoint.description) &&
+    !endpoint.dom_extraction;
   return {
     display,
     source,
