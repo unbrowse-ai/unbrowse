@@ -468,11 +468,25 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       const skillId = resolveSkillId();
       if (skillId && endpoints.length > 0) {
         const bestEndpoint = endpoints[0];
-        info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
-        result = await withPendingNotice(
-          api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
-          "Executing best endpoint...",
-        );
+        // Policy gate: never auto-execute a third-party-terms-flagged endpoint
+        // without explicit confirmation. The agent must opt in via
+        // --confirm-third-party-terms after reading the policy.
+        if (
+          endpointNeedsThirdPartyTermsConfirmation(bestEndpoint) &&
+          !flags["confirm-third-party-terms"]
+        ) {
+          process.stderr.write(
+            `Skipping auto-execute: endpoint ${bestEndpoint.endpoint_id ?? "?"} ` +
+            `requires explicit third-party terms confirmation. ` +
+            `Re-run with --confirm-third-party-terms to proceed.\n`,
+          );
+        } else {
+          info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
+          result = await withPendingNotice(
+            api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
+            "Executing best endpoint...",
+          );
+        }
       }
     }
 

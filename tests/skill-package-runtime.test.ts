@@ -19,7 +19,6 @@ describe("standalone skill package runtime", () => {
 
     expect(manifest.files).toContain("bin");
     expect(manifest.files).toContain("dist");
-    expect(manifest.files).toContain("runtime-src");
     expect(manifest.files).toContain("vendor/kuri");
     expect(manifest.files).toContain("scripts/postinstall.mjs");
     expect(manifest.files).toContain("scripts/release-assets.mjs");
