@@ -1,5 +1,6 @@
 import type { EndpointDescriptor, OperationBinding } from "../types/index.js";
 import { resolveEndpointSemantic } from "./index.js";
+import { readDomainNote } from "../extraction/domain-notes.js";
 
 const CHAT_URL = "https://api.tokenfactory.nebius.com/v1/chat/completions";
 const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
@@ -235,8 +236,9 @@ async function callAgent(
   intent: string | undefined,
   domain: string | undefined,
   fetchImpl: typeof fetch,
+  notePreamble: string,
 ): Promise<LlmResponse | null> {
-  const prompt = [
+  const basePrompt = [
     "You refine learned API skill metadata for a web automation system.",
     "Return JSON only.",
     "Do not invent endpoints or binding keys.",
@@ -246,6 +248,7 @@ async function callAgent(
     "Reject generic output like identifier, input, resource unless no better grounded type exists.",
     "For each endpoint, produce endpoint_id plus any improved action_kind, resource_kind, description_out, requires, provides, and negative_tags.",
   ].join("\n");
+  const prompt = notePreamble ? `${notePreamble}${basePrompt}` : basePrompt;
 
   const endpointPayload = endpoints.map((endpoint) => buildEndpointPayload(endpoint));
   const controller = new AbortController();
@@ -305,8 +308,26 @@ export async function augmentEndpointsWithAgent(
   const fetchImpl = opts.fetchImpl ?? fetch;
   const selected = selectEndpointsForAugment(endpoints, opts.intent, opts.domain);
   if (selected.length === 0) return endpoints;
+  // Prior-knowledge preamble: LLM-prose markdown written by the
+  // notes-summarizer after past captures of this domain. Injected as
+  // additional context for the LLM ONLY — the deterministic ranker
+  // never sees it. See src/extraction/domain-notes.ts.
+  let notePreamble = "";
+  if (opts.domain) {
+    try {
+      const note = readDomainNote(opts.domain);
+      if (note?.body) {
+        notePreamble =
+          `## Prior knowledge for ${opts.domain}\n\n` +
+          `The LLM that captured this site previously wrote these notes. They may help disambiguate field meanings or flag known traps:\n\n` +
+          `${note.body}\n\n---\n\n`;
+      }
+    } catch {
+      // best-effort
+    }
+  }
   try {
-    const response = await callAgent(provider, selected, opts.intent, opts.domain, fetchImpl);
+    const response = await callAgent(provider, selected, opts.intent, opts.domain, fetchImpl, notePreamble);
     if (!response?.endpoints?.length) return endpoints;
     const updates = new Map(
       response.endpoints

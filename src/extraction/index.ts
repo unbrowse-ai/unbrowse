@@ -453,6 +453,60 @@ export function extractSPAData(html: string): SPAExtraction[] {
     } catch { /* malformed ld+json — skip */ }
   }
 
+  // Generic homogeneous-array primitive — framework-agnostic.
+  //
+  // The framework arms above each return ONE wrapper per detected SPA store
+  // (Next.js __NEXT_DATA__, Nuxt, Apollo, INITIAL_STATE, RSC stream, JSON-LD).
+  // When the wrapper is a heterogeneous bag (e.g. Vercel templates page where
+  // pageProps holds many unrelated state slices), the intent scorer sees the
+  // wrapper but cannot distinguish "templates" from "navigation" from
+  // "user prefs". This primitive walks every wrapper's data, surfaces every
+  // homogeneous-shaped array branch as its OWN candidate, and lets the
+  // scorer + LLM judge pick the one that matches the intent.
+  //
+  // No framework registry. Works on Next.js pageProps, Apollo cache slices,
+  // Nuxt data[0], plain JSON-LD @graph, anything that nests records.
+  const seenBranchSignatures = new Set<string>();
+  const branchEmissions: SPAExtraction[] = [];
+  const MAX_BRANCHES = 12;
+  const MIN_BRANCH_LEN = 3;
+  const MAX_PATH_DEPTH = 6;
+  const visit = (node: unknown, path: string, depth: number) => {
+    if (branchEmissions.length >= MAX_BRANCHES || depth > MAX_PATH_DEPTH) return;
+    if (Array.isArray(node)) {
+      if (node.length >= MIN_BRANCH_LEN) {
+        const objects = node.filter((item) => item && typeof item === "object" && !Array.isArray(item));
+        if (objects.length >= MIN_BRANCH_LEN && objects.length >= node.length * 0.7) {
+          const keys = objects
+            .slice(0, 5)
+            .flatMap((o) => Object.keys(o as Record<string, unknown>));
+          const sig = `${objects.length}|${[...new Set(keys)].sort().join(",")}`;
+          if (!seenBranchSignatures.has(sig)) {
+            seenBranchSignatures.add(sig);
+            branchEmissions.push({
+              type: "spa-initial-state",
+              data: node,
+              element_count: node.length,
+              selector: path || "(root)",
+            });
+          }
+        }
+      }
+      // Still descend — arrays of mixed types can hide homogeneous sub-arrays.
+      for (let i = 0; i < Math.min(node.length, 20); i++) {
+        visit(node[i], `${path}[${i}]`, depth + 1);
+      }
+      return;
+    }
+    if (node && typeof node === "object") {
+      for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+        visit(value, path ? `${path}.${key}` : key, depth + 1);
+      }
+    }
+  };
+  for (const r of results) visit(r.data, "", 0);
+  results.push(...branchEmissions);
+
   return results;
 }
 
