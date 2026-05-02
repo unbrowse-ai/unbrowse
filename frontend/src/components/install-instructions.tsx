@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 
-const O      = "#FF7A20";          // main phosphor orange
-const O_DIM  = "rgba(255,122,32,0.40)";
-const O_HI   = "#FFB060";          // bright highlights
-const O_GLOW = "0 0 8px rgba(255,122,32,0.75)";
-const BG     = "#060402";
+const O      = "#8B3800";          // dark burnt orange (commands on parchment)
+const O_DIM  = "rgba(100,55,10,0.75)";  // dim text (comments, labels)
+const O_HI   = "#5C1E00";          // dark brown (headers, active)
+const BG        = "#ede0c2";       // warm parchment/beige
+const BG_MOBILE = "#e8d8b0";
 
 type LineType = "header" | "divider" | "comment" | "cmd" | "blank";
 interface TLine { type: LineType; text: string; }
@@ -65,16 +65,16 @@ const TABS = [
   },
 ] as const;
 
-function lineStyle(type: LineType): React.CSSProperties {
+function lineStyle(type: LineType, _isMobile: boolean): React.CSSProperties {
   switch (type) {
     case "header":
-      return { color: O_HI, textShadow: "0 0 12px rgba(255,176,96,0.9)", fontWeight: "bold", letterSpacing: "0.04em" };
+      return { color: O_HI, fontWeight: "bold", letterSpacing: "0.04em" };
     case "divider":
-      return { color: "rgba(255,122,32,0.28)", letterSpacing: "0" };
+      return { color: "rgba(100,55,10,0.4)", letterSpacing: "0" };
     case "comment":
-      return { color: O_DIM, fontStyle: "italic" };
+      return { color: O_DIM, fontStyle: "italic", fontWeight: "600" };
     case "cmd":
-      return { color: O, textShadow: O_GLOW };
+      return { color: O, fontWeight: "bold" };
     case "blank":
       return { height: "0.55em", display: "block" };
   }
@@ -85,6 +85,14 @@ export function InstallInstructions() {
   const [visible, setVisible]     = useState(0);
   const [cursor, setCursor]       = useState(true);
   const [copied, setCopied]       = useState(false);
+  const [isMobile, setIsMobile]   = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const tab = TABS.find((t) => t.id === active)!;
 
@@ -115,10 +123,12 @@ export function InstallInstructions() {
   return (
     <div
       style={{
-        background: BG,
+        background: isMobile ? BG_MOBILE : BG,
         border: "1px solid rgba(255,122,32,0.5)",
         borderRadius: "3px",
-        boxShadow: "0 0 40px rgba(255,82,0,0.10), inset 0 0 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,82,0,0.06)",
+        boxShadow: isMobile
+          ? "0 0 20px rgba(139,69,19,0.12)"
+          : "0 0 40px rgba(139,69,19,0.15), 0 0 0 1px rgba(255,82,0,0.1)",
         overflow: "hidden",
         position: "relative",
       }}
@@ -128,7 +138,7 @@ export function InstallInstructions() {
         aria-hidden="true"
         style={{
           position: "absolute", inset: 0, pointerEvents: "none", zIndex: 20,
-          backgroundImage: "repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.28) 2px, rgba(0,0,0,0.28) 3px)",
+          backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,${isMobile ? 0.04 : 0.07}) 2px, rgba(0,0,0,${isMobile ? 0.04 : 0.07}) 3px)`,
         }}
       />
 
@@ -137,7 +147,7 @@ export function InstallInstructions() {
         aria-hidden="true"
         style={{
           position: "absolute", inset: 0, pointerEvents: "none", zIndex: 18,
-          background: "radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%)",
+          background: `radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(100,60,20,${isMobile ? 0.1 : 0.18}) 100%)`,
         }}
       />
 
@@ -147,13 +157,13 @@ export function InstallInstructions() {
           borderBottom: "1px solid rgba(255,122,32,0.22)",
           padding: "7px 12px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          background: "rgba(0,0,0,0.35)",
+          background: isMobile ? "rgba(180,145,90,0.35)" : "rgba(180,145,90,0.28)",
           position: "relative", zIndex: 30,
         }}
       >
         {/* Status dot + title */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: O, boxShadow: `0 0 6px ${O}` }} />
+          <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: O }} />
           <span style={{ fontFamily: "monospace", fontSize: 10, color: O_DIM, letterSpacing: "0.18em", textTransform: "uppercase" }}>
             unbrowse terminal
           </span>
@@ -168,10 +178,9 @@ export function InstallInstructions() {
               style={{
                 fontFamily: "monospace", fontSize: 10, letterSpacing: "0.12em",
                 padding: "2px 10px",
-                border: `1px solid ${active === t.id ? "rgba(255,122,32,0.65)" : "rgba(255,122,32,0.18)"}`,
-                background: active === t.id ? "rgba(255,122,32,0.11)" : "transparent",
+                border: `1px solid ${active === t.id ? "rgba(100,45,5,0.5)" : "rgba(100,55,10,0.2)"}`,
+                background: active === t.id ? "rgba(139,56,0,0.12)" : "transparent",
                 color: active === t.id ? O_HI : O_DIM,
-                textShadow: active === t.id ? O_GLOW : "none",
                 borderRadius: 2, cursor: "pointer",
               }}
             >
@@ -186,9 +195,9 @@ export function InstallInstructions() {
           style={{
             fontFamily: "monospace", fontSize: 10, letterSpacing: "0.1em",
             padding: "2px 10px",
-            border: `1px solid ${copied ? "rgba(255,176,96,0.5)" : "rgba(255,122,32,0.22)"}`,
-            background: copied ? "rgba(255,176,96,0.1)" : "transparent",
-            color: copied ? O_HI : O_DIM,
+            border: `1px solid ${copied ? "rgba(92,30,0,0.6)" : "#FF7A20"}`,
+            background: copied ? "#FF7A20" : "#FF7A20",
+            color: copied ? "#fff" : "#fff",
             borderRadius: 2, cursor: "pointer",
           }}
         >
@@ -201,7 +210,7 @@ export function InstallInstructions() {
         style={{
           padding: "14px 18px 18px",
           fontFamily: "'Courier New', 'Lucida Console', monospace",
-          fontSize: "12.5px",
+          fontSize: "13.5px",
           lineHeight: "1.8",
           minHeight: "260px",
           position: "relative", zIndex: 30,
@@ -209,15 +218,15 @@ export function InstallInstructions() {
       >
         {tab.lines.slice(0, visible).map((line, i) =>
           line.type === "blank" ? (
-            <div key={i} style={lineStyle("blank")} />
+            <div key={i} style={lineStyle("blank", isMobile)} />
           ) : (
-            <div key={i} style={lineStyle(line.type)}>{line.text}</div>
+            <div key={i} style={lineStyle(line.type, isMobile)}>{line.text}</div>
           )
         )}
 
         {/* Blinking cursor — shown after all lines appear */}
         {visible >= tab.lines.length && (
-          <div style={{ color: O, textShadow: O_GLOW, marginTop: "2px" }}>
+          <div style={{ color: O, marginTop: "2px" }}>
             {"  $  "}
             <span style={{ opacity: cursor ? 1 : 0, transition: "opacity 60ms" }}>█</span>
           </div>
