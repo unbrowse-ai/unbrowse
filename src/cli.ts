@@ -68,9 +68,15 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
       // starts with -- because nanoid IDs can begin with `-` / `--`).
       const valueExpectedFlags = new Set(["skill", "endpoint", "intent", "url", "domain", "params", "path", "extract", "limit"]);
       if (valueExpectedFlags.has(key)) {
+        // Don't consume the next arg if it's clearly another flag (-p, --foo).
+        // nanoid IDs may start with `-` but never `-p` or `--`.
         if (next === undefined) die(`--${key} requires a value`);
-        flags[key] = next;
-        i++;
+        if (next === "-p" || next === "--param" || next.startsWith("--")) {
+          flags[key] = true;
+        } else {
+          flags[key] = next;
+          i++;
+        }
       } else if (!next || next.startsWith("--") || next === "-p" || next === "--param") {
         flags[key] = true;
       } else {
