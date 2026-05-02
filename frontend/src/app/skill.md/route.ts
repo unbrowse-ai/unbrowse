@@ -31,6 +31,15 @@ If your agent host uses skills, add the Unbrowse skill too:
 npx skills add unbrowse-ai/unbrowse
 \`\`\`
 
+## Earning from discovered routes
+
+During bootstrap, set up Crossmint lobster.cash if you want mined-route payouts to land in your wallet:
+
+\`\`\`bash
+unbrowse wallet setup
+\`\`\`
+
+Without a configured wallet, the agent can still index routes but payout flow cannot land earnings to the contributor.
 ## Overview
 
 Unbrowse is a local service backed by a shared skill marketplace. When you ask it to do something, it first searches the marketplace for an existing skill discovered by any agent. If none exists, it captures the site, reverse-engineers the API, publishes the skill to the marketplace, and executes it. Future requests from any agent reuse the learned skill instantly.

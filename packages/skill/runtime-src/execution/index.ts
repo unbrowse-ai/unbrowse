@@ -15,7 +15,8 @@ import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
-import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
+import { probeUrl, decideFromProbe } from "./probe.js";
+import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
 
@@ -221,7 +222,6 @@ export function isBundleInferredEndpoint(endpoint: Pick<EndpointDescriptor, "des
 }
 
 function isSupportEvidenceEndpoint(endpoint: EndpointDescriptor): boolean {
-  if (isCanonicalReplayEndpoint(endpoint)) return true;
   if (endpoint.dom_extraction && endpoint.response_schema) return true;
   if (isBundleInferredEndpoint(endpoint)) return false;
   return !!endpoint.response_schema;
@@ -330,6 +330,11 @@ export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
   learned_skill?: SkillManifest;
+  /** Phase 7.2 — top-level dispatch trace.
+   *  Steps the executor took: recipe_replay (if any), probe, decision, server_fetch /
+   *  trigger_intercept / browser / return_error. Mirrored on trace.decision_trace
+   *  for backward compat with 7.1 tests; will become the single source in Phase 8. */
+  decision_trace?: Array<Record<string, unknown>>;
 }
 
 export function projectResultForIntent(data: unknown, intent?: string): unknown {
@@ -400,288 +405,6 @@ export function shouldIgnoreLearnedBrowserStrategy(
   return endpoint.method === "GET" && !endpoint.dom_extraction && !isDocumentLikeUrl(resolvedUrl);
 }
 
-function deriveStructuredDataReplay(url: string, mode: "concrete" | "template"): string {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.replace(/^www\./, "");
-    const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
-    const templateParam = (primary: string): string => `{${primary}}`;
-
-    if (host === "mastodon.social") {
-      if (pathname === "/search" || pathname === "/search/") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://mastodon.social/api/v2/search");
-        replay.searchParams.set("q", mode === "template" ? templateParam("q") : (parsed.searchParams.get("q") ?? ""));
-        replay.searchParams.set("resolve", "false");
-        replay.searchParams.set("type", "statuses");
-        replay.searchParams.set("limit", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-      if (pathname === "/public") {
-        const replay = new URL("https://mastodon.social/api/v1/timelines/public");
-        replay.searchParams.set("limit", "20");
-        return replay.toString();
-      }
-    }
-
-    if (host === "gitlab.com") {
-      if (pathname === "/explore/projects") {
-        if (mode === "concrete" && !parsed.searchParams.get("name") && !parsed.searchParams.get("search")) return url;
-        const replay = new URL("https://gitlab.com/api/v4/projects");
-        const search = parsed.searchParams.get("search");
-        const name = parsed.searchParams.get("name");
-        replay.searchParams.set(
-          "search",
-          mode === "template"
-            ? (search && search.length > 0 ? "{search}" : name && name.length > 0 ? "{name}" : "{q}")
-            : (name ?? search ?? ""),
-        );
-        replay.searchParams.set("simple", "true");
-        replay.searchParams.set("per_page", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      const reserved = new Set([
-        "-",
-        "api",
-        "admin",
-        "dashboard",
-        "explore",
-        "groups",
-        "help",
-        "oauth",
-        "profile",
-        "projects",
-        "search",
-        "session",
-        "users",
-      ]);
-      if (segments.length === 2 && !reserved.has(segments[0])) {
-        return `https://gitlab.com/api/v4/projects/${encodeURIComponent(`${segments[0]}/${segments[1]}`)}`;
-      }
-    }
-
-    if (host === "github.com") {
-      if (pathname === "/search") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://api.github.com/search/repositories");
-        replay.searchParams.set(
-          "q",
-          mode === "template" ? "{q}" : (parsed.searchParams.get("q") ?? ""),
-        );
-        replay.searchParams.set("per_page", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "hn.algolia.com") {
-      if (pathname === "/" || pathname === "") {
-        if (mode === "concrete" && !parsed.searchParams.get("q") && !parsed.searchParams.get("query")) return url;
-        const replay = new URL("https://hn.algolia.com/api/v1/search");
-        replay.searchParams.set(
-          "query",
-          mode === "template" ? "{q}" : (parsed.searchParams.get("q") ?? parsed.searchParams.get("query") ?? ""),
-        );
-        replay.searchParams.set("tags", "story");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "huggingface.co") {
-      if (pathname === "/models" || pathname === "/models/") {
-        if (mode === "concrete" && !parsed.searchParams.get("search") && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://huggingface.co/api/models");
-        replay.searchParams.set(
-          "search",
-          mode === "template"
-            ? (parsed.searchParams.get("search") ? "{search}" : parsed.searchParams.get("q") ? "{q}" : "{search}")
-            : (parsed.searchParams.get("search") ?? parsed.searchParams.get("q") ?? ""),
-        );
-        replay.searchParams.set("limit", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "developer.mozilla.org") {
-      const locale = pathname.split("/").filter(Boolean)[0] || "en-US";
-      if (pathname.endsWith("/search") || pathname === "/search") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://developer.mozilla.org/api/v1/search");
-        replay.searchParams.set(
-          "q",
-          mode === "template" ? "{q}" : (parsed.searchParams.get("q") ?? ""),
-        );
-        replay.searchParams.set(
-          "page",
-          mode === "template"
-            ? (parsed.searchParams.get("page") ? "{page}" : "1")
-            : (parsed.searchParams.get("page") ?? "1"),
-        );
-        replay.searchParams.set("page_size", parsed.searchParams.get("page_size") ?? "20");
-        replay.searchParams.set(
-          "locale",
-          mode === "template"
-            ? (parsed.searchParams.get("locale") ? "{locale}" : locale)
-            : (parsed.searchParams.get("locale") ?? locale),
-        );
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "dev.to") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "t" && segments[1]) {
-        const replay = new URL("https://dev.to/api/articles");
-        replay.searchParams.set("tag", mode === "template" ? "{tag}" : segments[1]);
-        replay.searchParams.set("per_page", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "npmjs.com") {
-      if (pathname === "/search" || pathname === "/search/") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://registry.npmjs.org/-/v1/search");
-        replay.searchParams.set("text", mode === "template" ? templateParam("q") : (parsed.searchParams.get("q") ?? ""));
-        replay.searchParams.set("size", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "package" && segments.length >= 2) {
-        const versionIndex = segments.indexOf("v");
-        const packageName = segments.slice(1, versionIndex === -1 ? undefined : versionIndex).join("/");
-        if (packageName) return `https://registry.npmjs.org/${encodeURIComponent(packageName)}`;
-      }
-    }
-
-    if (host === "pypi.org") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "project" && segments[1]) {
-        return `https://pypi.org/pypi/${encodeURIComponent(segments[1])}/json`;
-      }
-    }
-
-    if (host === "pub.dev") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "packages" && segments[1]) {
-        return `https://pub.dev/api/packages/${encodeURIComponent(segments[1])}`;
-      }
-    }
-
-    if (host === "hub.docker.com") {
-      if (pathname === "/search" || pathname === "/search/") {
-        if (mode === "concrete" && !parsed.searchParams.get("q") && !parsed.searchParams.get("query")) return url;
-        const replay = new URL("https://hub.docker.com/v2/search/repositories/");
-        replay.searchParams.set(
-          "query",
-          mode === "template"
-            ? (parsed.searchParams.get("query") ? "{query}" : "{q}")
-            : (parsed.searchParams.get("q") ?? parsed.searchParams.get("query") ?? ""),
-        );
-        replay.searchParams.set("page_size", "20");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "r" && segments.length >= 4 && segments[3] === "tags") {
-        return `https://hub.docker.com/v2/repositories/${encodeURIComponent(segments[1])}/${encodeURIComponent(segments[2])}/tags/?page_size=25`;
-      }
-    }
-
-    if (host === "rubygems.org") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "gems" && segments[1]) {
-        return `https://rubygems.org/api/v1/gems/${encodeURIComponent(segments[1])}.json`;
-      }
-    }
-
-    if (host === "stackoverflow.com" || host === "serverfault.com" || host === "superuser.com") {
-      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
-      if (segments[0] === "questions" && segments[1] === "tagged" && segments[2]) {
-        const replay = new URL("https://api.stackexchange.com/2.3/questions");
-        replay.searchParams.set("site", host === "stackoverflow.com" ? "stackoverflow" : host.replace(/\.com$/, ""));
-        replay.searchParams.set("tagged", mode === "template" ? "{tag}" : segments[2]);
-        replay.searchParams.set("order", "desc");
-        replay.searchParams.set("sort", "activity");
-        replay.searchParams.set("pagesize", "20");
-        replay.searchParams.set("filter", "default");
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host === "jmail.world") {
-      if (pathname === "/search" || pathname === "/search/") {
-        if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-        const replay = new URL("https://jmail.world/api/emails/search");
-        replay.searchParams.set("q", mode === "template" ? "{q}" : (parsed.searchParams.get("q") ?? ""));
-        replay.searchParams.set("limit", mode === "template" ? "{limit}" : (parsed.searchParams.get("limit") ?? "50"));
-        replay.searchParams.set("page", mode === "template" ? "{page}" : (parsed.searchParams.get("page") ?? "1"));
-        replay.searchParams.set("source", mode === "template" ? "{source}" : (parsed.searchParams.get("source") ?? "all"));
-        return restoreTemplatePlaceholderEncoding(replay.toString());
-      }
-    }
-
-    if (host !== "reddit.com" && host !== "old.reddit.com" && host !== "np.reddit.com") return url;
-    if (/\.json$/i.test(parsed.pathname) || /\/api\/|\/svc\/|graphql/i.test(parsed.pathname)) return url;
-    if (parsed.pathname === "/search" || parsed.pathname === "/search/") {
-      if (mode === "concrete" && !parsed.searchParams.get("q")) return url;
-      parsed.pathname = "/search.json";
-      if (mode === "template" && !parsed.searchParams.get("q")) parsed.searchParams.set("q", "{q}");
-      return parsed.toString();
-    }
-    if (parsed.pathname.startsWith("/r/") || parsed.pathname.startsWith("/comments/")) {
-      parsed.pathname = `${parsed.pathname.replace(/\/$/, "")}/.json`;
-      return parsed.toString();
-    }
-    return url;
-  } catch {
-    return url;
-  }
-}
-
-export function deriveStructuredDataReplayUrl(url: string): string {
-  return deriveStructuredDataReplay(url, "concrete");
-}
-
-export function deriveStructuredDataReplayTemplate(url: string): string {
-  return deriveStructuredDataReplay(url, "template");
-}
-
-export function deriveStructuredDataReplayCandidates(url: string): string[] {
-  const primary = deriveStructuredDataReplayUrl(url);
-  const out = new Set<string>([primary]);
-  try {
-    const parsed = new URL(primary);
-    const host = parsed.hostname.replace(/^www\./, "");
-    if (host === "reddit.com" || host === "np.reddit.com") {
-      parsed.hostname = "old.reddit.com";
-      out.add(parsed.toString());
-    }
-  } catch {
-    // ignore
-  }
-  return [...out];
-}
-
-export function deriveStructuredDataReplayCandidatesFromInputs(
-  url: string,
-  params: Record<string, unknown> = {},
-): string[] {
-  const seeded = new Set<string>();
-  const replayTemplate = deriveStructuredDataReplayTemplate(url);
-  if (replayTemplate !== url) {
-    const seededReplay = interpolate(
-      replayTemplate,
-      mergeContextTemplateParams(params, replayTemplate, url),
-    );
-    if (!/\{[^}]+\}/.test(seededReplay)) seeded.add(seededReplay);
-  }
-  for (const replayUrl of deriveStructuredDataReplayCandidates(url)) seeded.add(replayUrl);
-  return [...seeded];
-}
-
 export function buildStructuredReplayHeaders(
   originalUrl: string,
   replayUrl: string,
@@ -691,7 +414,6 @@ export function buildStructuredReplayHeaders(
   try {
     const replayTarget = new URL(replayUrl);
     const originalTarget = new URL(originalUrl);
-    const host = replayTarget.hostname.replace(/^www\./, "");
     const needsApiReplayHeaders =
       replayTarget.hostname !== originalTarget.hostname ||
       /\/api\/|graphql|\/rest\/|\/rpc\/|\/v\d+\//i.test(replayTarget.pathname);
@@ -700,12 +422,6 @@ export function buildStructuredReplayHeaders(
       headers["accept-language"] ??= "en-US,en;q=0.9";
       headers["referer"] ??= originalTarget.toString();
       headers["accept"] ??= "application/json,text/plain,*/*";
-    }
-    if (host === "reddit.com" || host === "old.reddit.com" || host === "np.reddit.com") {
-      headers["user-agent"] ??= DEFAULT_BROWSER_UA;
-      headers["accept-language"] ??= "en-US,en;q=0.9";
-      headers["referer"] ??= originalTarget.toString();
-      headers["accept"] = "application/json,text/plain,*/*";
     }
   } catch {
     return headers;
@@ -838,198 +554,6 @@ export function buildPageArtifactCapture(
   };
 }
 
-export function buildCanonicalDocumentEndpoint(
-  url: string,
-  intent: string,
-  authRequired = false,
-): EndpointDescriptor | undefined {
-  const replayUrl = deriveStructuredDataReplayUrl(url);
-  const replayTemplate = deriveStructuredDataReplayTemplate(url);
-  if (replayUrl === url && replayTemplate === url) return undefined;
-  const canonicalId = createHash("sha1").update(replayTemplate !== url ? replayTemplate : replayUrl).digest("base64url").slice(0, 21);
-  const endpoint: EndpointDescriptor = {
-    endpoint_id: canonicalId,
-    method: "GET",
-    url_template: replayTemplate !== url ? replayTemplate : replayUrl,
-    idempotency: "safe",
-    verification_status: "verified",
-    reliability_score: 0.9,
-    description: `Structured replay for ${intent}`,
-    trigger_url: url,
-  };
-  endpoint.semantic = {
-    ...inferEndpointSemantic(endpoint, {
-      sampleRequest: buildSampleRequestFromUrl(url),
-      observedAt: new Date().toISOString(),
-      sampleRequestUrl: url,
-    }),
-    ...(authRequired ? { auth_required: true } : {}),
-  };
-  return endpoint;
-}
-
-export function isCanonicalReplayEndpoint(endpoint: Pick<EndpointDescriptor, "method" | "url_template" | "trigger_url">): boolean {
-  if (endpoint.method !== "GET" || !endpoint.trigger_url) return false;
-  try {
-    const concrete = deriveStructuredDataReplayUrl(endpoint.trigger_url);
-    const template = deriveStructuredDataReplayTemplate(endpoint.trigger_url);
-    return endpoint.url_template === concrete || endpoint.url_template === template;
-  } catch {
-    return false;
-  }
-}
-
-async function trySeedStructuredDocumentSkill(
-  skill: SkillManifest,
-  url: string,
-  intent: string,
-  params: Record<string, unknown>,
-  targetDomain: string,
-  authHeaders: Record<string, string> | undefined,
-  cookies: Array<{ name: string; value: string; domain: string }> | undefined,
-  usedStoredAuth: boolean,
-): Promise<ExecutionResult | undefined> {
-  const canonicalDocumentEndpoint = buildCanonicalDocumentEndpoint(url, intent, usedStoredAuth);
-  if (!canonicalDocumentEndpoint) return undefined;
-
-  const replayUrls = deriveStructuredDataReplayCandidatesFromInputs(url, params);
-  let headers: Record<string, string> = {
-    accept: "application/json,text/plain,*/*",
-    ...(canonicalDocumentEndpoint.headers_template ?? {}),
-    ...(authHeaders ?? {}),
-  };
-  if (cookies && cookies.length > 0) {
-    headers.cookie = cookies.map((c) => {
-      const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
-      return `${c.name}=${v}`;
-    }).join("; ");
-  }
-
-  let data: unknown;
-  let passed = false;
-  let successfulReplayUrl = replayUrls[0] ?? url;
-  for (const replayUrl of replayUrls) {
-    const res = await fetch(replayUrl, {
-      method: "GET",
-      headers: buildStructuredReplayHeaders(url, replayUrl, headers),
-      redirect: "follow",
-    });
-    const text = await res.text();
-    try { data = JSON.parse(text); } catch { data = text; }
-
-    const assessment = assessIntentResult(data, intent);
-    if (assessment.verdict === "pass") {
-      passed = true;
-      successfulReplayUrl = replayUrl;
-      break;
-    }
-  }
-  if (!passed) return undefined;
-
-  const semanticSample = compactSchemaSample(data);
-  canonicalDocumentEndpoint.response_schema = inferSchema([semanticSample]);
-  canonicalDocumentEndpoint.semantic = {
-    ...inferEndpointSemantic(canonicalDocumentEndpoint, {
-      sampleResponse: semanticSample,
-      sampleRequest: {
-        ...buildSampleRequestFromUrl(url),
-        ...params,
-      },
-      observedAt: new Date().toISOString(),
-      sampleRequestUrl: url,
-    }),
-    ...(usedStoredAuth ? { auth_required: true } : {}),
-  };
-
-  const domain = getRegistrableDomain(targetDomain);
-  const existingSkill = findExistingSkillForDomain(domain, intent);
-  const localEndpoints = await prepareLearnedEndpoints(
-    existingSkill
-      ? mergeEndpoints(existingSkill.endpoints, [canonicalDocumentEndpoint])
-      : [canonicalDocumentEndpoint],
-    intent,
-    domain,
-  );
-
-  const localDraft: SkillManifest = {
-    skill_id: existingSkill?.skill_id ?? nanoid(),
-    version: "1.0.0",
-    schema_version: "1",
-    lifecycle: "active" as const,
-    execution_type: "http" as const,
-    created_at: existingSkill?.created_at ?? new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    name: domain,
-    intent_signature: intent,
-    domain,
-    description: `API skill for ${domain}`,
-    owner_type: "agent" as const,
-    endpoints: localEndpoints,
-    operation_graph: buildSkillOperationGraph(localEndpoints),
-    intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
-  };
-
-  let learned: SkillManifest = localDraft;
-  const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
-  const admission = selectMarketplacePublishEndpoints(localDraft);
-  if (validation.valid && admission.endpoints.length > 0) {
-    try {
-      const { operation_graph: _graph, ...publishDraft } = localDraft;
-      const published = await publishSkill(publishDraft);
-      learned = {
-        ...published,
-        endpoints: localEndpoints,
-        operation_graph: localDraft.operation_graph,
-      };
-    } catch {
-      learned = localDraft;
-    }
-  } else if (admission.endpoints.length === 0) {
-    console.warn(`[publish] direct publish skipped for ${localDraft.skill_id}: ${admission.stats.by_reason.dom_fallback_only > 0 ? "dom_fallback_only" : "no admitted endpoints"}`);
-  }
-  try { cachePublishedSkill(learned); } catch { /* best-effort */ }
-  const seededRequest: RawRequest = {
-    url: successfulReplayUrl,
-    method: "GET",
-    request_headers: headers,
-    response_status: 200,
-    response_headers: {
-      "content-type": typeof data === "string" ? "text/plain" : "application/json",
-    },
-    response_body: typeof data === "string" ? data : JSON.stringify(data),
-    timestamp: new Date().toISOString(),
-  };
-  persistWorkflowArtifactForCapture(
-    learned,
-    {
-      requests: [seededRequest],
-      har_lineage_id: `seeded:${learned.skill_id}:canonical-document`,
-      final_url: successfulReplayUrl,
-      cookies: cookies ?? [],
-      js_bundles: new Map(),
-    },
-    authHeaders,
-  );
-
-  const trace: ExecutionTrace = stampTrace({
-    trace_id: nanoid(),
-    skill_id: learned.skill_id,
-    endpoint_id: "browser-capture",
-    started_at: new Date().toISOString(),
-    completed_at: new Date().toISOString(),
-    success: true,
-    result: {
-      learned_skill_id: learned.skill_id,
-      endpoints_discovered: 1,
-      seeded_from: "canonical_document",
-    },
-  });
-  return {
-    trace,
-    result: trace.result,
-    learned_skill: learned,
-  };
-}
 
 async function trySeedPublicDocumentFetchSkill(
   skill: SkillManifest,
@@ -1309,17 +833,6 @@ async function executeBrowserCapture(
       usedStoredAuth = true;
     }
   }
-  const seeded = await trySeedStructuredDocumentSkill(
-    skill,
-    url,
-    intent,
-    params,
-    targetDomain,
-    authHeaders,
-    cookies,
-    usedStoredAuth,
-  );
-  if (seeded) return seeded;
   const documentSeed = await trySeedPublicDocumentFetchSkill(
     skill,
     url,
@@ -1598,14 +1111,6 @@ async function executeBrowserCapture(
     }
   }
 
-  const canonicalDocumentEndpoint = buildCanonicalDocumentEndpoint(url, intent, authBackedCapture);
-  if (
-    canonicalDocumentEndpoint &&
-    !cleanEndpoints.some((endpoint) => endpoint.method === canonicalDocumentEndpoint.method && endpoint.url_template === canonicalDocumentEndpoint.url_template)
-  ) {
-    cleanEndpoints.push(canonicalDocumentEndpoint);
-  }
-
   const pageArtifact = captured.html
     ? buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
     : {};
@@ -1783,22 +1288,9 @@ async function executeBrowserCapture(
     };
   }
 
-  // Reuse existing skill for this domain to preserve skill_id and learned exec_strategy.
-  // This prevents duplicate skills accumulating in the marketplace on re-captures.
+  // Reuse existing skill for this domain to preserve skill_id across re-captures.
+  // This prevents duplicate skills accumulating in the marketplace.
   const existingSkill = findExistingSkillForDomain(domain, intent);
-  if (existingSkill) {
-    // Carry forward learned exec_strategy from old endpoints to matching new ones
-    for (const ep of cleanEndpoints) {
-      if (ep.exec_strategy) continue;
-      // Match by URL template (endpoint_id changes on re-capture)
-      const oldMatch = existingSkill.endpoints.find(
-        (old) => old.url_template === ep.url_template && old.method === ep.method
-      );
-      if (oldMatch?.exec_strategy) {
-        ep.exec_strategy = oldMatch.exec_strategy;
-      }
-    }
-  }
 
   // Keep all captured endpoints locally so the resolver can use WS-backed skills,
   // but only publish HTTP endpoints until backend validation supports WS manifests.
@@ -2329,14 +1821,55 @@ export async function executeEndpoint(
   // JSON slots, reconstruct them from the agent's flat params + the captured
   // example shape. This lets agents pass `q="..."` (or rawQuery) and we fill
   // in querySource/count/product defaults plus features feature-flags blob.
-  const __gqlDecomp = decomposeGraphqlEndpoint(endpoint);
+  let __gqlDecomp = decomposeGraphqlEndpoint(endpoint);
   if (__gqlDecomp.isGraphql) {
+    // D8: if THIS endpoint's example_request.variables is empty/missing but
+    // the skill has a sibling endpoint with the same GraphQL operationName
+    // that DOES have a populated variables template, borrow it. Otherwise
+    // x.com (and similar) returns 422 GRAPHQL_VALIDATION_FAILED for missing
+    // required variables (e.g. `includePromotedContent must be defined`).
+    // Caught via harness/recursive/ on x.com home timeline — there were
+    // duplicate HomeTimeline endpoints, one fully populated, one empty.
+    if (
+      __gqlDecomp.operationName &&
+      (!__gqlDecomp.variablesTemplate || Object.keys(__gqlDecomp.variablesTemplate).length === 0)
+    ) {
+      const siblings = (skill.endpoints ?? []).filter((e) => e.endpoint_id !== endpoint.endpoint_id);
+      for (const sib of siblings) {
+        const sibDecomp = decomposeGraphqlEndpoint(sib);
+        if (
+          sibDecomp.isGraphql &&
+          sibDecomp.operationName === __gqlDecomp.operationName &&
+          sibDecomp.variablesTemplate &&
+          Object.keys(sibDecomp.variablesTemplate).length > 0
+        ) {
+          log("exec", `D8 graphql-template-borrow: ${endpoint.endpoint_id} → ${sib.endpoint_id} for ${__gqlDecomp.operationName}`);
+          __gqlDecomp = sibDecomp;
+          if (!endpoint.body && sib.body) {
+            endpoint = { ...endpoint, body: sib.body, method: sib.method ?? endpoint.method, headers_template: sib.headers_template ?? endpoint.headers_template };
+            log("exec", `D8 graphql-body-borrow: ${endpoint.endpoint_id} ← ${sib.endpoint_id}.body (${Object.keys(sib.body as object).length} keys)`);
+          }
+          break;
+        }
+      }
+    }
     const __gqlEnc = buildGraphqlRequestParams(__gqlDecomp, mergedParams as Record<string, unknown>);
     if (mergedParams.variables == null || mergedParams.variables === "{variables}") {
       mergedParams.variables = encodeURIComponent(__gqlEnc.variables);
     }
     if (mergedParams.features == null || mergedParams.features === "{features}") {
       mergedParams.features = encodeURIComponent(__gqlEnc.features);
+    }
+    // D8b: graphql POSTs (and any captured body shape) often store the literal
+    // captured payload — including placeholder strings like
+    // `{variables_seentweetids_0}` that interpolateObj doesn't rewrite. Force
+    // the cleaned, freshly-built variables/features into body so x.com (and
+    // similar) receive valid JSON. Strings or nested objects both supported:
+    // we always write strings since x's /graphql endpoint accepts either.
+    if (endpoint.body && typeof endpoint.body === "object" && !Array.isArray(endpoint.body)) {
+      const b = endpoint.body as Record<string, unknown>;
+      if ("variables" in b) b.variables = __gqlEnc.variables;
+      if ("features" in b) b.features = __gqlEnc.features;
     }
   }
   let url = interpolate(urlTemplate, mergedParams);
@@ -2385,26 +1918,33 @@ export async function executeEndpoint(
           ]);
           let diffCount = 0;
           let diffIdx = -1;
+          const diffIndices: number[] = [];
           for (let i = 0; i < capSegs.length; i++) {
             if (capSegs[i].toLowerCase() === ctxSegs[i].toLowerCase()) continue;
             diffCount += 1;
             diffIdx = i;
+            diffIndices.push(i);
           }
-          if (diffCount === 1) {
-            const capSeg = capSegs[diffIdx].toLowerCase();
-            const ctxSeg = ctxSegs[diffIdx].toLowerCase();
-            // Both must be entity-shaped (not shared tokens). If either is a
-            // shared API token, we're not actually doing entity substitution.
-            const capIsEntity = !SHARED.has(capSeg) && capSeg.length >= 3 && !/^\d+$/.test(capSeg);
-            const ctxIsEntity = !SHARED.has(ctxSeg) && ctxSeg.length >= 3 && !/^\d+$/.test(ctxSeg);
-            if (capIsEntity && ctxIsEntity) {
-              // Honor the caller's URL — same path shape, just a different
-              // entity value. Preserve the captured query string + fragment
-              // since those are the operation contract; the entity is the
-              // only thing the caller is overriding.
+          // A8 generalised: any number of differing segments are OK as long as
+          // every differing pair is entity-shaped on BOTH sides. Reddit
+          // /r/{sub}/comments/{post_id}/{slug} differs in 3 segments — pre-fix
+          // we required diffCount === 1 and only handled wikipedia/twitter.
+          if (diffCount >= 1) {
+            const allEntityShaped = diffIndices.every((i) => {
+              const a = capSegs[i].toLowerCase();
+              const b = ctxSegs[i].toLowerCase();
+              const aEntity = !SHARED.has(a) && a.length >= 3 && !/^\d+$/.test(a);
+              const bEntity = !SHARED.has(b) && b.length >= 3 && !/^\d+$/.test(b);
+              return aEntity && bEntity;
+            });
+            if (allEntityShaped) {
               const newPathname = ctx.pathname; // includes leading slash
               const rewritten = `${cap.protocol}//${cap.hostname}${cap.port ? `:${cap.port}` : ""}${newPathname}${cap.search}${cap.hash}`;
-              log("exec", `A8 entity-substitute: ${capSegs[diffIdx]} → ${ctxSegs[diffIdx]} on ${cap.hostname}`);
+              if (diffCount === 1) {
+                log("exec", `A8 entity-substitute: ${capSegs[diffIdx]} → ${ctxSegs[diffIdx]} on ${cap.hostname}`);
+              } else {
+                log("exec", `A8 multi-entity-substitute: ${diffCount} segments on ${cap.hostname} (${diffIndices.map((i) => `${capSegs[i]}→${ctxSegs[i]}`).join(", ")})`);
+              }
               url = rewritten;
             }
           }
@@ -2490,13 +2030,6 @@ export async function executeEndpoint(
       consumedKeys.add(rawKey);
       consumedKeys.add(bindingKey);
     }
-    if (isCanonicalReplayEndpoint(endpoint)) {
-      try {
-        for (const key of new URL(endpoint.trigger_url!).searchParams.keys()) consumedKeys.add(key);
-      } catch {
-        /* ignore */
-      }
-    }
     // Also mark keys that appeared as {var} in the original URL template
     const templateVarRe = /\{(\w+)\}/g;
     let m: RegExpExecArray | null;
@@ -2526,8 +2059,6 @@ export async function executeEndpoint(
     const allowed = await isAllowedByRobots(url);
     if (!allowed) log("exec", `robots.txt would block ${url} (not enforced)`);
   }
-  const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
-  const hasStructuredReplay = structuredReplayUrl !== url;
 
   const serverFetch = async (
     extraHeaders: Record<string, string> = {},
@@ -2587,7 +2118,7 @@ export async function executeEndpoint(
       }
     }
 
-    const replayUrls = hasStructuredReplay ? deriveStructuredDataReplayCandidates(structuredReplayUrl) : [structuredReplayUrl];
+    const replayUrls = [url];
     let last: { data: unknown; status: number } = { data: null, status: 0 };
 
     for (const replayUrl of replayUrls) {
@@ -2653,185 +2184,151 @@ export async function executeEndpoint(
   );
 
   let result: { data: unknown; status: number; trace_id: string };
-  const hasAuth = cookies.length > 0 || Object.keys(authHeaders).length > 0;
-  const preferredWorkflowStrategy = workflowRecipe?.steps[0]?.strategy
-    ? translateWorkflowStrategy(workflowRecipe.steps[0].strategy)
-    : undefined;
   let workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy;
 
-  if (endpoint.dom_extraction && isSafe) {
-    if (hasStructuredReplay) {
-      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-      if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-        result = await executeDomExtractionEndpoint(
-          endpoint,
-          url,
-          options?.intent ?? skill.intent_signature,
-          authHeaders,
-          cookies,
-        );
-      }
-    } else {
-      result = await executeDomExtractionEndpoint(
-        endpoint,
-        url,
-        options?.intent ?? skill.intent_signature,
-        authHeaders,
-        cookies,
-      );
+  // ---------------------------------------------------------------------------
+  // Phase 7.1 — Probe-first executor (Phase 8 cleanup complete).
+  //
+  // Every dispatch is derived from probe evidence (status + content-type +
+  // body size) rather than from a pre-flight strategy switch. The legacy
+  // per-host structured-replay registry and the endpoint.exec_strategy field
+  // were deleted in Plan 08-03 once recipe replay (Phase 7.2) absorbed their
+  // remaining use cases.
+  // ---------------------------------------------------------------------------
+  const decisionTrace: Array<Record<string, unknown>> = [];
+
+  // ---------------------------------------------------------------------------
+  // Phase 7.2 — Recipe replay (FAST PATH, runs before probe).
+  //
+  // Every endpoint admitted via extractEndpoints carries a proven_recipe — the
+  // exact request that produced a known-good response when this endpoint was
+  // captured. Replaying it is O(1 fetch). When response_signal matches, we're
+  // done in <500ms with no probe needed. When it misses, fall through to the
+  // 7.1 probe ladder for re-discovery (no behavior change vs 7.1).
+  //
+  // Skipped silently when:
+  // - endpoint has no proven_recipe (older skills, bundle-mined endpoints)
+  // - the substituted URL still has leftover {placeholders} (re-discovery is safer)
+  // ---------------------------------------------------------------------------
+  // result + recipeMatched declared at the start of the dispatch block
+  let recipeMatched = false;
+
+  if (endpoint.proven_recipe && shouldReplayRecipe(endpoint.proven_recipe, url)) {
+    const recipeStart = Date.now();
+    const recipeResult = await replayRecipe(endpoint.proven_recipe, url, cookies, authHeaders, mergedParams);
+    const matchVerdict = matchResponseSignal(recipeResult, endpoint.proven_recipe.response_signal);
+    decisionTrace.push({
+      step: "recipe_replay",
+      method: endpoint.proven_recipe.method,
+      status: recipeResult.status,
+      match: matchVerdict.match,
+      ...(matchVerdict.match ? {} : { reason: matchVerdict.reason ?? "unknown" }),
+      ms: Date.now() - recipeStart,
+    });
+    if (matchVerdict.match) {
+      result = recipeResult;
+      recipeMatched = true;
+      workflowChosenStrategy = workflowChosenStrategy ?? "recipe-replay";
     }
-  } else if (hasAuth) {
-    // Authed execution: learned strategy → skip doomed tiers
-    //   1. Server fetch (fast — works for Twitter, simple APIs)
-    //   2. Trigger-and-intercept (navigate to page, let site's JS make the call)
-    //   3. Browser in-page fetch (last resort)
-    let strategy: "server" | "trigger-intercept" | "browser" | undefined;
+  }
 
-    // Endpoint-level learned strategy (strong signal — proven for this specific endpoint).
-    // Domain-level prediction is only used as a tiebreaker, never to skip server-fetch entirely,
-    // because different endpoints on the same domain may have different requirements.
-    const endpointStrategy = preferredWorkflowStrategy ?? endpoint.exec_strategy;
+  // ---------------------------------------------------------------------------
+  // Phase 7.1 probe path — runs when recipe replay (above) did not match.
+  // Probe evidence (status + content-type + body size) determines whether to
+  // dispatch via server fetch or fall back to browser capture. The legacy
+  // per-host registry was deleted in Plan 08-03.
+  // ---------------------------------------------------------------------------
+  if (!recipeMatched) {
+    const probeCookies = cookies.map((c) => ({ name: c.name, value: c.value }));
+    const probe = await probeUrl(url, {
+      cookies: probeCookies,
+      headers: { ...authHeaders },
+    });
+    decisionTrace.push({
+      step: "probe",
+      method: probe.method_used,
+      status: probe.status,
+      content_type: probe.content_type,
+      byte_length: probe.byte_length,
+      ms: probe.ms,
+      ...(probe.error ? { error: probe.error } : {}),
+    });
 
-    if (hasStructuredReplay) {
-      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-      if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-        strategy = "server";
-        workflowChosenStrategy = "server";
-      } else if (endpoint.trigger_url && isSafe) {
-        // Build trigger URL with agent's params applied — don't replay original captured search
-        let triggerUrl = endpoint.trigger_url;
-        if (Object.keys(mergedParams).length > 0) {
-          try {
-            const tu = new URL(endpoint.trigger_url);
-            for (const [k, v] of Object.entries(mergedParams)) {
-              if (v != null && !reservedMetaParams.has(k)) {
-                tu.searchParams.set(k, String(v));
-              }
-            }
-            triggerUrl = tu.toString();
-          } catch { /* keep original trigger_url */ }
-        }
-        result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-        strategy = "trigger-intercept";
-        workflowChosenStrategy = "trigger-intercept";
-      } else {
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
-        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-      }
-    } else if (endpointStrategy === "server") {
-      // Proven: server-fetch works for this endpoint
-      result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-      if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
-        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-      } else {
-        strategy = "server";
-        workflowChosenStrategy = "server";
-      }
-    } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
-      // Proven: this endpoint needs trigger-intercept
-      let triggerUrl = endpoint.trigger_url;
-      if (Object.keys(mergedParams).length > 0) {
-        try {
-          const tu = new URL(endpoint.trigger_url);
-          for (const [k, v] of Object.entries(mergedParams)) {
-            if (v != null && !reservedMetaParams.has(k)) tu.searchParams.set(k, String(v));
-          }
-          triggerUrl = tu.toString();
-        } catch { /* keep original */ }
-      }
-      log("exec", `using learned strategy trigger-intercept via ${triggerUrl}`);
-      result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-      strategy = "trigger-intercept";
-      workflowChosenStrategy = "trigger-intercept";
-    } else if (endpointStrategy === "browser") {
-      if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
+    const decision = decideFromProbe({
+      probe,
+      has_trigger_url: !!endpoint.trigger_url,
+      intent_wants_dom: !!endpoint.dom_extraction,
+    });
+    decisionTrace.push({
+      step: "decision",
+      strategy: decision.strategy,
+      reason: decision.reason,
+    });
+
+    switch (decision.strategy) {
+      case "server": {
         result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-        if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-          strategy = "server";
-          workflowChosenStrategy = "server";
-        } else {
-          log("exec", `server replay rejected stale learned browser strategy for ${endpoint.endpoint_id}; falling back to browser`);
+        decisionTrace.push({ step: "server_fetch", status: result.status });
+        workflowChosenStrategy = workflowChosenStrategy ?? "server";
+        break;
+      }
+      case "trigger-intercept": {
+        if (!endpoint.trigger_url || !isSafe) {
+          // Defensive — decideFromProbe checks has_trigger_url already.
           result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-          strategy = "browser";
-          workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-        }
-      } else {
-        log("exec", `using learned strategy browser`);
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
-        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-      }
-    } else {
-      // No endpoint-level strategy — always try server-fetch first (fastest path).
-      // Fall back to trigger-intercept or browser if server returns 4xx.
-      try {
-        result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
-        if (result.status >= 200 && result.status < 400) {
-          // For API endpoints, trust the server response — no fallback to browser
-          const isApiEndpoint = /\/(api|graphql)\b/i.test(endpoint.url_template) || /\.(json)(\?|$)/.test(endpoint.url_template);
-          if (!isApiEndpoint && shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
-            workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
-          } else {
-            strategy = "server";
-            workflowChosenStrategy = "server";
-          }
+          decisionTrace.push({ step: "browser_fallback", reason: "no trigger_url or unsafe method", status: result.status });
+          workflowChosenStrategy = workflowChosenStrategy ?? "browser-fetch";
         } else {
-          log("exec", `server fetch returned ${result.status}, falling back`);
-          if (endpoint.trigger_url && isSafe) {
-            let triggerUrl = endpoint.trigger_url;
-            if (Object.keys(mergedParams).length > 0) {
-              try {
-                const tu = new URL(endpoint.trigger_url);
-                for (const [k, v] of Object.entries(mergedParams)) {
-                  if (v != null && !reservedMetaParams.has(k)) tu.searchParams.set(k, String(v));
+          let triggerUrl = endpoint.trigger_url;
+          if (Object.keys(mergedParams).length > 0) {
+            try {
+              const tu = new URL(endpoint.trigger_url);
+              for (const [k, v] of Object.entries(mergedParams)) {
+                if (v != null && !reservedMetaParams.has(k)) {
+                  tu.searchParams.set(k, String(v));
                 }
-                triggerUrl = tu.toString();
-              } catch { /* keep original */ }
-            }
-            result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
-            strategy = "trigger-intercept";
-            workflowChosenStrategy = "trigger-intercept";
-          } else {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
-            workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
+              }
+              triggerUrl = tu.toString();
+            } catch { /* keep original trigger_url */ }
           }
+          result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
+          decisionTrace.push({ step: "trigger_intercept", trigger_url: triggerUrl, status: result.status });
+          workflowChosenStrategy = "trigger-intercept";
         }
-      } catch {
+        break;
+      }
+      case "browser": {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
-        workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch";
+        decisionTrace.push({ step: "browser", status: result.status });
+        workflowChosenStrategy = workflowChosenStrategy
+          ?? (workflowRecipe?.steps[0]?.strategy === "browser-action" ? "browser-action" : "browser-fetch");
+        break;
+      }
+      case "return-error": {
+        // Synthesise a result so downstream code is uniform. The agent reads
+        // the actual server status and decides next move — no more 15s
+        // trigger-intercept timeouts on dead URLs.
+        result = {
+          status: probe.status,
+          data: {
+            error: `http_${probe.status}`,
+            message: `Probe returned status ${probe.status}; returned to caller without escalating.`,
+            probe_method: probe.method_used,
+            ...(probe.content_type ? { content_type: probe.content_type } : {}),
+          },
+          trace_id: nanoid(),
+        };
+        decisionTrace.push({ step: "return_error", status: probe.status });
+        workflowChosenStrategy = workflowChosenStrategy ?? "server";
+        break;
+      }
+      default: {
+        // Should never happen — exhaustive switch. Defensive fallback.
+        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        decisionTrace.push({ step: "browser_default", status: result.status });
+        workflowChosenStrategy = workflowChosenStrategy ?? "browser-fetch";
       }
     }
-
-    // Persist learned strategy at endpoint level only.
-    // Domain-level cache removed: it over-generalizes (e.g., one 400 on LinkedIn
-    // locked all endpoints into trigger-intercept even though server-fetch works for most).
-    if (strategy && result.status >= 200 && result.status < 400 && strategy !== endpoint.exec_strategy) {
-      log("exec", `learned exec_strategy=${strategy} for endpoint ${endpoint.endpoint_id}`);
-      endpoint.exec_strategy = strategy;
-      try { cachePublishedSkill(skill, options?.client_scope); } catch (e) { log("exec", `failed to cache strategy: ${e}`); }
-    }
-  } else if (isSafe) {
-    // No auth: fetch-first for safe GETs — fall back to browser if SPA shell or error
-    try {
-      result = await withRetry(() => serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride), (r) => isRetryableStatus(r.status));
-      if (typeof result.data === "string" && isHtml(result.data)) {
-        if (isSpaShell(result.data)) {
-          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        }
-      }
-    } catch {
-      result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-    }
-  } else {
-    // No auth, non-GET: server fetch
-    result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
   }
 
   if (workflowRecipe && workflowArtifact && needsWorkflowTokenRefresh(result.status)) {
@@ -2863,10 +2360,31 @@ export async function executeEndpoint(
     status_code: status,
   });
 
+  // Phase 7.1: stamp probe-derived decision_trace onto the execution trace.
+  // Phase 7.2 promotes this to a top-level field on the response envelope.
+  (trace as ExecutionTrace & { decision_trace?: Array<Record<string, unknown>> }).decision_trace = decisionTrace;
+
   if (!trace.success) {
-    trace.error = status === 404
+    trace.error = status === 0
+      ? `HTTP 0 — network failure or browser fetch was blocked (DNS, TLS, CORS, anti-bot, or kuri tab error). Try \`unbrowse go\` to open a live session, then re-run.`
+      : status === 404
       ? `HTTP 404 — endpoint may be stale. Re-run via POST /v1/intent/resolve to get fresh endpoints.`
       : `HTTP ${status}`;
+    // Mirror the cause into `result` so callers don't see {} with no signal.
+    // (Normally, !success leaves data alone — but on status===0 / network errors,
+    // data is undefined which slimTrace renders as {}.)
+    // Treat null, undefined, and `{}` (empty plain object) as "no signal" —
+    // mirror the cause so the agent reads it from result, not just trace.
+    const isEmptyData = data == null || (
+      typeof data === "object" && !Array.isArray(data) && Object.keys(data as object).length === 0
+    );
+    if (isEmptyData) {
+      data = {
+        error: status === 0 ? "network_failure" : `http_${status}`,
+        message: trace.error,
+        status_code: status,
+      };
+    }
   } else {
     trace.result = data;
   }
@@ -3076,7 +2594,7 @@ export async function executeEndpoint(
   }
 
   return {
-    trace, result: resultData,
+    trace, result: resultData, decision_trace: decisionTrace,
   };
 }
 
@@ -3141,6 +2659,110 @@ function interpolateObj(
       params[k] != null ? JSON.stringify(params[k]) : `"{${k}}"`
     )
   ) as Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7.2 — Recipe replay helpers.
+// ---------------------------------------------------------------------------
+
+/**
+ * Skip recipe replay if the substituted URL still has unresolved {placeholders}
+ * — replaying a malformed URL is worse than running the probe ladder for
+ * re-discovery. Generic check, not a per-domain table.
+ */
+export function shouldReplayRecipe(_recipe: ProvenRecipe, substitutedUrl: string): boolean {
+  return !/\{[a-z0-9_]+\}/i.test(substitutedUrl);
+}
+
+/**
+ * Replay the proven request: merge the recipe's stable headers with current
+ * authHeaders + cookies, interpolate the body with current params, and fetch.
+ * Always returns a result (never throws) — status:0 on network failure.
+ */
+export async function replayRecipe(
+  recipe: ProvenRecipe,
+  url: string,
+  cookies: Array<{ name: string; value: string; domain?: string }>,
+  authHeaders: Record<string, string>,
+  params: Record<string, unknown>,
+): Promise<{ status: number; data: unknown; trace_id: string }> {
+  const headers: Record<string, string> = { ...recipe.headers, ...authHeaders };
+  if (cookies.length > 0) {
+    headers["cookie"] = cookies
+      .map((c) => {
+        const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+        return `${c.name}=${v}`;
+      })
+      .join("; ");
+  }
+
+  let body: string | undefined;
+  if (recipe.body !== undefined && recipe.method !== "GET" && recipe.method !== "HEAD") {
+    if (typeof recipe.body === "string") {
+      body = recipe.body;
+    } else if (recipe.body && typeof recipe.body === "object") {
+      const interpolated = interpolateObj(recipe.body as Record<string, unknown>, params);
+      body = JSON.stringify(interpolated);
+    }
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: recipe.method,
+      headers,
+      body,
+      redirect: "follow",
+    });
+    const text = await res.text();
+    let data: unknown = text;
+    try { data = JSON.parse(text); } catch { /* keep text */ }
+    return { status: res.status, data, trace_id: nanoid() };
+  } catch (err) {
+    return {
+      status: 0,
+      data: { error: (err as Error).message || "network_error" },
+      trace_id: nanoid(),
+    };
+  }
+}
+
+export interface MatchVerdict { match: boolean; reason?: string }
+
+/**
+ * Compare a replayed response against the recipe's response_signal. Strict on
+ * status (drift = different status), tolerant on byte_length (50%–200% range
+ * accommodates dynamic timestamps, pagination edges) and structural keys (must
+ * have all recorded top-level keys; extra keys are fine).
+ */
+export function matchResponseSignal(
+  result: { status: number; data: unknown },
+  signal: ProvenRecipeResponseSignal,
+): MatchVerdict {
+  if (result.status !== signal.status) {
+    return { match: false, reason: `status_changed: ${signal.status} → ${result.status}` };
+  }
+  const bodyLen = typeof result.data === "string"
+    ? Buffer.byteLength(result.data)
+    : Buffer.byteLength(JSON.stringify(result.data ?? null));
+  if (signal.byte_length_min !== undefined && bodyLen < signal.byte_length_min) {
+    return { match: false, reason: `body_shrunk: ${bodyLen}B < min ${signal.byte_length_min}B` };
+  }
+  if (signal.byte_length_max !== undefined && bodyLen > signal.byte_length_max) {
+    return { match: false, reason: `body_grew: ${bodyLen}B > max ${signal.byte_length_max}B` };
+  }
+  if (
+    signal.json_top_keys &&
+    result.data &&
+    typeof result.data === "object" &&
+    !Array.isArray(result.data)
+  ) {
+    const actual = new Set(Object.keys(result.data as object));
+    const missing = signal.json_top_keys.filter((k) => !actual.has(k));
+    if (missing.length > 0) {
+      return { match: false, reason: `missing_top_keys: ${missing.slice(0, 3).join(",")}` };
+    }
+  }
+  return { match: true };
 }
 
 /**
@@ -3646,12 +3268,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const plausibleCandidates = candidates.filter((ep) => isPlausibleForIntent(ep));
   if (plausibilityScopedIntent && plausibleCandidates.length === 0) return [];
   const rankedCandidates = plausibleCandidates.length > 0 ? plausibleCandidates : candidates;
-  const canonicalReplayTriggers = new Set(
-    rankedCandidates
-      .filter((ep) => isCanonicalReplayEndpoint(ep))
-      .map((ep) => ep.trigger_url)
-      .filter((value): value is string => !!value),
-  );
   const structuredApiTriggers = new Set(
     rankedCandidates
       .filter((ep) => {
@@ -3779,7 +3395,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // === Structural bonuses ===
     if (ep.dom_extraction) score += 25;
     if (descriptionMeta.needs_review && ep.dom_extraction) score -= 140;
-    if (isCanonicalReplayEndpoint(ep)) score += 160;
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 180;
     score += semanticIntentAdjustment(ep, intent);
@@ -3883,7 +3498,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(ep.url_template);
     const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
     const isCapturedPageArtifact = /captured (?:search form |page )?artifact/i.test(ep.description ?? "");
-    const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
     const triggerPath = (() => {
       try {
@@ -4022,9 +3636,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
       score = Math.min(score, -400);
-    }
-    if (hasCanonicalReplaySibling && ep.dom_extraction && !isCanonicalReplayEndpoint(ep)) {
-      score -= 260;
     }
     if (descriptionMeta.needs_review && isCapturedPageArtifact) {
       score -= 120;

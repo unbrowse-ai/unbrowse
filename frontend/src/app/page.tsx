@@ -11,6 +11,7 @@ import { InstallFigure } from "@/components/install-figure";
 import { DemoParallax } from "@/components/demo-parallax";
 import { MobileNav } from "@/components/mobile-nav";
 import { Github } from "lucide-react";
+import { getStatsSummary, listPopularSkills, type StatsSummary, type PopularSkillSummary } from "@/lib/api";
 import {
   IconHourglass,
   IconCompass,
@@ -89,6 +90,82 @@ const faqJsonLd = {
     },
   ],
 };
+
+async function HeroStats() {
+  let stats: StatsSummary | null = null;
+  try {
+    stats = await getStatsSummary();
+  } catch {
+    // Stats unavailable — hero renders with cached claims
+  }
+
+  return (
+    <div className="flex items-center gap-6 justify-center mt-12 text-xs font-mono text-[rgba(255,122,32,0.5)]">
+      <div className="text-center">
+        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.skills ? stats.skills.toLocaleString() : "4,200+"}</div>
+        <div className="uppercase tracking-wider">SKILLS</div>
+      </div>
+      <span className="text-[rgba(255,122,32,0.2)]">|</span>
+      <div className="text-center">
+        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.endpoints ? stats.endpoints.toLocaleString() : "18,000+"}</div>
+        <div className="uppercase tracking-wider">ENDPOINTS</div>
+      </div>
+      <span className="text-[rgba(255,122,32,0.2)]">|</span>
+      <div className="text-center">
+        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.domains ? stats.domains.toLocaleString() : "600+"}</div>
+        <div className="uppercase tracking-wider">DOMAINS</div>
+      </div>
+      <span className="text-[rgba(255,122,32,0.2)]">|</span>
+      <div className="text-center">
+        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.executions ? stats.executions.toLocaleString() : "1.2M+"}</div>
+        <div className="uppercase tracking-wider">EXECUTIONS</div>
+      </div>
+      <span className="text-[rgba(255,122,32,0.2)]">|</span>
+      <div className="text-center">
+        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.agents ? stats.agents.toLocaleString() : "3,500+"}</div>
+        <div className="uppercase tracking-wider">AGENTS</div>
+      </div>
+    </div>
+  );
+}
+
+async function PopularSkillsGrid() {
+  let skills: PopularSkillSummary[] = [];
+  try {
+    skills = await listPopularSkills(6);
+  } catch {
+    // Fallback to static
+  }
+
+  if (skills.length === 0) return null;
+
+  return (
+    <div className="max-w-5xl mx-auto mt-10 px-4 sm:px-6">
+      <p className="text-center text-xs font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)] mb-5">
+        ##  Live From the Registry
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {skills.map((s) => (
+          <Link
+            key={s.skill_id}
+            href={`/skills/${s.skill_id}`}
+            className="group block p-4 border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 hover:border-[rgba(255,122,32,0.35)] rounded-sm transition-all"
+          >
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h4 className="text-sm font-semibold text-[rgba(255,176,96,0.9)] group-hover:text-orange-500 transition-colors line-clamp-1">{s.name}</h4>
+              <span className="text-[10px] font-mono text-text-muted shrink-0 uppercase">{s.domain}</span>
+            </div>
+            <p className="text-xs text-text-secondary line-clamp-2 mb-3">{s.description}</p>
+            <div className="flex items-center justify-between text-[10px] font-mono text-text-muted">
+              <span>{s.endpoint_count} endpoints</span>
+              <span className="text-orange-500/70">{s.avg_reliability_score > 0 ? `${Math.round(s.avg_reliability_score * 100)}%` : "—"}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -236,6 +313,13 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Earnings nudge — Crossmint lobster.cash payout flow */}
+        <div className="w-full max-w-4xl mt-4 max-sm:flex max-sm:justify-center sm:flex">
+          <p className="text-xs font-mono text-[rgba(255,122,32,0.55)] max-sm:text-center">
+            <span className="text-[rgba(255,176,96,0.85)]">$</span> Earn from discovered routes — set up Crossmint lobster.cash during setup.
+          </p>
+        </div>
       </section>
 
        {/* ═══ Value Props — Bento Grid ═══ */}
@@ -347,7 +431,10 @@ export default function Home() {
         </div>
       </section>
 
-       {/* ═══ Chat Demo ═══ */}
+       <HeroStats />
+      <PopularSkillsGrid />
+
+      {/* ═══ Chat Demo ═══ */}
        <section id="demo" className="relative py-16 sm:py-24 flex flex-col justify-center">
          <DemoParallax />
          <div className="relative max-w-5xl mx-auto px-4 sm:px-6 w-full">

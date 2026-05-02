@@ -3,10 +3,28 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { searchSkills, listSkillCards, type SearchResult, type SkillListItem } from "@/lib/api";
+import { searchSkills, listPopularSkills, type SearchResult, type SkillListItem, type PopularSkillSummary } from "@/lib/api";
 import { getRegistrySkillHref, parseSearchMetadata } from "@/lib/registry-search";
 import { SkillCard } from "@/components/skill-card";
 
+function popularToListItem(p: PopularSkillSummary): SkillListItem {
+  return {
+    skill_id: p.skill_id,
+    version: p.version,
+    name: p.name,
+    intent_signature: `${p.name} ${p.domain}`,
+    domain: p.domain,
+    description: p.description,
+    owner_type: "marketplace",
+    execution_type: p.execution_type,
+    lifecycle: "active",
+    created_at: p.updated_at,
+    updated_at: p.updated_at,
+    endpoint_count: p.endpoint_count,
+    avg_reliability_score: p.avg_reliability_score,
+    endpoints: [],
+  };
+}
 function buildLocalMatches(query: string, skills: SkillListItem[]): SkillListItem[] {
   const lowerQuery = query.toLowerCase();
   return skills.filter((skill) =>
@@ -47,10 +65,11 @@ export function SearchResults() {
       setLoading(true);
       setError("");
       try {
-        const [rawResults, compactSkills] = await Promise.all([
+        const [rawResults, popularSkills] = await Promise.all([
           searchSkills(q, domain || undefined),
-          listSkillCards({ revalidate: 300 }),
+          listPopularSkills(50, { revalidate: 300 }),
         ]);
+        const compactSkills = popularSkills.map(popularToListItem);
         if (cancelled) return;
 
         const visibleSkills = compactSkills.filter((skill) => skill.lifecycle !== "deprecated");
