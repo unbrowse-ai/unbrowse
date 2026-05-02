@@ -37,6 +37,7 @@ export interface Env {
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   PUBLIC_API_URL?: string;
+  PUBLIC_FRONTEND_URL?: string;
 }
 
 // --- Agent identity ---
