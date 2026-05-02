@@ -3359,7 +3359,10 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     // === BM25 relevance to intent (primary signal, weighted heavily) ===
     if (queryTokens.length > 0) {
-      score += bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs) * 20;
+      // Floor BM25 at 0 — single-doc corpora have negative IDF that would
+      // otherwise penalize legitimate matches. Use the score only as a positive
+      // signal; structural penalties below handle the demotion side.
+      score += Math.max(0, bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs)) * 20;
     }
 
     // === Description match bonus — separate from BM25 to avoid IDF dilution ===
@@ -3707,12 +3710,13 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
             score += 80;
           }
 
-          // Cross-check: for URL-path params, if the response_schema contains this param's value
-          // it's a very strong match (the endpoint returns data FOR this specific value)
+          // Cross-check: when the param NAME (not value) is also a property in the
+          // response_schema, the endpoint demonstrably returns data keyed by this
+          // param. Strong signal that this is the right endpoint.
           if (urlParams.includes(paramName) && ep.response_schema && typeof ep.response_schema === "object") {
-            const schemaStr = JSON.stringify(ep.response_schema).toLowerCase();
-            if (schemaStr.includes(valStr.toLowerCase()) && !haystack.includes(valStr.toLowerCase())) {
-              score += 50; // schema cross-check bonus
+            const schemaParamSet = new Set(extractSchemaParams(ep.response_schema).map((p) => p.toLowerCase()));
+            if (schemaParamSet.has(paramName.toLowerCase())) {
+              score += 100; // schema cross-check bonus (param echoed in response shape)
             }
           }
         } else {
