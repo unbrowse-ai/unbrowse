@@ -184,31 +184,3 @@ describe("profile routing (no UNBROWSE_DOMAIN_NOTES_DIR override)", () => {
     expect(getDomainNotesPath("example.com")).toBe(expected);
   });
 });
-
-describe("notes-summarizer null-on-no-provider", () => {
-  it("returns null when no LLM API key is set", async () => {
-    const savedOpenAI = process.env.OPENAI_API_KEY;
-    const savedNebius = process.env.NEBIUS_API_KEY;
-    delete process.env.OPENAI_API_KEY;
-    delete process.env.NEBIUS_API_KEY;
-    try {
-      const { summarizeCaptureToNote } = await import("../src/extraction/notes-summarizer.ts");
-      const result = await summarizeCaptureToNote({
-        domain: "example.com",
-        intent: "list posts",
-        endpoints: [{ method: "GET", url_template: "https://example.com/api/posts" }],
-        notable_patterns: {
-          auth_required: false,
-          spa_framework_detected: null,
-          extraction_method: null,
-          sample_field_names: [],
-        },
-        prior_note: null,
-      });
-      expect(result).toBeNull();
-    } finally {
-      if (savedOpenAI !== undefined) process.env.OPENAI_API_KEY = savedOpenAI;
-      if (savedNebius !== undefined) process.env.NEBIUS_API_KEY = savedNebius;
-    }
-  });
-});

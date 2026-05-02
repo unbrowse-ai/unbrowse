@@ -333,6 +333,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `register` | `[--email lewis@example.com] [--no-prompt]` | Register an API key. With --email, sends a magic link via Resend; otherwise creates an anonymous key. |
 | `mode` |  | Re-prompt for contribution mode (private / share / share + earn) |
 | `capture` | `--url <url> --intent <intent>` | Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`. |
+| `note` | `<read|write|list> --domain <domain> [--body "..."]` | Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence. |
 
 ### Global flags
 

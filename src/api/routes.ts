@@ -33,7 +33,6 @@ import { listRecentSessionsForDomain } from "../session-logs.js";
 import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
-import { summarizeCaptureToNote } from "../extraction/notes-summarizer.js";
 import { writeDomainNote, readDomainNote } from "../extraction/domain-notes.js";
 import {
   BrowseSessionError,
@@ -685,8 +684,16 @@ export async function registerRoutes(app: FastifyInstance) {
       // blocks the response. Notes are injected back into the LLM augment pass
       // on the next capture for this domain. The deterministic ranker never
       // reads them.
+      // Surface the prior note + the structural evidence the calling agent
+      // would summarize. The agent (Claude / Codex / etc.) reads this from
+      // the capture response and decides whether to call `unbrowse note write
+      // --domain X --body "..."` to persist a refreshed note. No silent
+      // backend LLM call: harness collects, agent judges.
+      let priorNoteBody: string | null = null;
+      let noteEvidence: Record<string, unknown> | null = null;
       if (learned && learned.domain && endpoints.length > 0 && exec.trace.success === true) {
         const priorNote = readDomainNote(learned.domain);
+        priorNoteBody = priorNote?.body ?? null;
         const sampleFieldNames = Array.from(
           new Set(
             endpoints
@@ -694,7 +701,7 @@ export async function registerRoutes(app: FastifyInstance) {
               .slice(0, 12),
           ),
         );
-        summarizeCaptureToNote({
+        noteEvidence = {
           domain: learned.domain,
           intent,
           endpoints: endpoints.map((e) => ({
@@ -702,22 +709,13 @@ export async function registerRoutes(app: FastifyInstance) {
             url_template: e.url_template,
             description: e.description,
           })),
-          notable_patterns: {
-            auth_required: !!inner.auth_recommended,
-            spa_framework_detected:
-              typeof inner.spa_framework === "string" ? inner.spa_framework : null,
-            extraction_method:
-              typeof inner.extraction_method === "string" ? inner.extraction_method : null,
-            sample_field_names: sampleFieldNames,
-          },
-          prior_note: priorNote?.body ?? null,
-        })
-          .then((body) => {
-            if (body && learned.domain) writeDomainNote(learned.domain, body);
-          })
-          .catch(() => {
-            // best-effort, never throws into hot path
-          });
+          auth_required: !!inner.auth_recommended,
+          spa_framework_detected:
+            typeof inner.spa_framework === "string" ? inner.spa_framework : null,
+          extraction_method:
+            typeof inner.extraction_method === "string" ? inner.extraction_method : null,
+          sample_field_names: sampleFieldNames,
+        };
       }
       return reply.send({
         skill_id: skillId,
@@ -729,12 +727,43 @@ export async function registerRoutes(app: FastifyInstance) {
         trace: exec.trace,
         ...(inner.error ? { error: inner.error, error_message: inner.message } : {}),
         ...(inner.auth_recommended ? { auth_recommended: true, auth_hint: inner.auth_hint } : {}),
+        ...(priorNoteBody ? { prior_domain_note: priorNoteBody } : {}),
+        ...(noteEvidence ? { note_evidence: noteEvidence } : {}),
       });
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message, ms: Date.now() - t0 });
     }
   });
 
+  // Domain-notes IO — the calling agent reads/writes their own LLM-prose
+  // notes per domain. No backend LLM call: the agent (Claude Code, codex,
+  // etc.) summarizes the capture itself and POSTs the body here. The next
+  // augmentEndpointsWithAgent call reads the latest note as prior knowledge.
+  app.get("/v1/domain-notes/:domain", async (req, reply) => {
+    const { domain } = req.params as { domain: string };
+    try {
+      const note = readDomainNote(domain);
+      if (!note) return reply.code(404).send({ error: "not_found", domain });
+      return reply.send(note);
+    } catch (err) {
+      return reply.code(400).send({ error: (err as Error).message, domain });
+    }
+  });
+
+  app.post("/v1/domain-notes/:domain", async (req, reply) => {
+    const { domain } = req.params as { domain: string };
+    const body = (req.body as { body?: string }) ?? {};
+    if (typeof body.body !== "string" || body.body.trim().length === 0) {
+      return reply.code(400).send({ error: "body required (non-empty markdown string)" });
+    }
+    try {
+      writeDomainNote(domain, body.body);
+      const fresh = readDomainNote(domain);
+      return reply.send(fresh);
+    } catch (err) {
+      return reply.code(400).send({ error: (err as Error).message, domain });
+    }
+  });
   // GET /v1/skills/:skill_id — local route so skill lookups hit disk cache before proxying to backend
   app.get("/v1/skills/:skill_id", async (req, reply) => {
     const clientScope = clientScopeFor(req);
