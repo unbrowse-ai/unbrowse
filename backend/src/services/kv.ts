@@ -99,7 +99,11 @@ export class EdbKV {
   async put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void> {
     const body: Record<string, unknown> = { key: this.k(key), value };
     if (opts?.expirationTtl) body.ttlMs = opts.expirationTtl * 1000;
-    await fetch(`${BASE}/qdkv/set`, { method: "POST", headers: this.h, body: JSON.stringify(body) });
+    const res = await fetch(`${BASE}/qdkv/set`, { method: "POST", headers: this.h, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`qdkv set failed: ${res.status} ${text.slice(0, 300)}`);
+    }
     if (!opts?.expirationTtl && !key.startsWith("_idx")) {
       await this._idxUpsert(key, value);
       return;

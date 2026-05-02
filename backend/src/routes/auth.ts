@@ -18,6 +18,14 @@ interface MagicRecord {
 function isEmailShaped(email: string): boolean {
   const trimmed = email.trim();
   if (!trimmed) return false;
+  // RFC 5321 caps the address path at 254 chars. Anything beyond is either an
+  // attack (DoS via giant input) or a typo — reject before doing any work.
+  if (trimmed.length > 254) return false;
+  // Reject any control character (CR/LF/NUL/etc.) in the address. Header
+  // injection (`a@b.com\r\nBcc: attacker@evil.com`) and SMTP smuggling rely on
+  // these; a real email never contains them.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f]/.test(trimmed)) return false;
   const at = trimmed.indexOf("@");
   if (at < 1 || at !== trimmed.lastIndexOf("@")) return false;
   const domain = trimmed.slice(at + 1);
@@ -64,6 +72,9 @@ authRoutes.post("/auth/email/start", async (c) => {
   try {
     await sendMagicLink(c.env, { email: normalizedEmail, token, returnUrl: return_url });
   } catch (err) {
+    // Clean up the pending magic: row so a failed send never leaves a
+    // dangling token that could be polled or look "active" in audits.
+    try { await statsKV(c.env).delete(`magic:${token}`); } catch { /* best-effort */ }
     if (err instanceof EmailNotConfiguredError) {
       return c.json({
         error: "email_not_configured",
