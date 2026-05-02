@@ -4,8 +4,9 @@ import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
 import { ensureAgentProfile, recordAgentActivity } from "../services/agents.js";
 import { verifyReleaseManifest } from "../services/release-manifest.js";
 import { verifyLocalKey } from "../services/keys.js";
+import { lookupUserIdByKey } from "../services/accounts.js";
 
-type AuthEnv = { Bindings: Env; Variables: { agent_id: string } };
+type AuthEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
 /** Timing-safe string comparison to prevent timing attacks on API key checks. */
 function safeCompare(a: string, b: string): boolean {
@@ -88,6 +89,12 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   }
 
   c.set("agent_id", result.keyId);
+  try {
+    const userId = await lookupUserIdByKey(c.env, result.keyId);
+    if (userId) c.set("user_id", userId);
+  } catch {
+    // Anonymous keys never have a user_id; lookup failures must not break authed requests.
+  }
   queueAgentActivity(c, result.keyId);
   await next();
 }

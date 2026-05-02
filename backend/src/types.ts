@@ -33,6 +33,10 @@ export interface Env {
   // Cartesia TTS (voice synthesis for demo pipeline)
   CARTESIA_API_KEY?: string;
   CARTESIA_VOICE_ID?: string;
+  // Email (Resend) for magic-link auth
+  RESEND_API_KEY?: string;
+  RESEND_FROM?: string;
+  PUBLIC_API_URL?: string;
 }
 
 // --- Agent identity ---
