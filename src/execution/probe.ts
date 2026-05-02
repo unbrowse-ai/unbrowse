@@ -142,6 +142,7 @@ export interface DecisionInput {
   probe: ProbeResult;
   has_trigger_url: boolean;
   intent_wants_dom?: boolean;         // e.g. article extraction wants HTML
+  has_dom_extraction?: boolean;       // endpoint already has a DOM extraction recipe
 }
 
 export interface Decision {
@@ -155,7 +156,7 @@ const JSON_LIKE = /(application\/json|application\/[\w.+-]+\+json|text\/csv|appl
 const HTML_LIKE = /text\/html|application\/xhtml\+xml/i;
 
 export function decideFromProbe(input: DecisionInput): Decision {
-  const { probe, has_trigger_url, intent_wants_dom } = input;
+  const { probe, has_trigger_url, intent_wants_dom, has_dom_extraction } = input;
   const { status, content_type = "", byte_length } = probe;
 
   // 4xx/5xx — return as-is. No "let me try a different strategy" theatre.
@@ -191,6 +192,17 @@ export function decideFromProbe(input: DecisionInput): Decision {
     return {
       strategy: "server",
       reason: `probe ${status} + html ${byte_length}B — server-rendered, fetch + extract`,
+    };
+  }
+
+  // When the endpoint already has a DOM extraction recipe and the probe
+  // returned HTML, fetch the page server-side and run the recipe. The
+  // 1-byte range probe can't tell SSR from SPA, but if we have a recipe
+  // the page must have rendered the data we want when captured.
+  if (isHtml && has_dom_extraction) {
+    return {
+      strategy: "server",
+      reason: `probe ${status} + html + dom_extraction recipe — server fetch + extract`,
     };
   }
 
