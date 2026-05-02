@@ -153,6 +153,9 @@ describe("checkWalletConfigured", () => {
     delete process.env.LOBSTER_WALLET_ADDRESS;
     delete process.env.AGENT_WALLET_ADDRESS;
     delete process.env.AGENT_WALLET_PROVIDER;
+    // Re-enable local wallet probe; it gets disabled by lobster-payments
+    // setup if that file ran first in the suite.
+    delete process.env.UNBROWSE_DISABLE_LOCAL_WALLET;
 
     const homeDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-lobster-"));
     process.env.HOME = homeDir;

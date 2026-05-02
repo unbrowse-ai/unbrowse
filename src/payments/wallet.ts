@@ -73,14 +73,10 @@ export function getWalletContext(): WalletContext {
       wallet_provider: asNonEmptyString(process.env.AGENT_WALLET_PROVIDER),
     };
   }
-  // Skip local lobster config probe when running under bun:test or
-  // UNBROWSE_DISABLE_LOCAL_WALLET=1. Tests set the env vars they need
-  // explicitly; reading the developer's actual ~/.lobster/config.json
-  // makes wallet tests pass on production but fail on dev machines.
-  const isBunTest = typeof process !== "undefined" &&
-    process.argv.some((a) => a === "test" || a.endsWith(".test.ts"));
-  const skipLocal = process.env.UNBROWSE_DISABLE_LOCAL_WALLET === "1" || isBunTest;
-  if (!skipLocal) {
+  // Skip local lobster config probe when UNBROWSE_DISABLE_LOCAL_WALLET=1.
+  // Tests that want "no wallet configured" set this explicitly so they don't
+  // pick up the developer's actual ~/.lobster/config.json.
+  if (process.env.UNBROWSE_DISABLE_LOCAL_WALLET !== "1") {
     const localLobsterWallet = getLobsterWalletFromLocalConfig();
     if (localLobsterWallet) {
       return { wallet_address: localLobsterWallet, wallet_provider: "lobster.cash" };

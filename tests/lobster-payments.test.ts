@@ -16,6 +16,9 @@ beforeEach(() => {
   delete process.env.AGENT_WALLET_PROVIDER;
   delete process.env.UNBROWSE_SKIP_PAYMENT;
   delete process.env.UNBROWSE_FREE_TIER;
+  // Block reading the developer's actual ~/.lobster/config.json so the
+  // "not configured when no env" assertion is reproducible across machines.
+  process.env.UNBROWSE_DISABLE_LOCAL_WALLET = "1";
 });
 
 describe("checkWalletConfigured", () => {
