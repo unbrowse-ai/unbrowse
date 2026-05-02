@@ -1445,24 +1445,55 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     }
   }
 
-  // Extract links
-  const links: string[] = [];
+  // Extract links — pick the most informative one as the primary `link`/`url`.
+  //
+  // Aggregator/forum sites (lobste.rs, HN, reddit) put a vote/login link FIRST
+  // inside each item card, then the actual story link, then byline/comment links.
+  // Naively taking links[0] gives every card the same `/login` href, which the
+  // diversity check correctly rejects as nav chrome.
+  //
+  // Heuristic, in order of preference:
+  //   1. Microformats hint: <a class="u-url"> (story link in h-entry / h-cite)
+  //   2. External absolute URL (different host than the page being aggregated)
+  //   3. First non-interaction link (skip /login, /signin, /upvote, /vote, /flag)
+  //   4. Fallback to links[0]
+  const linkCandidates: Array<{ href: string; cls: string; isExternal: boolean }> = [];
   $el.find("a[href]").each((_, a) => {
-    const href = $(a).attr("href");
-    if (href && !href.startsWith("#") && !href.startsWith("javascript:")) {
-      links.push(href);
-    }
+    const $a = $(a);
+    const href = $a.attr("href");
+    if (!href || href.startsWith("#") || href.startsWith("javascript:")) return;
+    const cls = $a.attr("class") ?? "";
+    const isExternal = /^https?:\/\//i.test(href);
+    linkCandidates.push({ href, cls, isExternal });
   });
-  if (links.length > 0) {
-    fields["link"] = links[0];
-    fields["url"] = links[0];
+  if (linkCandidates.length > 0) {
+    const INTERACTION = /^\/(login|signin|sign-in|sign_up|signup|register|upvote|downvote|vote|flag|hide|save|reply|comment)\b/i;
+    const uUrl = linkCandidates.find((l) => /\bu-url\b/.test(l.cls));
+    const external = linkCandidates.find((l) => l.isExternal);
+    const nonInteraction = linkCandidates.find((l) => !INTERACTION.test(l.href));
+    const chosen = (uUrl ?? external ?? nonInteraction ?? linkCandidates[0]).href;
+    fields["link"] = chosen;
+    fields["url"] = chosen;
   }
+  const links = linkCandidates.map((l) => l.href);
 
-  // Fallback title from link text
+  // Fallback title from link text — prefer the text of the chosen story link
+  // (set above as fields["link"]) over the first <a>, which on aggregator
+  // sites is usually a numeric vote count or a single-character icon.
   if (!fields["title"] && links.length > 0) {
-    const linkText = $el.find("a").first().text().trim();
-    if (linkText && linkText.length > 2 && linkText.length < 200 && !/^(read|more|view|see|click)/i.test(linkText)) {
-      fields["title"] = linkText;
+    const candidates: string[] = [];
+    if (fields["link"]) {
+      $el.find(`a[href="${fields["link"].replace(/"/g, '\\"')}"]`).each((_, a) => {
+        const text = $(a).text().trim();
+        if (text) candidates.push(text);
+      });
+    }
+    candidates.push($el.find("a").first().text().trim());
+    for (const linkText of candidates) {
+      if (linkText && linkText.length > 2 && linkText.length < 200 && !/^(read|more|view|see|click)/i.test(linkText) && !/^\d+$/.test(linkText)) {
+        fields["title"] = linkText;
+        break;
+      }
     }
   }
 
