@@ -1301,6 +1301,8 @@ async function cmdCapture(flags: Record<string, string | boolean>): Promise<void
       ? `unbrowse resolve --intent "${intent.replace(/"/g, "\\\"")}" --url "${url.replace(/"/g, "\\\"")}"`
       : "no endpoints discovered; site may need authentication or different intent",
     ...(result.error ? { error: result.error } : {}),
+    ...(result.prior_domain_note ? { prior_domain_note: result.prior_domain_note } : {}),
+    ...(result.note_evidence ? { note_evidence: result.note_evidence } : {}),
   };
 
   output(envelope, !!flags.pretty);
