@@ -16,6 +16,7 @@ import type {
 import {
   CODE_HASH,
   DEFAULT_BACKEND_URL,
+  DEFAULT_PROFILE,
   GIT_SHA,
   PACKAGE_VERSION,
   RELEASE_MANIFEST_BASE64,
@@ -35,7 +36,7 @@ import {
 } from "../telemetry-attribution.js";
 
 const API_URL = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
-const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
+const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? DEFAULT_PROFILE ?? "");
 const recentLocalSkills = new Map<string, SkillManifest>();
 const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
 

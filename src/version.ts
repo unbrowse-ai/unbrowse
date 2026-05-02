@@ -9,6 +9,7 @@ import {
   BUILD_RELEASE_MANIFEST_BASE64,
   BUILD_RELEASE_MANIFEST_SIGNATURE,
   BUILD_RELEASE_VERSION,
+  BUILD_DEFAULT_PROFILE,
 } from "./build-info.generated.js";
 
 // Deterministic version hash of all src/*.ts files.
@@ -139,6 +140,9 @@ export const PACKAGE_VERSION: string = getPackageVersion();
 
 /** Embedded default backend target; preview binaries override this at build time. */
 export const DEFAULT_BACKEND_URL: string = BUILD_DEFAULT_BACKEND_URL?.trim() || "https://beta-api.unbrowse.ai";
+
+/** Embedded default profile name; preview binaries set this to "staging" so the preview-tagged CLI auto-binds to ~/.unbrowse/profiles/staging/. Empty = no profile (default config dir). User can override via UNBROWSE_PROFILE env. */
+export const DEFAULT_PROFILE: string = BUILD_DEFAULT_PROFILE?.trim() || "";
 
 /** Combined version: "{code_hash}@{git_sha}" — stamped on every trace */
 export const TRACE_VERSION: string = `${CODE_HASH}@${GIT_SHA}`;
