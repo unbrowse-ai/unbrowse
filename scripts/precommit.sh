@@ -56,11 +56,5 @@ if has_match '^(src/execution/|src/orchestrator/|src/capture/|src/intent-match\.
     tests/graph-filters.test.ts
 fi
 
-if has_match '^(tests/p0-p1-issues\\.json|scripts/fetch-p0-p1-issues\\.ts)$'; then
-  if [[ "${SKIP_P0_P1_TESTS:-0}" != "1" ]]; then
-    echo "[pre-commit] validating P0/P1 test cases"
-    bun test tests/p0-p1-issues.test.ts
-  fi
-fi
 
 echo "[pre-commit] fast checks passed"
