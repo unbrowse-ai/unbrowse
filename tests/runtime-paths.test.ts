@@ -83,8 +83,10 @@ describe("runtime paths", () => {
     expect(isBundledVirtualEntrypoint("/tmp/unbrowse/dist/mcp.js")).toBe(false);
   });
 
-  // Regression guards for unbrowse-ai/unbrowse#76 (Windows ESM URL scheme).
-  it("wraps bare .js entrypoints as file:// URLs so Node ESM accepts them on Windows", () => {
+  // Regression guards for unbrowse-ai/unbrowse#76 (Windows ESM URL scheme)
+  // and the Node 25 CJS-loader regression on POSIX where wrapping argv[1]
+  // in `file://` made the loader concatenate it onto cwd.
+  it("wraps bare .js entrypoints as file:// URLs only on Windows", () => {
     const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-runtime-paths-js-"));
     tmpDirs.push(tmpDir);
 
@@ -95,9 +97,15 @@ describe("runtime paths", () => {
     const args = runtimeArgsForEntrypoint(pathToFileURL(path.join(tmpDir, "meta.js")).href, jsEntry);
 
     expect(args).toHaveLength(1);
-    expect(args[0]).toMatch(/^file:\/\//);
-    // Regression: bare absolute path was the broken state on Windows.
-    expect(args[0]).not.toBe(jsEntry);
+    if (process.platform === "win32") {
+      // Windows still needs file:// because Node ESM rejects "C:\..." literals.
+      expect(args[0]).toMatch(/^file:\/\//);
+      expect(args[0]).not.toBe(jsEntry);
+    } else {
+      // POSIX: bare absolute path. Node 25 CJS loader otherwise concatenates
+      // file:// onto cwd and throws MODULE_NOT_FOUND.
+      expect(args[0]).toBe(jsEntry);
+    }
   });
 
   it("isMainModule unwraps a file:// process.argv[1] so main() still runs after the #76 fix", () => {

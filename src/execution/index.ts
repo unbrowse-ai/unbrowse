@@ -2181,6 +2181,21 @@ export async function executeEndpoint(
       const isJson = contentType.includes("application/json");
       if (isJson) {
         try { data = JSON.parse(text); } catch { data = text; }
+      } else if (res.ok && endpoint.dom_extraction) {
+        // HTML response + DOM extraction recipe — run the extractor in-process
+        // and return the structured records the recipe was captured against.
+        try {
+          const { extractFromDOM } = await import("../extraction/index.js");
+          const extracted = extractFromDOM(text, skill.intent_signature ?? "");
+          if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : true)) {
+            data = extracted.data;
+          } else {
+            data = { _format_mismatch: true, received_content_type: contentType, data: text };
+          }
+        } catch (err) {
+          log("exec", `dom-extraction error: ${err instanceof Error ? err.message : String(err)}`);
+          data = { _format_mismatch: true, received_content_type: contentType, data: text };
+        }
       } else if (res.ok && endpoint.response_schema) {
         // Expected JSON response but got non-JSON content type — mark as format mismatch
         log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)}`);
@@ -2303,6 +2318,7 @@ export async function executeEndpoint(
       probe,
       has_trigger_url: !!endpoint.trigger_url,
       intent_wants_dom: !!endpoint.dom_extraction,
+      has_dom_extraction: !!endpoint.dom_extraction,
     });
     decisionTrace.push({
       step: "decision",

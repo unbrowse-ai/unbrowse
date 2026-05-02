@@ -31,9 +31,10 @@ export function isBundledVirtualEntrypoint(entrypoint: string): boolean {
 export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): string[] {
   if (path.extname(entrypoint) !== ".ts") {
     // Node's ESM loader rejects bare "C:\..." on Windows with
-    // ERR_UNSUPPORTED_ESM_URL_SCHEME. Wrap as file:// so process.argv[1]
-    // is a valid ESM specifier on every platform. Fixes #76.
-    return [pathToFileURL(entrypoint).href];
+    // ERR_UNSUPPORTED_ESM_URL_SCHEME. Wrap as file:// only on Windows so
+    // process.argv[1] stays a valid filesystem path on POSIX (Node 25.x's
+    // CJS loader passes argv[1] through path.resolve and chokes on file://).
+    return process.platform === "win32" ? [pathToFileURL(entrypoint).href] : [entrypoint];
   }
   if (process.versions.bun) return [entrypoint];
 
