@@ -12,6 +12,11 @@ export interface UserRecord {
   email: string;
   created_at: string;
   verified_at?: string;
+  share_pointers?: boolean;
+}
+
+export interface AccountPreferences {
+  share_pointers: boolean;
 }
 
 interface UidRow { email: string }
@@ -81,4 +86,22 @@ export async function listKeysForUser(env: Env, userId: string): Promise<string[
   const raw = await statsKV(env).get(`${USERKEYS_PREFIX}${userId}`) as string | null;
   if (!raw) return [];
   return (JSON.parse(raw) as UserKeysRow).keyIds;
+}
+
+export async function getAccountPreferences(env: Env, userId: string): Promise<AccountPreferences> {
+  const user = await getUserById(env, userId);
+  if (!user) throw new Error("user_not_found");
+  return { share_pointers: user.share_pointers ?? false };
+}
+
+export async function setAccountPreferences(env: Env, userId: string, prefs: Partial<AccountPreferences>): Promise<AccountPreferences> {
+  if (prefs.share_pointers !== undefined && typeof prefs.share_pointers !== "boolean") {
+    throw new Error("invalid_input");
+  }
+  const user = await getUserById(env, userId);
+  if (!user) throw new Error("user_not_found");
+  const updated: UserRecord = { ...user };
+  if (prefs.share_pointers !== undefined) updated.share_pointers = prefs.share_pointers;
+  await statsKV(env).put(`${ACCT_PREFIX}${user.email}`, JSON.stringify(updated));
+  return { share_pointers: updated.share_pointers ?? false };
 }

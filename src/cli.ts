@@ -13,13 +13,16 @@ import {
   detectTelemetryHostType,
   ensureCliInstallTracked,
   ensureRegistered,
+  fetchAccountPreferences,
   getAgentId,
   getApiKey,
   getCreatorEarnings,
   getFlywheelPulse,
   getMyProfile,
   getTransactionHistory,
+  loadConfig,
   magicRegister,
+  pushAccountPreferences,
   recordFunnelTelemetryEvent,
   recordInstallTelemetryEvent,
   saveConfig,
@@ -33,6 +36,7 @@ import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js"
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
 import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
 import { promptContributionMode, maybeShowContributionNotice } from "./cli-setup.js";
+import { getContributionConfig, setContributionConfig } from "./config/contribution.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -1225,7 +1229,30 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 
 async function cmdMode(_flags: Record<string, string | boolean>): Promise<void> {
   await promptContributionMode({ force: true });
+  await syncContributionPreferenceToServer();
 }
+
+/**
+ * Best-effort sync of the local share_pointers preference up to the backend
+ * for account-bound API keys. Anonymous keys silently skip; offline / 5xx
+ * surface a single info() warning so the user knows the local change is fine
+ * but server didn't pick it up.
+ */
+async function syncContributionPreferenceToServer(): Promise<void> {
+  const cfg = loadConfig();
+  if (!cfg?.api_key) return;
+  const share_pointers = !!getContributionConfig().contribution.share_pointers;
+  try {
+    await pushAccountPreferences({ share_pointers });
+    info("Synced preference to your account.");
+  } catch (err) {
+    const msg = (err as Error).message ?? "";
+    // Anonymous keys get 403 account_required — silent in that case.
+    if (msg.includes("account_required") || msg.includes("HTTP 403")) return;
+    info(`Local mode set, but server sync failed: ${msg}`);
+  }
+}
+
 
 // Hook the contribution prompt onto the tail of cmdSetup. Called from main()
 // right after cmdSetup runs.
@@ -2094,6 +2121,17 @@ async function cmdRegister(flags: Record<string, unknown>) {
     });
     process.env.UNBROWSE_API_KEY = result.api_key;
     info(`Signed in as ${result.email}. API key saved to ~/.unbrowse/config.json.`);
+    // Mirror server-side preference into local contribution block so the
+    // capture pipeline picks it up. Best-effort — never blocks register.
+    try {
+      const serverPrefs = await fetchAccountPreferences();
+      if (serverPrefs) {
+        setContributionConfig({
+          contribution: { share_pointers: serverPrefs.share_pointers, set_via: "mode-command" },
+        });
+        info(`Auto-publish to marketplace: ${serverPrefs.share_pointers ? "ON" : "off"} (synced from your account).`);
+      }
+    } catch { /* best-effort */ }
     return;
   }
   if (getApiKey()) {
