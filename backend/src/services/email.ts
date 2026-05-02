@@ -12,7 +12,7 @@ export class EmailNotConfiguredError extends Error {
 
 export async function sendMagicLink(env: Env, input: SendMagicLinkInput): Promise<void> {
   if (!env.RESEND_API_KEY) throw new EmailNotConfiguredError();
-  const from = env.RESEND_FROM ?? "Unbrowse <auth@auth.unbrowse.ai>";
+  const from = env.RESEND_FROM ?? "Unbrowse <auth@unbrowse.ai>";
   const base = env.PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
   const ret = input.returnUrl ? `&return_url=${encodeURIComponent(input.returnUrl)}` : "";
   const verifyUrl = `${base}/v1/auth/email/verify?token=${input.token}${ret}`;
