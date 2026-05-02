@@ -38,6 +38,11 @@ describe("version code hash resolution", () => {
   });
 
   it("falls back to the embedded release manifest version for compiled binaries", () => {
-    expect(getEmbeddedReleaseVersion()).toBe("2.12.4");
+    // Read current version from version.json (the source of truth) so this test
+    // doesn't go stale on every release.
+    const versionJson = JSON.parse(
+      require("node:fs").readFileSync(path.join(__dirname, "..", "version.json"), "utf8")
+    ) as { version: string };
+    expect(getEmbeddedReleaseVersion()).toBe(versionJson.version);
   });
 });

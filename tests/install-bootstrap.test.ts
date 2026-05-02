@@ -78,8 +78,10 @@ describe("bootstrap install flow", () => {
     const homePage = readFileSync(path.join(ROOT, "frontend", "src", "app", "page.tsx"), "utf8");
     const installUi = readFileSync(path.join(ROOT, "frontend", "src", "components", "install-instructions.tsx"), "utf8");
     const skillRoute = readFileSync(path.join(ROOT, "frontend", "src", "app", "skill.md", "route.ts"), "utf8");
-    const llms = readFileSync(path.join(ROOT, "frontend", "public", "llms.txt"), "utf8");
-    const llmsFull = readFileSync(path.join(ROOT, "frontend", "public", "llms-full.txt"), "utf8");
+    // llms.txt and llms-full.txt are served via Next.js route handlers now,
+    // not static public/ files (frontend/src/app/llms.txt/route.ts).
+    const llms = readFileSync(path.join(ROOT, "frontend", "src", "app", "llms.txt", "route.ts"), "utf8");
+    const llmsFull = readFileSync(path.join(ROOT, "frontend", "src", "app", "llms-full.txt", "route.ts"), "utf8");
 
     expect(homePage).toContain("Crossmint lobster.cash");
     expect(installUi).toContain("Crossmint lobster.cash");

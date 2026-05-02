@@ -24,6 +24,11 @@ ARCH="$(uname -m)"
 case "$OS" in
   Darwin) OS_NAME="darwin" ;;
   Linux) OS_NAME="linux" ;;
+  MINGW*|MSYS*|CYGWIN*)
+    echo "Windows detected. Use PowerShell instead:" >&2
+    echo "  irm https://unbrowse.ai/install.ps1 | iex" >&2
+    exit 1
+    ;;
   *) echo "Unsupported OS: $OS" >&2; exit 1 ;;
 esac
 
