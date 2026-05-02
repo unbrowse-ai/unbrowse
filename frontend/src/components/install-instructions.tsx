@@ -34,6 +34,9 @@ const TABS = [
       { type: "blank",   text: "" },
       { type: "comment", text: "  ##  invoke" },
       { type: "cmd",     text: '  $  unbrowse resolve --intent "get events" --url "lu.ma"' },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  earn from discovered routes — set up Crossmint lobster.cash" },
+      { type: "cmd",     text: "  $  unbrowse wallet setup" },
     ] as TLine[],
   },
   {

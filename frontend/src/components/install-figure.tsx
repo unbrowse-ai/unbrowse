@@ -53,18 +53,17 @@ export function InstallFigure() {
       </div>
 
       {/* Drawing — behind the already installed box */}
-      <div
-        className="relative pointer-events-none select-none z-0"
-        style={{ filter: 'url(#crt-hand)' }}
-      >
-        <Image
-          src="/images/saint-eagle.png"
-          alt=""
-          width={460}
-          height={520}
-          className="w-full h-auto object-contain"
-          style={{ opacity: 0.88 }}
-        />
+      <div className="relative pointer-events-none select-none" style={{ mixBlendMode: 'multiply' }}>
+        <div style={{ filter: 'url(#crt-hand)' }}>
+          <Image
+            src="/images/saint-eagle.png"
+            alt=""
+            width={460}
+            height={520}
+            className="w-full h-auto object-contain"
+            style={{ opacity: 1 }}
+          />
+        </div>
       </div>
     </div>
   );

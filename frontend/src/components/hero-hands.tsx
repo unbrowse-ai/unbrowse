@@ -9,7 +9,7 @@ const TILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="3"
 const TILE_URI = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(TILE_SVG)}`;
 
 export function HeroHands() {
-  const [tx, setTx] = useState(15);
+  const [tx, setTx] = useState(45);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -21,8 +21,8 @@ export function HeroHands() {
 
   useEffect(() => {
     const update = () => {
-      const p = Math.min(window.scrollY / (window.innerHeight * 0.5), 1);
-      setTx(15 * (1 - p));
+      const raw = window.scrollY / (window.innerHeight * 0.7);
+      setTx(Math.max(-20, 45 - raw * 65));
     };
     update();
     window.addEventListener('scroll', update, { passive: true });

@@ -286,6 +286,7 @@ async function request<T = unknown>(
     headers,
     body: body ? JSON.stringify(body) : undefined,
     next: opts?.revalidate != null ? { revalidate: opts.revalidate } : undefined,
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({})) as { error?: string };
@@ -343,7 +344,28 @@ export async function getSkill(id: string): Promise<SkillManifest | null> {
   try {
     return await api<SkillManifest>("GET", `/v1/skills/${id}`);
   } catch {
-    return null;
+    // Backend gates /v1/skills/{id} behind auth/x402; fall back to anonymous popular list.
+    try {
+      const popular = await listPopularSkills(50);
+      const match = popular.find((p) => p.skill_id === id);
+      if (!match) return null;
+      return {
+        skill_id: match.skill_id,
+        version: match.version,
+        name: match.name,
+        intent_signature: "",
+        domain: match.domain,
+        description: match.description,
+        owner_type: "marketplace",
+        execution_type: match.execution_type,
+        endpoints: [],
+        lifecycle: "active",
+        created_at: match.updated_at,
+        updated_at: match.updated_at,
+      };
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -358,8 +380,12 @@ export async function getCurrentTos(): Promise<CurrentTos> {
 export async function searchSkills(intent: string, domain?: string): Promise<SearchResult[]> {
   const path = domain ? "/v1/search/domain" : "/v1/search";
   const body = domain ? { intent, domain } : { intent };
-  const data = await api<{ results: SearchResult[] }>("POST", path, body);
-  return data.results;
+  try {
+    const data = await api<{ results: SearchResult[] }>("POST", path, body);
+    return data.results;
+  } catch {
+    return [];
+  }
 }
 
 export async function registerAgent(name: string, tosVersion?: string): Promise<{ agent_id: string; api_key: string }> {
@@ -461,4 +487,43 @@ export interface MinerStats {
 
 export async function getMinerStats(): Promise<MinerStats> {
   return api<MinerStats>("GET", "/v1/miners/stats");
+}
+
+// --- Skill Execution ---
+
+export interface SkillExecuteResult {
+  status: string;
+  data?: unknown;
+  error?: string;
+  execution_time_ms?: number;
+}
+
+export async function executeSkill(skillId: string, params: Record<string, unknown> = {}): Promise<SkillExecuteResult> {
+  return authApi<SkillExecuteResult>("POST", `/v1/skills/${skillId}/execute`, { params });
+}
+
+// --- Chat / Resolve ---
+
+export interface ChatResolveResult {
+  skill_id?: string;
+  skill_name?: string;
+  endpoint?: string;
+  output?: string;
+  error?: string;
+  raw_result?: unknown;
+}
+
+export async function resolveIntent(intent: string): Promise<ChatResolveResult[]> {
+  const results = await searchSkills(intent);
+  return results
+    .filter((r) => r.metadata && (r.metadata as Record<string, unknown>).skill_id)
+    .map((r) => {
+      const meta = r.metadata as Record<string, unknown>;
+      return {
+        skill_id: String(meta.skill_id ?? ""),
+        skill_name: String(meta.name ?? meta.intent_signature ?? ""),
+        endpoint: String(meta.domain ?? ""),
+        output: `Found skill: ${meta.name ?? meta.intent_signature ?? ""} (${r.score.toFixed(4)})`,
+      };
+    });
 }
