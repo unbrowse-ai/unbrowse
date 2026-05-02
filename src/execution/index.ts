@@ -1,5 +1,6 @@
 import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
+import * as kuri from "../kuri/client.js";
 import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
@@ -846,6 +847,51 @@ async function executeBrowserCapture(
   let captured;
   try {
     captured = await captureSession(url, authHeaders, cookies, intent);
+
+    // Anti-bot auto-fallback: many vendors (Cloudflare, Fastly, Datadome,
+    // PerimeterX, etc.) block --headless=new specifically while letting a
+    // visible Chrome window through. If the first capture clearly hit one of
+    // those walls, retry once with a visible window. One-shot per call:
+    // subsequent captures benefit from cookies persisted in Kuri's profile.
+    //
+    // Skipped when HEADLESS=false already, opted out, or no controlling TTY.
+    {
+      const optedOut = process.env.UNBROWSE_NO_VISIBLE_FALLBACK === "1";
+      const alreadyVisible = (process.env.HEADLESS ?? process.env.KURI_HEADLESS ?? "").trim().toLowerCase() === "false";
+      const isInteractive = !!(process.stdout && process.stdout.isTTY) || !!(process.stderr && process.stderr.isTTY);
+      if (!optedOut && !alreadyVisible && isInteractive) {
+        const headlessTitle = (() => {
+          const m = (captured.html ?? "").toLowerCase().match(/<title[^>]*>([^<]{0,200})<\/title>/);
+          return m ? m[1].trim() : "";
+        })();
+        const requestUrls = (captured.requests ?? []).map((r) => r.url ?? "");
+        const blockSignals = detectBrowserBlockSignals({
+          requestUrls,
+          title: headlessTitle,
+          htmlLength: (captured.html ?? "").length,
+          rejectionCounts: {},
+        });
+        const wallSignal = blockSignals.find((s) =>
+          s === "challenge_title" || s.startsWith("vendor:")
+        );
+        if (wallSignal) {
+          process.stderr.write(
+            `[unbrowse] Anti-bot wall detected (${wallSignal}). Retrying once with visible browser — pop a Chrome window for ~5s, future captures stay headless.\n`,
+          );
+          const prevHeadless = process.env.HEADLESS;
+          process.env.HEADLESS = "false";
+          try {
+            await kuri.stop();
+            await kuri.start();
+            captured = await captureSession(url, authHeaders, cookies, intent);
+          } finally {
+            if (prevHeadless === undefined) delete process.env.HEADLESS;
+            else process.env.HEADLESS = prevHeadless;
+            try { await kuri.stop(); await kuri.start(); } catch { /* best-effort restart back to headless */ }
+          }
+        }
+      }
+    }
   } catch (captureErr: unknown) {
     const err = captureErr as Error & { code?: string; login_url?: string };
     if (err.code === "auth_required") {
