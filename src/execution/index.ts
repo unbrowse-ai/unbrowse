@@ -3465,7 +3465,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         score += 120;
       }
       if (SESSION_BOUND_QUERY.test(ep.url_template)) {
-        score -= 170;
+        // Crumb/csrf-bound URLs are unusable without live session — bury hard.
+        score -= 350;
       }
     }
 
@@ -3546,6 +3547,24 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // same domain/intent class, bury the page artifact below the API. Replaces
     // the trigger_url-based check that Phase 8.3 left brittle on test fixtures.
     if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
+      score = Math.min(score - 800, -2000);
+    }
+
+    // Even with dom_extraction, a captured page artifact loses to an API sibling
+    // that was captured from the SAME trigger_url page load. The API is the
+    // ground-truth network call; the page artifact is the fallback HTML scrape.
+    if (
+      isCapturedPageArtifact &&
+      !!ep.trigger_url &&
+      rankedCandidates.some(
+        (other) =>
+          other !== ep &&
+          other.trigger_url === ep.trigger_url &&
+          /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(other.url_template) &&
+          !other.dom_extraction &&
+          !/captured (?:search form |page )?artifact/i.test(other.description ?? "")
+      )
+    ) {
       score = Math.min(score - 800, -2000);
     }
 
@@ -3635,7 +3654,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     // Penalize surviving infra-like paths that couldn't be hard-filtered
     // (whitepaper/summaries, server-timestamp, fingerprint, static config pages)
-    if (/\/(whitepaper|_stm|phantom|pfb|fingerprint|timesync|server[-_]?time)\b/i.test(ep.url_template)) score -= 100;
+    if (/\/(whitepaper|_stm|phantom|pfb|fingerprint|timesync|server[-_]?time)\b/i.test(ep.url_template)) score -= 500;
     // Penalize static document/article pages (no template params, no response_schema, not API-style)
     // These look like navigation pages that happen to match keywords in their path segment
     const hasTemplateParams = /\{[^}]+\}/.test(ep.url_template);
@@ -3719,7 +3738,13 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     {
       let pathSegs: string[] = [];
       try {
-        pathSegs = new URL(ep.url_template).pathname.split("/").filter(Boolean);
+        // Decode URL-encoded template slots like %7Bsymbol%7D back to {symbol}
+        pathSegs = new URL(ep.url_template).pathname
+          .split("/")
+          .filter(Boolean)
+          .map((seg) => {
+            try { return decodeURIComponent(seg); } catch { return seg; }
+          });
       } catch { /* noop */ }
       const intentLower = (intent ?? "").toLowerCase();
       let ctxLower = "";
@@ -3762,8 +3787,16 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         // truly off-target capture (ebay /nap/napkinapi/v1/ticketing/redeem
         // for an "ebay search listings" intent) gets buried regardless of
         // its base bonuses.
+        // A1.3: when the endpoint is a real API (path or host), the "leaked"
+        // segments are API structure (v8/finance/chart), not user-data leaks.
+        // Use 1/4 weight so a legit yahoo /v8/finance/chart isn't wiped out.
+        const isApiEndpoint =
+          ep.verification_status === "verified" &&
+          (/\/api\/|graphql|\/rest\/|\/rpc\//i.test(ep.url_template) ||
+            /^(api|gql|graphql|rest|services?|backend|query\d*|edge|cdn|static)\./i.test(hostname));
+        const apiSoftening = isApiEndpoint ? 0.25 : 1;
         const penaltyMultiplier = leakedLiterals >= 3 ? leakedLiterals * 2 : 1;
-        score -= leakedLiterals * 200 * penaltyMultiplier;
+        score -= leakedLiterals * 200 * penaltyMultiplier * apiSoftening;
       }
     }
 
@@ -3782,7 +3815,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
           const ctxBare = ctxHost.replace(/^www\./, "");
           const epBare = epHost.replace(/^www\./, "");
           if (ctxBare !== epBare) {
-            const epIsSharedApi = /^(api|gql|graphql|rest|services?|backend)\./i.test(epHost);
+            const epIsSharedApi =
+              /^(api|gql|graphql|rest|services?|backend|query\d*|edge|cdn|static)\./i.test(epHost) ||
+              /\/api\/|graphql|\/rest\/|\/rpc\//i.test(ep.url_template);
             const ctxRegistrable = ctxBare.split(".").slice(-2).join(".");
             const epRegistrable = epBare.split(".").slice(-2).join(".");
             if (ctxRegistrable !== epRegistrable) {
