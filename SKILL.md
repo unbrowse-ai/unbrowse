@@ -330,7 +330,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `earnings` | `[--json]` | Show your credit balance, earnings from indexing, and spending |
 | `corpus-test` | `--url <url> [--id <id>] [--retries N]` | Capture a single URL with retry logic; keeps best result across N attempts |
 | `corpus-run` | `--corpus <file> --out <file> [--retries N]` | Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot |
-| `register` | `[--no-prompt]` | Optional: register an API key to publish skills, check earnings, and access backend analytics |
+| `register` | `[--email lewis@example.com] [--no-prompt]` | Register an API key. With --email, sends a magic link via Resend; otherwise creates an anonymous key. |
 | `mode` |  | Re-prompt for contribution mode (private / share / share + earn) |
 | `capture` | `--url <url> --intent <intent>` | Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`. |
 

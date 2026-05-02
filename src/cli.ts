@@ -19,8 +19,10 @@ import {
   getFlywheelPulse,
   getMyProfile,
   getTransactionHistory,
+  magicRegister,
   recordFunnelTelemetryEvent,
   recordInstallTelemetryEvent,
+  saveConfig,
 } from "./client/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
@@ -1325,7 +1327,7 @@ export const CLI_REFERENCE = {
     { name: "earnings", usage: "[--json]", desc: "Show your credit balance, earnings from indexing, and spending" },
     { name: "corpus-test", usage: "--url <url> [--id <id>] [--retries N]", desc: "Capture a single URL with retry logic; keeps best result across N attempts" },
     { name: "corpus-run", usage: "--corpus <file> --out <file> [--retries N]", desc: "Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot" },
-    { name: "register", usage: "[--no-prompt]", desc: "Optional: register an API key to publish skills, check earnings, and access backend analytics" },
+    { name: "register", usage: "[--email lewis@example.com] [--no-prompt]", desc: "Register an API key. With --email, sends a magic link via Resend; otherwise creates an anonymous key." },
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
     { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
   ],
@@ -2062,6 +2064,38 @@ async function cmdClose(flags: Record<string, string | boolean>): Promise<void> 
 // ---------------------------------------------------------------------------
 
 async function cmdRegister(flags: Record<string, unknown>) {
+  if (typeof flags.email === "string" && flags.email.length > 0) {
+    const email = flags.email;
+    if (getApiKey()) {
+      info("Already registered. Re-running with --email will mint a new key and overwrite ~/.unbrowse/config.json.");
+    }
+    info(`Sending magic link to ${email}…`);
+    const result = await magicRegister({
+      email,
+      openBrowser: (url) => {
+        info(`Opening browser: ${url}`);
+        try {
+          const cmd = process.platform === "darwin"
+            ? "open"
+            : process.platform === "win32"
+              ? "start"
+              : "xdg-open";
+          spawn(cmd, [url], { detached: true, stdio: "ignore" }).unref();
+        } catch { /* best-effort; user can copy/paste */ }
+      },
+    });
+    saveConfig({
+      api_key: result.api_key,
+      agent_id: result.agent_id,
+      agent_name: result.email,
+      registered_at: new Date().toISOString(),
+      tos_accepted_version: null,
+      tos_accepted_at: null,
+    });
+    process.env.UNBROWSE_API_KEY = result.api_key;
+    info(`Signed in as ${result.email}. API key saved to ~/.unbrowse/config.json.`);
+    return;
+  }
   if (getApiKey()) {
     info("Already registered. API key loaded from env or ~/.unbrowse/config.json");
     return;

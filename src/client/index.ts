@@ -138,7 +138,7 @@ export function isLocalOnlyMode(): boolean {
   return LOCAL_ONLY;
 }
 
-interface UnbrowseConfig {
+export interface UnbrowseConfig {
   api_key: string;
   agent_id: string;
   agent_name: string;
@@ -178,7 +178,7 @@ function loadConfig(): UnbrowseConfig | null {
   return null;
 }
 
-function saveConfig(config: UnbrowseConfig): void {
+export function saveConfig(config: UnbrowseConfig): void {
   const configDir = getConfigDir();
   const configPath = getConfigPath();
   if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
@@ -808,6 +808,118 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
     console.warn("Set UNBROWSE_API_KEY manually or try again.");
     if (exitOnFailure) process.exit(1);
   }
+}
+
+export interface MagicRegisterResult {
+  api_key: string;
+  agent_id: string;
+  email: string;
+  user_id: string;
+}
+
+/**
+ * Email magic-link register flow. Posts /v1/auth/email/start, opens the verify
+ * URL in the user's default browser, then polls /v1/auth/email/poll until the
+ * user clicks the link. Returns the new api_key + user_id, or throws on
+ * timeout / backend error. Does NOT persist to ~/.unbrowse/config.json — the
+ * caller (CLI) is responsible for saveConfig.
+ */
+export async function magicRegister(opts: {
+  email: string;
+  openBrowser?: (verifyUrl: string) => void | Promise<void>;
+  timeoutMs?: number;
+  pollMs?: number;
+  returnUrl?: string;
+}): Promise<MagicRegisterResult> {
+  const timeoutMs = opts.timeoutMs ?? 300_000;
+  const pollMs = opts.pollMs ?? 1_500;
+
+  // 1. Start: mint a magic token, send the email.
+  const startRes = await fetch(`${API_URL}/v1/auth/email/start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept-Encoding": "gzip, deflate",
+    },
+    body: JSON.stringify({ email: opts.email, return_url: opts.returnUrl }),
+  });
+  if (startRes.status === 503) {
+    throw new Error(
+      "Backend RESEND_API_KEY not set — magic-link signup unavailable. Use anon `unbrowse register` (no --email).",
+    );
+  }
+  let startData: { token?: string; error?: string; message?: string };
+  try {
+    startData = await startRes.json() as typeof startData;
+  } catch {
+    throw new Error(`Magic-link start failed: HTTP ${startRes.status}`);
+  }
+  if (startRes.status === 400) {
+    throw new Error(startData.error ?? "invalid_email");
+  }
+  if (!startRes.ok || !startData.token) {
+    const msg = startData.error ?? `HTTP ${startRes.status}`;
+    throw new Error(`Magic-link start failed: ${msg}`);
+  }
+  const token = startData.token;
+
+  // 2. Open the verify URL in the user's browser (best-effort).
+  const verifyUrl = `${API_URL}/v1/auth/email/verify?token=${encodeURIComponent(token)}`;
+  if (opts.openBrowser) {
+    try { await opts.openBrowser(verifyUrl); } catch { /* best-effort */ }
+  } else {
+    try {
+      const cmd = process.platform === "darwin"
+        ? "open"
+        : process.platform === "win32"
+          ? "start"
+          : "xdg-open";
+      execSync(`${cmd} ${JSON.stringify(verifyUrl)}`, { stdio: "ignore", timeout: 5_000 });
+    } catch { /* best-effort */ }
+  }
+
+  // 3. Poll until verified (or expired / timeout).
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    const pollRes = await fetch(
+      `${API_URL}/v1/auth/email/poll?token=${encodeURIComponent(token)}`,
+      {
+        method: "GET",
+        headers: { "Accept-Encoding": "gzip, deflate" },
+      },
+    );
+    let pollData: {
+      status?: string;
+      api_key?: string;
+      user_id?: string;
+      email?: string;
+    };
+    try {
+      pollData = await pollRes.json() as typeof pollData;
+    } catch {
+      throw new Error(`Magic-link poll failed: HTTP ${pollRes.status}`);
+    }
+    if (pollData.status === "verified") {
+      if (!pollData.api_key || !pollData.user_id || !pollData.email) {
+        throw new Error("Magic-link poll returned verified without api_key/user_id/email.");
+      }
+      return {
+        api_key: pollData.api_key,
+        agent_id: pollData.user_id,
+        email: pollData.email,
+        user_id: pollData.user_id,
+      };
+    }
+    if (pollData.status === "expired" || pollRes.status === 410) {
+      throw new Error("Magic link expired. Re-run `unbrowse register --email …`.");
+    }
+    if (pollData.status === "pending") continue;
+    if (!pollRes.ok) {
+      throw new Error(`Magic-link poll failed: HTTP ${pollRes.status}`);
+    }
+  }
+  throw new Error(`Magic-link timed out after ${Math.round(timeoutMs / 1000)}s. Check your inbox and re-run.`);
 }
 
 let backgroundRegistrationPromise: Promise<void> | null = null;

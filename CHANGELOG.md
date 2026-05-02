@@ -1,5 +1,15 @@
 # Changelog
 
+## Slice 1 — Email Accounts (Magic Link) (2026-05-02)
+
+Optional account-bound API keys via passwordless email signup. `unbrowse register --email lewis@example.com` issues a magic link, the click verifies and binds an `ubr_…` key to a user id. Anonymous keys (the existing 819) keep working unchanged; `bearerAuth` now resolves `c.set("user_id", uid)` only for account-bound keys, so account-aware features gain identity without breaking the rest.
+
+* Routes: `POST /v1/auth/email/start`, `GET /v1/auth/email/verify`, `GET /v1/auth/email/poll`
+* Backend services: `services/email.ts` (Resend send), `services/accounts.ts` (KV-backed account model)
+* KV namespaces: `acct:`, `uid:`, `magic:` (10-min TTL), `key2user:`, `userkeys:`
+* Adversarial pass fixed 4 silent bugs: email length DoS, header injection via control chars, orphan `magic:` row when Resend send fails, `EdbKV.put` swallowing non-2xx responses from qdkv
+* Pre-req: verify a sender domain (e.g. `auth.unbrowse.ai`) in Resend, set `RESEND_API_KEY` as a wrangler secret. Until both, `/v1/auth/email/start` returns `503 email_not_configured` cleanly. Without `EMERGENTDB_API_KEY` / `DATABASE_URL`, returns `503 storage_unavailable`.
+* Known follow-up: `.issues/auth-verify-no-rollback.md` — verify path lacks a compensating delete on partial KV failure (surfaces as 5xx, not silent corruption, but leaves an orphan `acct:` row). Out of slice scope.
 ## [6.5.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.4.0...v6.5.0-preview.0) (2026-05-02)
 
 ### Features
