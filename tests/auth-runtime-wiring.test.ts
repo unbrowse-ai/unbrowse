@@ -97,7 +97,16 @@ describe("#230 DagAdvisoryPlan auth_dependencies", () => {
 describe("#230 resolveAuthPrerequisites", () => {
   test("callable", () => { expect(typeof resolveAuthPrerequisites).toBe("function"); });
   test("unauthenticated without session", async () => {
-    const r = await resolveAuthPrerequisites([{ domain: "x.com", strategy: "login_if_needed" }]);
-    expect(r[0].authenticated).toBe(false);
+    // Block vault + browser-cookie probes so the test asserts the
+    // unauthenticated path regardless of what the dev's Chrome has.
+    const prev = process.env.UNBROWSE_DISABLE_AUTH_FALLBACK;
+    process.env.UNBROWSE_DISABLE_AUTH_FALLBACK = "1";
+    try {
+      const r = await resolveAuthPrerequisites([{ domain: "x.com", strategy: "login_if_needed" }]);
+      expect(r[0].authenticated).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.UNBROWSE_DISABLE_AUTH_FALLBACK;
+      else process.env.UNBROWSE_DISABLE_AUTH_FALLBACK = prev;
+    }
   });
 });

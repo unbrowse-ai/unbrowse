@@ -39,25 +39,32 @@ export class LocalAuthRuntime implements AuthRuntime {
       return { authenticated: true, session_token: session.token, method: "cached" };
     }
 
-    // Try stored vault cookies
-    try {
-      const cookies = await getStoredAuth(dep.domain);
-      if (cookies && cookies.length > 0) {
-        log("auth-runtime", `found ${cookies.length} stored cookies for ${dep.domain}`);
-        this.setSession(dep.domain, "vault-cookies", 3600_000);
-        return { authenticated: true, method: "cookies" };
-      }
-    } catch { /* vault not available */ }
+    // Skip vault + browser-cookie probes when UNBROWSE_DISABLE_AUTH_FALLBACK=1.
+    // Tests that assert "unauthenticated without session" need to ignore
+    // any cookies the developer's actual Chrome happens to have.
+    const skipFallback = process.env.UNBROWSE_DISABLE_AUTH_FALLBACK === "1";
 
-    // Try browser cookie extraction
-    try {
-      const result = await extractBrowserAuth(dep.domain);
-      if (result.success && result.cookies_stored > 0) {
-        log("auth-runtime", `extracted ${result.cookies_stored} browser cookies for ${dep.domain}`);
-        this.setSession(dep.domain, "browser-cookies", 3600_000);
-        return { authenticated: true, method: "cookies" };
-      }
-    } catch { /* browser extraction not available */ }
+    // Try stored vault cookies
+    if (!skipFallback) {
+      try {
+        const cookies = await getStoredAuth(dep.domain);
+        if (cookies && cookies.length > 0) {
+          log("auth-runtime", `found ${cookies.length} stored cookies for ${dep.domain}`);
+          this.setSession(dep.domain, "vault-cookies", 3600_000);
+          return { authenticated: true, method: "cookies" };
+        }
+      } catch { /* vault not available */ }
+
+      // Try browser cookie extraction
+      try {
+        const result = await extractBrowserAuth(dep.domain);
+        if (result.success && result.cookies_stored > 0) {
+          log("auth-runtime", `extracted ${result.cookies_stored} browser cookies for ${dep.domain}`);
+          this.setSession(dep.domain, "browser-cookies", 3600_000);
+          return { authenticated: true, method: "cookies" };
+        }
+      } catch { /* browser extraction not available */ }
+    }
 
     if (dep.strategy === "refresh_session" && session) {
       const refreshed = await this.refreshSession(dep.domain);
