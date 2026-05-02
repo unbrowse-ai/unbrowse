@@ -1306,6 +1306,42 @@ async function cmdCapture(flags: Record<string, string | boolean>): Promise<void
   output(envelope, !!flags.pretty);
 }
 
+async function cmdNote(flags: Record<string, string | boolean>, args?: string[]): Promise<void> {
+  const subRaw = (args?.[0] ?? flags.action) as string | undefined;
+  const sub = (typeof subRaw === "string" ? subRaw : "").toLowerCase();
+  if (!sub || !["read", "write", "list"].includes(sub)) {
+    die("usage: unbrowse note <read|write|list> --domain <domain> [--body \"...\"]");
+  }
+  if (sub === "list") {
+    const { homedir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { readdirSync, existsSync } = await import("node:fs");
+    const profile = process.env.UNBROWSE_PROFILE ?? "";
+    const dir = process.env.UNBROWSE_DOMAIN_NOTES_DIR
+      ?? (profile
+        ? join(homedir(), ".unbrowse", "profiles", profile, "domain-notes")
+        : join(homedir(), ".unbrowse", "domain-notes"));
+    if (!existsSync(dir)) { output({ notes: [], dir }, !!flags.pretty); return; }
+    const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
+    output({ dir, notes: files.map((f) => f.replace(/\.md$/, "")) }, !!flags.pretty);
+    return;
+  }
+  const domain = flags.domain as string | undefined;
+  if (!domain) die("--domain required");
+  if (sub === "read") {
+    const res = await api("GET", `/v1/domain-notes/${encodeURIComponent(domain!)}`).catch((err) => ({
+      error: (err as Error).message,
+    }));
+    output(res, !!flags.pretty);
+    return;
+  }
+  const body = flags.body as string | undefined;
+  if (typeof body !== "string" || body.trim().length === 0) {
+    die("--body required (non-empty markdown string)");
+  }
+  const res = await api("POST", `/v1/domain-notes/${encodeURIComponent(domain!)}`, { body });
+  output(res, !!flags.pretty);
+}
 // ---------------------------------------------------------------------------
 // CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
@@ -1357,6 +1393,7 @@ export const CLI_REFERENCE = {
     { name: "register", usage: "[--email lewis@example.com] [--no-prompt]", desc: "Register an API key. With --email, sends a magic link via Resend; otherwise creates an anonymous key." },
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
     { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
+    { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence." },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -2600,6 +2637,7 @@ async function main(): Promise<void> {
     case "register": return cmdRegister(flags);
     case "mode": return cmdMode(flags);
     case "capture": return cmdCapture(flags);
+    case "note": return cmdNote(flags, args);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
