@@ -102,6 +102,19 @@ export class EdbKV {
     await fetch(`${BASE}/qdkv/set`, { method: "POST", headers: this.h, body: JSON.stringify(body) });
     if (!opts?.expirationTtl && !key.startsWith("_idx")) {
       await this._idxUpsert(key, value);
+      return;
+    }
+    // TTL'd writes don't go into the persistent index, but if a previous get()
+    // backfilled the in-memory cache with a stale value for this key, the next
+    // get() in the same isolate would return that stale value. Keep the cache
+    // honest so short-TTL flows (magic-link verify -> poll) read fresh.
+    if (!key.startsWith("_idx")) {
+      const cached = _cache.get(this.ns);
+      if (cached) {
+        const i = cached.entries.findIndex(e => e.k === key);
+        if (i >= 0) cached.entries[i].v = value;
+        else cached.entries.push({ k: key, v: value });
+      }
     }
   }
 
