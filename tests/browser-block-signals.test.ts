@@ -91,6 +91,14 @@ describe("detectBrowserBlockSignals", () => {
     it("detects datadome", () => {
       expect(detect({ requestUrls: ["https://js.datadome.co/tags.js"] })).toContain("vendor:datadome");
     });
+    it("detects fastly bot management via _fs-ch- path (e.g. pypi.org)", () => {
+      expect(detect({
+        requestUrls: ["https://pypi.org/_fs-ch-1T1wmsGaOgGaSxcX/script.js?reload=true"],
+      })).toContain("vendor:fastly_bot_management");
+    });
+    it("detects 'client challenge' title (Fastly)", () => {
+      expect(detect({ title: "Client Challenge" })).toContain("challenge_title");
+    });
     it("detects first-party PerimeterX via KP_UIDz= param", () => {
       expect(detect({ requestUrls: ["https://www.realtor.com/some/path?KP_UIDz=abc123"] })).toContain("vendor:perimeterx");
     });
