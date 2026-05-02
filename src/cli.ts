@@ -1290,6 +1290,28 @@ async function cmdCapture(flags: Record<string, string | boolean>): Promise<void
     ?? (skill?.skill_id as string | undefined)
     ?? (typeof result.learned_skill_id === "string" ? (result.learned_skill_id as string) : undefined);
 
+  // Detect "lazy-loading SPA" shape: only one endpoint surfaced and it's the
+  // document URL itself (no XHR fired during the auto-capture window). The
+  // agent should drive interaction (scroll/click) so HAR catches the lazy
+  // fetches. Pure structural shape — no per-host check.
+  const isThinDocumentOnly = endpoints.length === 1 && (() => {
+    const e0 = endpoints[0] as { method?: string; url_template?: string };
+    if (!e0 || e0.method !== "GET") return false;
+    const tmpl = (e0.url_template ?? "").split("?")[0].replace(/\/$/, "");
+    const target = url.split("?")[0].replace(/\/$/, "");
+    return tmpl === target;
+  })();
+
+  const escapedIntent = intent.replace(/"/g, "\\\"");
+  const escapedUrl = url.replace(/"/g, "\\\"");
+  const lazyHint = [
+    `unbrowse go --url "${escapedUrl}"`,
+    `unbrowse snap`,
+    `unbrowse scroll down`,
+    `unbrowse close`,
+    `# then re-run: unbrowse capture --url "${escapedUrl}" --intent "${escapedIntent}"`,
+  ].join(" && ");
+
   const envelope = {
     skill_id: skillId,
     endpoints_discovered: typeof result.endpoints_discovered === "number"
@@ -1297,9 +1319,12 @@ async function cmdCapture(flags: Record<string, string | boolean>): Promise<void
       : endpoints.length,
     marketplace_published: !!result.marketplace_published,
     ms: typeof result.ms === "number" ? (result.ms as number) : Date.now() - t0,
-    next_step: endpoints.length > 0
-      ? `unbrowse resolve --intent "${intent.replace(/"/g, "\\\"")}" --url "${url.replace(/"/g, "\\\"")}"`
-      : "no endpoints discovered; site may need authentication or different intent",
+    next_step: endpoints.length === 0
+      ? "no endpoints discovered; site may need authentication or different intent"
+      : isThinDocumentOnly
+        ? `looks like a lazy-loading SPA — only the document URL was captured. Drive interaction so HAR catches the API XHRs:\n  ${lazyHint}`
+        : `unbrowse resolve --intent "${escapedIntent}" --url "${escapedUrl}"`,
+    ...(isThinDocumentOnly ? { capture_pattern: "lazy_spa_drive_required" } : {}),
     ...(result.error ? { error: result.error } : {}),
     ...(result.prior_domain_note ? { prior_domain_note: result.prior_domain_note } : {}),
     ...(result.note_evidence ? { note_evidence: result.note_evidence } : {}),
