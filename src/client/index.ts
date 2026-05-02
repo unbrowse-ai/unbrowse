@@ -169,7 +169,7 @@ interface ApiKeyValidationResult {
   detail?: string;
 }
 
-function loadConfig(): UnbrowseConfig | null {
+export function loadConfig(): UnbrowseConfig | null {
   try {
     const configPath = getConfigPath();
     if (existsSync(configPath)) {
@@ -1533,6 +1533,42 @@ export async function getMyProfile(): Promise<{
 }> {
   return api("GET", "/v1/agents/me", undefined);
 }
+
+export interface AccountPreferences {
+  share_pointers: boolean;
+}
+
+/**
+ * Fetch the account-level share_pointers preference from the backend.
+ * Returns null when the current api key is anonymous (backend responds with
+ * 403 `account_required`) or when the endpoint is not available (404).
+ * Other transport errors propagate so callers can decide.
+ */
+export async function fetchAccountPreferences(): Promise<AccountPreferences | null> {
+  try {
+    const data = await api<Partial<AccountPreferences>>("GET", "/v1/account/preferences", undefined);
+    return { share_pointers: !!data?.share_pointers };
+  } catch (err) {
+    const msg = (err as Error).message ?? "";
+    if (msg.includes("account_required") || msg.includes("HTTP 403") || msg.includes("HTTP 404")) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Push a partial preferences patch up to the backend. Caller should already
+ * know the current api key is account-bound; throws on non-2xx (including
+ * 403 account_required for anonymous keys).
+ */
+export async function pushAccountPreferences(
+  patch: Partial<AccountPreferences>,
+): Promise<AccountPreferences> {
+  const data = await api<Partial<AccountPreferences>>("PATCH", "/v1/account/preferences", patch);
+  return { share_pointers: !!data?.share_pointers };
+}
+
 
 export async function syncAgentWallet(wallet = getLocalWalletContext()): Promise<void> {
   if (!wallet.wallet_address) return;

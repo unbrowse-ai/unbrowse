@@ -3,13 +3,26 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { getMyProfile, getSkill, type AgentProfile, type SkillManifest } from "@/lib/api";
+import {
+  getMyProfile,
+  getSkill,
+  getAccountMe,
+  getAccountPreferences,
+  updateAccountPreferences,
+  type AgentProfile,
+  type SkillManifest,
+  type AccountMe,
+  type AccountPreferences,
+} from "@/lib/api";
 
 export default function DashboardPage() {
   const { isAuthenticated, agentName, logout } = useAuth();
   const [profile, setProfile] = useState<AgentProfile | null>(null);
   const [skills, setSkills] = useState<SkillManifest[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [accountMe, setAccountMe] = useState<AccountMe | null>(null);
+  const [prefs, setPrefs] = useState<AccountPreferences | null>(null);
+  const [prefsBusy, setPrefsBusy] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -24,6 +37,31 @@ export default function DashboardPage() {
       })
       .catch((err) => setError((err as Error).message));
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    getAccountMe()
+      .then((me) => {
+        setAccountMe(me);
+        if (me) {
+          getAccountPreferences().then(setPrefs).catch(() => {/* silent */});
+        }
+      })
+      .catch(() => {/* silent — anon keys 403 */});
+  }, [isAuthenticated]);
+
+  const togglePrefs = async () => {
+    if (!prefs || prefsBusy) return;
+    setPrefsBusy(true);
+    try {
+      const next = await updateAccountPreferences({ share_pointers: !prefs.share_pointers });
+      setPrefs(next);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPrefsBusy(false);
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -77,6 +115,32 @@ export default function DashboardPage() {
             <StatCard value={profile.total_executions} label="Total Executions" />
             <StatCard value={profile.total_feedback_given} label="Feedback Given" />
           </div>
+
+          {accountMe && prefs && (
+            <div className="mb-10 p-6 rounded-2xl border border-border bg-surface">
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex-1">
+                  <div className="font-semibold text-text-primary">Auto-publish to marketplace</div>
+                  <div className="text-sm text-text-muted mt-1 max-w-xl">
+                    When on, every captured site gets published to the public marketplace
+                    as you browse. Off keeps captures personal — visible only to your
+                    account.
+                  </div>
+                </div>
+                <button
+                  onClick={togglePrefs}
+                  disabled={prefsBusy}
+                  aria-pressed={prefs.share_pointers}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors
+                    ${prefs.share_pointers ? "bg-orange-500" : "bg-border"}
+                    ${prefsBusy ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform
+                    ${prefs.share_pointers ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Discovered skills */}
           <div>

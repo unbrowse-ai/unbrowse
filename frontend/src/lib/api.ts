@@ -577,3 +577,30 @@ export async function getAccountSkills(): Promise<SkillManifest[]> {
   const data = await authRequestOrAccountRequired<{ skills: SkillManifest[] }>("/v1/account/skills");
   return data?.skills ?? [];
 }
+
+export interface AccountPreferences {
+  share_pointers: boolean;
+}
+
+export async function getAccountPreferences(): Promise<AccountPreferences | null> {
+  return authRequestOrAccountRequired<AccountPreferences>("/v1/account/preferences");
+}
+
+export async function updateAccountPreferences(
+  patch: Partial<AccountPreferences>,
+): Promise<AccountPreferences> {
+  const apiKey = readStoredAuth()?.apiKey ?? null;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const res = await fetch(`${API_URL}/v1/account/preferences`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<AccountPreferences>;
+}
