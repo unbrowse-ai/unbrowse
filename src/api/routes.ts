@@ -33,6 +33,8 @@ import { listRecentSessionsForDomain } from "../session-logs.js";
 import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
+import { summarizeCaptureToNote } from "../extraction/notes-summarizer.js";
+import { writeDomainNote, readDomainNote } from "../extraction/domain-notes.js";
 import {
   BrowseSessionError,
   createRegisteredBrowseSession,
@@ -679,6 +681,44 @@ export async function registerRoutes(app: FastifyInstance) {
       const sharePointers = getContributionConfig().contribution.share_pointers;
       const marketplacePublished = sharePointers && endpoints.length > 0 && exec.trace.success === true;
 
+      // Per-domain extraction notes (LLM-prose memory). Fire-and-forget — never
+      // blocks the response. Notes are injected back into the LLM augment pass
+      // on the next capture for this domain. The deterministic ranker never
+      // reads them.
+      if (learned && learned.domain && endpoints.length > 0 && exec.trace.success === true) {
+        const priorNote = readDomainNote(learned.domain);
+        const sampleFieldNames = Array.from(
+          new Set(
+            endpoints
+              .flatMap((e) => Object.keys(e.response_schema?.properties ?? {}))
+              .slice(0, 12),
+          ),
+        );
+        summarizeCaptureToNote({
+          domain: learned.domain,
+          intent,
+          endpoints: endpoints.map((e) => ({
+            method: e.method,
+            url_template: e.url_template,
+            description: e.description,
+          })),
+          notable_patterns: {
+            auth_required: !!inner.auth_recommended,
+            spa_framework_detected:
+              typeof inner.spa_framework === "string" ? inner.spa_framework : null,
+            extraction_method:
+              typeof inner.extraction_method === "string" ? inner.extraction_method : null,
+            sample_field_names: sampleFieldNames,
+          },
+          prior_note: priorNote?.body ?? null,
+        })
+          .then((body) => {
+            if (body && learned.domain) writeDomainNote(learned.domain, body);
+          })
+          .catch(() => {
+            // best-effort, never throws into hot path
+          });
+      }
       return reply.send({
         skill_id: skillId,
         endpoints_discovered: endpoints.length,
