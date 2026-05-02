@@ -1,5 +1,33 @@
 # Changelog
 
+## [6.5.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.4.0...v6.5.0-preview.0) (2026-05-02)
+
+### Features
+
+* **cli:** cmdSearch emits search_started/completed funnel telemetry ([50a41d5](https://github.com/unbrowse-ai/unbrowse-dev/commit/50a41d510c504ae3f49fdc104d95823915a6dcd3))
+* **frontend:** live stats + popular grid, restored Crossmint copy, route handlers ([33b684f](https://github.com/unbrowse-ai/unbrowse-dev/commit/33b684f13972581e7935d5ddfa2bc42537e97cfa))
+* **harness:** per-test isolation + triage scripts for failing-test fix loop ([f357104](https://github.com/unbrowse-ai/unbrowse-dev/commit/f3571044b5dc251371cfaac95936c7a84ee4e11c))
+
+### Bug Fixes
+
+* **auth:** UNBROWSE_DISABLE_AUTH_FALLBACK bypass + test isolation ([73fa367](https://github.com/unbrowse-ai/unbrowse-dev/commit/73fa367cf542c311727284daa89298a97f652972)), closes [#230](https://github.com/unbrowse-ai/unbrowse-dev/issues/230)
+* **cli:** auto-execute respects third-party terms policy gate ([3a3a024](https://github.com/unbrowse-ai/unbrowse-dev/commit/3a3a02441913ddeab0edd041d943925f1b0c1e02))
+* **cli:** parseArgs treats --endpoint -p as boolean flag, not value=-p ([d620082](https://github.com/unbrowse-ai/unbrowse-dev/commit/d620082872fd29ed88a9a6155021ec5e302ae0a3))
+* **executor:** SSRF bypass for tests + needs_review honors explicit semantic flag ([6809940](https://github.com/unbrowse-ai/unbrowse-dev/commit/6809940e283bf2da162677ae7f1e1e2c042c94c6))
+* **executor:** third-party terms gate fires before any HTTP call ([1c988fc](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c988fc1d258fe9004d86ddc5920c4e0c8115cb6))
+* **frontend:** unbreak homepage registry section ([58f864a](https://github.com/unbrowse-ai/unbrowse-dev/commit/58f864a17aeaf071e29dca085bd1b8af3ad6c053))
+* **graph:** needs_review honors explicit flag only on real API endpoints ([ff9fc1b](https://github.com/unbrowse-ai/unbrowse-dev/commit/ff9fc1b32d68f7aa35cfe4d9f0f0bd793e328a8d))
+* **ranker:** BM25 floor + schema cross-check on param NAME (not value) ([6815333](https://github.com/unbrowse-ai/unbrowse-dev/commit/6815333e5f4f3c74d07f59f2f866b1043ac7532a))
+* **ranker:** bury captured-page-artifact when real API sibling exists in corpus ([9241836](https://github.com/unbrowse-ai/unbrowse-dev/commit/92418362bd4c783513d66734decf5cb7e060e0a5))
+* **ranker:** URL-encoded template slots, session-bound URLs, whitepaper paths ([22300ea](https://github.com/unbrowse-ai/unbrowse-dev/commit/22300eab2d6281c23100ccec5d146a2e923ea06d))
+* **resolve:** local-skill fast path + structured timeouts on every hang ([8070892](https://github.com/unbrowse-ai/unbrowse-dev/commit/8070892a9f8e1b2793cf83ec52e9c9c317f167bd))
+* **runtime:** add missing getBrowserConfig + BrowserPathConfig exports ([fb83c8d](https://github.com/unbrowse-ai/unbrowse-dev/commit/fb83c8d5be632d3b06427852edd848d6fe4adf95))
+* **tests:** unstale 3 fixtures (version, installer parity, llms.txt path) ([ba806ca](https://github.com/unbrowse-ai/unbrowse-dev/commit/ba806cac8ec183cdee1206ae6657cf9c2db69648))
+* **tests:** unstale MCP stdio assertions on tool descriptions ([3565dfe](https://github.com/unbrowse-ai/unbrowse-dev/commit/3565dfe6e64bfd3f929355213db728e515adc7b5))
+* **tests:** update payment messaging assertions to match Apr 2026 reframe ([c043451](https://github.com/unbrowse-ai/unbrowse-dev/commit/c043451a5d250bab9a8e308973c57bb92ed008c3))
+* tighten 2 self-introduced regressions (wallet bypass, headless literal) ([e3ecafd](https://github.com/unbrowse-ai/unbrowse-dev/commit/e3ecafd0daeedaef657de7a515761f9ad3959038))
+* **wallet:** skip local lobster config probe under bun:test ([ecb3521](https://github.com/unbrowse-ai/unbrowse-dev/commit/ecb352198ef0541bde756001d5be0b54ae295302))
+
 ## [6.4.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.3.0...v6.4.0) (2026-05-01)
 
 ### Features
