@@ -172,8 +172,8 @@ describe("indexing fallback", () => {
     const gate = interpretPaymentResult("wallet_not_configured", requirement);
     const resolved = resolveUnpaidAccess(gate);
     expect(resolved.status).toBe("indexing_fallback");
-    expect(resolved.message).toContain("Indexing mode");
-    expect(resolved.next_step).toContain("--force-capture");
+    expect(resolved.message).toContain("No wallet");
+    expect(resolved.next_step).toContain("lobster.cash");
   });
 
   it("insufficient_balance falls back to indexing", () => {
