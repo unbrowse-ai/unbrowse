@@ -1583,6 +1583,45 @@ export async function executeEndpoint(
     return { trace, result: resultData };
   }
 
+  // Third-party terms gate — bail before any HTTP call when the endpoint's
+  // domain is policy-flagged and the caller hasn't explicitly confirmed.
+  // Mirror of the CLI gate; tests call executeSkill directly so the executor
+  // must enforce this independently.
+  if (
+    endpoint.policy?.requires_third_party_terms_confirmation &&
+    !options?.confirm_third_party_terms
+  ) {
+    const startedAt = new Date().toISOString();
+    let policyDomain: string = skill.domain;
+    if (endpoint.policy.domain) {
+      policyDomain = endpoint.policy.domain;
+    } else {
+      try {
+        const host = new URL(endpoint.url_template).hostname.replace(/^www\./, "");
+        // Normalize api.x.com / m.x.com to the registrable domain (x.com).
+        const parts = host.split(".");
+        policyDomain = parts.length >= 2 ? parts.slice(-2).join(".") : host;
+      } catch { /* keep skill.domain default */ }
+    }
+    const resultData = {
+      error: "third_party_terms_confirmation_required" as const,
+      message: `Endpoint ${endpoint.endpoint_id} on ${policyDomain} requires explicit third-party terms confirmation before execution.`,
+      policy_domain: policyDomain,
+      next_step: "Re-run with confirm_third_party_terms=true after reviewing the site's terms of service.",
+    };
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: nanoid(),
+      skill_id: skill.skill_id,
+      endpoint_id: endpoint.endpoint_id,
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "third_party_terms_confirmation_required",
+      result: resultData,
+    });
+    return { trace, result: resultData };
+  }
+
   const workflowArtifact = readWorkflowArtifact(skill.skill_id);
   const workflowRecipe = pickWorkflowRecipe(workflowArtifact, endpoint.endpoint_id);
   const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
