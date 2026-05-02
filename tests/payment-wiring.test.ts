@@ -198,7 +198,7 @@ describe("resolveUnpaidAccess", () => {
     };
     const fallback = resolveUnpaidAccess(gateResult);
     expect(fallback.status).toBe("indexing_fallback");
-    expect(fallback.message).toContain("Indexing mode");
+    expect(fallback.message).toContain("No wallet");
   });
 
   test("returns indexing_fallback for insufficient_balance", () => {
@@ -329,7 +329,7 @@ describe("payment gate integration", () => {
 
     const fallback = resolveUnpaidAccess(paymentCheck);
     expect(fallback.status).toBe("indexing_fallback");
-    expect(fallback.message).toContain("Indexing mode");
+    expect(fallback.message).toContain("No wallet");
   });
 
   test("full flow: wallet configured -> payment_required (no block)", async () => {
