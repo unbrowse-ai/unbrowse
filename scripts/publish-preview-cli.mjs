@@ -221,6 +221,7 @@ async function main() {
         UNBROWSE_RELEASE_TAG: tag,
         UNBROWSE_RELEASE_REPO: args.releaseRepo,
         UNBROWSE_BUILD_DEFAULT_BACKEND_URL: backendUrl,
+        UNBROWSE_BUILD_DEFAULT_PROFILE: "staging",
       },
     });
     const assets = releaseAssetArgs(tempRepo);
@@ -261,6 +262,7 @@ async function main() {
         UNBROWSE_RELEASE_REPO: args.releaseRepo,
         UNBROWSE_RELEASE_TAG: tag,
         UNBROWSE_BUILD_DEFAULT_BACKEND_URL: backendUrl,
+        UNBROWSE_BUILD_DEFAULT_PROFILE: "staging",
       },
     });
   } finally {
