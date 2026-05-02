@@ -971,7 +971,72 @@ async function cmdCleanupStale(flags: Record<string, string | boolean>): Promise
 }
 
 async function cmdSearch(flags: Record<string, string | boolean>): Promise<void> {
-  await cmdResolve(flags);
+  // The `search` command emits funnel telemetry (search_started /
+  // search_completed) so the agent acquisition story stays measurable.
+  // cmdResolve also fires resolve_* under the hood — both events are recorded.
+  const intent = flags.intent as string | undefined;
+  const hostType = detectTelemetryHostType();
+  const { decodeTelemetryAttribution } = await import("./telemetry-attribution.js");
+  const attr = decodeTelemetryAttribution(process.env.UNBROWSE_ATTRIBUTION_B64) ?? {};
+  const attrProps: Record<string, unknown> = {};
+  for (const k of ["channel", "campaign_id", "content_id", "variant_id"] as const) {
+    const v = (attr as Record<string, unknown>)[k];
+    if (v != null) attrProps[k] = v;
+  }
+  const domain = telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined);
+  if (intent) {
+    await recordFunnelTelemetryEvent("search_started", {
+      source: "cli",
+      hostType,
+      properties: {
+        command: "search",
+        intent,
+        domain,
+        url: typeof flags.url === "string" ? flags.url : null,
+        ...attrProps,
+      },
+    });
+  }
+  let resultCount = 0;
+  try {
+    if (intent && domain) {
+      try {
+        const searchRes = await api(
+          "GET",
+          `/v1/search/domain?intent=${encodeURIComponent(intent)}&domain=${encodeURIComponent(domain)}`,
+        ) as { results?: unknown[] };
+        resultCount = Array.isArray(searchRes?.results) ? searchRes.results.length : 0;
+      } catch { /* search/domain optional — fall through to resolve */ }
+    }
+    await cmdResolve(flags);
+    if (intent) {
+      await recordFunnelTelemetryEvent("search_completed", {
+        source: "cli",
+        hostType,
+        properties: {
+          command: "search",
+          intent,
+          domain,
+          result_count: resultCount,
+          ...attrProps,
+        },
+      });
+    }
+  } catch (err) {
+    if (intent) {
+      await recordFunnelTelemetryEvent("search_failed", {
+        source: "cli",
+        hostType,
+        properties: {
+          command: "search",
+          intent,
+          error: err instanceof Error ? err.message : String(err),
+          ...attrProps,
+        },
+      });
+    }
+    throw err;
+  }
 }
 
 async function cmdSessions(flags: Record<string, string | boolean>): Promise<void> {
