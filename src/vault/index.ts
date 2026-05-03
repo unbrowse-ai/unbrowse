@@ -1,5 +1,5 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from "fs";
+import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { log } from "../logger.js";
@@ -86,21 +86,11 @@ const VAULT_DIR = join(homedir(), ".unbrowse", "vault");
 const VAULT_FILE = join(VAULT_DIR, "credentials.enc");
 const KEY_FILE = join(VAULT_DIR, ".key");
 
-// Cache the derived key to avoid repeated filesystem reads on hot paths
-let _cachedKey: Buffer | null = null;
-
 function getOrCreateKey(): Buffer {
-  if (_cachedKey) return _cachedKey;
   if (!existsSync(VAULT_DIR)) mkdirSync(VAULT_DIR, { recursive: true, mode: 0o700 });
-  if (existsSync(KEY_FILE)) {
-    _cachedKey = readFileSync(KEY_FILE);
-    return _cachedKey;
-  }
-  // Deterministic derivation from machine identity for cross-session consistency
-  const seed = Buffer.from("unbrowse-vault-v2-" + homedir(), "utf8");
-  const key = createHash("sha256").update(seed).digest();
+  if (existsSync(KEY_FILE)) return readFileSync(KEY_FILE);
+  const key = randomBytes(32);
   writeFileSync(KEY_FILE, key, { mode: 0o600 });
-  _cachedKey = key;
   return key;
 }
 
@@ -129,7 +119,6 @@ function readVaultFile(): Record<string, string> {
 }
 
 function writeVaultFile(data: Record<string, string>): void {
-  _vaultCache = null; // Invalidate read cache on write
   const key = getOrCreateKey();
   const iv = randomBytes(16);
   const cipher = createCipheriv("aes-256-cbc", key, iv);
