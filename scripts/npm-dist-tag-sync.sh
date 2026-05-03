@@ -34,13 +34,20 @@ echo "[dist-tag-sync] BEFORE:"
 # Use npm dist-tag ls for authoritative fresh read (not cached like npm view)
 npm dist-tag ls "$PKG" 2>&1 || npm view "$PKG" dist-tags --json 2>&1 | python3 -m json.tool
 
-# Fetch all versions
+# Fetch all versions. Immediately after publish, `npm view versions` can lag
+# behind the just-published version even when npm publish succeeded, so include
+# the workflow-provided version as an authoritative candidate.
 ALL_VERSIONS=$(npm view "$PKG" versions --json 2>/dev/null)
+PUBLISHED_VERSION="${UNBROWSE_PUBLISHED_VERSION:-}"
 
 # Compute target preview (highest -preview.N) and latest (highest stable)
-TARGETS=$(echo "$ALL_VERSIONS" | python3 -c "
+TARGETS=$(echo "$ALL_VERSIONS" | PUBLISHED_VERSION="$PUBLISHED_VERSION" python3 -c "
 import sys, json, re
+import os
 versions = json.loads(sys.stdin.read())
+published = os.environ.get('PUBLISHED_VERSION', '').strip()
+if published and published not in versions:
+    versions.append(published)
 
 def parse(v):
     # 3.7.0-preview.3 -> (3,7,0,'preview',3)
