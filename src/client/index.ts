@@ -150,6 +150,7 @@ export interface UnbrowseConfig {
   user_id?: string;
   wallet_address?: string;
   wallet_provider?: string;
+  ignore_env_api_key?: boolean;
 }
 
 interface InstallTelemetryState {
@@ -454,9 +455,13 @@ export function getLocalWalletContext(): { wallet_address?: string; wallet_provi
 
 export function getApiKey(): string {
   if (LOCAL_ONLY) return "local-only";
+  const config = loadConfig();
+  if (config?.ignore_env_api_key && config.api_key) {
+    process.env.UNBROWSE_API_KEY = config.api_key;
+    return config.api_key;
+  }
   // Env var takes priority, then cached config
   if (process.env.UNBROWSE_API_KEY) return process.env.UNBROWSE_API_KEY;
-  const config = loadConfig();
   if (config?.api_key) {
     process.env.UNBROWSE_API_KEY = config.api_key;
     return config.api_key;
@@ -837,9 +842,22 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
   try {
     const wallet = getLocalWalletContext();
     const attribution = parseInstallAttribution();
-    const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...wallet, ...attribution }
-    );
+    let registeredWallet = wallet;
+    let registration: { agent_id: string; api_key: string };
+    try {
+      registration = await api<{ agent_id: string; api_key: string }>(
+        "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...wallet, ...attribution }
+      );
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+      if (!wallet.wallet_address || !msg.includes("wallet_already_claimed")) throw err;
+      console.warn("[unbrowse] Wallet is already claimed by another agent. Registering this CLI without a payout wallet; sign in by email or run `unbrowse register --email ... --reset` to recover that account.");
+      registeredWallet = {};
+      registration = await api<{ agent_id: string; api_key: string }>(
+        "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...attribution }
+      );
+    }
+    const { agent_id, api_key } = registration;
 
     process.env.UNBROWSE_API_KEY = api_key;
     saveConfig({
@@ -849,7 +867,8 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
       registered_at: new Date().toISOString(),
       tos_accepted_version: tosInfo.version,
       tos_accepted_at: new Date().toISOString(),
-      ...wallet,
+      ...(process.env.UNBROWSE_IGNORE_ENV_API_KEY === "1" ? { ignore_env_api_key: true } : {}),
+      ...registeredWallet,
     });
 
     await recordFunnelTelemetryEvent("registration_succeeded", {
