@@ -1319,6 +1319,8 @@ async function cmdCapture(flags: Record<string, string | boolean>): Promise<void
       ? { capture_pattern: "doc_only", capture_observation: "only the input URL was captured (1 GET, no XHR fired during the auto-capture window)" }
       : {}),
     ...(result.error ? { error: result.error } : {}),
+    ...(result.captured_meta ? { captured_meta: result.captured_meta } : {}),
+    ...(typeof result.capture_path === "string" ? { capture_path: result.capture_path } : {}),
     ...(result.prior_domain_note ? { prior_domain_note: result.prior_domain_note } : {}),
     ...(result.note_evidence ? { note_evidence: result.note_evidence } : {}),
   };

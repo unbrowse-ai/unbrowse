@@ -727,6 +727,8 @@ export async function registerRoutes(app: FastifyInstance) {
         trace: exec.trace,
         ...(inner.error ? { error: inner.error, error_message: inner.message } : {}),
         ...(inner.auth_recommended ? { auth_recommended: true, auth_hint: inner.auth_hint } : {}),
+        ...(inner.captured_meta ? { captured_meta: inner.captured_meta } : {}),
+        ...(typeof inner.seeded_from === "string" ? { capture_path: inner.seeded_from } : {}),
         ...(priorNoteBody ? { prior_domain_note: priorNoteBody } : {}),
         ...(noteEvidence ? { note_evidence: noteEvidence } : {}),
       });
