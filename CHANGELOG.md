@@ -10,6 +10,7 @@
 
 ### Bug Fixes
 
+* **marketplace:** retry refreshed credentials once and return browser fallback guidance for stale endpoints
 * **account:** keep reset recovery working when stale environment keys and claimed wallets are present
 
 ## [6.5.0-preview.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.9...v6.5.0-preview.10) (2026-05-03)

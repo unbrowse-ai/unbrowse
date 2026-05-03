@@ -69,6 +69,35 @@ function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   return trace;
 }
 
+function buildBrowserFallbackCommands(contextUrl: string, skill: SkillManifest): string[] {
+  const target = contextUrl || `https://${skill.domain}`;
+  return [
+    `unbrowse go "${target}"`,
+    "unbrowse snap --filter interactive",
+    "unbrowse text",
+    "unbrowse close",
+  ];
+}
+
+function staleEndpointResult(
+  status: number,
+  skill: SkillManifest,
+  endpoint: EndpointDescriptor,
+  contextUrl?: string,
+  message?: string,
+): Record<string, unknown> {
+  const target = contextUrl || endpoint.trigger_url || `https://${skill.domain}`;
+  return {
+    error: "stale_endpoint",
+    status_code: status,
+    skill_id: skill.skill_id,
+    endpoint_id: endpoint.endpoint_id,
+    message: message ?? `Endpoint ${endpoint.endpoint_id} returned HTTP ${status} after replay recovery. Treat this marketplace route as stale and use browser capture for this task.`,
+    next_step: `Use browser fallback: unbrowse go "${target}", inspect with snap/text, then close to checkpoint and publish a fresh route.`,
+    commands: buildBrowserFallbackCommands(target, skill),
+  };
+}
+
 const DEFAULT_BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
 
@@ -2460,10 +2489,10 @@ export async function executeEndpoint(
       }
     }
   }
-  const { status, trace_id } = result;
+  let { status, trace_id } = result;
   let data = result.data;
 
-  const trace: ExecutionTrace = stampTrace({
+  let trace: ExecutionTrace = stampTrace({
     trace_id,
     skill_id: skill.skill_id,
     endpoint_id: endpoint.endpoint_id,
@@ -2511,7 +2540,7 @@ export async function executeEndpoint(
       // 1. Lightweight session refresh via authRuntime
       const sessionRefreshed = await authRuntime.refreshSession(epDomain);
       if (sessionRefreshed) {
-        log("auth", `session refreshed via authRuntime for ${epDomain} — retry should succeed`);
+        log("auth", `session refreshed via authRuntime for ${epDomain} — retrying replay once`);
         authRecovered = true;
       }
 
@@ -2534,20 +2563,70 @@ export async function executeEndpoint(
       }
 
       if (authRecovered) {
-        trace.error = `${trace.error} (credentials refreshed — retry should succeed)`;
+        await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
+        const retry = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+        decisionTrace.push({ step: "auth_recovery_retry", status: retry.status });
+        result = retry;
+        status = retry.status;
+        trace_id = retry.trace_id;
+        data = retry.data;
+        trace = stampTrace({
+          trace_id,
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: status >= 200 && status < 300,
+          status_code: status,
+        });
+        (trace as ExecutionTrace & { decision_trace?: Array<Record<string, unknown>> }).decision_trace = decisionTrace;
+        if (trace.success) {
+          trace.result = data;
+        } else {
+          trace.error = `HTTP ${status}`;
+          data = staleEndpointResult(
+            status,
+            skill,
+            endpoint,
+            options?.contextUrl,
+            `Credentials were refreshed, but endpoint ${endpoint.endpoint_id} still returned HTTP ${status}. Treat this marketplace route as stale and use browser capture for this task.`,
+          );
+          trace.result = data;
+        }
       } else {
         // No recovery path worked — delete stale credentials
         if (skill.auth_profile_ref) {
           await deleteCredential(skill.auth_profile_ref);
         }
         trace.error = `${trace.error} (stale credentials — re-authenticate via /v1/auth/login)`;
+        data = staleEndpointResult(
+          status,
+          skill,
+          endpoint,
+          options?.contextUrl,
+          `Endpoint ${endpoint.endpoint_id} returned HTTP ${status}, and credential recovery did not produce a usable session.`,
+        );
+        trace.result = data;
       }
     } catch {
       if (skill.auth_profile_ref) {
         await deleteCredential(skill.auth_profile_ref);
       }
       trace.error = `${trace.error} (stale credential deleted)`;
+      data = staleEndpointResult(
+        status,
+        skill,
+        endpoint,
+        options?.contextUrl,
+        `Endpoint ${endpoint.endpoint_id} returned HTTP ${status}; credential recovery failed and stale credentials were cleared.`,
+      );
+      trace.result = data;
     }
+  }
+
+  if (!trace.success && (status === 404 || status === 429 || status >= 500)) {
+    data = staleEndpointResult(status, skill, endpoint, options?.contextUrl);
+    trace.result = data;
   }
 
   // Schema drift detection on re-execution
