@@ -756,6 +756,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     const limitFlag = flags.limit ? Number(flags.limit) : undefined;
     const schemaFlag = !!flags.schema;
     const rawFlag = !!flags.raw;
+    const resultError = resolveResultError(result);
     // --schema: show response structure without data
     if (schemaFlag && !rawFlag) {
       const data = result.result;
@@ -769,7 +770,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     }
 
     // Apply --path, --extract, --limit when not --raw
-    if (!rawFlag && (pathFlag || extractFlag || limitFlag)) {
+    if (!rawFlag && !resultError && (pathFlag || extractFlag || limitFlag)) {
       const data = pathFlag ? drillPath(result.result, pathFlag) : result.result;
 
       // Ensure array for extract/limit

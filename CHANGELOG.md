@@ -16,6 +16,7 @@
 
 ### Bug Fixes
 
+* **cli:** preserve stale endpoint errors when projection flags are present
 * **marketplace:** retry refreshed credentials once and return browser fallback guidance for stale endpoints
 * **account:** keep reset recovery working when stale environment keys and claimed wallets are present
 
