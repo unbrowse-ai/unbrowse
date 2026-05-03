@@ -855,7 +855,24 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
         /\/async[-_]/i.test(urlPath) ||
         /[-_](state|data|feed|timeline|search|list|results)(\?|$|\/)/i.test(urlPath) ||
         /\.(json)(\?|$)/.test(req.url) ||
-        bodyIsGraphql;
+        bodyIsGraphql ||
+        // Structural signal: parameterized fetch under a nested path with no
+        // file extension is overwhelmingly an SSR widget / fragment endpoint
+        // (GitHub /dashboard/my_top_repositories?location=left, Salesforce
+        // /lightning/r/<obj>?relatedListView=..., Hubspot /partials/...).
+        // Three requirements together — any one alone is too noisy:
+        //   1. has a query string (parameterized)
+        //   2. path has no .ext at the end (not a static asset)
+        //   3. path has >=2 non-empty segments (nested, not top-level page)
+        ((() => {
+          try {
+            const u = new URL(req.url);
+            if (!u.search) return false;
+            if (/\.[a-z0-9]{1,5}$/i.test(u.pathname)) return false;
+            const segments = u.pathname.split("/").filter(Boolean);
+            return segments.length >= 2;
+          } catch { return false; }
+        })());
 
       // For GraphQL: extract operationName from request body or URL.
       // Try the body-shape path even when URL doesn't match — Facebook persisted
