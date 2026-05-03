@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **account:** add forced local API key reset for broken registrations
+
 ## [6.5.0-preview.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.8...v6.5.0-preview.9) (2026-05-03)
 
 ### Bug Fixes

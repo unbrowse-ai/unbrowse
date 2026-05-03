@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { isValidAgentEmail, normalizeAgentEmail, resolveAgentName } from "../src/client/index.js";
+import { isValidAgentEmail, normalizeAgentEmail, resetLocalRegistration, resolveAgentName } from "../src/client/index.js";
 
 const ORIGINAL_ENV = { ...process.env };
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -46,6 +46,24 @@ afterEach(() => {
 });
 
 describe("client registration recovery", () => {
+  it("force-resets the local registration cache", () => {
+    const configDir = makeConfigDirWithConfig({
+      api_key: "broken-key",
+      agent_id: "broken-agent",
+      agent_name: "broken-agent",
+      registered_at: "2026-03-13T00:00:00.000Z",
+      tos_accepted_version: "2026-02-22-v1",
+      tos_accepted_at: "2026-03-13T00:00:00.000Z",
+    });
+    process.env.UNBROWSE_CONFIG_DIR = configDir;
+
+    const result = resetLocalRegistration();
+
+    expect(result.removed).toBe(true);
+    expect(result.config_path).toBe(join(configDir, "config.json"));
+    expect(() => readFileSync(join(configDir, "config.json"), "utf8")).toThrow();
+  });
+
   it("falls back to saved config when UNBROWSE_API_KEY is stale", async () => {
     const configDir = makeConfigDirWithConfig({
       api_key: "config-key",
