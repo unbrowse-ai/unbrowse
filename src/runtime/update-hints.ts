@@ -252,7 +252,7 @@ function ensureCodexHooksFeature(content: string): string {
 
 function repairManagedCodexHookTable(content: string): string {
   const marker = CODEX_MARKER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return content.replace(new RegExp(`(${marker}\\r?\\n)\\[\\[?hooks\\]?\\]?(?=\\r?\\n)`, "g"), "$1[[hooks]]");
+  return content.replace(new RegExp(`(${marker}\\r?\\n)\\[\\[?hooks\\]?\\]?(?=\\r?\\n)`, "g"), "$1[hooks]");
 }
 
 function writeCodexHook(metaUrl: string): UpdateHookStatus {
@@ -272,7 +272,7 @@ function writeCodexHook(metaUrl: string): UpdateHookStatus {
     if (!content.includes("unbrowse-update-hint.mjs")) {
       const command = `node "${hookScript}"`;
       const prefix = content && !content.endsWith("\n") ? "\n" : "";
-      content += `${prefix}${CODEX_MARKER}\n[[hooks]]\nevent = "SessionStart"\ncommand = ${JSON.stringify(command)}\n`;
+      content += `${prefix}${CODEX_MARKER}\n[hooks]\nevent = "SessionStart"\ncommand = ${JSON.stringify(command)}\n`;
     }
 
     if (content !== previous) {
