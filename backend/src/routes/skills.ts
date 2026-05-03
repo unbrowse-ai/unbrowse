@@ -15,6 +15,8 @@ import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 
+type SkillRouteEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
+
 function schedule(c: Context, task: Promise<unknown>): void {
   try {
     (c as Context & { executionCtx: ExecutionContext }).executionCtx.waitUntil(task);
@@ -24,7 +26,7 @@ function schedule(c: Context, task: Promise<unknown>): void {
 }
 
 // Public read routes -- auth required for list, rate-limited
-export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
+export const publicSkillRoutes = new Hono<SkillRouteEnv>();
 
 // Skills list: card view is public (trimmed payload, edge-cached, safe for homepage).
 // Full list still requires auth to prevent unauthenticated 30MB dumps.
@@ -32,7 +34,9 @@ publicSkillRoutes.use("/skills", async (c, next) => {
   if (c.req.query("view") === "card") {
     return rateLimit({ limit: 120, window: 60, prefix: "skills-card" })(c, next);
   }
-  return bearerAuth(c, async () => rateLimit({ limit: 60, window: 60, prefix: "skills-list" })(c, next));
+  return bearerAuth(c, async () => {
+    await rateLimit({ limit: 60, window: 60, prefix: "skills-list" })(c, next);
+  });
 });
 
 // GET /v1/skills -- list all

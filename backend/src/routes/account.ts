@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { getUserById, listKeysForUser, getAccountPreferences, setAccountPreferences } from "../services/accounts.js";
@@ -10,7 +10,7 @@ export const accountRoutes = new Hono<AccountEnv>();
 
 accountRoutes.use("/account/*", bearerAuth);
 
-function accountRequired(c: Parameters<Parameters<typeof accountRoutes.get>[1]>[0]) {
+function accountRequired(c: Context<AccountEnv>) {
   return c.json({
     error: "account_required",
     message: "This endpoint requires an account-bound API key. Run `unbrowse register --email …`.",
