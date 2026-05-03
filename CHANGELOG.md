@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.5.0-preview.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.8...v6.5.0-preview.9) (2026-05-03)
+
+### Bug Fixes
+
+* **setup:** write codex hook table correctly ([9b7a6f6](https://github.com/unbrowse-ai/unbrowse-dev/commit/9b7a6f6d702e37e40793c048cf55502e9acfcfc0))
+* **vault:** restore random key generation, add auth extraction traces ([e22083c](https://github.com/unbrowse-ai/unbrowse-dev/commit/e22083c24bc72eb0eb8047c14c970faea0ec2152))
+
 ## Unreleased
 
 ### Bug Fixes
