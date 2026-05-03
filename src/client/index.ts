@@ -181,6 +181,17 @@ export function loadConfig(): UnbrowseConfig | null {
   return null;
 }
 
+export function resetLocalRegistration(): { removed: boolean; config_path: string } {
+  const configPath = getConfigPath();
+  try {
+    if (!existsSync(configPath)) return { removed: false, config_path: configPath };
+    unlinkSync(configPath);
+    return { removed: true, config_path: configPath };
+  } catch {
+    return { removed: false, config_path: configPath };
+  }
+}
+
 export function saveConfig(config: UnbrowseConfig): void {
   const configDir = getConfigDir();
   const configPath = getConfigPath();

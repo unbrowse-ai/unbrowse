@@ -26,6 +26,7 @@ import {
   pushAccountPreferences,
   recordFunnelTelemetryEvent,
   recordInstallTelemetryEvent,
+  resetLocalRegistration,
   saveConfig,
 } from "./client/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
@@ -1303,6 +1304,15 @@ async function refreshContributionPreferenceFromServer(verbose = false): Promise
 }
 
 async function cmdAccount(flags: Record<string, string | boolean>): Promise<void> {
+  if (flags["reset-key"]) {
+    await cmdRegister({
+      reset: true,
+      email: typeof flags.email === "string" ? flags.email : undefined,
+      "no-prompt": flags["no-prompt"],
+    });
+    return;
+  }
+
   await refreshContributionPreferenceFromServer(false);
   const cfg = loadConfig();
   const contribution = getContributionConfig();
@@ -1515,8 +1525,8 @@ export const CLI_REFERENCE = {
     { name: "earnings", usage: "[--json]", desc: "Show your credit balance, earnings from indexing, and spending" },
     { name: "corpus-test", usage: "--url <url> [--id <id>] [--retries N]", desc: "Capture a single URL with retry logic; keeps best result across N attempts" },
     { name: "corpus-run", usage: "--corpus <file> --out <file> [--retries N]", desc: "Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot" },
-    { name: "register", usage: "[--email lewis@example.com] [--no-prompt]", desc: "Register an API key. With --email, sends a magic link via Resend; otherwise creates an anonymous key." },
-    { name: "account", usage: "[--json] [--pretty]", desc: "Show local account, dashboard link, wallet, and contribution mode" },
+    { name: "register", usage: "[--email lewis@example.com] [--reset] [--no-prompt]", desc: "Register an API key. With --reset, discard the local cached key first; with --email, mint an account-bound key." },
+    { name: "account", usage: "[--json] [--pretty] [--reset-key] [--email lewis@example.com]", desc: "Show local account, dashboard link, wallet, and contribution mode; --reset-key forces local key reset." },
     { name: "dashboard", usage: "[--no-open] [--pretty]", desc: "Open the website dashboard and pair it to this CLI install through localhost" },
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
     { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
@@ -2255,9 +2265,24 @@ async function cmdClose(flags: Record<string, string | boolean>): Promise<void> 
 // ---------------------------------------------------------------------------
 
 async function cmdRegister(flags: Record<string, unknown>) {
+  const reset = flags.reset === true || flags.force === true || flags["reset-key"] === true;
+  const previousConfig = reset ? loadConfig() : null;
+  if (reset) {
+    const envKey = process.env.UNBROWSE_API_KEY?.trim();
+    const result = resetLocalRegistration();
+    delete process.env.UNBROWSE_API_KEY;
+    info(`${result.removed ? "Removed" : "No"} local API key cache at ${result.config_path}.`);
+    if (envKey) {
+      info("Ignoring UNBROWSE_API_KEY for this reset run. Remove or update that env var in your shell, or it will override the saved key next time.");
+    }
+    if (typeof flags.email !== "string" && previousConfig?.email) {
+      flags.email = previousConfig.email;
+    }
+  }
+
   if (typeof flags.email === "string" && flags.email.length > 0) {
     const email = flags.email;
-    if (getApiKey()) {
+    if (!reset && getApiKey()) {
       info("Already registered. Re-running with --email will mint a new key and overwrite ~/.unbrowse/config.json.");
     }
     info(`Sending magic link to ${email}…`);
@@ -2302,7 +2327,7 @@ async function cmdRegister(flags: Record<string, unknown>) {
     } catch { /* best-effort */ }
     return;
   }
-  if (getApiKey()) {
+  if (!reset && getApiKey()) {
     info("Already registered. API key loaded from env or ~/.unbrowse/config.json");
     return;
   }
