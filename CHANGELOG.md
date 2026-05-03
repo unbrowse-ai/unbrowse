@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.5...v6.5.0-preview.6) (2026-05-03)
+
+### Bug Fixes
+
+* **release:** bake Kuri 0.16 vendor binaries ([83f6cbd](https://github.com/unbrowse-ai/unbrowse-dev/commit/83f6cbd3cc34ef6bc43c282f28a83a9401b1a313))
+
 ## [6.5.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.4...v6.5.0-preview.5) (2026-05-03)
 
 ## [6.5.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.3...v6.5.0-preview.4) (2026-05-03)
