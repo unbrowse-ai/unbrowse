@@ -66,6 +66,7 @@ fi
 HOME="$TMP_HOME" XDG_CONFIG_HOME="$TMP_HOME/.config" \
   PORT="$PORT" UNBROWSE_PID_FILE="$PID_FILE" \
   UNBROWSE_DISABLE_AUTO_UPDATE=1 UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 \
+  UNBROWSE_BROWSE_LIVENESS_DEBUG=1 \
   bun "$RUNTIME_ENTRY" >/tmp/unbrowse-packaged-cli-server.log 2>&1 &
 SERVER_PID=$!
 sleep 2
@@ -125,6 +126,8 @@ if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
   if grep -q '"error"' /tmp/unbrowse-packaged-cli-eval.json; then
     echo "[packaged-cli-smoke] FAIL: eval returned error after go success — tab likely not navigated" >&2
     cat /tmp/unbrowse-packaged-cli-eval.json >&2
+    echo "[packaged-cli-smoke] --- server log (browse-liveness diagnostics) ---" >&2
+    grep -E "browse-liveness|session_expired|tab_not_in_discover" /tmp/unbrowse-packaged-cli-server.log >&2 || tail -100 /tmp/unbrowse-packaged-cli-server.log >&2
     exit 1
   fi
 

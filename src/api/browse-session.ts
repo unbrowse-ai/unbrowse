@@ -290,13 +290,30 @@ export async function isBrowseSessionLive(
   session: BrowseSession,
   client: BrowseSessionClient,
 ): Promise<boolean> {
-  if (!session.tabId) return false;
+  const dbg = (reason: string, extra: Record<string, unknown> = {}): void => {
+    if (!process.env.UNBROWSE_BROWSE_LIVENESS_DEBUG) return;
+    console.warn("[browse-liveness] not live", JSON.stringify({
+      session_id: session.sessionId,
+      tab_id: session.tabId,
+      url: session.url,
+      reason,
+      ...extra,
+    }));
+  };
+
+  if (!session.tabId) {
+    dbg("no_tab_id");
+    return false;
+  }
   const sessionClient = resolveSessionClient(session, client);
 
   try {
     await sessionClient.start();
   } catch (error) {
-    if (isRecoverableBrowseFailure(error)) return false;
+    if (isRecoverableBrowseFailure(error)) {
+      dbg("session_client_start_recoverable", { error: String((error as Error)?.message ?? error) });
+      return false;
+    }
     throw error;
   }
 
@@ -309,6 +326,11 @@ export async function isBrowseSessionLive(
           await sleep(LIVE_CHECK_RETRY_DELAY_MS);
           continue;
         }
+        dbg("tab_not_in_discover", {
+          attempt,
+          discovered_tab_ids: tabs.map((t) => t.id),
+          discovered_tab_count: tabs.length,
+        });
         return false;
       }
       session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
@@ -339,7 +361,10 @@ export async function isBrowseSessionLive(
           return true;
         }
       } catch (error) {
-        if (!isRecoverableBrowseFailure(error)) return false;
+        if (!isRecoverableBrowseFailure(error)) {
+          dbg("get_current_url_unrecoverable", { error: String((error as Error)?.message ?? error) });
+          return false;
+        }
       }
 
       if (hasMeaningfulBrowseUrl(session.url) || hasMeaningfulBrowseUrl(exactTab.url)) {
@@ -350,12 +375,16 @@ export async function isBrowseSessionLive(
         return true;
       }
     } catch (error) {
-      if (!isRecoverableBrowseFailure(error)) return false;
+      if (!isRecoverableBrowseFailure(error)) {
+        dbg("loop_unrecoverable", { error: String((error as Error)?.message ?? error) });
+        return false;
+      }
     }
 
     if (attempt < LIVE_CHECK_RETRIES - 1) await sleep(LIVE_CHECK_RETRY_DELAY_MS);
   }
 
+  dbg("retries_exhausted_url_check_failed");
   return false;
 }
 
@@ -498,9 +527,23 @@ export async function withSerializedRecoveredBrowseSession<T>(
   run: (session: BrowseSession) => Promise<T>,
   shouldReset?: (result: T) => boolean,
 ): Promise<{ session: BrowseSession; result: T; recovered: boolean }> {
-  const resolved = await resolveRequestedBrowseSession(sessions, client, requestedSessionId);
-  return withSessionQueue(resolved.sessionId, async () => {
-    let session = sessions.get(resolved.sessionId);
+  // Recovery path: don't pre-liveness-check. The strict resolve removes the
+  // session on failure, which strips the recovery wrapper's ability to reset.
+  // Look up by id (or auto-pick), then let run() fail recoverably so reset
+  // can swap in a fresh tab.
+  let resolvedId: string;
+  if (requestedSessionId) {
+    if (!sessions.has(requestedSessionId)) {
+      throw new BrowseSessionError("session_not_found");
+    }
+    resolvedId = requestedSessionId;
+  } else {
+    const resolved = await resolveRequestedBrowseSession(sessions, client, undefined);
+    resolvedId = resolved.sessionId;
+  }
+
+  return withSessionQueue(resolvedId, async () => {
+    let session = sessions.get(resolvedId);
     if (!session) throw new BrowseSessionError("session_expired");
     const sessionClient = resolveSessionClient(session, client);
 
@@ -513,7 +556,7 @@ export async function withSerializedRecoveredBrowseSession<T>(
       if (!isRecoverableBrowseFailure(error)) throw error;
     }
 
-    session = await resetBrowseSession(sessions, sessionClient, injectInterceptor, resolved.sessionId);
+    session = await resetBrowseSession(sessions, sessionClient, injectInterceptor, resolvedId);
     const result = await run(session);
     return { session, result, recovered: true };
   });
