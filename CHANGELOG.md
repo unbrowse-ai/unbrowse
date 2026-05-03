@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.3...v6.5.0-preview.4) (2026-05-03)
+
+### Bug Fixes
+
+* **release:** restore generated build-info before clean-tree check ([db981f0](https://github.com/unbrowse-ai/unbrowse-dev/commit/db981f0c91ea8d651de5d6535137f5483097f3c5))
+
 ## [6.5.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.1...v6.5.0-preview.2) (2026-05-03)
 
 ## [6.5.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.0...v6.5.0-preview.1) (2026-05-03)
