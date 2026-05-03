@@ -419,6 +419,26 @@ export function extractBrowserCookies(
   // Fall back to Chrome
   const chrome = extractFromChrome(domain, { profile: opts?.chromeProfile });
   chrome.warnings.push(...ff.warnings);
+  if (chrome.cookies.length > 0) return chrome;
+
+  // Chrome had nothing — sweep all chromium-family browsers (Arc, Brave, Edge,
+  // Dia, Vivaldi, Opera, Chromium) and pick the one with the most session
+  // (httpOnly+secure) cookies. Lets daily-driver browsers other than Chrome
+  // contribute logged-in state without explicit configuration.
+  const sessions = scanAllBrowserSessions(domain);
+  const best = sessions
+    .filter((s) => s.browser !== "Firefox" && s.browser !== "Chrome")
+    .sort((a, b) => b.sessionCookies - a.sessionCookies)[0];
+  if (best) {
+    return {
+      cookies: best.cookies,
+      source: best.source,
+      warnings: [
+        ...chrome.warnings,
+        `Chrome had no cookies for ${domain}; using ${best.browser} (${best.sessionCookies} session cookies)`,
+      ],
+    };
+  }
   return chrome;
 }
 
