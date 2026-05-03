@@ -1,5 +1,19 @@
 # Changelog
 
+## [6.5.0-preview.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.7...v6.5.0-preview.8) (2026-05-03)
+
+### Features
+
+* pair cli dashboard login ([fec94e9](https://github.com/unbrowse-ai/unbrowse-dev/commit/fec94e95cf9e3e2e16ed35ea6d328243bad3da4d))
+
+### Bug Fixes
+
+* keep preview dist-tag on current release ([adc2d59](https://github.com/unbrowse-ai/unbrowse-dev/commit/adc2d599c504e15f6707824793f038d9672b07ae))
+
+### Performance
+
+* **vault:** cache key + file reads, deterministic key derivation ([77874fc](https://github.com/unbrowse-ai/unbrowse-dev/commit/77874fc92ff0a5920926585629088dd94dc19285))
+
 ## [6.5.0-preview.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.6...v6.5.0-preview.7) (2026-05-03)
 
 ### Bug Fixes
