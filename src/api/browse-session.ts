@@ -322,14 +322,23 @@ export async function isBrowseSessionLive(
       const tabs = await sessionClient.discoverTabs();
       const exactTab = tabs.find((tab) => tab.id === session.tabId);
       if (!exactTab) {
+        // Distinguish empty-registry (kuri/Chrome disconnect, sometimes
+        // recoverable on cold Linux runners) from tab-missing (our specific
+        // tab is dead, not recoverable from here). On empty-registry, try
+        // restarting the session client before giving up.
+        const emptyRegistry = tabs.length === 0;
+        if (emptyRegistry && attempt < LIVE_CHECK_RETRIES - 1) {
+          try { await sessionClient.start(); } catch { /* ignore */ }
+        }
         if (attempt < LIVE_CHECK_RETRIES - 1) {
-          await sleep(LIVE_CHECK_RETRY_DELAY_MS);
+          await sleep(emptyRegistry ? LIVE_CHECK_RETRY_DELAY_MS * 5 : LIVE_CHECK_RETRY_DELAY_MS);
           continue;
         }
         dbg("tab_not_in_discover", {
           attempt,
           discovered_tab_ids: tabs.map((t) => t.id),
           discovered_tab_count: tabs.length,
+          empty_registry: emptyRegistry,
         });
         return false;
       }
