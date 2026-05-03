@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.5.0-preview.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.13...v6.5.0-preview.14) (2026-05-03)
+
+### Features
+
+* **db:** shift backend storage to Neon Postgres via Drizzle ([a8391c5](https://github.com/unbrowse-ai/unbrowse-dev/commit/a8391c556fee4bc6c41189c011fe5cf2f17f0ecf))
+
+### Bug Fixes
+
+* **browse:** recovery wrapper no longer pre-strips sessions on liveness fail ([dccdc04](https://github.com/unbrowse-ai/unbrowse-dev/commit/dccdc04d289cb86c870b1db373840e9f0085d01f))
+* **harness:** strip logs before parsing browse_go and quote eval JS safely ([e7209b7](https://github.com/unbrowse-ai/unbrowse-dev/commit/e7209b7537b25d987edba74c8bb0282d06f85366))
+
 ## Unreleased
 
 ### Features
