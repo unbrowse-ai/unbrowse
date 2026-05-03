@@ -1,1 +1,38 @@
-version: '3'
+name: unbrowse-local
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: unbrowse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-unbrowse}
+      POSTGRES_USER: ${POSTGRES_USER:-unbrowse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unbrowse_dev_password}
+    ports:
+      - "${UNBROWSE_POSTGRES_BIND:-127.0.0.1}:${UNBROWSE_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - unbrowse-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-migrate:
+    image: oven/bun:1.3.1
+    profiles: ["migrate"]
+    working_dir: /workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-unbrowse}:${POSTGRES_PASSWORD:-unbrowse_dev_password}@postgres:5432/${POSTGRES_DB:-unbrowse}
+    volumes:
+      - .:/workspace
+      - unbrowse-bun-modules:/workspace/node_modules
+    command: ["bash", "-lc", "bun install --frozen-lockfile && bun run db:migrate"]
+
+volumes:
+  unbrowse-postgres-data:
+  unbrowse-bun-modules:

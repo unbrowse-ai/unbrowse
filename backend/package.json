@@ -12,8 +12,10 @@
     "@neondatabase/serverless": "^1.0.2",
     "@solana-program/token": "^0.13.0",
     "@solana/kit": "^6.7.0",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.7.0",
-    "nanoid": "^5.1.6"
+    "nanoid": "^5.1.6",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241230.0",

@@ -91,6 +91,7 @@ tmp/
 .codex/
 codedb.snapshot
 .kuri/
+.neon
 submodules/foundry/
 
 # bench artifacts (session-local)

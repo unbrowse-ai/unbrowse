@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **db:** add Drizzle-managed local Postgres schema for KV, graph edges, and endpoint embeddings
+* **backend:** expose the active marketplace storage backend in health checks
+
 ## [6.5.0-preview.13](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.12...v6.5.0-preview.13) (2026-05-03)
 
 ### Bug Fixes
