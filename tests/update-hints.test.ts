@@ -2,10 +2,11 @@ import { afterEach, describe, expect, it, mock } from "bun:test";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildUpgradeCommand, checkForUpdates, saveInstallSource } from "../src/runtime/update-hints.js";
+import { buildUpgradeCommand, checkForUpdates, configureUpdateHintHooks, saveInstallSource } from "../src/runtime/update-hints.js";
 
 const tmpDirs: string[] = [];
 const originalHome = process.env.HOME;
+const originalCodexHome = process.env.CODEX_HOME;
 const originalConfigDir = process.env.UNBROWSE_CONFIG_DIR;
 const originalSetupMethod = process.env.UNBROWSE_SETUP_METHOD;
 const originalSetupHost = process.env.UNBROWSE_SETUP_HOST;
@@ -15,6 +16,8 @@ const originalFetch = global.fetch;
 afterEach(() => {
   if (originalHome === undefined) delete process.env.HOME;
   else process.env.HOME = originalHome;
+  if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+  else process.env.CODEX_HOME = originalCodexHome;
   if (originalConfigDir === undefined) delete process.env.UNBROWSE_CONFIG_DIR;
   else process.env.UNBROWSE_CONFIG_DIR = originalConfigDir;
   if (originalSetupMethod === undefined) delete process.env.UNBROWSE_SETUP_METHOD;
@@ -73,5 +76,41 @@ describe("update hints", () => {
     expect(result.has_update).toBe(true);
     expect(result.latest).toBe("9.9.9");
     expect(result.command).toBe("curl -fsSL https://unbrowse.ai/install.sh | bash");
+  });
+
+  it("repairs malformed Codex hook tables created by setup", () => {
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-codex-hooks-"));
+    tmpDirs.push(homeDir);
+    const codexHome = path.join(homeDir, ".codex");
+    mkdirSync(codexHome, { recursive: true });
+    process.env.HOME = homeDir;
+    process.env.CODEX_HOME = codexHome;
+    process.env.UNBROWSE_CONFIG_DIR = path.join(homeDir, ".unbrowse");
+    process.env.UNBROWSE_SETUP_HOST = "codex";
+
+    const configPath = path.join(codexHome, "config.toml");
+    writeFileSync(configPath, [
+      "[features]",
+      "codex_hooks = true",
+      "",
+      "# Unbrowse update hints — managed by unbrowse setup",
+      "[hooks]",
+      "event = \"SessionStart\"",
+      "command = \"node \\\"/tmp/unbrowse-update-hint.mjs\\\"\"",
+      "",
+    ].join("\n"), "utf8");
+
+    const [status] = configureUpdateHintHooks(import.meta.url, {
+      method: "repo-clone",
+      host: "codex",
+      package_root: path.dirname(import.meta.path),
+      recorded_at: new Date().toISOString(),
+    });
+
+    expect(status.action).toBe("updated");
+    const config = readFileSync(configPath, "utf8");
+    expect(config).toContain("# Unbrowse update hints — managed by unbrowse setup\n[[hooks]]\n");
+    expect(config).not.toContain("\n[hooks]\nevent = \"SessionStart\"");
+    expect(config).not.toContain("\n[[hooks]\n");
   });
 });

@@ -250,6 +250,11 @@ function ensureCodexHooksFeature(content: string): string {
   return `${content}${prefix}[features]\ncodex_hooks = true\n`;
 }
 
+function repairManagedCodexHookTable(content: string): string {
+  const marker = CODEX_MARKER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return content.replace(new RegExp(`(${marker}\\r?\\n)\\[\\[?hooks\\]?\\]?(?=\\r?\\n)`, "g"), "$1[[hooks]]");
+}
+
 function writeCodexHook(metaUrl: string): UpdateHookStatus {
   const configPath = getCodexConfigPath();
   if (!existsSync(path.dirname(configPath))) {
@@ -262,6 +267,7 @@ function writeCodexHook(metaUrl: string): UpdateHookStatus {
     let content = fileExistsBefore ? readFileSync(configPath, "utf8") : "";
     const previous = content;
     content = ensureCodexHooksFeature(content);
+    content = repairManagedCodexHookTable(content);
 
     if (!content.includes("unbrowse-update-hint.mjs")) {
       const command = `node "${hookScript}"`;
