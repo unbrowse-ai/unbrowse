@@ -416,30 +416,91 @@ export function extractBrowserCookies(
     return chromium;
   }
 
-  // Fall back to Chrome
-  const chrome = extractFromChrome(domain, { profile: opts?.chromeProfile });
-  chrome.warnings.push(...ff.warnings);
-  if (chrome.cookies.length > 0) return chrome;
-
-  // Chrome had nothing — sweep all chromium-family browsers (Arc, Brave, Edge,
-  // Dia, Vivaldi, Opera, Chromium) and pick the one with the most session
-  // (httpOnly+secure) cookies. Lets daily-driver browsers other than Chrome
-  // contribute logged-in state without explicit configuration.
-  const sessions = scanAllBrowserSessions(domain);
-  const best = sessions
-    .filter((s) => s.browser !== "Firefox" && s.browser !== "Chrome")
-    .sort((a, b) => b.sessionCookies - a.sessionCookies)[0];
-  if (best) {
-    return {
-      cookies: best.cookies,
-      source: best.source,
-      warnings: [
-        ...chrome.warnings,
-        `Chrome had no cookies for ${domain}; using ${best.browser} (${best.sessionCookies} session cookies)`,
-      ],
-    };
+  // Liveness-ranked walk: try chromium browsers in order of how much the user
+  // actually uses them (recent visits + bookmark count). The daily driver
+  // wins, even if Chrome is dormant. Stops at the first browser with cookies
+  // for this domain.
+  const ranked = rankBrowsersByLiveness();
+  for (const browser of ranked) {
+    const result = extractFromChromium(domain, {
+      userDataDir: browser.userDataDir,
+      browserName: browser.name,
+    });
+    if (result.cookies.length > 0) {
+      result.warnings.push(...ff.warnings);
+      if (browser.name !== "Chrome") {
+        result.warnings.push(`liveness rank picked ${browser.name} (score=${browser.score})`);
+      }
+      return result;
+    }
   }
-  return chrome;
+  return { cookies: [], source: null, warnings: [...ff.warnings, "no chromium browser had cookies for this domain"] };
+}
+
+interface BrowserLiveness {
+  name: string;
+  userDataDir: string;
+  score: number;
+  recentVisits: number;
+  bookmarks: number;
+}
+
+let _livenessCache: BrowserLiveness[] | null = null;
+
+/** Sort all installed chromium browsers by how much the user actually uses them. */
+function rankBrowsersByLiveness(): BrowserLiveness[] {
+  if (_livenessCache) return _livenessCache;
+  const home = homedir();
+  const out: BrowserLiveness[] = [];
+  for (const browser of CHROMIUM_BROWSERS) {
+    const userDataDir = platform() === "darwin"
+      ? join(home, "Library", "Application Support", browser.macPath)
+      : platform() === "win32"
+        ? join(process.env.LOCALAPPDATA ?? join(home, "AppData", "Local"), browser.macPath, "User Data")
+        : join(home, ".config", browser.macPath.toLowerCase());
+    if (!existsSync(userDataDir)) continue;
+    const recentVisits = countRecentVisits(userDataDir);
+    const bookmarks = countBookmarks(userDataDir);
+    // 30-day visits dominate; bookmarks are a small tiebreaker. Both are
+    // structural signals from the user's actual usage — no per-host logic.
+    const score = recentVisits + bookmarks;
+    if (score > 0) out.push({ name: browser.name, userDataDir, score, recentVisits, bookmarks });
+  }
+  _livenessCache = out.sort((a, b) => b.score - a.score);
+  return _livenessCache;
+}
+
+function countRecentVisits(userDataDir: string): number {
+  const historyPath = join(userDataDir, "Default", "History");
+  if (!existsSync(historyPath)) return 0;
+  const tmp = mkdtempSync(join(tmpdir(), "ub-hist-"));
+  try {
+    const copy = join(tmp, "History");
+    copyFileSync(historyPath, copy);
+    // Chrome stores last_visit_time as microseconds since 1601-01-01.
+    // Cutoff = now - 30 days.
+    const cutoff = (Date.now() / 1000 - 30 * 86400 + 11644473600) * 1_000_000;
+    const out = execFileSync("sqlite3", [copy, `SELECT COUNT(*) FROM urls WHERE last_visit_time > ${Math.floor(cutoff)}`], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] });
+    return parseInt(out.trim(), 10) || 0;
+  } catch {
+    return 0;
+  } finally {
+    try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
+}
+
+function countBookmarks(userDataDir: string): number {
+  const bookmarksPath = join(userDataDir, "Default", "Bookmarks");
+  if (!existsSync(bookmarksPath)) return 0;
+  try {
+    const raw = require("node:fs").readFileSync(bookmarksPath, "utf-8");
+    // Cheap structural count — every "type": "url" entry is one bookmark.
+    // Avoids parsing the full nested JSON tree.
+    const matches = raw.match(/"type"\s*:\s*"url"/g);
+    return matches ? matches.length : 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ---------------------------------------------------------------------------
