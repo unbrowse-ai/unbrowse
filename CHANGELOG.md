@@ -5,6 +5,11 @@
 ### Bug Fixes
 
 * **release:** keep npm preview dist-tag on just-published previews
+* **accounts:** return key-backed agent ids from magic-link login
+* **accounts:** keep CLI magic-link verification separate from web dashboard sign-in
+* **accounts:** pair the website dashboard to local CLI installs through a short-lived localhost token
+* **dashboard:** use the economics dashboard read model for signed-in users
+* **setup:** make fresh non-interactive onboarding quieter and honest about misses
 * repair codex update hook setup ([f977a27](https://github.com/unbrowse-ai/unbrowse-dev/commit/f977a278d0baa3798eab6a981d436432bf164460))
 
 ## [6.5.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.5...v6.5.0-preview.6) (2026-05-03)

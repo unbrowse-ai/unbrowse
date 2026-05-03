@@ -27,7 +27,7 @@ import {
   loadAuthProfileBestEffort,
   saveAuthProfileBestEffort,
 } from "../auth/index.js";
-import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
+import { consumeDashboardPairingToken, recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
 import { attachAgentOutcomeHints } from "../agent-outcome.js";
@@ -518,6 +518,31 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/v1/settings", async (_req, reply) => {
     return reply.send({
       capture_pipeline: getCapturePipelineSettings(),
+    });
+  });
+
+  app.options("/v1/local/pair", async (_req, reply) => {
+    return reply
+      .header("Access-Control-Allow-Origin", "*")
+      .header("Access-Control-Allow-Methods", "GET, OPTIONS")
+      .header("Access-Control-Allow-Headers", "Content-Type")
+      .send();
+  });
+
+  app.get("/v1/local/pair", async (req, reply) => {
+    const query = req.query as { token?: string };
+    const paired = consumeDashboardPairingToken(String(query.token ?? ""));
+    reply.header("Access-Control-Allow-Origin", "*");
+    if (!paired) {
+      return reply.code(404).send({ error: "pairing_not_found_or_expired" });
+    }
+    return reply.send({
+      api_key: paired.config.api_key,
+      agent_id: paired.config.agent_id,
+      agent_name: paired.config.agent_name,
+      email: paired.config.email ?? paired.config.agent_name,
+      user_id: paired.config.user_id ?? null,
+      expires_at: paired.expires_at,
     });
   });
 

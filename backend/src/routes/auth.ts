@@ -4,6 +4,7 @@ import { statsKV } from "../services/kv.js";
 import { sendMagicLink, EmailNotConfiguredError } from "../services/email.js";
 import { upsertUser, bindKeyToUser } from "../services/accounts.js";
 import { createLocalKey } from "../services/keys.js";
+import { ensureAgentProfile } from "../services/agents.js";
 
 export const authRoutes = new Hono<{ Bindings: Env }>();
 
@@ -12,6 +13,7 @@ interface MagicRecord {
   return_url: string | null;
   status: "pending" | "verified";
   api_key?: string;
+  agent_id?: string;
   user_id?: string;
 }
 
@@ -128,11 +130,13 @@ authRoutes.get("/auth/email/verify", async (c) => {
     const user = await upsertUser(c.env, stored.email, { verifyNow: true });
     const { keyId, key } = await createLocalKey(c.env, stored.email);
     await bindKeyToUser(c.env, keyId, user.user_id);
+    await ensureAgentProfile(c.env, keyId, { name: stored.email });
 
     const updated: MagicRecord = {
       ...stored,
       status: "verified",
       api_key: key,
+      agent_id: keyId,
       user_id: user.user_id,
     };
     await kv.put(`magic:${token}`, JSON.stringify(updated), { expirationTtl: 60 });
@@ -188,9 +192,13 @@ authRoutes.get("/auth/email/poll", async (c) => {
 
   // Verified: one-shot consume
   await kv.delete(`magic:${token}`);
+  const fallbackAgentId = stored.api_key?.startsWith("ubr_")
+    ? stored.api_key.slice("ubr_".length, "ubr_".length + 32)
+    : undefined;
   return c.json({
     status: "verified",
     api_key: stored.api_key,
+    agent_id: stored.agent_id ?? fallbackAgentId,
     user_id: stored.user_id,
     email: stored.email,
   });

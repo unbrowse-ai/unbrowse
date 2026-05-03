@@ -8,10 +8,13 @@ import type { DashboardData } from "@/lib/api";
 export function ContributorDashboard({
   dashboard,
   walletAddress,
+  view = "public",
 }: {
   dashboard: DashboardData;
   walletAddress: string;
+  view?: "public" | "private";
 }) {
+  const isPrivate = view === "private";
   return (
     <div className="relative overflow-hidden px-6 pt-28 pb-20">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,109,0,0.12),transparent_26%)]" />
@@ -27,17 +30,21 @@ export function ContributorDashboard({
               <span className="break-all font-mono">{walletAddress}</span>
             </div>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-text-secondary">
-              Public wallet view. No settings. No account chrome.
+              {isPrivate
+                ? "Your private contributor view. Earnings, spend, savings, and account-linked route activity."
+                : "Public wallet view. No settings. No account chrome."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 rounded-2xl border border-border px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:border-orange-500/30 hover:text-orange-500"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Lookup another wallet
-            </Link>
+            {!isPrivate && (
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2 rounded-2xl border border-border px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:border-orange-500/30 hover:text-orange-500"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Lookup another wallet
+              </Link>
+            )}
             <Link
               href="/leaderboard"
               className="inline-flex items-center gap-2 rounded-2xl border border-orange-500/20 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-500 transition-colors hover:border-orange-500/40"

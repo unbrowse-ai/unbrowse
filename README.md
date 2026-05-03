@@ -67,7 +67,7 @@ git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git 
 cd ~/unbrowse && ./setup --host off
 ```
 
-`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and runs `unbrowse setup` without depending on npm release assets. That first-run path includes ToS acceptance, agent registration + API-key caching, and wallet detection when present.
+`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and runs `unbrowse setup` without depending on npm release assets. That first-run path installs local runtime pieces and starts the server; account sign-in is explicit with `unbrowse register --email you@example.com`.
 
 If a wallet is configured, that wallet address becomes the contributor truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
 
@@ -80,6 +80,8 @@ Headless/CI-friendly bootstrap:
 ```bash
 cd ~/unbrowse && ./setup --host off --accept-tos --agent-email you@example.com --skip-wallet-setup
 ```
+
+After signing in, `unbrowse dashboard` opens the website dashboard and pairs it to the local CLI through a short-lived localhost token. Dashboard preference changes are mirrored back into CLI contribution mode on subsequent commands.
 
 For agent hosts with a skill directory:
 

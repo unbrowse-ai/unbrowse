@@ -61,6 +61,11 @@ export interface PromptContributionModeOptions {
   log?: (msg: string) => void;
 }
 
+function shouldSkipInteractivePrompt(opts: PromptContributionModeOptions): boolean {
+  if (opts.readChoice) return false;
+  return process.env.UNBROWSE_NON_INTERACTIVE === "1" || !process.stdin.isTTY || !process.stdout.isTTY;
+}
+
 /**
  * Returns the chosen option (1/2/3) or `null` when skipped because the user
  * already picked one and `force=false`.
@@ -71,6 +76,9 @@ export async function promptContributionMode(
   const log = opts.log ?? ((msg: string) => console.log(msg));
   const cfg: ContributionConfig = getContributionConfig();
   if (!opts.force && cfg.contribution.set_via && cfg.contribution.set_via !== "default") {
+    return null;
+  }
+  if (shouldSkipInteractivePrompt(opts)) {
     return null;
   }
 

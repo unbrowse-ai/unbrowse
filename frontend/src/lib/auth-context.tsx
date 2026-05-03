@@ -16,7 +16,14 @@ interface AuthContextValue extends AuthState {
   consumeMagicToken: (
     token: string,
     opts?: { signal?: AbortSignal }
-  ) => Promise<{ api_key: string; user_id: string; email: string }>;
+  ) => Promise<{ api_key: string; agent_id: string; user_id: string; email: string }>;
+  pairLocalCli: (payload: {
+    api_key: string;
+    agent_id: string;
+    agent_name?: string;
+    email?: string;
+    user_id?: string | null;
+  }) => void;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -156,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const body = (await res.json()) as {
           status: "pending" | "verified" | "expired";
           api_key?: string;
+          agent_id?: string;
           user_id?: string;
           email?: string;
         };
@@ -163,21 +171,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error("This sign-in link expired. Request a new one.");
         }
         if (body.status === "verified") {
-          if (!body.api_key || !body.user_id || !body.email) {
+          if (!body.api_key || !body.agent_id || !body.user_id || !body.email) {
             throw new Error("Sign-in returned an incomplete payload.");
           }
           persist({
             apiKey: body.api_key,
-            agentId: body.user_id,
+            agentId: body.agent_id,
             agentName: body.email,
             email: body.email,
             userId: body.user_id,
           });
-          return { api_key: body.api_key, user_id: body.user_id, email: body.email };
+          return { api_key: body.api_key, agent_id: body.agent_id, user_id: body.user_id, email: body.email };
         }
         await sleep(POLL_INTERVAL_MS, opts?.signal);
       }
       throw new Error("Sign-in timed out. Try sending a new link.");
+    },
+    [persist]
+  );
+
+  const pairLocalCli = useCallback(
+    (payload: {
+      api_key: string;
+      agent_id: string;
+      agent_name?: string;
+      email?: string;
+      user_id?: string | null;
+    }) => {
+      if (!payload.api_key || !payload.agent_id) {
+        throw new Error("CLI pairing returned an incomplete payload.");
+      }
+      persist({
+        apiKey: payload.api_key,
+        agentId: payload.agent_id,
+        agentName: payload.email ?? payload.agent_name ?? payload.agent_id,
+        email: payload.email ?? null,
+        userId: payload.user_id ?? null,
+      });
     },
     [persist]
   );
@@ -193,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         loginWithEmail,
         consumeMagicToken,
+        pairLocalCli,
         logout,
         isAuthenticated: !!state.apiKey,
       }}

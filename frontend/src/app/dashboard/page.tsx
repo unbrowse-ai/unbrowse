@@ -1,53 +1,61 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
-import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
+import { ContributorDashboard } from "@/components/contributor-dashboard";
 import {
-  getMyProfile,
-  getSkill,
   getAccountMe,
   getAccountPreferences,
+  getMyDashboard,
   updateAccountPreferences,
-  type AgentProfile,
-  type SkillManifest,
   type AccountMe,
   type AccountPreferences,
+  type DashboardData,
 } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { isAuthenticated, agentName, logout } = useAuth();
-  const [profile, setProfile] = useState<AgentProfile | null>(null);
-  const [skills, setSkills] = useState<SkillManifest[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [wallet, setWallet] = useState("");
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [accountMe, setAccountMe] = useState<AccountMe | null>(null);
   const [prefs, setPrefs] = useState<AccountPreferences | null>(null);
   const [prefsBusy, setPrefsBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    getMyProfile()
-      .then(async (p) => {
-        setProfile(p);
-        // Fetch skill details for discovered skills
-        const fetched = await Promise.all(
-          p.skills_discovered.map((id) => getSkill(id))
-        );
-        setSkills(fetched.filter(Boolean) as SkillManifest[]);
-      })
-      .catch((err) => setError((err as Error).message));
-  }, [isAuthenticated]);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    getAccountMe()
-      .then((me) => {
+    Promise.all([
+      getMyDashboard(),
+      getAccountMe().catch(() => null),
+    ])
+      .then(async ([dash, me]) => {
+        if (cancelled) return;
+        setDashboard(dash);
         setAccountMe(me);
         if (me) {
-          getAccountPreferences().then(setPrefs).catch(() => {/* silent */});
+          const nextPrefs = await getAccountPreferences().catch(() => null);
+          if (!cancelled) setPrefs(nextPrefs);
         }
       })
-      .catch(() => {/* silent — anon keys 403 */});
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated]);
 
   const togglePrefs = async () => {
@@ -63,145 +71,136 @@ export default function DashboardPage() {
     }
   };
 
+  const openWallet = (event: FormEvent) => {
+    event.preventDefault();
+    const trimmed = wallet.trim();
+    if (!trimmed) return;
+    router.push(`/dashboard/${encodeURIComponent(trimmed)}`);
+  };
+
   if (!isAuthenticated) {
     return (
-      <div className="max-w-2xl mx-auto px-6 pt-32 pb-20 text-center">
-        <h1 className="text-3xl font-bold mb-4">Agent Dashboard</h1>
-        <p className="text-text-secondary mb-8">Register your agent to view your dashboard.</p>
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-center">
-          <Link
-            href="/#get-started"
-            className="inline-flex items-center gap-2 px-7 py-3.5 bg-orange-500
-                       text-white font-semibold rounded-2xl hover:bg-orange-600 transition-all"
-          >
-            Get Your API Key
-          </Link>
+      <div className="mx-auto max-w-2xl px-6 pb-20 pt-32">
+        <h1 className="text-3xl font-bold">Contributor Dashboard</h1>
+        <p className="mt-3 text-text-secondary">
+          Sign in to see your private account, or open a public wallet ledger.
+        </p>
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/login"
-            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl border border-border
-                       text-text-secondary font-semibold hover:text-text-primary
-                       hover:border-orange-500/30 transition-colors"
+            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600"
           >
             Sign in with email
           </Link>
+          <Link
+            href="/#get-started"
+            className="inline-flex items-center justify-center rounded-2xl border border-border px-6 py-3.5 text-sm font-semibold text-text-secondary transition-colors hover:border-orange-500/30 hover:text-text-primary"
+          >
+            Get CLI key
+          </Link>
         </div>
+        <form onSubmit={openWallet} className="mt-10 rounded-[28px] border border-border bg-surface p-6">
+          <label className="block text-xs font-mono uppercase tracking-[0.22em] text-text-muted">
+            Public wallet
+            <input
+              value={wallet}
+              onChange={(event) => setWallet(event.target.value)}
+              placeholder="Paste wallet address"
+              className="mt-3 block w-full rounded-2xl border border-border bg-bg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-orange-500/50 focus:outline-none"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={!wallet.trim()}
+            className="mt-4 inline-flex items-center justify-center rounded-2xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Open wallet ledger
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (loading && !dashboard) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 pb-20 pt-32">
+        <p className="text-sm text-text-muted">Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error && !dashboard) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 pb-20 pt-32">
+        <h1 className="text-3xl font-bold">Dashboard unavailable</h1>
+        <p className="mt-3 text-sm text-red-400">{error}</p>
+        <button
+          onClick={logout}
+          className="mt-6 rounded-2xl border border-border px-5 py-3 text-sm text-text-primary transition-colors hover:border-red-400/30 hover:text-red-400"
+        >
+          Logout
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 pt-32 pb-20">
-      <div className="flex items-center justify-between mb-10">
+    <div>
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 pt-24">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-text-muted text-sm font-mono mt-1">{agentName}</p>
+          <p className="text-xs font-mono uppercase tracking-[0.22em] text-text-muted">Signed in</p>
+          <p className="mt-1 text-sm text-text-secondary">{accountMe?.email ?? agentName}</p>
         </div>
         <button
           onClick={logout}
-          className="px-4 py-2 text-sm text-text-muted border border-border rounded-xl
-                     hover:text-red-400 hover:border-red-400/30 transition-colors"
+          className="rounded-2xl border border-border px-4 py-2 text-sm text-text-muted transition-colors hover:border-red-400/30 hover:text-red-400"
         >
           Logout
         </button>
       </div>
 
-      {error && <p className="text-red-400 text-sm mb-6">{error}</p>}
-
-      {profile && (
-        <>
-          {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-            <StatCard value={profile.skills_discovered.length} label="Skills Discovered" />
-            <StatCard value={profile.total_executions} label="Total Executions" />
-            <StatCard value={profile.total_feedback_given} label="Feedback Given" />
-          </div>
-
-          {accountMe && prefs && (
-            <div className="mb-10 p-6 rounded-2xl border border-border bg-surface">
-              <div className="flex items-start justify-between gap-6">
-                <div className="flex-1">
-                  <div className="font-semibold text-text-primary">Auto-publish to marketplace</div>
-                  <div className="text-sm text-text-muted mt-1 max-w-xl">
-                    When on, every captured site gets published to the public marketplace
-                    as you browse. Off keeps captures personal — visible only to your
-                    account.
-                  </div>
-                </div>
-                <button
-                  onClick={togglePrefs}
-                  disabled={prefsBusy}
-                  aria-pressed={prefs.share_pointers}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors
-                    ${prefs.share_pointers ? "bg-orange-500" : "bg-border"}
-                    ${prefsBusy ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform
-                    ${prefs.share_pointers ? "translate-x-6" : "translate-x-1"}`} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Discovered skills */}
-          <div>
-            <h2 className="text-xl font-bold mb-4">Skills You Discovered</h2>
-            {skills.length === 0 ? (
-              <div className="p-8 rounded-2xl border border-border bg-surface text-center">
-                <p className="text-text-muted">No skills discovered yet.</p>
-                <p className="text-text-muted text-sm mt-2">
-                  Use <code className="text-orange-500">unbrowse resolve</code> to capture a website and your first skill will appear here.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {skills.map((skill) => (
-                  <Link
-                    key={skill.skill_id}
-                    href={`/skills/${skill.skill_id}`}
-                    className="block p-5 rounded-2xl border border-border bg-surface hover:border-orange-500/30 transition-colors"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-text-primary">{skill.name}</span>
-                      <span className="text-xs font-mono text-text-muted">v{skill.version}</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-text-muted font-mono">
-                      <span>{skill.domain}</span>
-                      <span>{skill.endpoints.length} endpoints</span>
-                      <span className={skill.lifecycle === "active" ? "text-emerald-500" : "text-red-400"}>
-                        {skill.lifecycle}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Agent info */}
-          <div className="mt-10 p-5 rounded-2xl border border-border bg-surface">
-            <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3">Agent Info</h3>
-            <div className="space-y-2 text-sm font-mono">
-              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                <span className="text-text-muted">Agent ID</span>
-                <span className="text-text-secondary break-all">{profile.agent_id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">Registered</span>
-                <span className="text-text-secondary">{new Date(profile.created_at).toLocaleDateString()}</span>
-              </div>
-            </div>
-          </div>
-        </>
+      {error && (
+        <div className="mx-auto mt-4 max-w-6xl px-6">
+          <p className="rounded-2xl border border-red-400/30 bg-red-400/5 px-4 py-3 text-sm text-red-400">{error}</p>
+        </div>
       )}
-    </div>
-  );
-}
 
-function StatCard({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="p-5 rounded-2xl border border-border bg-surface text-center">
-      <div className="text-2xl font-bold font-mono gradient-text">{value.toLocaleString()}</div>
-      <div className="text-xs text-text-muted font-mono uppercase tracking-wider mt-1">{label}</div>
+      {accountMe && prefs && (
+        <div className="mx-auto mt-6 max-w-6xl px-6">
+          <div className="rounded-[28px] border border-border bg-surface p-6">
+            <div className="flex items-start justify-between gap-6">
+              <div>
+                <div className="font-semibold text-text-primary">Auto-publish to marketplace</div>
+                <div className="mt-1 max-w-xl text-sm text-text-muted">
+                  On publishes captured routes to the public marketplace. Off keeps captures private to your account.
+                </div>
+              </div>
+              <button
+                onClick={togglePrefs}
+                disabled={prefsBusy}
+                aria-pressed={prefs.share_pointers}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                  prefs.share_pointers ? "bg-orange-500" : "bg-border"
+                } ${prefsBusy ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 rounded-full bg-white transition-transform ${
+                    prefs.share_pointers ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dashboard && (
+        <ContributorDashboard
+          dashboard={dashboard}
+          walletAddress={dashboard.profile.wallet_address ?? dashboard.profile.agent_id}
+          view="private"
+        />
+      )}
     </div>
   );
 }
