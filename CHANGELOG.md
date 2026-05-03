@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.0-preview.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.10...v6.5.0-preview.11) (2026-05-03)
+
+### Bug Fixes
+
+* **account:** recover reset with stale env keys ([4036611](https://github.com/unbrowse-ai/unbrowse-dev/commit/4036611f16de13e3bd65950cc1d4100b8eca5279))
+
 ## Unreleased
 
 ### Bug Fixes
