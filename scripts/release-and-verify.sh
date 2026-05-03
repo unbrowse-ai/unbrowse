@@ -39,6 +39,10 @@ die() { echo "[release-verify] FATAL: $*" >&2; exit 1; }
 # ── Step 1: Local tests ──
 log "running local tests..."
 bun test tests/path-params.test.ts tests/utils.test.ts || die "unit tests failed"
+# Some CLI imports refresh the generated build-info manifest during tests.
+# Release-it owns the final versioned manifest, so restore it before enforcing
+# a clean worktree.
+git checkout -- src/build-info.generated.ts
 log "local tests passed"
 
 # ── Step 2: Cut release ──
