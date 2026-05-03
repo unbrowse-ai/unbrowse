@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.0-preview.13](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.12...v6.5.0-preview.13) (2026-05-03)
+
+### Bug Fixes
+
+* **cli:** preserve stale endpoint guidance with projections ([d68e7c7](https://github.com/unbrowse-ai/unbrowse-dev/commit/d68e7c71401939c4228a30b5f4140a414130a341))
+
 ## [6.5.0-preview.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.11...v6.5.0-preview.12) (2026-05-03)
 
 ### Bug Fixes
