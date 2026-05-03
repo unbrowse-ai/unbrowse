@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.2-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.2-preview.0...v6.5.2-preview.1) (2026-05-03)
+
+### Bug Fixes
+
+* **client:** getRecentLocalSkill falls back to on-disk skill-cache ([f814fe0](https://github.com/unbrowse-ai/unbrowse-dev/commit/f814fe0cc1aff01e5c7cf728fc2ab7a178e1b368))
+
 ## [6.5.2-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.1...v6.5.2-preview.0) (2026-05-03)
 
 ### Bug Fixes
