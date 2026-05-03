@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0...v6.5.1-preview.0) (2026-05-03)
+
+### Bug Fixes
+
+* **browse:** distinguish empty-registry from tab-missing in liveness check ([9eb6df1](https://github.com/unbrowse-ai/unbrowse-dev/commit/9eb6df1de9b04892817dc313163021d5cb4107de))
+
 ## [6.5.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.14...v6.5.0) (2026-05-03)
 
 ## [6.5.0-preview.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.13...v6.5.0-preview.14) (2026-05-03)
