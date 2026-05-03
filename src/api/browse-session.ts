@@ -320,7 +320,28 @@ export async function isBrowseSessionLive(
   for (let attempt = 0; attempt < LIVE_CHECK_RETRIES; attempt += 1) {
     try {
       const tabs = await sessionClient.discoverTabs();
-      const exactTab = tabs.find((tab) => tab.id === session.tabId);
+      let exactTab = tabs.find((tab) => tab.id === session.tabId);
+      // Adopt a freshly-minted CDP target id when there's exactly one tab in a
+      // restarted broker AND its url exactly matches the session url (or both
+      // are placeholder). Linux runners exhibit kuri broker churn that mints a
+      // new id for the same Chrome tab between calls; this rebinds the session
+      // to the new id instead of failing as session_expired.
+      // Tight URL match (not domain match) — different URL on same domain
+      // means the user navigated to a different state we shouldn't adopt.
+      if (!exactTab && tabs.length === 1) {
+        const lone = tabs[0]!;
+        const sameUrl = !!session.url && !!lone.url && session.url === lone.url;
+        const bothPlaceholder = isPlaceholderBrowseUrl(session.url) && isPlaceholderBrowseUrl(lone.url);
+        if (sameUrl || bothPlaceholder) {
+          dbg("adopting_single_tab_after_id_drift", {
+            old_tab_id: session.tabId,
+            new_tab_id: lone.id,
+            match: sameUrl ? "exact_url" : "both_placeholder",
+          });
+          session.tabId = lone.id;
+          exactTab = lone;
+        }
+      }
       if (!exactTab) {
         // Distinguish empty-registry (kuri/Chrome disconnect, sometimes
         // recoverable on cold Linux runners) from tab-missing (our specific
