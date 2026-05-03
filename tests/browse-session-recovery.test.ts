@@ -94,6 +94,48 @@ describe("browse session recovery", () => {
     expect(session.tabId).toBe("dead-tab");
   });
 
+  it("adopts a re-minted single-tab id when the URL is unchanged (kuri broker churn)", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "old-cdp-target",
+      url: "https://example.com/",
+      harActive: true,
+      domain: "example.com",
+    };
+
+    const live = await isBrowseSessionLive(session, makeClient({
+      discoverTabs: async () => [
+        { id: "new-cdp-target", url: "https://example.com/" },
+      ],
+      getCurrentUrl: async () => "https://example.com/",
+      getPort: () => 7900,
+    }));
+
+    expect(live).toBe(true);
+    expect(session.tabId).toBe("new-cdp-target");
+  });
+
+  it("does not adopt a re-minted id when the URL differs (user navigated)", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "old-cdp-target",
+      url: "https://example.com/page-a",
+      harActive: true,
+      domain: "example.com",
+    };
+
+    const live = await isBrowseSessionLive(session, makeClient({
+      discoverTabs: async () => [
+        { id: "new-cdp-target", url: "https://example.com/page-b" },
+      ],
+      getCurrentUrl: async () => "https://example.com/page-b",
+      getPort: () => 7901,
+    }));
+
+    expect(live).toBe(false);
+    expect(session.tabId).toBe("old-cdp-target");
+  });
+
   it("keeps the exact placeholder tab instead of switching to a replacement tab", async () => {
     const session: BrowseSession = {
       sessionId: "sess-1",
