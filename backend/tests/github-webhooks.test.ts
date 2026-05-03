@@ -335,8 +335,9 @@ describe("github webhook automation", () => {
   });
 
   it("flushes queued digest notifications to Telegram", async () => {
+    const queuedAt = new Date().toISOString();
     await statsKV(env).put(
-      "gh-notify:2026-04-03T01:00:00.000Z:delivery-1",
+      `gh-notify:${queuedAt}:delivery-1`,
       JSON.stringify({
         delivery_id: "delivery-1",
         repo: "unbrowse-ai/unbrowse-dev",
@@ -345,7 +346,7 @@ describe("github webhook automation", () => {
         url: "https://github.com/unbrowse-ai/unbrowse-dev/pull/42",
         status: "failed",
         note: "dispatch failed",
-        queued_at: "2026-04-03T01:00:00.000Z",
+        queued_at: queuedAt,
       }),
     );
 

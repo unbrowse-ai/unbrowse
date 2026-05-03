@@ -235,7 +235,7 @@ statsRoutes.post("/stats/diagnostics", optionalAuth, async (c) => {
 });
 
 // POST /v1/stats/execution — record execution + recompute score + Tier 1 attribution
-statsRoutes.post("/stats/execution", optionalAuth, async (c) => {
+statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
   const body = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
