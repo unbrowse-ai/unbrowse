@@ -32,6 +32,38 @@
 
 * **notes:** expose to harness; rip silent-LLM summarizer (Slice 2.1) ([fe3b622](https://github.com/unbrowse-ai/unbrowse-dev/commit/fe3b6225110421adbdc65a807078766318990650))
 
+## [6.5.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.0...v6.5.0-preview.1) (2026-05-03)
+
+### Features
+
+* **accounts:** magic-link email accounts skeleton (Slice 1, step 3 — baptism) ([ec8095a](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec8095a9244e2d279ebdc9d77911c1a5935a2a3d))
+* **accounts:** server-side share_pointers preference + dashboard toggle (Slice 1.6) ([9ea2070](https://github.com/unbrowse-ai/unbrowse-dev/commit/9ea207068c605bb9707f934c831659b6e9141472))
+* **accounts:** web sign-in flow + dashboard mix (Slice 1.5) ([1620d3a](https://github.com/unbrowse-ai/unbrowse-dev/commit/1620d3a4fcc7fe8fabcd319cd7681142eadb724a))
+* **accounts:** wire CLI register --email + e2e tests + integration fixes (Slice 1, step 6 — great-commission) ([2ea43c0](https://github.com/unbrowse-ai/unbrowse-dev/commit/2ea43c0346457524813232a2e30c7da9bf45b5e4))
+* **auth:** fall through to Dia/Arc/Brave when Chrome has no cookies ([fcafc02](https://github.com/unbrowse-ai/unbrowse-dev/commit/fcafc028751b9aa41b48f8a68a7f5c5e71146ede))
+* **auth:** rank browsers by liveness (recent visits + bookmarks) before cookie extract ([20f05ec](https://github.com/unbrowse-ai/unbrowse-dev/commit/20f05ecf66b33c5d096218adb881080181d39171))
+* **capture:** auto-fallback to visible browser on anti-bot wall ([4451a4c](https://github.com/unbrowse-ai/unbrowse-dev/commit/4451a4cec1af0f0d9f53ea1f5f5975916e300d42))
+* **capture:** hint agent when capture is doc-only (lazy-loading SPA) ([23e6b74](https://github.com/unbrowse-ai/unbrowse-dev/commit/23e6b7435fd42a820bb866d1e2ef382b654b07aa))
+* **capture:** surface captured_meta + capture_path on success path ([1248d1a](https://github.com/unbrowse-ai/unbrowse-dev/commit/1248d1a181cc2e8329256b3cefcd1cdb690247fd))
+* **cli:** preview-tagged binaries auto-bind to staging profile ([1326201](https://github.com/unbrowse-ai/unbrowse-dev/commit/1326201c6ecd1f276157df2b831653e6783c086c))
+* **extraction:** generic array-branch primitive + per-domain LLM notes (Slice 2 — browser-harness inspired) ([eedaabe](https://github.com/unbrowse-ai/unbrowse-dev/commit/eedaabe684d0ac70451b7ddb82cc6cd32401a40e))
+* **frontend:** parchment palette for install terminal ([0ba5880](https://github.com/unbrowse-ai/unbrowse-dev/commit/0ba58806fa50e95c680ff19fc07d2723d9e9d021)), closes [#060402](https://github.com/unbrowse-ai/unbrowse-dev/issues/060402) [#ede0c2](https://github.com/unbrowse-ai/unbrowse-dev/issues/ede0c2) [#e8d8b0](https://github.com/unbrowse-ai/unbrowse-dev/issues/e8d8b0) [#FF7A20](https://github.com/unbrowse-ai/unbrowse-dev/issues/FF7A20) [#8B3800](https://github.com/unbrowse-ai/unbrowse-dev/issues/8B3800) [#FFB060](https://github.com/unbrowse-ai/unbrowse-dev/issues/FFB060) [#5C1E00](https://github.com/unbrowse-ai/unbrowse-dev/issues/5C1E00) [#FF7A20](https://github.com/unbrowse-ai/unbrowse-dev/issues/FF7A20)
+
+### Bug Fixes
+
+* **accounts:** default sender to auth@unbrowse.ai (verified domain) ([fb41bb1](https://github.com/unbrowse-ai/unbrowse-dev/commit/fb41bb17e1fc90b914c50da65fea5c9794eb67d7))
+* **capture:** observation, not prescription — agent decides what to drive ([ab8dfc7](https://github.com/unbrowse-ai/unbrowse-dev/commit/ab8dfc7d5c292df2b6f6f469c3da144dbca6d206))
+* **cli:** surface prior_domain_note + note_evidence in capture envelope ([77b426b](https://github.com/unbrowse-ai/unbrowse-dev/commit/77b426b5e6d0638d1207519aab8fc2bd4fc14cd5))
+* **detector:** classify Fastly Bot Management as browser-block ([cb3df82](https://github.com/unbrowse-ai/unbrowse-dev/commit/cb3df824fe1574fd1ed42bbac22f2de133f7a95a))
+* **executor:** server-fetch + dom_extraction recipe path works on Node 25 ([d07ff25](https://github.com/unbrowse-ai/unbrowse-dev/commit/d07ff2558f2edc4ae419a6bedbd4106021ea8195)), closes [#76](https://github.com/unbrowse-ai/unbrowse-dev/issues/76)
+* **extraction:** admit parameterized nested-path SSR widget endpoints ([6af9e11](https://github.com/unbrowse-ai/unbrowse-dev/commit/6af9e11551ed4451dc42098b3ce217f216d8e622))
+* **extraction:** pick story link over upvote/login link in aggregator cards ([b6663ac](https://github.com/unbrowse-ai/unbrowse-dev/commit/b6663acf948e4a9dc36627cf6e6df73a7302b181))
+* kill all client-side caches — only the backend marketplace stores skills ([f6016ce](https://github.com/unbrowse-ai/unbrowse-dev/commit/f6016ce52f388386c3e1b0d92aff3a9af63e5319))
+
+### Refactoring
+
+* **notes:** expose to harness; rip silent-LLM summarizer (Slice 2.1) ([fe3b622](https://github.com/unbrowse-ai/unbrowse-dev/commit/fe3b6225110421adbdc65a807078766318990650))
+
 ## Slice 1 — Email Accounts (Magic Link) (2026-05-02)
 
 Optional account-bound API keys via passwordless email signup. `unbrowse register --email lewis@example.com` issues a magic link, the click verifies and binds an `ubr_…` key to a user id. Anonymous keys (the existing 819) keep working unchanged; `bearerAuth` now resolves `c.set("user_id", uid)` only for account-bound keys, so account-aware features gain identity without breaking the rest.
