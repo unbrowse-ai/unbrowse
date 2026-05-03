@@ -1440,6 +1440,12 @@ async function executeBrowserCapture(
         auth_hint: `No data endpoints found — ${domain} likely requires authentication. ` +
           `Store browser cookies for this domain via the auth endpoints, then retry this capture.`,
       } : {}),
+      // Always surface captured_meta so the agent can reason about WHY the
+      // capture is shallow even on the success path (doc_only shape:
+      // observed_api_calls, title, browser_block_signals, rejected_samples
+      // tell different stories — page never fired XHR vs filtered them all
+      // vs anti-bot wall vs auth redirect).
+      captured_meta: computeCapturedMeta(),
     },
     learned_skill: learned,
   };
