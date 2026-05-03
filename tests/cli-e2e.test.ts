@@ -134,6 +134,30 @@ async function runCli(args: string[], envOverrides: Record<string, string> = {})
   return { code, body, stdout, stderr };
 }
 
+async function runCliRaw(args: string[], envOverrides: Record<string, string> = {}): Promise<{ code: number; stdout: string; stderr: string }> {
+  await ensureBaseServer();
+  const baseUrl = await getBaseServerUrl();
+  const proc = Bun.spawn([process.execPath, "src/cli.ts", ...args, "--no-auto-start"], {
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      UNBROWSE_URL: envOverrides.UNBROWSE_URL ?? baseUrl,
+      UNBROWSE_RUN_DIR: envOverrides.UNBROWSE_RUN_DIR ?? sharedRunDir,
+      ...envOverrides,
+    },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  const [code, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  return { code, stdout, stderr };
+}
+
 async function runCliWithAutoStart(args: string[], envOverrides: Record<string, string> = {}): Promise<{ code: number; body: any; stdout: string; stderr: string }> {
   const baseUrl = await getBaseServerUrl();
   const proc = Bun.spawn([process.execPath, "src/cli.ts", ...args], {
@@ -422,7 +446,7 @@ describe("CLI end-to-end", () => {
     expect(evalResult.body.result.length).toBeGreaterThan(0);
 
     // snap must return a non-empty a11y tree
-    const snap = await runCli(["snap", "--session", sessionId]);
+    const snap = await runCliRaw(["snap", "--session", sessionId]);
     expect(snap.code).toBe(0);
     // snap outputs raw text when not --pretty, check stdout directly
     expect(snap.stdout).toContain("[e0]");

@@ -76,13 +76,13 @@ describe("popular skill route", () => {
     const deprecated = skillFixture("legacy", "deprecated");
 
     const stores = new Map<string, string>([
-      ["skills:_idx:main", JSON.stringify([
+      ["skills-v2:_idx:main", JSON.stringify([
         { k: "skill:alpha", v: JSON.stringify(alpha) },
         { k: "skill:beta", v: JSON.stringify(beta) },
         { k: "skill:legacy", v: JSON.stringify(deprecated) },
       ])],
-      ["skills:_idx:large", JSON.stringify([])],
-      ["skills:_idx", JSON.stringify([])],
+      ["skills-v2:_idx:large", JSON.stringify([])],
+      ["skills-v2:_idx", JSON.stringify([])],
       ["stats:_idx:main", JSON.stringify([
         { k: "stats:alpha--alpha-ep-a", v: JSON.stringify(statsFixture(12, 11, "2026-04-03T10:00:00.000Z")) },
         { k: "stats:alpha--alpha-ep-b", v: JSON.stringify(statsFixture(8, 7, "2026-04-03T11:00:00.000Z")) },
