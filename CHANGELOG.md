@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.2-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.1...v6.5.2-preview.0) (2026-05-03)
+
+### Bug Fixes
+
+* **browse:** adopt re-minted single-tab id on kuri broker churn ([ec2362a](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec2362abe358cd855506c07e970c3d1980039bf0))
+
 ## [6.5.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.1-preview.0...v6.5.1) (2026-05-03)
 
 ## [6.5.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0...v6.5.1-preview.0) (2026-05-03)
