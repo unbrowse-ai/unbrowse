@@ -50,6 +50,15 @@ npm install -g unbrowse
 unbrowse setup
 ```
 
+To connect the CLI to the website dashboard:
+
+```bash
+unbrowse register --email you@example.com
+unbrowse dashboard
+```
+
+`unbrowse dashboard` opens the web dashboard and pairs it to the local CLI through a short-lived localhost token. Dashboard preference changes sync back into CLI contribution mode on later CLI runs.
+
 If your host uses skills:
 
 ```bash
@@ -64,7 +73,7 @@ npm install -g unbrowse@preview && unbrowse setup --host mcp
 
 ## First-run behavior
 
-The CLI auto-starts the local server for normal commands. On the first real startup it also handles agent registration.
+The CLI auto-starts the local server for normal commands. Account registration is explicit with `unbrowse register`.
 
 - If the backend is reachable, it checks the current ToS version.
 - Interactive runs prompt for ToS acceptance.

@@ -165,7 +165,7 @@ describe("magicRegister CLI helper end-to-end against real backend", () => {
     ]);
 
     expect(result.api_key).toMatch(/^ubr_[0-9a-f]{48}$/);
-    expect(result.agent_id).toMatch(/^[0-9a-f]{24}$/);
+    expect(result.agent_id).toBe(result.api_key.slice("ubr_".length, "ubr_".length + 32));
     expect(result.email).toBe("lewis@example.com");
     expect(result.user_id).toMatch(/^[0-9a-f]{24}$/);
     // Resend was called exactly once for /start
@@ -174,7 +174,7 @@ describe("magicRegister CLI helper end-to-end against real backend", () => {
     expect(opened.length).toBe(1);
   });
 
-  maybe("2. openBrowser receives a verify URL with /v1/auth/email/verify?token=<32hex>", async () => {
+  maybe("2. openBrowser receives a CLI verify URL with /v1/auth/email/verify?cli=1&token=<32hex>", async () => {
     const opened: string[] = [];
     await Promise.all([
       magicRegister!({
@@ -186,7 +186,7 @@ describe("magicRegister CLI helper end-to-end against real backend", () => {
       clickWhenEmailArrives(),
     ]);
     expect(opened.length).toBe(1);
-    expect(opened[0]).toMatch(/\/v1\/auth\/email\/verify\?token=[0-9a-f]{32}/);
+    expect(opened[0]).toMatch(/\/v1\/auth\/email\/verify\?cli=1&token=[0-9a-f]{32}/);
   });
 
   maybe("3. email is normalized end-to-end (whitespace + case)", async () => {
@@ -281,7 +281,9 @@ describe("magicRegister CLI helper end-to-end against real backend", () => {
     ]);
 
     expect(second.user_id).toBe(first.user_id);
+    expect(second.agent_id).not.toBe(first.agent_id);
     expect(second.api_key).not.toBe(first.api_key);
+    expect(second.agent_id).toBe(second.api_key.slice("ubr_".length, "ubr_".length + 32));
     expect(second.api_key).toMatch(/^ubr_[0-9a-f]{48}$/);
   });
 });

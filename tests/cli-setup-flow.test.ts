@@ -89,6 +89,22 @@ describe("promptContributionMode — setup flow choices", () => {
     expect(onDisk.contribution.share_pointers).toBe(false);
     expect(onDisk.contribution.set_via).toBe("mode-command");
   });
+
+  it("non-interactive setup does not print or persist a default choice", async () => {
+    const { promptContributionMode } = await import("../src/cli-setup.js");
+    const previous = process.env.UNBROWSE_NON_INTERACTIVE;
+    process.env.UNBROWSE_NON_INTERACTIVE = "1";
+    const logs: string[] = [];
+    try {
+      const choice = await promptContributionMode({ log: (msg) => logs.push(msg) });
+      expect(choice).toBeNull();
+      expect(logs).toEqual([]);
+      expect(() => readFileSync(cfgPath, "utf-8")).toThrow();
+    } finally {
+      if (previous == null) delete process.env.UNBROWSE_NON_INTERACTIVE;
+      else process.env.UNBROWSE_NON_INTERACTIVE = previous;
+    }
+  });
 });
 
 describe("maybeShowContributionNotice — existing-user notice", () => {

@@ -146,6 +146,8 @@ export interface UnbrowseConfig {
   registered_at: string;
   tos_accepted_version: string | null;
   tos_accepted_at: string | null;
+  email?: string;
+  user_id?: string;
   wallet_address?: string;
   wallet_provider?: string;
 }
@@ -184,6 +186,52 @@ export function saveConfig(config: UnbrowseConfig): void {
   const configPath = getConfigPath();
   if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
   writeFileSync(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
+}
+
+interface DashboardPairingRecord {
+  token: string;
+  created_at: string;
+  expires_at: string;
+}
+
+function getPairingDir(): string {
+  return join(getConfigDir(), "pairing");
+}
+
+function safePairingToken(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "");
+}
+
+export function createDashboardPairingToken(ttlMs = 120_000): DashboardPairingRecord {
+  const token = randomBytes(24).toString("base64url");
+  const now = Date.now();
+  const record: DashboardPairingRecord = {
+    token,
+    created_at: new Date(now).toISOString(),
+    expires_at: new Date(now + ttlMs).toISOString(),
+  };
+  const dir = getPairingDir();
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${token}.json`), JSON.stringify(record, null, 2), { mode: 0o600 });
+  return record;
+}
+
+export function consumeDashboardPairingToken(token: string): (DashboardPairingRecord & { config: UnbrowseConfig }) | null {
+  const safe = safePairingToken(token);
+  if (!safe || safe !== token) return null;
+  const file = join(getPairingDir(), `${safe}.json`);
+  try {
+    if (!existsSync(file)) return null;
+    const record = JSON.parse(readFileSync(file, "utf-8")) as DashboardPairingRecord;
+    try { unlinkSync(file); } catch { /* best effort */ }
+    if (!record.expires_at || Date.parse(record.expires_at) < Date.now()) return null;
+    const config = loadConfig();
+    if (!config?.api_key || !config.agent_id) return null;
+    return { ...record, config };
+  } catch {
+    try { unlinkSync(file); } catch { /* best effort */ }
+    return null;
+  }
 }
 
 function loadInstallTelemetryState(): InstallTelemetryState | null {
@@ -865,7 +913,7 @@ export async function magicRegister(opts: {
   const token = startData.token;
 
   // 2. Open the verify URL in the user's browser (best-effort).
-  const verifyUrl = `${API_URL}/v1/auth/email/verify?token=${encodeURIComponent(token)}`;
+  const verifyUrl = `${API_URL}/v1/auth/email/verify?cli=1&token=${encodeURIComponent(token)}`;
   if (opts.openBrowser) {
     try { await opts.openBrowser(verifyUrl); } catch { /* best-effort */ }
   } else {
@@ -893,6 +941,7 @@ export async function magicRegister(opts: {
     let pollData: {
       status?: string;
       api_key?: string;
+      agent_id?: string;
       user_id?: string;
       email?: string;
     };
@@ -902,12 +951,12 @@ export async function magicRegister(opts: {
       throw new Error(`Magic-link poll failed: HTTP ${pollRes.status}`);
     }
     if (pollData.status === "verified") {
-      if (!pollData.api_key || !pollData.user_id || !pollData.email) {
-        throw new Error("Magic-link poll returned verified without api_key/user_id/email.");
+      if (!pollData.api_key || !pollData.agent_id || !pollData.user_id || !pollData.email) {
+        throw new Error("Magic-link poll returned verified without api_key/agent_id/user_id/email.");
       }
       return {
         api_key: pollData.api_key,
-        agent_id: pollData.user_id,
+        agent_id: pollData.agent_id,
         email: pollData.email,
         user_id: pollData.user_id,
       };

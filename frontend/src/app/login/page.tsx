@@ -7,10 +7,18 @@ import { useAuth } from "@/lib/auth-context";
 
 type Phase = "idle" | "awaiting" | "error";
 
+type LocalPairPayload = {
+  api_key: string;
+  agent_id: string;
+  agent_name?: string;
+  email?: string;
+  user_id?: string | null;
+};
+
 function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { loginWithEmail, consumeMagicToken } = useAuth();
+  const { loginWithEmail, consumeMagicToken, pairLocalCli } = useAuth();
 
   const [email, setEmail] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -23,6 +31,29 @@ function LoginInner() {
 
   // If the user lands here from the verify-link flow, consume immediately.
   useEffect(() => {
+    const local = searchParams.get("local");
+    const pair = searchParams.get("pair");
+    if (local && pair) {
+      setPhase("awaiting");
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      fetch(`${local.replace(/\/+$/, "")}/v1/local/pair?token=${encodeURIComponent(pair)}`, {
+        signal: ctrl.signal,
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error("CLI pairing expired. Run `unbrowse dashboard` again.");
+          const body = await res.json() as LocalPairPayload;
+          pairLocalCli(body);
+          router.push("/dashboard");
+        })
+        .catch((err) => {
+          if ((err as Error).name === "AbortError") return;
+          setError((err as Error).message);
+          setPhase("error");
+        });
+      return () => ctrl.abort();
+    }
+
     const tokenParam = searchParams.get("token");
     const signedIn = searchParams.get("signed_in");
     if (tokenParam && signedIn === "1") {

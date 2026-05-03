@@ -33,7 +33,7 @@ export async function GET() {
 
 - [Skill Reference (SKILL.md)](https://www.unbrowse.ai/skill.md): Complete agent-facing documentation -- all CLI commands, Browser API, auth flows, payment tiers, and rules
 - [Skill Registry / Marketplace](https://www.unbrowse.ai/search): Search discovered API skills by intent or domain
-- [Wallet Dashboard](https://www.unbrowse.ai/dashboard): View public contributor earnings, spending, savings, and rank by wallet address
+- [Dashboard](https://www.unbrowse.ai/dashboard): View signed-in CLI/account economics, or public contributor earnings, spending, savings, and rank by wallet address
 - [Contribution Leaderboard](https://www.unbrowse.ai/leaderboard): Public all-time ranking by earnings, executions, and discovered skills
 - [Privacy Policy](https://www.unbrowse.ai/privacy): What data is shared to the marketplace vs kept local
 - [Terms of Service](https://www.unbrowse.ai/terms): Usage terms for Unbrowse and the skill registry
@@ -54,6 +54,7 @@ export async function GET() {
 - POST \`/v1/agents/wallet\`: Authenticated wallet claim for a contributor profile
 - GET \`/v1/dashboard/me\`: Authenticated economics read model for one agent
 - GET \`/v1/dashboard/wallet/:walletAddress\`: Public economics read model by wallet
+- GET \`/v1/local/pair?token=...\`: Localhost-only CLI/dashboard pairing endpoint minted by \`unbrowse dashboard\`
 - GET \`/v1/leaderboard\`: Public contribution leaderboard
 - GET \`/v1/stats/summary\`: Platform-wide stats (total skills, endpoints, agents, executions)
 

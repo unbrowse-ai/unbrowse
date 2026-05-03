@@ -13,6 +13,7 @@ import {
   detectTelemetryHostType,
   ensureCliInstallTracked,
   ensureRegistered,
+  createDashboardPairingToken,
   fetchAccountPreferences,
   getAgentId,
   getApiKey,
@@ -43,6 +44,7 @@ loadEnv({ path: ".env.runtime", quiet: true });
 
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
 const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `cli-${process.ppid || process.pid}`;
+const FRONTEND_URL = (process.env.UNBROWSE_FRONTEND_URL || process.env.PUBLIC_FRONTEND_URL || "https://www.unbrowse.ai").replace(/\/+$/, "");
 let walletNudgeShown = false;
 
 // ---------------------------------------------------------------------------
@@ -164,6 +166,18 @@ function info(msg: string): void {
   process.stderr.write(`[unbrowse] ${msg}\n`);
 }
 
+function openUrl(url: string): void {
+  if (process.env.UNBROWSE_OPEN_BROWSER === "0") return;
+  try {
+    const cmd = process.platform === "darwin"
+      ? "open"
+      : process.platform === "win32"
+        ? "start"
+        : "xdg-open";
+    spawn(cmd, [url], { detached: true, stdio: "ignore" }).unref();
+  } catch { /* best effort */ }
+}
+
 function resolveResultError(result: Record<string, unknown>): string | undefined {
   return (result.result as Record<string, unknown> | undefined)?.error as string | undefined
     ?? result.error as string | undefined;
@@ -177,6 +191,8 @@ function resolveLoginUrl(result: Record<string, unknown>, fallbackUrl?: string):
 
 function isResolveSuccessResult(result: Record<string, unknown>): boolean {
   if (resolveResultError(result)) return false;
+  const status = (result.result as Record<string, unknown> | undefined)?.status as string | undefined;
+  if (status === "no_match" || status === "auth_required" || status === "error") return false;
   return !!result.result || Array.isArray(result.available_endpoints);
 }
 
@@ -1101,7 +1117,7 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     info("Wallet not paired — you won't earn when other agents use routes you discovered.");
     info("Run: npx @crossmint/lobster-cli setup");
   } else {
-    info("No wallet configured — you earn when other agents reuse routes you discovered.");
+    info("No wallet configured — local indexing works, but payout needs a wallet.");
     info("Set up a wallet to start earning:");
     info("  npx @crossmint/lobster-cli setup");
   }
@@ -1169,6 +1185,10 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 
   output(report, true);
   if (report.browser_engine.action === "failed") process.exit(1);
+  if (getApiKey()) {
+    info("Dashboard connected:");
+    info("  unbrowse dashboard");
+  }
 
   // --- Guided first resolve ---
   // After setup succeeds, auto-run a resolve so the user sees what unbrowse
@@ -1211,8 +1231,17 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
       info("That's unbrowse. Try your own:");
       info('  unbrowse resolve --intent "search for shoes" --url "https://amazon.com"');
     } else {
-      info("Guided resolve returned no results — try manually:");
-      info('  unbrowse resolve --intent "list posts" --url "https://jsonplaceholder.typicode.com"');
+      const inner = resolveResult.result as Record<string, unknown> | undefined;
+      const nextStep = inner?.next_step as Record<string, unknown> | undefined;
+      const command = typeof nextStep?.command === "string"
+        ? nextStep.command
+        : 'unbrowse capture --url "https://jsonplaceholder.typicode.com" --intent "list all posts"';
+      info("No reusable route found on the demo site yet.");
+      info("Next step:");
+      info(`  ${command}`);
+      info("");
+      info("Try your own:");
+      info('  unbrowse resolve --intent "search for shoes" --url "https://amazon.com"');
     }
   } catch {
     // Guided resolve is best-effort — never fail setup because of it
@@ -1251,6 +1280,80 @@ async function syncContributionPreferenceToServer(): Promise<void> {
     if (msg.includes("account_required") || msg.includes("HTTP 403")) return;
     info(`Local mode set, but server sync failed: ${msg}`);
   }
+}
+
+async function refreshContributionPreferenceFromServer(verbose = false): Promise<boolean> {
+  const cfg = loadConfig();
+  if (!cfg?.api_key) return false;
+  try {
+    const serverPrefs = await fetchAccountPreferences();
+    if (!serverPrefs) return false;
+    const local = getContributionConfig();
+    if (local.contribution.share_pointers !== serverPrefs.share_pointers) {
+      setContributionConfig({
+        contribution: { share_pointers: serverPrefs.share_pointers, set_via: "mode-command" },
+      });
+      if (verbose) info(`Synced auto-publish from dashboard: ${serverPrefs.share_pointers ? "ON" : "off"}.`);
+    }
+    return true;
+  } catch (err) {
+    if (verbose) info(`Dashboard preference sync failed: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+async function cmdAccount(flags: Record<string, string | boolean>): Promise<void> {
+  await refreshContributionPreferenceFromServer(false);
+  const cfg = loadConfig();
+  const contribution = getContributionConfig();
+  const payload = {
+    signed_in: !!cfg?.api_key,
+    agent_id: cfg?.agent_id ?? null,
+    agent_name: cfg?.agent_name ?? null,
+    email: cfg?.email ?? null,
+    user_id: cfg?.user_id ?? null,
+    wallet_address: cfg?.wallet_address ?? null,
+    wallet_provider: cfg?.wallet_provider ?? null,
+    dashboard_url: `${FRONTEND_URL}/dashboard`,
+    local_server: BASE_URL,
+    auto_publish: contribution.contribution.share_pointers,
+    rev_share: contribution.rev_share.opted_in,
+  };
+  if (flags.json || flags.pretty) {
+    output(payload, !!flags.pretty);
+    return;
+  }
+  info("Unbrowse account");
+  info(`  signed_in: ${payload.signed_in ? "yes" : "no"}`);
+  info(`  email: ${payload.email ?? "(none)"}`);
+  info(`  agent_id: ${payload.agent_id ?? "(none)"}`);
+  info(`  wallet: ${payload.wallet_address ?? "(none)"}`);
+  info(`  auto_publish: ${payload.auto_publish ? "on" : "off"}`);
+  info(`  dashboard: ${payload.dashboard_url}`);
+  output(payload, false);
+}
+
+async function cmdDashboard(flags: Record<string, string | boolean>): Promise<void> {
+  await refreshContributionPreferenceFromServer(false);
+  const cfg = loadConfig();
+  if (!cfg?.api_key) {
+    const loginUrl = `${FRONTEND_URL}/login`;
+    info("No account-bound CLI key found. Opening website sign-in.");
+    if (!flags["no-open"]) openUrl(loginUrl);
+    output({ status: "login_required", url: loginUrl }, !!flags.pretty);
+    return;
+  }
+  await ensureLocalServer(BASE_URL, false, import.meta.url);
+  const pair = createDashboardPairingToken();
+  const url = `${FRONTEND_URL}/login?local=${encodeURIComponent(BASE_URL)}&pair=${encodeURIComponent(pair.token)}`;
+  if (!flags["no-open"]) openUrl(url);
+  info("Opening dashboard and pairing this CLI install.");
+  output({
+    status: "pairing_started",
+    url,
+    local_server: BASE_URL,
+    expires_at: pair.expires_at,
+  }, !!flags.pretty);
 }
 
 
@@ -1413,6 +1516,8 @@ export const CLI_REFERENCE = {
     { name: "corpus-test", usage: "--url <url> [--id <id>] [--retries N]", desc: "Capture a single URL with retry logic; keeps best result across N attempts" },
     { name: "corpus-run", usage: "--corpus <file> --out <file> [--retries N]", desc: "Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot" },
     { name: "register", usage: "[--email lewis@example.com] [--no-prompt]", desc: "Register an API key. With --email, sends a magic link via Resend; otherwise creates an anonymous key." },
+    { name: "account", usage: "[--json] [--pretty]", desc: "Show local account, dashboard link, wallet, and contribution mode" },
+    { name: "dashboard", usage: "[--no-open] [--pretty]", desc: "Open the website dashboard and pair it to this CLI install through localhost" },
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
     { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
     { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence." },
@@ -2177,9 +2282,13 @@ async function cmdRegister(flags: Record<string, unknown>) {
       registered_at: new Date().toISOString(),
       tos_accepted_version: null,
       tos_accepted_at: null,
+      email: result.email,
+      user_id: result.user_id,
     });
     process.env.UNBROWSE_API_KEY = result.api_key;
     info(`Signed in as ${result.email}. API key saved to ~/.unbrowse/config.json.`);
+    info("Open your dashboard:");
+    info("  unbrowse dashboard");
     // Mirror server-side preference into local contribution block so the
     // capture pipeline picks it up. Best-effort — never blocks register.
     try {
@@ -2565,6 +2674,8 @@ async function main(): Promise<void> {
     await cmdMode(flags);
     return;
   }
+  if (command === "account") return cmdAccount(flags);
+  if (command === "dashboard") return cmdDashboard(flags);
 
   // Server lifecycle commands (don't need ensureLocalServer)
   if (command === "mcp") return cmdMcp(flags);
@@ -2579,6 +2690,8 @@ async function main(): Promise<void> {
   if (command === "sessions-scan") return cmdSessionsScan(flags);
   if (command === "register") return cmdRegister(flags);
 
+  await refreshContributionPreferenceFromServer(false);
+
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "execute", "exec",
@@ -2586,7 +2699,7 @@ async function main(): Promise<void> {
     "status", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
-    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "capture",
+    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -2658,6 +2771,8 @@ async function main(): Promise<void> {
     case "sessions-scan": return cmdSessionsScan(flags);
     case "register": return cmdRegister(flags);
     case "mode": return cmdMode(flags);
+    case "account": return cmdAccount(flags);
+    case "dashboard": return cmdDashboard(flags);
     case "capture": return cmdCapture(flags);
     case "note": return cmdNote(flags, args);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);

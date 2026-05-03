@@ -157,10 +157,11 @@ describe("/v1/auth/email/* end-to-end magic-link flow", () => {
     const pollRes = await getReq(`/v1/auth/email/poll?token=${token}`);
     expect(pollRes.status).toBe(200);
     const pollBody = await pollRes.json() as {
-      status: string; api_key: string; user_id: string; email: string;
+      status: string; api_key: string; agent_id: string; user_id: string; email: string;
     };
     expect(pollBody.status).toBe("verified");
     expect(pollBody.api_key).toMatch(/^ubr_[0-9a-f]{48}$/);
+    expect(pollBody.agent_id).toBe(pollBody.api_key.slice("ubr_".length, "ubr_".length + 32));
     expect(pollBody.user_id).toMatch(/^[0-9a-f]{24}$/);
     expect(pollBody.email).toBe("alice@example.com");
 
