@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.0-preview.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.9...v6.5.0-preview.10) (2026-05-03)
+
+### Features
+
+* **account:** force reset broken api keys ([f8f057f](https://github.com/unbrowse-ai/unbrowse-dev/commit/f8f057fdd8d255a97470a6202195308b13ee61d1))
+
 ## Unreleased
 
 ### Features
