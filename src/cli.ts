@@ -2267,13 +2267,24 @@ async function cmdClose(flags: Record<string, string | boolean>): Promise<void> 
 async function cmdRegister(flags: Record<string, unknown>) {
   const reset = flags.reset === true || flags.force === true || flags["reset-key"] === true;
   const previousConfig = reset ? loadConfig() : null;
+  let ignoredEnvApiKey = false;
+  const stopServerAfterReset = () => {
+    if (!reset) return;
+    if (stopServer(BASE_URL)) {
+      info("Stopped local server so the next command starts with the fresh key.");
+    }
+  };
   if (reset) {
     const envKey = process.env.UNBROWSE_API_KEY?.trim();
     const result = resetLocalRegistration();
     delete process.env.UNBROWSE_API_KEY;
+    if (envKey) {
+      ignoredEnvApiKey = true;
+      process.env.UNBROWSE_IGNORE_ENV_API_KEY = "1";
+    }
     info(`${result.removed ? "Removed" : "No"} local API key cache at ${result.config_path}.`);
     if (envKey) {
-      info("Ignoring UNBROWSE_API_KEY for this reset run. Remove or update that env var in your shell, or it will override the saved key next time.");
+      info("Ignoring UNBROWSE_API_KEY for this reset run. Future Unbrowse commands will prefer the fresh saved key; still remove or update that env var in your shell.");
     }
     if (typeof flags.email !== "string" && previousConfig?.email) {
       flags.email = previousConfig.email;
@@ -2309,6 +2320,7 @@ async function cmdRegister(flags: Record<string, unknown>) {
       tos_accepted_at: null,
       email: result.email,
       user_id: result.user_id,
+      ...(ignoredEnvApiKey ? { ignore_env_api_key: true } : {}),
     });
     process.env.UNBROWSE_API_KEY = result.api_key;
     info(`Signed in as ${result.email}. API key saved to ~/.unbrowse/config.json.`);
@@ -2325,6 +2337,7 @@ async function cmdRegister(flags: Record<string, unknown>) {
         info(`Auto-publish to marketplace: ${serverPrefs.share_pointers ? "ON" : "off"} (synced from your account).`);
       }
     } catch { /* best-effort */ }
+    stopServerAfterReset();
     return;
   }
   if (!reset && getApiKey()) {
@@ -2334,6 +2347,7 @@ async function cmdRegister(flags: Record<string, unknown>) {
   await ensureRegistered({ promptForEmail: !flags["no-prompt"], exitOnFailure: false });
   if (getApiKey()) {
     info("Registration complete. You can now publish skills and check earnings.");
+    stopServerAfterReset();
   } else {
     info("Registration skipped or failed. Unbrowse still works locally — publish/earnings are disabled.");
   }

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { isValidAgentEmail, normalizeAgentEmail, resetLocalRegistration, resolveAgentName } from "../src/client/index.js";
+import { getApiKey, isValidAgentEmail, normalizeAgentEmail, resetLocalRegistration, resolveAgentName } from "../src/client/index.js";
 
 const ORIGINAL_ENV = { ...process.env };
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -62,6 +62,23 @@ describe("client registration recovery", () => {
     expect(result.removed).toBe(true);
     expect(result.config_path).toBe(join(configDir, "config.json"));
     expect(() => readFileSync(join(configDir, "config.json"), "utf8")).toThrow();
+  });
+
+  it("prefers fresh saved key over env when reset marked the env key stale", () => {
+    const configDir = makeConfigDirWithConfig({
+      api_key: "fresh-config-key",
+      agent_id: "fresh-agent",
+      agent_name: "fresh-agent",
+      registered_at: "2026-03-13T00:00:00.000Z",
+      tos_accepted_version: "2026-02-22-v1",
+      tos_accepted_at: "2026-03-13T00:00:00.000Z",
+      ignore_env_api_key: true,
+    });
+    process.env.UNBROWSE_CONFIG_DIR = configDir;
+    process.env.UNBROWSE_API_KEY = "stale-env-key";
+
+    expect(getApiKey()).toBe("fresh-config-key");
+    expect(process.env.UNBROWSE_API_KEY).toBe("fresh-config-key");
   });
 
   it("falls back to saved config when UNBROWSE_API_KEY is stale", async () => {
@@ -214,6 +231,54 @@ describe("client registration recovery", () => {
       wallet_address: "wallet-live",
       wallet_provider: "lobster.cash",
     });
+  });
+
+  it("retries registration without wallet when the wallet is already claimed", async () => {
+    const configDir = makeConfigDirWithConfig({});
+    process.env.UNBROWSE_CONFIG_DIR = configDir;
+    delete process.env.UNBROWSE_API_KEY;
+    process.env.UNBROWSE_NON_INTERACTIVE = "1";
+    process.env.UNBROWSE_TOS_ACCEPTED = "1";
+    process.env.UNBROWSE_AGENT_EMAIL = "agent@example.com";
+    process.env.LOBSTER_WALLET_ADDRESS = "wallet-claimed";
+    console.warn = () => {};
+    console.log = () => {};
+
+    const registerBodies: Array<Record<string, unknown>> = [];
+    globalThis.fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith("/v1/tos/current")) {
+        return jsonResponse({
+          version: "2026-02-22-v1",
+          summary: "tos",
+          url: "https://unbrowse.ai/terms",
+        });
+      }
+      if (url.endsWith("/v1/agents/register") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        registerBodies.push(body);
+        if (body.wallet_address === "wallet-claimed") {
+          return jsonResponse({ error: "wallet_already_claimed" }, 400);
+        }
+        return jsonResponse({ agent_id: "new-agent", api_key: "new-key" }, 201);
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    };
+
+    const { ensureRegistered } = await loadClientModule();
+    await ensureRegistered({ promptForEmail: false, exitOnFailure: false });
+
+    expect(registerBodies).toHaveLength(2);
+    expect(registerBodies[0]?.wallet_address).toBe("wallet-claimed");
+    expect(registerBodies[1]?.wallet_address).toBeUndefined();
+    const saved = JSON.parse(readFileSync(join(configDir, "config.json"), "utf8")) as {
+      api_key: string;
+      agent_id: string;
+      wallet_address?: string;
+    };
+    expect(saved.api_key).toBe("new-key");
+    expect(saved.agent_id).toBe("new-agent");
+    expect(saved.wallet_address).toBeUndefined();
   });
 });
 
