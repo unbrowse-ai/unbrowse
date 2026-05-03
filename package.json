@@ -1,6 +1,6 @@
 {
   "name": "unbrowse-monorepo",
-  "version": "6.5.0-preview.11",
+  "version": "6.5.0-preview.12",
   "workspaces": [
     "packages/*",
     "backend",

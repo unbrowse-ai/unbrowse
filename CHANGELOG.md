@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.5.0-preview.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.11...v6.5.0-preview.12) (2026-05-03)
+
+### Bug Fixes
+
+* **marketplace:** recover stale endpoint execution ([a5cd61d](https://github.com/unbrowse-ai/unbrowse-dev/commit/a5cd61d0e71267dd36bc1d52b97e43c690794b96))
+
 ## [6.5.0-preview.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.10...v6.5.0-preview.11) (2026-05-03)
 
 ### Bug Fixes
