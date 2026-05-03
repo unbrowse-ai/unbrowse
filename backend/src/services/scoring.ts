@@ -7,6 +7,15 @@ export const DEPRECATION_THRESHOLD = {
   min_score: 0.2,
 } as const;
 
+export function executionFailureWeight(trace: ExecutionTrace): number {
+  const status = trace.status_code ?? 0;
+  if (status === 401 || status === 403 || status === 404 || status === 410 || status === 429 || status >= 500) {
+    return 3;
+  }
+  if (trace.error === "stale_endpoint") return 3;
+  return 1;
+}
+
 function statsKey(skillId: string, endpointId: string): string {
   return `stats:${skillId}--${endpointId}`;
 }
@@ -74,7 +83,7 @@ export async function recordExecution(
     stats.consecutive_failures = 0;
     stats.last_success_at = trace.completed_at;
   } else {
-    stats.consecutive_failures++;
+    stats.consecutive_failures += executionFailureWeight(trace);
   }
 
   if (trace.drift?.drifted) {

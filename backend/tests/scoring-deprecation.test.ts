@@ -2,8 +2,8 @@
  * Tests for consecutive failure → auto-deprecation threshold logic (Feature #99).
  */
 import { describe, it, expect } from "bun:test";
-import { computeReliabilityScore, DEPRECATION_THRESHOLD } from "../src/services/scoring.js";
-import type { EndpointStats } from "../src/types.js";
+import { computeReliabilityScore, DEPRECATION_THRESHOLD, executionFailureWeight } from "../src/services/scoring.js";
+import type { EndpointStats, ExecutionTrace } from "../src/types.js";
 
 function makeStats(overrides: Partial<EndpointStats> = {}): EndpointStats {
   return {
@@ -88,5 +88,25 @@ describe("computeReliabilityScore + deprecation gate", () => {
   it("auto_deprecated_at field exists on EndpointStats type", () => {
     const stats: EndpointStats = makeStats({ auto_deprecated_at: new Date().toISOString() });
     expect(stats.auto_deprecated_at).toBeDefined();
+  });
+
+  it("hard marketplace failures decay reliability faster than soft mismatches", () => {
+    const hardTrace = {
+      trace_id: "hard",
+      skill_id: "s",
+      endpoint_id: "e",
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      success: false,
+      status_code: 403,
+    } satisfies ExecutionTrace;
+    const softTrace = {
+      ...hardTrace,
+      trace_id: "soft",
+      status_code: 422,
+    } satisfies ExecutionTrace;
+
+    expect(executionFailureWeight(hardTrace)).toBe(3);
+    expect(executionFailureWeight(softTrace)).toBe(1);
   });
 });

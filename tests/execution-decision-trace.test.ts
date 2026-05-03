@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { executeSkill } from "../src/execution/index.js";
+import { authRuntime } from "../src/auth/runtime.js";
 import type { EndpointDescriptor, SkillManifest } from "../src/types/index.js";
 
 const originalFetch = globalThis.fetch;
@@ -115,6 +116,77 @@ describe("ExecutionResult envelope shape (Phase 7.2)", () => {
       expect(iProbe).toBeGreaterThanOrEqual(0);
       expect(iDecision).toBeGreaterThan(iProbe);
       expect(iReturn).toBeGreaterThan(iDecision);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("retries once after auth recovery instead of telling the agent to retry manually", async () => {
+    let serverFetches = 0;
+    (authRuntime as typeof authRuntime & { setSession?: (domain: string, token: string, ttlMs?: number) => void })
+      .setSession?.("example.org", "test-session", 60_000);
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const method = (init.method || "GET").toUpperCase();
+      const url = typeof input === "string"
+        ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (!url.includes("example.org") || url.includes("/robots.txt")) {
+        return new Response("", { status: 404 });
+      }
+      if (method === "HEAD") {
+        return new Response(null, { status: 403, headers: { "content-type": "application/json" } });
+      }
+      serverFetches += 1;
+      return new Response(JSON.stringify({ ok: true, recovered: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof globalThis.fetch;
+
+    try {
+      const skill = mkSkill(mkEndpoint({ url_template: "https://example.org/api/auth.json" }));
+      const out = await executeSkill(skill, {}, { raw: true });
+
+      expect(serverFetches).toBe(1);
+      expect(out.trace.success).toBe(true);
+      expect(out.trace.status_code).toBe(200);
+      expect(out.result).toEqual({ ok: true, recovered: true });
+      expect(out.decision_trace?.some((step) => step.step === "auth_recovery_retry" && step.status === 200)).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns stale_endpoint guidance when auth recovery retry still fails", async () => {
+    (authRuntime as typeof authRuntime & { setSession?: (domain: string, token: string, ttlMs?: number) => void })
+      .setSession?.("example.org", "test-session", 60_000);
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const method = (init.method || "GET").toUpperCase();
+      const url = typeof input === "string"
+        ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (!url.includes("example.org") || url.includes("/robots.txt")) {
+        return new Response("", { status: 404 });
+      }
+      if (method === "HEAD") {
+        return new Response(null, { status: 403, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof globalThis.fetch;
+
+    try {
+      const skill = mkSkill(mkEndpoint({ url_template: "https://example.org/api/auth.json" }));
+      const out = await executeSkill(skill, {}, { raw: true });
+
+      expect(out.trace.success).toBe(false);
+      expect(out.trace.status_code).toBe(403);
+      expect((out.result as Record<string, unknown>).error).toBe("stale_endpoint");
+      expect(String((out.result as Record<string, unknown>).next_step)).toContain("unbrowse go");
+      expect(String(out.trace.error)).not.toContain("retry should succeed");
+      expect(out.decision_trace?.some((step) => step.step === "auth_recovery_retry" && step.status === 403)).toBe(true);
     } finally {
       globalThis.fetch = originalFetch;
     }
