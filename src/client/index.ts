@@ -1073,7 +1073,19 @@ export function cachePublishedSkill(skill: SkillManifest, scopeId?: string): voi
 }
 
 export function getRecentLocalSkill(skillId: string, scopeId?: string): SkillManifest | null {
-  return recentLocalSkills.get(scopedSkillKey(skillId, scopeId)) ?? recentLocalSkills.get(skillId) ?? null;
+  // 1. In-memory recent map (per-process; cleared on restart).
+  const inMemory = recentLocalSkills.get(scopedSkillKey(skillId, scopeId)) ?? recentLocalSkills.get(skillId);
+  if (inMemory) return inMemory;
+  // 2. On-disk cache fallback. Captures write to skill-cache/<id>.json — without
+  //    this fallback, mutations like publish/index/feedback hit "Skill not found"
+  //    after a server restart even though the manifest is still on disk in the
+  //    profile-bound cache dir.
+  const onDisk = readSkillCache(skillId);
+  if (onDisk) {
+    recentLocalSkills.set(scopedSkillKey(skillId, scopeId), onDisk);
+    return onDisk;
+  }
+  return null;
 }
 
 /**
