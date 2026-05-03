@@ -7,7 +7,6 @@ interface RateLimitOptions {
   prefix: string;
 }
 
-type PublicEnv = { Bindings: Env };
 type AuthedEnv = { Bindings: Env; Variables: { agent_id: string } };
 
 // Module-level in-memory store — zero network overhead, resets per isolate restart
@@ -39,7 +38,7 @@ function getIp(c: Context): string {
 }
 
 export function rateLimit(opts: RateLimitOptions) {
-  return async (c: Context<PublicEnv>, next: Next) => {
+  return async (c: Context, next: Next) => {
     const blocked = check(`rl:${opts.prefix}:${getIp(c)}`, opts.limit, opts.window, c);
     if (blocked) return blocked;
     await next();
