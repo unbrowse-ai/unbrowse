@@ -167,7 +167,9 @@ BROWSE_GO=""
 BROWSE_OK=0
 for attempt in 1 2 3; do
   BROWSE_GO=$(unbrowse go 'https://example.com' 2>&1 || echo '{"error":"command_failed"}')
-  if echo "$BROWSE_GO" | python3 -c "import sys,json; exit(0 if json.loads(sys.stdin.read()).get('ok') else 1)" 2>/dev/null; then
+  BROWSE_GO_JSON=$(printf '%s' "$BROWSE_GO" | strip_logs)
+  if [ -n "$BROWSE_GO_JSON" ] && echo "$BROWSE_GO_JSON" | python3 -c "import sys,json; exit(0 if json.loads(sys.stdin.read()).get('ok') else 1)" 2>/dev/null; then
+    BROWSE_GO="$BROWSE_GO_JSON"
     BROWSE_OK=1
     break
   fi
@@ -178,7 +180,7 @@ record "browse_go" "$BROWSE_GO"
 
 if [ "$BROWSE_OK" = "1" ]; then
   SESSION=$(echo "$BROWSE_GO" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['session_id'])" 2>/dev/null)
-  record "browse_eval" "$(unbrowse eval --session "$SESSION" "JSON.stringify({title:document.title,h1:document.querySelector('h1')?.textContent,bodyLen:document.body.innerHTML.length})" 2>&1 || echo '{"error":"command_failed"}')"
+  record "browse_eval" "$(unbrowse eval --session "$SESSION" 'JSON.stringify({title:document.title,h1:(document.querySelector("h1")||{}).textContent,bodyLen:document.body.innerHTML.length})' 2>&1 || echo '{"error":"command_failed"}')"
   record "browse_snap_head" "$(unbrowse snap --session "$SESSION" 2>&1 | head -15 || echo 'snap_failed')"
   record "browse_close" "$(unbrowse close --session "$SESSION" 2>&1 || echo '{"error":"command_failed"}')"
 else
