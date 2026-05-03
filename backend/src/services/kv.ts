@@ -386,3 +386,9 @@ export function statsKV(env: KVEnv): PgKV | EdbKV {
   }
   return new EdbKV(env.EMERGENTDB_API_KEY, ns);
 }
+
+export function kvBackend(env: KVEnv): "postgres" | "emergentdb" | "unconfigured" {
+  if (env.DATABASE_URL?.trim()) return "postgres";
+  if (env.EMERGENTDB_API_KEY?.trim()) return "emergentdb";
+  return "unconfigured";
+}

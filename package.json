@@ -47,6 +47,10 @@
     "capability:worktree:verify": "bun skills/worktree-issue-fix/scripts/issue-worktree-loop.ts verify",
     "publish:cli": "bun run check:kuri-vendor && UNBROWSE_ALLOW_SKILL_PUBLISH=1 node packages/skill/scripts/assert-release-flow.mjs --check-npm && npm_config_unbrowse_allow_skill_publish=true npm publish --workspace packages/skill",
     "release:announce": "bun scripts/release-announce.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "cli": "bun src/cli.ts",
     "build:single": "bash scripts/build-binaries.sh",
     "release": "release-it",
@@ -77,6 +81,7 @@
   "devDependencies": {
     "@release-it/bumper": "^7.0.5",
     "@release-it/conventional-changelog": "^10.0.5",
+    "drizzle-kit": "^0.31.10",
     "husky": "^9.1.7",
     "release-it": "^19.2.4",
     "typescript": "5"

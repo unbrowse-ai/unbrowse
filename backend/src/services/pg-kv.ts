@@ -1,4 +1,4 @@
-import { getNeonClient } from "./neon.js";
+import { getNeonClient, withPostgresTransaction } from "./neon.js";
 
 interface ListResult {
   keys: { name: string }[];
@@ -55,12 +55,11 @@ export class PgKV {
 
   async putBatch(pairs: Array<{ key: string; value: string }>, opts?: { expirationTtl?: number }): Promise<void> {
     if (pairs.length === 0) return;
-    const sql = await this.sql();
     const expiresAt = opts?.expirationTtl
       ? new Date(Date.now() + opts.expirationTtl * 1000).toISOString()
       : null;
-    await sql.transaction(
-      pairs.map((pair) => sql`
+    await withPostgresTransaction(this.databaseUrl, (tx) =>
+      pairs.map((pair) => tx`
         INSERT INTO app_kv (namespace, key, value, expires_at)
         VALUES (${this.namespace}, ${pair.key}, ${pair.value}, ${expiresAt})
         ON CONFLICT (namespace, key)
