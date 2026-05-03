@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* **setup:** write and repair Codex update hooks as the single `[hooks]` table
+
 ## [6.5.0-preview.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.7...v6.5.0-preview.8) (2026-05-03)
 
 ### Features

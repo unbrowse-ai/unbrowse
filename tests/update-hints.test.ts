@@ -94,7 +94,7 @@ describe("update hints", () => {
       "codex_hooks = true",
       "",
       "# Unbrowse update hints — managed by unbrowse setup",
-      "[hooks]",
+      "[[hooks]]",
       "event = \"SessionStart\"",
       "command = \"node \\\"/tmp/unbrowse-update-hint.mjs\\\"\"",
       "",
@@ -109,8 +109,32 @@ describe("update hints", () => {
 
     expect(status.action).toBe("updated");
     const config = readFileSync(configPath, "utf8");
-    expect(config).toContain("# Unbrowse update hints — managed by unbrowse setup\n[[hooks]]\n");
-    expect(config).not.toContain("\n[hooks]\nevent = \"SessionStart\"");
+    expect(config).toContain("# Unbrowse update hints — managed by unbrowse setup\n[hooks]\n");
+    expect(config).not.toContain("\n[[hooks]]\nevent = \"SessionStart\"");
     expect(config).not.toContain("\n[[hooks]\n");
+  });
+
+  it("writes the Codex update hook as a single hooks table", () => {
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-codex-hooks-fresh-"));
+    tmpDirs.push(homeDir);
+    const codexHome = path.join(homeDir, ".codex");
+    mkdirSync(codexHome, { recursive: true });
+    process.env.HOME = homeDir;
+    process.env.CODEX_HOME = codexHome;
+    process.env.UNBROWSE_CONFIG_DIR = path.join(homeDir, ".unbrowse");
+    process.env.UNBROWSE_SETUP_HOST = "codex";
+
+    const [status] = configureUpdateHintHooks(import.meta.url, {
+      method: "repo-clone",
+      host: "codex",
+      package_root: path.dirname(import.meta.path),
+      recorded_at: new Date().toISOString(),
+    });
+
+    expect(status.action).toBe("installed");
+    const config = readFileSync(path.join(codexHome, "config.toml"), "utf8");
+    expect(config).toContain("[features]\ncodex_hooks = true\n");
+    expect(config).toContain("# Unbrowse update hints — managed by unbrowse setup\n[hooks]\n");
+    expect(config).not.toContain("[[hooks]]");
   });
 });
