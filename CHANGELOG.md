@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 
+* **release:** keep npm preview dist-tag on just-published previews
 * repair codex update hook setup ([f977a27](https://github.com/unbrowse-ai/unbrowse-dev/commit/f977a278d0baa3798eab6a981d436432bf164460))
 
 ## [6.5.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.0-preview.5...v6.5.0-preview.6) (2026-05-03)

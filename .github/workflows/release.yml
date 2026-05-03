@@ -224,6 +224,7 @@ jobs:
         run: bash scripts/npm-dist-tag-sync.sh
         env:
           NODE_AUTH_TOKEN: ${{ env.NODE_AUTH_TOKEN }}
+          UNBROWSE_PUBLISHED_VERSION: ${{ steps.pkg.outputs.version }}
   deploy-backend:
     name: Deploy Backend (CF Worker)
     runs-on: self-hosted
