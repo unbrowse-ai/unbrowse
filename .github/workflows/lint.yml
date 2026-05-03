@@ -7,6 +7,10 @@ on:
     branches: [main, staging]
   workflow_dispatch:
 
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
 jobs:
   repo-sanity:
     name: Repo Sanity

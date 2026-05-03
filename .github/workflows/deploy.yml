@@ -12,6 +12,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
 jobs:
   deploy-backend:
     name: Deploy Backend (CF Worker)
