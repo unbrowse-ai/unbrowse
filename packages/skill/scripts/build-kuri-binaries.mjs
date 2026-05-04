@@ -31,6 +31,24 @@ function hasBinary(name) {
   }
 }
 
+/// Write a small executable stub that prints an error and exits non-zero.
+/// Used when cross-compile to a target fails — keeps src/single-binary.ts's
+/// import-as-file resolving so Bun can bundle on this host. Real binaries
+/// for these targets must be produced by CI on the matching native platform.
+function writePlaceholderStub(outFile, targetId) {
+  const stub = `#!/bin/sh
+# Placeholder kuri binary for ${targetId} — cross-compile from this host
+# failed (target system libs needed a sysroot Zig doesn't ship). The real
+# binary is built by CI on a native ${targetId} runner.
+echo "[unbrowse] kuri binary for ${targetId} not available in this build" >&2
+echo "[unbrowse] this happens when the npm package was published from a host" >&2
+echo "[unbrowse] that couldn't cross-compile to your platform. File a bug." >&2
+exit 1
+`;
+  writeFileSync(outFile, stub);
+  chmodSync(outFile, 0o755);
+}
+
 if (detectBrokenMonorepoKuri(packageRoot, repoRoot)) {
   throw new Error(
     "Broken Kuri source checkout at submodules/kuri. Reinit the submodule or set UNBROWSE_KURI_SOURCE_DIR to a clean justrach/kuri checkout.",
@@ -114,16 +132,19 @@ for (const target of supportedTargets) {
       stdio: "inherit",
     });
   } catch (e) {
-    console.warn(`Cross-compile failed for ${target.id} — skipping (${e.message?.split("\n")[0] ?? "unknown error"})`);
-    rmSync(outDir, { recursive: true, force: true });
+    console.warn(`Cross-compile failed for ${target.id} — writing placeholder stub (${e.message?.split("\n")[0] ?? "unknown error"})`);
+    writePlaceholderStub(outFile, target.id);
     rmSync(prefixDir, { recursive: true, force: true });
+    manifest.binaries[target.id] = { zig_target: target.zigTarget, source: "placeholder", sha256: hashFile(outFile) };
     continue;
   }
 
   const builtBinary = path.join(prefixDir, "bin", target.bin);
   if (!existsSync(builtBinary)) {
-    console.warn(`Kuri build for ${target.id} produced no binary — skipping`);
+    console.warn(`Kuri build for ${target.id} produced no binary — writing placeholder stub`);
+    writePlaceholderStub(outFile, target.id);
     rmSync(prefixDir, { recursive: true, force: true });
+    manifest.binaries[target.id] = { zig_target: target.zigTarget, source: "placeholder", sha256: hashFile(outFile) };
     continue;
   }
 

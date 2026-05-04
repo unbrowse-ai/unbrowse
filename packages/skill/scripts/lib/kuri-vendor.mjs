@@ -9,16 +9,9 @@ export const upstreamBranch = "adding-extensions";
 
 export const supportedTargets = [
   { id: "darwin-arm64", zigTarget: "aarch64-macos", bin: "kuri" },
-  // Cross-compile from macOS for these targets fails — Zig can't resolve
-  // target system libs (iconv/icucore for darwin-x64, z/idn2 for linux)
-  // without a sysroot for the target platform. The libcurl-impersonate
-  // static archives are vendored for all 4 platforms in
-  // submodules/kuri/vendor/curl-impersonate/, so a native CI build on
-  // each platform DOES work; we just can't build them here.
-  // TODO: enable when CI runners produce these binaries.
-  // { id: "darwin-x64", zigTarget: "x86_64-macos", bin: "kuri" },
-  // { id: "linux-arm64", zigTarget: "aarch64-linux", bin: "kuri" },
-  // { id: "linux-x64", zigTarget: "x86_64-linux", bin: "kuri" },
+  { id: "darwin-x64", zigTarget: "x86_64-macos", bin: "kuri" },
+  { id: "linux-arm64", zigTarget: "aarch64-linux", bin: "kuri" },
+  { id: "linux-x64", zigTarget: "x86_64-linux", bin: "kuri" },
 ];
 
 export function monorepoKuriDir(repoRoot) {
