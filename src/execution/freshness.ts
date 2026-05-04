@@ -19,7 +19,9 @@ export type EndpointFreshnessFetch = (
 ) => Promise<{ status: number }>;
 
 export function isEndpointFreshnessFailureStatus(status: number): boolean {
-  return status === 404 || status === 410 || status >= 500;
+  // Only treat permanent removal signals as stale. 5xx is transient and
+  // handled by the existing withRetry path; preflight should not gate it.
+  return status === 404 || status === 410;
 }
 
 export function shouldValidateEndpointFreshness(
@@ -30,6 +32,10 @@ export function shouldValidateEndpointFreshness(
 ): boolean {
   if (options?.dry_run || options?.force_capture) return false;
   if (endpoint.method === "WS") return false;
+  // HEAD-on-mutation endpoints commonly return 404/410, which would falsely
+  // disable valid POST/PUT/PATCH/DELETE routes. Only probe safe methods.
+  if (endpoint.idempotency !== "safe") return false;
+  if (endpoint.method !== "GET") return false;
   if (!endpoint.last_validated_at) return true;
 
   const lastValidatedMs = Date.parse(endpoint.last_validated_at);

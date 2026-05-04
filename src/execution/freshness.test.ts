@@ -75,4 +75,31 @@ describe("skill freshness checks", () => {
     equal(ep.verification_status, "verified");
     equal(ep.last_validated_at, "2026-04-01T12:00:00.000Z");
   });
+
+  it("skips non-GET endpoints to avoid HEAD-on-mutation false positives", () => {
+    const post = endpoint({ method: "POST", idempotency: "unsafe" });
+    equal(shouldValidateEndpointFreshness(post), false);
+
+    const put = endpoint({ method: "PUT", idempotency: "unsafe" });
+    equal(shouldValidateEndpointFreshness(put), false);
+
+    const delete_ = endpoint({ method: "DELETE", idempotency: "unsafe" });
+    equal(shouldValidateEndpointFreshness(delete_), false);
+  });
+
+  it("skips endpoints flagged unsafe even when method is GET", () => {
+    const ep = endpoint({ idempotency: "unsafe" });
+    equal(shouldValidateEndpointFreshness(ep), false);
+  });
+
+  it("treats transient 5xx as unknown so retry can recover", async () => {
+    const ep = endpoint({ last_validated_at: "2026-04-01T12:00:00.000Z" });
+    const fetch5xx: EndpointFreshnessFetch = async () => ({ status: 503 });
+
+    const result = await validateEndpointUrlFreshness(ep.url_template, ep, undefined, fetch5xx);
+    equal(result.outcome, "unknown");
+    equal(isEndpointFreshnessFailureStatus(503), false);
+    equal(isEndpointFreshnessFailureStatus(500), false);
+    equal(ep.verification_status, "verified");
+  });
 });
