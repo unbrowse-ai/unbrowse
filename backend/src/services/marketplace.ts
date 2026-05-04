@@ -3,6 +3,7 @@ import type { Env, SkillListItem, SkillManifest, EndpointDescriptor, EndpointCor
 import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex } from "./discovery.js";
 import { generateDescriptions } from "./descriptions.js";
 import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
+import { summarizeEmergentDBError } from "./emergentdb.js";
 import { skillsKV } from "./kv.js";
 import { verifyReleaseManifest } from "./release-manifest.js";
 
@@ -280,7 +281,7 @@ export async function publishSkill(
       index_status = `shadow:${trust.promotion_reason}`;
     }
   } catch (err) {
-    index_status = (err as Error).message;
+    index_status = summarizeEmergentDBError(err);
     console.error(`[indexEndpoints] failed for ${skill.skill_id}:`, index_status);
   }
 

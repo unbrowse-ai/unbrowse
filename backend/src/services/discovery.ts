@@ -1,9 +1,10 @@
 import type { Env } from "../types.js";
 import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
+import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
 
-const EMERGENTDB_BASE = "https://api.emergentdb.com";
 const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
+const CACHE_WRITE_TIMEOUT = 2_000;
 
 /** Normalize domain: strip www., use stg- prefix for staging. */
 function normalizeDomain(env: Env, domain: string): string {
@@ -86,11 +87,14 @@ async function cacheGet(env: Env, key: string): Promise<string | null> {
 function cachePut(env: Env, key: string, value: string): void {
   const fullKey = `search-cache:${key}`;
   _memCache.set(fullKey, { value, expires: Date.now() + SEARCH_CACHE_TTL * 1000 });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CACHE_WRITE_TIMEOUT);
   fetch(`${EMERGENTDB_BASE}/qdkv/set`, {
     method: "POST",
     headers: { Authorization: `Bearer ${env.EMERGENTDB_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({ key: fullKey, value, ttlMs: SEARCH_CACHE_TTL * 1000 }),
-  }).catch(() => {});
+    signal: controller.signal,
+  }).catch(() => {}).finally(() => clearTimeout(timer));
 }
 
 async function edbRequest(
@@ -99,20 +103,7 @@ async function edbRequest(
   path: string,
   body?: unknown
 ): Promise<unknown> {
-  const res = await fetch(`${EMERGENTDB_BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${env.EMERGENTDB_API_KEY}`,
-      "Content-Type": "application/json",
-      "Accept-Encoding": "identity",
-      "User-Agent": "unbrowse/0.1.0",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `EmergentDB HTTP ${res.status}`);
-  return data;
+  return emergentDBRequest(env, method, path, body);
 }
 
 /** Graph API search — auto-embeds the query server-side. */

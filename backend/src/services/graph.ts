@@ -1,6 +1,5 @@
 import type { Env } from "../types.js";
-
-const EMERGENTDB_BASE = "https://api.emergentdb.com";
+import { emergentDBRequest } from "./emergentdb.js";
 
 async function edbRequest(
   env: Env,
@@ -8,20 +7,7 @@ async function edbRequest(
   path: string,
   body?: unknown
 ): Promise<unknown> {
-  const res = await fetch(`${EMERGENTDB_BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${env.EMERGENTDB_API_KEY}`,
-      "Content-Type": "application/json",
-      "Accept-Encoding": "identity",
-      "User-Agent": "unbrowse/0.1.0",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `EmergentDB HTTP ${res.status}`);
-  return data;
+  return emergentDBRequest(env, method, path, body);
 }
 
 function normalizeDomain(env: Env, domain: string): string {
@@ -122,6 +108,11 @@ export async function recordNegative(
 /** Check remaining Graph API credits. */
 export async function checkCredits(env: Env): Promise<unknown> {
   return edbRequest(env, "GET", "/graph/credits");
+}
+
+/** Check EmergentDB service health. Credits are intentionally not part of health. */
+export async function checkGraphHealth(env: Env): Promise<unknown> {
+  return edbRequest(env, "GET", "/health");
 }
 
 /** Check cached intent→endpoint routing. */

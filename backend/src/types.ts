@@ -3,6 +3,7 @@ export interface Env {
   LANDING_PUBLISH_KEY?: string;
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
+  EMERGENTDB_TIMEOUT_MS?: string;
   NEBIUS_API_KEY: string;
   GITHUB_WEBHOOK_SECRET?: string;
   GITHUB_PR_BOT_TOKEN?: string;

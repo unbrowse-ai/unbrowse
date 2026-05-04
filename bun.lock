@@ -76,14 +76,14 @@
     },
     "packages/sdk": {
       "name": "@unbrowse/sdk",
-      "version": "6.5.0-preview.13",
+      "version": "6.6.0-preview.0",
       "devDependencies": {
         "typescript": "^6.0.2",
       },
     },
     "packages/skill": {
       "name": "unbrowse",
-      "version": "6.5.0-preview.13",
+      "version": "6.6.0-preview.0",
       "bin": {
         "unbrowse": "bin/unbrowse-wrapper.mjs",
       },

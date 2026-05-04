@@ -412,6 +412,28 @@ export async function getMyDashboard(): Promise<DashboardData> {
   return authApi<DashboardData>("GET", "/v1/dashboard/me");
 }
 
+export interface OpsPayload {
+  stats: StatsSummary;
+  skills: SkillManifest[];
+  agents: AgentProfile[];
+}
+
+export async function getOps(): Promise<OpsPayload> {
+  return authApi<OpsPayload>("GET", "/v1/ops");
+}
+
+export async function getAnalyticsAgents(): Promise<AgentHealth> {
+  return authApi<AgentHealth>("GET", "/v1/analytics/agents");
+}
+
+export async function getAnalyticsActivation(): Promise<ActivationFunnel> {
+  return authApi<ActivationFunnel>("GET", "/v1/analytics/activation");
+}
+
+export async function getAnalyticsEngagement(): Promise<EngagementMetrics> {
+  return authApi<EngagementMetrics>("GET", "/v1/analytics/engagement");
+}
+
 export async function getDashboardByWallet(walletAddress: string): Promise<DashboardData> {
   return api<DashboardData>("GET", `/v1/dashboard/wallet/${encodeURIComponent(walletAddress.trim())}`);
 }

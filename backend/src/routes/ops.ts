@@ -4,6 +4,7 @@ import { listSkills, mergeEndpoints, publishSkill, deprecateSkill } from "../ser
 import { listAgents, countAgents } from "../services/agents.js";
 import { reindexSkill, removeSkillFromIndex, purgeSkillVectors } from "../services/discovery.js";
 import { backfillFromProfiles } from "../services/analytics.js";
+import { summarizeEmergentDBError } from "../services/emergentdb.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 import { bearerAuth } from "../middleware/auth.js";
 
@@ -134,7 +135,7 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
       await reindexSkill(c.env, skill);
       results.push({ skill_id: skill.skill_id, domain: skill.domain, ok: true });
     } catch (err) {
-      results.push({ skill_id: skill.skill_id, domain: skill.domain, ok: false, error: (err as Error).message });
+      results.push({ skill_id: skill.skill_id, domain: skill.domain, ok: false, error: summarizeEmergentDBError(err) });
     }
   }
 
@@ -251,7 +252,7 @@ opsRoutes.post("/ops/purge-reindex", bearerAuth, async (c) => {
         await reindexSkill(c.env, skill);
         indexResults.push({ skill_id: skill.skill_id, domain: skill.domain, ok: true });
       } catch (err) {
-        indexResults.push({ skill_id: skill.skill_id, domain: skill.domain, ok: false, error: (err as Error).message });
+        indexResults.push({ skill_id: skill.skill_id, domain: skill.domain, ok: false, error: summarizeEmergentDBError(err) });
       }
     }
   }
@@ -284,4 +285,3 @@ opsRoutes.post("/ops/backfill-analytics", bearerAuth, async (c) => {
   const result = await backfillFromProfiles(c.env);
   return c.json(result);
 });
-
