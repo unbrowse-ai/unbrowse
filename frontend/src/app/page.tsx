@@ -54,7 +54,7 @@ const faqJsonLd = {
       name: "How much faster is Unbrowse than headless browser automation?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse is approximately 100x faster per page. Headless browsers typically take 5-30 seconds per page interaction. Unbrowse makes direct API calls in 50-200 milliseconds. It also uses ~200 tokens per action compared to ~8,000 tokens for scraped HTML, a 40x reduction.",
+        text: "Unbrowse is roughly 100x faster per page than headless browser automation. Headless browsers take 5 to 30 seconds per page interaction; Unbrowse makes direct API calls in 50 to 200 milliseconds, and uses about 200 tokens per action against 8,000 tokens for scraped HTML. Speed compounds because the shared marketplace already covers 600+ domains, so most calls are instant on first try without re-discovery work. For agent loops where the web step is the bottleneck, that turns minutes of work into seconds.",
       },
     },
     {
@@ -70,7 +70,7 @@ const faqJsonLd = {
       name: "What websites does Unbrowse support?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse works with any website that uses shadow APIs to power its frontend — which includes most modern web applications. Sites like Airbnb, LinkedIn, and hundreds of others have been successfully mapped. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation.",
+        text: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation so the agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
       },
     },
     {
@@ -78,7 +78,7 @@ const faqJsonLd = {
       name: "Is Unbrowse secure? Do my credentials leave my machine?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse runs entirely locally. There are no cloud proxies, no man-in-the-middle interception, and your browser cookies never leave your device. Authentication credentials are encrypted with AES-256-CBC in a local vault. Only discovered API endpoint patterns (not data or credentials) are shared with the registry.",
+        text: "Unbrowse runs entirely locally and your credentials never leave your device. There are no cloud proxies, no man-in-the-middle interception, browser cookies stay on your machine, and authentication credentials are encrypted with AES-256-CBC in a local vault. Only discovered API endpoint patterns (URL templates and schemas, never your data or credentials) are shared with the registry, and only when you opt in via `unbrowse mode`. That makes Unbrowse safe to install on a work machine without changing your existing security posture.",
       },
     },
     {
@@ -94,7 +94,7 @@ const faqJsonLd = {
       name: "What is the skill registry?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, that knowledge is published to the registry so every other agent can use it instantly — no need to re-discover the same endpoints.",
+        text: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, the result is published so every other agent can call those endpoints without re-discovering them. Value compounds because every new capture lowers the cost for the next agent that needs the same data, the way Wikipedia gets more useful with every edit. That is what turns Unbrowse from a per-agent tool into shared infrastructure for the agent web.",
       },
     },
   ],
