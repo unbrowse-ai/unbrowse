@@ -249,26 +249,38 @@ async function ensureKuriReachable(kuriBase: string): Promise<void> {
 /// /v1/skills/from-routes endpoint (to be added). Wires this directly into
 /// the same publish pipeline `unbrowse capture` uses.
 async function publishObservedRoutes(
-  routes: Array<{ url: string; method: string; status: number; final_url: string; content_type: string; body_size: number }>,
+  routes: Array<{ url: string; method: string; status: number; final_url: string; content_type: string; body_excerpt: string; body_size: number; redirected: boolean }>,
   targetOrigin: string,
+  intent?: string,
 ): Promise<void> {
   if (routes.length === 0) return;
   const targetHost = (() => { try { return new URL(targetOrigin).hostname; } catch { return ""; } })();
-  // Group by (method, hostname) so we report unique destinations the bundle hit.
-  const buckets = new Map<string, { count: number; first_status: number; content_type: string }>();
-  for (const r of routes) {
-    let host = "";
-    try { host = new URL(r.url).hostname; } catch {}
-    const key = `${r.method} ${host}`;
-    const prev = buckets.get(key);
-    if (prev) { prev.count++; }
-    else buckets.set(key, { count: 1, first_status: r.status, content_type: r.content_type });
+
+  // POST to /v1/skills/from-routes — feeds through extractEndpoints +
+  // indexSkillLocally + (gated) publishIndexedSkill. Same pipeline as
+  // unbrowse capture, just sourced from sandbox-replay's outbound calls.
+  try {
+    const result = await api("POST", "/v1/skills/from-routes", {
+      routes,
+      target_origin: targetOrigin,
+      intent,
+    }) as {
+      ok: boolean;
+      skill_id?: string;
+      indexed_count?: number;
+      total_endpoints?: number;
+      skipped?: number;
+      publish_status?: string;
+      reason?: string;
+    };
+    if (result.ok && result.indexed_count && result.indexed_count > 0) {
+      info(`[flywheel] indexed ${result.indexed_count} new endpoint(s) into skill ${result.skill_id} for ${targetHost} (total: ${result.total_endpoints}, status: ${result.publish_status})`);
+    } else if (result.reason) {
+      info(`[flywheel] no endpoints indexed for ${targetHost}: ${result.reason}`);
+    }
+  } catch (e) {
+    info(`[flywheel] publish-observed-routes failed: ${(e as Error).message}`);
   }
-  const summary = Array.from(buckets.entries())
-    .map(([k, v]) => `${k}=${v.count}(${v.first_status})`)
-    .join(", ");
-  info(`[flywheel] observed ${routes.length} route call(s) for ${targetHost}: ${summary}`);
-  // TODO: POST to /v1/skills/from-routes when that endpoint lands.
 }
 
 function openUrl(url: string): void {
@@ -1713,7 +1725,7 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
   const publishObserved = flags["no-publish"] !== true && process.env.UNBROWSE_PUBLISH_OBSERVED_ROUTES !== "0";
   if (publishObserved && resp.routes_observed && resp.routes_observed.length > 0) {
     try {
-      await publishObservedRoutes(resp.routes_observed, targetOrigin);
+      await publishObservedRoutes(resp.routes_observed, targetOrigin, flags.intent as string | undefined);
     } catch (e) {
       info(`[sandbox-replay] publish-observed-routes failed: ${(e as Error).message}`);
     }

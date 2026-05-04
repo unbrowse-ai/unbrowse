@@ -1085,6 +1085,175 @@ export async function registerRoutes(app: FastifyInstance) {
     });
   });
 
+  // POST /v1/skills/from-routes — feed routes_observed (from sandbox-replay /
+  // unbrowse fetch) through extractEndpoints + indexSkillLocally so every
+  // authenticated agent fetch contributes to the marketplace flywheel.
+  // Body: { routes: ObservedRoute[], target_origin: string, intent?: string }
+  // Returns: { ok, skill_id, indexed_count, published }
+  app.post("/v1/skills/from-routes", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const body = req.body as {
+      routes?: Array<{
+        url: string;
+        method: string;
+        status: number;
+        final_url?: string;
+        content_type?: string;
+        body_excerpt?: string;
+        body_size?: number;
+        redirected?: boolean;
+      }>;
+      target_origin?: string;
+      intent?: string;
+    } | undefined;
+
+    if (!body?.routes?.length) return reply.code(400).send({ error: "routes[] required" });
+    if (!body.target_origin) return reply.code(400).send({ error: "target_origin required" });
+
+    // Quality gates: drop noise BEFORE extraction.
+    // - Only 200s (failed routes are not useful endpoints)
+    // - No HTML responses (those are documents, not API calls)
+    // - body_size > 64 (likely real data, not empty/error envelope)
+    // - Skip first-party tracking beacons via known patterns
+    const TRACKING_BEACONS = /\.(google-analytics|googletagmanager|segment\.io|datadog|newrelic|sentry|amplitude|mixpanel|hotjar)\.(com|io)|\/_next\/(static|image)\/|\.(woff2?|ttf|eot|otf|png|jpg|jpeg|gif|webp|svg|ico|css|map|mp4|webm)(\?|$)/i;
+
+    const filtered = body.routes.filter((r) => {
+      if (r.status < 200 || r.status >= 300) return false;
+      if ((r.body_size ?? 0) < 64) return false;
+      const ct = (r.content_type ?? "").toLowerCase();
+      if (ct.startsWith("text/html") || ct.startsWith("application/xhtml")) return false;
+      if (TRACKING_BEACONS.test(r.url)) return false;
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      return reply.send({
+        ok: true,
+        indexed_count: 0,
+        skipped: body.routes.length,
+        reason: "all routes filtered (non-200, HTML, beacon, or empty body)",
+      });
+    }
+
+    const { getRegistrableDomain } = await import("../domain.js");
+    const { nanoid } = await import("nanoid");
+    const { selectMarketplacePublishEndpoints } = await import("../publish-admission.js");
+
+    // Build EndpointDescriptors directly from routes. We KNOW these work
+    // (status 200 + non-HTML JSON body), so skip extractEndpoints' capture-time
+    // heuristics (BM25 scoring, request-header signals, etc.) which are tuned
+    // for messy HAR data, not post-hoc verified routes.
+    type Endpoint = import("../types/index.js").EndpointDescriptor;
+    const endpoints: Endpoint[] = filtered.map((r) => {
+      // URL parameterization: replace ID-shaped path segments with {placeholders}.
+      // /repos/owner/repo → /repos/{owner}/{repo} would over-parameterize. Be
+      // conservative: only replace numeric IDs and explicit UUIDs/hashes.
+      let urlTemplate = r.url;
+      try {
+        const u = new URL(r.url);
+        const segments = u.pathname.split("/").map((seg) => {
+          if (/^\d+$/.test(seg)) return "{id}";
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return "{uuid}";
+          if (/^[0-9a-f]{32,}$/i.test(seg) && seg.length >= 32) return "{hash}";
+          return seg;
+        });
+        u.pathname = segments.join("/");
+        urlTemplate = u.toString();
+      } catch { /* keep raw */ }
+
+      const method = r.method.toUpperCase() as Endpoint["method"];
+      const idempotency: Endpoint["idempotency"] = method === "GET" || method === "HEAD" || method === "OPTIONS" ? "idempotent" : "unknown";
+      const isJson = (r.content_type ?? "").toLowerCase().includes("json");
+
+      const ep: Endpoint = {
+        endpoint_id: nanoid(),
+        method,
+        url_template: urlTemplate,
+        idempotency,
+        verification_status: "verified",
+        reliability_score: 1.0,
+        last_verified_at: new Date().toISOString(),
+      };
+      if (r.content_type) ep.headers_template = { "content-type": r.content_type };
+      if (isJson && r.body_excerpt) {
+        // Best-effort yields[] from the first object's keys.
+        try {
+          const parsed = JSON.parse(r.body_excerpt);
+          const yields = Array.isArray(parsed)
+            ? (parsed[0] && typeof parsed[0] === "object" ? Object.keys(parsed[0]).slice(0, 16) : [])
+            : (parsed && typeof parsed === "object" ? Object.keys(parsed).slice(0, 16) : []);
+          if (yields.length > 0) {
+            ep.response_schema = { sample_field_names: yields } as Endpoint["response_schema"];
+          }
+        } catch { /* truncated/invalid JSON — skip yields */ }
+      }
+      return ep;
+    });
+
+
+    let domain: string;
+    try { domain = getRegistrableDomain(new URL(body.target_origin).hostname); }
+    catch { return reply.code(400).send({ error: "could not parse target_origin domain" }); }
+
+    const intent = body.intent || `fetch ${domain}`;
+    const existingSkill = findExistingSkillForDomain(domain, intent);
+
+    // Merge with existing endpoints if a skill exists.
+    // mergeEndpoints already imported at top
+    const mergedEndpoints = existingSkill
+      ? mergeEndpoints(existingSkill.endpoints, endpoints)
+      : endpoints;
+
+    const draft: import("../types/index.js").SkillManifest = {
+      skill_id: existingSkill?.skill_id ?? nanoid(),
+      version: "1.0.0",
+      schema_version: "1",
+      lifecycle: "active",
+      execution_type: "http",
+      created_at: existingSkill?.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      name: domain,
+      intent_signature: intent,
+      domain,
+      description: `API skill for ${domain} (built from observed routes)`,
+      owner_type: "agent",
+      endpoints: mergedEndpoints,
+      intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
+    };
+
+    const indexed = await indexSkillLocally(buildSkillIndexJob(draft, clientScope));
+
+    // Marketplace publish gated by mode (same as capture).
+    const admission = selectMarketplacePublishEndpoints(draft);
+    let publishedAt: string | undefined;
+    let publishStatus: "indexed" | "published" | "blocked-validation" = "indexed";
+    if (admission.endpoints.length > 0) {
+      try {
+        const result = await publishIndexedSkill(indexed);
+        publishStatus = result.publishStatus;
+        publishedAt = result.publishedAt;
+      } catch (e) {
+        // Best effort — local indexing succeeded, publish is bonus.
+        console.warn(`[from-routes] publish failed: ${(e as Error).message}`);
+      }
+    }
+
+    try { cachePublishedSkill(indexed.skill); } catch { /* best-effort */ }
+
+    return reply.send({
+      ok: true,
+      skill_id: indexed.skill.skill_id,
+      domain,
+      intent,
+      indexed_count: endpoints.length,
+      total_endpoints: mergedEndpoints.length,
+      skipped: body.routes.length - filtered.length,
+      publish_status: publishStatus,
+      published_at: publishedAt,
+    });
+  });
+
+
   // POST /v1/skills/:skill_id/publish — two-phase agent-driven publish
   // Phase 1 (no endpoints body): re-index locally, then return endpoints needing descriptions
   // Phase 2 (with endpoints): merge descriptions, re-index locally, then publish remotely
