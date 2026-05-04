@@ -1,5 +1,15 @@
 # Changelog
 
+## [6.6.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.6.0-preview.0...v6.6.0) (2026-05-04)
+
+### Features
+
+* **cli:** improve agent browse harness UX ([7824924](https://github.com/unbrowse-ai/unbrowse-dev/commit/7824924d286cb28efe24817dd88d4ef099022914))
+
+### Bug Fixes
+
+* make graph credits non-blocking ([5181b67](https://github.com/unbrowse-ai/unbrowse-dev/commit/5181b676726071b4af76a5ae5afdadbe20520694))
+
 ## [6.6.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.2...v6.6.0-preview.0) (2026-05-04)
 
 ### Features
