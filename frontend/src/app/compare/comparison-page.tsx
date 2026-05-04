@@ -220,24 +220,23 @@ export function ComparisonPage({ slug }: { slug: string }) {
           </h2>
           <div className="space-y-4 text-base sm:text-lg leading-8 text-text-secondary">
             <p>
-              Every modern website is powered by internal APIs. When you load a
-              page, the browser fetches structured data from backend endpoints
-              and renders it as HTML. Browser automation tools like{" "}
-              {competitor.name} work at the HTML layer — rendering pages, parsing
-              DOMs, clicking buttons.
+              Every modern website is already powered by internal APIs that
+              return structured JSON before any pixel renders. {competitor.name}{" "}
+              works one layer too high, automating the rendered HTML, parsing
+              DOMs, and clicking buttons that exist for human eyes. That extra
+              translation costs about 8,000 tokens and several seconds on every
+              page, even when the data your agent needs was structured in the
+              first place. Working at the API layer skips the entire detour.
             </p>
             <p>
-              Unbrowse works at the API layer. It passively captures network
-              traffic from a real browsing session, reverse-engineers the
-              internal endpoints, and stores them as reusable skills. Once
-              discovered, AI agents call these APIs directly — no browser, no
-              rendering, no DOM parsing.
-            </p>
-            <p>
-              The result: structured JSON responses in ~200 tokens instead of
-              ~8,000 tokens of raw HTML. Direct API calls in 950 ms instead of
-              multi-second page loads. And a shared skill registry so agents
-              never re-discover the same endpoints.
+              Unbrowse captures those internal endpoints from one real browsing
+              session, reverse-engineers their schemas and auth, and stores them
+              as reusable skills in a shared marketplace of 600+ domains and
+              18,000+ endpoints. The next call from any agent skips discovery
+              and runs as a direct HTTP request, returning JSON in roughly 200
+              tokens instead of 8,000. The shared registry is the difference
+              between every team paying the rendering tax and every team
+              paying it once.
             </p>
           </div>
         </section>

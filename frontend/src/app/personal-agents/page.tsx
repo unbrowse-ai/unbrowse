@@ -48,11 +48,9 @@ One person browses Airbnb. Every agent after that gets the API route for free.`,
   },
   {
     title: "Why this matters for personal agents",
-    body: `Personal agents are different from enterprise automation. You are running them on your own machine, often with local models, paying per token out of your own pocket. Every wasted token is your money. Every slow response is your time.
+    body: `Personal agents are different from enterprise automation, because every wasted token comes out of your pocket. You run them on your own machine, often with local models, paying per call. Browser automation alone burns roughly $0.53 per action when you add compute, vision tokens, and the LLM calls needed to interpret screenshots, against $0.005 for a cached API hit. The gap is 106x, and it shows up directly on your bill.
 
-Browser automation is the single biggest cost and speed bottleneck for personal agents. A single browser action costs roughly $0.53 when you factor in compute, vision tokens, and the LLM calls needed to interpret screenshots. The same action through a cached API route costs $0.005. That is 106 times cheaper.
-
-If your agent runs 20 web tasks a day, browser automation costs you roughly $10.60. With Unbrowse, the same tasks cost $0.10. Over a month, that is $318 versus $3.`,
+Run twenty web tasks a day and the difference is concrete: about $10.60 daily through a browser, or $0.10 through Unbrowse. Over a month, that is $318 versus $3, on the same workload. Cost is the throttle on how often you actually let your agent work for you, so closing the gap turns "ask sometimes" into "run all day".`,
   },
   {
     title: "40x fewer tokens — critical for local models",
