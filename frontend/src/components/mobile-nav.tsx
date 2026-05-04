@@ -42,16 +42,8 @@ export function MobileNav() {
             Discord
           </a>
           <Link href="/faq" onClick={() => setOpen(false)}
-            className="px-5 py-3 text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.1)] transition-colors border-b border-[rgba(255,122,32,0.12)]">
-            FAQ
-          </Link>
-          <Link href="/terms" onClick={() => setOpen(false)}
-            className="px-5 py-3 text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.1)] transition-colors border-b border-[rgba(255,122,32,0.12)]">
-            Terms
-          </Link>
-          <Link href="/privacy" onClick={() => setOpen(false)}
             className="px-5 py-3 text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.1)] transition-colors">
-            Privacy
+            FAQ
           </Link>
         </div>
       )}

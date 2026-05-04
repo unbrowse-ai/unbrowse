@@ -37,7 +37,7 @@ const faqJsonLd = {
       name: "How does Unbrowse work?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the shadow API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.",
+        text: "Unbrowse is the API layer for AI agents. The first time your agent visits a website, Unbrowse captures the real APIs the site uses to render itself. The next call skips the browser entirely, sub-500ms direct API instead of multi-second pixel-clicking. The shared marketplace already covers 600+ domains, so most calls are instant on first try. Open source, runs locally, plugs into OpenClaw, Claude Desktop, Cursor, and any MCP-aware framework.",
       },
     },
     {
@@ -100,30 +100,35 @@ async function HeroStats() {
   }
 
   return (
-    <div className="flex items-center gap-6 justify-center mt-12 text-xs font-mono text-[rgba(255,122,32,0.5)]">
-      <div className="text-center">
-        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.skills ? stats.skills.toLocaleString() : "4,200+"}</div>
-        <div className="uppercase tracking-wider">SKILLS</div>
-      </div>
-      <span className="text-[rgba(255,122,32,0.2)]">|</span>
-      <div className="text-center">
-        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.endpoints ? stats.endpoints.toLocaleString() : "18,000+"}</div>
-        <div className="uppercase tracking-wider">ENDPOINTS</div>
-      </div>
-      <span className="text-[rgba(255,122,32,0.2)]">|</span>
-      <div className="text-center">
-        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.domains ? stats.domains.toLocaleString() : "600+"}</div>
-        <div className="uppercase tracking-wider">DOMAINS</div>
-      </div>
-      <span className="text-[rgba(255,122,32,0.2)]">|</span>
-      <div className="text-center">
-        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.executions ? stats.executions.toLocaleString() : "1.2M+"}</div>
-        <div className="uppercase tracking-wider">EXECUTIONS</div>
-      </div>
-      <span className="text-[rgba(255,122,32,0.2)]">|</span>
-      <div className="text-center">
-        <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.agents ? stats.agents.toLocaleString() : "3,500+"}</div>
-        <div className="uppercase tracking-wider">AGENTS</div>
+    <div className="flex flex-col items-center mt-12">
+      <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)] mb-3">
+        ##  Live in production
+      </p>
+      <div className="flex items-center gap-6 justify-center text-xs font-mono text-[rgba(255,122,32,0.5)]">
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.skills ? stats.skills.toLocaleString() : "4,200+"}</div>
+          <div className="uppercase tracking-wider">SKILLS</div>
+        </div>
+        <span className="text-[rgba(255,122,32,0.2)]">|</span>
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.endpoints ? stats.endpoints.toLocaleString() : "18,000+"}</div>
+          <div className="uppercase tracking-wider">ENDPOINTS</div>
+        </div>
+        <span className="text-[rgba(255,122,32,0.2)]">|</span>
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.domains ? stats.domains.toLocaleString() : "600+"}</div>
+          <div className="uppercase tracking-wider">DOMAINS</div>
+        </div>
+        <span className="text-[rgba(255,122,32,0.2)]">|</span>
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.executions ? stats.executions.toLocaleString() : "1.2M+"}</div>
+          <div className="uppercase tracking-wider">EXECUTIONS</div>
+        </div>
+        <span className="text-[rgba(255,122,32,0.2)]">|</span>
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.agents ? stats.agents.toLocaleString() : "3,500+"}</div>
+          <div className="uppercase tracking-wider">AGENTS</div>
+        </div>
       </div>
     </div>
   );
@@ -206,59 +211,60 @@ export default function Home() {
                        hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-all cursor-pointer"
           >
             <Github className="w-3.5 h-3.5" />
-            <span>Free &amp; Open Source</span>
-            <span className="text-[rgba(255,122,32,0.4)]">—</span>
+            <span>Free, open source, runs locally</span>
+            <span className="text-[rgba(255,122,32,0.4)]">·</span>
             <span className="flex items-center gap-1">Star on GitHub <IconChevron size={11} className="group-hover:translate-x-0.5 transition-transform" /></span>
           </a>
 
           <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
             100x faster. 95% cheaper.{" "}
             <br className="hidden sm:block" />
-            <span className="text-orange-500">The API-native browser.</span>
+            <span className="text-orange-500">The API layer for AI agents.</span>
           </h1>
 
           <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-            A drop-in replacement for browser automation for AI agents.
-            Log in, search, book, and submit through direct API calls instead of driving a flaky browser.
+            Your agent calls the site&apos;s real API instead of driving a browser.
+            Plugs into OpenClaw, Claude Desktop, Cursor, and any MCP-aware framework.
           </p>
 
-          <div className="animate-fade-up stagger-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-10">
-            <ScrollToButton
-              sectionId="install"
-              className="group flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500
-                         text-white font-mono font-medium text-sm w-full sm:w-auto
-                         hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer"
-            >
-              [ Get Started <IconArrow size={14} className="group-hover:translate-x-1 transition-transform" /> ]
-            </ScrollToButton>
-            <ScrollToButton
-              sectionId="demo"
-              className="flex items-center justify-center gap-2 px-7 py-2.5
-                         bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto
-                         hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
-            >
-              [ See Demo ]
-            </ScrollToButton>
-            <a
-              href="https://discord.gg/VWugEeFNsG"
-              target="_blank"
-              rel="noopener"
-              className="flex items-center justify-center gap-2 px-7 py-2.5
-                         bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto
-                         hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
-            >
-              [ Discord ]
-            </a>
-            <a
-              href={WHITEPAPER_URL}
-              target="_blank"
-              rel="noopener"
-              className="flex items-center justify-center gap-2 px-7 py-2.5
-                         bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto
-                         hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
-            >
-              [ Read Paper ]
-            </a>
+          <div className="animate-fade-up stagger-3 flex flex-col items-center gap-4 mt-10">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <ScrollToButton
+                sectionId="install"
+                className="group flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500
+                           text-white font-mono font-medium text-sm w-full sm:w-auto
+                           hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer"
+              >
+                [ npx unbrowse setup <IconArrow size={14} className="group-hover:translate-x-1 transition-transform" /> ]
+              </ScrollToButton>
+              <ScrollToButton
+                sectionId="demo"
+                className="flex items-center justify-center gap-2 px-7 py-2.5
+                           bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto
+                           hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
+              >
+                [ See it run ]
+              </ScrollToButton>
+            </div>
+            <div className="flex items-center gap-4 text-xs font-mono text-[rgba(255,156,64,0.7)]">
+              <a
+                href="https://discord.gg/VWugEeFNsG"
+                target="_blank"
+                rel="noopener"
+                className="hover:text-[rgba(255,176,96,1)] transition-colors"
+              >
+                join discord
+              </a>
+              <span className="text-[rgba(255,122,32,0.3)]">·</span>
+              <a
+                href={WHITEPAPER_URL}
+                target="_blank"
+                rel="noopener"
+                className="hover:text-[rgba(255,176,96,1)] transition-colors"
+              >
+                read the paper
+              </a>
+            </div>
           </div>
 
         </div>
