@@ -30,7 +30,7 @@ export -f now_ms
 # Per CLAUDE.md "Always kill the running unbrowse server" — global installs
 # serve stale code.
 ensure_server() {
-  if curl -fsS -m 2 "${UNBROWSE_API_BASE}/v1/admin/sessions" >/dev/null 2>&1; then
+  if curl -fsS -m 2 "${UNBROWSE_API_BASE}/v1/browse/sessions" >/dev/null 2>&1; then
     echo "[harness] reusing live source server with admin endpoints" >&2
     return 0
   fi
@@ -46,7 +46,7 @@ ensure_server() {
     nohup bun src/server.ts 127.0.0.1 6969 \
       >"${OUT_DIR}/server.log" 2>&1 & )
   for i in $(seq 1 60); do
-    if curl -fsS -m 2 "${UNBROWSE_API_BASE}/v1/admin/sessions" >/dev/null 2>&1; then
+    if curl -fsS -m 2 "${UNBROWSE_API_BASE}/v1/browse/sessions" >/dev/null 2>&1; then
       echo "[harness] source server up after ${i}s" >&2
       return 0
     fi
@@ -59,12 +59,12 @@ ensure_server() {
 export -f ensure_server
 
 # Snapshot session state for an active browse session.
-# Hits /v1/admin/sessions/:id/buffer (added in this PR — guard for absence).
+# Hits /v1/browse/sessions/:id/buffer (added in this PR — guard for absence).
 session_buffer_snapshot() {
   local session_id="$1"
   local out_file="$2"
   if curl -fsS -m 5 \
-      "${UNBROWSE_API_BASE}/v1/admin/sessions/${session_id}/buffer" \
+      "${UNBROWSE_API_BASE}/v1/browse/sessions/${session_id}/buffer" \
       -o "$out_file" 2>/dev/null; then
     return 0
   fi
@@ -73,11 +73,11 @@ session_buffer_snapshot() {
 }
 export -f session_buffer_snapshot
 
-# Read the most recent active session id for a domain via /v1/admin/sessions.
+# Read the most recent active session id for a domain via /v1/browse/sessions.
 # Falls back to empty string if endpoint missing.
 latest_session_for_domain() {
   local domain="$1"
-  curl -fsS -m 5 "${UNBROWSE_API_BASE}/v1/admin/sessions" 2>/dev/null \
+  curl -fsS -m 5 "${UNBROWSE_API_BASE}/v1/browse/sessions" 2>/dev/null \
     | python3 -c '
 import sys,json
 try:
