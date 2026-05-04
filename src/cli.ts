@@ -75,7 +75,10 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
       const next = rest[i + 1];
       // Flags that always consume the next arg as their value (even if it
       // starts with -- because nanoid IDs can begin with `-` / `--`).
-      const valueExpectedFlags = new Set(["skill", "endpoint", "intent", "url", "domain", "params", "path", "extract", "limit"]);
+      const valueExpectedFlags = new Set([
+        "skill", "endpoint", "intent", "url", "domain", "params", "path", "extract", "limit",
+        "session", "ref", "text", "value", "form-selector", "submit-selector", "wait-for", "timeout-ms",
+      ]);
       if (valueExpectedFlags.has(key)) {
         // Don't consume the next arg if it's clearly another flag (-p, --foo).
         // nanoid IDs may start with `-` but never `-p` or `--`.
@@ -405,9 +408,15 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     const body: Record<string, unknown> = { intent };
     const url = flags.url as string | undefined;
     const domain = flags.domain as string | undefined;
-    const explicitEndpointId = flags["endpoint-id"] as string | undefined;
-    const autoExecute = !!flags.execute;
-    const extraParams = flags.params ? JSON.parse(flags.params as string) : {};
+    const endpointFlag = flags["endpoint-id"] ?? flags.endpoint;
+    const explicitEndpointId = typeof endpointFlag === "string" ? endpointFlag : undefined;
+    const noExecute = flags["no-execute"] === true;
+    const autoExecute = !noExecute;
+    const cliKv = (flags as Record<string, unknown>)._params as Record<string, string> | undefined;
+    const extraParams = {
+      ...(flags.params ? JSON.parse(flags.params as string) : {}),
+      ...(cliKv && Object.keys(cliKv).length > 0 ? cliKv : {}),
+    };
 
     if (url) {
       body.params = { url };
@@ -453,7 +462,16 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
     function resolveSkillId(): string | undefined {
       return (result.skill as Record<string, unknown>)?.skill_id as string
-        ?? (result as Record<string, unknown>).skill_id as string;
+        ?? (result as Record<string, unknown>).skill_id as string
+        ?? ((result as Record<string, unknown>).result as Record<string, unknown> | undefined)?.skill_id as string;
+    }
+
+    function resolveAvailableEndpoints(): Array<Record<string, unknown>> | undefined {
+      return (Array.isArray(result.available_endpoints)
+        ? result.available_endpoints
+        : Array.isArray((result.result as Record<string, unknown> | undefined)?.available_endpoints)
+          ? (result.result as Record<string, unknown>).available_endpoints
+          : undefined) as Array<Record<string, unknown>> | undefined;
     }
 
     const startedAt = Date.now();
@@ -475,7 +493,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     }
 
     // When agent explicitly picked an endpoint but resolve deferred, execute it directly
-    if (explicitEndpointId && result.available_endpoints) {
+    if (explicitEndpointId && resolveAvailableEndpoints()) {
       const skillId = resolveSkillId();
       if (skillId) {
         result = await withPendingNotice(
@@ -485,9 +503,18 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       }
     }
 
-    // --execute: auto-pick best endpoint and return data in one step
-    if (autoExecute && result.available_endpoints && !result.result) {
-      const endpoints = result.available_endpoints as Array<Record<string, unknown>>;
+    function endpointIsSafeToAutoExecute(endpoint: Record<string, unknown>): boolean {
+      const method = String(endpoint.method ?? "GET").toUpperCase();
+      if (method !== "GET" && method !== "HEAD") return false;
+      if (endpoint.needs_params && Object.keys(extraParams).length === 0) return false;
+      return true;
+    }
+
+    // Agent default: when resolve has a safe read endpoint, execute it and return
+    // data. Use --no-execute when the caller only wants endpoint metadata.
+    const endpointsForAutoExecute = resolveAvailableEndpoints();
+    if (autoExecute && endpointsForAutoExecute) {
+      const endpoints = endpointsForAutoExecute;
       const skillId = resolveSkillId();
       if (skillId && endpoints.length > 0) {
         const bestEndpoint = endpoints[0];
@@ -503,6 +530,12 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
             `requires explicit third-party terms confirmation. ` +
             `Re-run with --confirm-third-party-terms to proceed.\n`,
           );
+        } else if (!endpointIsSafeToAutoExecute(bestEndpoint)) {
+          (result as Record<string, unknown>).next_action = {
+            title: "Execute selected endpoint",
+            command: `unbrowse execute --skill ${skillId} --endpoint ${bestEndpoint.endpoint_id}`,
+            why: "Resolve found a candidate but did not auto-execute because the endpoint is not a safe ready GET.",
+          };
         } else {
           info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
           result = await withPendingNotice(
@@ -1488,7 +1521,7 @@ export const CLI_REFERENCE = {
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
-    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Returns ranked shortlist of endpoints for an intent. Pick one and call execute. (Two tool calls is the contract — autoexec is opt-in via --execute, not the default.)" },
+    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Resolve an intent, auto-executing the top safe GET endpoint by default; pass --no-execute for metadata only" },
     { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Emit top-N candidate endpoints + evidence for an LLM judge to pick from (no heuristic verdict — primitives + agent judgment)" },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}'] [opts]", desc: "Execute a specific endpoint. Pass replay params via repeated -p key=val flags or --params with a JSON object" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
@@ -1503,6 +1536,7 @@ export const CLI_REFERENCE = {
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills and evict stale cached endpoints" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
+    { name: "inspect", usage: "[--session id] [--all]", desc: "Inspect live browser capture evidence, candidate endpoints, and next actions" },
     { name: "go", usage: '<url> [--session id]', desc: "Open a fresh Kuri browser tab, or reuse explicit --session" },
     { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]", desc: "Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins" },
     { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs" },
@@ -1541,7 +1575,8 @@ export const CLI_REFERENCE = {
     { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
   ],
   resolveExecuteFlags: [
-    { flag: "--execute", desc: "Auto-execute the top trusted endpoint from resolve" },
+    { flag: "--no-execute", desc: "Resolve only; do not auto-execute safe GET endpoints" },
+    { flag: "--execute", desc: "Deprecated no-op alias; safe GET execution is now the default" },
     { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
     { flag: '--path "data.items[]"', desc: "Drill into result before extract/output" },
     { flag: '--extract "field1,alias:deep.path.to.val"', desc: "Pick specific fields (no piping needed)" },
@@ -1895,13 +1930,15 @@ async function cmdStatus(flags: Record<string, string | boolean>): Promise<void>
   // can hit /v1/browse/sessions/:id/buffer for the in-flight capture state.
   let activeSessions: unknown[] = [];
   let sessionCount = 0;
+  let latestSessionId: string | null = null;
   if (healthy) {
     try {
       const res = await fetch(`${BASE_URL}/v1/browse/sessions`, { signal: AbortSignal.timeout(2_000) });
       if (res.ok) {
-        const data = await res.json() as { sessions?: unknown[]; count?: number };
+        const data = await res.json() as { sessions?: unknown[]; count?: number; latest_session_id?: string | null };
         activeSessions = data.sessions ?? [];
         sessionCount = data.count ?? activeSessions.length;
+        latestSessionId = data.latest_session_id ?? null;
       }
     } catch { /* non-fatal */ }
   }
@@ -1911,9 +1948,45 @@ async function cmdStatus(flags: Record<string, string | boolean>): Promise<void>
     url: BASE_URL,
     ...(versionInfo ?? {}),
     active_browse_sessions: sessionCount,
+    latest_session_id: latestSessionId,
     sessions: activeSessions,
     chrome_debug_url: process.env.CHROME_DEBUG_URL ?? null,
   }, !!flags.pretty);
+}
+
+async function cmdInspect(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const explicitSession = typeof flags.session === "string"
+    ? flags.session
+    : typeof args[0] === "string"
+      ? args[0]
+      : undefined;
+  const sessions = await api("GET", "/v1/browse/sessions") as {
+    sessions?: Array<Record<string, unknown>>;
+    count?: number;
+    latest_session_id?: string | null;
+  };
+  if (flags.all) {
+    output(sessions, !!flags.pretty);
+    return;
+  }
+
+  const latestSessionId = sessions.latest_session_id
+    ?? (sessions.sessions?.at(-1)?.session_id as string | undefined);
+  const sessionId = explicitSession ?? latestSessionId;
+  if (!sessionId) {
+    output({
+      error: "no_active_session",
+      message: "No active browse session to inspect.",
+      next_action: {
+        title: "Open a browser session",
+        command: 'unbrowse go "https://example.com" --pretty',
+        why: "Inspection reads live HAR/interceptor evidence from an active Kuri session.",
+      },
+    }, !!flags.pretty);
+    return;
+  }
+
+  output(await api("GET", `/v1/browse/sessions/${encodeURIComponent(sessionId)}/buffer`), !!flags.pretty);
 }
 
 async function cmdRestart(flags: Record<string, string | boolean>): Promise<void> {
@@ -2174,7 +2247,7 @@ async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
 }
 
 async function cmdClick(args: string[], flags: Record<string, string | boolean>): Promise<void> {
-  const ref = args[0];
+  const ref = args[0] ?? (typeof flags.ref === "string" ? flags.ref : undefined);
   if (!ref) die("Usage: unbrowse click <ref>");
   output(await api("POST", "/v1/browse/click", {
     ref,
@@ -2183,9 +2256,15 @@ async function cmdClick(args: string[], flags: Record<string, string | boolean>)
 }
 
 async function cmdFill(args: string[], flags: Record<string, string | boolean>): Promise<void> {
-  const ref = args[0];
-  const value = args.slice(1).join(" ");
-  if (!ref || !value) die("Usage: unbrowse fill <ref> <value>");
+  const ref = args[0] ?? (typeof flags.ref === "string" ? flags.ref : undefined);
+  const value = args.length > 1
+    ? args.slice(1).join(" ")
+    : typeof flags.text === "string"
+      ? flags.text
+      : typeof flags.value === "string"
+        ? flags.value
+        : "";
+  if (!ref || !value) die('Usage: unbrowse fill <ref> <value>  (also: unbrowse fill --ref e5 --text "hello")');
   output(await api("POST", "/v1/browse/fill", {
     ref,
     value,
@@ -2712,7 +2791,17 @@ async function cmdConnectChrome(): Promise<void> {
   console.error("Could not connect to Chrome. Make sure all Chrome windows are closed and try again.");
 }
 async function main(): Promise<void> {
-  const { command, args, flags, params: cliParams } = parseArgs(process.argv);
+  const parsed = parseArgs(process.argv);
+  let { command, args, flags } = parsed;
+  const cliParams = parsed.params;
+  if (command === "browse") {
+    const subcommand = args.shift();
+    if (!subcommand || subcommand === "help") {
+      printHelp();
+      process.exit(subcommand === "help" ? 0 : 1);
+    }
+    command = subcommand;
+  }
   // Stash CLI -p key=val params on flags object so command handlers can read them.
   if (Object.keys(cliParams).length > 0) {
     (flags as Record<string, unknown>)._params = cliParams;
@@ -2756,7 +2845,7 @@ async function main(): Promise<void> {
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "execute", "exec",
     "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
-    "status", "stop", "restart", "upgrade", "update",
+    "status", "inspect", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
     "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
@@ -2803,6 +2892,7 @@ async function main(): Promise<void> {
     case "cleanup-stale": return cmdCleanupStale(flags);
     case "search": return cmdSearch(flags);
     case "sessions": return cmdSessions(flags);
+    case "inspect": return cmdInspect(args, flags);
     // Browse commands — Kuri browser actions with passive indexing
     case "go": return cmdGo(args, flags);
     case "submit": return cmdSubmit(flags);

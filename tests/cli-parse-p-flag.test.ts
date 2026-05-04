@@ -39,4 +39,16 @@ describe("cli parseArgs: -p key=val", () => {
     expect(r.flags.endpoint).toBe(true);
     expect(r.params).toEqual({ q: "foo" });
   });
+
+  test("agent-style browse aliases keep action and values parseable", () => {
+    const go = parseArgs(["node", "cli", "browse", "go", "--url", "https://jmail.world"]);
+    expect(go.command).toBe("browse");
+    expect(go.args).toEqual(["go"]);
+    expect(go.flags.url).toBe("https://jmail.world");
+
+    const fill = parseArgs(["node", "cli", "fill", "--ref", "e280", "--text", "elon"]);
+    expect(fill.command).toBe("fill");
+    expect(fill.flags.ref).toBe("e280");
+    expect(fill.flags.text).toBe("elon");
+  });
 });

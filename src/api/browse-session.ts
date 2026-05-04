@@ -454,8 +454,7 @@ export async function resolveRequestedBrowseSession(
 
   const live = await listLiveBrowseSessions(sessions, client);
   if (live.length === 0) throw new BrowseSessionError("no_active_session");
-  if (live.length > 1) throw new BrowseSessionError("session_id_required");
-  return live[0];
+  return live[live.length - 1];
 }
 
 export async function getOrCreateBrowseSession(
