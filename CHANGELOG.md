@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.7.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.4...v6.7.0-preview.5) (2026-05-04)
+
+### Features
+
+* **cli:** --markdown auto-converts HTML body to readable markdown via turndown ([99b04c9](https://github.com/unbrowse-ai/unbrowse-dev/commit/99b04c9cde14aa30c5f56199fa98eef96d4dcb83))
+* **cli:** unbrowse fetch <url> — agent-simple URL→content with all defaults ([f46b22f](https://github.com/unbrowse-ai/unbrowse-dev/commit/f46b22f6aa3c17fea9391079f1cee9f1b0f22d10))
+
 ## [6.7.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.3...v6.7.0-preview.4) (2026-05-04)
 
 ### Bug Fixes

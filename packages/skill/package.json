@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "6.7.0-preview.4",
+  "version": "6.7.0-preview.5",
   "description": "Reverse-engineer any website into reusable API skills. Zero-dep single binary with embedded browser engine.",
   "type": "module",
   "bin": {
