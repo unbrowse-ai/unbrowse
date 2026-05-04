@@ -337,7 +337,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `mode` |  | Re-prompt for contribution mode (private / share / share + earn) |
 | `capture` | `--url <url> --intent <intent>` | Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`. |
 | `note` | `<read|write|list> --domain <domain> [--body "..."]` | Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence. |
-| `sandbox-replay` | `--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--use-browser-cookies]` | Run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime (QuickJS + statically-linked libcurl-impersonate, real Chrome 131 JA4). Returns harvested cookies + optional postEval result. --use-browser-cookies seeds the jar from the user's Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session. |
+| `sandbox-replay` | `--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--no-browser-cookies]` | Run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime (QuickJS + statically-linked libcurl-impersonate, real Chrome 131 JA4). Returns harvested cookies + optional postEval result. By default seeds the jar from the user's Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session for the target domain — pass --no-browser-cookies to skip. |
 
 ### Global flags
 

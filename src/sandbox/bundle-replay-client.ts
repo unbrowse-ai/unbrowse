@@ -104,7 +104,7 @@ export async function runBundleReplay(
     fingerprint: req.fingerprint ?? "chrome_mac_arm",
     impersonate: req.impersonate ?? "chrome131",
     post_eval: req.postEval,
-    timeout_ms: req.timeoutMs ?? 5000,
+    timeout_ms: req.timeoutMs ?? 30_000,
     seed_cookies: req.seedCookies?.map((c) => ({
       name: c.name,
       value: c.value,
