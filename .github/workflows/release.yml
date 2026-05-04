@@ -36,25 +36,10 @@ jobs:
         run: |
           mkdir -p artifacts/darwin-arm64
           cp submodules/kuri/zig-out/bin/kuri artifacts/darwin-arm64/kuri
-      - name: Build kuri darwin-x64 (cross from arm64 mac, same SDK)
-        working-directory: submodules/kuri
-        run: |
-          rm -rf .zig-cache zig-out
-          zig build -Doptimize=ReleaseFast -Dtarget=x86_64-macos
-          file zig-out/bin/kuri
-      - name: Stage darwin-x64 artifact
-        run: |
-          mkdir -p artifacts/darwin-x64
-          cp submodules/kuri/zig-out/bin/kuri artifacts/darwin-x64/kuri
       - uses: actions/upload-artifact@v4
         with:
           name: kuri-darwin-arm64
           path: artifacts/darwin-arm64/kuri
-          retention-days: 1
-      - uses: actions/upload-artifact@v4
-        with:
-          name: kuri-darwin-x64
-          path: artifacts/darwin-x64/kuri
           retention-days: 1
 
   upload-release-assets:
@@ -102,13 +87,8 @@ jobs:
         with:
           name: kuri-darwin-arm64
           path: packages/skill/vendor/kuri/darwin-arm64
-      - name: Download darwin-x64 kuri artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: kuri-darwin-x64
-          path: packages/skill/vendor/kuri/darwin-x64
-      - name: Make downloaded kuri binaries executable
-        run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri packages/skill/vendor/kuri/darwin-x64/kuri
+      - name: Make downloaded kuri binary executable
+        run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri
       - run: bash scripts/build-binaries.sh --all
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
@@ -175,13 +155,8 @@ jobs:
         with:
           name: kuri-darwin-arm64
           path: packages/skill/vendor/kuri/darwin-arm64
-      - name: Download darwin-x64 kuri artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: kuri-darwin-x64
-          path: packages/skill/vendor/kuri/darwin-x64
-      - name: Make downloaded kuri binaries executable
-        run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri packages/skill/vendor/kuri/darwin-x64/kuri
+      - name: Make downloaded kuri binary executable
+        run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri
       - run: bun run check:kuri-vendor
         name: Check baked Kuri vendor state
       - name: Leak guard — block sensitive ops names from public artifacts
