@@ -1,5 +1,32 @@
 # Changelog
 
+## [6.6.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.2...v6.6.0-preview.0) (2026-05-04)
+
+### Features
+
+* **autonomy:** bake autonomy signals into CLI — agent-judging via product surface ([080f03d](https://github.com/unbrowse-ai/unbrowse-dev/commit/080f03de58b1498f5f9411ba4f3d0b71e8066038))
+* **autonomy:** in-flight resolve + streaming publish (Fix A + B) ([0d8215f](https://github.com/unbrowse-ai/unbrowse-dev/commit/0d8215f181819b011b7db9e05ee89b28354e4aa2))
+* **autonomy:** surface marketplace_publish_enabled in go response ([bbd6d20](https://github.com/unbrowse-ai/unbrowse-dev/commit/bbd6d2089d8a056a9a9d8f0e426505d1295c58ac))
+* **frontend:** audience toggle (devs/everyone) with PEEL-structured normie copy ([6e3e420](https://github.com/unbrowse-ai/unbrowse-dev/commit/6e3e42077846d28cc0b61acac45ca744b01cd151))
+* **frontend:** inline decision_trace terminal in hero, expand integration card ([baa7931](https://github.com/unbrowse-ai/unbrowse-dev/commit/baa7931b9d3cb308ab6e889644d72e0f7448307b)), closes [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4)
+* **frontend:** make login, dashboard, miners, blog consistent with landing ([3654e5f](https://github.com/unbrowse-ai/unbrowse-dev/commit/3654e5feeb4d2c7b48cb9b0c8c08b91901c80a88))
+* **frontend:** make papers + paper page consistent with landing design ([9280d44](https://github.com/unbrowse-ai/unbrowse-dev/commit/9280d445c7d1696be071250eab59952c9a657212)), closes [#070503](https://github.com/unbrowse-ai/unbrowse-dev/issues/070503)
+* **frontend:** site footer + ISR static prerender + freshen JSON-LD ([3da3074](https://github.com/unbrowse-ai/unbrowse-dev/commit/3da3074be622f3f256b9d7da0c0e5923de97a84d)), closes [#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10) [#11](https://github.com/unbrowse-ai/unbrowse-dev/issues/11)
+* **frontend:** sync paper page to arXiv:2604.00694, flip canonical to /internal-apis-are-all-you-need ([651634e](https://github.com/unbrowse-ai/unbrowse-dev/commit/651634e55be1ca993c02aa816e5705892414bda0))
+* **frontend:** tighten hero copy, reduce CTAs, lock L1 positioning ([fca4d77](https://github.com/unbrowse-ai/unbrowse-dev/commit/fca4d7726321ddf028d7f6714fd43f00ebbe9a75))
+* **kuri:** auto-attach to existing Chrome default-on (Fix C) ([4f448e1](https://github.com/unbrowse-ai/unbrowse-dev/commit/4f448e11bb1129ebb6359d79da5a82314b456b5a))
+* make frontend design consistent with landing page ([b233aa1](https://github.com/unbrowse-ai/unbrowse-dev/commit/b233aa1b559b25b7953551dc3cc3d34ae815273f))
+* make miners and blog pages consistent with landing design ([8544d7a](https://github.com/unbrowse-ai/unbrowse-dev/commit/8544d7aa290676f3288001e75670e7da793fc9c2))
+
+### Bug Fixes
+
+* **frontend:** add React keys to layout links to fix SSR warnings ([d94e9f7](https://github.com/unbrowse-ai/unbrowse-dev/commit/d94e9f7f950432efc6f64e88eb61e89f233f1ae5))
+* use theme CSS variables instead of hard-coded colors ([130dabe](https://github.com/unbrowse-ai/unbrowse-dev/commit/130dabe2087958a8350e58c879590a724d28bb1c)), closes [#070503](https://github.com/unbrowse-ai/unbrowse-dev/issues/070503)
+
+### Performance
+
+* **frontend:** wrap async stats components in Suspense to unblock LCP ([b5c1576](https://github.com/unbrowse-ai/unbrowse-dev/commit/b5c15767076083d7460026b7605f078a2c7fbb18))
+
 ## Unreleased
 
 ### Features — autonomous discovery (North Star)
