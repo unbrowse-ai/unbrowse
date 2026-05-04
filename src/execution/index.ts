@@ -1035,11 +1035,18 @@ async function executeBrowserCapture(
       for (const u of urls) rejectedSamples.push({ url: u, reason });
     }
     const apiCallCount = captured.requests?.length ?? 0;
+    const requestUrls = (captured.requests ?? []).map((r) => r.url ?? "");
     const blockSignals = detectBrowserBlockSignals({
-      requestUrls: (captured.requests ?? []).map((r) => r.url ?? ""),
+      requestUrls,
       title,
       htmlLength: html.length,
       rejectionCounts,
+    });
+    const bundleSnapshot = extractBundleSnapshot({
+      requestUrls,
+      blockSignals,
+      targetOrigin: (() => { try { return new URL(url).origin; } catch { return url; } })(),
+      targetHref: url,
     });
     return {
       html_bytes: html.length,
@@ -1051,6 +1058,7 @@ async function executeBrowserCapture(
       filter_rejections: rejectionCounts,
       rejected_samples: rejectedSamples,
       browser_block_signals: blockSignals,
+      ...(bundleSnapshot ? { bundle_snapshot: bundleSnapshot } : {}),
     };
   };
 
@@ -3249,6 +3257,77 @@ export function detectBrowserBlockSignals(input: {
     signals.push("low_capture");
   }
   return signals;
+}
+
+/**
+ * Extract a bundle replay snapshot from captured network traffic. Companion
+ * to detectBrowserBlockSignals — when that returns a vendor signal, this
+ * pulls out the URLs that triggered it so the deep-reveng sandbox runtime
+ * (Kuri /v1/sandbox/replay) can replay the bundle and harvest cookies.
+ *
+ * Bundle URLs are the JS files the vendor serves to the browser to compute
+ * the auth cookie. We capture them all and let the agent / strategy decide
+ * which to feed into the sandbox first (usually the largest one — that's
+ * the actual challenge bundle, not telemetry/init beacons).
+ *
+ * Returns null if no vendor block was detected.
+ */
+export function extractBundleSnapshot(input: {
+  requestUrls: string[];
+  blockSignals: string[];
+  targetOrigin: string;
+  targetHref: string;
+}): {
+  vendor: string;
+  bundle_urls: string[];
+  cookie_issuing_urls: string[];
+  target_origin: string;
+  target_href: string;
+  captured_at: number;
+} | null {
+  const { requestUrls, blockSignals, targetOrigin, targetHref } = input;
+  const vendor = blockSignals.find((s) => s.startsWith("vendor:"))?.slice("vendor:".length);
+  if (!vendor) return null;
+
+  // Per-vendor URL pattern matchers — keep in lockstep with detectBrowserBlockSignals.
+  const matchers: Record<string, RegExp[]> = {
+    perimeterx: [
+      /perimeterx|px-cloud|px-cdn|pxhd\.net/i,
+      /KP_UIDz=/,
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(ips\.js|tl|xhr|init)/i,
+    ],
+    datadome: [/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i],
+    imperva_incapsula: [/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i],
+    akamai_bot_manager: [/akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i],
+    cloudflare: [/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i],
+    fastly_bot_management: [/\/_fs-ch-[A-Za-z0-9]+\//],
+    captcha_vendor: [/hcaptcha|recaptcha|arkoselabs|funcaptcha/i],
+    shape_security: [/shape\.security|f5\.com\/shape|ShapeSecurity/i],
+    kasada: [/kasada|client\.kasada|ips\.kasada/i],
+  };
+  const patterns = matchers[vendor] ?? [];
+  const matched = requestUrls.filter((u) => patterns.some((p) => p.test(u)));
+
+  // Bundle URLs: .js files (the actual challenge logic).
+  // Cookie-issuing: the rest (telemetry / init / token-POST endpoints — these
+  // are the ones the bundle calls back to during execution to get its salt).
+  const bundleUrls: string[] = [];
+  const cookieIssuingUrls: string[] = [];
+  for (const u of matched) {
+    if (/\.js(\?|$|#)/i.test(u) || /ips\.js/i.test(u)) bundleUrls.push(u);
+    else cookieIssuingUrls.push(u);
+  }
+
+  if (bundleUrls.length === 0 && cookieIssuingUrls.length === 0) return null;
+
+  return {
+    vendor,
+    bundle_urls: bundleUrls,
+    cookie_issuing_urls: cookieIssuingUrls,
+    target_origin: targetOrigin,
+    target_href: targetHref,
+    captured_at: Math.floor(Date.now() / 1000),
+  };
 }
 
 /**
