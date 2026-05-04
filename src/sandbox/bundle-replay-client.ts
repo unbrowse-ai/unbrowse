@@ -73,6 +73,17 @@ export interface SandboxCookie {
   same_site: string;
 }
 
+export interface ObservedRoute {
+  url: string;
+  method: string;
+  status: number;
+  final_url: string;
+  content_type: string;
+  body_excerpt: string;
+  body_size: number;
+  redirected: boolean;
+}
+
 export interface SandboxReplayResponse {
   ok: boolean;
   ms: number;
@@ -80,6 +91,10 @@ export interface SandboxReplayResponse {
   cookies: SandboxCookie[];
   /** Present iff postEval was passed. JSON-encoded result of the expression. */
   post_eval?: string;
+  /** Every __nativeFetch call the bundle made. Caller can feed these
+   * through extractEndpoints + publish to contribute to the marketplace
+   * flywheel. */
+  routes_observed: ObservedRoute[];
 }
 
 const DEFAULT_KURI_BASE = process.env.KURI_BASE_URL ?? "http://127.0.0.1:6969";

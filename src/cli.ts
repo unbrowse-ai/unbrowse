@@ -237,6 +237,40 @@ async function ensureKuriReachable(kuriBase: string): Promise<void> {
   die(`auto-spawned kuri but it didn't become ready at ${kuriBase} within 25s. Check: tail /tmp/kuri.log`);
 }
 
+/// Feed routes_observed (sandbox bundle's __nativeFetch calls) into the
+/// marketplace flywheel.
+///
+/// Phase 1 (now): aggregate by (host, path-template) so cross-domain noise
+/// drops out, log a one-line summary to stderr. Surfaced in the response
+/// for the agent to act on.
+///
+/// Phase 2 (TODO): convert each unique (method, host, path-template) into
+/// an Endpoint record and call publishIndexedSkill via the local server's
+/// /v1/skills/from-routes endpoint (to be added). Wires this directly into
+/// the same publish pipeline `unbrowse capture` uses.
+async function publishObservedRoutes(
+  routes: Array<{ url: string; method: string; status: number; final_url: string; content_type: string; body_size: number }>,
+  targetOrigin: string,
+): Promise<void> {
+  if (routes.length === 0) return;
+  const targetHost = (() => { try { return new URL(targetOrigin).hostname; } catch { return ""; } })();
+  // Group by (method, hostname) so we report unique destinations the bundle hit.
+  const buckets = new Map<string, { count: number; first_status: number; content_type: string }>();
+  for (const r of routes) {
+    let host = "";
+    try { host = new URL(r.url).hostname; } catch {}
+    const key = `${r.method} ${host}`;
+    const prev = buckets.get(key);
+    if (prev) { prev.count++; }
+    else buckets.set(key, { count: 1, first_status: r.status, content_type: r.content_type });
+  }
+  const summary = Array.from(buckets.entries())
+    .map(([k, v]) => `${k}=${v.count}(${v.first_status})`)
+    .join(", ");
+  info(`[flywheel] observed ${routes.length} route call(s) for ${targetHost}: ${summary}`);
+  // TODO: POST to /v1/skills/from-routes when that endpoint lands.
+}
+
 function openUrl(url: string): void {
   if (process.env.UNBROWSE_OPEN_BROWSER === "0") return;
   try {
@@ -1637,8 +1671,7 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
   }, { kuriBase });
 
   // Default: convert HTML body fields (>1KB, look HTML-shaped) to markdown
-  // via turndown. --raw skips this for reverse-engineering / debugging where
-  // you need the actual HTML/JS bundle bytes.
+  // via turndown. --raw skips for reverse-engineering / debugging.
   let postEvalProcessed: unknown = resp.post_eval;
   const wantMarkdown = flags.raw !== true && flags.markdown !== "off";
   if (wantMarkdown && resp.post_eval !== undefined) {
@@ -1658,9 +1691,8 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
         : resp.post_eval;
       const convertHtmlFields = (val: unknown): unknown => {
         if (isHtmlString(val)) {
-          try {
-            return turndown.turndown(stripPreamble(val)).replace(/\n{3,}/g, "\n\n").trim();
-          } catch { return val; }
+          try { return turndown.turndown(stripPreamble(val)).replace(/\n{3,}/g, "\n\n").trim(); }
+          catch { return val; }
         }
         if (Array.isArray(val)) return val.map(convertHtmlFields);
         if (val && typeof val === "object") {
@@ -1676,12 +1708,24 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     }
   }
 
+  // Feed observed routes through the marketplace publisher (flywheel).
+  // Disabled with --no-publish or env UNBROWSE_PUBLISH_OBSERVED_ROUTES=0.
+  const publishObserved = flags["no-publish"] !== true && process.env.UNBROWSE_PUBLISH_OBSERVED_ROUTES !== "0";
+  if (publishObserved && resp.routes_observed && resp.routes_observed.length > 0) {
+    try {
+      await publishObservedRoutes(resp.routes_observed, targetOrigin);
+    } catch (e) {
+      info(`[sandbox-replay] publish-observed-routes failed: ${(e as Error).message}`);
+    }
+  }
+
   output({
     ok: resp.ok,
     ms: resp.ms,
     egress_bytes: resp.egress_bytes,
     cookies: resp.cookies,
     cookie_header: cookiesToHeaderValue(resp.cookies),
+    routes_observed: resp.routes_observed,
     post_eval: postEvalProcessed,
   }, !!flags.pretty);
 }
