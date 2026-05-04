@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.6.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.6.0...v6.6.1) (2026-05-04)
+
+### Bug Fixes
+
+* preserve resolve source after auto-execute ([08a1d4a](https://github.com/unbrowse-ai/unbrowse-dev/commit/08a1d4a70410a5f85a334062172d2ed8bb4cb430))
+
 ## [6.6.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.6.0-preview.0...v6.6.0) (2026-05-04)
 
 ### Features
