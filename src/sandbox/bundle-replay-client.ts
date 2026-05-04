@@ -38,7 +38,28 @@ export interface SandboxReplayRequest {
    * as `post_eval` in the response (already JSON-stringified by the runtime). */
   postEval?: string;
   /** Wall-clock cap in ms. Default 5000. */
+  /** Wall-clock cap in ms. Default 5000. */
   timeoutMs?: number;
+  /** Cookies to populate the sandbox jar with BEFORE the bundle runs.
+   * Same shape as findBestBrowserSession's BrowserCookie output, so you can
+   * pass cookies extracted from the user's real Chrome/Arc/Brave directly. */
+  seedCookies?: SeedCookie[];
+}
+
+/** Seed cookie shape — compatible with src/auth/browser-cookies.ts BrowserCookie. */
+export interface SeedCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  secure?: boolean;
+  /** Both `httpOnly` (browser-cookies output) and `http_only` accepted. */
+  httpOnly?: boolean;
+  http_only?: boolean;
+  /** `sameSite` (browser-cookies output) or `same_site`. */
+  sameSite?: string;
+  same_site?: string;
+  expires?: number;
 }
 
 export interface SandboxCookie {
@@ -84,6 +105,16 @@ export async function runBundleReplay(
     impersonate: req.impersonate ?? "chrome131",
     post_eval: req.postEval,
     timeout_ms: req.timeoutMs ?? 5000,
+    seed_cookies: req.seedCookies?.map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain ?? "",
+      path: c.path ?? "/",
+      secure: c.secure ?? false,
+      http_only: c.http_only ?? c.httpOnly ?? false,
+      same_site: c.same_site ?? c.sameSite ?? "",
+      expires: c.expires ?? 0,
+    })),
   });
 
   const resp = await fetch(`${base}/v1/sandbox/replay`, {
