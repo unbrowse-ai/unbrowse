@@ -108,7 +108,7 @@ npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
 unbrowse health
 ```
 
-If not running, the CLI auto-starts the server. First time requires ToS acceptance — ask the user:
+If not running, the CLI auto-starts the server. If an updated CLI finds an older Unbrowse runtime still bound to the port, it stops that owned runtime and starts a fresh one before handling the command. First time requires ToS acceptance — ask the user:
 
 > Unbrowse needs you to accept its Terms of Service:
 > - Discovered internal API routes may be shared in the shared route graph

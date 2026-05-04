@@ -19,6 +19,7 @@ type ServerHealth = {
   status?: string;
   package_version?: string;
   code_hash?: string;
+  pid?: number;
 };
 
 export function isServerVersionMismatch(
@@ -54,6 +55,15 @@ async function waitForHealthy(baseUrl: string, timeoutMs: number): Promise<boole
   return false;
 }
 
+async function waitForDown(baseUrl: string, timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (!(await isServerHealthy(baseUrl, 500))) return true;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return false;
+}
+
 function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -61,6 +71,33 @@ function isPidAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+function validPid(value: unknown): number | null {
+  return typeof value === "number"
+    && Number.isInteger(value)
+    && value > 0
+    && value !== process.pid
+    ? value
+    : null;
+}
+
+function healthLooksLikeUnbrowseRuntime(health?: ServerHealth | null): boolean {
+  return !!health
+    && health.status === "ok"
+    && (typeof health.package_version === "string" || typeof health.code_hash === "string");
+}
+
+export function getManagedServerPid(baseUrl: string, health?: ServerHealth | null): number | null {
+  const healthPid = validPid(health?.pid);
+  if (healthPid && healthLooksLikeUnbrowseRuntime(health)) return healthPid;
+
+  const pidFile = getServerPidFile(baseUrl);
+  const state = readPidState(pidFile);
+  const statePid = validPid(state?.pid);
+  if (statePid && isPidAlive(statePid)) return statePid;
+
+  return null;
 }
 
 function readPidState(pidFile: string): PidState | null {
@@ -77,6 +114,40 @@ function clearStalePidFile(pidFile: string): void {
   } catch {
     // ignore
   }
+}
+
+export async function stopManagedServer(
+  baseUrl: string,
+  health?: ServerHealth | null,
+  options: { force?: boolean; timeoutMs?: number } = {},
+): Promise<boolean> {
+  const pidFile = getServerPidFile(baseUrl);
+  const runtimeHealth = health ?? await fetchServerHealth(baseUrl, 500);
+  const pid = getManagedServerPid(baseUrl, runtimeHealth);
+  if (!pid) {
+    clearStalePidFile(pidFile);
+    return false;
+  }
+
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    clearStalePidFile(pidFile);
+    return await waitForDown(baseUrl, options.timeoutMs ?? 1_000);
+  }
+
+  clearStalePidFile(pidFile);
+  if (supervisor.isRunning()) await supervisor.stop();
+
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  if (await waitForDown(baseUrl, timeoutMs)) return true;
+
+  if (options.force && isPidAlive(pid)) {
+    try { process.kill(pid, "SIGKILL"); } catch { /* ignore */ }
+    return await waitForDown(baseUrl, timeoutMs);
+  }
+
+  return false;
 }
 
 function deriveListenEnv(baseUrl: string): Record<string, string> {
@@ -180,12 +251,16 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
         runningVersion,
         runningCodeHash,
       });
-      if (versionInfo?.needs_restart) {
-        stopServer(baseUrl);
-        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      if (versionInfo?.needs_restart || getManagedServerPid(baseUrl, initialHealth)) {
+        const stopped = await stopManagedServer(baseUrl, initialHealth, { force: true, timeoutMs: 5_000 });
+        if (!stopped) {
+          throw new Error(
+            `Server runtime mismatch on ${baseUrl}: running ${runningVersion ?? "unknown"} (${runningCodeHash ?? "unknown"}), installed ${installedVersion} (${CODE_HASH}), but the stale local server did not stop. Run "unbrowse restart" or stop the stale server bound to that port.`,
+          );
+        }
       } else {
         throw new Error(
-          `Server runtime mismatch on ${baseUrl}: running ${runningVersion ?? "unknown"} (${runningCodeHash ?? "unknown"}), installed ${installedVersion} (${CODE_HASH}). Run "unbrowse restart" or stop the stale server bound to that port.`,
+          `Server runtime mismatch on ${baseUrl}: running ${runningVersion ?? "unknown"} (${runningCodeHash ?? "unknown"}), installed ${installedVersion} (${CODE_HASH}), but Unbrowse could not identify an owned server pid. Run "unbrowse restart" or stop the stale server bound to that port.`,
         );
       }
     } else {
@@ -260,6 +335,20 @@ export function checkServerVersion(
 export function checkServerVersion(
   baseUrl: string,
   metaUrl: string,
+  healthOverride: {
+    runningVersion?: string;
+    runningCodeHash?: string;
+  },
+): {
+  running: string;
+  installed: string;
+  running_code_hash?: string;
+  installed_code_hash: string;
+  needs_restart: boolean;
+} | null;
+export function checkServerVersion(
+  baseUrl: string,
+  metaUrl: string,
   healthOverride?: {
     runningVersion?: string;
     runningCodeHash?: string;
@@ -293,9 +382,13 @@ export function checkServerVersion(
 export function stopServer(baseUrl: string): boolean {
   const pidFile = getServerPidFile(baseUrl);
   const state = readPidState(pidFile);
-  if (!state?.pid) return false;
+  const pid = validPid(state?.pid);
+  if (!pid) {
+    clearStalePidFile(pidFile);
+    return false;
+  }
   try {
-    process.kill(state.pid, "SIGTERM");
+    process.kill(pid, "SIGTERM");
     clearStalePidFile(pidFile);
     // Synchronously mark supervisor as stopped (fire-and-forget the async stop)
     if (supervisor.isRunning()) void supervisor.stop();
@@ -311,7 +404,6 @@ export function stopServer(baseUrl: string): boolean {
  * Used after CLI upgrades to pick up new code.
  */
 export async function restartServer(baseUrl: string, metaUrl: string): Promise<void> {
-  stopServer(baseUrl);
-  await new Promise((r) => setTimeout(r, 1_000));
+  await stopManagedServer(baseUrl, undefined, { force: true, timeoutMs: 5_000 });
   await ensureLocalServer(baseUrl, false, metaUrl);
 }

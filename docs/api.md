@@ -13,6 +13,8 @@ Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The 
 
 The normal product path is local-first. CLI commands hit the local server, and the local server proxies marketplace-backed work when needed.
 
+`GET /health` includes `package_version`, `trace_version`, `code_hash`, `git_sha`, and the local runtime `pid`. The CLI uses that Unbrowse-owned pid plus the version/hash fields to stop stale local runtimes after an update and auto-start a fresh one on the next command.
+
 Backend payment policy can split discovery from detail. With `X402_SEARCH_ENABLED=false`, `/v1/search*` stays free for discovery while paid `/v1/skills/:id` manifests still return `402 Payment Required`.
 
 ## TypeScript SDK

@@ -43,9 +43,11 @@ describe("server health", () => {
       status?: string;
       package_version?: string;
       code_hash?: string;
+      pid?: number;
     };
     expect(body.status).toBe("ok");
     expect(body.package_version).toBe(PACKAGE_VERSION);
     expect(body.code_hash).toBe(CODE_HASH);
+    expect(body.pid).toBe(process.pid);
   });
 });

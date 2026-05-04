@@ -166,7 +166,7 @@ Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](htt
 
 Public companion docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
 
-Every CLI command auto-starts the local runtime on `http://localhost:6969` by default, and `unbrowse mcp` uses that same runtime behind the MCP stdio surface. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. Interactive setup prompts for ToS acceptance and optionally an email-style agent identity. Headless runs can preseed `UNBROWSE_NON_INTERACTIVE=1`, `UNBROWSE_TOS_ACCEPTED=1`, and `UNBROWSE_AGENT_EMAIL=...`.
+Every CLI command auto-starts the local runtime on `http://localhost:6969` by default, and `unbrowse mcp` uses that same runtime behind the MCP stdio surface. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. If an updated CLI finds an older Unbrowse runtime still bound to the port, it stops that owned runtime and starts a fresh one before handling the command. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. Interactive setup prompts for ToS acceptance and optionally an email-style agent identity. Headless runs can preseed `UNBROWSE_NON_INTERACTIVE=1`, `UNBROWSE_TOS_ACCEPTED=1`, and `UNBROWSE_AGENT_EMAIL=...`.
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
