@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Features — autonomous discovery (North Star)
+
+* **resolve:** in-flight session buffer is now consulted before live-capture fallback. Mid-session, agents see routes captured seconds earlier without needing to call close/sync. Verified on jmail.world: 3 endpoints served from cache in 8ms with browser avoided, where main returned `live-capture` with 0 ops. (Fix A)
+* **publish:** per-session streaming background watcher light-flushes the capture buffer every 10s and queues a marketplace publish when endpoint count grows. Cross-agent reuse no longer waits on close/sync. Configurable via `UNBROWSE_STREAMING_INTERVAL_MS` / `UNBROWSE_STREAMING_PUBLISH=0`. (Fix B)
+* **admin:** read-only `/v1/admin/sessions` and `/v1/admin/sessions/:id/buffer` endpoints expose mid-session capture state for the autonomous-discovery harness. Off by default; gated on `UNBROWSE_DEV=1`.
+* **harness:** new `harness/probes/autonomous-discovery/` (probe A in-flight, probe B cross-agent, probe C CDP-attach + JUDGE.md) collects evidence under `.harness-out/autonomous-discovery/<run-id>/` for agent-judged verdicts.
+* **docs:** `NORTHSTAR.md` reflecting the autonomous-discovery thesis (every browser session → reusable skill, no explicit publish step).
+
+### Bug Fixes
+
+* **backend:** keep EmergentDB graph checks bounded and make credit lookup non-blocking
+* **frontend:** keep install terminal controls readable on mobile
+* **frontend(ops):** gate /ops dashboard behind sign-in and pass bearer token to /v1/ops + /v1/analytics/* (was 401-blank since the Mar 11 auth hardening)
+
 ## [6.5.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.2-preview.1...v6.5.2) (2026-05-03)
 
 ## [6.5.2-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.5.2-preview.0...v6.5.2-preview.1) (2026-05-03)

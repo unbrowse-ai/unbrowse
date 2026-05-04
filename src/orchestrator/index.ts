@@ -351,7 +351,7 @@ export function pickPreferredSkillSnapshot(
   return best;
 }
 
-function readSkillSnapshot(path?: string): SkillManifest | undefined {
+export function readSkillSnapshot(path?: string): SkillManifest | undefined {
   if (!path || !existsSync(path)) return undefined;
   try {
     const primary = JSON.parse(readFileSync(path, "utf-8")) as SkillManifest;
