@@ -1642,6 +1642,7 @@ export const CLI_REFERENCE = {
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
     { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
     { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence." },
+    { name: "sandbox-replay", usage: "--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--use-browser-cookies]", desc: "Run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime (QuickJS + statically-linked libcurl-impersonate, real Chrome 131 JA4). Returns harvested cookies + optional postEval result. --use-browser-cookies seeds the jar from the user's Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session." },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
