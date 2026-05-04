@@ -1135,16 +1135,48 @@ export async function registerRoutes(app: FastifyInstance) {
       });
     }
 
+    // LLM usefulness judge — drops noise (telemetry, feature-flag fetches,
+    // error envelopes, A/B configs) that the heuristic regex doesn't catch.
+    // No-ops when no LLM key is configured (returns "unknown" → kept).
+    let judgedDropped: Array<{ url: string; reason: string }> = [];
+    let postJudge = filtered;
+    const judgeOptOut = process.env.UNBROWSE_USEFULNESS_JUDGE === "0";
+    if (!judgeOptOut) {
+      try {
+        const { judgeRoutes } = await import("../judge/endpoint-usefulness.js");
+        const verdicts = await judgeRoutes(filtered);
+        postJudge = [];
+        for (const v of verdicts) {
+          if (v.verdict === "noise") {
+            judgedDropped.push({ url: v.route.url, reason: v.reason });
+          } else {
+            postJudge.push(v.route);
+          }
+        }
+      } catch (e) {
+        console.warn(`[from-routes] usefulness judge failed: ${(e as Error).message}; keeping all`);
+      }
+    }
+
+    if (postJudge.length === 0) {
+      return reply.send({
+        ok: true,
+        indexed_count: 0,
+        skipped: body.routes.length,
+        judged_noise: judgedDropped,
+        reason: "judge classified every route as noise",
+      });
+    }
+
     const { getRegistrableDomain } = await import("../domain.js");
     const { nanoid } = await import("nanoid");
     const { selectMarketplacePublishEndpoints } = await import("../publish-admission.js");
-
     // Build EndpointDescriptors directly from routes. We KNOW these work
     // (status 200 + non-HTML JSON body), so skip extractEndpoints' capture-time
     // heuristics (BM25 scoring, request-header signals, etc.) which are tuned
     // for messy HAR data, not post-hoc verified routes.
     type Endpoint = import("../types/index.js").EndpointDescriptor;
-    const endpoints: Endpoint[] = filtered.map((r) => {
+    const endpoints: Endpoint[] = postJudge.map((r) => {
       // URL parameterization: replace ID-shaped path segments with {placeholders}.
       // /repos/owner/repo → /repos/{owner}/{repo} would over-parameterize. Be
       // conservative: only replace numeric IDs and explicit UUIDs/hashes.
@@ -1254,6 +1286,7 @@ export async function registerRoutes(app: FastifyInstance) {
       indexed_count: endpoints.length,
       total_endpoints: mergedEndpoints.length,
       skipped: body.routes.length - filtered.length,
+      judged_noise_count: judgedDropped.length,
       publish_status: publishStatus,
       published_at: publishedAt,
       skillmd_path,
