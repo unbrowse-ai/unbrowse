@@ -17,6 +17,7 @@ import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
+import { isEndpointFreshnessFailureStatus } from "../execution/freshness.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
@@ -621,9 +622,23 @@ export async function registerRoutes(app: FastifyInstance) {
         );
       }
 
-      // Auto-recovery: if endpoint returned 404 (stale), re-capture via orchestrator
+      // Auto-recovery: if endpoint is stale, re-capture via orchestrator
+      const execError =
+        execResult.result &&
+        typeof execResult.result === "object" &&
+        !Array.isArray(execResult.result) &&
+        "error" in execResult.result
+          ? String((execResult.result as { error?: unknown }).error)
+          : undefined;
+      const shouldAutoRecoverStaleEndpoint =
+        execResult.trace.status_code === 404 ||
+        (
+          execError === "stale_endpoint" &&
+          typeof execResult.trace.status_code === "number" &&
+          isEndpointFreshnessFailureStatus(execResult.trace.status_code)
+        );
       if (
-        execResult.trace.status_code === 404 &&
+        shouldAutoRecoverStaleEndpoint &&
         skill.domain &&
         skill.intent_signature &&
         skill.execution_type !== "browser-capture"
@@ -651,9 +666,10 @@ export async function registerRoutes(app: FastifyInstance) {
           const recovered = attachAgentOutcomeHints({
             ...freshResult,
             _recovery: {
-              reason: "stale_endpoint_404",
+              reason: "stale_endpoint",
               original_skill_id: skill_id,
-              message: "Original endpoint returned 404. Auto-recovered with fresh capture.",
+              status_code: execResult.trace.status_code,
+              message: "Original endpoint failed freshness validation. Auto-recovered with fresh capture.",
             },
           } as Record<string, unknown>, {
             skill: freshResult.skill ?? skill,

@@ -24,6 +24,13 @@ import { TRACE_VERSION } from "../version.js";
 import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { isStructuredSearchForm, detectSearchForms, type SearchFormSpec } from "./search-forms.js";
+import {
+  markEndpointFreshnessStale,
+  markEndpointFreshnessValid,
+  shouldValidateEndpointFreshness,
+  validateEndpointUrlFreshness,
+  type EndpointFreshnessCheckResult,
+} from "./freshness.js";
 import { attributeLifecycle, type LifecycleEvent, type LifecyclePhase } from "../runtime/lifecycle.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import {
@@ -31,6 +38,7 @@ import {
   domainSkillCache,
   persistDomainCache,
   getDomainReuseKey,
+  invalidateRouteCacheForDomain,
   scopedCacheKey,
   buildResolveCacheKey,
   snapshotPathForCacheKey,
@@ -46,6 +54,69 @@ function stampTrace(trace: ExecutionTrace): ExecutionTrace {
 
 const DEFAULT_BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+
+function persistSkillFreshness(skill: SkillManifest, options?: ExecutionOptions): void {
+  try { cachePublishedSkill(skill, options?.client_scope); } catch { /* best-effort */ }
+
+  const intent = options?.intent ?? skill.intent_signature ?? `browse ${skill.domain}`;
+  const cacheKey = buildResolveCacheKey(skill.domain ?? null, intent, options?.contextUrl);
+  const scopedKey = scopedCacheKey(options?.client_scope ?? "global", cacheKey);
+  const localSkillPath = writeSkillSnapshot(scopedKey, skill);
+  const domainKey = getDomainReuseKey(options?.contextUrl ?? skill.domain);
+  if (domainKey && localSkillPath) {
+    const existing = domainSkillCache.get(domainKey);
+    domainSkillCache.set(domainKey, {
+      skillId: skill.skill_id,
+      endpointId: existing?.skillId === skill.skill_id ? existing.endpointId : undefined,
+      localSkillPath,
+      ts: Date.now(),
+    });
+    persistDomainCache();
+  }
+}
+
+function buildFreshnessCheckHeaders(
+  endpoint: EndpointDescriptor,
+  authHeaders: Record<string, string>,
+  cookies: Array<{ name: string; value: string; domain: string }>,
+  url: string,
+): Record<string, string> {
+  const headers = normalizeReplayHeaders(endpoint.headers_template, authHeaders);
+  headers["accept"] ??= "*/*";
+  if (cookies.length > 0) {
+    headers["cookie"] = cookies.map((c) => {
+      const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+      return `${c.name}=${v}`;
+    }).join("; ");
+  }
+  return buildStructuredReplayHeaders(url, url, headers);
+}
+
+async function ensureEndpointFreshness(
+  skill: SkillManifest,
+  endpoint: EndpointDescriptor,
+  url: string,
+  headers: Record<string, string>,
+  options?: ExecutionOptions,
+): Promise<EndpointFreshnessCheckResult | undefined> {
+  if (!shouldValidateEndpointFreshness(endpoint, options)) return undefined;
+
+  const result = await validateEndpointUrlFreshness(url, endpoint, headers);
+  if (result.outcome === "valid") {
+    markEndpointFreshnessValid(endpoint, new Date().toISOString());
+    persistSkillFreshness(skill, options);
+    return result;
+  }
+
+  if (result.outcome === "stale") {
+    markEndpointFreshnessStale(endpoint);
+    persistSkillFreshness(skill, options);
+    invalidateRouteCacheForDomain(skill.domain);
+    return result;
+  }
+
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // Quality gate — validate extracted data before marketplace publishing
@@ -1928,6 +1999,36 @@ export async function executeEndpoint(
       };
     }
   }
+
+  const freshnessResult = await ensureEndpointFreshness(
+    skill,
+    endpoint,
+    url,
+    buildFreshnessCheckHeaders(endpoint, authHeaders, cookies, url),
+    options,
+  );
+  if (freshnessResult?.outcome === "stale") {
+    const completedAt = new Date().toISOString();
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: nanoid(),
+      skill_id: skill.skill_id,
+      endpoint_id: endpoint.endpoint_id,
+      started_at: startedAt,
+      completed_at: completedAt,
+      success: false,
+      status_code: freshnessResult.status,
+      error: `HTTP ${freshnessResult.status} - cached endpoint failed freshness check. Re-run via POST /v1/intent/resolve to get fresh endpoints.`,
+    });
+    return {
+      trace,
+      result: {
+        error: "stale_endpoint",
+        status_code: freshnessResult.status,
+        message: "Cached endpoint failed freshness check. Falling back to live capture is recommended.",
+      },
+    };
+  }
+
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
 
@@ -2314,6 +2415,11 @@ export async function executeEndpoint(
       };
       trace.result = data;
     }
+  }
+
+  if (trace.success && status >= 200 && status < 300) {
+    markEndpointFreshnessValid(endpoint, new Date().toISOString());
+    persistSkillFreshness(skill, options);
   }
 
   // Backfill response_schema on first successful execution — push to marketplace so all agents benefit

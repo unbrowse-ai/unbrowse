@@ -97,6 +97,8 @@ export interface EndpointDescriptor {
   verification_status: VerificationStatus;
   reliability_score: number;
   last_verified_at?: string;
+  /** ISO 8601 timestamp from the last successful freshness check or execute. */
+  last_validated_at?: string;
   signature?: string;
   response_schema?: ResponseSchema;
   /** When set, endpoint returns HTML — apply DOM extraction with this config */
