@@ -39,11 +39,10 @@ export default function MinersPage() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,109,0,0.16),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(56,189,248,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,109,0,0.08),transparent_24%)]" />
 
       <div className="relative mx-auto max-w-7xl">
-        <section className="animate-fade-up rounded-[32px] border border-border bg-surface-raised p-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-[11px] font-mono uppercase tracking-[0.22em] text-orange-500">
-            <Zap className="h-3 w-3" />
-            Contributor graph
-          </div>
+        <section className="animate-fade-up rounded-sm border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-8">
+          <p className="text-xs font-mono uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)]">
+            ## CONTRIBUTOR GRAPH
+          </p>
           <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">
             Index routes. Grow the graph.
           </h1>
@@ -56,19 +55,18 @@ export default function MinersPage() {
               href="https://github.com/unbrowse-ai/unbrowse"
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-5 py-3 font-semibold text-white transition-colors hover:bg-orange-600"
-            >
-              Start indexing <ArrowRight className="h-4 w-4" />
+              className="inline-flex items-center gap-2 rounded-sm bg-orange-500 px-5 py-3 font-mono text-white transition-colors hover:bg-orange-600 active:translate-y-px"            >
+              [ START INDEXING → ]
             </a>
             <Link
               href="/mine-the-internet"
-              className="rounded-2xl border border-border px-5 py-3 font-medium text-text-primary transition-colors hover:border-orange-500/30 hover:text-orange-500"
+              className="rounded-sm border-[rgba(255,122,32,0.18)] bg-[#070503]/90 px-5 py-3 font-mono text-[rgba(255,176,96,0.9)] transition-colors hover:bg-[#070503] active:translate-y-px"
             >
-              How it works
+              [ HOW IT WORKS ]
             </Link>
             <Link
               href="/dashboard"
-              className="rounded-2xl border border-border px-5 py-3 font-medium text-text-primary transition-colors hover:border-orange-500/30 hover:text-orange-500"
+              className="rounded-sm border-[rgba(255,122,32,0.18)] bg-[#070503]/90 px-5 py-3 font-mono text-[rgba(255,176,96,0.9)] transition-colors hover:bg-[#070503] active:translate-y-px"
             >
               My dashboard
             </Link>
@@ -76,7 +74,7 @@ export default function MinersPage() {
         </section>
 
         {error && (
-          <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <div className="mt-6 rounded-sm border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.08)] px-4 py-3 font-mono text-sm text-red-400">
             {error}
           </div>
         )}
@@ -99,10 +97,10 @@ export default function MinersPage() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`inline-flex whitespace-nowrap rounded-2xl border px-5 py-3 text-sm font-medium transition-all ${
+              className={`inline-flex whitespace-nowrap rounded-sm border px-5 py-3 text-sm font-mono transition-all ${
                 activeTab === tab.key
-                  ? "border-orange-500/30 bg-orange-500/10 text-orange-500"
-                  : "border-border bg-surface text-text-secondary hover:border-orange-500/20 hover:text-text-primary"
+                  ? "border-[rgba(255,122,32,0.18)] bg-[rgba(255,122,32,0.08)] text-[rgba(255,176,96,0.9)]"
+                  : "border-[rgba(255,122,32,0.12)] bg-[#070503]/90 text-[rgba(255,255,255,0.6)] hover:border-[rgba(255,122,32,0.18)]"
               }`}
             >
               <span className="inline-flex items-center gap-2">
@@ -137,17 +135,17 @@ export default function MinersPage() {
           )}
         </div>
 
-        <section className="animate-fade-up stagger-4 mt-12 rounded-[32px] border border-orange-500/20 bg-orange-500/8 p-8 text-center">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            Ready to index?
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm text-text-secondary">
+        <section className="animate-fade-up stagger-4 mt-12 rounded-sm border-[rgba(255,122,32,0.18)] bg-[rgba(255,122,32,0.06)] p-8 text-center">
+          <p className="text-xs font-mono uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)]">
+            ## READY TO INDEX?
+          </p>
+          <p className="mx-auto mt-3 max-w-2xl font-mono text-sm text-[rgba(255,255,255,0.7)]">
             Install Unbrowse, browse real sites, and push the route graph forward. Better coverage means
             more reuse, better agent success, and more earnings for contributors who found the useful paths first.
           </p>
-          <div className="mt-6 inline-flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 font-mono text-sm">
-            <span className="text-text-muted">$</span>
-            <span className="text-text-primary">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
+          <div className="mt-6 inline-flex items-center gap-3 rounded-sm border-[rgba(255,122,32,0.18)] bg-[#070503]/90 px-4 py-3 font-mono text-sm">
+            <span className="text-[rgba(255,255,255,0.4)]">$</span>
+            <span className="text-[rgba(255,176,96,0.9)]">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
         </section>
       </div>
