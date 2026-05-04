@@ -2098,13 +2098,23 @@ export async function registerRoutes(app: FastifyInstance) {
         // Autonomy signals — agents read these to judge whether the system is
         // capturing in the background as advertised. No separate "verify" verb;
         // every go response is self-describing.
-        autonomy: {
-          har_active: session.harActive,
-          streaming_publish_active: streamingWatchers.has(session.sessionId),
-          attached_existing_chrome: result.attachedExistingChrome ?? false,
-          chrome_debug_url: process.env.CHROME_DEBUG_URL ?? null,
-          inspect_buffer: `GET ${process.env.UNBROWSE_API_BASE ?? "http://127.0.0.1:6969"}/v1/browse/sessions/${session.sessionId}/buffer`,
-        },
+        autonomy: (() => {
+          const publishDecision = decideCheckpointPublish(session.domain);
+          return {
+            har_active: session.harActive,
+            streaming_publish_active: streamingWatchers.has(session.sessionId),
+            attached_existing_chrome: result.attachedExistingChrome ?? false,
+            chrome_debug_url: process.env.CHROME_DEBUG_URL ?? null,
+            inspect_buffer: `GET ${process.env.UNBROWSE_API_BASE ?? "http://127.0.0.1:6969"}/v1/browse/sessions/${session.sessionId}/buffer`,
+            // Publish gating — tells the agent whether captures will reach the
+            // shared marketplace. The user controls this via `unbrowse settings`
+            // and per-domain blacklist/promptlist. When false, captures stay
+            // local and only this user benefits.
+            marketplace_publish_enabled: publishDecision.publishQueued,
+            marketplace_publish_mode: publishDecision.mode,
+            marketplace_publish_reason: publishDecision.reason,
+          };
+        })(),
       });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
