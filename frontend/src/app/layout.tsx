@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
+
 import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
@@ -65,22 +66,41 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
-        <link rel="alternate" type="text/markdown" href="/skill.md" title="Agent Skill Documentation" />
-        <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM Site Information" />
         <link
+          key="skill-md"
+          rel="alternate"
+          type="text/markdown"
+          href="/skill.md"
+          title="Agent Skill Documentation"
+        />
+        <link
+          key="llms-txt"
+          rel="alternate"
+          type="text/plain"
+          href="/llms.txt"
+          title="LLM Site Information"
+        />
+        <link
+          key="gfonts-preconnect"
           rel="preconnect"
           href="https://fonts.googleapis.com"
         />
         <link
+          key="gstatic-preconnect"
           rel="preconnect"
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
-        <link rel="preconnect" href="https://cloud.umami.is" />
-          <link
-            href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap"
-            rel="stylesheet"
-          />
+        <link
+          key="umami-preconnect"
+          rel="preconnect"
+          href="https://cloud.umami.is"
+        />
+        <link
+          key="google-fonts"
+          href={`https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap`}
+          rel="stylesheet"
+        />
         <style>{`
           :root {
             --font-jetbrains-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;

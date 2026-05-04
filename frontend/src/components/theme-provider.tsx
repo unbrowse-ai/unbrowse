@@ -18,10 +18,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("unbrowse-theme") as Theme | null;
-    const preferred = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-    setTheme(stored ?? preferred);
-    setMounted(true);
+    try {
+      const stored = localStorage.getItem("unbrowse-theme") as Theme | null;
+      const preferred = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      setTheme(stored ?? preferred);
+      setMounted(true);
+    } catch (error) {
+      // Fallback for SSR or environments without localStorage
+      setMounted(true);
+    }
   }, []);
 
   useEffect(() => {
