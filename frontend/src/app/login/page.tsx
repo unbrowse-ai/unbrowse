@@ -136,17 +136,22 @@ function LoginInner() {
 
   return (
     <div className="max-w-md mx-auto px-6 pt-32 pb-20">
-      <div className="rounded-2xl border border-border bg-surface p-8">
+      <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-8 rounded-sm">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-text-primary">Sign in</h1>
-          <p className="text-sm text-text-muted mt-2">
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+            ##  Sign In
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-balance text-text-primary">
+            Sign in to Unbrowse
+          </h1>
+          <p className="text-sm text-text-muted mt-2 leading-relaxed">
             Enter your email. We send a one-time link, no password.
           </p>
         </div>
 
         {phase === "idle" && (
           <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form-idle">
-            <label className="block text-xs font-mono uppercase tracking-wider text-text-muted">
+            <label className="block text-xs font-mono uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">
               Email
               <input
                 type="email"
@@ -156,31 +161,31 @@ function LoginInner() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@domain.com"
-                className="mt-2 block w-full rounded-xl border border-border bg-bg px-4 py-3
+                className="mt-2 block w-full border border-[rgba(255,122,32,0.18)] bg-[#060402] px-4 py-3
                            text-sm text-text-primary placeholder:text-text-muted
-                           focus:border-orange-500/50 focus:outline-none transition-colors"
+                           focus:border-[rgba(255,122,32,0.4)] focus:outline-none transition-colors rounded-sm"
               />
             </label>
             <button
               type="submit"
               disabled={submitting || !email.trim()}
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3
-                         rounded-xl bg-orange-500 text-white font-semibold text-sm
-                         hover:bg-orange-600 transition-colors
+              className="w-full inline-flex items-center justify-center gap-2 px-7 py-2.5
+                         bg-orange-500 text-white font-mono font-medium text-sm
+                         hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer
                          disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? "Sending..." : "Send sign-in link"}
+              {submitting ? "Sending..." : "[ Send sign-in link ]"}
             </button>
           </form>
         )}
 
         {phase === "awaiting" && (
           <div className="space-y-5" data-testid="login-form-awaiting">
-            <div className="rounded-xl border border-border bg-bg p-5">
+            <div className="border border-[rgba(255,122,32,0.18)] bg-[#060402] p-5 rounded-sm">
               <p className="text-sm text-text-primary">
                 Check your email
               </p>
-              <p className="text-sm text-text-muted mt-2">
+              <p className="text-sm text-text-muted mt-2 leading-relaxed">
                 We sent a sign-in link
                 {activeEmail ? (
                   <>
@@ -195,15 +200,15 @@ function LoginInner() {
               <button
                 onClick={handleResend}
                 disabled={submitting || !activeEmail}
-                className="px-4 py-2.5 rounded-xl border border-border text-sm
-                           text-text-secondary hover:text-text-primary hover:border-orange-500/30
-                           transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2.5 border border-[rgba(255,122,32,0.18)] text-sm
+                           text-text-secondary hover:text-text-primary hover:border-[rgba(255,122,32,0.4)]
+                           transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-sm"
               >
-                {submitting ? "Sending..." : "Resend link"}
+                {submitting ? "Sending..." : "[ Resend link ]"}
               </button>
               <button
                 onClick={reset}
-                className="px-4 py-2.5 rounded-xl text-sm text-text-muted hover:text-text-primary
+                className="px-4 py-2.5 text-sm text-text-muted hover:text-text-primary
                            transition-colors"
               >
                 Use a different email
@@ -214,24 +219,24 @@ function LoginInner() {
 
         {phase === "error" && (
           <div className="space-y-4" data-testid="login-form-error">
-            <div className="rounded-xl border border-red-400/30 bg-red-400/5 p-4">
-              <p className="text-sm text-red-400">{error ?? "Something went wrong."}</p>
+            <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-4 rounded-sm">
+              <p className="text-sm text-[rgba(255,176,96,0.9)]">{error ?? "Something went wrong."}</p>
             </div>
             <button
               onClick={reset}
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3
-                         rounded-xl border border-border text-sm text-text-primary
-                         hover:border-orange-500/30 transition-colors"
+              className="w-full inline-flex items-center justify-center gap-2 px-7 py-2.5
+                         bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono
+                         hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
             >
-              Try again
+              <span>[ Try again ]</span>
             </button>
           </div>
         )}
 
-        <div className="mt-8 pt-6 border-t border-border">
+        <div className="mt-8 pt-6 border-t border-[rgba(255,122,32,0.12)]">
           <p className="text-xs text-text-muted">
             Already have an API key from the CLI?{" "}
-            <Link href="/dashboard" className="text-orange-500 hover:underline">
+            <Link href="/dashboard" className="text-[rgba(255,176,96,1)] hover:underline">
               Open dashboard
             </Link>
           </p>

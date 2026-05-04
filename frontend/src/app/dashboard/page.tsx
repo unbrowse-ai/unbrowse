@@ -81,40 +81,45 @@ export default function DashboardPage() {
   if (!isAuthenticated) {
     return (
       <div className="mx-auto max-w-2xl px-6 pb-20 pt-32">
-        <h1 className="text-3xl font-bold">Contributor Dashboard</h1>
-        <p className="mt-3 text-text-secondary">
+        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+          ##  Contributor Dashboard
+        </p>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary">
+          Sign in to see your account
+        </h1>
+        <p className="mt-3 text-sm text-text-secondary leading-relaxed">
           Sign in to see your private account, or open a public wallet ledger.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/login"
-            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600"
+            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500 text-white font-mono font-medium text-sm w-full sm:w-auto hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer"
           >
-            Sign in with email
+            <span>[ Sign in with email ]</span>
           </Link>
           <Link
             href="/#get-started"
-            className="inline-flex items-center justify-center rounded-2xl border border-border px-6 py-3.5 text-sm font-semibold text-text-secondary transition-colors hover:border-orange-500/30 hover:text-text-primary"
+            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
           >
-            Get CLI key
+            <span>[ Get CLI key ]</span>
           </Link>
         </div>
-        <form onSubmit={openWallet} className="mt-10 rounded-[28px] border border-border bg-surface p-6">
-          <label className="block text-xs font-mono uppercase tracking-[0.22em] text-text-muted">
+        <form onSubmit={openWallet} className="mt-10 border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-6 rounded-sm">
+          <label className="block text-xs font-mono uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">
             Public wallet
             <input
               value={wallet}
               onChange={(event) => setWallet(event.target.value)}
               placeholder="Paste wallet address"
-              className="mt-3 block w-full rounded-2xl border border-border bg-bg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-orange-500/50 focus:outline-none"
+              className="mt-3 block w-full border border-[rgba(255,122,32,0.18)] bg-[#060402] px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-[rgba(255,122,32,0.4)] focus:outline-none rounded-sm"
             />
           </label>
           <button
             type="submit"
             disabled={!wallet.trim()}
-            className="mt-4 inline-flex items-center justify-center rounded-2xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-4 inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500 text-white font-mono font-medium text-sm hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Open wallet ledger
+            <span>[ Open wallet ledger ]</span>
           </button>
         </form>
       </div>
@@ -132,13 +137,18 @@ export default function DashboardPage() {
   if (error && !dashboard) {
     return (
       <div className="mx-auto max-w-2xl px-6 pb-20 pt-32">
-        <h1 className="text-3xl font-bold">Dashboard unavailable</h1>
+        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+          ##  Dashboard
+        </p>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary">
+          Dashboard unavailable
+        </h1>
         <p className="mt-3 text-sm text-red-400">{error}</p>
         <button
           onClick={logout}
-          className="mt-6 rounded-2xl border border-border px-5 py-3 text-sm text-text-primary transition-colors hover:border-red-400/30 hover:text-red-400"
+          className="mt-6 inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
         >
-          Logout
+          <span>[ Logout ]</span>
         </button>
       </div>
     );
@@ -146,28 +156,30 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 pt-24">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 pt-32">
         <div>
-          <p className="text-xs font-mono uppercase tracking-[0.22em] text-text-muted">Signed in</p>
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)]">
+            ##  Signed in
+          </p>
           <p className="mt-1 text-sm text-text-secondary">{accountMe?.email ?? agentName}</p>
         </div>
         <button
           onClick={logout}
-          className="rounded-2xl border border-border px-4 py-2 text-sm text-text-muted transition-colors hover:border-red-400/30 hover:text-red-400"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
         >
-          Logout
+          <span>[ Logout ]</span>
         </button>
       </div>
 
       {error && (
         <div className="mx-auto mt-4 max-w-6xl px-6">
-          <p className="rounded-2xl border border-red-400/30 bg-red-400/5 px-4 py-3 text-sm text-red-400">{error}</p>
+          <p className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm px-4 py-3 text-sm text-[rgba(255,176,96,0.9)]">{error}</p>
         </div>
       )}
 
       {accountMe && prefs && (
         <div className="mx-auto mt-6 max-w-6xl px-6">
-          <div className="rounded-[28px] border border-border bg-surface p-6">
+          <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-6 rounded-sm">
             <div className="flex items-start justify-between gap-6">
               <div>
                 <div className="font-semibold text-text-primary">Auto-publish to marketplace</div>
