@@ -155,92 +155,110 @@ export default function InternalApisPaperPage() {
   };
 
   return (
-    <div className="bg-surface min-h-screen text-text-primary">
+    <div className="bg-[#070503] min-h-screen text-[rgba(255,255,255,0.9)]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(scholarlyArticle) }}
       />
 
-      <article className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+      <article className="max-w-4xl mx-auto px-6 py-16 sm:py-24">
         <div className="mb-6">
           <Link
             href="/"
-            className="text-sm text-orange-600 hover:text-orange-500 transition-colors"
+            className="text-sm font-mono text-[rgba(255,176,96,0.9)] hover:text-[rgba(255,176,96,1)] transition-colors"
           >
-            ← Back to Unbrowse
+            [← back to unbrowse]
           </Link>
         </div>
 
-        <header className="mb-12 border-b border-border pb-10">
-          <p className="text-xs font-mono font-medium uppercase tracking-[0.25em] text-orange-600 mb-4">
-            Whitepaper · arXiv:{ARXIV_ID}
+        <header className="mb-12 border-b border-[rgba(255,122,32,0.18)] pb-10">
+          <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
+            ## WHITEPAPER · arXiv:{ARXIV_ID}
           </p>
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight">
+          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight text-[rgba(255,255,255,0.95)]">
             {PAPER_TITLE}
           </h1>
-          <p className="mt-4 text-xl sm:text-2xl text-text-secondary font-medium text-balance">
+          <p className="mt-4 text-xl sm:text-2xl font-mono font-medium text-balance text-[rgba(255,176,96,0.85)]">
             {PAPER_SUBTITLE}
           </p>
-          <div className="mt-8 space-y-3 text-sm sm:text-base text-text-secondary">
+
+          <div className="mt-8 grid sm:grid-cols-3 gap-4 text-sm font-mono">
             {PAPER_AUTHORS.map((author) => (
-              <div key={author.email}>
-                <div className="font-semibold text-text-primary">{author.name}</div>
-                <div>{author.affiliation}</div>
-                <div>
-                  <a className="text-orange-600 hover:text-orange-500" href={`mailto:${author.email}`}>
-                    {author.email}
-                  </a>
+              <div
+                key={author.email}
+                className="rounded-sm border border-[rgba(255,122,32,0.18)] bg-[#080604] p-4"
+              >
+                <div className="font-semibold text-[rgba(255,255,255,0.95)]">{author.name}</div>
+                <div className="mt-1 text-[rgba(255,255,255,0.6)] leading-snug">
+                  {author.affiliation}
                 </div>
+                <a
+                  className="mt-2 block text-[rgba(255,176,96,0.85)] hover:text-[rgba(255,176,96,1)] break-all"
+                  href={`mailto:${author.email}`}
+                >
+                  {author.email}
+                </a>
               </div>
             ))}
           </div>
-          <p className="mt-6 text-sm text-text-secondary">
-            Published {PUBLISHED_AT} on arXiv (cs.ET) ·{" "}
+
+          <p className="mt-6 text-sm font-mono text-[rgba(255,255,255,0.6)]">
+            published {PUBLISHED_AT} · arXiv (cs.ET) ·{" "}
             <a
               href={ARXIV_URL}
               target="_blank"
               rel="noopener"
-              className="text-orange-600 hover:text-orange-500"
+              className="text-[rgba(255,176,96,0.9)] hover:text-[rgba(255,176,96,1)]"
             >
               arxiv.org/abs/{ARXIV_ID}
             </a>
           </p>
+
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <a
               href={ARXIV_URL}
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center justify-center rounded-lg bg-orange-500 px-5 py-3 font-medium text-white hover:bg-orange-600 transition-colors"
+              className="inline-flex items-center justify-center rounded-sm bg-[rgba(255,122,32,0.95)] px-5 py-3 font-mono font-medium text-[#070503] hover:bg-[rgba(255,140,48,1)] transition-colors"
             >
-              Read on arXiv
+              [ read on arxiv ]
             </a>
             <a
               href={PAPER_PDF_URL}
-              className="inline-flex items-center justify-center rounded-lg border border-border bg-surface-sunken px-5 py-3 font-medium text-text-primary hover:border-orange-500/30 hover:bg-orange-50/40 transition-colors"
+              className="inline-flex items-center justify-center rounded-sm border border-[rgba(255,122,32,0.3)] bg-[#080604] px-5 py-3 font-mono font-medium text-[rgba(255,255,255,0.9)] hover:border-[rgba(255,122,32,0.5)] hover:bg-[#0a0705] transition-colors"
             >
-              Download PDF
+              [ download pdf ]
             </a>
             <a
               href="https://github.com/unbrowse-ai/unbrowse"
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center justify-center rounded-lg border border-border bg-surface-sunken px-5 py-3 font-medium text-text-primary hover:border-orange-500/30 hover:bg-orange-50/40 transition-colors"
+              className="inline-flex items-center justify-center rounded-sm border border-[rgba(255,122,32,0.18)] bg-[#080604] px-5 py-3 font-mono font-medium text-[rgba(255,255,255,0.8)] hover:border-[rgba(255,122,32,0.35)] hover:bg-[#0a0705] transition-colors"
             >
-              View repository
+              [ view repo ]
             </a>
           </div>
         </header>
 
         <section className="mb-12">
-          <h2 className="text-2xl font-semibold tracking-tight mb-4">Abstract</h2>
-          <p className="text-base sm:text-lg leading-8 text-text-secondary">{abstract}</p>
+          <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
+            ## ABSTRACT
+          </p>
+          <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
+            {abstract}
+          </p>
         </section>
 
         <section className="mb-12">
-          <h2 className="text-2xl font-semibold tracking-tight mb-4">Key highlights</h2>
-          <ul className="space-y-3 text-base sm:text-lg leading-8 text-text-secondary list-disc pl-5">
+          <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
+            ## KEY HIGHLIGHTS
+          </p>
+          <ul className="space-y-3 text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
             {highlights.map((item) => (
-              <li key={item}>{item}</li>
+              <li key={item} className="flex gap-3">
+                <span className="text-[rgba(255,176,96,0.85)] shrink-0">›</span>
+                <span>{item}</span>
+              </li>
             ))}
           </ul>
         </section>
@@ -248,40 +266,56 @@ export default function InternalApisPaperPage() {
         <section className="space-y-10 mb-12">
           {sections.map((section) => (
             <div key={section.title}>
-              <h2 className="text-2xl font-semibold tracking-tight mb-3">{section.title}</h2>
-              <p className="text-base sm:text-lg leading-8 text-text-secondary">{section.body}</p>
+              <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-3">
+                ## {section.title.toUpperCase()}
+              </p>
+              <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
+                {section.body}
+              </p>
             </div>
           ))}
         </section>
 
-        <section className="mb-12 rounded-2xl border border-orange-500/20 bg-orange-50/50 p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold tracking-tight mb-3">How to cite</h2>
-          <p className="text-base sm:text-lg leading-8 text-text-secondary mb-4">
+        <section className="mb-12 rounded-sm border border-[rgba(255,122,32,0.3)] bg-[#080604] p-6 sm:p-8">
+          <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-3">
+            ## HOW TO CITE
+          </p>
+          <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.85)] mb-4">
             Tham, L., Mac Gregor Garcia, N., &amp; Hahn, J. (2026).{" "}
-            <em>{PAPER_TITLE}: {PAPER_SUBTITLE}</em>. arXiv:{ARXIV_ID}.{" "}
-            <a href={ARXIV_URL} target="_blank" rel="noopener" className="text-orange-600 hover:text-orange-500">
+            <em className="text-[rgba(255,176,96,0.9)] not-italic">
+              {PAPER_TITLE}: {PAPER_SUBTITLE}
+            </em>
+            . arXiv:{ARXIV_ID}.{" "}
+            <a
+              href={ARXIV_URL}
+              target="_blank"
+              rel="noopener"
+              className="text-[rgba(255,176,96,0.9)] hover:text-[rgba(255,176,96,1)] break-all"
+            >
               {ARXIV_URL}
             </a>
           </p>
-          <p className="text-sm leading-7 text-text-secondary">
+          <p className="text-sm leading-7 font-mono text-[rgba(255,255,255,0.6)]">
             Use the exact title{" "}
-            <strong className="text-text-primary">Internal APIs Are All You Need</strong>{" "}
+            <strong className="text-[rgba(255,255,255,0.95)]">Internal APIs Are All You Need</strong>{" "}
             and link to the arXiv record so search engines, researchers, and agents associate the phrase with the Unbrowse paper.
           </p>
         </section>
 
         <section className="mb-12">
-          <h2 className="text-2xl font-semibold tracking-tight mb-4">Read the full paper</h2>
-          <p className="text-base sm:text-lg leading-8 text-text-secondary mb-4">
+          <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
+            ## READ THE FULL PAPER
+          </p>
+          <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)] mb-4">
             The full paper covers the shared route graph architecture, the discovery tax, the three-tier execution model, route-level economics, quality proofing, benchmark methodology, and architectural implications for the agentic web.
           </p>
           <a
             href={ARXIV_URL}
             target="_blank"
             rel="noopener"
-            className="text-orange-600 hover:text-orange-500 font-medium"
+            className="font-mono font-medium text-[rgba(255,176,96,0.9)] hover:text-[rgba(255,176,96,1)]"
           >
-            Read on arXiv →
+            [ read on arxiv → ]
           </a>
         </section>
       </article>
