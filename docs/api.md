@@ -71,6 +71,8 @@ await unbrowse.login({
 | `POST` | `/v1/skills/:id/verify` | Verify endpoints on a skill |
 | `POST` | `/v1/skills/:id/review` | Push reviewed endpoint descriptions/metadata |
 | `POST` | `/v1/skills` | Publish a skill manifest |
+| `GET` | `/v1/graph/health` | EmergentDB graph availability check; credit balance is not treated as a gate |
+| `GET` | `/v1/graph/credits` | EmergentDB graph credit balance for observability |
 | `POST` | `/v1/auth/login` | Headed login flow for a target site |
 | `POST` | `/v1/auth/steal` | Import cookies from browser/Electron storage |
 | `POST` | `/v1/feedback` | Feedback loop for skill/endpoint quality |
@@ -95,6 +97,10 @@ unbrowse resolve --intent "..." --url "..." --pretty
 ```
 
 The SDK mirrors the CLI by copying `url` into both `params.url` and `context.url`, so ranking and replay stay aligned with the canonical product path.
+
+## Graph observability
+
+`GET /v1/graph/health` reports whether the EmergentDB graph backend is reachable. `GET /v1/graph/credits` reports credit balance when available. Credit exhaustion is surfaced as status metadata and should not disable marketplace publish, search cache, or other graph-backed routes by itself.
 
 ## Execute flow
 
