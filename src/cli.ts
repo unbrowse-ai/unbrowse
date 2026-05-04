@@ -1889,10 +1889,30 @@ async function cmdStatus(flags: Record<string, string | boolean>): Promise<void>
   const healthy = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(2_000) })
     .then((r) => r.ok).catch(() => false);
   const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
+
+  // Active browse sessions — what the agent uses to judge autonomous discovery.
+  // Each session shows: url, har_active, streaming_publish_active. The agent
+  // can hit /v1/browse/sessions/:id/buffer for the in-flight capture state.
+  let activeSessions: unknown[] = [];
+  let sessionCount = 0;
+  if (healthy) {
+    try {
+      const res = await fetch(`${BASE_URL}/v1/browse/sessions`, { signal: AbortSignal.timeout(2_000) });
+      if (res.ok) {
+        const data = await res.json() as { sessions?: unknown[]; count?: number };
+        activeSessions = data.sessions ?? [];
+        sessionCount = data.count ?? activeSessions.length;
+      }
+    } catch { /* non-fatal */ }
+  }
+
   output({
     server: healthy ? "running" : "stopped",
     url: BASE_URL,
     ...(versionInfo ?? {}),
+    active_browse_sessions: sessionCount,
+    sessions: activeSessions,
+    chrome_debug_url: process.env.CHROME_DEBUG_URL ?? null,
   }, !!flags.pretty);
 }
 

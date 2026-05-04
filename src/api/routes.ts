@@ -578,13 +578,12 @@ export async function registerRoutes(app: FastifyInstance) {
     });
   });
 
-  // ── Admin endpoints (UNBROWSE_DEV=1) — for the autonomous-discovery harness.
-  // Expose in-flight session state so probes can inspect mid-session without
-  // close/sync. Off in production builds.
-  const adminEnabled = (): boolean => process.env.UNBROWSE_DEV === "1" || process.env.UNBROWSE_ADMIN === "1";
-
-  app.get("/v1/admin/sessions", async (_req, reply) => {
-    if (!adminEnabled()) return reply.code(404).send({ error: "not_found" });
+  // ── Browse-session inspection (autonomy is the harness) ─────────────
+  // Read-only, always-on endpoints exposing the in-flight capture state of
+  // every active browse session. The agent invoking the CLI is the judge:
+  // it reads these responses and decides whether autonomous discovery is
+  // working. No UNBROWSE_DEV gate — this is product surface, not a back door.
+  app.get("/v1/browse/sessions", async (_req, reply) => {
     const sessions = Array.from(browseSessions.values()).map((s) => ({
       session_id: s.sessionId,
       tab_id: s.tabId,
@@ -592,12 +591,12 @@ export async function registerRoutes(app: FastifyInstance) {
       domain: s.domain,
       har_active: s.harActive,
       broker_port: s.brokerPort ?? null,
+      streaming_publish_active: streamingWatchers.has(s.sessionId),
     }));
-    return reply.send({ sessions });
+    return reply.send({ sessions, count: sessions.length });
   });
 
-  app.get("/v1/admin/sessions/:id/buffer", async (req, reply) => {
-    if (!adminEnabled()) return reply.code(404).send({ error: "not_found" });
+  app.get("/v1/browse/sessions/:id/buffer", async (req, reply) => {
     const { id } = req.params as { id: string };
     let session: BrowseSession | undefined;
     for (const s of browseSessions.values()) {
@@ -615,7 +614,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
     // HAR snapshot: stop+restart trick. We lose ~100ms of capture between
     // stop and restart, but mid-session inspection is otherwise impossible
-    // (Kuri's HAR API is start/stop only). Acceptable for harness use.
+    // (Kuri's HAR API is start/stop only).
     let harEntries: KuriHarEntry[] = [];
     let harError: string | null = null;
     if (session.harActive) {
@@ -623,7 +622,6 @@ export async function registerRoutes(app: FastifyInstance) {
         const broker = brokerForSession(session);
         const stopResult = await broker.harStop(session.tabId);
         harEntries = stopResult.entries ?? [];
-        // Immediately restart so capture continues after the snapshot
         try { await broker.harStart(session.tabId); } catch { /* ignore */ }
       } catch (err) {
         harError = err instanceof Error ? err.message : String(err);
@@ -637,6 +635,7 @@ export async function registerRoutes(app: FastifyInstance) {
         url: session.url,
         domain: session.domain,
         har_active: session.harActive,
+        streaming_publish_active: streamingWatchers.has(session.sessionId),
       },
       intercepted_requests: intercepted,
       intercepted_count: Array.isArray(intercepted) ? intercepted.length : 0,
@@ -2096,6 +2095,16 @@ export async function registerRoutes(app: FastifyInstance) {
         auth_profile: session.domain,
         ...(result.cookiesInjected > 0 ? { cookies_injected: result.cookiesInjected } : {}),
         ...(authRequired ? { auth_required: true, auth_hint: authHint } : {}),
+        // Autonomy signals — agents read these to judge whether the system is
+        // capturing in the background as advertised. No separate "verify" verb;
+        // every go response is self-describing.
+        autonomy: {
+          har_active: session.harActive,
+          streaming_publish_active: streamingWatchers.has(session.sessionId),
+          attached_existing_chrome: result.attachedExistingChrome ?? false,
+          chrome_debug_url: process.env.CHROME_DEBUG_URL ?? null,
+          inspect_buffer: `GET ${process.env.UNBROWSE_API_BASE ?? "http://127.0.0.1:6969"}/v1/browse/sessions/${session.sessionId}/buffer`,
+        },
       });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
