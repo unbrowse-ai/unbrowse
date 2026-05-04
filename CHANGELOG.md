@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.7.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.6.1...v6.7.0-preview.0) (2026-05-04)
+
+### Features
+
+* **capture:** emit bundle_snapshot when anti-bot vendor detected ([9649cd9](https://github.com/unbrowse-ai/unbrowse-dev/commit/9649cd9a908b74ea56303e959390a06b40a2fe89))
+* **cli:** --use-browser-cookies pipes real Chrome session into sandbox ([754d2b4](https://github.com/unbrowse-ai/unbrowse-dev/commit/754d2b4745ca2d5326545020ed8dde817ea57971))
+* **sandbox:** deep-reveng plan + Node client + CLI + Kuri submodule bump ([c27d605](https://github.com/unbrowse-ai/unbrowse-dev/commit/c27d605875e8e6f96be7f14bb2b96cd27b4e33ca))
+
+### Bug Fixes
+
+* **release:** build-kuri-binaries skip -Dtarget when native + scope to darwin-arm64 ([e3959d6](https://github.com/unbrowse-ai/unbrowse-dev/commit/e3959d6d5fc438a8d8de8d46969f45ca43d419b6))
+
 ## [6.6.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.6.0...v6.6.1) (2026-05-04)
 
 ### Bug Fixes
