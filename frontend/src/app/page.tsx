@@ -24,6 +24,11 @@ import {
   IconChevron,
 } from "@/components/archival-icons";
 
+// Re-generate the homepage at most every 60s so Cloudflare can serve a static
+// HTML response on warm cache. Removes the 6.8s TTFB observed on cold
+// renders where the server was awaiting upstream fetches before streaming.
+export const revalidate = 60;
+
 const WHITEPAPER_URL = "/shadow-apis-are-all-you-need";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
