@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.7.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.3...v6.7.0-preview.4) (2026-05-04)
+
+### Bug Fixes
+
+* remove duplicate prebuiltUrl declaration in build-kuri-binaries ([98ac61b](https://github.com/unbrowse-ai/unbrowse-dev/commit/98ac61b321828fe8dd33f72bc8671bb1b3354cc9))
+
 ## [6.7.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.2...v6.7.0-preview.3) (2026-05-04)
 
 ### Bug Fixes
