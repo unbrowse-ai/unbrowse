@@ -496,10 +496,12 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     if (explicitEndpointId && resolveAvailableEndpoints()) {
       const skillId = resolveSkillId();
       if (skillId) {
+        const resolvedSource = typeof result.source === "string" ? result.source : undefined;
         result = await withPendingNotice(
           api("POST", `/v1/skills/${skillId}/execute`, execBody(explicitEndpointId)) as Promise<Record<string, unknown>>,
           "Executing selected endpoint...",
         );
+        if (resolvedSource && typeof result.source !== "string") result.source = resolvedSource;
       }
     }
 
@@ -518,6 +520,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       const skillId = resolveSkillId();
       if (skillId && endpoints.length > 0) {
         const bestEndpoint = endpoints[0];
+        const resolvedSource = typeof result.source === "string" ? result.source : undefined;
         // Policy gate: never auto-execute a third-party-terms-flagged endpoint
         // without explicit confirmation. The agent must opt in via
         // --confirm-third-party-terms after reading the policy.
@@ -542,6 +545,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
             api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
             "Executing best endpoint...",
           );
+          if (resolvedSource && typeof result.source !== "string") result.source = resolvedSource;
         }
       }
     }

@@ -53,6 +53,7 @@
 
 ### Bug Fixes
 
+* **cli:** preserve resolve source when safe GET auto-execute returns data
 * **backend:** keep EmergentDB graph checks bounded and make credit lookup non-blocking
 * **frontend:** pin Turbopack to the monorepo root so Next/OpenNext builds ignore unrelated parent lockfiles
 * **frontend:** keep install terminal controls readable on mobile
