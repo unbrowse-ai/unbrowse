@@ -65,6 +65,22 @@ function ensureNativeBuildDeps() {
     execFileSync("sudo", ["-n", "apt-get", "install", "-y", "--no-install-recommends",
       "libz-dev", "zlib1g-dev", "libidn2-dev", "build-essential",
     ], { stdio: "inherit" });
+
+    // For linux-arm64 cross-compile from x86_64: enable arm64 multiarch and
+    // install the cross-arch dev libs Zig will link against. Without these,
+    // the link step errors with 'unable to find dynamic system library' for
+    // -lz / -lidn2 even though the local x86_64 versions are installed.
+    if (process.arch === "x64") {
+      try {
+        execFileSync("sudo", ["-n", "dpkg", "--add-architecture", "arm64"], { stdio: "inherit" });
+        execFileSync("sudo", ["-n", "apt-get", "update", "-qq"], { stdio: "inherit" });
+        execFileSync("sudo", ["-n", "apt-get", "install", "-y", "--no-install-recommends",
+          "libz-dev:arm64", "zlib1g-dev:arm64", "libidn2-dev:arm64",
+        ], { stdio: "inherit" });
+      } catch (e2) {
+        console.warn(`[build-kuri] linux-arm64 multiarch setup failed (linux-arm64 will stub): ${e2.message?.split("\n")[0] ?? "unknown"}`);
+      }
+    }
   } catch (e) {
     console.warn(`[build-kuri] apt-get install failed (continuing): ${e.message?.split("\n")[0] ?? "unknown"}`);
   }
