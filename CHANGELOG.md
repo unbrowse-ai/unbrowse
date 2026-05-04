@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.7.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.2...v6.7.0-preview.3) (2026-05-04)
+
+### Bug Fixes
+
+* restart stale local runtime after updates ([eabc3d9](https://github.com/unbrowse-ai/unbrowse-dev/commit/eabc3d92057dbb1f7c754bfd752e37079d24ad7b))
+
 ## [6.7.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.1...v6.7.0-preview.2) (2026-05-04)
 
 ### Features
