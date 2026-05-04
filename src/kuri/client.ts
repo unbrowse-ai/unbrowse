@@ -242,16 +242,22 @@ export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): K
     headless = true;
   }
   const cleanRoom = envFlag(env.UNBROWSE_LOCAL_ONLY) || envFlag(env.KURI_CLEAN_ROOM);
-  const browserCookieOptOut = falseyEnv(env.UNBROWSE_IMPORT_BROWSER_COOKIES);
-  const explicitAttach = envFlag(env.KURI_ATTACH_EXISTING_CHROME ?? env.UNBROWSE_ATTACH_EXISTING_CHROME);
   const disableCdpAttach = envFlag(env.KURI_DISABLE_CDP_ATTACH);
-  const canAttachToExistingChrome = !headless && !disableCdpAttach && !cleanRoom;
+  // Default-on opportunistic attach (North Star): if Chrome is already running
+  // on a known CDP port (9222 today), attach to it instead of launching a
+  // separate managed Chrome. Captures every tab any agent opens — chrome-
+  // devtools MCP, Playwright, the user's own logged-in Chrome — through one
+  // pipeline. When no existing Chrome is found, Kuri falls through to the
+  // managed-Chrome launch, preserving Kuri-native auth (cookie injection,
+  // stealth, keychain auth-profile) as the primary capture mode.
+  // Follow-up: rebuild Kuri Zig binary to spawn Chrome on a dedicated port
+  // (42069) instead of 9222, then advertise via CHROME_DEBUG_URL — that lets
+  // us avoid touching the user's personal Chrome by accident.
+  // Opt-out: KURI_DISABLE_CDP_ATTACH=1 / UNBROWSE_LOCAL_ONLY=1 / KURI_CLEAN_ROOM=1
+  const attachToExistingChrome = !disableCdpAttach && !cleanRoom;
   return {
     headless,
-    // Managed Chrome is the safe default when browser-cookie import is enabled:
-    // it preserves extension-backed capture while still restoring auth into tabs.
-    // Existing-Chrome attach remains available for explicit opt-in or true cookie-opt-out flows.
-    attachToExistingChrome: canAttachToExistingChrome && (explicitAttach || browserCookieOptOut),
+    attachToExistingChrome,
   };
 }
 

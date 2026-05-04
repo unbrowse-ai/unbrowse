@@ -75,6 +75,29 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   }
   void startBackgroundRegistration();
 
+  // Advertise Unbrowse's Chrome debug port via standard env conventions so
+  // child processes (chrome-devtools MCP, Playwright via PUPPETEER_BROWSER_WS_ENDPOINT,
+  // any agent that respects CHROME_DEBUG_URL) attach to our Chrome instead of
+  // launching their own. This is the "single browser for the agent ecosystem"
+  // play — Unbrowse becomes the upstream Chrome and captures every tab any
+  // tool opens.
+  //
+  // Today Kuri's Zig binary spawns Chrome on 9222 (its hardcoded default).
+  // Follow-up: rebuild Kuri to spawn on a dedicated port (e.g. 42069) so we
+  // don't share the port with the user's personal Chrome by accident, then
+  // bump UNBROWSE_CDP_PORT default here.
+  // Idempotent: only set when not already configured by the user.
+  const UNBROWSE_CDP_PORT = Number(process.env.UNBROWSE_CDP_PORT ?? 9222);
+  if (!process.env.CHROME_DEBUG_URL) {
+    process.env.CHROME_DEBUG_URL = `http://127.0.0.1:${UNBROWSE_CDP_PORT}`;
+  }
+  if (!process.env.PUPPETEER_BROWSER_WS_ENDPOINT) {
+    process.env.PUPPETEER_BROWSER_WS_ENDPOINT = `ws://127.0.0.1:${UNBROWSE_CDP_PORT}`;
+  }
+  if (!process.env.PLAYWRIGHT_CHROMIUM_REMOTE_DEBUGGING_URL) {
+    process.env.PLAYWRIGHT_CHROMIUM_REMOTE_DEBUGGING_URL = `http://127.0.0.1:${UNBROWSE_CDP_PORT}`;
+  }
+
   const app = Fastify({ logger: options.logger ?? true });
   await app.register(cors, { origin: true });
   await registerRateLimiter(app);
