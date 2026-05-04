@@ -16,9 +16,51 @@ env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
 jobs:
+  build-darwin-kuri:
+    name: Build Kuri for darwin (native macOS runner)
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - name: Build kuri darwin-arm64 (native)
+        working-directory: submodules/kuri
+        run: |
+          zig build -Doptimize=ReleaseFast
+          file zig-out/bin/kuri
+      - name: Stage darwin-arm64 artifact
+        run: |
+          mkdir -p artifacts/darwin-arm64
+          cp submodules/kuri/zig-out/bin/kuri artifacts/darwin-arm64/kuri
+      - name: Build kuri darwin-x64 (cross from arm64 mac, same SDK)
+        working-directory: submodules/kuri
+        run: |
+          rm -rf .zig-cache zig-out
+          zig build -Doptimize=ReleaseFast -Dtarget=x86_64-macos
+          file zig-out/bin/kuri
+      - name: Stage darwin-x64 artifact
+        run: |
+          mkdir -p artifacts/darwin-x64
+          cp submodules/kuri/zig-out/bin/kuri artifacts/darwin-x64/kuri
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kuri-darwin-arm64
+          path: artifacts/darwin-arm64/kuri
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kuri-darwin-x64
+          path: artifacts/darwin-x64/kuri
+          retention-days: 1
+
   upload-release-assets:
     name: Upload CLI Release Assets
     runs-on: self-hosted
+    needs: build-darwin-kuri
     permissions:
       contents: write
     steps:
@@ -55,6 +97,18 @@ jobs:
           echo "GH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "UNBROWSE_RELEASE_REPO=$TARGET_REPO" >> "$GITHUB_ENV"
       - run: bun install --frozen-lockfile
+      - name: Download darwin-arm64 kuri artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kuri-darwin-arm64
+          path: packages/skill/vendor/kuri/darwin-arm64
+      - name: Download darwin-x64 kuri artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kuri-darwin-x64
+          path: packages/skill/vendor/kuri/darwin-x64
+      - name: Make downloaded kuri binaries executable
+        run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri packages/skill/vendor/kuri/darwin-x64/kuri
       - run: bash scripts/build-binaries.sh --all
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
@@ -89,7 +143,7 @@ jobs:
   publish-cli:
     name: Publish CLI (npm)
     runs-on: self-hosted
-    needs: verify-release-assets
+    needs: [verify-release-assets, build-darwin-kuri]
     outputs:
       package_name: ${{ steps.pkg.outputs.name }}
       package_version: ${{ steps.pkg.outputs.version }}
@@ -116,6 +170,18 @@ jobs:
       - run: bun run check:skill-docs
       - name: Build Kuri vendor binaries
         run: node packages/skill/scripts/build-kuri-binaries.mjs
+      - name: Download darwin-arm64 kuri artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kuri-darwin-arm64
+          path: packages/skill/vendor/kuri/darwin-arm64
+      - name: Download darwin-x64 kuri artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kuri-darwin-x64
+          path: packages/skill/vendor/kuri/darwin-x64
+      - name: Make downloaded kuri binaries executable
+        run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri packages/skill/vendor/kuri/darwin-x64/kuri
       - run: bun run check:kuri-vendor
         name: Check baked Kuri vendor state
       - name: Leak guard — block sensitive ops names from public artifacts
