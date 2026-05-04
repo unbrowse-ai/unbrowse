@@ -8,7 +8,9 @@ import { RegistryShowcase } from "@/components/registry-showcase";
 import { ScrollToButton } from "@/components/full-page-scroll";
 import { FlowingDotField } from "@/components/flowing-dot-field";
 import { HeroHands } from "@/components/hero-hands";
-import { HeroTerminal } from "@/components/hero-terminal";
+import { HeroTerminalGated } from "@/components/hero-terminal-gated";
+import { AudienceToggle } from "@/components/audience-toggle";
+import { HeroSubhead, HeroPrimaryCtaLabel, HeroWhyItMatters } from "@/components/hero-copy";
 import { InstallFigure } from "@/components/install-figure";
 import { DemoParallax } from "@/components/demo-parallax";
 import { MobileNav } from "@/components/mobile-nav";
@@ -208,20 +210,25 @@ export default function Home() {
 
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-[13vh] pb-8 text-center flex flex-col items-center">
 
-          <a
-            href="https://github.com/unbrowse-ai/unbrowse"
-            target="_blank"
-            rel="noopener"
-            className="group animate-fade-up mb-10 inline-flex items-center gap-2.5
-                       text-[rgba(255,156,64,0.8)] text-xs font-mono uppercase tracking-[0.25em]
-                       border-b border-[rgba(255,122,32,0.3)] pb-1.5
-                       hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-all cursor-pointer"
-          >
-            <Github className="w-3.5 h-3.5" />
-            <span>Free, open source, runs locally</span>
-            <span className="text-[rgba(255,122,32,0.4)]">·</span>
-            <span className="flex items-center gap-1">Star on GitHub <IconChevron size={11} className="group-hover:translate-x-0.5 transition-transform" /></span>
-          </a>
+          <div className="animate-fade-up mb-6 flex flex-wrap items-center justify-center gap-4">
+            <a
+              href="https://github.com/unbrowse-ai/unbrowse"
+              target="_blank"
+              rel="noopener"
+              className="group inline-flex items-center gap-2.5
+                         text-[rgba(255,156,64,0.8)] text-xs font-mono uppercase tracking-[0.25em]
+                         border-b border-[rgba(255,122,32,0.3)] pb-1.5
+                         hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-all cursor-pointer"
+            >
+              <Github className="w-3.5 h-3.5" />
+              <span>Free, open source, runs locally</span>
+              <span className="text-[rgba(255,122,32,0.4)]">·</span>
+              <span className="flex items-center gap-1">Star on GitHub <IconChevron size={11} className="group-hover:translate-x-0.5 transition-transform" /></span>
+            </a>
+            <Suspense fallback={<div className="h-7" />}>
+              <AudienceToggle />
+            </Suspense>
+          </div>
 
           <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
             100x faster. 95% cheaper.{" "}
@@ -229,10 +236,14 @@ export default function Home() {
             <span className="text-orange-500">The API layer for AI agents.</span>
           </h1>
 
-          <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-            Your agent calls the site&apos;s real API instead of driving a browser.
-            Plugs into OpenClaw, Claude Desktop, Cursor, and any MCP-aware framework.
-          </p>
+          <Suspense fallback={
+            <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
+              Your agent calls the site&apos;s real API instead of driving a browser.
+              Plugs into OpenClaw, Claude Desktop, Cursor, and any MCP-aware framework.
+            </p>
+          }>
+            <HeroSubhead />
+          </Suspense>
 
           <div className="animate-fade-up stagger-3 flex flex-col items-center gap-4 mt-10">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -242,7 +253,10 @@ export default function Home() {
                            text-white font-mono font-medium text-sm w-full sm:w-auto
                            hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer"
               >
-                [ npx unbrowse setup <IconArrow size={14} className="group-hover:translate-x-1 transition-transform" /> ]
+                <Suspense fallback={<span>[ npx unbrowse setup → ]</span>}>
+                  <HeroPrimaryCtaLabel />
+                </Suspense>
+                <IconArrow size={14} className="group-hover:translate-x-1 transition-transform" />
               </ScrollToButton>
               <ScrollToButton
                 sectionId="demo"
@@ -274,7 +288,13 @@ export default function Home() {
             </div>
           </div>
 
-          <HeroTerminal />
+          <Suspense fallback={null}>
+            <HeroWhyItMatters />
+          </Suspense>
+
+          <Suspense fallback={null}>
+            <HeroTerminalGated />
+          </Suspense>
 
         </div>
 
