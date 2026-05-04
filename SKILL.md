@@ -288,81 +288,75 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `health` |  | Server health check |
-| `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
-| `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
-| `upgrade` |  | Check latest release and print the right upgrade command |
-| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Resolve an intent, auto-executing the top safe GET endpoint by default; pass --no-execute for metadata only |
-| `explain` | `--intent "..." --url "..." [--top N]` | Emit top-N candidate endpoints + evidence for an LLM judge to pick from (no heuristic verdict — primitives + agent judgment) |
-| `execute` | `--skill ID --endpoint ID [-p key=val ...] [--params '{json}'] [opts]` | Execute a specific endpoint. Pass replay params via repeated -p key=val flags or --params with a JSON object |
-| `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
-| `annotate` | `--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:message']` | Contribute best practices or constraints for an endpoint |
-| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/schema metadata back to a captured skill before publish |
-| `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state only |
-| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, inspect publish-review metadata, then publish/share from cached skill state |
-| `publish-bundle` | `--preset path [--hosts codex,claude,openclaw] [--site-url https://www.unbrowse.ai]` | Derive foundry bundle/share/host artifacts from one preset and write the public share manifest |
-| `settings` | `[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]` | Show or update local capture/publish policy settings |
-| `login` | `--url "..."` | Interactive browser login |
-| `skills` |  | List all skills |
-| `skill` | `<id>` | Get skill details |
-| `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
-| `sessions` | `--domain "..." [--limit N]` | Debug session logs |
-| `inspect` | `[--session id] [--all]` | Inspect live browser capture evidence, candidate endpoints, and next actions |
-| `go` | `<url> [--session id]` | Open a fresh Kuri browser tab, or reuse explicit --session |
-| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
-| `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
-| `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
-| `fill` | `[--session id] <ref> <value>` | Fill input by ref |
-| `type` | `<text>` | Type text with key events |
-| `press` | `<key>` | Press key (Enter, Tab, Escape) |
-| `select` | `<ref> <value>` | Select option by ref |
-| `scroll` | `[up|down|left|right]` | Scroll the page |
-| `screenshot` | `[--session id]` | Capture screenshot (base64 PNG) |
-| `text` | `[--session id]` | Get page text content |
-| `markdown` | `[--session id]` | Get page as Markdown |
-| `cookies` | `[--session id]` | Get page cookies |
-| `eval` | `[--session id] <expression>` | Evaluate JavaScript |
-| `back` | `[--session id]` | Navigate back |
-| `forward` | `[--session id]` | Navigate forward |
-| `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review |
-| `close` | `[--session id]` | Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review |
-| `stats` | `[--json] [--pretty]` | Show lifetime time/tokens/cost saved and marketplace earnings/spending |
-| `flywheel` | `[--json] [--pretty]` | Flywheel pulse: funnel, credits, index health, economics, conversions |
-| `earnings` | `[--json]` | Show your credit balance, earnings from indexing, and spending |
-| `corpus-test` | `--url <url> [--id <id>] [--retries N]` | Capture a single URL with retry logic; keeps best result across N attempts |
-| `corpus-run` | `--corpus <file> --out <file> [--retries N]` | Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot |
-| `register` | `[--email lewis@example.com] [--reset] [--no-prompt]` | Register an API key. With --reset, discard the local cached key first; with --email, mint an account-bound key. |
-| `account` | `[--json] [--pretty] [--reset-key] [--email lewis@example.com]` | Show local account, dashboard link, wallet, and contribution mode; --reset-key forces local key reset. |
-| `dashboard` | `[--no-open] [--pretty]` | Open the website dashboard and pair it to this CLI install through localhost |
-| `mode` |  | Re-prompt for contribution mode (private / share / share + earn) |
-| `capture` | `--url <url> --intent <intent>` | Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`. |
-| `note` | `<read|write|list> --domain <domain> [--body "..."]` | Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence. |
-| `fetch` | `<url> [--raw] [--no-browser-cookies] [--method GET|POST] [--header 'K:V']` | Simple URL fetch via libcurl-impersonate (Chrome 131 JA4). Auto-pulls cookies from your real Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session. HTML responses auto-converted to markdown via turndown — pass --raw for the actual HTML/JSON bytes (use this when reverse-engineering / inspecting). For sites that need running JS to compute auth tokens, use sandbox-replay instead. |
-| `sandbox-replay` | `--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--raw] [--no-browser-cookies]` | Lower-level sandbox replay: run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime. Returns harvested cookies + post_eval result. Auto-pulls browser cookies, auto-converts HTML to markdown. Pass --raw to keep HTML/JSON bytes intact (reverse-engineering). |
+| `setup` | `[--opencode auto|global|project|off] [--no-start] [--skip-browser]` | Bootstrap browser engine + write the /unbrowse Open Code command. Run once on install. Idempotent. |
+| `upgrade` |  | Print the right upgrade command (npm i -g unbrowse@latest or @preview). |
+| `health` |  | Quick local server health check. Returns version + uptime. |
+| `mcp` | `[--no-auto-start]` | Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use. |
+| `account` | `[--register] [--email user@example.com] [--reset-key] [--json]` | Show local account, wallet, and contribution mode. --register mints a new key (replaces old `register` command). |
+| `mode` |  | Re-prompt for contribution mode: private / share / share + earn (changes whether captured skills go to the marketplace). |
+| `dashboard` | `[--no-open]` | Open the website dashboard and pair this CLI install through localhost. |
+| `settings` | `[--auto-publish on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]` | Show or update local capture/publish policy (per-domain allow/block lists). |
+| `fetch` | `<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]` | PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser. |
+| `resolve` | `--intent "..." [--url "..."] [--domain "..."] [--no-execute]` | Resolve an intent against the marketplace + local cache. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only. Pair with `unbrowse execute` when you want explicit endpoint pick. |
+| `execute` | `--skill ID --endpoint ID [-p key=val ...] [--params '{json}']` | Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object. |
+| `explain` | `--intent "..." --url "..." [--top N]` | Print top-N candidate endpoints + evidence so an LLM (or you) can pick. No heuristic verdict — just primitives + evidence. |
+| `capture` | `--url <url> --intent <intent> [--retries N]  |  --corpus <file> --out <file> [--retries N]` | Live-browser HAR capture; discovers + indexes API endpoints. --retries keeps the best result across N attempts. --corpus runs over a JSON file of cases. Marketplace publish gated by `unbrowse mode`. |
+| `auth-capture` | `--url "..."` | Open a Kuri tab so you can sign in to a site; cookies persist for future fetch/resolve. (Old name: `login`.) |
+| `note` | `<read|write|list> --domain <domain> [--body "..."]` | Per-domain LLM-prose notes consumed by augment on next capture. Populate after reading capture's note_evidence. |
+| `skills` |  | List all locally-cached skills (skill_id, domain, endpoint count). |
+| `skill` | `<id>` | Get full SkillManifest for one skill (intent, endpoints, schemas). |
+| `feedback` | `--skill ID --endpoint ID --rating 1-5` | Submit feedback after presenting endpoint results to the user (mandatory after resolve+execute). |
+| `annotate` | `--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:msg']` | Contribute best practices, constraints, or gotchas for an endpoint. |
+| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/schema metadata back to a captured skill before publish. |
+| `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state. Cheap; doesn't hit the network. |
+| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Publish reviewed skill to the marketplace. Re-indexes locally first; --confirm-publish bypasses the safety prompt. |
+| `publish-bundle` | `--preset path [--hosts codex,claude,openclaw] [--site-url url]` | Derive foundry bundle/share/host artifacts from one preset and write the public share manifest. |
+| `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills against live endpoints and evict stale cached entries. |
+| `go` | `<url> [--session id]` | Open a fresh Kuri browser tab (or reuse via --session). Step 1 of the browse workflow. |
+| `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs. Inspect the page state — gives you the refs to click/fill. |
+| `click` | `[--session id] <ref>` | Click element by @eN ref from snap. |
+| `fill` | `[--session id] <ref> <value>` | Fill input by @eN ref with the given value. |
+| `type` | `<text>` | Type into the focused element with key events (use after click). |
+| `press` | `<key>` | Press a key (Enter, Tab, Escape, ArrowDown, ...). |
+| `select` | `<ref> <value>` | Select option by @eN ref + value (for <select> elements). |
+| `scroll` | `[up|down|left|right]` | Scroll the page in a direction. |
+| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form. Browser-native by default; site-state assist + same-origin rehydrate are explicit opt-ins. |
+| `screenshot` | `[--session id]` | Capture screenshot (base64 PNG). |
+| `text` | `[--session id]` | Get page text content. |
+| `markdown` | `[--session id]` | Get page as Markdown. |
+| `cookies` | `[--session id]` | Get page cookies. |
+| `eval` | `[--session id] <expression>` | Evaluate JavaScript in the page context (e.g. inspect hidden inputs, read JS state). |
+| `back` | `[--session id]` | Browser back. |
+| `forward` | `[--session id]` | Browser forward. |
+| `sync` | `[--session id]` | Checkpoint capture, keep tab open, queue background index + publish. |
+| `close` | `[--session id]` | Final checkpoint, queue background index + publish, close session. End-of-flow. |
+| `inspect` | `[--session id] [--all]` | Inspect live capture evidence, candidate endpoints, and next actions for the active session. |
+| `sessions` | `--domain "..." [--limit N]` | List recent session logs for a domain (debug). |
+| `stats` | `[--flywheel | --earnings] [--json]` | Lifetime time/tokens/cost saved + marketplace earnings. --flywheel for funnel/index health view, --earnings for credits view. (Replaces separate `flywheel` and `earnings` commands.) |
 
 ### Global flags
 
 | Flag | Description |
 |------|-------------|
-| `--pretty` | Indented JSON output |
-| `--no-auto-start` | Don't auto-start server |
-| `--raw` | Return raw response data (skip server-side projection) |
-| `--skip-browser` | setup: skip browser-engine install |
-| `--opencode auto|global|project|off` | setup: install /unbrowse command for Open Code |
+| `--pretty` | Pretty-print JSON output (indented). |
+| `--no-auto-start` | Don't auto-spawn the local server if it's down. |
+| `--raw` | Skip post-processing. On fetch: keep HTML/JSON bytes (no markdown). On resolve/execute: skip server-side projection. |
+| `--skip-browser` | setup: skip browser-engine install. |
+| `--opencode auto|global|project|off` | setup: install /unbrowse command for Open Code. |
 
 ### resolve/execute flags
 
 | Flag | Description |
 |------|-------------|
-| `--no-execute` | Resolve only; do not auto-execute safe GET endpoints |
-| `--execute` | Deprecated no-op alias; safe GET execution is now the default |
-| `--schema` | Show response schema + extraction hints only (no data) |
-| `--path "data.items[]"` | Drill into result before extract/output |
-| `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
-| `--limit N` | Cap array output to N items |
-| `--endpoint-id ID` | Pick a specific endpoint |
-| `--dry-run` | Preview mutations |
-| `--params '{...}'` | Extra params as JSON |
+| `--no-execute` | Resolve only; return shortlist without auto-executing. |
+| `--schema` | Show response schema + extraction hints (no data). |
+| `--path "data.items[]"` | Drill into the result before extract/output. |
+| `--extract "field1,alias:deep.path"` | Pick specific fields (no piping). |
+| `--limit N` | Cap array output to N items. |
+| `--endpoint ID` | Pick a specific endpoint by ID. (Alias: --endpoint-id.) |
+| `--dry-run` | Preview mutations without applying. |
+| `--params '{...}'` | Extra params as JSON. |
+| `-p key=val` | Single param via repeated flag (alternative to --params JSON). |
 <!-- CLI_REFERENCE_END -->
 
 ### Examples

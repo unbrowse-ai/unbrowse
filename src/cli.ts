@@ -1632,11 +1632,30 @@ async function cmdNote(flags: Record<string, string | boolean>, args?: string[])
 // ─── sandbox-replay ────────────────────────────────────────────────────────
 // Run a captured anti-bot / signed-URL / HMAC bundle through the Kuri sandbox
 // (deep-reveng path). Returns harvested cookies + optional postEval result.
-async function cmdSandboxReplay(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+// ─── fetch / sandbox-replay (merged) ─────────────────────────────────────
+// Single command, two modes:
+//   simple  — `unbrowse fetch <url>`           → body-only output, auto-built bundle
+//   advanced — pass --bundle-source / --bundle-url → full envelope, custom JS bundle
+// All requests run through Kuri's sandboxed JS runtime + libcurl-impersonate
+// (Chrome 131 JA4) and auto-pull cookies from the user's real browser unless
+// --no-browser-cookies is set.
+
+interface SandboxResult {
+  resp: Awaited<ReturnType<typeof import("./sandbox/bundle-replay-client.js").runBundleReplay>>;
+  postEvalProcessed: unknown;
+  cookieHeader: string;
+}
+
+async function runSandboxCore(
+  flags: Record<string, string | boolean>,
+  fetchUrl?: string,
+): Promise<SandboxResult> {
   const { runBundleReplay, cookiesToHeaderValue } = await import("./sandbox/bundle-replay-client.js");
 
-  const targetOrigin = (flags["target-origin"] as string) ?? (flags.origin as string);
-  const targetHref = (flags["target-href"] as string) ?? (flags.url as string);
+  const targetOrigin = (flags["target-origin"] as string)
+    ?? (flags.origin as string)
+    ?? (fetchUrl ? (() => { try { return new URL(fetchUrl).origin; } catch { return fetchUrl; } })() : undefined);
+  const targetHref = (flags["target-href"] as string) ?? (flags.url as string) ?? fetchUrl;
   const bundleUrl = (flags["bundle-url"] as string) ?? (flags.bundle as string);
   let bundleSource = flags["bundle-source"] as string | undefined;
   const postEval = (flags["post-eval"] as string) ?? (flags.eval as string);
@@ -1650,23 +1669,23 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     bundleSource = Buffer.concat(chunks).toString("utf8");
   }
 
-  if (!targetOrigin) die("usage: unbrowse sandbox-replay --target-origin <url> [--target-href <url>] (--bundle-url <url> | --bundle-source <js|->) [--post-eval <expr>] [--raw] [--no-browser-cookies]");
-  if (!bundleUrl && !bundleSource) die("--bundle-url or --bundle-source required");
+  if (!targetOrigin) die("usage: unbrowse fetch <url>  |  unbrowse fetch <url> --bundle-source <js|-> --post-eval <expr>");
+  if (!fetchUrl && !bundleUrl && !bundleSource) die("--bundle-url or --bundle-source required (or pass a URL: `unbrowse fetch <url>`)");
 
   const kuriBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
   await ensureKuriReachable(kuriBase);
 
   let seedCookies: Array<{ name: string; value: string; domain: string; path: string; secure: boolean; httpOnly: boolean; sameSite: string; expires: number }> | undefined;
-  const useBrowserCookies = flags["no-browser-cookies"] !== true && flags["browser-cookies"] !== "off";
+  const useBrowserCookies = flags["no-browser-cookies"] !== true;
   if (useBrowserCookies) {
     const { findBestBrowserSession } = await import("./auth/browser-cookies.js");
     const host = (() => { try { return new URL(targetOrigin).hostname; } catch { return targetOrigin; } })();
     const session = findBestBrowserSession(host);
     if (session) {
       seedCookies = session.cookies;
-      info(`[sandbox-replay] seeded ${session.cookies.length} cookies from ${session.browser} (${session.sessionCookies} httpOnly+secure) — pass --no-browser-cookies to skip`);
+      info(`[fetch] seeded ${session.cookies.length} cookies from ${session.browser} (${session.sessionCookies} httpOnly+secure) — pass --no-browser-cookies to skip`);
     } else {
-      info(`[sandbox-replay] no logged-in browser session for ${host} (scanned Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia/Chromium)`);
+      info(`[fetch] no logged-in browser session for ${host} (scanned Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia/Chromium)`);
     }
   }
 
@@ -1685,8 +1704,7 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
   // Default: convert HTML body fields (>1KB, look HTML-shaped) to markdown
   // via turndown. --raw skips for reverse-engineering / debugging.
   let postEvalProcessed: unknown = resp.post_eval;
-  const wantMarkdown = flags.raw !== true && flags.markdown !== "off";
-  if (wantMarkdown && resp.post_eval !== undefined) {
+  if (flags.raw !== true && resp.post_eval !== undefined) {
     try {
       const TurndownService = (await import("turndown")).default;
       const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
@@ -1716,7 +1734,7 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
       };
       postEvalProcessed = convertHtmlFields(parsed);
     } catch (e) {
-      info(`[sandbox-replay] markdown conversion failed: ${(e as Error).message}; returning raw post_eval`);
+      info(`[fetch] markdown conversion failed: ${(e as Error).message}; returning raw post_eval`);
     }
   }
 
@@ -1727,178 +1745,247 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     try {
       await publishObservedRoutes(resp.routes_observed, targetOrigin, flags.intent as string | undefined);
     } catch (e) {
-      info(`[sandbox-replay] publish-observed-routes failed: ${(e as Error).message}`);
+      info(`[fetch] publish-observed-routes failed: ${(e as Error).message}`);
     }
   }
 
-  if (flags["body-only"] === true) {
-    const body = (() => {
-      if (postEvalProcessed && typeof postEvalProcessed === "object" && "body" in (postEvalProcessed as Record<string, unknown>)) {
-        return (postEvalProcessed as Record<string, unknown>).body;
-      }
-      return postEvalProcessed;
-    })();
-    const status = (postEvalProcessed && typeof postEvalProcessed === "object" && "status" in (postEvalProcessed as Record<string, unknown>))
-      ? (postEvalProcessed as Record<string, unknown>).status
-      : "?";
-    const routesCount = resp.routes_observed?.length ?? 0;
-    info(`[fetch] ${status} ${resp.ms}ms ${resp.egress_bytes}B${routesCount > 0 ? ` · ${routesCount} route(s) observed` : ""}`);
-    if (typeof body === "string") {
-      process.stdout.write(body);
-      if (!body.endsWith("\n")) process.stdout.write("\n");
-    } else {
-      output(body, !!flags.pretty);
+  return { resp, postEvalProcessed, cookieHeader: cookiesToHeaderValue(resp.cookies) };
+}
+
+// `cmdSandboxReplay` is the deprecated alias kept for back-compat. New callers
+// should use `unbrowse fetch`. Always prints the full envelope.
+async function cmdSandboxReplay(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  info("[deprecated] `sandbox-replay` is now `fetch` — same machinery, see `unbrowse fetch --help`");
+  const { resp, postEvalProcessed, cookieHeader } = await runSandboxCore(flags);
+  output({
+    ok: resp.ok,
+    ms: resp.ms,
+    egress_bytes: resp.egress_bytes,
+    cookies: resp.cookies,
+    cookie_header: cookieHeader,
+    routes_observed: resp.routes_observed,
+    post_eval: postEvalProcessed,
+  }, !!flags.pretty);
+}
+
+// Unified URL → content command. Two modes:
+//   simple  — `unbrowse fetch <url>`
+//                Auto-builds a __nativeFetch bundle, runs it, prints body only.
+//                HTML auto-converted to markdown unless --raw.
+//   advanced — `unbrowse fetch <url> --bundle-source <js|->`
+//                Runs your custom JS in the sandbox; prints full envelope
+//                (cookies, post_eval, routes_observed). Use this for
+//                anti-bot bundle replay, signed-URL HMAC compute, etc.
+async function cmdFetch(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const url = args[0] ?? (flags.url as string);
+  const customBundle = !!(flags["bundle-source"] || flags["bundle-url"] || flags["stdin"]);
+  const wantEnvelope = flags.envelope === true || customBundle;
+
+  if (!url && !customBundle) die("usage: unbrowse fetch <url>  |  unbrowse fetch --help for advanced bundle mode");
+
+  // SIMPLE mode: build the bundle ourselves.
+  let bundleSource = flags["bundle-source"] as string | undefined;
+  if (!customBundle && url) {
+    const method = ((flags.method as string) ?? "GET").toUpperCase();
+    const reqHeaders: Record<string, string> = { Accept: "*/*" };
+    if (typeof flags.header === "string") {
+      const idx = flags.header.indexOf(":");
+      if (idx > 0) reqHeaders[flags.header.slice(0, idx).trim()] = flags.header.slice(idx + 1).trim();
     }
-  } else {
+    const headersLiteral = JSON.stringify(reqHeaders).replace(/'/g, "\\'");
+    bundleSource = `(() => {
+      const r = __nativeFetch(${JSON.stringify(method)}, ${JSON.stringify(url)}, ${headersLiteral}, null);
+      globalThis.r = { status: r.status, content_type: r.headers && (r.headers['content-type'] || r.headers['Content-Type']) || null, body: r.body, final_url: r.url };
+    })()`;
+  }
+
+  // Hand off to the core. We pass our synthesized bundle via flags so the
+  // core sees a uniform input shape regardless of mode.
+  const coreFlags: Record<string, string | boolean> = { ...flags };
+  if (bundleSource && !flags["bundle-source"] && !flags["bundle-url"]) coreFlags["bundle-source"] = bundleSource;
+  if (!coreFlags["post-eval"] && !customBundle) coreFlags["post-eval"] = "globalThis.r";
+
+  const { resp, postEvalProcessed, cookieHeader } = await runSandboxCore(coreFlags, url);
+
+  if (wantEnvelope) {
     output({
       ok: resp.ok,
       ms: resp.ms,
       egress_bytes: resp.egress_bytes,
       cookies: resp.cookies,
-      cookie_header: cookiesToHeaderValue(resp.cookies),
+      cookie_header: cookieHeader,
       routes_observed: resp.routes_observed,
       post_eval: postEvalProcessed,
     }, !!flags.pretty);
-  }
-}
-
-// ─── fetch ─────────────────────────────────────────────────────────────────
-// The simple "give me the data from this URL" command. Agent UX: don't make
-// them choose between go/resolve/capture/sandbox-replay — they just want
-// content. Internally: spawns Kuri if down, pulls real-browser cookies for
-// the domain, hits the URL via libcurl-impersonate (Chrome 131 JA4), converts
-// HTML response to markdown by default. --raw to skip markdown.
-async function cmdFetch(args: string[], flags: Record<string, string | boolean>): Promise<void> {
-  const url = args[0] ?? (flags.url as string);
-  if (!url) die("usage: unbrowse fetch <url> [--raw] [--no-browser-cookies] [--method GET|POST] [--header 'K:V'] [--verbose]");
-
-  const method = ((flags.method as string) ?? "GET").toUpperCase();
-  const targetOrigin = (() => { try { return new URL(url).origin; } catch { return url; } })();
-
-  const reqHeaders: Record<string, string> = { Accept: "*/*" };
-  if (typeof flags.header === "string") {
-    const idx = flags.header.indexOf(":");
-    if (idx > 0) reqHeaders[flags.header.slice(0, idx).trim()] = flags.header.slice(idx + 1).trim();
+    return;
   }
 
-  const headersLiteral = JSON.stringify(reqHeaders).replace(/'/g, "\\'");
-  const bundleSource = `(() => {
-    const r = __nativeFetch(${JSON.stringify(method)}, ${JSON.stringify(url)}, ${headersLiteral}, null);
-    globalThis.r = { status: r.status, content_type: r.headers && (r.headers['content-type'] || r.headers['Content-Type']) || null, body: r.body, final_url: r.url };
-  })()`;
-
-  const synthFlags: Record<string, string | boolean> = {
-    "target-origin": targetOrigin,
-    "target-href": url,
-    "bundle-source": bundleSource,
-    "post-eval": "globalThis.r",
-    "body-only": flags.verbose === true ? false : true,
-    pretty: flags.pretty ?? false,
-  };
-  if (flags.raw === true) synthFlags.raw = true;
-  if (flags["no-browser-cookies"] === true) synthFlags["no-browser-cookies"] = true;
-  if (flags["timeout-ms"]) synthFlags["timeout-ms"] = flags["timeout-ms"];
-  if (flags.impersonate) synthFlags.impersonate = flags.impersonate;
-  if (flags.intent) synthFlags.intent = flags.intent;
-
-  await cmdSandboxReplay([], synthFlags);
+  // SIMPLE mode output: stat line on stderr, body on stdout.
+  const peo = postEvalProcessed as Record<string, unknown> | string | undefined;
+  const body = (peo && typeof peo === "object" && "body" in peo) ? peo.body : peo;
+  const status = (peo && typeof peo === "object" && "status" in peo) ? peo.status : "?";
+  const routesCount = resp.routes_observed?.length ?? 0;
+  info(`[fetch] ${status} ${resp.ms}ms ${resp.egress_bytes}B${routesCount > 0 ? ` · ${routesCount} route(s) observed` : ""}`);
+  if (typeof body === "string") {
+    process.stdout.write(body);
+    if (!body.endsWith("\n")) process.stdout.write("\n");
+  } else {
+    output(body, !!flags.pretty);
+  }
 }
 // ---------------------------------------------------------------------------
 // CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
 
 export const CLI_REFERENCE = {
+  // PRIMARY commands the agent should reach for first. Deprecated aliases are
+  // listed separately below; they print a deprecation notice and forward to the
+  // canonical command.
   commands: [
-    { name: "health", usage: "", desc: "Server health check" },
-    { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server" },
-    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
-    { name: "upgrade", usage: "", desc: "Check latest release and print the right upgrade command" },
-    { name: "resolve", usage: '--intent "..." [--domain "..."] [--url "..."] [opts]', desc: "Resolve an intent, auto-executing the top safe GET endpoint by default; pass --no-execute for metadata only" },
-    { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Emit top-N candidate endpoints + evidence for an LLM judge to pick from (no heuristic verdict — primitives + agent judgment)" },
-    { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}'] [opts]", desc: "Execute a specific endpoint. Pass replay params via repeated -p key=val flags or --params with a JSON object" },
-    { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
-    { name: "annotate", usage: "--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:message']", desc: "Contribute best practices or constraints for an endpoint" },
-    { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/schema metadata back to a captured skill before publish" },
-    { name: "index", usage: "--skill ID", desc: "Recompute local graph/contracts/export from cached skill state only" },
-    { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Re-index locally, inspect publish-review metadata, then publish/share from cached skill state" },
-    { name: "publish-bundle", usage: "--preset path [--hosts codex,claude,openclaw] [--site-url https://www.unbrowse.ai]", desc: "Derive foundry bundle/share/host artifacts from one preset and write the public share manifest" },
-    { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]", desc: "Show or update local capture/publish policy settings" },
-    { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
-    { name: "skills", usage: "", desc: "List all skills" },
-    { name: "skill", usage: "<id>", desc: "Get skill details" },
-    { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills and evict stale cached endpoints" },
-    { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
-    { name: "inspect", usage: "[--session id] [--all]", desc: "Inspect live browser capture evidence, candidate endpoints, and next actions" },
-    { name: "go", usage: '<url> [--session id]', desc: "Open a fresh Kuri browser tab, or reuse explicit --session" },
-    { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]", desc: "Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins" },
-    { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs" },
-    { name: "click", usage: "[--session id] <ref>", desc: "Click element by ref (e.g. e5)" },
-    { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by ref" },
-    { name: "type", usage: "<text>", desc: "Type text with key events" },
-    { name: "press", usage: "<key>", desc: "Press key (Enter, Tab, Escape)" },
-    { name: "select", usage: "<ref> <value>", desc: "Select option by ref" },
-    { name: "scroll", usage: "[up|down|left|right]", desc: "Scroll the page" },
-    { name: "screenshot", usage: "[--session id]", desc: "Capture screenshot (base64 PNG)" },
-    { name: "text", usage: "[--session id]", desc: "Get page text content" },
-    { name: "markdown", usage: "[--session id]", desc: "Get page as Markdown" },
-    { name: "cookies", usage: "[--session id]", desc: "Get page cookies" },
-    { name: "eval", usage: "[--session id] <expression>", desc: "Evaluate JavaScript" },
-    { name: "back", usage: "[--session id]", desc: "Navigate back" },
-    { name: "forward", usage: "[--session id]", desc: "Navigate forward" },
-    { name: "sync", usage: "[--session id]", desc: "Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review" },
-    { name: "close", usage: "[--session id]", desc: "Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review" },
-    { name: "stats", usage: "[--json] [--pretty]", desc: "Show lifetime time/tokens/cost saved and marketplace earnings/spending" },
-    { name: "flywheel", usage: "[--json] [--pretty]", desc: "Flywheel pulse: funnel, credits, index health, economics, conversions" },
-    { name: "earnings", usage: "[--json]", desc: "Show your credit balance, earnings from indexing, and spending" },
-    { name: "corpus-test", usage: "--url <url> [--id <id>] [--retries N]", desc: "Capture a single URL with retry logic; keeps best result across N attempts" },
-    { name: "corpus-run", usage: "--corpus <file> --out <file> [--retries N]", desc: "Run corpus-test over all cases in a corpus JSON file and write a comparable snapshot" },
-    { name: "register", usage: "[--email lewis@example.com] [--reset] [--no-prompt]", desc: "Register an API key. With --reset, discard the local cached key first; with --email, mint an account-bound key." },
-    { name: "account", usage: "[--json] [--pretty] [--reset-key] [--email lewis@example.com]", desc: "Show local account, dashboard link, wallet, and contribution mode; --reset-key forces local key reset." },
-    { name: "dashboard", usage: "[--no-open] [--pretty]", desc: "Open the website dashboard and pair it to this CLI install through localhost" },
-    { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
-    { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
-    { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence." },
-    { name: "fetch", usage: "<url> [--raw] [--no-browser-cookies] [--method GET|POST] [--header 'K:V']", desc: "Simple URL fetch via libcurl-impersonate (Chrome 131 JA4). Auto-pulls cookies from your real Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session. HTML responses auto-converted to markdown via turndown — pass --raw for the actual HTML/JSON bytes (use this when reverse-engineering / inspecting). For sites that need running JS to compute auth tokens, use sandbox-replay instead." },
-    { name: "sandbox-replay", usage: "--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--raw] [--no-browser-cookies]", desc: "Lower-level sandbox replay: run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime. Returns harvested cookies + post_eval result. Auto-pulls browser cookies, auto-converts HTML to markdown. Pass --raw to keep HTML/JSON bytes intact (reverse-engineering)." },
+    // ── Setup & lifecycle ─────────────────────────────────────────────────
+    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser]", desc: "Bootstrap browser engine + write the /unbrowse Open Code command. Run once on install. Idempotent." },
+    { name: "upgrade", usage: "", desc: "Print the right upgrade command (npm i -g unbrowse@latest or @preview)." },
+    { name: "health", usage: "", desc: "Quick local server health check. Returns version + uptime." },
+    { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use." },
+
+    // ── Identity & policy ─────────────────────────────────────────────────
+    { name: "account", usage: "[--register] [--email user@example.com] [--reset-key] [--json]", desc: "Show local account, wallet, and contribution mode. --register mints a new key (replaces old `register` command)." },
+    { name: "mode", usage: "", desc: "Re-prompt for contribution mode: private / share / share + earn (changes whether captured skills go to the marketplace)." },
+    { name: "dashboard", usage: "[--no-open]", desc: "Open the website dashboard and pair this CLI install through localhost." },
+    { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy (per-domain allow/block lists)." },
+
+    // ── The two primary call paths for an agent ───────────────────────────
+    { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser." },
+    { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Resolve an intent against the marketplace + local cache. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only. Pair with `unbrowse execute` when you want explicit endpoint pick." },
+    { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}']", desc: "Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object." },
+    { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Print top-N candidate endpoints + evidence so an LLM (or you) can pick. No heuristic verdict — just primitives + evidence." },
+
+    // ── Capture (live-browser indexing) ───────────────────────────────────
+    { name: "capture", usage: "--url <url> --intent <intent> [--retries N]  |  --corpus <file> --out <file> [--retries N]", desc: "Live-browser HAR capture; discovers + indexes API endpoints. --retries keeps the best result across N attempts. --corpus runs over a JSON file of cases. Marketplace publish gated by `unbrowse mode`." },
+    { name: "auth-capture", usage: '--url "..."', desc: "Open a Kuri tab so you can sign in to a site; cookies persist for future fetch/resolve. (Old name: `login`.)" },
+    { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Per-domain LLM-prose notes consumed by augment on next capture. Populate after reading capture's note_evidence." },
+
+    // ── Skill management ──────────────────────────────────────────────────
+    { name: "skills", usage: "", desc: "List all locally-cached skills (skill_id, domain, endpoint count)." },
+    { name: "skill", usage: "<id>", desc: "Get full SkillManifest for one skill (intent, endpoints, schemas)." },
+    { name: "feedback", usage: "--skill ID --endpoint ID --rating 1-5", desc: "Submit feedback after presenting endpoint results to the user (mandatory after resolve+execute)." },
+    { name: "annotate", usage: "--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:msg']", desc: "Contribute best practices, constraints, or gotchas for an endpoint." },
+    { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/schema metadata back to a captured skill before publish." },
+    { name: "index", usage: "--skill ID", desc: "Recompute local graph/contracts/export from cached skill state. Cheap; doesn't hit the network." },
+    { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Publish reviewed skill to the marketplace. Re-indexes locally first; --confirm-publish bypasses the safety prompt." },
+    { name: "publish-bundle", usage: "--preset path [--hosts codex,claude,openclaw] [--site-url url]", desc: "Derive foundry bundle/share/host artifacts from one preset and write the public share manifest." },
+    { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills against live endpoints and evict stale cached entries." },
+
+    // ── Browser session (Kuri primitives) ─────────────────────────────────
+    // Use these when the work needs a real DOM (form submits, click flows).
+    // Sequence: go → snap → click/fill/eval → submit → sync → close.
+    { name: "go", usage: '<url> [--session id]', desc: "Open a fresh Kuri browser tab (or reuse via --session). Step 1 of the browse workflow." },
+    { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs. Inspect the page state — gives you the refs to click/fill." },
+    { name: "click", usage: "[--session id] <ref>", desc: "Click element by @eN ref from snap." },
+    { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by @eN ref with the given value." },
+    { name: "type", usage: "<text>", desc: "Type into the focused element with key events (use after click)." },
+    { name: "press", usage: "<key>", desc: "Press a key (Enter, Tab, Escape, ArrowDown, ...)." },
+    { name: "select", usage: "<ref> <value>", desc: "Select option by @eN ref + value (for <select> elements)." },
+    { name: "scroll", usage: "[up|down|left|right]", desc: "Scroll the page in a direction." },
+    { name: "submit", usage: "[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form. Browser-native by default; site-state assist + same-origin rehydrate are explicit opt-ins." },
+    { name: "screenshot", usage: "[--session id]", desc: "Capture screenshot (base64 PNG)." },
+    { name: "text", usage: "[--session id]", desc: "Get page text content." },
+    { name: "markdown", usage: "[--session id]", desc: "Get page as Markdown." },
+    { name: "cookies", usage: "[--session id]", desc: "Get page cookies." },
+    { name: "eval", usage: "[--session id] <expression>", desc: "Evaluate JavaScript in the page context (e.g. inspect hidden inputs, read JS state)." },
+    { name: "back", usage: "[--session id]", desc: "Browser back." },
+    { name: "forward", usage: "[--session id]", desc: "Browser forward." },
+    { name: "sync", usage: "[--session id]", desc: "Checkpoint capture, keep tab open, queue background index + publish." },
+    { name: "close", usage: "[--session id]", desc: "Final checkpoint, queue background index + publish, close session. End-of-flow." },
+    { name: "inspect", usage: "[--session id] [--all]", desc: "Inspect live capture evidence, candidate endpoints, and next actions for the active session." },
+    { name: "sessions", usage: '--domain "..." [--limit N]', desc: "List recent session logs for a domain (debug)." },
+
+    // ── Telemetry ─────────────────────────────────────────────────────────
+    { name: "stats", usage: "[--flywheel | --earnings] [--json]", desc: "Lifetime time/tokens/cost saved + marketplace earnings. --flywheel for funnel/index health view, --earnings for credits view. (Replaces separate `flywheel` and `earnings` commands.)" },
   ],
+
+  // Deprecated aliases — still callable, print deprecation notice + forward.
+  // Listed separately so the primary surface stays clean.
+  deprecatedAliases: [
+    { from: "sandbox-replay", to: "fetch <url> --bundle-source <js|->" },
+    { from: "flywheel", to: "stats --flywheel" },
+    { from: "earnings", to: "stats --earnings" },
+    { from: "corpus-test", to: "capture --url X --retries N" },
+    { from: "corpus-run", to: "capture --corpus FILE --out FILE" },
+    { from: "register", to: "account --register" },
+    { from: "login", to: "auth-capture" },
+  ],
+
   globalFlags: [
-    { flag: "--pretty", desc: "Indented JSON output" },
-    { flag: "--no-auto-start", desc: "Don't auto-start server" },
-    { flag: "--raw", desc: "Return raw response data (skip server-side projection)" },
-    { flag: "--skip-browser", desc: "setup: skip browser-engine install" },
-    { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
+    { flag: "--pretty", desc: "Pretty-print JSON output (indented)." },
+    { flag: "--no-auto-start", desc: "Don't auto-spawn the local server if it's down." },
+    { flag: "--raw", desc: "Skip post-processing. On fetch: keep HTML/JSON bytes (no markdown). On resolve/execute: skip server-side projection." },
+    { flag: "--skip-browser", desc: "setup: skip browser-engine install." },
+    { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code." },
   ],
   resolveExecuteFlags: [
-    { flag: "--no-execute", desc: "Resolve only; do not auto-execute safe GET endpoints" },
-    { flag: "--execute", desc: "Deprecated no-op alias; safe GET execution is now the default" },
-    { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
-    { flag: '--path "data.items[]"', desc: "Drill into result before extract/output" },
-    { flag: '--extract "field1,alias:deep.path.to.val"', desc: "Pick specific fields (no piping needed)" },
-    { flag: "--limit N", desc: "Cap array output to N items" },
-    { flag: "--endpoint-id ID", desc: "Pick a specific endpoint" },
-    { flag: "--dry-run", desc: "Preview mutations" },
-    { flag: "--params '{...}'", desc: "Extra params as JSON" },
+    { flag: "--no-execute", desc: "Resolve only; return shortlist without auto-executing." },
+    { flag: "--schema", desc: "Show response schema + extraction hints (no data)." },
+    { flag: '--path "data.items[]"', desc: "Drill into the result before extract/output." },
+    { flag: '--extract "field1,alias:deep.path"', desc: "Pick specific fields (no piping)." },
+    { flag: "--limit N", desc: "Cap array output to N items." },
+    { flag: "--endpoint ID", desc: "Pick a specific endpoint by ID. (Alias: --endpoint-id.)" },
+    { flag: "--dry-run", desc: "Preview mutations without applying." },
+    { flag: "--params '{...}'", desc: "Extra params as JSON." },
+    { flag: "-p key=val", desc: "Single param via repeated flag (alternative to --params JSON)." },
+  ],
+  fetchFlags: [
+    { flag: "--raw", desc: "Keep HTML/JSON bytes; skip turndown markdown conversion." },
+    { flag: "--no-browser-cookies", desc: "Skip auto-pulling cookies from your real Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session." },
+    { flag: "--method GET|POST|PUT|DELETE|...", desc: "HTTP method (default GET)." },
+    { flag: "--header 'K: V'", desc: "Extra request header (single use)." },
+    { flag: "--timeout-ms N", desc: "Request timeout in ms (default 30000)." },
+    { flag: "--impersonate chrome131|chrome120|firefox120|...", desc: "TLS fingerprint impersonation target (default chrome131)." },
+    { flag: "--intent \"...\"", desc: "Label for marketplace publish of observed routes." },
+    { flag: "--no-publish", desc: "Skip publishing observed routes to the marketplace." },
+    { flag: "--envelope", desc: "Force full envelope output (cookies + routes_observed + post_eval) instead of body-only." },
+    { flag: "--bundle-source <js|->", desc: "ADVANCED: inline JS or '-' for stdin. Runs in Kuri sandbox." },
+    { flag: "--bundle-url <url>", desc: "ADVANCED: fetch JS bundle from URL." },
+    { flag: "--post-eval <expr>", desc: "ADVANCED: JS expression evaluated after bundle runs (e.g. globalThis.signedUrl)." },
+    { flag: "--target-origin <url>", desc: "ADVANCED: origin used for cookie scoping. Defaults to fetch URL's origin." },
+    { flag: "--target-href <url>", desc: "ADVANCED: page href the bundle thinks it's on." },
   ],
   examples: [
-    "unbrowse setup",
-    "unbrowse mcp",
-    'unbrowse resolve --intent "top stories" --domain "news.ycombinator.com" --url "https://news.ycombinator.com" --execute',
-    'unbrowse resolve --intent "get timeline" --url "https://x.com"',
-    'unbrowse go "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html"',
-    'unbrowse snap --filter interactive',
-    'unbrowse submit --wait-for "/time-selection.html"',
-    'unbrowse sync',
-    "unbrowse execute --skill abc --endpoint def --pretty",
-    "unbrowse execute --skill abc --endpoint def --schema --pretty",
-    'unbrowse execute --skill abc --endpoint def --path "data.items[]" --extract "name,url" --limit 10 --pretty',
-    "unbrowse feedback --skill abc --endpoint def --rating 5",
-    'unbrowse review --skill abc --endpoints \'[{"endpoint_id":"def","description":"...","parameter_reviews":[{"location":"query","name":"q","description":"Search query","type":"string","required":true}],"response_reviews":[{"path":"items[].title","description":"Listing title","type":"string"}]}]\'',
-    "unbrowse index --skill abc --pretty",
-    "unbrowse publish --skill abc --pretty",
-    "unbrowse publish --skill abc --confirm-publish --pretty",
-    "unbrowse publish-bundle --preset skills/x-account-operator/foundry-preset.json --pretty",
-    'unbrowse settings --auto-publish off --publish-blacklist "linkedin.com,x.com" --publish-promptlist "github.com" --pretty',
-    'unbrowse publish --skill abc --endpoints \'[{"endpoint_id":"def","description":"Search court judgments by keywords","action_kind":"search","resource_kind":"judgment"}]\'',
+    "# Just give me the URL contents:",
+    '  unbrowse fetch https://api.github.com/repos/oven-sh/bun',
+    "",
+    "# JSON without markdown conversion:",
+    '  unbrowse fetch https://api.example.com/data --raw',
+    "",
+    "# Resolve an intent with auto-execute:",
+    '  unbrowse resolve --intent "top stories" --domain "news.ycombinator.com" --pretty',
+    "",
+    "# Resolve metadata only, then execute explicitly:",
+    '  unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --no-execute',
+    '  unbrowse execute --skill <id> --endpoint <id> --pretty',
+    "",
+    "# Live-browser capture with retries:",
+    '  unbrowse capture --url https://example.com/listing --intent "list items" --retries 3',
+    "",
+    "# Browse session for forms / interactive flows:",
+    '  unbrowse go https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html',
+    "  unbrowse snap --filter interactive",
+    "  unbrowse click e5",
+    '  unbrowse submit --wait-for "/time-selection.html"',
+    "  unbrowse close",
+    "",
+    "# Sign into a site so future fetches have cookies:",
+    '  unbrowse auth-capture --url https://x.com/login',
+    "",
+    "# Marketplace contribution flow:",
+    '  unbrowse skill <id>',
+    '  unbrowse review --skill <id> --endpoints \'[{...}]\'',
+    "  unbrowse publish --skill <id> --confirm-publish",
+    "",
+    "# Telemetry:",
+    "  unbrowse stats               # default summary",
+    "  unbrowse stats --flywheel    # funnel + index health",
+    "  unbrowse stats --earnings    # credits view",
   ],
 };
 
@@ -2156,7 +2243,16 @@ async function cmdEarnings(flags: Record<string, string | boolean>): Promise<voi
 
 function printHelp(): void {
   const r = CLI_REFERENCE;
-  const lines: string[] = ["unbrowse \u2014 shell-safe CLI for the local API", ""];
+  const lines: string[] = [
+    "unbrowse — agent-native browser CLI",
+    "",
+    "Quick paths:",
+    "  Just want a URL's contents?           → unbrowse fetch <url>",
+    "  Want to call a known API endpoint?    → unbrowse resolve --intent \"...\" --url \"...\"",
+    "  Need a real DOM (forms, click flows)? → unbrowse go <url>  (then snap, click, submit, close)",
+    "  First time on a site needing login?   → unbrowse auth-capture --url <login_url>",
+    "",
+  ];
 
   // Commands
   lines.push("Commands:");
@@ -2164,6 +2260,14 @@ function printHelp(): void {
   for (const c of r.commands) {
     const left = `  ${c.name}  ${c.usage}`;
     lines.push(left.padEnd(cmdPad) + c.desc);
+  }
+
+  // Deprecated aliases
+  if ((r as any).deprecatedAliases?.length) {
+    lines.push("", "Deprecated aliases (still callable, print a notice):");
+    for (const d of (r as any).deprecatedAliases) {
+      lines.push(`  ${d.from.padEnd(18)} → ${d.to}`);
+    }
   }
 
   // Global flags
@@ -2174,36 +2278,50 @@ function printHelp(): void {
   }
 
   // resolve/execute flags
-  lines.push("", "resolve/execute flags:");
-  const rPad = Math.max(...r.resolveExecuteFlags.map((f) => `  ${f.flag}`.length)) + 2;
+  lines.push("", "resolve / execute flags:");
+  const rePad = Math.max(...r.resolveExecuteFlags.map((f) => `  ${f.flag}`.length)) + 2;
   for (const f of r.resolveExecuteFlags) {
-    lines.push(`  ${f.flag}`.padEnd(rPad) + f.desc);
+    lines.push(`  ${f.flag}`.padEnd(rePad) + f.desc);
+  }
+
+  // fetch flags
+  if ((r as any).fetchFlags?.length) {
+    lines.push("", "fetch flags:");
+    const fPad = Math.max(...((r as any).fetchFlags as Array<{flag: string; desc: string}>).map((f) => `  ${f.flag}`.length)) + 2;
+    for (const f of (r as any).fetchFlags as Array<{flag: string; desc: string}>) {
+      lines.push(`  ${f.flag}`.padEnd(fPad) + f.desc);
+    }
   }
 
   // Examples
   lines.push("", "Examples:");
-  for (const e of r.examples) {
-    lines.push(`  ${e}`);
-  }
+  for (const e of r.examples) lines.push(`  ${e}`);
 
   lines.push(
     "",
-    "Browser workflow:",
-    "  1. go -> open the live tab you want to work in",
-    "  2. snap -> inspect refs and confirm the page state",
-    "  3. click/fill/eval -> set real page state",
-    "  4. submit -> prefer DOM submit; keep traversal browser-native; opt into same-origin rehydrate only for explicit replay/recovery debugging",
-    "  5. sync -> checkpoint the current step and queue background index + publish",
-    "  6. close -> final checkpoint + queue background index + publish, then close the session",
-    "  7. skill/publish --pretty -> inspect the fresh captured endpoints and review context",
-    "  8. review/publish -> annotate and share the contract; resolve is for later reuse, not first-pass capture validation",
-  );
-
-  lines.push(
+    "Browse session sequence (when you need a real DOM):",
+    "  1. go <url>          open a fresh Kuri tab (or reuse with --session)",
+    "  2. snap              get refs (@eN) for interactive elements",
+    "  3. click / fill / type / select / eval   set page state",
+    "  4. submit            DOM submit; --wait-for to confirm next page",
+    "  5. sync              checkpoint (keeps tab open) — queues background index + publish",
+    "  6. close             final checkpoint + close session",
+    "  7. skill <id>        review the captured skill",
+    "  8. review + publish  contribute back to the marketplace",
     "",
-    "JS-heavy forms:",
-    "  Prefer real calendar/time clicks before submit.",
-    "  If the UI is flaky, inspect hidden inputs/cookies with eval, then submit the real form.",
+    "Marketplace flow (after capture):",
+    "  resolve  → executes top safe GET                          (default behavior)",
+    "  resolve --no-execute → returns ranked shortlist            (when you want to choose)",
+    "  execute --skill <id> --endpoint <id>                       (explicit pick)",
+    "  feedback --skill <id> --endpoint <id> --rating 1-5         (mandatory after presenting results)",
+    "  annotate --skill <id> --endpoint <id> --text \"...\"         (contribute tips/constraints)",
+    "",
+    "When to use which?",
+    "  fetch    — agent has a URL and wants the data. No DOM, no login flow.",
+    "  resolve  — agent has an intent (\"top stories\") and wants the structured result.",
+    "  capture  — explicit one-shot indexing of a URL → produces a marketplace skill.",
+    "  go/snap/...  — site requires real DOM interaction (forms, multi-step flows).",
+    "  auth-capture — site requires login first; opens browser so user can sign in.",
   );
 
   lines.push("");
@@ -3128,11 +3246,19 @@ async function main(): Promise<void> {
   if (command === "restart") return cmdRestart(flags);
   if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
   if (command === "connect-chrome") return cmdConnectChrome();
-  if (command === "stats") return cmdStats(flags);
-  if (command === "flywheel") return cmdFlywheel(flags);
-  if (command === "earnings") return cmdEarnings(flags);
+  if (command === "stats") {
+    if (flags.flywheel) return cmdFlywheel(flags);
+    if (flags.earnings) return cmdEarnings(flags);
+    return cmdStats(flags);
+  }
+  if (command === "flywheel") { info("[deprecated] `flywheel` is now `stats --flywheel`"); return cmdFlywheel(flags); }
+  if (command === "earnings") { info("[deprecated] `earnings` is now `stats --earnings`"); return cmdEarnings(flags); }
   if (command === "sessions-scan") return cmdSessionsScan(flags);
-  if (command === "register") return cmdRegister(flags);
+  if (command === "register") { info("[deprecated] `register` is now `account --register`"); return cmdRegister(flags); }
+  if (command === "account") {
+    if (flags.register) return cmdRegister(flags);
+    return cmdAccount(flags);
+  }
 
   await refreshContributionPreferenceFromServer(false);
 
@@ -3181,7 +3307,6 @@ async function main(): Promise<void> {
     case "publish": return cmdPublish(flags);
     case "publish-bundle": return cmdPublishBundle(flags);
     case "settings": return cmdSettings(flags);
-    case "login": return cmdLogin(flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
     case "cleanup-stale": return cmdCleanupStale(flags);
@@ -3208,20 +3333,51 @@ async function main(): Promise<void> {
     case "sync": return cmdSync(flags);
     case "close": return cmdClose(flags);
     case "connect-chrome": return cmdConnectChrome();
-    case "stats": return cmdStats(flags);
-    case "flywheel": return cmdFlywheel(flags);
-    case "earnings": return cmdEarnings(flags);
-    case "corpus-test": return cmdCorpusTest(flags);
-    case "corpus-run": return cmdCorpusRun(flags);
+    // stats — unified telemetry view; subviews via flags
+    case "stats":
+      if (flags.flywheel) return cmdFlywheel(flags);
+      if (flags.earnings) return cmdEarnings(flags);
+      return cmdStats(flags);
+    case "flywheel":
+      info("[deprecated] `flywheel` is now `stats --flywheel`");
+      return cmdFlywheel(flags);
+    case "earnings":
+      info("[deprecated] `earnings` is now `stats --earnings`");
+      return cmdEarnings(flags);
+    // capture — unified live-browser indexing; --retries for single-URL retry,
+    // --corpus FILE for batch over a corpus JSON
+    case "capture":
+      if (typeof flags.corpus === "string") return cmdCorpusRun(flags);
+      if (flags.retries) return cmdCorpusTest(flags);
+      return cmdCapture(flags);
+    case "corpus-test":
+      info("[deprecated] `corpus-test` is now `capture --url X --retries N`");
+      return cmdCorpusTest(flags);
+    case "corpus-run":
+      info("[deprecated] `corpus-run` is now `capture --corpus FILE --out FILE`");
+      return cmdCorpusRun(flags);
     case "sessions-scan": return cmdSessionsScan(flags);
-    case "register": return cmdRegister(flags);
+    // account — unified identity command. --register mints a new key,
+    // --reset-key forces local key reset, otherwise shows current account.
+    case "account":
+      if (flags.register) return cmdRegister(flags);
+      return cmdAccount(flags);
+    case "register":
+      info("[deprecated] `register` is now `account --register`");
+      return cmdRegister(flags);
     case "mode": return cmdMode(flags);
-    case "account": return cmdAccount(flags);
     case "dashboard": return cmdDashboard(flags);
-    case "capture": return cmdCapture(flags);
     case "note": return cmdNote(flags, args);
     case "sandbox-replay": return cmdSandboxReplay(args, flags);
     case "fetch": return cmdFetch(args, flags);
+    // auth-capture — open a Kuri tab so the user can sign in to a site;
+    // cookies are persisted automatically and used by future fetch/resolve.
+    // Old name `login` was misleading (sounded like Unbrowse account login).
+    case "auth-capture":
+      return cmdLogin(flags);
+    case "login":
+      info("[deprecated] `login` is now `auth-capture` (the old name suggested Unbrowse account login, but it captures site auth)");
+      return cmdLogin(flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
