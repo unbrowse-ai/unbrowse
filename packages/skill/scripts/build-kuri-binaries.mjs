@@ -49,6 +49,27 @@ exit 1
   chmodSync(outFile, 0o755);
 }
 
+/// Best-effort install of build deps needed for the native kuri build on
+/// this host. Linux: zlib + idn2 dev headers (curl-impersonate links them
+/// dynamically; Zig errors at link time if absent). Idempotent — apt-get
+/// install already-installed packages is a fast no-op.
+/// Skipped if not Linux, not in CI (UNBROWSE_AUTO_APT=1 or CI=true), or
+/// if apt-get is unavailable.
+function ensureNativeBuildDeps() {
+  if (process.platform !== "linux") return;
+  const inCi = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true" || process.env.UNBROWSE_AUTO_APT === "1";
+  if (!inCi) return;
+  if (!hasBinary("apt-get")) return;
+  try {
+    execFileSync("sudo", ["-n", "apt-get", "update", "-qq"], { stdio: "inherit" });
+    execFileSync("sudo", ["-n", "apt-get", "install", "-y", "--no-install-recommends",
+      "libz-dev", "zlib1g-dev", "libidn2-dev", "build-essential",
+    ], { stdio: "inherit" });
+  } catch (e) {
+    console.warn(`[build-kuri] apt-get install failed (continuing): ${e.message?.split("\n")[0] ?? "unknown"}`);
+  }
+}
+
 if (detectBrokenMonorepoKuri(packageRoot, repoRoot)) {
   throw new Error(
     "Broken Kuri source checkout at submodules/kuri. Reinit the submodule or set UNBROWSE_KURI_SOURCE_DIR to a clean justrach/kuri checkout.",
@@ -87,6 +108,8 @@ const manifest = {
 const prebuiltAssets = {
   "darwin-arm64": `https://github.com/lekt9/kuri/releases/download/v0.1.0-${sourceSha?.substring(0, 7)}/kuri`,
 };
+
+ensureNativeBuildDeps();
 
 for (const target of supportedTargets) {
   const outDir = path.join(vendorRoot, target.id);
