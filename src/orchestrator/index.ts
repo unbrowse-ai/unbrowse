@@ -16,6 +16,7 @@ import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
 import { DEFAULT_CAPTURE_TOKENS, computeTimingEconomics } from "./timing-economics.js";
+import { browserOpenedFromSource } from "./browser-opened.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { checkWalletConfigured } from "../payments/wallet.js";
 import type {
@@ -530,8 +531,11 @@ function buildCachedResultResponse(
     source,
     skill: cached.skill,
     timing,
+    browser_opened: browserOpenedFromSource(timing.source),
   };
 }
+
+export { browserOpenedFromSource };
 
 function invalidateResolveCacheEntries(cacheKeys: string[], domainKeys: string[] = []): void {
   let routeCacheDirty = false;
@@ -942,9 +946,10 @@ async function withDomainCaptureLock<T>(domain: string, fn: () => Promise<T>): P
 export interface OrchestratorResult {
   result: unknown;
   trace: ExecutionTrace;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass" | "route-cache" | "browser-action" | "direct-fetch" | "browse-session";
   skill: SkillManifest;
   timing: OrchestrationTiming;
+  browser_opened: boolean;
 }
 
 type AutoExecDecision = {
@@ -1996,6 +2001,7 @@ export async function resolveAndExecute(
       source,
       skill: resolvedSkill,
       timing: finalize(source, null, resolvedSkill.skill_id, resolvedSkill, deferTrace),
+      browser_opened: browserOpenedFromSource(source),
     };
   }
 
@@ -2551,6 +2557,7 @@ export async function resolveAndExecute(
                     source,
                     skill,
                     timing: finalize(source, null, skill.skill_id, skill, execOut.trace),
+                    browser_opened: browserOpenedFromSource(source),
                   };
                 }
               }
@@ -2573,6 +2580,7 @@ export async function resolveAndExecute(
             source,
             skill,
             timing: finalize(source, execOut.result, skill.skill_id, skill, execOut.trace),
+            browser_opened: browserOpenedFromSource(source),
           };
         }
         (decisionTrace.autoexec_attempts as unknown[]).push({
@@ -2811,6 +2819,7 @@ export async function resolveAndExecute(
               source: "marketplace",
               skill,
               timing: finalize("route-cache", execOut.result, cached.entry.skillId, skill, execOut.trace),
+              browser_opened: browserOpenedFromSource("route-cache"),
             };
           }
         } catch {
@@ -2896,6 +2905,7 @@ export async function resolveAndExecute(
         source: "first-pass",
         skill: firstPassResult.miniSkill,
         timing: finalize("first-pass", firstPassResult.result, firstPassResult.miniSkill.skill_id, firstPassResult.miniSkill, trace),
+        browser_opened: browserOpenedFromSource("first-pass"),
       };
     }
     console.log(`[fast-path] first-pass miss — opening browse session for agent`);
@@ -2944,6 +2954,7 @@ export async function resolveAndExecute(
         source: "browser-action" as any,
         skill: undefined as any,
         timing: finalize("browser-action" as any, null, "browse-session", undefined as any, trace),
+        browser_opened: browserOpenedFromSource("browser-action"),
       };
     }
   }
@@ -3017,6 +3028,7 @@ export async function resolveAndExecute(
           source: "marketplace",
           skill: undefined as any,
           timing: finalize("marketplace", null, undefined, undefined, trace),
+          browser_opened: browserOpenedFromSource("marketplace"),
         };
       }
       searchResponse = {
@@ -3150,6 +3162,7 @@ export async function resolveAndExecute(
               winner.candidate.skill,
               winner.trace,
             ),
+            browser_opened: browserOpenedFromSource("marketplace"),
           };
         } catch (err) {
           console.log(
@@ -3206,6 +3219,7 @@ export async function resolveAndExecute(
           source: "direct-fetch" as any,
           skill: undefined as any,
           timing: t,
+          browser_opened: browserOpenedFromSource("direct-fetch"),
         };
       }
     } catch { /* not a direct JSON API — continue to browser */ }
@@ -3246,6 +3260,7 @@ export async function resolveAndExecute(
         source: "first-pass",
         skill: firstPassResult.miniSkill,
         timing: t,
+        browser_opened: browserOpenedFromSource("first-pass"),
       };
     }
     console.log(`[first-pass] miss (${firstPassResult.intentClass}/${firstPassResult.actionTaken}) — opening browse session for agent`);
@@ -3307,6 +3322,7 @@ export async function resolveAndExecute(
         source: "browse-session" as any,
         skill: undefined as any,
         timing: t,
+        browser_opened: browserOpenedFromSource("browse-session"),
       };
     }
   }
@@ -3352,6 +3368,7 @@ export async function resolveAndExecute(
               domainHit.skill,
               execOut.trace,
             ),
+            browser_opened: browserOpenedFromSource("marketplace"),
           };
         }
         invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
@@ -3394,6 +3411,7 @@ export async function resolveAndExecute(
           source: "live-capture",
           skill: await getOrCreateBrowserCaptureSkill(),
           timing: finalize("live-capture", result, undefined, undefined, trace),
+          browser_opened: browserOpenedFromSource("live-capture"),
         };
       }
       if (learned_skill) {
@@ -3419,6 +3437,7 @@ export async function resolveAndExecute(
         source: "live-capture",
         skill: await getOrCreateBrowserCaptureSkill(),
         timing: finalize("live-capture", result, undefined, undefined, trace),
+        browser_opened: browserOpenedFromSource("live-capture"),
       };
     }
   }
@@ -3543,6 +3562,7 @@ export async function resolveAndExecute(
       source: "live-capture",
       skill: captureSkill!,
       timing: finalize("live-capture", result, undefined, undefined, rejectedTrace),
+      browser_opened: browserOpenedFromSource("live-capture"),
     };
   }
 
@@ -3585,6 +3605,7 @@ export async function resolveAndExecute(
       source: "live-capture",
       skill: captureSkill!,
       timing: finalize("live-capture", result, undefined, undefined, trace),
+      browser_opened: browserOpenedFromSource("live-capture"),
     };
   }
 
@@ -3608,18 +3629,20 @@ export async function resolveAndExecute(
     )
   ) {
     if (learned_skill) {
+      const directSource = directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback";
       const direct: OrchestratorResult = {
         result,
         trace,
-        source: directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+        source: directSource,
         skill: learned_skill,
         timing: finalize(
-          directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+          directSource,
           result,
           learned_skill.skill_id,
           learned_skill,
           trace,
         ),
+        browser_opened: browserOpenedFromSource(directSource),
       };
       queuePassivePublishIfExecuted(learned_skill, direct, parityBaseline);
       return direct;
@@ -3630,6 +3653,7 @@ export async function resolveAndExecute(
       source: "dom-fallback",
       skill: captureSkill!,
       timing: finalize("dom-fallback", result, undefined, undefined, trace),
+      browser_opened: browserOpenedFromSource("dom-fallback"),
     };
   }
 
@@ -3640,6 +3664,7 @@ export async function resolveAndExecute(
       source: "live-capture",
       skill: captureSkill!,
       timing: finalize("live-capture", result, undefined, undefined, trace),
+      browser_opened: browserOpenedFromSource("live-capture"),
     };
   }
 
@@ -3669,6 +3694,7 @@ export async function resolveAndExecute(
             learned_skill,
             execOut.trace,
           ),
+          browser_opened: browserOpenedFromSource("live-capture"),
         },
         parityBaseline,
       );
@@ -3694,6 +3720,7 @@ export async function resolveAndExecute(
         learned_skill,
         execOut.trace,
       ),
+      browser_opened: browserOpenedFromSource("live-capture"),
     };
   }
   const deferred = await buildDeferralWithAutoExec(
