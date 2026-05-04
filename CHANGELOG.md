@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.7.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.1...v6.7.0-preview.2) (2026-05-04)
+
+### Features
+
+* **ci:** linux-arm64 multiarch + darwin runner patch + windows plan ([0075b37](https://github.com/unbrowse-ai/unbrowse-dev/commit/0075b37900d6aab5099765766da89ee3d84f3b9e))
+* **ci:** macOS GH-hosted runner for darwin Kuri builds ([91d4ddd](https://github.com/unbrowse-ai/unbrowse-dev/commit/91d4ddd48b673337ff4c11af98fbcecfa63278e5))
+
 ## [6.7.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.0...v6.7.0-preview.1) (2026-05-04)
 
 ## [6.7.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.6.1...v6.7.0-preview.0) (2026-05-04)
