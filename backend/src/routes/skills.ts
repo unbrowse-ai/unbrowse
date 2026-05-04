@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
-import { publishSkill, getSkill, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
+import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
+import { renderSkillMd, renderEmptyDomainMarkdown } from "../services/skillmd.js";
 import { listPopularSkills } from "../services/popularity.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { addSkillDiscovered, getAgent, updateAgentWallet } from "../services/agents.js";
@@ -68,6 +69,33 @@ publicSkillRoutes.get("/skills", async (c) => {
   const skills = await listSkills(c.env);
   return c.json({ skills });
 });
+
+// GET /v1/skills/by-domain/:domain/skill.md -- public llms.txt-style export.
+// Returns rendered SKILL.md for the most-recent published skill on this domain.
+// 200 with markdown if indexed; 200 with "seed me" markdown if not.
+publicSkillRoutes.get("/skills/by-domain/:domain/skill.md", async (c) => {
+  const raw = c.req.param("domain");
+  const domain = decodeURIComponent(raw).toLowerCase();
+  if (!domain || !/^[a-z0-9.-]+$/i.test(domain) || !domain.includes(".")) {
+    return c.json({ error: "invalid domain" }, 400);
+  }
+  const cacheKey = `skillmd:domain:${domain}`;
+  const cached = await getEdgeCacheJson<{ md: string; indexed: boolean }>(cacheKey);
+  if (cached) {
+    c.header("Content-Type", "text/markdown; charset=utf-8");
+    c.header("Cache-Control", buildCacheControl(120));
+    c.header("X-Unbrowse-Indexed", cached.indexed ? "1" : "0");
+    return c.body(cached.md);
+  }
+  const skill = await getSkillByDomain(c.env, domain);
+  const md = skill ? renderSkillMd(skill) : renderEmptyDomainMarkdown(domain);
+  schedule(c, putEdgeCacheJson(cacheKey, { md, indexed: !!skill }, 120));
+  c.header("Content-Type", "text/markdown; charset=utf-8");
+  c.header("Cache-Control", buildCacheControl(120));
+  c.header("X-Unbrowse-Indexed", skill ? "1" : "0");
+  return c.body(md);
+});
+
 // GET /v1/skills/popular -- list top skills by observed executions
 publicSkillRoutes.get("/skills/popular", async (c) => {
   const limit = parseInt(c.req.query("limit") ?? "8", 10);
