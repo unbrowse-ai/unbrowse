@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
+import { SiteFooter } from "@/components/site-footer";
 import { DocsEmbed } from "@/components/docs-embed";
 import { ContentPageTracker } from "@/components/content-page-tracker";
 import "./globals.css";
@@ -120,7 +121,7 @@ export default function RootLayout({
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "macOS, Linux, Windows",
-              softwareVersion: "1.1.2",
+              softwareVersion: "6.5.2",
               downloadUrl: "https://www.npmjs.com/package/unbrowse",
               codeRepository: "https://github.com/unbrowse-ai/unbrowse",
               isAccessibleForFree: true,
@@ -138,8 +139,9 @@ export default function RootLayout({
                 "Auto-discovers undocumented website APIs",
                 "100x faster than headless browsers (50-200ms vs 5-30s)",
                 "40x fewer tokens (200 vs 8000 per page)",
-                "Shared skill registry for collective API discoveries",
-                "Works with Claude Code, Cursor, OpenClaw, and Windsurf",
+                "Shared marketplace of captured endpoints across 600+ domains",
+                "Plugs into OpenClaw, Claude Desktop, Cursor, Codex, and any MCP-aware framework",
+                "Self-hosted Postgres backend with pgvector (provider-agnostic)",
               ],
               programmingLanguage: "TypeScript",
             }),
@@ -175,6 +177,7 @@ export default function RootLayout({
             <main className="min-h-screen">
               {children}
             </main>
+            <SiteFooter />
             <DocsEmbed />
           </AuthProvider>
         </ThemeProvider>
