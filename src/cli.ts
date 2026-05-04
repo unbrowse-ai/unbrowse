@@ -31,7 +31,7 @@ import {
 } from "./client/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
-import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
+import { ensureLocalServer, checkServerVersion, stopServer, restartServer, stopManagedServer } from "./runtime/local-server.js";
 import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
@@ -2073,8 +2073,9 @@ async function cmdRestart(flags: Record<string, string | boolean>): Promise<void
   await cmdStatus(flags);
 }
 
-function cmdStop(flags: Record<string, string | boolean>): void {
-  const stopped = stopServer(BASE_URL);
+async function cmdStop(flags: Record<string, string | boolean>): Promise<void> {
+  const stopped = await stopManagedServer(BASE_URL, undefined, { force: !!flags.force, timeoutMs: 5_000 })
+    || stopServer(BASE_URL);
   if (stopped) info("Server stopped.");
   else info("No server running.");
 }
@@ -2906,7 +2907,7 @@ async function main(): Promise<void> {
   // Server lifecycle commands (don't need ensureLocalServer)
   if (command === "mcp") return cmdMcp(flags);
   if (command === "status") return cmdStatus(flags);
-  if (command === "stop") { cmdStop(flags); return; }
+  if (command === "stop") return cmdStop(flags);
   if (command === "restart") return cmdRestart(flags);
   if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
   if (command === "connect-chrome") return cmdConnectChrome();

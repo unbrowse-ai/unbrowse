@@ -1596,6 +1596,7 @@ export async function registerRoutes(app: FastifyInstance) {
     trace_version: TRACE_VERSION,
     code_hash: CODE_HASH,
     git_sha: GIT_SHA,
+    pid: process.pid,
   }));
 
   // GET /v1/sessions/:domain — read local trace/debug files instead of proxying to backend
