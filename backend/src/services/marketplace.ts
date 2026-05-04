@@ -109,6 +109,23 @@ export async function getSkill(env: Env, skillId: string): Promise<SkillManifest
   return skill;
 }
 
+// Find the most-recently-updated published skill for a registrable domain.
+// Used to serve `unbrowse.ai/<domain>` as a single SKILL.md per domain.
+export async function getSkillByDomain(env: Env, domain: string): Promise<SkillManifest | null> {
+  const target = domain.toLowerCase();
+  const all = await listSkills(env);
+  const candidates = all.filter((s) => {
+    const d = (s.domain ?? "").toLowerCase();
+    if (d === target) return true;
+    // allow subdomain match: skill domain could be "api.github.com"
+    if (d.endsWith(`.${target}`) || target.endsWith(`.${d}`)) return true;
+    return false;
+  });
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  return candidates[0];
+}
+
 export async function publishSkill(
   env: Env,
   draft: Omit<SkillManifest, "skill_id" | "created_at" | "updated_at" | "version"> & {
