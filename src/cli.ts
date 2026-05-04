@@ -1604,7 +1604,7 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     bundleSource = Buffer.concat(chunks).toString("utf8");
   }
 
-  if (!targetOrigin) die("usage: unbrowse sandbox-replay --target-origin <url> [--target-href <url>] (--bundle-url <url> | --bundle-source <js|->) [--post-eval <expr>] [--markdown] [--no-browser-cookies]");
+  if (!targetOrigin) die("usage: unbrowse sandbox-replay --target-origin <url> [--target-href <url>] (--bundle-url <url> | --bundle-source <js|->) [--post-eval <expr>] [--raw] [--no-browser-cookies]");
   if (!bundleUrl && !bundleSource) die("--bundle-url or --bundle-source required");
 
   const kuriBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
@@ -1636,20 +1636,19 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     seedCookies,
   }, { kuriBase });
 
-  // --markdown: strip scripts/styles/svgs/comments + run turndown on HTML body
-  // strings (>1KB, look HTML-shaped). Saves agents from drowning in megabytes
-  // of inline JS bundles when they wanted the lesson text.
+  // Default: convert HTML body fields (>1KB, look HTML-shaped) to markdown
+  // via turndown. --raw skips this for reverse-engineering / debugging where
+  // you need the actual HTML/JS bundle bytes.
   let postEvalProcessed: unknown = resp.post_eval;
-  if (flags.markdown && resp.post_eval !== undefined) {
+  const wantMarkdown = flags.raw !== true && flags.markdown !== "off";
+  if (wantMarkdown && resp.post_eval !== undefined) {
     try {
       const TurndownService = (await import("turndown")).default;
       const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
-      // Remove decoration / non-content noise that turndown otherwise embeds verbatim.
       turndown.remove(["script", "style", "noscript", "iframe", "svg", "link", "meta"]);
       const stripPreamble = (html: string): string => html
         .replace(/<!DOCTYPE[^>]*>/gi, "")
         .replace(/<!--[\s\S]*?-->/g, "")
-        // Next.js bake-in self-executing scripts in body — kill those too.
         .replace(/<script[^>]*?>[\s\S]*?<\/script>/gi, "")
         .replace(/<style[^>]*?>[\s\S]*?<\/style>/gi, "");
       const isHtmlString = (s: unknown): s is string =>
@@ -1685,6 +1684,52 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     cookie_header: cookiesToHeaderValue(resp.cookies),
     post_eval: postEvalProcessed,
   }, !!flags.pretty);
+}
+
+// ─── fetch ─────────────────────────────────────────────────────────────────
+// The simple "give me the data from this URL" command. Agent UX: don't make
+// them choose between go/resolve/capture/sandbox-replay — they just want
+// content. Internally: spawns Kuri if down, pulls real-browser cookies for
+// the domain, hits the URL via libcurl-impersonate (Chrome 131 JA4), converts
+// HTML response to markdown by default. --raw to skip markdown.
+async function cmdFetch(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const url = args[0] ?? (flags.url as string);
+  if (!url) die("usage: unbrowse fetch <url> [--raw] [--no-browser-cookies] [--method GET|POST] [--header 'K:V']");
+
+  const method = ((flags.method as string) ?? "GET").toUpperCase();
+  const targetOrigin = (() => { try { return new URL(url).origin; } catch { return url; } })();
+
+  // Build the headers JSON the bundle will pass to __nativeFetch.
+  const reqHeaders: Record<string, string> = { Accept: "*/*" };
+  if (typeof flags.header === "string") {
+    const idx = flags.header.indexOf(":");
+    if (idx > 0) reqHeaders[flags.header.slice(0, idx).trim()] = flags.header.slice(idx + 1).trim();
+  }
+
+  // The "bundle" is just a fetch wrapper. The real work is curl-impersonate
+  // + the seeded cookies. We capture status, headers, body (no JSON parse —
+  // the markdown post-processor decides what to do).
+  const headersLiteral = JSON.stringify(reqHeaders).replace(/'/g, "\\'");
+  const bundleSource = `(() => {
+    const r = __nativeFetch(${JSON.stringify(method)}, ${JSON.stringify(url)}, ${headersLiteral}, null);
+    globalThis.r = { status: r.status, content_type: r.headers && (r.headers['content-type'] || r.headers['Content-Type']) || null, body: r.body, final_url: r.url };
+  })()`;
+
+  // Synthesize a sandbox-replay invocation with the same defaults the
+  // standalone command has (browser cookies on, markdown on).
+  const synthFlags: Record<string, string | boolean> = {
+    "target-origin": targetOrigin,
+    "target-href": url,
+    "bundle-source": bundleSource,
+    "post-eval": "globalThis.r",
+    pretty: flags.pretty ?? false,
+  };
+  if (flags.raw === true) synthFlags.raw = true;
+  if (flags["no-browser-cookies"] === true) synthFlags["no-browser-cookies"] = true;
+  if (flags["timeout-ms"]) synthFlags["timeout-ms"] = flags["timeout-ms"];
+  if (flags.impersonate) synthFlags.impersonate = flags.impersonate;
+
+  await cmdSandboxReplay([], synthFlags);
 }
 // ---------------------------------------------------------------------------
 // CLI Reference — single source of truth for help text AND SKILL.md
@@ -1741,7 +1786,8 @@ export const CLI_REFERENCE = {
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
     { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
     { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence." },
-    { name: "sandbox-replay", usage: "--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--markdown] [--no-browser-cookies]", desc: "Run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime (QuickJS + statically-linked libcurl-impersonate, real Chrome 131 JA4). Returns harvested cookies + optional postEval result. By default seeds the jar from the user's Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session for the target domain — pass --no-browser-cookies to skip. --markdown auto-converts HTML body fields to markdown via turndown." },
+    { name: "fetch", usage: "<url> [--raw] [--no-browser-cookies] [--method GET|POST] [--header 'K:V']", desc: "Simple URL fetch via libcurl-impersonate (Chrome 131 JA4). Auto-pulls cookies from your real Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session. HTML responses auto-converted to markdown via turndown — pass --raw for the actual HTML/JSON bytes (use this when reverse-engineering / inspecting). For sites that need running JS to compute auth tokens, use sandbox-replay instead." },
+    { name: "sandbox-replay", usage: "--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--raw] [--no-browser-cookies]", desc: "Lower-level sandbox replay: run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime. Returns harvested cookies + post_eval result. Auto-pulls browser cookies, auto-converts HTML to markdown. Pass --raw to keep HTML/JSON bytes intact (reverse-engineering)." },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -3103,6 +3149,7 @@ async function main(): Promise<void> {
     case "capture": return cmdCapture(flags);
     case "note": return cmdNote(flags, args);
     case "sandbox-replay": return cmdSandboxReplay(args, flags);
+    case "fetch": return cmdFetch(args, flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
