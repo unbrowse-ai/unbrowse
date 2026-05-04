@@ -1731,15 +1731,35 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     }
   }
 
-  output({
-    ok: resp.ok,
-    ms: resp.ms,
-    egress_bytes: resp.egress_bytes,
-    cookies: resp.cookies,
-    cookie_header: cookiesToHeaderValue(resp.cookies),
-    routes_observed: resp.routes_observed,
-    post_eval: postEvalProcessed,
-  }, !!flags.pretty);
+  if (flags["body-only"] === true) {
+    const body = (() => {
+      if (postEvalProcessed && typeof postEvalProcessed === "object" && "body" in (postEvalProcessed as Record<string, unknown>)) {
+        return (postEvalProcessed as Record<string, unknown>).body;
+      }
+      return postEvalProcessed;
+    })();
+    const status = (postEvalProcessed && typeof postEvalProcessed === "object" && "status" in (postEvalProcessed as Record<string, unknown>))
+      ? (postEvalProcessed as Record<string, unknown>).status
+      : "?";
+    const routesCount = resp.routes_observed?.length ?? 0;
+    info(`[fetch] ${status} ${resp.ms}ms ${resp.egress_bytes}B${routesCount > 0 ? ` · ${routesCount} route(s) observed` : ""}`);
+    if (typeof body === "string") {
+      process.stdout.write(body);
+      if (!body.endsWith("\n")) process.stdout.write("\n");
+    } else {
+      output(body, !!flags.pretty);
+    }
+  } else {
+    output({
+      ok: resp.ok,
+      ms: resp.ms,
+      egress_bytes: resp.egress_bytes,
+      cookies: resp.cookies,
+      cookie_header: cookiesToHeaderValue(resp.cookies),
+      routes_observed: resp.routes_observed,
+      post_eval: postEvalProcessed,
+    }, !!flags.pretty);
+  }
 }
 
 // ─── fetch ─────────────────────────────────────────────────────────────────
@@ -1750,40 +1770,36 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
 // HTML response to markdown by default. --raw to skip markdown.
 async function cmdFetch(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const url = args[0] ?? (flags.url as string);
-  if (!url) die("usage: unbrowse fetch <url> [--raw] [--no-browser-cookies] [--method GET|POST] [--header 'K:V']");
+  if (!url) die("usage: unbrowse fetch <url> [--raw] [--no-browser-cookies] [--method GET|POST] [--header 'K:V'] [--verbose]");
 
   const method = ((flags.method as string) ?? "GET").toUpperCase();
   const targetOrigin = (() => { try { return new URL(url).origin; } catch { return url; } })();
 
-  // Build the headers JSON the bundle will pass to __nativeFetch.
   const reqHeaders: Record<string, string> = { Accept: "*/*" };
   if (typeof flags.header === "string") {
     const idx = flags.header.indexOf(":");
     if (idx > 0) reqHeaders[flags.header.slice(0, idx).trim()] = flags.header.slice(idx + 1).trim();
   }
 
-  // The "bundle" is just a fetch wrapper. The real work is curl-impersonate
-  // + the seeded cookies. We capture status, headers, body (no JSON parse —
-  // the markdown post-processor decides what to do).
   const headersLiteral = JSON.stringify(reqHeaders).replace(/'/g, "\\'");
   const bundleSource = `(() => {
     const r = __nativeFetch(${JSON.stringify(method)}, ${JSON.stringify(url)}, ${headersLiteral}, null);
     globalThis.r = { status: r.status, content_type: r.headers && (r.headers['content-type'] || r.headers['Content-Type']) || null, body: r.body, final_url: r.url };
   })()`;
 
-  // Synthesize a sandbox-replay invocation with the same defaults the
-  // standalone command has (browser cookies on, markdown on).
   const synthFlags: Record<string, string | boolean> = {
     "target-origin": targetOrigin,
     "target-href": url,
     "bundle-source": bundleSource,
     "post-eval": "globalThis.r",
+    "body-only": flags.verbose === true ? false : true,
     pretty: flags.pretty ?? false,
   };
   if (flags.raw === true) synthFlags.raw = true;
   if (flags["no-browser-cookies"] === true) synthFlags["no-browser-cookies"] = true;
   if (flags["timeout-ms"]) synthFlags["timeout-ms"] = flags["timeout-ms"];
   if (flags.impersonate) synthFlags.impersonate = flags.impersonate;
+  if (flags.intent) synthFlags.intent = flags.intent;
 
   await cmdSandboxReplay([], synthFlags);
 }

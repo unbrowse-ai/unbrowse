@@ -1240,6 +1240,12 @@ export async function registerRoutes(app: FastifyInstance) {
 
     try { cachePublishedSkill(indexed.skill); } catch { /* best-effort */ }
 
+    let skillmd_path: string | undefined;
+    try {
+      const { exportSkillMdLocal } = await import("../skillmd.js");
+      skillmd_path = exportSkillMdLocal(indexed.skill) ?? undefined;
+    } catch { /* best-effort */ }
+
     return reply.send({
       ok: true,
       skill_id: indexed.skill.skill_id,
@@ -1250,7 +1256,45 @@ export async function registerRoutes(app: FastifyInstance) {
       skipped: body.routes.length - filtered.length,
       publish_status: publishStatus,
       published_at: publishedAt,
+      skillmd_path,
     });
+  });
+
+  // GET /v1/skills/:skill_id/skill.md — render SkillManifest as agentskills.io
+  // SKILL.md format. Body emits `unbrowse execute` commands so installed skills
+  // require the unbrowse runtime. Distribution: skills.sh; execution: unbrowse.
+  app.get("/v1/skills/:skill_id/skill.md", async (req, reply) => {
+    const { skill_id } = req.params as { skill_id: string };
+    if (!skill_id) return reply.code(400).send({ error: "skill_id required" });
+
+    const { join } = await import("node:path");
+    const { existsSync, readFileSync, readdirSync } = await import("node:fs");
+    const { homedir } = await import("node:os");
+
+    let skill: import("../types/index.js").SkillManifest | null = null;
+    try {
+      const cacheDir = process.env.UNBROWSE_SKILL_CACHE_DIR
+        || join(process.env.UNBROWSE_CONFIG_DIR || join(homedir(), ".unbrowse"), "skill-cache");
+      if (existsSync(cacheDir)) {
+        const direct = join(cacheDir, `${skill_id}.json`);
+        if (existsSync(direct)) skill = JSON.parse(readFileSync(direct, "utf-8"));
+        if (!skill) {
+          for (const f of readdirSync(cacheDir)) {
+            if (!f.endsWith(".json")) continue;
+            try {
+              const s = JSON.parse(readFileSync(join(cacheDir, f), "utf-8")) as import("../types/index.js").SkillManifest;
+              if (s.skill_id === skill_id) { skill = s; break; }
+            } catch { /* skip */ }
+          }
+        }
+      }
+    } catch { /* fall through */ }
+
+    if (!skill) return reply.code(404).send({ error: "skill not found", skill_id });
+
+    const { renderSkillMd } = await import("../skillmd.js");
+    const md = renderSkillMd(skill);
+    return reply.type("text/markdown; charset=utf-8").send(md);
   });
 
 
