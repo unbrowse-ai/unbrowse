@@ -44,6 +44,7 @@
 ### Bug Fixes
 
 * **backend:** keep EmergentDB graph checks bounded and make credit lookup non-blocking
+* **frontend:** pin Turbopack to the monorepo root so Next/OpenNext builds ignore unrelated parent lockfiles
 * **frontend:** keep install terminal controls readable on mobile
 * **frontend(ops):** gate /ops dashboard behind sign-in and pass bearer token to /v1/ops + /v1/analytics/* (was 401-blank since the Mar 11 auth hardening)
 

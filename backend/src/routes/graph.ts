@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
-import { resolveChain, predictNext, recordSession, recordNegative, checkCredits, getIntentCache, getCooccurrence, getEdges, graphProxy, upsertEdges } from "../services/graph.js";
+import { resolveChain, predictNext, recordSession, recordNegative, checkCredits, checkGraphHealth, getIntentCache, getCooccurrence, getEdges, graphProxy, upsertEdges } from "../services/graph.js";
 import type { GraphNode, GraphEdge } from "../services/graph.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
@@ -14,6 +14,27 @@ function chargeFee(env: Env, agentId: string, op: GraphOperation): void {
 export const graphRoutes = new Hono<{ Bindings: Env }>();
 
 graphRoutes.use("/graph/*", rateLimit({ limit: 30, window: 60, prefix: "graph" }));
+
+// GET /v1/graph/health — EmergentDB graph availability. Credit balance is not a gate.
+graphRoutes.get("/graph/health", async (c) => {
+  try {
+    const health = await checkGraphHealth(c.env);
+    return c.json({
+      backend: "emergentdb",
+      available: true,
+      credit_balance_gates_graph: false,
+      health,
+    });
+  } catch (err) {
+    console.error("[graph/health] error:", (err as Error).message);
+    return c.json({
+      backend: "emergentdb",
+      available: false,
+      credit_balance_gates_graph: false,
+      error: (err as Error).message,
+    }, 503);
+  }
+});
 
 // POST /v1/graph/edges — upsert DAG edges for a domain
 graphRoutes.post("/graph/edges", bearerAuth, requireSignedClient, async (c) => {
@@ -120,10 +141,17 @@ graphRoutes.post("/graph/negative", bearerAuth, requireSignedClient, async (c) =
 graphRoutes.get("/graph/credits", async (c) => {
   try {
     const credits = await checkCredits(c.env);
-    return c.json(credits);
+    return c.json({
+      ...(credits as Record<string, unknown>),
+      credit_balance_gates_graph: false,
+    });
   } catch (err) {
     console.error("[graph/credits] error:", (err as Error).message);
-    return c.json({ error: (err as Error).message }, 500);
+    return c.json({
+      available: false,
+      credit_balance_gates_graph: false,
+      error: (err as Error).message,
+    });
   }
 });
 
