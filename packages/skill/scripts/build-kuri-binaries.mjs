@@ -93,13 +93,23 @@ for (const target of supportedTargets) {
     }
   }
 
-  // Cross-compile with Zig
+  // Cross-compile with Zig.
+  // Detect native target — when host arch+os matches target, skip -Dtarget so
+  // zig uses the native sysroot (otherwise system libs like iconv/icucore on
+  // macOS or z/idn2 on linux fail to resolve from a missing target sysroot).
   const prefixDir = path.join(os.tmpdir(), `unbrowse-kuri-${target.id}-${process.pid}-${Date.now()}`);
   rmSync(prefixDir, { recursive: true, force: true });
   mkdirSync(prefixDir, { recursive: true });
 
+  const hostArchKey = process.arch === "arm64" ? "aarch64" : process.arch === "x64" ? "x86_64" : process.arch;
+  const hostOsKey = process.platform === "darwin" ? "macos" : process.platform === "linux" ? "linux" : process.platform;
+  const isNative = target.zigTarget === `${hostArchKey}-${hostOsKey}` || target.zigTarget.startsWith(`${hostArchKey}-${hostOsKey}`);
+  const zigArgs = isNative
+    ? ["build", "-Doptimize=ReleaseFast", "--prefix", prefixDir]
+    : ["build", "-Doptimize=ReleaseFast", `-Dtarget=${target.zigTarget}`, "--prefix", prefixDir];
+
   try {
-    execFileSync("zig", ["build", "-Doptimize=ReleaseFast", `-Dtarget=${target.zigTarget}`, "--prefix", prefixDir], {
+    execFileSync("zig", zigArgs, {
       cwd: sourceDir,
       stdio: "inherit",
     });
