@@ -9,31 +9,31 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "How does Unbrowse work?",
-    a: "Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the shadow API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.",
+    a: "Unbrowse is the API layer for AI agents. The first time your agent visits a site, it captures the real APIs the site uses to render itself, then reuses them on every subsequent call. The shared marketplace already covers 600+ domains and 18,000+ endpoints, so most calls skip the browser entirely and return in 50 to 200 milliseconds. That turns a slow, flaky browser step into a single HTTP call your agent can rely on.",
   },
   {
     q: "How much faster is Unbrowse than headless browser automation?",
-    a: "Unbrowse is approximately 100x faster per page. Headless browsers typically take 5–30 seconds per page interaction. Unbrowse makes direct API calls in 50–200 milliseconds. It also uses ~200 tokens per action compared to ~8,000 tokens for scraped HTML, a 40x reduction.",
+    a: "Unbrowse is roughly 100x faster per page than headless browser automation. Headless browsers take 5 to 30 seconds per interaction; Unbrowse makes direct API calls in 50 to 200 milliseconds and uses about 200 tokens per action against 8,000 for scraped HTML. The gap compounds because cached marketplace routes skip discovery entirely on first try. For agent loops where the web step is the bottleneck, that turns minutes of work into seconds.",
   },
   {
     q: "Is Unbrowse free?",
-    a: "Yes. Unbrowse is 100% free and open source under the AGPL-3.0 license. There are no paid tiers, cloud proxies, or usage credits. Everything runs locally on your machine.",
+    a: "Yes. Unbrowse is 100% free and open source under the AGPL-3.0 license. There are no paid tiers, no cloud proxies, no usage credits; everything runs locally on your machine. The project is funded by a small fee on agent-to-agent route payments, not by you. So installing costs nothing and stays that way.",
   },
   {
     q: "What websites does Unbrowse support?",
-    a: "Unbrowse works with any website that uses shadow APIs to power its frontend — which includes most modern web applications. Sites like Airbnb, LinkedIn, and hundreds of others have been successfully mapped. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation.",
+    a: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation so your agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
   },
   {
     q: "Is Unbrowse secure? Do my credentials leave my machine?",
-    a: "Unbrowse runs entirely locally. There are no cloud proxies, no man-in-the-middle interception, and your browser cookies never leave your device. Authentication credentials are encrypted with AES-256-CBC in a local vault. Only discovered API endpoint patterns (not data or credentials) are shared with the registry.",
+    a: "Unbrowse runs entirely locally and your credentials never leave your device. There are no cloud proxies, no man-in-the-middle interception, browser cookies stay on your machine, and authentication credentials are encrypted with AES-256-CBC in a local vault. Only the discovered URL templates and schemas (never your data or credentials) are shared with the registry, and only when you opt in via unbrowse mode. That makes Unbrowse safe to install on a work machine without changing your existing security posture.",
   },
   {
     q: "How do I install Unbrowse?",
-    a: "Run npx unbrowse setup for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
+    a: "Run npx unbrowse setup for a one-command installation that wires up the local runtime and configures your agent host. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse. One install covers Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and any other MCP-aware framework.",
   },
   {
     q: "What is the skill registry?",
-    a: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, that knowledge is published to the registry so every other agent can use it instantly — no need to re-discover the same endpoints.",
+    a: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, the result is published so every other agent can call those endpoints without re-discovering them. Value compounds because every new capture lowers the cost for the next agent that needs the same data, the way Wikipedia gets more useful with every edit. That is what turns Unbrowse from a per-agent tool into shared infrastructure for the agent web.",
   },
 ];
 

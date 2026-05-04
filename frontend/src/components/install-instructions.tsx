@@ -157,12 +157,13 @@ export function InstallInstructions() {
           borderBottom: "1px solid rgba(255,122,32,0.22)",
           padding: "7px 12px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: isMobile ? "8px" : "12px",
           background: isMobile ? "rgba(180,145,90,0.35)" : "rgba(180,145,90,0.28)",
           position: "relative", zIndex: 30,
         }}
       >
         {/* Status dot + title */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div style={{ display: isMobile ? "none" : "flex", alignItems: "center", gap: "10px" }}>
           <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: O }} />
           <span style={{ fontFamily: "monospace", fontSize: 10, color: O_DIM, letterSpacing: "0.18em", textTransform: "uppercase" }}>
             unbrowse terminal
@@ -181,7 +182,7 @@ export function InstallInstructions() {
                 border: `1px solid ${active === t.id ? "rgba(100,45,5,0.5)" : "rgba(100,55,10,0.2)"}`,
                 background: active === t.id ? "rgba(139,56,0,0.12)" : "transparent",
                 color: active === t.id ? O_HI : O_DIM,
-                borderRadius: 2, cursor: "pointer",
+                borderRadius: 2, cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
               {t.label}
@@ -198,7 +199,7 @@ export function InstallInstructions() {
             border: `1px solid ${copied ? "rgba(92,30,0,0.6)" : "#FF7A20"}`,
             background: copied ? "#FF7A20" : "#FF7A20",
             color: copied ? "#fff" : "#fff",
-            borderRadius: 2, cursor: "pointer",
+            borderRadius: 2, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
           }}
         >
           {copied ? "COPIED ✓" : "[ COPY ]"}
