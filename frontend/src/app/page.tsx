@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ChatDemo } from "@/components/chat-demo";
@@ -442,8 +443,12 @@ export default function Home() {
         </div>
       </section>
 
-       <HeroStats />
-      <PopularSkillsGrid />
+      <Suspense fallback={<div aria-hidden style={{ minHeight: 90 }} />}>
+        <HeroStats />
+      </Suspense>
+      <Suspense fallback={<div aria-hidden style={{ minHeight: 220 }} />}>
+        <PopularSkillsGrid />
+      </Suspense>
 
       {/* ═══ Chat Demo ═══ */}
        <section id="demo" className="relative py-16 sm:py-24 flex flex-col justify-center">
