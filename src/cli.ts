@@ -1598,25 +1598,18 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
   const impersonate = (flags.impersonate as string) ?? "chrome131";
   const timeoutMs = flags["timeout-ms"] ? Number(flags["timeout-ms"]) : 30_000;
 
-  // Read inline source from stdin if `--bundle-source -`
   if (bundleSource === "-" || flags["stdin"]) {
     const chunks: Buffer[] = [];
     for await (const c of process.stdin) chunks.push(c as Buffer);
     bundleSource = Buffer.concat(chunks).toString("utf8");
   }
 
-  if (!targetOrigin) die("usage: unbrowse sandbox-replay --target-origin <url> [--target-href <url>] (--bundle-url <url> | --bundle-source <js|->) [--post-eval <expr>]");
+  if (!targetOrigin) die("usage: unbrowse sandbox-replay --target-origin <url> [--target-href <url>] (--bundle-url <url> | --bundle-source <js|->) [--post-eval <expr>] [--markdown] [--no-browser-cookies]");
   if (!bundleUrl && !bundleSource) die("--bundle-url or --bundle-source required");
 
-  // Sandbox is served by Kuri (default port 8080). Health-check + auto-spawn
-  // if not running. Eliminates the "Kuri unreachable... run binary" footgun
-  // for agents.
   const kuriBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
   await ensureKuriReachable(kuriBase);
-  // Pull cookies from user's real Chrome/Arc/Brave/etc. session for this
-  // domain by default. Opt out with --no-browser-cookies. The cookies stay
-  // local — they're already accessible to any process running as this user,
-  // and never leave the local machine.
+
   let seedCookies: Array<{ name: string; value: string; domain: string; path: string; secure: boolean; httpOnly: boolean; sameSite: string; expires: number }> | undefined;
   const useBrowserCookies = flags["no-browser-cookies"] !== true && flags["browser-cookies"] !== "off";
   if (useBrowserCookies) {
@@ -1641,7 +1634,48 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     postEval,
     timeoutMs,
     seedCookies,
-  }, { kuriBase: process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080" });
+  }, { kuriBase });
+
+  // --markdown: strip scripts/styles/svgs/comments + run turndown on HTML body
+  // strings (>1KB, look HTML-shaped). Saves agents from drowning in megabytes
+  // of inline JS bundles when they wanted the lesson text.
+  let postEvalProcessed: unknown = resp.post_eval;
+  if (flags.markdown && resp.post_eval !== undefined) {
+    try {
+      const TurndownService = (await import("turndown")).default;
+      const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
+      // Remove decoration / non-content noise that turndown otherwise embeds verbatim.
+      turndown.remove(["script", "style", "noscript", "iframe", "svg", "link", "meta"]);
+      const stripPreamble = (html: string): string => html
+        .replace(/<!DOCTYPE[^>]*>/gi, "")
+        .replace(/<!--[\s\S]*?-->/g, "")
+        // Next.js bake-in self-executing scripts in body — kill those too.
+        .replace(/<script[^>]*?>[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[^>]*?>[\s\S]*?<\/style>/gi, "");
+      const isHtmlString = (s: unknown): s is string =>
+        typeof s === "string" && s.length > 1024 && /<(html|body|article|div|p|h[1-6])\b/i.test(s);
+      const parsed = typeof resp.post_eval === "string"
+        ? JSON.parse(resp.post_eval)
+        : resp.post_eval;
+      const convertHtmlFields = (val: unknown): unknown => {
+        if (isHtmlString(val)) {
+          try {
+            return turndown.turndown(stripPreamble(val)).replace(/\n{3,}/g, "\n\n").trim();
+          } catch { return val; }
+        }
+        if (Array.isArray(val)) return val.map(convertHtmlFields);
+        if (val && typeof val === "object") {
+          const out: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(val)) out[k] = convertHtmlFields(v);
+          return out;
+        }
+        return val;
+      };
+      postEvalProcessed = convertHtmlFields(parsed);
+    } catch (e) {
+      info(`[sandbox-replay] markdown conversion failed: ${(e as Error).message}; returning raw post_eval`);
+    }
+  }
 
   output({
     ok: resp.ok,
@@ -1649,7 +1683,7 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     egress_bytes: resp.egress_bytes,
     cookies: resp.cookies,
     cookie_header: cookiesToHeaderValue(resp.cookies),
-    post_eval: resp.post_eval,
+    post_eval: postEvalProcessed,
   }, !!flags.pretty);
 }
 // ---------------------------------------------------------------------------
@@ -1707,7 +1741,7 @@ export const CLI_REFERENCE = {
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
     { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
     { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence." },
-    { name: "sandbox-replay", usage: "--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--no-browser-cookies]", desc: "Run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime (QuickJS + statically-linked libcurl-impersonate, real Chrome 131 JA4). Returns harvested cookies + optional postEval result. By default seeds the jar from the user's Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session for the target domain — pass --no-browser-cookies to skip." },
+    { name: "sandbox-replay", usage: "--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--markdown] [--no-browser-cookies]", desc: "Run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime (QuickJS + statically-linked libcurl-impersonate, real Chrome 131 JA4). Returns harvested cookies + optional postEval result. By default seeds the jar from the user's Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session for the target domain — pass --no-browser-cookies to skip. --markdown auto-converts HTML body fields to markdown via turndown." },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
