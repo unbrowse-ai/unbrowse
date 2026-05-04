@@ -1,0 +1,115 @@
+/**
+ * bundle-replay-client.ts — Node-side wrapper for Kuri's /v1/sandbox/replay.
+ *
+ * Talks to a running Kuri instance (default http://127.0.0.1:6969) and runs an
+ * anti-bot / signed-URL / HMAC bundle in a sandboxed QuickJS runtime with
+ * curl-impersonate as the network adapter.
+ *
+ * Usage:
+ *   import { runBundleReplay } from "./sandbox/bundle-replay-client";
+ *   const r = await runBundleReplay({
+ *     targetOrigin: "https://www.reddit.com",
+ *     targetHref:   "https://www.reddit.com/search/?q=foo",
+ *     bundleUrl:    "https://www.reddit.com/_px/captcha-bundle.js",
+ *     postEval:     "JSON.stringify({ pxToken: localStorage.getItem('_px3') })",
+ *   });
+ *   // r.cookies[]   — harvested set-cookies (attach to the real call)
+ *   // r.postEval    — JSON-stringified result of postEval expression
+ *   // r.ms          — wall-clock total
+ *
+ * This is the consumer half of the deep-reveng plan in docs/deep-reveng.md.
+ */
+
+export interface SandboxReplayRequest {
+  /** Origin of the target site, e.g. "https://reddit.com". Used by the shim's
+   * location.origin, document.domain, and as the default for cookie scoping. */
+  targetOrigin: string;
+  /** Full URL the bundle thinks it's running on. Defaults to targetOrigin if
+   * omitted. The shim's location.* accessors return parsed pieces of this. */
+  targetHref?: string;
+  /** Either bundleUrl OR bundleSource must be provided. */
+  bundleUrl?: string;
+  bundleSource?: string;
+  /** Fingerprint pool key. "chrome_mac_arm" | "chrome_windows" for Phase 1. */
+  fingerprint?: "chrome_mac_arm" | "chrome_windows";
+  /** curl-impersonate target profile. Match to your installed binary. */
+  impersonate?: string;
+  /** JS expression evaluated AFTER the bundle runs. Result returned verbatim
+   * as `post_eval` in the response (already JSON-stringified by the runtime). */
+  postEval?: string;
+  /** Wall-clock cap in ms. Default 5000. */
+  timeoutMs?: number;
+}
+
+export interface SandboxCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires: number; // unix seconds, 0 = session
+  secure: boolean;
+  http_only: boolean;
+  same_site: string;
+}
+
+export interface SandboxReplayResponse {
+  ok: boolean;
+  ms: number;
+  egress_bytes: number;
+  cookies: SandboxCookie[];
+  /** Present iff postEval was passed. JSON-encoded result of the expression. */
+  post_eval?: string;
+}
+
+const DEFAULT_KURI_BASE = process.env.KURI_BASE_URL ?? "http://127.0.0.1:6969";
+
+export class BundleReplayError extends Error {
+  constructor(public readonly status: number, public readonly body: string) {
+    super(`sandbox replay failed: HTTP ${status}: ${body.slice(0, 200)}`);
+    this.name = "BundleReplayError";
+  }
+}
+
+export async function runBundleReplay(
+  req: SandboxReplayRequest,
+  opts: { kuriBase?: string; signal?: AbortSignal } = {},
+): Promise<SandboxReplayResponse> {
+  const base = opts.kuriBase ?? DEFAULT_KURI_BASE;
+  const body = JSON.stringify({
+    target_origin: req.targetOrigin,
+    target_href: req.targetHref,
+    bundle_url: req.bundleUrl,
+    bundle_source: req.bundleSource,
+    fingerprint: req.fingerprint ?? "chrome_mac_arm",
+    impersonate: req.impersonate ?? "chrome131",
+    post_eval: req.postEval,
+    timeout_ms: req.timeoutMs ?? 5000,
+  });
+
+  const resp = await fetch(`${base}/v1/sandbox/replay`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+    signal: opts.signal,
+  });
+
+  const text = await resp.text();
+  if (!resp.ok) {
+    throw new BundleReplayError(resp.status, text);
+  }
+  let parsed: SandboxReplayResponse;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new BundleReplayError(resp.status, `invalid JSON: ${text.slice(0, 200)}`);
+  }
+  return parsed;
+}
+
+/**
+ * Format a cookie array as a Cookie header value, suitable for attaching to a
+ * follow-up call into the real API.
+ */
+export function cookiesToHeaderValue(cookies: SandboxCookie[]): string {
+  return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+}

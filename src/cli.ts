@@ -78,6 +78,8 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
       const valueExpectedFlags = new Set([
         "skill", "endpoint", "intent", "url", "domain", "params", "path", "extract", "limit",
         "session", "ref", "text", "value", "form-selector", "submit-selector", "wait-for", "timeout-ms",
+        "target-origin", "target-href", "bundle-url", "bundle-source", "post-eval", "fingerprint",
+        "impersonate", "origin", "bundle", "eval",
       ]);
       if (valueExpectedFlags.has(key)) {
         // Don't consume the next arg if it's clearly another flag (-p, --foo).
@@ -1515,6 +1517,61 @@ async function cmdNote(flags: Record<string, string | boolean>, args?: string[])
   const res = await api("POST", `/v1/domain-notes/${encodeURIComponent(domain!)}`, { body });
   output(res, !!flags.pretty);
 }
+
+// ─── sandbox-replay ────────────────────────────────────────────────────────
+// Run a captured anti-bot / signed-URL / HMAC bundle through the Kuri sandbox
+// (deep-reveng path). Returns harvested cookies + optional postEval result.
+async function cmdSandboxReplay(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const { runBundleReplay, cookiesToHeaderValue } = await import("./sandbox/bundle-replay-client.js");
+
+  const targetOrigin = (flags["target-origin"] as string) ?? (flags.origin as string);
+  const targetHref = (flags["target-href"] as string) ?? (flags.url as string);
+  const bundleUrl = (flags["bundle-url"] as string) ?? (flags.bundle as string);
+  let bundleSource = flags["bundle-source"] as string | undefined;
+  const postEval = (flags["post-eval"] as string) ?? (flags.eval as string);
+  const fingerprint = (flags.fingerprint as string) ?? "chrome_mac_arm";
+  const impersonate = (flags.impersonate as string) ?? "chrome131";
+  const timeoutMs = flags["timeout-ms"] ? Number(flags["timeout-ms"]) : 5000;
+
+  // Read inline source from stdin if `--bundle-source -`
+  if (bundleSource === "-" || flags["stdin"]) {
+    const chunks: Buffer[] = [];
+    for await (const c of process.stdin) chunks.push(c as Buffer);
+    bundleSource = Buffer.concat(chunks).toString("utf8");
+  }
+
+  if (!targetOrigin) die("usage: unbrowse sandbox-replay --target-origin <url> [--target-href <url>] (--bundle-url <url> | --bundle-source <js|->) [--post-eval <expr>]");
+  if (!bundleUrl && !bundleSource) die("--bundle-url or --bundle-source required");
+
+  // Sandbox is served by Kuri (default port 8080). Health-check before sending.
+  const kuriBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+  try {
+    const h = await fetch(`${kuriBase}/health`, { signal: AbortSignal.timeout(2000) });
+    if (!h.ok) die(`Kuri health check failed (HTTP ${h.status}). Start kuri first.`);
+  } catch (e) {
+    die(`Kuri unreachable at ${kuriBase}: ${(e as Error).message}. Run: submodules/kuri/zig-out/bin/kuri`);
+  }
+
+  const resp = await runBundleReplay({
+    targetOrigin,
+    targetHref,
+    bundleUrl,
+    bundleSource,
+    fingerprint: fingerprint as "chrome_mac_arm" | "chrome_windows",
+    impersonate,
+    postEval,
+    timeoutMs,
+  }, { kuriBase: process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080" });
+
+  output({
+    ok: resp.ok,
+    ms: resp.ms,
+    egress_bytes: resp.egress_bytes,
+    cookies: resp.cookies,
+    cookie_header: cookiesToHeaderValue(resp.cookies),
+    post_eval: resp.post_eval,
+  }, !!flags.pretty);
+}
 // ---------------------------------------------------------------------------
 // CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
@@ -2929,6 +2986,7 @@ async function main(): Promise<void> {
     case "dashboard": return cmdDashboard(flags);
     case "capture": return cmdCapture(flags);
     case "note": return cmdNote(flags, args);
+    case "sandbox-replay": return cmdSandboxReplay(args, flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
