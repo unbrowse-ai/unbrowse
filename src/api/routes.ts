@@ -237,6 +237,19 @@ function passiveIndexHar(
 }
 // ── Browse session state (module-level so orchestrator can register sessions) ──
 const browseSessions = new Map<string, BrowseSession>();
+const inspectedHarEntries = new Map<string, KuriHarEntry[]>();
+
+function rememberInspectedHarEntries(sessionId: string, entries: KuriHarEntry[]): void {
+  if (entries.length === 0) return;
+  const existing = inspectedHarEntries.get(sessionId) ?? [];
+  inspectedHarEntries.set(sessionId, [...existing, ...entries]);
+}
+
+function drainInspectedHarEntries(sessionId: string): KuriHarEntry[] {
+  const entries = inspectedHarEntries.get(sessionId) ?? [];
+  inspectedHarEntries.delete(sessionId);
+  return entries;
+}
 
 function browseBrokerPorts(): number[] {
   return Array.from({ length: BROWSE_BROKER_MAX }, (_, index) => BROWSE_BROKER_BASE_PORT + index);
@@ -592,8 +605,22 @@ export async function registerRoutes(app: FastifyInstance) {
       har_active: s.harActive,
       broker_port: s.brokerPort ?? null,
       streaming_publish_active: streamingWatchers.has(s.sessionId),
+      marketplace_publish: (() => {
+        const decision = decideCheckpointPublish(s.domain || profileName(s.url));
+        return {
+          enabled: decision.publishQueued,
+          mode: decision.mode,
+          reason: decision.reason,
+        };
+      })(),
+      suggested_commands: [
+        `unbrowse inspect --session ${s.sessionId} --pretty`,
+        `unbrowse resolve --intent "<task>" --url "${s.url}" --pretty`,
+        `unbrowse close --session ${s.sessionId}`,
+      ],
     }));
-    return reply.send({ sessions, count: sessions.length });
+    const latest = sessions[sessions.length - 1] ?? null;
+    return reply.send({ sessions, count: sessions.length, latest_session_id: latest?.session_id ?? null });
   });
 
   app.get("/v1/browse/sessions/:id/buffer", async (req, reply) => {
@@ -622,11 +649,30 @@ export async function registerRoutes(app: FastifyInstance) {
         const broker = brokerForSession(session);
         const stopResult = await broker.harStop(session.tabId);
         harEntries = stopResult.entries ?? [];
+        rememberInspectedHarEntries(session.sessionId, harEntries);
         try { await broker.harStart(session.tabId); } catch { /* ignore */ }
       } catch (err) {
         harError = err instanceof Error ? err.message : String(err);
       }
     }
+
+    const rawRequests = [
+      ...(Array.isArray(intercepted) ? intercepted : []),
+      ...harEntriesToRawRequests(harEntries, session.url),
+    ];
+    const candidateEndpoints = extractEndpoints(rawRequests as Parameters<typeof extractEndpoints>[0], undefined, {
+      pageUrl: session.url,
+      finalUrl: session.url,
+    }).slice(0, 10).map((endpoint) => ({
+      endpoint_id: endpoint.endpoint_id,
+      method: endpoint.method,
+      url_template: endpoint.url_template,
+      description: endpoint.description ?? generateLocalDescription(endpoint),
+      reliability_score: endpoint.reliability_score,
+      idempotency: endpoint.idempotency,
+      auth_token_count: endpoint.auth_tokens?.length ?? 0,
+    }));
+    const publishDecision = decideCheckpointPublish(session.domain || profileName(session.url));
 
     return reply.send({
       session: {
@@ -636,6 +682,11 @@ export async function registerRoutes(app: FastifyInstance) {
         domain: session.domain,
         har_active: session.harActive,
         streaming_publish_active: streamingWatchers.has(session.sessionId),
+        marketplace_publish: {
+          enabled: publishDecision.publishQueued,
+          mode: publishDecision.mode,
+          reason: publishDecision.reason,
+        },
       },
       intercepted_requests: intercepted,
       intercepted_count: Array.isArray(intercepted) ? intercepted.length : 0,
@@ -650,6 +701,25 @@ export async function registerRoutes(app: FastifyInstance) {
       har_count: harEntries.length,
       har_error: harError,
       total_captured: (Array.isArray(intercepted) ? intercepted.length : 0) + harEntries.length,
+      candidate_endpoints: candidateEndpoints,
+      candidate_endpoint_count: candidateEndpoints.length,
+      next_actions: [
+        {
+          title: "Resolve from captured evidence",
+          command: `unbrowse resolve --intent "<task>" --url "${session.url}" --pretty`,
+          why: "Runs the normal resolver after the current in-flight capture has been exposed.",
+        },
+        {
+          title: "Checkpoint and publish review material",
+          command: `unbrowse sync --session ${session.sessionId} --pretty`,
+          why: "Keeps the tab open and compiles current browser traffic into local skill evidence.",
+        },
+        {
+          title: "Close after judging",
+          command: `unbrowse close --session ${session.sessionId}`,
+          why: "Flushes final capture, saves auth, and stops the live tab.",
+        },
+      ],
     });
   });
   // GET /v1/trace/:trace_id — Harness #2: Retrieve execution trace with diagnostic context
@@ -1581,7 +1651,22 @@ export async function registerRoutes(app: FastifyInstance) {
 
   function sendBrowseSessionError(reply: { code: (statusCode: number) => { send: (body: unknown) => unknown } }, error: unknown): unknown {
     if (error instanceof BrowseSessionError) {
-      return reply.code(error.statusCode).send({ error: error.code });
+      const latestSession = Array.from(browseSessions.values()).at(-1);
+      return reply.code(error.statusCode).send({
+        error: error.code,
+        ...(latestSession ? { latest_session_id: latestSession.sessionId } : {}),
+        next_action: latestSession
+          ? {
+              title: "Retry with latest active session",
+              command: `unbrowse inspect --session ${latestSession.sessionId} --pretty`,
+              why: "A live session exists; inspect it or pass --session to the browser command.",
+            }
+          : {
+              title: "Open a browser session",
+              command: 'unbrowse go "<url>" --pretty',
+              why: "This command needs a live Kuri-backed browse session.",
+            },
+      });
     }
     if (isRecoverableBrowseFailure(error)) {
       return reply.code(502).send({
@@ -1645,6 +1730,7 @@ export async function registerRoutes(app: FastifyInstance) {
         try { await broker.harStart(session.tabId); } catch { /* ignore */ }
       } catch { /* non-fatal */ }
     }
+    harEntries = [...drainInspectedHarEntries(session.sessionId), ...harEntries];
 
     const allRequests = await enrichPassiveCaptureRequests({
       tabId: session.tabId,
@@ -1781,6 +1867,7 @@ export async function registerRoutes(app: FastifyInstance) {
       streamingWatchers.delete(sessionId);
     }
     streamingState.delete(sessionId);
+    inspectedHarEntries.delete(sessionId);
   }
 
   async function flushBrowseCapture(
@@ -1820,6 +1907,7 @@ export async function registerRoutes(app: FastifyInstance) {
         harEntries = entries;
       } catch { /* non-fatal */ }
     }
+    harEntries = [...drainInspectedHarEntries(session.sessionId), ...harEntries];
     session.harActive = false;
 
     const allRequests = await enrichPassiveCaptureRequests({
@@ -2105,6 +2193,7 @@ export async function registerRoutes(app: FastifyInstance) {
             streaming_publish_active: streamingWatchers.has(session.sessionId),
             attached_existing_chrome: result.attachedExistingChrome ?? false,
             chrome_debug_url: process.env.CHROME_DEBUG_URL ?? null,
+            inspect_command: `unbrowse inspect --session ${session.sessionId} --pretty`,
             inspect_buffer: `GET ${process.env.UNBROWSE_API_BASE ?? "http://127.0.0.1:6969"}/v1/browse/sessions/${session.sessionId}/buffer`,
             // Publish gating — tells the agent whether captures will reach the
             // shared marketplace. The user controls this via `unbrowse settings`

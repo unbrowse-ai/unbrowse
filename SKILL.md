@@ -292,7 +292,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
 | `upgrade` |  | Check latest release and print the right upgrade command |
-| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Returns ranked shortlist of endpoints for an intent. Pick one and call execute. (Two tool calls is the contract — autoexec is opt-in via --execute, not the default.) |
+| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Resolve an intent, auto-executing the top safe GET endpoint by default; pass --no-execute for metadata only |
 | `explain` | `--intent "..." --url "..." [--top N]` | Emit top-N candidate endpoints + evidence for an LLM judge to pick from (no heuristic verdict — primitives + agent judgment) |
 | `execute` | `--skill ID --endpoint ID [-p key=val ...] [--params '{json}'] [opts]` | Execute a specific endpoint. Pass replay params via repeated -p key=val flags or --params with a JSON object |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
@@ -307,6 +307,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `skill` | `<id>` | Get skill details |
 | `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
+| `inspect` | `[--session id] [--all]` | Inspect live browser capture evidence, candidate endpoints, and next actions |
 | `go` | `<url> [--session id]` | Open a fresh Kuri browser tab, or reuse explicit --session |
 | `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
 | `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
@@ -351,7 +352,8 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 
 | Flag | Description |
 |------|-------------|
-| `--execute` | Auto-execute the top trusted endpoint from resolve |
+| `--no-execute` | Resolve only; do not auto-execute safe GET endpoints |
+| `--execute` | Deprecated no-op alias; safe GET execution is now the default |
 | `--schema` | Show response schema + extraction hints only (no data) |
 | `--path "data.items[]"` | Drill into result before extract/output |
 | `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
