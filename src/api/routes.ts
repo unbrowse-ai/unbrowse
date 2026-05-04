@@ -14,7 +14,7 @@ import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";
-import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
+import { generateLocalDescription, writeSkillSnapshot, readSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
 import { getContributionConfig } from "../config/contribution.js";
@@ -578,6 +578,81 @@ export async function registerRoutes(app: FastifyInstance) {
     });
   });
 
+  // ── Admin endpoints (UNBROWSE_DEV=1) — for the autonomous-discovery harness.
+  // Expose in-flight session state so probes can inspect mid-session without
+  // close/sync. Off in production builds.
+  const adminEnabled = (): boolean => process.env.UNBROWSE_DEV === "1" || process.env.UNBROWSE_ADMIN === "1";
+
+  app.get("/v1/admin/sessions", async (_req, reply) => {
+    if (!adminEnabled()) return reply.code(404).send({ error: "not_found" });
+    const sessions = Array.from(browseSessions.values()).map((s) => ({
+      session_id: s.sessionId,
+      tab_id: s.tabId,
+      url: s.url,
+      domain: s.domain,
+      har_active: s.harActive,
+      broker_port: s.brokerPort ?? null,
+    }));
+    return reply.send({ sessions });
+  });
+
+  app.get("/v1/admin/sessions/:id/buffer", async (req, reply) => {
+    if (!adminEnabled()) return reply.code(404).send({ error: "not_found" });
+    const { id } = req.params as { id: string };
+    let session: BrowseSession | undefined;
+    for (const s of browseSessions.values()) {
+      if (s.sessionId === id || s.tabId === id) { session = s; break; }
+    }
+    if (!session) return reply.code(404).send({ error: "session_not_found", id });
+
+    let intercepted: unknown[] = [];
+    let interceptError: string | null = null;
+    try {
+      intercepted = await collectInterceptedRequests(session.tabId);
+    } catch (err) {
+      interceptError = err instanceof Error ? err.message : String(err);
+    }
+
+    // HAR snapshot: stop+restart trick. We lose ~100ms of capture between
+    // stop and restart, but mid-session inspection is otherwise impossible
+    // (Kuri's HAR API is start/stop only). Acceptable for harness use.
+    let harEntries: KuriHarEntry[] = [];
+    let harError: string | null = null;
+    if (session.harActive) {
+      try {
+        const broker = brokerForSession(session);
+        const stopResult = await broker.harStop(session.tabId);
+        harEntries = stopResult.entries ?? [];
+        // Immediately restart so capture continues after the snapshot
+        try { await broker.harStart(session.tabId); } catch { /* ignore */ }
+      } catch (err) {
+        harError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    return reply.send({
+      session: {
+        session_id: session.sessionId,
+        tab_id: session.tabId,
+        url: session.url,
+        domain: session.domain,
+        har_active: session.harActive,
+      },
+      intercepted_requests: intercepted,
+      intercepted_count: Array.isArray(intercepted) ? intercepted.length : 0,
+      intercept_error: interceptError,
+      har_entries: harEntries.map((e) => ({
+        url: e?.request?.url,
+        method: e?.request?.method,
+        status: e?.response?.status,
+        mime_type: e?.response?.content?.mimeType,
+        size: e?.response?.bodySize,
+      })),
+      har_count: harEntries.length,
+      har_error: harError,
+      total_captured: (Array.isArray(intercepted) ? intercepted.length : 0) + harEntries.length,
+    });
+  });
   // GET /v1/trace/:trace_id — Harness #2: Retrieve execution trace with diagnostic context
   app.get("/v1/trace/:trace_id", async (req, reply) => {
     const { trace_id } = req.params as { trace_id: string };
@@ -621,6 +696,33 @@ export async function registerRoutes(app: FastifyInstance) {
       budget_ms?: number;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
+
+    // ── Fix A: in-flight resolve ───────────────────────────────────────
+    // If there's an active browse session for the requested domain, snapshot
+    // its capture buffer first. This writes a fresh skill into domainSkillCache
+    // so resolveAndExecute's domain-cache check serves the in-flight data
+    // instead of falling through to live-capture. North Star: the agent
+    // doesn't need to call close/sync to see what's already in the buffer.
+    let inflightFlushResult: { skill_id: string | null; request_count: number; endpoint_count: number } | null = null;
+    if (context?.url && !force_capture) {
+      try {
+        const activeSession = findActiveSessionForDomain(context.url);
+        if (activeSession) {
+          const flushed = await lightFlushBrowseCapture(activeSession);
+          if (flushed.request_count > 0) {
+            inflightFlushResult = {
+              skill_id: flushed.skill_id,
+              request_count: flushed.request_count,
+              endpoint_count: flushed.endpoint_count,
+            };
+            console.log(`[in-flight-flush] session=${activeSession.sessionId.slice(0, 8)} domain=${flushed.domain} requests=${flushed.request_count} endpoints=${flushed.endpoint_count} skill=${flushed.skill_id?.slice(0, 15) ?? "none"}`);
+          }
+        }
+      } catch (err) {
+        console.warn(`[in-flight-flush] failed: ${(err as Error).message}`);
+      }
+    }
+
     try {
       const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, client_scope: clientScope, budget_ms });
 
@@ -657,6 +759,11 @@ export async function registerRoutes(app: FastifyInstance) {
         } catch {
           // Visual context unavailable — return without it
         }
+      }
+
+      // Surface in-flight flush result so harnesses can see Fix A fired
+      if (inflightFlushResult) {
+        (res as Record<string, unknown>).inflight_flush = inflightFlushResult;
       }
 
       return reply.send(res);
@@ -1518,6 +1625,165 @@ export async function registerRoutes(app: FastifyInstance) {
     session.harActive = true;
     await injectInterceptor(session.tabId).catch(() => {});
   }
+  // ── Fix A: in-flight light flush ─────────────────────────────────────
+  // Snapshot the active session's HAR + interceptor buffer and write the
+  // resulting skill into domainSkillCache, WITHOUT stopping HAR. The session
+  // stays alive and continues capturing. Resolve can then read the cache
+  // and serve the just-captured route without falling through to live-capture.
+  async function lightFlushBrowseCapture(session: BrowseSession): Promise<{
+    skill_id: string | null;
+    domain: string;
+    request_count: number;
+    endpoint_count: number;
+  }> {
+    let harEntries: KuriHarEntry[] = [];
+    if (session.harActive) {
+      try {
+        const broker = brokerForSession(session);
+        const stopResult = await broker.harStop(session.tabId);
+        harEntries = stopResult.entries ?? [];
+        // Immediately restart so capture continues
+        try { await broker.harStart(session.tabId); } catch { /* ignore */ }
+      } catch { /* non-fatal */ }
+    }
+
+    const allRequests = await enrichPassiveCaptureRequests({
+      tabId: session.tabId,
+      captureUrl: session.url,
+      harEntries,
+      intent: `browse ${session.domain || profileName(session.url)}`,
+    });
+
+    if (allRequests.length === 0) {
+      return { skill_id: null, domain: session.domain, request_count: 0, endpoint_count: 0 };
+    }
+
+    // Collect JS bundles for token source scanning (same as full flush)
+    const jsBundles = new Map<string, string>();
+    try {
+      const intercepted = await collectInterceptedRequests(session.tabId).catch(() => []);
+      for (const entry of intercepted) {
+        if (entry.is_js && entry.response_body && jsBundles.size < 20) {
+          jsBundles.set(entry.url, entry.response_body);
+        }
+      }
+    } catch { /* best-effort */ }
+
+    const syncResult = await cacheBrowseRequests({
+      sessionUrl: session.url,
+      sessionDomain: session.domain,
+      requests: allRequests,
+      getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
+      jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
+      intent: `browse ${session.domain || profileName(session.url)}`,
+    });
+
+    // Write domain skill cache so the orchestrator's domain-cache check finds it
+    if (syncResult.skill && syncResult.domain) {
+      const domainKey = getDomainReuseKey(session.url || syncResult.domain);
+      if (domainKey) {
+        const cacheKey = scopedCacheKey("local", `${domainKey}:${syncResult.skill.skill_id}`);
+        writeSkillSnapshot(cacheKey, syncResult.skill);
+        domainSkillCache.set(domainKey, {
+          skillId: syncResult.skill.skill_id,
+          localSkillPath: snapshotPathForCacheKey(cacheKey),
+          ts: Date.now(),
+        });
+        persistDomainCache();
+      }
+    }
+
+    return {
+      skill_id: syncResult.skill?.skill_id ?? null,
+      domain: syncResult.domain,
+      request_count: allRequests.length,
+      endpoint_count: syncResult.skill?.endpoints.length ?? 0,
+    };
+  }
+
+  // Find any active session whose domain matches the target URL.
+  // Returns the most recently-registered session (Map preserves insertion order).
+  function findActiveSessionForDomain(targetUrl: string): BrowseSession | null {
+    const targetDomain = getDomainReuseKey(targetUrl);
+    if (!targetDomain) return null;
+    let match: BrowseSession | null = null;
+    for (const session of browseSessions.values()) {
+      if (!session.harActive) continue;
+      const sessionDomain = getDomainReuseKey(session.url);
+      if (sessionDomain === targetDomain) match = session; // last match wins
+    }
+    return match;
+  }
+
+  // ── Fix B: streaming background publish per active session ────────────
+  // Per-session debounced timer that periodically light-flushes the capture
+  // buffer and queues a background index+publish. Cross-agent reuse no
+  // longer waits on close/sync — routes hit the marketplace within seconds
+  // of being captured.
+  const streamingWatchers = new Map<string, NodeJS.Timeout>();
+  const STREAMING_INTERVAL_MS = parseInt(process.env.UNBROWSE_STREAMING_INTERVAL_MS ?? "10000", 10);
+  const STREAMING_ENABLED = process.env.UNBROWSE_STREAMING_PUBLISH !== "0";
+  // Track last endpoint count per session so we only re-publish on growth.
+  const streamingState = new Map<string, { lastEndpointCount: number; lastSkillId: string | null }>();
+
+  function startStreamingWatcher(session: BrowseSession): void {
+    if (!STREAMING_ENABLED) return;
+    if (streamingWatchers.has(session.sessionId)) return; // idempotent
+    streamingState.set(session.sessionId, { lastEndpointCount: 0, lastSkillId: null });
+    const tick = async () => {
+      // Bail if session was removed while waiting
+      if (!browseSessions.has(session.sessionId)) {
+        stopStreamingWatcher(session.sessionId);
+        return;
+      }
+      const live = browseSessions.get(session.sessionId);
+      if (!live || !live.harActive) return;
+      try {
+        const flushed = await lightFlushBrowseCapture(live);
+        const state = streamingState.get(session.sessionId);
+        if (!state) return;
+        const grew = flushed.endpoint_count > state.lastEndpointCount
+          || (flushed.skill_id && flushed.skill_id !== state.lastSkillId);
+        if (grew && flushed.skill_id) {
+          state.lastEndpointCount = flushed.endpoint_count;
+          state.lastSkillId = flushed.skill_id;
+          // Read the skill we just cached and queue a background index+publish
+          const domainKey = getDomainReuseKey(live.url || flushed.domain);
+          const cacheEntry = domainKey ? domainSkillCache.get(domainKey) : null;
+          if (cacheEntry?.localSkillPath) {
+            const skill = readSkillSnapshot(cacheEntry.localSkillPath);
+            if (skill) {
+              const decision = decideCheckpointPublish(flushed.domain);
+              queueBackgroundIndex({
+                skill: { ...skill },
+                domain: flushed.domain,
+                intent: skill.intent_signature || `browse ${flushed.domain}`,
+                contextUrl: live.url,
+                cacheKey: `streaming:${flushed.domain}:${Date.now()}`,
+                publishAfterIndex: decision.publishQueued,
+              });
+              console.log(`[streaming-publish] session=${session.sessionId.slice(0, 8)} domain=${flushed.domain} endpoints=${flushed.endpoint_count} publish=${decision.publishQueued}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[streaming-publish] tick failed: ${(err as Error).message}`);
+      }
+    };
+    const timer = setInterval(() => { void tick(); }, STREAMING_INTERVAL_MS);
+    streamingWatchers.set(session.sessionId, timer);
+    console.log(`[streaming-publish] watcher started session=${session.sessionId.slice(0, 8)} interval=${STREAMING_INTERVAL_MS}ms`);
+  }
+
+  function stopStreamingWatcher(sessionId: string): void {
+    const timer = streamingWatchers.get(sessionId);
+    if (timer) {
+      clearInterval(timer);
+      streamingWatchers.delete(sessionId);
+    }
+    streamingState.delete(sessionId);
+  }
+
   async function flushBrowseCapture(
     session: BrowseSession,
     options: { queueIndex?: boolean; queuePublish?: boolean } = {},
@@ -1819,6 +2085,9 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       } catch { /* non-fatal */ }
 
+      // Fix B: kick off streaming background publish for this session
+      startStreamingWatcher(session);
+
       return reply.send({
         ok: true,
         session_id: session.sessionId,
@@ -1890,6 +2159,7 @@ export async function registerRoutes(app: FastifyInstance) {
       activeSession.domain = profileName(activeSession.url);
       const stillLive = await isBrowseSessionLive(activeSession, browseClient).catch(() => false);
       if (!stillLive) {
+        stopStreamingWatcher(activeSession.sessionId);
         removeBrowseSession(browseSessions, activeSession.sessionId);
         throw new BrowseSessionError("session_expired");
       }
@@ -2226,6 +2496,7 @@ export async function registerRoutes(app: FastifyInstance) {
             await saveAuthProfileBestEffort(session.tabId, session.domain, "browse_close");
           }
           const syncResult = await flushBrowseCapture(session, { queueIndex: true, queuePublish: true });
+          stopStreamingWatcher(session.sessionId);
           await broker.closeTab(session.tabId).catch(() => {});
           removeBrowseSession(browseSessions, session.sessionId);
           return syncResult;
