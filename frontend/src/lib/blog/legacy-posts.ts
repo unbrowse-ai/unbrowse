@@ -19,16 +19,6 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
     category: "Whitepaper",
   },
   {
-    slug: "shadow-apis-are-all-you-need",
-    title: "Shadow APIs Are All You Need",
-    description:
-      "Redirects to Internal APIs Are All You Need — the canonical paper page.",
-    canonicalPath: "/shadow-apis-are-all-you-need",
-    published_at: "2026-04-01",
-    author: "Lewis Tham",
-    category: "Whitepaper",
-  },
-  {
     slug: "browser-automation-is-dead",
     title: "Browser Automation Is Dead. Here's What Replaces It.",
     description:

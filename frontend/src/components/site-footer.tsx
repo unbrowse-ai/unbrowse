@@ -26,7 +26,7 @@ const DEVELOPER_LINKS: Array<{ href: string; label: string }> = [
 ];
 
 const RESOURCES_LINKS: Array<{ href: string; label: string }> = [
-  { href: "/shadow-apis-are-all-you-need", label: "Whitepaper" },
+  { href: "/internal-apis-are-all-you-need", label: "Whitepaper" },
   { href: "/papers", label: "Papers" },
   { href: "/blog", label: "Blog" },
   { href: "/faq", label: "FAQ" },
