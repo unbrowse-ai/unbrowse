@@ -1552,6 +1552,20 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     die(`Kuri unreachable at ${kuriBase}: ${(e as Error).message}. Run: submodules/kuri/zig-out/bin/kuri`);
   }
 
+  // Optional: pull cookies from user's real Chrome/Arc/Brave session for this domain.
+  let seedCookies: Array<{ name: string; value: string; domain: string; path: string; secure: boolean; httpOnly: boolean; sameSite: string; expires: number }> | undefined;
+  if (flags["use-browser-cookies"]) {
+    const { findBestBrowserSession } = await import("./auth/browser-cookies.js");
+    const host = (() => { try { return new URL(targetOrigin).hostname; } catch { return targetOrigin; } })();
+    const session = findBestBrowserSession(host);
+    if (session) {
+      seedCookies = session.cookies;
+      info(`[sandbox-replay] seeded ${session.cookies.length} cookies from ${session.browser} (${session.sessionCookies} httpOnly+secure)`);
+    } else {
+      info(`[sandbox-replay] --use-browser-cookies: no logged-in session found for ${host} across Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia/Chromium`);
+    }
+  }
+
   const resp = await runBundleReplay({
     targetOrigin,
     targetHref,
@@ -1561,6 +1575,7 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
     impersonate,
     postEval,
     timeoutMs,
+    seedCookies,
   }, { kuriBase: process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080" });
 
   output({
