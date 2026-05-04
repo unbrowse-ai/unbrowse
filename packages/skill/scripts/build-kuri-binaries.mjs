@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { chmodSync, cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -109,7 +109,10 @@ if (!hasBinary("zig")) {
   throw new Error(`Zig is required to build bundled Kuri binaries from ${sourceDir}`);
 }
 
-rmSync(vendorRoot, { recursive: true, force: true });
+// Don't nuke vendorRoot — CI may have pre-populated some platforms via
+// download-artifact (e.g. darwin-arm64 from the macos-latest job). Per-target
+// logic below will detect existing real binaries and use them.
+mkdirSync(vendorRoot, { recursive: true });
 mkdirSync(vendorRoot, { recursive: true });
 const sourceSha = readSourceSha(sourceDir);
 const manifest = {
@@ -131,6 +134,25 @@ for (const target of supportedTargets) {
   const outDir = path.join(vendorRoot, target.id);
   mkdirSync(outDir, { recursive: true });
   const outFile = path.join(outDir, target.bin);
+
+  // If a real binary is already present (e.g. CI download-artifact step
+  // dropped one in), skip building and just hash it for the manifest.
+  // "Real" = non-stub: > 100KB and not a shell script.
+  if (existsSync(outFile)) {
+    try {
+      const buf = readFileSync(outFile);
+      const isShellStub = buf.length < 1024 && buf.slice(0, 2).toString() === "#!";
+      if (!isShellStub && buf.length > 100 * 1024) {
+        manifest.binaries[target.id] = {
+          zig_target: target.zigTarget,
+          sha256: hashFile(outFile),
+          source: "pre-staged",
+        };
+        console.log(`[build-kuri] using pre-staged ${target.id} binary (${Math.round(buf.length / 1024)}KB)`);
+        continue;
+      }
+    } catch {}
+  }
 
   const prebuiltUrl = prebuiltAssets[target.id];
   if (prebuiltUrl) {

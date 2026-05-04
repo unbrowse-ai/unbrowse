@@ -160,7 +160,11 @@ async function api(method: string, path: string, body?: unknown, opts?: { timeou
 }
 
 function output(data: unknown, pretty = false): void {
-  process.stdout.write((pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data)) + "\n");
+  // Default to pretty when stdout is a TTY (human / agent reading interactively).
+  // Subprocess pipes get compact one-line JSON (easier to parse).
+  // Agents/CI can override either way via --pretty / --no-pretty.
+  const usePretty = pretty || (!!process.stdout.isTTY && process.env.UNBROWSE_NO_PRETTY !== "1");
+  process.stdout.write((usePretty ? JSON.stringify(data, null, 2) : JSON.stringify(data)) + "\n");
 }
 
 function die(msg: string): never {
@@ -170,6 +174,67 @@ function die(msg: string): never {
 
 function info(msg: string): void {
   process.stderr.write(`[unbrowse] ${msg}\n`);
+}
+
+/// Health-check Kuri at $KURI_BASE_URL. If down, auto-spawn from
+/// submodules/kuri/zig-out/bin/kuri (dev) or vendored npm path.
+/// Polls until ready or 8s elapsed. die()s on failure with actionable error.
+/// Health-check Kuri at $KURI_BASE_URL. If down, auto-spawn from
+/// submodules/kuri/zig-out/bin/kuri (dev) or vendored npm path.
+/// Polls until ready or 25s elapsed (Chrome cold-start can take ~10s).
+async function ensureKuriReachable(kuriBase: string): Promise<void> {
+  const probeOnce = async () => {
+    try {
+      const h = await fetch(`${kuriBase}/health`, { signal: AbortSignal.timeout(800) });
+      return h.ok;
+    } catch { return false; }
+  };
+  if (await probeOnce()) return;
+
+  const { spawn } = await import("node:child_process");
+  const { existsSync, openSync } = await import("node:fs");
+  const { join, dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+
+  const candidates = [
+    process.env.UNBROWSE_KURI_BIN,
+    join(process.cwd(), "submodules/kuri/zig-out/bin/kuri"),
+    join(dirname(fileURLToPath(import.meta.url)), "../packages/skill/vendor/kuri/darwin-arm64/kuri"),
+    join(dirname(fileURLToPath(import.meta.url)), "../packages/skill/vendor/kuri/linux-x64/kuri"),
+    "/opt/homebrew/bin/kuri",
+    "/usr/local/bin/kuri",
+  ].filter((p): p is string => !!p && existsSync(p));
+
+  if (candidates.length === 0) {
+    die(`Kuri unreachable at ${kuriBase} and no kuri binary found in standard paths. Set UNBROWSE_KURI_BIN, or run: submodules/kuri/zig-out/bin/kuri`);
+  }
+
+  const kuriBin = candidates[0];
+  // Derive expected port from kuriBase URL so we override Kuri's $PORT
+  // env var (Kuri reads PORT, defaults 8080, but Lewis's shell exports
+  // PORT=6969 for unbrowse server collision).
+  const expectedPort = (() => {
+    try { const u = new URL(kuriBase); return u.port || "8080"; } catch { return "8080"; }
+  })();
+  info(`auto-spawning kuri from ${kuriBin} (port ${expectedPort}, logs: /tmp/kuri.log)`);
+  const logFd = openSync("/tmp/kuri.log", "a");
+  const child = spawn(kuriBin, [], {
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+    env: { ...process.env, PORT: expectedPort, HOST: "127.0.0.1" },
+  });
+  child.unref();
+
+  // Poll until ready. Chrome cold-start can take ~10s on macOS.
+  const deadline = Date.now() + 25_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 500));
+    if (await probeOnce()) {
+      info(`kuri ready at ${kuriBase}`);
+      return;
+    }
+  }
+  die(`auto-spawned kuri but it didn't become ready at ${kuriBase} within 25s. Check: tail /tmp/kuri.log`);
 }
 
 function openUrl(url: string): void {
@@ -1531,7 +1596,7 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
   const postEval = (flags["post-eval"] as string) ?? (flags.eval as string);
   const fingerprint = (flags.fingerprint as string) ?? "chrome_mac_arm";
   const impersonate = (flags.impersonate as string) ?? "chrome131";
-  const timeoutMs = flags["timeout-ms"] ? Number(flags["timeout-ms"]) : 5000;
+  const timeoutMs = flags["timeout-ms"] ? Number(flags["timeout-ms"]) : 30_000;
 
   // Read inline source from stdin if `--bundle-source -`
   if (bundleSource === "-" || flags["stdin"]) {
@@ -1543,26 +1608,26 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
   if (!targetOrigin) die("usage: unbrowse sandbox-replay --target-origin <url> [--target-href <url>] (--bundle-url <url> | --bundle-source <js|->) [--post-eval <expr>]");
   if (!bundleUrl && !bundleSource) die("--bundle-url or --bundle-source required");
 
-  // Sandbox is served by Kuri (default port 8080). Health-check before sending.
+  // Sandbox is served by Kuri (default port 8080). Health-check + auto-spawn
+  // if not running. Eliminates the "Kuri unreachable... run binary" footgun
+  // for agents.
   const kuriBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
-  try {
-    const h = await fetch(`${kuriBase}/health`, { signal: AbortSignal.timeout(2000) });
-    if (!h.ok) die(`Kuri health check failed (HTTP ${h.status}). Start kuri first.`);
-  } catch (e) {
-    die(`Kuri unreachable at ${kuriBase}: ${(e as Error).message}. Run: submodules/kuri/zig-out/bin/kuri`);
-  }
-
-  // Optional: pull cookies from user's real Chrome/Arc/Brave session for this domain.
+  await ensureKuriReachable(kuriBase);
+  // Pull cookies from user's real Chrome/Arc/Brave/etc. session for this
+  // domain by default. Opt out with --no-browser-cookies. The cookies stay
+  // local — they're already accessible to any process running as this user,
+  // and never leave the local machine.
   let seedCookies: Array<{ name: string; value: string; domain: string; path: string; secure: boolean; httpOnly: boolean; sameSite: string; expires: number }> | undefined;
-  if (flags["use-browser-cookies"]) {
+  const useBrowserCookies = flags["no-browser-cookies"] !== true && flags["browser-cookies"] !== "off";
+  if (useBrowserCookies) {
     const { findBestBrowserSession } = await import("./auth/browser-cookies.js");
     const host = (() => { try { return new URL(targetOrigin).hostname; } catch { return targetOrigin; } })();
     const session = findBestBrowserSession(host);
     if (session) {
       seedCookies = session.cookies;
-      info(`[sandbox-replay] seeded ${session.cookies.length} cookies from ${session.browser} (${session.sessionCookies} httpOnly+secure)`);
+      info(`[sandbox-replay] seeded ${session.cookies.length} cookies from ${session.browser} (${session.sessionCookies} httpOnly+secure) — pass --no-browser-cookies to skip`);
     } else {
-      info(`[sandbox-replay] --use-browser-cookies: no logged-in session found for ${host} across Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia/Chromium`);
+      info(`[sandbox-replay] no logged-in browser session for ${host} (scanned Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia/Chromium)`);
     }
   }
 
@@ -1642,7 +1707,7 @@ export const CLI_REFERENCE = {
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode (private / share / share + earn)" },
     { name: "capture", usage: "--url <url> --intent <intent>", desc: "Live-browser capture for a single URL — discovers + indexes API endpoints. Marketplace publish gated by `unbrowse mode`." },
     { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Read/write per-domain LLM-prose notes consumed by augment on next capture. Agent populates after reading capture's note_evidence." },
-    { name: "sandbox-replay", usage: "--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--use-browser-cookies]", desc: "Run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime (QuickJS + statically-linked libcurl-impersonate, real Chrome 131 JA4). Returns harvested cookies + optional postEval result. --use-browser-cookies seeds the jar from the user's Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session." },
+    { name: "sandbox-replay", usage: "--target-origin <url> [--target-href <url>] [--bundle-url <url> | --bundle-source <js|->] [--post-eval <expr>] [--no-browser-cookies]", desc: "Run an anti-bot / signed-URL / HMAC bundle in Kuri's sandboxed JS runtime (QuickJS + statically-linked libcurl-impersonate, real Chrome 131 JA4). Returns harvested cookies + optional postEval result. By default seeds the jar from the user's Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia session for the target domain — pass --no-browser-cookies to skip." },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },

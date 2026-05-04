@@ -148,8 +148,6 @@ jobs:
           bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
       - run: bun run check:skill-docs
-      - name: Build Kuri vendor binaries
-        run: node packages/skill/scripts/build-kuri-binaries.mjs
       - name: Download darwin-arm64 kuri artifact
         uses: actions/download-artifact@v4
         with:
@@ -157,6 +155,8 @@ jobs:
           path: packages/skill/vendor/kuri/darwin-arm64
       - name: Make downloaded kuri binary executable
         run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri
+      - name: Build Kuri vendor binaries (uses pre-staged artifacts where present)
+        run: node packages/skill/scripts/build-kuri-binaries.mjs
       - run: bun run check:kuri-vendor
         name: Check baked Kuri vendor state
       - name: Leak guard — block sensitive ops names from public artifacts
