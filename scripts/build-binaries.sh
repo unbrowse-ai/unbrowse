@@ -18,6 +18,13 @@ VERSION_TAG="${UNBROWSE_RELEASE_TAG:-v$(grep -m1 '"version"' "$ROOT_DIR/package.
 mkdir -p "$DIST_DIR"
 eval "$(bun "$ROOT_DIR/scripts/build-release-manifest.ts" --shell-env)"
 
+# Ensure vendored kuri binaries exist for all 4 targets before bun bundles
+# them in via `with { type: "file" }` imports. Targets that can't be
+# cross-compiled from this host get a placeholder stub so the bundling step
+# resolves; users on those platforms see a clear error at runtime.
+echo "[build] ensuring kuri vendor binaries (build-kuri-binaries.mjs)"
+node "$ROOT_DIR/packages/skill/scripts/build-kuri-binaries.mjs"
+
 build_target() {
   local target="$1" # e.g. darwin-arm64, win-x64
   local ext=""
