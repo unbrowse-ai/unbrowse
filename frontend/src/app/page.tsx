@@ -7,6 +7,7 @@ import { RegistryShowcase } from "@/components/registry-showcase";
 import { ScrollToButton } from "@/components/full-page-scroll";
 import { FlowingDotField } from "@/components/flowing-dot-field";
 import { HeroHands } from "@/components/hero-hands";
+import { HeroTerminal } from "@/components/hero-terminal";
 import { InstallFigure } from "@/components/install-figure";
 import { DemoParallax } from "@/components/demo-parallax";
 import { MobileNav } from "@/components/mobile-nav";
@@ -267,6 +268,8 @@ export default function Home() {
             </div>
           </div>
 
+          <HeroTerminal />
+
         </div>
 
         <HeroHands />
@@ -303,19 +306,21 @@ export default function Home() {
           <InstallFigure />
         </div>
 
-        {/* Works seamlessly — normal flow below the card */}
+        {/* Plugs into agent stack — normal flow below the card */}
         <div className="w-full max-w-4xl mt-6 max-sm:flex max-sm:justify-center sm:flex">
           <div
             className="inline-flex flex-col gap-3 px-6 py-4 rounded-sm max-sm:items-center"
             style={{ background: 'rgba(6,4,2,0.82)', border: '1px solid rgba(255,122,32,0.18)' }}
           >
-            <p className="text-xs font-mono font-medium text-[rgba(255,122,32,0.45)] uppercase tracking-[0.2em] max-sm:text-center">Works seamlessly with</p>
-            <div className="flex flex-wrap max-sm:justify-center items-center gap-5 text-[rgba(255,176,96,0.7)] sm:whitespace-nowrap">
+            <p className="text-xs font-mono font-medium text-[rgba(255,122,32,0.45)] uppercase tracking-[0.2em] max-sm:text-center">Plugs into the agent stack you already use</p>
+            <div className="flex flex-wrap max-sm:justify-center items-center gap-x-5 gap-y-2 text-[rgba(255,176,96,0.7)] sm:whitespace-nowrap">
               <span className="text-sm font-mono tracking-tight">Claude Code</span>
+              <span className="text-sm font-mono tracking-tight">Claude Desktop</span>
               <span className="text-sm font-mono tracking-tight">Cursor</span>
+              <span className="text-sm font-mono tracking-tight">Codex</span>
               <span className="text-sm font-mono tracking-tight">Windsurf</span>
               <span className="text-sm font-mono tracking-tight">OpenClaw</span>
-              <span className="text-sm font-mono tracking-tight">Any Skill Agent</span>
+              <span className="text-sm font-mono tracking-tight">Any MCP framework</span>
             </div>
           </div>
         </div>
