@@ -252,8 +252,8 @@ Do not use `resolve` as the first validation step for a just-closed live browse 
 
 ```bash
 unbrowse resolve \
-  --intent "get my X timeline" \
-  --url "https://x.com/home" \
+  --intent "get account activity" \
+  --url "https://app.example.com/activity" \
   --pretty
 
 unbrowse execute \
@@ -283,8 +283,8 @@ If the user does not want automatic ownership claims on captured domains, config
 
 ```bash
 unbrowse settings --auto-publish off
-unbrowse settings --publish-blacklist "linkedin.com,x.com"
-unbrowse settings --publish-promptlist "github.com"
+unbrowse settings --publish-blacklist "private.example.com,internal.example.org"
+unbrowse settings --publish-promptlist "review.example.com"
 ```
 
 Those rules only affect automatic publish after `sync` / `close`. Local `index` still works. Explicit `publish` remains available with `--confirm-publish` on guarded domains.
@@ -358,74 +358,86 @@ That is a debug path only. Normal agent use should stay on the Unbrowse CLI surf
 
 **Auto-generated from `src/cli.ts CLI_REFERENCE` — do not edit manually. Run `bun scripts/sync-skill-md.ts` to sync.**
 
+### CLI-enforced path policy
+
+- **URL extraction starts with fetch**: For tasks like grab/extract/read this URL, run health/version checks, then `unbrowse fetch <url>` or `unbrowse fetch <url> --raw` before opening a browser session.
+- **Browser is escalation**: `go`/`eval`/`snap` are for forms, login, multi-step UI, or hydration-only content after fetch/cache paths fail.
+- **Timebox failed primitives**: If browser eval stalls or returns `recoverable_browse_failure`, stop retrying it; inspect raw fetch artifacts and logs, then switch path.
+- **Auth asks need proof**: Before asking the user to log in, check browser sessions/cookies and prove fetch/cache paths cannot access the target content.
+
 ### Commands
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `health` |  | Server health check |
-| `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
-| `resolve` | `--intent "..." [--domain "..."] [--url "..."] [opts]` | Search cached indexed/published routes and optionally execute the top trusted endpoint |
-| `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
-| `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
-| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/schema metadata back to a captured skill before publish |
-| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Re-index locally, inspect publish-review metadata, then publish/share from cached skill state |
-| `settings` | `[--auto-publish on|off] [--publish-blacklist domains] [--publish-promptlist domains]` | Show or update local capture/publish policy settings |
-| `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state only |
-| `login` | `--url "..."` | Interactive browser login |
-| `skills` |  | List all skills |
-| `skill` | `<id>` | Get skill details |
-| `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
-| `sessions` | `--domain "..." [--limit N]` | Debug session logs |
-| `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
-| `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
-| `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
-| `fill` | `[--session id] <ref> <value>` | Fill input by ref |
-| `type` | `<text>` | Type text with key events |
-| `press` | `<key>` | Press key (Enter, Tab, Escape) |
-| `select` | `<ref> <value>` | Select option by ref |
-| `scroll` | `[up|down|left|right]` | Scroll the page |
-| `screenshot` | `[--session id]` | Capture screenshot (base64 PNG) |
-| `text` | `[--session id]` | Get page text content |
-| `markdown` | `[--session id]` | Get page as Markdown |
-| `cookies` | `[--session id]` | Get page cookies |
-| `eval` | `[--session id] <expression>` | Evaluate JavaScript |
-| `back` | `[--session id]` | Navigate back |
-| `forward` | `[--session id]` | Navigate forward |
-| `sync` | `[--session id]` | Checkpoint current capture, keep tab open, queue background index + publish, then inspect via skill/publish review |
-| `close` | `[--session id]` | Checkpoint capture, queue background index + publish, close browse session, then inspect via skill/publish review |
+| `run` | `<url-or-domain> "intent" [-p key=val]` | Default agent path. Resolve + execute + repair internally, then return only data or required next input. Advanced/debug details require --debug. |
+| `setup` | `[--opencode auto|global|project|off] [--no-start] [--skip-browser]` | Bootstrap browser engine + write the /unbrowse Open Code command. Run once on install. Idempotent. |
+| `upgrade` |  | Print the right upgrade command (npm i -g unbrowse@latest or @preview). |
+| `health` |  | Quick local server health check. Returns version + uptime. |
+| `doctor` |  | Human-friendly runtime/server status. Alias for status. |
+| `warm` | `[--port N] [--no-discover]` | Start the native Kuri broker and attach/discover tabs before browse-heavy work. |
+| `mcp` | `[--no-auto-start]` | Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use. |
+| `account` | `[--register] [--email user@example.com] [--reset-key] [--json]` | Show local account, wallet, and contribution mode. --register mints a new key (replaces old `register` command). |
+| `mode` |  | Re-prompt for contribution mode: private / share / share + earn (changes whether captured skills go to the marketplace). |
+| `dashboard` | `[--no-open]` | Open the website dashboard and pair this CLI install through localhost. |
+| `settings` | `[--auto-publish on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]` | Show or update local capture/publish policy (per-domain allow/block lists). |
+| `fetch` | `<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]` | PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser. |
+| `resolve` | `--intent "..." [--url "..."] [--domain "..."] [--no-execute]` | Resolve an intent against the marketplace + local cache. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only. Pair with `unbrowse execute` when you want explicit endpoint pick. |
+| `execute` | `--skill ID --endpoint ID [-p key=val ...] [--params '{json}']` | Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object. |
+| `explain` | `--intent "..." --url "..." [--top N]` | Print top-N candidate endpoints + evidence so an LLM (or you) can pick. No heuristic verdict — just primitives + evidence. |
+| `capture` | `--url <url> --intent <intent> [--retries N]  |  --corpus <file> --out <file> [--retries N]` | Live-browser HAR capture; discovers + indexes API endpoints. --retries keeps the best result across N attempts. --corpus runs over a JSON file of cases. Marketplace publish gated by `unbrowse mode`. |
+| `auth-capture` | `--url "..."` | Open a Kuri tab so you can sign in to a site; cookies persist for future fetch/resolve. (Old name: `login`.) |
+| `note` | `<read|write|list> --domain <domain> [--body "..."]` | Per-domain LLM-prose notes consumed by augment on next capture. Populate after reading capture's note_evidence. |
+| `test` | `--cases <file.json> [--out <results.json>]` | Run test suites against skills from a JSON test cases file. |
+| `validate` | `--skill <id> [--endpoint <id>]` | Validate a skill or specific endpoint against live endpoints. |
+| `skills` |  | List all locally-cached skills (skill_id, domain, endpoint count). |
+| `skill` | `<id>` | Get full SkillManifest for one skill (intent, endpoints, schemas). |
+| `feedback` | `--skill ID --endpoint ID --rating 1-5` | Optional quality signal after endpoint results (5=right+fast, 1=useless). |
+| `annotate` | `--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:msg']` | Contribute best practices, constraints, or gotchas for an endpoint. |
+| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/schema metadata back to a captured skill before publish. |
+| `index` | `--skill ID` | Recompute local graph/contracts/export from cached skill state. Cheap; doesn't hit the network. |
+| `publish` | `--skill ID [--confirm-publish] [--endpoints '[...]']` | Publish reviewed skill to the marketplace. Re-indexes locally first; --confirm-publish bypasses the safety prompt. |
+| `publish-bundle` | `--preset path [--hosts codex,claude,openclaw] [--site-url url]` | Derive foundry bundle/share/host artifacts from one preset and write the public share manifest. |
+| `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills against live endpoints and evict stale cached entries. |
+| `go` | `<url> [--session id]` | Open a fresh Kuri browser tab (or reuse via --session). Step 1 of any browse session. |
+| `eval` | `[--session id] <expression> [--raw-eval]` | Run JS in the page. Helpers auto-loaded: `click('button.go')`, `fill('input[name=q]', 'foo')`, `waitFor('.results')`, `waitForHydration()`, `getMarkdown()`, `getText()`, `getCookies()`, `press('Enter')`, `selectOption(sel, val)`, `back()`, `forward()`, `scrollTo(x,y)`, `scrollBy(x,y)`, `$/$$` (querySelector). Override at ~/.unbrowse/helpers.js. --raw-eval to skip helpers. |
+| `sync` | `[--session id]` | Checkpoint capture, keep tab open, queue background index + publish. |
+| `close` | `[--session id]` | Final checkpoint, queue background index + publish, close session. End-of-flow. |
+| `inspect` | `[--session id] [--all]` | Inspect live capture evidence, candidate endpoints, and next actions for the active session. |
+| `sessions` | `--domain "..." [--limit N]` | List recent session logs for a domain (debug). |
+| `stats` | `[--flywheel | --earnings] [--json]` | Lifetime time/tokens/cost saved + marketplace earnings. --flywheel for funnel/index health view, --earnings for credits view. (Replaces separate `flywheel` and `earnings` commands.) |
 
 ### Global flags
 
 | Flag | Description |
 |------|-------------|
-| `--pretty` | Indented JSON output |
-| `--no-auto-start` | Don't auto-start server |
-| `--raw` | Return raw response data (skip server-side projection) |
-| `--skip-browser` | setup: skip browser-engine install |
-| `--opencode auto|global|project|off` | setup: install /unbrowse command for Open Code |
+| `--pretty` | Pretty-print JSON output (indented). |
+| `--no-auto-start` | Don't auto-spawn the local server if it's down. |
+| `--raw` | Skip post-processing. On fetch: keep HTML/JSON bytes (no markdown). On resolve/execute: skip server-side projection. |
+| `--skip-browser` | setup: skip browser-engine install. |
+| `--opencode auto|global|project|off` | setup: install /unbrowse command for Open Code. |
 
 ### resolve/execute flags
 
 | Flag | Description |
 |------|-------------|
-| `--execute` | Auto-execute the top trusted endpoint from resolve |
-| `--schema` | Show response schema + extraction hints only (no data) |
-| `--path "data.items[]"` | Drill into result before extract/output |
-| `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
-| `--limit N` | Cap array output to N items |
-| `--endpoint-id ID` | Pick a specific endpoint |
-| `--dry-run` | Preview mutations |
-| `--params '{...}'` | Extra params as JSON |
+| `--no-execute` | Resolve only; return shortlist without auto-executing. |
+| `--schema` | Show response schema + extraction hints (no data). |
+| `--path "data.items[]"` | Drill into the result before extract/output. |
+| `--extract "field1,alias:deep.path"` | Pick specific fields (no piping). |
+| `--limit N` | Cap array output to N items. |
+| `--endpoint ID` | Pick a specific endpoint by ID. (Alias: --endpoint-id.) |
+| `--dry-run` | Preview mutations without applying. |
+| `--params '{...}'` | Extra params as JSON. |
+| `-p key=val` | Single param via repeated flag (alternative to --params JSON). |
 <!-- CLI_REFERENCE_END -->
 
 ### Examples
 
 ```bash
-# Resolve: see what endpoints X.com has for timeline
-unbrowse resolve --intent "get my X timeline" --url "https://x.com/home" --pretty
+# Resolve: see what indexed endpoints exist for an activity feed
+unbrowse resolve --intent "get account activity" --url "https://app.example.com/activity" --pretty
 
-# Execute: call the HomeTimeline GraphQL endpoint
+# Execute: call the selected endpoint
 unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 
 # Submit feedback after presenting results
@@ -465,9 +477,9 @@ All traffic is passively captured during the browse session. `sync` and `close` 
 - If a later page falls back to `abandonedCart`, `session_expired`, wrong audience, or wrong product, resume from the last known good upstream page and walk forward again.
 - Use `sync` after successful transitions so the checkpointed capture queues the background `index -> publish` pipeline and future resolve/execute runs inherit the working dependency chain instead of only the terminal page.
 
-**If auth is needed**, run login explicitly:
+**If auth is needed**, capture the site's login state explicitly:
 ```bash
-unbrowse login --url "https://example.com/login"
+unbrowse auth-capture --url "https://example.com/login"
 ```
 
 ## Best Practices
@@ -476,24 +488,24 @@ unbrowse login --url "https://example.com/login"
 
 This is the standard flow for already indexed/published contracts, not for a just-finished live capture.
 
-Most real domains (X, LinkedIn, Reddit, GitHub, etc.) have multiple endpoints. Resolve returns a deferred list — you pick the right endpoint, then execute.
+Most real domains have multiple endpoints. Resolve returns a deferred list — you pick the right endpoint, then execute.
 
 ```bash
 # Step 1: resolve — see what's available
-unbrowse resolve --intent "get my X timeline" --url "https://x.com/home" --pretty
+unbrowse resolve --intent "get account activity" --url "https://app.example.com/activity" --pretty
 
 # Step 2: execute — call the endpoint you picked
 unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 ```
 
-**How to pick:** Match `action_kind` to your intent (`timeline`, `list`, `detail`, `search`). Prefer `dom_extraction: false` (real API) over `true` (page scrape). Check the `url` for recognizable API paths (e.g. `HomeTimeline`, `UserTweets`).
+**How to pick:** Match `action_kind` to your intent (`timeline`, `list`, `detail`, `search`). Prefer `dom_extraction: false` (real API) over `true` (page scrape). Check the `url`, response schema, sample values, and required params for the contract that actually matches the task.
 
 ### Domain skills have many endpoints — use resolve or description matching
 
-After domain convergence, a single skill (e.g. `linkedin.com`) may have 40+ endpoints. Filter by intent:
+After domain convergence, a single skill may have 40+ endpoints. Filter by intent:
 
 ```bash
-unbrowse resolve --intent "get my notifications" --domain "www.linkedin.com" --pretty
+unbrowse resolve --intent "get notifications" --domain "app.example.com" --pretty
 ```
 
 Or filter `available_endpoints` by `action_kind`, URL pattern, or description in the resolve response.
@@ -510,7 +522,7 @@ Or filter `available_endpoints` by `action_kind`, URL pattern, or description in
 If `auth_required` is returned:
 
 ```bash
-unbrowse login --url "https://example.com/login"
+unbrowse auth-capture --url "https://example.com/login"
 ```
 
 User completes login in the browser window. Cookies are stored and reused automatically.
@@ -520,7 +532,7 @@ User completes login in the browser window. Cookies are stored and reused automa
 ```bash
 unbrowse skills                                    # List all skills
 unbrowse skill {id}                                # Get skill details
-unbrowse sessions --domain "linkedin.com"          # Debug session logs
+unbrowse sessions --domain "app.example.com"       # Debug session logs
 unbrowse health                                    # Server health check
 ```
 
@@ -715,7 +727,7 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 
 1. **Always use the CLI** — never pipe to `node -e`, `python -c`, or `jq`. Use `--path`/`--extract`/`--limit` instead.
 2. Always try `resolve` first — it is the single public routing primitive and should stay fast
-3. **Don't blindly trust auto-extraction** — for normalized APIs (LinkedIn, Facebook) auto-extraction often grabs wrong fields from mixed-type arrays. If you know the domain's extraction pattern (see Examples), use `--extract` directly. If auto-extraction fires, validate the result — mostly-null rows mean it picked the wrong fields.
+3. **Don't blindly trust auto-extraction** — for normalized APIs, auto-extraction can grab wrong fields from mixed-type arrays. If you know the response shape, use `--extract` directly. If auto-extraction fires, validate the result — mostly-null rows mean it picked the wrong fields.
 4. **NEVER guess paths by trial-and-error** — use `--schema` to see the full response structure, or read `_auto_extracted.all_fields` / `extraction_hints.schema_tree`
 5. Use `--raw` if you need the unprocessed full response
 6. Check the result — if wrong endpoint, pick from `available_endpoints` and re-execute with `--endpoint`
@@ -792,24 +804,23 @@ When a site consistently fails to index (no endpoints captured, only DOM fallbac
 Example:
 ```bash
 gh issue create --repo unbrowse-ai/unbrowse \
-  --title "site: linkedin.com — Voyager API not captured during browse" \
+  --title "site: app.example.com — API route not captured during browse" \
   --label "site-support" \
   --body "## What happened
-Browse session on linkedin.com/feed captures zero API endpoints.
-The Voyager GraphQL API uses POST with large JSON bodies that
-extractEndpoints filters out.
+Browse session on app.example.com/activity captures zero API endpoints.
+The relevant data route appears after interaction but is not retained in the capture.
 
 ## Steps to reproduce
-1. unbrowse go https://www.linkedin.com/feed
+1. unbrowse go https://app.example.com/activity
 2. unbrowse close
-3. unbrowse resolve --intent 'get feed posts' --url https://www.linkedin.com/feed
-4. Result: only DOM extraction endpoint, no Voyager API
+3. unbrowse resolve --intent 'get activity feed entries' --url https://app.example.com/activity
+4. Result: only DOM extraction endpoint, no structured API route
 
 ## Context
-- Domain: linkedin.com
+- Domain: app.example.com
 - SPA: Yes (React)
-- API type: GraphQL POST to /voyager/api/graphql
-- Auth: li_at cookie + csrf-token header from JSESSIONID
+- API type: GraphQL POST
+- Auth: browser session cookie + csrf-token header
 - Anti-bot: None observed with cookie injection
 - Unbrowse version: 2.9.1"
 ```
