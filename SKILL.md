@@ -131,7 +131,7 @@ Browser-only escalation (forms, multi-step UI, content that hydrates client-side
 
 | Flag | Description |
 |------|-------------|
-| `--no-execute` | Resolve only; return shortlist without auto-executing. |
+| `--execute` | Auto-execute the top-ranked candidate after resolve. Default OFF: resolve returns the ranked shortlist and the agent's LLM picks one. Pinning a specific --endpoint also counts as an explicit pick. |
 | `--schema` | Show response schema + extraction hints (no data). |
 | `--path "data.items[]"` | Drill into the result before extract/output. |
 | `--extract "field1,alias:deep.path"` | Pick specific fields (no piping). |
