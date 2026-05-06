@@ -105,17 +105,17 @@ export default function PrivacyPage() {
         {/* Opt out */}
         <Section title="Opting out">
           <p>
-            You can disable telemetry at any time:
+            You can disable remote sharing and checkpoint auto-publish at any time:
           </p>
           <div className="bg-surface-raised border border-border rounded-xl p-4 font-mono text-sm text-text-secondary">
             <code>unbrowse config set telemetry false</code>
           </div>
           <p>
-            You can also run unbrowse in local-only mode, which skips indexing to the shared
-            registry entirely. Skills you discover stay on your machine.
+            You can also set Unbrowse to private mode. New captures stay on your machine unless
+            you explicitly publish them later.
           </p>
           <div className="bg-surface-raised border border-border rounded-xl p-4 font-mono text-sm text-text-secondary">
-            <code>unbrowse --local-only jup.ag</code>
+            <code>unbrowse mode</code>
           </div>
         </Section>
 

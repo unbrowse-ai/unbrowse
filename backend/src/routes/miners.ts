@@ -6,6 +6,7 @@ import { getPerf } from "../services/perf.js";
 import { buildLeaderboard } from "../services/economics.js";
 import { buildMinerDemandBoard } from "../services/miner-demand.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
+import { isMarketplaceDomainSuppressed } from "../services/domain-suppression.js";
 
 export const publicMinerRoutes = new Hono<{ Bindings: Env }>();
 
@@ -32,7 +33,7 @@ publicMinerRoutes.get("/miners/stats", async (c) => {
           lifecycle?: string;
           updated_at?: string;
         };
-        if (s.lifecycle === "deprecated" || s.lifecycle === "disabled") continue;
+        if (s.lifecycle === "deprecated" || s.lifecycle === "disabled" || isMarketplaceDomainSuppressed(c.env, s.domain)) continue;
         totalSkills++;
         const epCount = s.endpoints?.length ?? 0;
         totalEndpoints += epCount;

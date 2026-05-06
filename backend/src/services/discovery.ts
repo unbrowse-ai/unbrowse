@@ -1,6 +1,7 @@
 import type { Env } from "../types.js";
 import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
 import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
+import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
 
 const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
@@ -18,6 +19,31 @@ export interface ResolvedSearchResult {
   domain_results: SearchResult;
   global_results: SearchResult;
   skipped_global: boolean;
+}
+
+function resultDomain(result: { metadata: Record<string, unknown> }): string | null {
+  const direct = result.metadata.source_url;
+  if (typeof direct === "string" && direct) return direct;
+  const content = result.metadata.content;
+  if (typeof content !== "string") return null;
+  try {
+    const parsed = JSON.parse(content) as { domain?: unknown };
+    return typeof parsed.domain === "string" ? parsed.domain : null;
+  } catch {
+    return null;
+  }
+}
+
+function filterSuppressedSearchResults(env: Env, results: SearchResult): SearchResult {
+  return results.filter((result) => !isMarketplaceDomainSuppressed(env, resultDomain(result)));
+}
+
+function filterSuppressedResolvedSearchResults(env: Env, results: ResolvedSearchResult): ResolvedSearchResult {
+  return {
+    ...results,
+    domain_results: filterSuppressedSearchResults(env, results.domain_results),
+    global_results: filterSuppressedSearchResults(env, results.global_results),
+  };
 }
 
 // In-memory search cache — survives within a single Worker isolate lifetime.
@@ -309,7 +335,9 @@ export async function searchIntentInDomain(
   const hit = await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-domain] cache-check: ${t1 - t0}ms hit=${!!hit}`);
-  if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
+  if (hit) try { return filterSuppressedSearchResults(env, JSON.parse(hit)); } catch { /* fall through */ }
+
+  if (isMarketplaceDomainSuppressed(env, domain)) return [];
 
   const normDomain = normalizeDomain(env, domain);
   let results: SearchResult;
@@ -358,19 +386,25 @@ export async function searchIntentResolve(
   const hit = await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
-  if (hit) try { return JSON.parse(hit) as ResolvedSearchResult; } catch { /* fall through */ }
+  if (hit) try { return filterSuppressedResolvedSearchResults(env, JSON.parse(hit) as ResolvedSearchResult); } catch { /* fall through */ }
 
   if (!domain) {
     let global_results = await graphSearch(env, "global", intent, globalK).catch((err) => {
       console.error(`[search-resolve] global error:`, (err as Error).message);
       return [] as SearchResult;
     });
-    global_results = rescoreWithComposite(global_results);
+    global_results = filterSuppressedSearchResults(env, rescoreWithComposite(global_results));
     const t2 = Date.now();
     const resolved = { domain_results: [] as SearchResult, global_results, skipped_global: false };
     console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length}`);
     console.log(`[perf:search-resolve] TOTAL: ${t2 - t0}ms`);
     if (global_results.length > 0) cachePut(env, ckey, JSON.stringify(resolved));
+    return resolved;
+  }
+
+  if (isMarketplaceDomainSuppressed(env, domain)) {
+    const resolved = { domain_results: [] as SearchResult, global_results: [] as SearchResult, skipped_global: true };
+    cachePut(env, ckey, JSON.stringify(resolved));
     return resolved;
   }
 
@@ -382,13 +416,13 @@ export async function searchIntentResolve(
     console.error(`[search-resolve] domain=${domain} error:`, (err as Error).message);
     return [] as SearchResult;
   });
-  domain_results = rescoreWithComposite(domain_results, domain);
+  domain_results = filterSuppressedSearchResults(env, rescoreWithComposite(domain_results, domain));
   const t2 = Date.now();
   console.log(`[perf:search-resolve] domain-search: ${t2 - t1}ms results=${domain_results.length}`);
 
   const skipped_global = shouldSkipGlobalSearch(domain_results, domain);
   let global_results = skipped_global ? [] : await globalPromise;
-  if (!skipped_global) global_results = rescoreWithComposite(global_results);
+  if (!skipped_global) global_results = filterSuppressedSearchResults(env, rescoreWithComposite(global_results));
   const t3 = Date.now();
   console.log(
     `[perf:search-resolve] global-search: ${skipped_global ? "skipped" : `${t3 - t2}ms results=${global_results.length}`}`,
@@ -413,7 +447,7 @@ export async function searchIntent(
   const hit = await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-global] cache-check: ${t1 - t0}ms hit=${!!hit}`);
-  if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
+  if (hit) try { return filterSuppressedSearchResults(env, JSON.parse(hit)); } catch { /* fall through */ }
 
   let results: SearchResult;
   try {
@@ -423,7 +457,7 @@ export async function searchIntent(
     return [];
   }
   // Rescore with composite formula (Section 3.3) before caching
-  results = rescoreWithComposite(results);
+  results = filterSuppressedSearchResults(env, rescoreWithComposite(results));
   const t2 = Date.now();
   console.log(`[perf:search-global] graph-search: ${t2 - t1}ms results=${results.length}`);
   console.log(`[perf:search-global] TOTAL: ${t2 - t0}ms`);

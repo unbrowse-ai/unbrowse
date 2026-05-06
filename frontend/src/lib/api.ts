@@ -1,4 +1,35 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
+const SUPPRESSED_MARKETPLACE_DOMAINS = new Set(["pearlpediatric.curvehero.com"]);
+
+function normalizeDomain(value?: string | null): string {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return value.trim().toLowerCase().split("/")[0]?.replace(/:\d+$/, "").replace(/^www\./, "") ?? "";
+  }
+}
+
+function isSuppressedDomain(domain?: string | null): boolean {
+  const normalized = normalizeDomain(domain);
+  if (!normalized) return false;
+  for (const rule of SUPPRESSED_MARKETPLACE_DOMAINS) {
+    if (normalized === rule || normalized.endsWith(`.${rule}`)) return true;
+  }
+  return false;
+}
+
+function searchResultDomain(result: SearchResult): string | null {
+  if (typeof result.metadata.source_url === "string") return result.metadata.source_url;
+  const content = result.metadata.content;
+  if (typeof content !== "string") return null;
+  try {
+    const parsed = JSON.parse(content) as { domain?: unknown };
+    return typeof parsed.domain === "string" ? parsed.domain : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface SkillManifest {
   skill_id: string;
@@ -310,7 +341,7 @@ export async function verifyAgentApiKey(apiKey: string): Promise<AgentProfile> {
 
 export async function listSkills(): Promise<SkillManifest[]> {
   const data = await api<{ skills: SkillManifest[] }>("GET", "/v1/skills");
-  return data.skills;
+  return data.skills.filter((skill) => !isSuppressedDomain(skill.domain));
 }
 
 export async function listSkillCards(opts?: {
@@ -327,7 +358,7 @@ export async function listSkillCards(opts?: {
     undefined,
     { revalidate: opts?.revalidate ?? 300 },
   );
-  return data.skills;
+  return data.skills.filter((skill) => !isSuppressedDomain(skill.domain));
 }
 
 export async function listPopularSkills(limit = 8, opts?: { revalidate?: number }): Promise<PopularSkillSummary[]> {
@@ -337,7 +368,7 @@ export async function listPopularSkills(limit = 8, opts?: { revalidate?: number 
     undefined,
     { revalidate: opts?.revalidate ?? 300 },
   );
-  return data.skills;
+  return data.skills.filter((skill) => !isSuppressedDomain(skill.domain));
 }
 
 export async function getSkill(id: string): Promise<SkillManifest | null> {
@@ -382,7 +413,7 @@ export async function searchSkills(intent: string, domain?: string): Promise<Sea
   const body = domain ? { intent, domain } : { intent };
   try {
     const data = await api<{ results: SearchResult[] }>("POST", path, body);
-    return data.results;
+    return data.results.filter((result) => !isSuppressedDomain(searchResultDomain(result)));
   } catch {
     return [];
   }
@@ -508,7 +539,13 @@ export interface MinerStats {
 }
 
 export async function getMinerStats(): Promise<MinerStats> {
-  return api<MinerStats>("GET", "/v1/miners/stats");
+  const data = await api<MinerStats>("GET", "/v1/miners/stats");
+  return {
+    ...data,
+    domains: data.domains.filter((domain) => !isSuppressedDomain(domain.domain)),
+    bounties: data.bounties.filter((bounty) => !isSuppressedDomain(bounty.domain)),
+    quests: data.quests.filter((quest) => !isSuppressedDomain(quest.target_domain)),
+  };
 }
 
 // --- Skill Execution ---

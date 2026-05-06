@@ -39,13 +39,16 @@ interface ValuedEntry { name: string; key: string; value: string }
 
 // Per-namespace merged index cache — lives for the lifetime of the Worker isolate
 const _cache = new Map<string, { entries: IdxEntry[]; expires: number }>();
+const _localStores = new Map<string, Map<string, string>>();
 
 export function clearKVCacheForTests(namespace?: string): void {
   if (namespace) {
     _cache.delete(namespace);
+    _localStores.delete(namespace);
     return;
   }
   _cache.clear();
+  _localStores.clear();
 }
 
 export class EdbKV {
@@ -355,6 +358,58 @@ export class EdbKV {
   }
 }
 
+export class LocalKV {
+  private store: Map<string, string>;
+
+  constructor(namespace: string) {
+    let store = _localStores.get(namespace);
+    if (!store) {
+      store = new Map();
+      _localStores.set(namespace, store);
+    }
+    this.store = store;
+  }
+
+  async get(key: string, type?: "json"): Promise<string | unknown | null> {
+    const value = this.store.get(key) ?? null;
+    if (value == null) return null;
+    return type === "json" ? safeJson(value) : value;
+  }
+
+  async put(key: string, value: string): Promise<void> {
+    this.store.set(key, value);
+  }
+
+  async putBatch(pairs: Array<{ key: string; value: string }>): Promise<void> {
+    for (const { key, value } of pairs) this.store.set(key, value);
+  }
+
+  async delete(key: string): Promise<void> {
+    this.store.delete(key);
+  }
+
+  async list(opts: { prefix: string; limit?: number; cursor?: string }): Promise<ListResult> {
+    const keys = Array.from(this.store.keys()).filter((key) => key.startsWith(opts.prefix));
+    const limit = opts.limit ?? 1000;
+    const offset = opts.cursor ? parseInt(opts.cursor, 10) : 0;
+    const page = keys.slice(offset, offset + limit);
+    const done = offset + limit >= keys.length;
+    return { keys: page.map((name) => ({ name })), list_complete: done, cursor: done ? undefined : String(offset + limit) };
+  }
+
+  async listWithValues(prefix: string): Promise<ValuedEntry[]> {
+    return Array.from(this.store.entries())
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, value]) => ({ name: key, key, value }));
+  }
+
+  async resetSplitIndex(): Promise<void> {
+    this.store.delete("_idx");
+    this.store.delete("_idx:main");
+    this.store.delete("_idx:large");
+  }
+}
+
 function safeJson(s: string): unknown {
   try { return JSON.parse(s); } catch { return null; }
 }
@@ -365,8 +420,11 @@ type KVEnv = {
   ENVIRONMENT?: string;
 };
 
-export function skillsKV(env: KVEnv): PgKV | EdbKV {
+export function skillsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
   const ns = env.ENVIRONMENT === "staging" ? "staging-skills-v3" : "skills-v2";
+  if (env.ENVIRONMENT === "local-dev") {
+    return new LocalKV(ns);
+  }
   if (env.DATABASE_URL?.trim()) {
     return new PgKV(env.DATABASE_URL, ns);
   }
@@ -376,8 +434,11 @@ export function skillsKV(env: KVEnv): PgKV | EdbKV {
   return new EdbKV(env.EMERGENTDB_API_KEY, ns);
 }
 
-export function statsKV(env: KVEnv): PgKV | EdbKV {
+export function statsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
   const ns = env.ENVIRONMENT === "staging" ? "staging-stats" : "stats";
+  if (env.ENVIRONMENT === "local-dev") {
+    return new LocalKV(ns);
+  }
   if (env.DATABASE_URL?.trim()) {
     return new PgKV(env.DATABASE_URL, ns);
   }

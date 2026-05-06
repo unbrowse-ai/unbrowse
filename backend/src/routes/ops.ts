@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import type { Env, SkillManifest } from "../types.js";
-import { listSkills, mergeEndpoints, publishSkill, deprecateSkill } from "../services/marketplace.js";
+import { listSkills, mergeEndpoints, publishSkill, deprecateSkill, removeDomainFromMarketplace } from "../services/marketplace.js";
 import { listAgents, countAgents } from "../services/agents.js";
 import { reindexSkill, removeSkillFromIndex, purgeSkillVectors } from "../services/discovery.js";
 import { backfillFromProfiles } from "../services/analytics.js";
 import { summarizeEmergentDBError } from "../services/emergentdb.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 import { bearerAuth } from "../middleware/auth.js";
+import { deleteHttpCache } from "../services/http-cache.js";
 
 export const opsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
@@ -212,6 +213,36 @@ opsRoutes.post("/ops/consolidate", bearerAuth, async (c) => {
     deprecated_skill_ids: deprecated,
     intents: Array.from(intents),
   });
+});
+
+/**
+ * POST /v1/ops/remove-domain — hide all marketplace records for a domain.
+ * Disables matching skills, removes domain/intent aliases, purges vectors, and
+ * clears public aggregate caches. Admin-only.
+ */
+opsRoutes.post("/ops/remove-domain", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+
+  const body = await c.req.json<{ domain?: string; dry_run?: boolean }>().catch(() => ({}));
+  const domain = body.domain?.trim().toLowerCase();
+  if (!domain) return c.json({ error: "domain required" }, 400);
+
+  try {
+    const result = await removeDomainFromMarketplace(c.env, domain, { dryRun: body.dry_run === true });
+    if (!result.dry_run) {
+      await Promise.all([
+        deleteHttpCache(c.env, "miners:stats"),
+        statsKV(c.env).delete(`bm25-idx:v2-${result.domain}`).catch(() => {}),
+      ]);
+    }
+    return c.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "remove_domain_failed";
+    return c.json({ error: message }, message === "invalid_domain" ? 400 : 500);
+  }
 });
 
 /**
