@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+* **ops:** add admin domain removal and emergency marketplace suppression for requested privacy removals.
+
+### Bug Fixes
+
+* **privacy:** make `unbrowse config set telemetry false` disable sharing/checkpoint auto-publish and keep `fetch` local unless `--publish` is explicit.
+
+### Documentation
+
+* **privacy:** correct private-mode and explicit-publish guidance.
+
 ## [6.7.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.4...v6.7.0-preview.5) (2026-05-04)
 
 ### Features

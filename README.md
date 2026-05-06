@@ -231,11 +231,12 @@ For indexed/published workflow contracts, treat the resolve/execute pair as the 
 
 Local capture/publish policy is configurable:
 
+- `unbrowse config set telemetry false`
 - `unbrowse settings --auto-publish off`
 - `unbrowse settings --publish-blacklist "linkedin.com,x.com"`
 - `unbrowse settings --publish-promptlist "github.com"`
 
-Those settings only affect automatic publish after explicit checkpoints (`sync`, `close`). Local `index` still works, and explicit `publish` is still available with confirmation when a guarded domain is intentional.
+Auto-publish is off by default. `fetch` also stays local unless you pass `--publish`. Those settings only affect automatic publish after explicit checkpoints (`sync`, `close`). Local `index` still works, and explicit `publish` is still available with confirmation when a guarded domain is intentional.
 
 ## Dependency walk for multi-step UIs
 

@@ -39,6 +39,7 @@ import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js"
 import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
 import { promptContributionMode, maybeShowContributionNotice } from "./cli-setup.js";
 import { getContributionConfig, setContributionConfig } from "./config/contribution.js";
+import { getCapturePipelineSettings, updateCapturePipelineSettings } from "./settings.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -1117,6 +1118,43 @@ async function cmdSettings(flags: Record<string, string | boolean>): Promise<voi
   );
 }
 
+async function cmdConfig(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const [action, key, value] = args.map((arg) => arg.trim().toLowerCase());
+  if (action === "get" && key === "telemetry") {
+    const contribution = getContributionConfig();
+    const settings = getCapturePipelineSettings();
+    output({
+      telemetry: contribution.contribution.share_pointers || settings.auto_publish_checkpoints,
+      share_pointers: contribution.contribution.share_pointers,
+      auto_publish_checkpoints: settings.auto_publish_checkpoints,
+    }, !!flags.pretty);
+    return;
+  }
+
+  if (action === "set" && key === "telemetry") {
+    if (["false", "off", "0", "no"].includes(value)) {
+      setContributionConfig({
+        contribution: { share_pointers: false, set_via: "mode-command" },
+        notice_shown_count: 0,
+      });
+      updateCapturePipelineSettings({ auto_publish_checkpoints: false });
+      output({
+        ok: true,
+        telemetry: false,
+        share_pointers: false,
+        auto_publish_checkpoints: false,
+        message: "Remote sharing and checkpoint auto-publish are disabled. Existing published domains must be removed by Unbrowse support.",
+      }, !!flags.pretty);
+      return;
+    }
+    if (["true", "on", "1", "yes"].includes(value)) {
+      die("Use `unbrowse mode` to opt into sharing so the privacy prompt is explicit.");
+    }
+  }
+
+  die("usage: unbrowse config get telemetry | unbrowse config set telemetry false");
+}
+
 async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
   const url = flags.url as string;
   if (!url) die("--url is required");
@@ -1738,9 +1776,8 @@ async function runSandboxCore(
     }
   }
 
-  // Feed observed routes through the marketplace publisher (flywheel).
-  // Disabled with --no-publish or env UNBROWSE_PUBLISH_OBSERVED_ROUTES=0.
-  const publishObserved = flags["no-publish"] !== true && process.env.UNBROWSE_PUBLISH_OBSERVED_ROUTES !== "0";
+  // Feed observed routes through the marketplace publisher only when explicit.
+  const publishObserved = flags.publish === true || process.env.UNBROWSE_PUBLISH_OBSERVED_ROUTES === "1";
   if (publishObserved && resp.routes_observed && resp.routes_observed.length > 0) {
     try {
       await publishObservedRoutes(resp.routes_observed, targetOrigin, flags.intent as string | undefined);
@@ -1941,8 +1978,8 @@ export const CLI_REFERENCE = {
     { flag: "--header 'K: V'", desc: "Extra request header (single use)." },
     { flag: "--timeout-ms N", desc: "Request timeout in ms (default 30000)." },
     { flag: "--impersonate chrome131|chrome120|firefox120|...", desc: "TLS fingerprint impersonation target (default chrome131)." },
-    { flag: "--intent \"...\"", desc: "Label for marketplace publish of observed routes." },
-    { flag: "--no-publish", desc: "Skip publishing observed routes to the marketplace." },
+    { flag: "--publish", desc: "Explicitly publish observed routes to the marketplace." },
+    { flag: "--intent \"...\"", desc: "Label for explicit marketplace publish of observed routes." },
     { flag: "--envelope", desc: "Force full envelope output (cookies + routes_observed + post_eval) instead of body-only." },
     { flag: "--bundle-source <js|->", desc: "ADVANCED: inline JS or '-' for stdin. Runs in Kuri sandbox." },
     { flag: "--bundle-url <url>", desc: "ADVANCED: fetch JS bundle from URL." },
@@ -3236,6 +3273,7 @@ async function main(): Promise<void> {
     await cmdMode(flags);
     return;
   }
+  if (command === "config") return cmdConfig(args, flags);
   if (command === "account") return cmdAccount(flags);
   if (command === "dashboard") return cmdDashboard(flags);
 
@@ -3265,7 +3303,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
+    "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "config", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "inspect", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
@@ -3307,6 +3345,7 @@ async function main(): Promise<void> {
     case "publish": return cmdPublish(flags);
     case "publish-bundle": return cmdPublishBundle(flags);
     case "settings": return cmdSettings(flags);
+    case "config": return cmdConfig(args, flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
     case "cleanup-stale": return cmdCleanupStale(flags);

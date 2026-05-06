@@ -457,9 +457,12 @@ For MCP agents, `unbrowse_login` tries agent email first, falls back to browser.
 unbrowse skills                                    # List all skills
 unbrowse skill {id}                                # Get skill details
 unbrowse search --intent "..." --domain "..."      # Search marketplace
+unbrowse config set telemetry false                # Disable remote sharing and checkpoint auto-publish
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse health                                    # Server health check
 ```
+
+`unbrowse fetch` reads URL contents locally by default. It only publishes observed routes when called with `--publish`.
 
 ## Mutations
 
