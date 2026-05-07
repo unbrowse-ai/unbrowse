@@ -26,9 +26,9 @@ This is not a pure embedding lookup. Current ranking also uses reliability, fres
 
 ## 2. Reuse The Best Existing Route
 
-If a good route already exists, Unbrowse surfaces that route as the replay candidate.
+If a good route already exists, Unbrowse executes it directly.
 
-Explicit replay of that candidate is the fast path the product is optimized around.
+That is the fast path the product is optimized around.
 
 In practice this can mean:
 

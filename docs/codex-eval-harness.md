@@ -125,7 +125,6 @@ Notes:
   - optional per-case DAG assertions via `dag.target_operation_id` or `dag.target_endpoint_id`
   - every round records `trace_context` and `repair_memory` so retries can be inspected against known bindings, available DAG operations, prior endpoint failures, and prior repair choices
   - when a local workflow artifact exists, `trace_context.workflow_summary` records recipe count plus preferred endpoints, and each candidate can include `workflow_recipe` with step strategy order and token-binding targets
-  - signed same-origin routes are represented as `resource_recipe` runtime primitives; `trace_context.primitive_summary` and candidate `runtime_primitive` records show required runtime recompute, missing signer status, dynamic dependencies, and refresh command
   - benchmark mode runs each case twice:
     - `cold`: force capture / first-run path
     - `warm`: reuse path without forced capture

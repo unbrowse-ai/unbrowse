@@ -235,5 +235,7 @@ The architecture is sound; specific paths still need work. Tracked in
 | CLI parsing (incl. `-p key=val`) | `src/cli.ts:parseArgs` |
 | Skill manifest types | `src/types/skill.ts` |
 
-For DAG behavior, use the live graph/debug commands against the current route
-and inspect the resulting edges directly.
+For tests proving the DAG walks behave correctly:
+`tests/graph-dependencies.test.ts`, `graph-edge-upsert.test.ts`,
+`graph-provides.test.ts`, `graph-session.test.ts`, `dag-feedback.test.ts`,
+`reachable-endpoints.test.ts`, `capture-dependency-prefetch.test.ts`.

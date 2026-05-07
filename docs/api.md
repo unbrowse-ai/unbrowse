@@ -44,7 +44,6 @@ Explicit execute:
 
 ```ts
 const rerun = await unbrowse.execute(resolved, {
-  endpointId: "front-page",
   projection: { raw: true },
 });
 ```
@@ -117,7 +116,6 @@ Or from the SDK:
 
 ```ts
 await unbrowse.execute("skill_123", {
-  endpointId: "quote",
   params: { symbol: "NVDA" },
   contextUrl: "https://finance.yahoo.com/quote/NVDA",
 });
@@ -128,6 +126,7 @@ Useful post-processing flags supported by the current CLI:
 - `--schema` — show schema/extraction hints without data
 - `--path "data.items[]"` — drill into a nested path first
 - `--extract "name,url,alias:deep.path"` — project fields without `jq`
+- `--confirm-third-party-terms` — required for policy-sensitive mutations on flagged domains such as X write endpoints, in addition to `--confirm-unsafe`
 - `--limit N` — cap array results
 
 Execute is the explicit replay surface. Traversal-time browser tools (`go`, `snap`, `click`, `fill`, `submit`) only gather passive evidence. Linked replay contracts, parameter restrictions, enums, and derived auth/token hints are compiled and exposed later through publish/index artifacts.
@@ -147,16 +146,14 @@ The MCP server now exposes read-only publish-time workflow metadata in addition 
 - `workflow_dag://<skill>/<endpoint>` — dependency graph / common-var walk for one workflow edge
 - `plan_workflow_execution` — prompt that tells the host model to inspect the contract and DAG before deciding between browser traversal and explicit replay
 
-Workflow publish artifacts also expose `resource_recipe` primitives for signed same-origin runtime recompute. These are not alternate endpoints; they are primitive requirements that tell harnesses and agents a route needs dynamic state such as current auth headers, GraphQL query IDs, request variables/features, or page-computed headers before reliable replay.
-
 These MCP resources are publish-time outputs. They do not trigger live replay during browse traversal.
 
 ## Capture pipeline verbs
 
 The checkpoint pipeline is explicit:
 
-- `sync` — checkpoint current capture, keep the tab open, queue background local `index`; remote publish only if auto-publish is enabled
-- `close` — checkpoint current capture, queue background local `index`, save auth, close tab; remote publish only if auto-publish is enabled
+- `sync` — checkpoint current capture, keep the tab open, queue background `index -> publish`
+- `close` — checkpoint current capture, queue background `index -> publish`, save auth, close tab
 - `index` — recompute local graph/contracts/export only; no remote share
 - `publish` — rerun local index, then perform explicit remote share/re-publish
 - `settings` — inspect or update local auto-publish policy, blacklist, and prompt-list domains
@@ -178,7 +175,7 @@ Checkpoint and publish responses now also surface guidance fields:
 
 Local publish policy lives in `~/.unbrowse/config.json` and is available over `GET/POST /v1/settings`.
 
-- `auto_publish_checkpoints` — enable/disable automatic remote publish after `sync` / `close` (default: disabled)
+- `auto_publish_checkpoints` — enable/disable automatic remote publish after `sync` / `close`
 - `publish_domain_blacklist` — never auto-publish these domains; explicit `publish` requires confirmation
 - `publish_domain_promptlist` — pause auto-publish and require confirmation for explicit `publish`
 
@@ -198,7 +195,7 @@ For multi-step browser flows, downstream pages depend on upstream state. Treat `
 - Regular traversal is browser-native and thin by default. `assist_site_state` and `same_origin_fetch_fallback` must be explicitly enabled; passive API observation stays for publish/index analysis, not normal page walking.
 - Monitored requests discovered while traversing are not exposed as live replay steps yet. They become harness-visible only after publish/index compiles the workflow contract.
 - After `submit`, trust the returned `url`, `session_id`, and transition metadata. Do not guess deep links if the session has not actually unlocked them yet.
-- `sync` after important transitions so the current capture is checkpointed and the background local index records the working request chain for future resolve/execute calls.
+- `sync` after important transitions so the current capture is checkpointed and the background `index -> publish` pipeline records the working request chain for future resolve/execute calls.
 - If the server later returns `abandonedCart`, `session_expired`, or the wrong product/audience variant, restart from the last known good upstream step instead of forcing a downstream page.
 
 ## Mutations
@@ -217,12 +214,11 @@ unbrowse execute --skill <skill_id> --endpoint <endpoint_id> --confirm-unsafe
 
 ## Registration and ToS
 
-The local runtime can run without a marketplace identity. Register explicitly when you need publishing, paid routes, dashboard pairing, or account-backed features.
+Agent registration happens through the local runtime on first startup if no saved API key exists.
 
 - config is persisted in `~/.unbrowse/config.json`
-- `unbrowse register --email you@example.com` stores the API key locally
-- headless runs can preseed register identity with `UNBROWSE_AGENT_EMAIL`
-- interactive first-party ToS checks may still run before account-backed API calls
+- interactive runs prompt for ToS acceptance and optional email-style identity
+- headless runs can preseed with `UNBROWSE_NON_INTERACTIVE=1`, `UNBROWSE_TOS_ACCEPTED=1`, and `UNBROWSE_AGENT_EMAIL=...`
 
 ## Related docs
 

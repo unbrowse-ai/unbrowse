@@ -30,12 +30,12 @@ cd ~/unbrowse && ./setup --host off
 
 `./setup` is the canonical bootstrap path. It does the repo-local shim/runtime prep first, then runs the real first-use flow without depending on npm release assets:
 
-It is one command, not literal one-click: interactive runs can still prompt for first-party ToS acceptance. Marketplace identity is explicit with `unbrowse register`.
+It is one command, not literal one-click: the first successful run can still prompt for ToS acceptance and agent identity.
 
 1. checks the local package-manager/runtime environment
 2. verifies the bundled Kuri browser runtime, or builds it from vendored source when working from repo checkout with Zig available
 3. installs or updates the stable `unbrowse` shim and the Open Code `/unbrowse` command when Open Code is detected
-4. runs local first-use checks, wallet detection, and starts the local server on `http://localhost:6969` unless `--no-start` is passed
+4. runs the first-use bootstrap: ToS acceptance, agent registration + API-key caching, wallet detection, then starts the local server on `http://localhost:6969` unless `--no-start` is passed
 
 If a wallet is configured, that wallet address becomes the contributor/payment truth: it is synced onto the agent profile, used as the contributor payout destination, and used as the spending wallet for paid marketplace routes.
 
@@ -57,7 +57,7 @@ unbrowse register --email you@example.com
 unbrowse dashboard
 ```
 
-`unbrowse dashboard` opens the web dashboard and pairs it to the local CLI through a short-lived localhost token. Dashboard preference changes sync back into the CLI publish preference on later CLI runs.
+`unbrowse dashboard` opens the web dashboard and pairs it to the local CLI through a short-lived localhost token. Dashboard preference changes sync back into CLI contribution mode on later CLI runs.
 
 If your host uses skills:
 
@@ -77,11 +77,11 @@ The CLI auto-starts the local server for normal commands. Account registration i
 
 - If the backend is reachable, it checks the current ToS version.
 - Interactive runs prompt for ToS acceptance.
-- `unbrowse register --email agent@example.com` links the local runtime to a marketplace identity when needed.
-- Headless register runs can preseed identity with `UNBROWSE_AGENT_EMAIL`.
+- Interactive runs also let you enter an email-style agent identity. Press Enter to keep the local device id.
+- Headless runs can preseed identity with `UNBROWSE_AGENT_EMAIL`.
 - Non-interactive runs must set `UNBROWSE_TOS_ACCEPTED=1` after the user has agreed to the ToS.
 
-Headless repo bootstrap after first-party ToS consent:
+Headless repo bootstrap:
 
 ```bash
 cd ~/unbrowse && ./setup --host off --accept-tos --agent-email agent@example.com --skip-wallet-setup
@@ -118,7 +118,7 @@ unbrowse search --intent "get stock prices" --domain "finance.yahoo.com" --prett
 Open an auth flow when a site needs login:
 
 ```bash
-unbrowse auth-capture --url "https://calendar.google.com"
+unbrowse login --url "https://calendar.google.com"
 ```
 
 ## TypeScript SDK
@@ -161,7 +161,6 @@ const resolved = await unbrowse.resolve({
 });
 
 const rerun = await unbrowse.execute(resolved, {
-  endpointId: "quote",
   params: { symbol: "NVDA" },
 });
 ```

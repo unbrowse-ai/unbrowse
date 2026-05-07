@@ -32,9 +32,9 @@ The practical product loop is:
 
 1. An agent asks for a task in natural language.
 2. Unbrowse checks local caches and the shared marketplace.
-3. If a strong explicit/proven route exists, it can return data through replay.
-4. If not, Unbrowse returns the next required action, such as raw fetch, login, endpoint selection, or browser capture.
-5. Successful captures are indexed locally first and can be shared for later reuse through explicit publish or enabled checkpoint publish policy.
+3. If a strong route already exists, it executes immediately.
+4. If not, it captures the site, learns candidate endpoints, and executes from that learned path.
+5. Successful routes can then be reused by later agents.
 
 ## Why This Matters
 

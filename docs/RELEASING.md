@@ -62,11 +62,14 @@ Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync 
 
 ## CI checks before release
 
-Release CI runs on `main` pull requests and pushes, and verifies:
+`test.yml` now runs on `main` pull requests and pushes, and verifies:
 
 - `SKILL.md` is in sync with `src/cli.ts`
 - baked Kuri vendor state matches the tracked `submodules/kuri` source
 - `packages/skill` passes `npm pack --dry-run`
+- the CLI/orchestrator path still passes `tests/cli-e2e.test.ts`
+
+The CLI E2E job runs `bun run cli -- setup --no-start` first so CI verifies the vendored Kuri binary is discoverable before it exercises the CLI path.
 
 Branch protection should require the workflow checks on `main` before merge.
 

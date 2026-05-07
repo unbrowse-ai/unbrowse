@@ -23,10 +23,10 @@ The workflow artifact stores:
 Current behavior:
 - live capture writes a workflow artifact for the learned skill
 - live capture also writes a sanitized workflow export for the same `skill_id`
-- explicit checkpoint commands (`sync`, `close`) queue the background local `index` pipeline
+- explicit checkpoint commands (`sync`, `close`) queue the background `index -> publish` pipeline
 - local settings can disable auto-publish entirely or guard specific domains with blacklist/prompt-list rules
 - local `index` upgrades the export from `captured` to `indexed`
-- explicit remote share, or auto-publish when enabled, upgrades the export from `indexed` to `published` (or `blocked-validation`)
+- explicit/queued remote share upgrades the export from `indexed` to `published` (or `blocked-validation`)
 - execution loads the artifact by `skill_id`
 - if a recipe exists for the endpoint, execution tries the saved recipe first
 - token bindings are resolved from the freshest cookies/headers before replay

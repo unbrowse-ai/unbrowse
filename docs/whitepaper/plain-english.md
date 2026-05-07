@@ -58,9 +58,9 @@ The loop is straightforward:
 
 1. An agent asks for a task.
 2. Unbrowse checks local cache and the shared marketplace.
-3. If a good explicit/proven route already exists, it can return data through replay.
-4. If not, it returns the next required action, such as raw fetch, login, endpoint selection, or browser capture.
-5. Good captures are indexed locally first and can be shared for later reuse through explicit publish or enabled checkpoint publish policy.
+3. If a good route already exists, it uses it.
+4. If not, it captures the site, learns candidate endpoints, and executes from that learned path.
+5. Good routes can then be reused later.
 
 ## Why That Matters
 
