@@ -1650,6 +1650,7 @@ export async function registerRoutes(app: FastifyInstance) {
       chromium_cookie_db_path,
       safe_storage_service,
       browser_name,
+      interactive_only,
     } = req.body as {
       url: string;
       browser?: "auto" | "firefox" | "chrome" | "chromium";
@@ -1660,6 +1661,7 @@ export async function registerRoutes(app: FastifyInstance) {
       chromium_cookie_db_path?: string;
       safe_storage_service?: string;
       browser_name?: string;
+      interactive_only?: boolean;
     };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
@@ -1674,6 +1676,7 @@ export async function registerRoutes(app: FastifyInstance) {
           safeStorageService: safe_storage_service,
           browserName: browser_name,
         },
+        interactiveOnly: interactive_only === true,
       });
       return reply.send(result);
     } catch (err) {

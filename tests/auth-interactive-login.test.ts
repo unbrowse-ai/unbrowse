@@ -7,6 +7,7 @@ import { resolveKuriLaunchConfig as resolvePackagedKuriLaunchConfig } from "../p
 const originalImportBrowserCookies = process.env.UNBROWSE_IMPORT_BROWSER_COOKIES;
 const originalHeadless = process.env.HEADLESS;
 const originalKuriHeadless = process.env.KURI_HEADLESS;
+const originalDisableCdpAttach = process.env.KURI_DISABLE_CDP_ATTACH;
 
 afterEach(() => {
   if (originalImportBrowserCookies === undefined) delete process.env.UNBROWSE_IMPORT_BROWSER_COOKIES;
@@ -15,6 +16,8 @@ afterEach(() => {
   else process.env.HEADLESS = originalHeadless;
   if (originalKuriHeadless === undefined) delete process.env.KURI_HEADLESS;
   else process.env.KURI_HEADLESS = originalKuriHeadless;
+  if (originalDisableCdpAttach === undefined) delete process.env.KURI_DISABLE_CDP_ATTACH;
+  else process.env.KURI_DISABLE_CDP_ATTACH = originalDisableCdpAttach;
 });
 
 describe("assessInteractiveLoginState", () => {
@@ -100,13 +103,16 @@ describe("forceVisibleKuriEnv", () => {
       try {
         expect(process.env.HEADLESS).toBe("false");
         expect(process.env.KURI_HEADLESS).toBe("false");
+        expect(process.env.KURI_DISABLE_CDP_ATTACH).toBe("1");
         expect(resolveLaunch(process.env).headless).toBe(false);
+        expect(resolveLaunch(process.env).attachToExistingChrome).toBe(false);
       } finally {
         restore();
       }
 
       expect(process.env.HEADLESS).toBe("true");
       expect(process.env.KURI_HEADLESS).toBe("true");
+      expect(process.env.KURI_DISABLE_CDP_ATTACH).toBe(originalDisableCdpAttach);
     }
   });
 });
@@ -127,8 +133,32 @@ describe("loginWithBrowserFallback", () => {
       },
     );
 
-    expect(result).toEqual({ success: true, domain: "www.linkedin.com", cookies_stored: 4 });
+    expect(result).toEqual({ success: true, domain: "www.linkedin.com", cookies_stored: 4, source: "browser_cookies" });
     expect(interactiveCalled).toBe(false);
+  });
+
+  it("skips browser-cookie import when interactiveOnly is requested", async () => {
+    let extractCalled = false;
+    let interactiveCalled = false;
+
+    const result = await loginWithBrowserFallback(
+      "https://www.linkedin.com/feed/",
+      { browser: "chrome", interactiveOnly: true },
+      {
+        extractBrowserAuth: async () => {
+          extractCalled = true;
+          return { success: true, domain: "www.linkedin.com", cookies_stored: 4 };
+        },
+        interactiveLogin: async () => {
+          interactiveCalled = true;
+          return { success: true, domain: "www.linkedin.com", cookies_stored: 2, source: "interactive" };
+        },
+      },
+    );
+
+    expect(result).toEqual({ success: true, domain: "www.linkedin.com", cookies_stored: 2, source: "interactive" });
+    expect(extractCalled).toBe(false);
+    expect(interactiveCalled).toBe(true);
   });
 
   it("falls back to interactive login when browser-cookie import has nothing reusable", async () => {

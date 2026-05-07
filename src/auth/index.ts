@@ -146,9 +146,13 @@ export interface LoginResult {
   domain: string;
   cookies_stored: number;
   error?: string;
+  source?: "browser_cookies" | "interactive";
 }
 
 export type BrowserAuthImportOptions = ExtractBrowserCookiesOptions;
+export type LoginWithBrowserFallbackOptions = BrowserAuthImportOptions & {
+  interactiveOnly?: boolean;
+};
 
 export interface BrowserAuthSourceMeta {
   family?: string;
@@ -225,13 +229,17 @@ export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | 
 export function forceVisibleKuriEnv(env: NodeJS.ProcessEnv = process.env): () => void {
   const prevHeadless = env.HEADLESS;
   const prevKuriHeadless = env.KURI_HEADLESS;
+  const prevDisableCdpAttach = env.KURI_DISABLE_CDP_ATTACH;
   env.HEADLESS = "false";
   env.KURI_HEADLESS = "false";
+  env.KURI_DISABLE_CDP_ATTACH = "1";
   return () => {
     if (prevHeadless !== undefined) env.HEADLESS = prevHeadless;
     else delete env.HEADLESS;
     if (prevKuriHeadless !== undefined) env.KURI_HEADLESS = prevKuriHeadless;
     else delete env.KURI_HEADLESS;
+    if (prevDisableCdpAttach !== undefined) env.KURI_DISABLE_CDP_ATTACH = prevDisableCdpAttach;
+    else delete env.KURI_DISABLE_CDP_ATTACH;
   };
 }
 
@@ -329,11 +337,11 @@ export async function interactiveLogin(
         const error = blockedReason
           ? `Login blocked (${blockedReason})`
           : "Login timed out (fallback: fail)";
-        return { success: false, domain: targetDomain, cookies_stored: 0, error };
+        return { success: false, domain: targetDomain, cookies_stored: 0, error, source: "interactive" };
       }
       if (loginConfig.fallback_strategy === "skip") {
         log("auth", `skipping cookie capture per fallback_strategy`);
-        return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login skipped (headless)" };
+        return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login skipped (headless)", source: "interactive" };
       }
       // fallback_strategy === "prompt" — continue to capture cookies anyway
     }
@@ -343,7 +351,7 @@ export async function interactiveLogin(
     const domainCookies = cookies.filter((c) => isDomainMatch(c.domain, targetDomain));
 
     if (domainCookies.length === 0) {
-      return { success: false, domain: targetDomain, cookies_stored: 0, error: "No cookies captured for domain" };
+      return { success: false, domain: targetDomain, cookies_stored: 0, error: "No cookies captured for domain", source: "interactive" };
     }
 
     const storableCookies = domainCookies.map((c) => ({
@@ -360,7 +368,7 @@ export async function interactiveLogin(
       log("auth", `saved Kuri auth profile for ${targetDomain}`);
     }
 
-    return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
+    return { success: true, domain: targetDomain, cookies_stored: storableCookies.length, source: "interactive" };
   } finally {
     restoreVisibleLoginEnv();
   }
@@ -410,7 +418,7 @@ export async function extractBrowserAuth(
 
 export async function loginWithBrowserFallback(
   url: string,
-  opts?: BrowserAuthImportOptions,
+  opts?: LoginWithBrowserFallbackOptions,
   deps: {
     extractBrowserAuth?: typeof extractBrowserAuth;
     interactiveLogin?: typeof interactiveLogin;
@@ -420,16 +428,21 @@ export async function loginWithBrowserFallback(
   const login = deps.interactiveLogin ?? interactiveLogin;
   const domain = new URL(url).hostname;
 
-  const extracted = await extract(domain, opts);
-  if (extracted.success && extracted.cookies_stored > 0) {
-    log("auth", `login_with_browser_fallback domain=${domain} source=browser_cookies cookies=${extracted.cookies_stored}`);
-    return extracted;
+  if (!opts?.interactiveOnly) {
+    const extracted = await extract(domain, opts);
+    if (extracted.success && extracted.cookies_stored > 0) {
+      log("auth", `login_with_browser_fallback domain=${domain} source=browser_cookies cookies=${extracted.cookies_stored}`);
+      return { ...extracted, source: "browser_cookies" };
+    }
+
+    log(
+      "auth",
+      `login_with_browser_fallback domain=${domain} source=interactive reason=${extracted.error ?? "no_browser_cookies"}`,
+    );
+  } else {
+    log("auth", `login_with_browser_fallback domain=${domain} source=interactive reason=interactive_only`);
   }
 
-  log(
-    "auth",
-    `login_with_browser_fallback domain=${domain} source=interactive reason=${extracted.error ?? "no_browser_cookies"}`,
-  );
   return login(url);
 }
 
