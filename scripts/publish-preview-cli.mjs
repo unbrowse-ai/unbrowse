@@ -212,7 +212,13 @@ async function main() {
     if (shouldSyncSubmodules(tempRepo)) {
       run("bash", ["scripts/ensure-submodules.sh", "submodules/kuri"], { cwd: tempRepo });
     }
-    run("bun", ["install", "--frozen-lockfile"], { cwd: tempRepo });
+    run("bun", ["install", "--frozen-lockfile"], {
+      cwd: tempRepo,
+      env: {
+        CI: "1",
+        UNBROWSE_SKIP_BINARY_DOWNLOAD: "1",
+      },
+    });
     run("bun", ["run", "check:skill-md"], { cwd: tempRepo });
     run("bun", ["run", "check:kuri-vendor"], { cwd: tempRepo });
     run("bash", ["scripts/build-binaries.sh", "--all"], {
