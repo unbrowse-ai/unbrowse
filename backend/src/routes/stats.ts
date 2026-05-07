@@ -12,6 +12,7 @@ import { recordAttribution, getIndexerLedger, getAttributionSummary } from "../s
 import { getSkill } from "../services/marketplace.js";
 import { updateContributorDelta } from "../services/splits.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
+import { getTractionMetrics } from "../services/traction.js";
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
 
@@ -70,6 +71,16 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
   });
 
   c.header("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=300");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(payload);
+});
+// GET /v1/stats/traction — growth and usage metrics for external tools
+publicStatsRoutes.get("/stats/traction", async (c) => {
+  const payload = await getOrSetHttpCache(c.env, "stats:traction", 300, async () => {
+    return await getTractionMetrics(c.env);
+  });
+  
+  c.header("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=600");
   c.header("Access-Control-Allow-Origin", "*");
   return c.json(payload);
 });
