@@ -20,6 +20,7 @@ import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
 import { buildDescriptionPrompt, groundedDescription, extractResponseKeys, inferDescriptionParams } from "./description-prompt.js";
 import { isRscPayload, extractRscDataEndpoints } from "../capture/rsc.js";
+import { decodeProtobufBody, isProtobufLikeEndpoint } from "../protobuf/wire.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
 const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
@@ -742,14 +743,16 @@ function scoreRequest(req: RawRequest): number {
   }
   if (RPC_HINTS.test(req.url)) score += 3;
   if (SKIP_JS_BUNDLES.test(req.url)) score -= 10;
-  const ct = req.response_headers?.["content-type"] ?? "";
+  const ct = getResponseContentType(req);
   if (ct.includes("application/json") && !ct.includes("protobuf")) score += 4;
   // Fallback: if response_headers is empty (common in tracked requests), check if body is JSON
   else if (!ct && req.response_body) {
     try { JSON.parse(stripJsonPrefix(req.response_body)); score += 4; } catch { /* not JSON */ }
   }
-  // Protobuf responses are not parseable — score neutral, don't reward (BUG-GC-006)
-  if (ct.includes("x-protobuf") || ct.includes("json+protobuf")) score += 0;
+  // Protobuf is common for real marketplace/search APIs. Reward it enough to
+  // beat JSON-LD metadata when the URL is data-shaped; the decoder below will
+  // decide whether the body is usable.
+  if (isProtobufLikeEndpoint(req.url, ct)) score += 4;
   // Penalise long URLs — but only the path, not query params (GraphQL endpoints
   // have long variables/features query strings that inflate the URL length)
   try { if (new URL(req.url).pathname.length > 200) score -= 5; } catch { if (req.url.length > 500) score -= 5; }
@@ -818,7 +821,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "score_non_positive" });
       continue;
     }
-    if (!hasAdmissibleParsedBody(req.response_body)) {
+    const responseContentType = getResponseContentType(req);
+    const protobufLike = isProtobufLikeEndpoint(req.url, responseContentType);
+    if (!hasAdmissibleParsedBody(req.response_body) && !protobufLike) {
       // API endpoints may have large/truncated/missing response bodies.
       // Admit them anyway if the URL pattern is clearly an API endpoint.
       //
@@ -970,18 +975,18 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       continue;
     }
 
-    // BUG-GC-006: Skip protobuf-only endpoints — we can't parse their bodies
-    const ct = req.response_headers?.["content-type"] ?? "";
-    if ((ct.includes("x-protobuf") || ct.includes("json+protobuf")) && !isJsonParseable(req.response_body)) {
-      traceRows.push({ url: req.url, method: req.method, kept: false, reason: "protobuf_unparseable" });
-      continue;
-    }
-
     const isGet = req.method === "GET";
+    const responseContentType = getResponseContentType(req);
+    const protobufLike = isProtobufLikeEndpoint(req.url, responseContentType);
+    const protobufSample = req.response_body && protobufLike
+      ? decodeProtobufBody(req.response_body, responseContentType)
+      : null;
 
     // Infer response schema from captured body
     let response_schema = undefined;
-    if (req.response_body) {
+    if (protobufSample) {
+      response_schema = inferSchema([protobufSample]);
+    } else if (req.response_body) {
       try {
         const cleaned = stripJsonPrefix(req.response_body);
         const parsed = JSON.parse(cleaned);
@@ -1025,7 +1030,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     const templatedRequestBody = !isGet && parsedRequestBody && typeof parsedRequestBody === "object" && !Array.isArray(parsedRequestBody)
       ? templatizeBodyObject(parsedRequestBody, context, "", bodyParams) as Record<string, unknown>
       : parsedRequestBody;
-    const sampleResponse = req.response_body ? tryParseBody(req.response_body) : undefined;
+    const sampleResponse = protobufSample ?? (req.response_body ? tryParseBody(req.response_body) : undefined);
     const sampleRequest = flattenRequestExample({
       path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
       query: sanitizedQParams,
@@ -1648,9 +1653,11 @@ function templatizePathSegments(
   }
 }
 
-function isJsonParseable(body?: string): boolean {
-  if (!body) return false;
-  try { JSON.parse(stripJsonPrefix(body)); return true; } catch { return false; }
+function getResponseContentType(req: RawRequest): string {
+  for (const [key, value] of Object.entries(req.response_headers ?? {})) {
+    if (key.toLowerCase() === "content-type") return String(value).toLowerCase();
+  }
+  return "";
 }
 
 /** Strip Google/common API JSON prefixes like )]}'\n or )]}\n */

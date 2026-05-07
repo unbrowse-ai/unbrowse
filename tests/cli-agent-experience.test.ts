@@ -84,6 +84,30 @@ describe("cli agent experience", () => {
     });
   });
 
+  it("accepts --query as an alias for --intent on resolve", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        expect(requests.at(-1)?.body?.intent).toBe("beige sweater Serangoon");
+        return Response.json({
+          trace: { success: true },
+          result: { status: "ok", items: [] },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "resolve",
+        "--url", "https://www.carousell.sg",
+        "--query", "beige sweater Serangoon",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok", items: [] });
+    });
+  });
+
   it("runs a URL and positional task through resolve without requiring flag juggling", async () => {
     await withStubServer(async (req, requests) => {
       const path = new URL(req.url).pathname;

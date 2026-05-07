@@ -63,6 +63,7 @@ import {
   validateWorkflowReplayParams,
 } from "../workflow/runtime.js";
 import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
+import { decodeProtobufBytes, isProtobufContentType, isProtobufLikeEndpoint } from "../protobuf/wire.js";
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
@@ -2264,13 +2265,23 @@ export async function executeEndpoint(
         body: serializeReplayBody(bodyOverride, replayHeaders),
         redirect: "follow",
       });
-      let data: unknown;
-      const text = await res.text();
       const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      const isProtobuf = isProtobufContentType(contentType) || isProtobufLikeEndpoint(replayUrl, contentType);
+      let data: unknown;
       const isJson = contentType.includes("application/json");
-      if (isJson) {
+      if (isProtobuf) {
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        data = decodeProtobufBytes(bytes) ?? {
+          _format_mismatch: true,
+          received_content_type: contentType,
+          byte_length: bytes.length,
+          data: `base64:${Buffer.from(bytes).toString("base64")}`,
+        };
+      } else {
+        const text = await res.text();
+        if (isJson) {
         try { data = JSON.parse(text); } catch { data = text; }
-      } else if (res.ok && endpoint.dom_extraction) {
+        } else if (res.ok && endpoint.dom_extraction) {
         // HTML response + DOM extraction recipe — run the extractor in-process
         // and return the structured records the recipe was captured against.
         try {
@@ -2285,12 +2296,13 @@ export async function executeEndpoint(
           log("exec", `dom-extraction error: ${err instanceof Error ? err.message : String(err)}`);
           data = { _format_mismatch: true, received_content_type: contentType, data: text };
         }
-      } else if (res.ok && endpoint.response_schema) {
+        } else if (res.ok && endpoint.response_schema) {
         // Expected JSON response but got non-JSON content type — mark as format mismatch
         log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)}`);
         data = { _format_mismatch: true, received_content_type: contentType, data: text };
-      } else {
+        } else {
         try { data = JSON.parse(text); } catch { data = text; }
+        }
       }
       last = { data, status: res.status };
 

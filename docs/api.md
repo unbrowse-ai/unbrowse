@@ -17,6 +17,12 @@ The normal product path is local-first. CLI commands hit the local server, and t
 
 Backend payment policy can split discovery from detail. With `X402_SEARCH_ENABLED=false`, `/v1/search*` stays free for discovery while paid `/v1/skills/:id` manifests still return `402 Payment Required`.
 
+## Binary API Responses
+
+Unbrowse treats protobuf responses as data endpoints when the response content type or URL path identifies protobuf traffic. Browser capture stores protobuf fetch bodies as `base64:` strings, reverse-engineering decodes the generic wire format into JSON-safe `fields` plus likely `records`, and execute decodes protobuf responses before returning data to the caller.
+
+The decoder is schema-less by design. It preserves protobuf field numbers such as `field_1` and adds heuristic record summaries like `title_like`, `price_like`, `url_like`, and `image_like` when those values can be inferred from the wire payload.
+
 ## TypeScript SDK
 
 The SDK lives in [`packages/sdk`](../packages/sdk/README.md). It is a thin wrapper over the same local server routes the CLI uses.
