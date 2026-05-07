@@ -60,6 +60,82 @@ async function runCli(baseUrl: string, args: string[]): Promise<{ code: number; 
 }
 
 describe("cli agent experience", () => {
+  it("accepts --task as an alias for --intent on resolve", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        expect(requests.at(-1)?.body?.intent).toBe("search listings");
+        return Response.json({
+          trace: { success: true },
+          result: { status: "ok", items: [] },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "resolve",
+        "--url", "https://www.carousell.sg/search/beige%20shirt",
+        "--task", "search listings",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok", items: [] });
+    });
+  });
+
+  it("runs a URL and positional task through resolve without requiring flag juggling", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        expect(requests.at(-1)?.body).toMatchObject({
+          intent: "list beige shirts",
+          params: { url: "https://www.carousell.sg/search/beige%20shirt" },
+          context: { url: "https://www.carousell.sg/search/beige%20shirt" },
+        });
+        return Response.json({
+          trace: { success: true },
+          result: { status: "ok", items: [{ title: "beige shirt" }] },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "run",
+        "https://www.carousell.sg/search/beige%20shirt",
+        "list beige shirts",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok", items: [{ title: "beige shirt" }] });
+    });
+  });
+
+  it("accepts --skill-id and --endpoint-id aliases on execute", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/skills/skill_123/execute") {
+        expect(requests.at(-1)?.body?.params).toMatchObject({ endpoint_id: "endpoint_456" });
+        return Response.json({
+          trace: { success: true, skill_id: "skill_123", endpoint_id: "endpoint_456" },
+          result: { status: "ok" },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "execute",
+        "--skill-id", "skill_123",
+        "--endpoint-id", "endpoint_456",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok" });
+    });
+  });
+
   it("routes settings updates to the local settings endpoint", async () => {
     await withStubServer(async (req, requests) => {
       const path = new URL(req.url).pathname;
