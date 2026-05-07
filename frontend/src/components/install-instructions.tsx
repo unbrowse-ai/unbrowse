@@ -36,7 +36,7 @@ const TABS = [
       { type: "cmd",     text: '  $  unbrowse resolve --intent "get events" --url "lu.ma"' },
       { type: "blank",   text: "" },
       { type: "comment", text: "  ##  earn from discovered routes — set up Crossmint lobster.cash" },
-      { type: "cmd",     text: "  $  unbrowse wallet setup" },
+      { type: "cmd",     text: "  $  npx @crossmint/lobster-cli setup" },
     ] as TLine[],
   },
   {
@@ -65,7 +65,7 @@ const TABS = [
   },
 ] as const;
 
-function lineStyle(type: LineType, _isMobile: boolean): React.CSSProperties {
+function lineStyle(type: LineType): React.CSSProperties {
   switch (type) {
     case "header":
       return { color: O_HI, fontWeight: "bold", letterSpacing: "0.04em" };
@@ -219,9 +219,9 @@ export function InstallInstructions() {
       >
         {tab.lines.slice(0, visible).map((line, i) =>
           line.type === "blank" ? (
-            <div key={i} style={lineStyle("blank", isMobile)} />
+            <div key={i} style={lineStyle("blank")} />
           ) : (
-            <div key={i} style={lineStyle(line.type, isMobile)}>{line.text}</div>
+            <div key={i} style={lineStyle(line.type)}>{line.text}</div>
           )
         )}
 

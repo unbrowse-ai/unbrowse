@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const SKILL_MD = `---
 name: unbrowse
 description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
-install: npx unbrowse setup
+install: curl -fsSL https://unbrowse.ai/install.sh | bash
 homepage: https://www.unbrowse.ai
 repository: https://github.com/unbrowse-ai/unbrowse
 ---
@@ -15,7 +15,7 @@ repository: https://github.com/unbrowse-ai/unbrowse
 ## Install
 
 \`\`\`bash
-npx unbrowse setup
+curl -fsSL https://unbrowse.ai/install.sh | bash
 \`\`\`
 
 For repeat use, install globally:
@@ -29,76 +29,61 @@ If your agent host uses skills, add the Unbrowse skill too:
 
 \`\`\`bash
 npx skills add unbrowse-ai/unbrowse
+npm install -g unbrowse@preview && unbrowse setup --host mcp
 \`\`\`
+
+The skills command installs agent instructions only. The runtime binary still needs \`unbrowse setup\`.
 
 ## Earning from discovered routes
 
 During bootstrap, set up Crossmint lobster.cash if you want mined-route payouts to land in your wallet:
 
 \`\`\`bash
-unbrowse wallet setup
+npx @crossmint/lobster-cli setup
 \`\`\`
 
 Without a configured wallet, the agent can still index routes but payout flow cannot land earnings to the contributor.
 ## Overview
 
-Unbrowse is a local service backed by a shared skill marketplace. When you ask it to do something, it first searches the marketplace for an existing skill discovered by any agent. If none exists, it captures the site, reverse-engineers the API, publishes the skill to the marketplace, and executes it. Future requests from any agent reuse the learned skill instantly.
+Unbrowse is a local service backed by a shared skill marketplace. When you ask it to do something, it first searches trusted local and marketplace route caches for an existing skill discovered by any agent. If none exists, use the browser verbs (\`go\`, \`snap\`, \`click\`, \`fill\`, \`submit\`, \`sync\`, \`close\`) or explicit \`capture\` / \`publish\` to learn a new reusable route. Future requests from any agent reuse the learned skill instantly.
 
-The \`unbrowse\` CLI auto-starts the local server on \`http://localhost:6969\` (or \`$UNBROWSE_URL\` if configured) and proxies marketplace operations to \`beta-api.unbrowse.ai\`. On first startup it auto-registers as an agent and caches the API key in \`~/.unbrowse/config.json\`.
+The \`unbrowse\` CLI auto-starts the local server on \`http://localhost:6969\` (or \`$UNBROWSE_URL\` if configured) and proxies marketplace operations to \`beta-api.unbrowse.ai\`. Account registration is explicit: run \`unbrowse account --register\` or \`unbrowse account --register --email you@example.com\` when you want publishing, earnings, dashboard pairing, or server-side analytics.
 
 ## How Intent Resolution Works
 
 When you call \`POST /v1/intent/resolve\`, the orchestrator follows this priority chain:
 
-1. **Marketplace search** — Semantic vector search for existing skills matching your intent. Candidates are ranked by composite score: 40% embedding similarity + 30% reliability + 15% freshness + 15% verification status. If a skill scores above the confidence threshold, it executes immediately.
-2. **Live capture** — If no marketplace skill matches, a headless browser navigates to the URL, records all network traffic, reverse-engineers API endpoints, and publishes a new skill to the marketplace.
-3. **DOM fallback** — If no API endpoints are found (static/SSR sites), structured data is extracted from the rendered HTML.
+1. **Local route cache / snapshots** — Reuse trusted routes already learned on this machine.
+2. **Marketplace search** — Search shared skills matching your intent and domain, then execute when a trusted hit is clear.
+3. **Clean deferral** — If no trusted route exists, return next-step guidance instead of opening a browser implicitly.
 
-Skills published by live capture become available to all agents on the network.
+Fresh live captures become reusable after \`sync\` / \`close\` compiles local artifacts and explicit publish policy allows sharing.
 
 ## Quick Start
 
 Run full setup instantly:
 
 \`\`\`bash
-npx unbrowse setup
+curl -fsSL https://unbrowse.ai/install.sh | bash
 \`\`\`
 
 If your agent host uses skills, add the Unbrowse skill:
 
 \`\`\`bash
 npx skills add unbrowse-ai/unbrowse
+npm install -g unbrowse@preview && unbrowse setup --host mcp
 \`\`\`
-
-### Browser Engine Setup
-
-The browser engine is installed automatically on first capture. To preinstall it:
-
-\`\`\`bash
-unbrowse health
-npx agent-browser install
-\`\`\`
-
-On Linux, include system dependencies: \`npx playwright install --with-deps chromium\`
-
-This is handled automatically by \`setup.sh\`, but must be done manually for other installation methods.
 
 ### Agent Registration (Getting an API Key)
 
-The local server auto-registers on first startup and caches credentials in \`~/.unbrowse/config.json\`. If you need to register manually or get a fresh key:
+Setup starts the local runtime without registering implicitly. Register only when you need publishing, earnings, dashboard pairing, or account-backed API access:
 
 \`\`\`bash
-curl -s -X POST "$UNBROWSE/v1/agents/register" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name": "my-agent"}'
+unbrowse account --register
+unbrowse account --register --email you@example.com
 \`\`\`
 
-Response:
-\`\`\`json
-{"agent_id": "abc123", "api_key": "ubr_xxxxxxxxxxxx"}
-\`\`\`
-
-Store the API key — authenticated endpoints require it as a Bearer token:
+The CLI saves the API key in \`~/.unbrowse/config.json\`. Authenticated HTTP endpoints use the same key as a Bearer token:
 
 \`\`\`bash
 curl -s -H "Authorization: Bearer $UNBROWSE_API_KEY" "$UNBROWSE/v1/agents/me"
@@ -111,35 +96,31 @@ curl -s -H "Authorization: Bearer $UNBROWSE_API_KEY" "$UNBROWSE/v1/agents/me"
 The simplest way — describe what you want and unbrowse figures out the rest:
 
 \`\`\`bash
-curl -s -X POST "$UNBROWSE/v1/intent/resolve" \\
-  -H "Content-Type: application/json" \\
-  -d '{"intent": "get trending searches on Google", "params": {"url": "https://google.com"}, "context": {"url": "https://google.com"}}'
+unbrowse resolve --intent "get trending searches on Google" --url "https://google.com" --pretty
 \`\`\`
 
-This will: search the marketplace for a matching skill, or capture the site, extract API endpoints, learn a skill, publish it, and execute it — all in one call.
+This will search trusted cached and marketplace routes, execute when the match is clear, or return concrete browser-first next steps when a fresh capture is needed.
 
 ### 2. Manual Capture -> Execute Flow
 
 #### Step 1: Capture a website
 
 \`\`\`bash
-curl -s -X POST "$UNBROWSE/v1/intent/resolve" \\
-  -H "Content-Type: application/json" \\
-  -d '{"intent": "capture APIs from this site", "params": {"url": "https://example.com"}, "context": {"url": "https://example.com"}}'
+unbrowse go https://example.com
+unbrowse snap --filter interactive
+unbrowse sync --pretty
 \`\`\`
 
 #### Step 2: List learned skills
 
 \`\`\`bash
-curl -s "$UNBROWSE/v1/skills" | jq .
+unbrowse skills --pretty
 \`\`\`
 
 #### Step 3: Execute a specific skill
 
 \`\`\`bash
-curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \\
-  -H "Content-Type: application/json" \\
-  -d '{"params": {}}'
+unbrowse execute --skill <skill_id> --endpoint <endpoint_id> --pretty
 \`\`\`
 
 ## Authentication for Gated Sites
@@ -149,23 +130,18 @@ If a site requires login:
 ### Interactive Login (opens a browser window)
 
 \`\`\`bash
-curl -s -X POST "$UNBROWSE/v1/auth/login" \\
-  -H "Content-Type: application/json" \\
-  -d '{"url": "https://example.com/login"}'
+unbrowse login --url "https://example.com/login"
 \`\`\`
 
 The user completes login in the browser. Cookies are stored in the vault and automatically used for subsequent captures and executions on that domain.
 
-### Yolo Login (use existing Chrome sessions)
+### Existing browser sessions
 
-If the user is already logged into a site in their main Chrome browser, yolo mode opens Chrome with their real profile — no need to re-login.
-
-**Important: Always ask the user before using yolo mode.** Say: "I'll open your main Chrome browser with all your existing sessions. You'll need to close Chrome first. OK to proceed?"
+If the user is already logged into a site in a supported browser, scan for reusable sessions:
 
 \`\`\`bash
-curl -s -X POST "$UNBROWSE/v1/auth/login" \\
-  -H "Content-Type: application/json" \\
-  -d '{"url": "https://example.com", "yolo": true}'
+unbrowse sessions-scan --domain example.com
+unbrowse go https://example.com
 \`\`\`
 
 ## Mutation Safety
@@ -217,7 +193,7 @@ All routes go through \`localhost:6969\`. Local routes are handled directly; mar
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | \`/v1/intent/resolve\` | No | Search marketplace, capture if needed, execute |
+| POST | \`/v1/intent/resolve\` | No | Search trusted routes and execute or return next-step guidance |
 | GET | \`/v1/skills\` | No | List all skills in the marketplace |
 | GET | \`/v1/skills/:id\` | No | Get skill details |
 | POST | \`/v1/skills/:id/execute\` | No | Execute a skill locally |
@@ -234,7 +210,7 @@ All routes go through \`localhost:6969\`. Local routes are handled directly; mar
 
 ## Rules
 
-1. Always try \`intent/resolve\` first — it handles the full marketplace search -> capture -> execute pipeline
+1. Always try \`intent/resolve\` first — it handles trusted local/marketplace search and execution
 2. **Check the result** — if it looks wrong, inspect \`available_endpoints\` and retry with a specific \`endpoint_id\`
 3. If a site returns \`auth_required\`, use \`/v1/auth/login\` then retry
 4. Always \`dry_run\` before executing mutations (non-GET endpoints)

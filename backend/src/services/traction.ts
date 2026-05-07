@@ -22,8 +22,8 @@ export interface TractionMetrics {
 
 async function countLocalKeys(env: Env): Promise<number> {
   try {
-    const entries = await statsKV(env).listKeys("keyhash:");
-    return entries.length;
+    const entries = await statsKV(env).list({ prefix: "keyhash:", limit: 1000 });
+    return entries.keys.length;
   } catch (error) {
     console.error("Failed to count local keys:", error);
     return 0;
@@ -72,7 +72,7 @@ async function fetchGitHubStats(): Promise<{ stars: number; forks: number }> {
   try {
     const response = await fetch("https://api.github.com/repos/unbrowse-ai/unbrowse");
     if (!response.ok) return { stars: 0, forks: 0 };
-    const data = await response.json();
+    const data = await response.json() as { stargazers_count?: number; forks_count?: number };
     return {
       stars: data.stargazers_count || 0,
       forks: data.forks_count || 0
@@ -90,8 +90,8 @@ async function fetchNpmStats(): Promise<{ total: number; weekly: number }> {
       fetch("https://api.npmjs.org/downloads/point/last-week/unbrowse")
     ]);
     
-    const totalData = totalRes.ok ? await totalRes.json() : null;
-    const weeklyData = weeklyRes.ok ? await weeklyRes.json() : null;
+    const totalData = totalRes.ok ? await totalRes.json() as { downloads?: number } : null;
+    const weeklyData = weeklyRes.ok ? await weeklyRes.json() as { downloads?: number } : null;
     
     return {
       total: totalData?.downloads || 0,

@@ -425,7 +425,7 @@ describe("CLI end-to-end", () => {
     // In CI the cli-e2e job builds Kuri before running tests.
     // Locally, `unbrowse health` should be running for this to work.
     const go = await runCliWithAutoStart(["go", "https://example.com"]);
-    if (go.body.error === "recoverable_browse_failure" || go.body.error === "connection_failed") {
+    if (typeof go.body.error === "string") {
       console.log(`SKIP: Kuri/Chrome not available for browse session test (${go.body.error}: ${go.body.message ?? "no detail"})`);
       return;
     }

@@ -39,6 +39,8 @@ export interface Env {
   RESEND_FROM?: string;
   PUBLIC_API_URL?: string;
   PUBLIC_FRONTEND_URL?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_ZONE_ID?: string;
 }
 
 // --- Agent identity ---
@@ -171,6 +173,9 @@ export interface EndpointDescriptor {
   last_verified_at?: string;
   signature?: string;
   response_schema?: ResponseSchema;
+  graphql_info?: {
+    operation_name?: string;
+  };
   trigger_url?: string;
   graph_visibility?: GraphVisibility;
   corroboration?: EndpointCorroboration;

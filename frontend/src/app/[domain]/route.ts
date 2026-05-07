@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getConfiguredApiOrigin } from "@/lib/api-base";
 
 // unbrowse.ai/<domain> — llms.txt-style SKILL.md for any indexed domain.
 //
@@ -10,7 +11,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "edge";
 
-const BACKEND = process.env.UNBROWSE_API_URL || "https://beta-api.unbrowse.ai";
+const BACKEND = getConfiguredApiOrigin();
 
 function looksLikeDomain(s: string): boolean {
   return /^[a-z0-9.-]+$/i.test(s) && s.includes(".") && !s.startsWith(".") && !s.endsWith(".");

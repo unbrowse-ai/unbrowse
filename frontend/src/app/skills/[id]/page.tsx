@@ -1,4 +1,4 @@
-import { getSkill, type SkillManifest } from "@/lib/api";
+import { getSkill } from "@/lib/api";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -28,11 +28,11 @@ export default async function SkillDetailPage({ params }: { params: Promise<{ id
 
       {/* Quick use */}
       <div className="mb-8 p-5 rounded-2xl border border-border bg-surface">
-        <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3">Execute</h2>
-        <pre className="text-sm font-mono text-text-secondary bg-surface-raised rounded-xl p-4 overflow-x-auto">{`curl -X POST https://beta-api.unbrowse.ai/v1/skills/${skill.skill_id}/execute \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer \$UNBROWSE_API_KEY" \\
-  -d '{"params":{}}'`}</pre>
+        <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3">Use from CLI</h2>
+        <pre className="text-sm font-mono text-text-secondary bg-surface-raised rounded-xl p-4 overflow-x-auto">{`unbrowse execute --skill ${skill.skill_id}${skill.endpoints[0]?.endpoint_id ? ` --endpoint ${skill.endpoints[0].endpoint_id}` : " --endpoint <endpoint_id>"} --pretty`}</pre>
+        <p className="text-xs text-text-muted mt-3">
+          The website shows registry metadata. Real execution goes through the local CLI/runtime on localhost, which proxies marketplace work when needed.
+        </p>
       </div>
 
       {/* Endpoints */}

@@ -1,10 +1,11 @@
 import "server-only";
 
 import { cache } from "react";
+import { getConfiguredApiV1Origin } from "@/lib/api-base";
 import { fetchWithTimeout } from "@/lib/server-fetch";
 import type { LandingVariant, ResolvedLandingVariantResponse } from "./types";
 
-const API_BASE = "https://beta-api.unbrowse.ai/v1";
+const API_BASE = getConfiguredApiV1Origin();
 
 export const getLandingVariant = cache(
   async (opts: { variantId?: string; icp?: string; experimentId?: string; seed?: string } = {}): Promise<LandingVariant | null> => {

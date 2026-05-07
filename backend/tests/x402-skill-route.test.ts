@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { publicSkillRoutes } from "../src/routes/skills.js";
-import { x402UseTestnet } from "../src/middleware/x402-gate.js";
+import { clearSupportedKindsCacheForTests, x402UseTestnet } from "../src/middleware/x402-gate.js";
 import type { Env, SkillManifest } from "../src/types.js";
 
 const PAID_SKILL_ID = "skill-paid-x402";
@@ -66,6 +66,7 @@ describe("public skill x402 route", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
+    clearSupportedKindsCacheForTests();
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 

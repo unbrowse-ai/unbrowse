@@ -226,7 +226,7 @@ opsRoutes.post("/ops/remove-domain", bearerAuth, async (c) => {
     return c.json({ error: "Admin only" }, 403);
   }
 
-  const body = await c.req.json<{ domain?: string; dry_run?: boolean }>().catch(() => ({}));
+  const body: { domain?: string; dry_run?: boolean } = await c.req.json<{ domain?: string; dry_run?: boolean }>().catch(() => ({}));
   const domain = body.domain?.trim().toLowerCase();
   if (!domain) return c.json({ error: "domain required" }, 400);
 
