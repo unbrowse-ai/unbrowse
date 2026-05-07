@@ -77,7 +77,7 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
       // Flags that always consume the next arg as their value (even if it
       // starts with -- because nanoid IDs can begin with `-` / `--`).
       const valueExpectedFlags = new Set([
-        "skill", "skill-id", "endpoint", "endpoint-id", "intent", "task", "url", "domain", "params", "path", "extract", "limit",
+        "skill", "skill-id", "endpoint", "endpoint-id", "intent", "task", "query", "url", "domain", "params", "path", "extract", "limit",
         "session", "ref", "text", "value", "form-selector", "submit-selector", "wait-for", "timeout-ms",
         "target-origin", "target-href", "bundle-url", "bundle-source", "post-eval", "fingerprint",
         "impersonate", "origin", "bundle", "eval",
@@ -196,12 +196,23 @@ async function ensureKuriReachable(kuriBase: string): Promise<void> {
   const { existsSync, openSync } = await import("node:fs");
   const { join, dirname } = await import("node:path");
   const { fileURLToPath } = await import("node:url");
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const kuriTarget = (() => {
+    if (process.platform === "darwin" && process.arch === "arm64") return "darwin-arm64";
+    if (process.platform === "darwin" && process.arch === "x64") return "darwin-x64";
+    if (process.platform === "linux" && process.arch === "arm64") return "linux-arm64";
+    if (process.platform === "linux" && process.arch === "x64") return "linux-x64";
+    if (process.platform === "win32" && process.arch === "x64") return "win-x64";
+    return null;
+  })();
+  const kuriBinName = process.platform === "win32" ? "kuri.exe" : "kuri";
 
   const candidates = [
     process.env.UNBROWSE_KURI_BIN,
+    process.env.KURI_BIN,
     join(process.cwd(), "submodules/kuri/zig-out/bin/kuri"),
-    join(dirname(fileURLToPath(import.meta.url)), "../packages/skill/vendor/kuri/darwin-arm64/kuri"),
-    join(dirname(fileURLToPath(import.meta.url)), "../packages/skill/vendor/kuri/linux-x64/kuri"),
+    kuriTarget ? join(moduleDir, "../vendor/kuri", kuriTarget, kuriBinName) : undefined,
+    kuriTarget ? join(moduleDir, "../packages/skill/vendor/kuri", kuriTarget, kuriBinName) : undefined,
     "/opt/homebrew/bin/kuri",
     "/usr/local/bin/kuri",
   ].filter((p): p is string => !!p && existsSync(p));
@@ -494,7 +505,7 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
 }
 
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
-  const intent = (flags.intent ?? flags.task) as string;
+  const intent = (flags.intent ?? flags.task ?? flags.query) as string;
   if (!intent) die("--intent is required");
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
@@ -733,7 +744,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 async function cmdRun(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const url = (flags.url as string | undefined) ?? args[0];
   const positionalTask = args.length > 1 ? args.slice(1).join(" ") : undefined;
-  const intent = ((flags.intent ?? flags.task) as string | undefined) ?? positionalTask;
+  const intent = ((flags.intent ?? flags.task ?? flags.query) as string | undefined) ?? positionalTask;
   if (!url || !intent) die('usage: unbrowse run <url> "task"');
   await cmdResolve({
     ...flags,
@@ -1907,8 +1918,8 @@ export const CLI_REFERENCE = {
 
     // ── The two primary call paths for an agent ───────────────────────────
     { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser." },
-    { name: "run", usage: '<url> "task"', desc: "One-shot agent path: resolve a task for a URL and auto-execute the best safe read endpoint. Accepts positional task text or --intent/--task." },
-    { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Resolve an intent against the marketplace + local cache. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only. Pair with `unbrowse execute` when you want explicit endpoint pick." },
+    { name: "run", usage: '<url> "task"', desc: "One-shot agent path: resolve a task for a URL and auto-execute the best safe read endpoint. Accepts positional task text or --intent/--task/--query." },
+    { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Resolve an intent against the marketplace + local cache. --task and --query are accepted aliases for --intent. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only. Pair with `unbrowse execute` when you want explicit endpoint pick." },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}']", desc: "Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object." },
     { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Print top-N candidate endpoints + evidence so an LLM (or you) can pick. No heuristic verdict — just primitives + evidence." },
 
