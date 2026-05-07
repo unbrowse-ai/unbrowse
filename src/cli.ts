@@ -603,7 +603,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     const resultError = resolveResultError(result);
     if (resultError === "auth_required") {
       const loginUrl = resolveLoginUrl(result, url);
-      if (loginUrl) info(`Authentication required. Run: unbrowse login --url "${loginUrl}"`);
+      if (loginUrl) info(`Authentication required. Run: unbrowse auth-capture --url "${loginUrl}"`);
     }
 
     // When agent explicitly picked an endpoint but resolve deferred, execute it directly
@@ -1158,6 +1158,7 @@ async function cmdConfig(args: string[], flags: Record<string, string | boolean>
 async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
   const url = flags.url as string;
   if (!url) die("--url is required");
+  info("[unbrowse] Opening a visible browser for site login. Complete sign-in in the Chrome window; cookies will be saved for future runs.");
   output(await api("POST", "/v1/auth/login", { url }), !!flags.pretty);
 }
 

@@ -31,3 +31,4 @@ Deprecated. Durable agent memory now lives in [AGENTS.md](/Users/lekt9/.codex/wo
 - Use the repo `experiments` preset for `lewis/experiments` runtime tests; it should stay publish-enabled but isolated from the main `prod` local profile.
 - Preview npm/binary releases should be built with an embedded default backend URL at build time, not only a wrapper env override, so downloaded compiled binaries talk to the intended preview backend by default.
 - staging/experiments frontend deploys should use `wrangler deploy` after `opennextjs-cloudflare build`; the direct OpenNext deploy path tries to prefill R2 incremental cache and 403s under current CI credentials.
+- Interactive site auth must force both `HEADLESS=false` and `KURI_HEADLESS=false`; Kuri launch config gives `KURI_HEADLESS` precedence, so setting only `HEADLESS=false` can leave `unbrowse login` invisibly headless.

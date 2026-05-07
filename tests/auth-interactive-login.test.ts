@@ -1,11 +1,20 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { assessInteractiveLoginState, loginWithBrowserFallback, shouldImportBrowserCookies } from "../src/auth/index.js";
+import { assessInteractiveLoginState, forceVisibleKuriEnv, loginWithBrowserFallback, shouldImportBrowserCookies } from "../src/auth/index.js";
+import { resolveKuriLaunchConfig } from "../src/kuri/client.js";
+import { forceVisibleKuriEnv as forcePackagedVisibleKuriEnv } from "../packages/skill/runtime-src/auth/index.js";
+import { resolveKuriLaunchConfig as resolvePackagedKuriLaunchConfig } from "../packages/skill/runtime-src/kuri/client.js";
 
 const originalImportBrowserCookies = process.env.UNBROWSE_IMPORT_BROWSER_COOKIES;
+const originalHeadless = process.env.HEADLESS;
+const originalKuriHeadless = process.env.KURI_HEADLESS;
 
 afterEach(() => {
   if (originalImportBrowserCookies === undefined) delete process.env.UNBROWSE_IMPORT_BROWSER_COOKIES;
   else process.env.UNBROWSE_IMPORT_BROWSER_COOKIES = originalImportBrowserCookies;
+  if (originalHeadless === undefined) delete process.env.HEADLESS;
+  else process.env.HEADLESS = originalHeadless;
+  if (originalKuriHeadless === undefined) delete process.env.KURI_HEADLESS;
+  else process.env.KURI_HEADLESS = originalKuriHeadless;
 });
 
 describe("assessInteractiveLoginState", () => {
@@ -75,6 +84,30 @@ describe("shouldImportBrowserCookies", () => {
   it("respects explicit opt-out values", () => {
     process.env.UNBROWSE_IMPORT_BROWSER_COOKIES = "false";
     expect(shouldImportBrowserCookies()).toBe(false);
+  });
+});
+
+describe("forceVisibleKuriEnv", () => {
+  it("overrides KURI_HEADLESS during login and restores both env values", () => {
+    for (const [forceVisible, resolveLaunch] of [
+      [forceVisibleKuriEnv, resolveKuriLaunchConfig],
+      [forcePackagedVisibleKuriEnv, resolvePackagedKuriLaunchConfig],
+    ] as const) {
+      process.env.HEADLESS = "true";
+      process.env.KURI_HEADLESS = "true";
+
+      const restore = forceVisible(process.env);
+      try {
+        expect(process.env.HEADLESS).toBe("false");
+        expect(process.env.KURI_HEADLESS).toBe("false");
+        expect(resolveLaunch(process.env).headless).toBe(false);
+      } finally {
+        restore();
+      }
+
+      expect(process.env.HEADLESS).toBe("true");
+      expect(process.env.KURI_HEADLESS).toBe("true");
+    }
   });
 });
 

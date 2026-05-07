@@ -9,6 +9,7 @@
 ### Bug Fixes
 
 * **privacy:** make `unbrowse config set telemetry false` disable sharing/checkpoint auto-publish and keep `fetch` local unless `--publish` is explicit.
+* **auth:** force interactive site login to open a visible browser even when `KURI_HEADLESS=true` is set by the host.
 * **ci:** keep backend typecheck, x402 payment tests, and baked Kuri package validation green in pull-request gates.
 * **frontend:** align website API origin handling and registry detail CTAs with the local-first CLI contract.
 
