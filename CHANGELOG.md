@@ -5,13 +5,14 @@
 ### Features
 
 * **reverse-engineer:** decode protobuf API responses into JSON-safe records so binary search/listing endpoints can be indexed and replayed.
+* **cli:** make `unbrowse run <url> "task"` choose direct replay, capture/index, or live browse fallback automatically.
 * **ops:** add admin domain removal and emergency marketplace suppression for requested privacy removals.
 
 ### Bug Fixes
 
 * **capture:** preserve protobuf response bodies as base64 during browser interception instead of corrupting them through text decoding.
 * **privacy:** make `unbrowse config set telemetry false` disable sharing/checkpoint auto-publish and keep `fetch` local unless `--publish` is explicit.
-* **auth:** force interactive site login to open a visible browser even when `KURI_HEADLESS=true` is set by the host.
+* **auth:** force interactive site login to skip silent cookie import and open a visible browser even when headless CDP sessions are already running.
 * **release:** skip install-time binary downloads while building timestamped preview CLI releases.
 * **cli:** accept `--task`, `--query`, `--skill-id`, and `--endpoint-id` aliases, and add `unbrowse run <url> "task"` for one-shot agent searches.
 * **ci:** keep backend typecheck, x402 payment tests, and baked Kuri package validation green in pull-request gates.
