@@ -9,7 +9,7 @@ import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { selectMarketplacePublishEndpoints } from "../publish-admission.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
-import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
+import { forceVisibleKuriEnv, getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
@@ -886,7 +886,7 @@ async function executeBrowserCapture(
     // Skipped when HEADLESS=false already, opted out, or no controlling TTY.
     {
       const optedOut = process.env.UNBROWSE_NO_VISIBLE_FALLBACK === "1";
-      const alreadyVisible = (process.env.HEADLESS ?? process.env.KURI_HEADLESS ?? "").trim().toLowerCase() === "false";
+      const alreadyVisible = !kuri.resolveKuriLaunchConfig(process.env).headless;
       const isInteractive = !!(process.stdout && process.stdout.isTTY) || !!(process.stderr && process.stderr.isTTY);
       if (!optedOut && !alreadyVisible && isInteractive) {
         const headlessTitle = (() => {
@@ -907,15 +907,13 @@ async function executeBrowserCapture(
           process.stderr.write(
             `[unbrowse] Anti-bot wall detected (${wallSignal}). Retrying once with visible browser — pop a Chrome window for ~5s, future captures stay headless.\n`,
           );
-          const prevHeadless = process.env.HEADLESS;
-          process.env.HEADLESS = "false";
+          const restoreVisibleKuriEnv = forceVisibleKuriEnv();
           try {
             await kuri.stop();
             await kuri.start();
             captured = await captureSession(url, authHeaders, cookies, intent);
           } finally {
-            if (prevHeadless === undefined) delete process.env.HEADLESS;
-            else process.env.HEADLESS = prevHeadless;
+            restoreVisibleKuriEnv();
             try { await kuri.stop(); await kuri.start(); } catch { /* best-effort restart back to headless */ }
           }
         }

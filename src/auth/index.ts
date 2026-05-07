@@ -221,6 +221,20 @@ export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | 
   }
   return false;
 }
+
+export function forceVisibleKuriEnv(env: NodeJS.ProcessEnv = process.env): () => void {
+  const prevHeadless = env.HEADLESS;
+  const prevKuriHeadless = env.KURI_HEADLESS;
+  env.HEADLESS = "false";
+  env.KURI_HEADLESS = "false";
+  return () => {
+    if (prevHeadless !== undefined) env.HEADLESS = prevHeadless;
+    else delete env.HEADLESS;
+    if (prevKuriHeadless !== undefined) env.KURI_HEADLESS = prevKuriHeadless;
+    else delete env.KURI_HEADLESS;
+  };
+}
+
 /**
  * Open a visible browser for the user to complete login.
  * Uses Kuri to manage the browser tab, polls for login completion via cookies.
@@ -235,13 +249,12 @@ export async function interactiveLogin(
   const targetDomain = domain ?? new URL(url).hostname;
   const profileDir = getProfilePath(targetDomain);
 
-  const isHeadless = process.env.HEADLESS === "true" || process.env.HEADLESS === "1";
-  const loginConfig = getDefaultLoginConfig(isHeadless);
+  const loginConfig = getDefaultLoginConfig(false);
   log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}, interactive: ${loginConfig.interactive}, timeout: ${loginConfig.timeout_ms}ms`);
 
-  // Login requires a visible browser — disable headless for this flow
-  const prevHeadless = process.env.HEADLESS;
-  process.env.HEADLESS = "false";
+  // Login requires a visible browser. KURI_HEADLESS takes precedence over
+  // HEADLESS in the Kuri launcher, so force both and restore them afterward.
+  const restoreVisibleLoginEnv = forceVisibleKuriEnv();
 
   try {
     fs.mkdirSync(profileDir, { recursive: true });
@@ -349,9 +362,7 @@ export async function interactiveLogin(
 
     return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
   } finally {
-    // Restore headless setting so subsequent captures run headless
-    if (prevHeadless !== undefined) process.env.HEADLESS = prevHeadless;
-    else delete process.env.HEADLESS;
+    restoreVisibleLoginEnv();
   }
 }
 

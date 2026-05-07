@@ -11,13 +11,13 @@ import { join, relative, resolve, sep } from "node:path";
 // files) and asserts every .ts file outside the whitelist is free of:
 //   1. an object literal `headless: false`
 //   2. an env construction `HEADLESS: "false"` or `HEADLESS = "false"`
-//   3. a runtime mutation `process.env.HEADLESS = "false"`
+//   3. a direct runtime mutation `process.env.HEADLESS = "false"`
 //
 // Whitelist rationale:
 //   - `src/auth/index.ts` and its skill mirror own the interactive auth flow
 //     (resolveAuth around lines 238-354) where the user explicitly opts in to a
-//     visible Chrome window. Both files mutate process.env.HEADLESS = "false"
-//     inside that bounded path and restore it in `finally`.
+//     visible Chrome window. Both files own forceVisibleKuriEnv, which forces
+//     HEADLESS and KURI_HEADLESS false inside bounded paths and restores them.
 //   - `src/kuri/client.ts` and its skill mirror are the central spawn site.
 //     They build the env from `launchConfig.headless` (a derived boolean from
 //     resolveKuriLaunchConfig), so the literal "false" appears as the false
@@ -33,8 +33,8 @@ const SCAN_ROOTS = [
   join(REPO_ROOT, "packages", "skill", "runtime-src"),
 ];
 
-// Files allowed to contain `process.env.HEADLESS = "false"`. These are the
-// interactive auth code paths and only those.
+// Files allowed to contain the direct visible-browser env override. These are
+// the shared visible Kuri env helpers and only those.
 const HEADLESS_ENV_WRITE_WHITELIST = new Set([
   join("src", "auth", "index.ts"),
   join("packages", "skill", "runtime-src", "auth", "index.ts"),
@@ -170,7 +170,9 @@ describe("kuri spawn-gate contract", () => {
     for (const rel of HEADLESS_ENV_WRITE_WHITELIST) {
       const abs = join(REPO_ROOT, rel);
       const content = readFileSync(abs, "utf8");
-      expect(content).toContain('process.env.HEADLESS = "false"');
+      expect(content).toContain("forceVisibleKuriEnv");
+      expect(content).toContain('env.HEADLESS = "false"');
+      expect(content).toContain('env.KURI_HEADLESS = "false"');
     }
   });
 });

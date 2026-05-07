@@ -208,7 +208,7 @@ describe("cli agent experience", () => {
       expect(out.code).toBe(0);
       expect(out.body.result.error).toBe("auth_required");
       expect(resolveCalls).toBe(1);
-      expect(out.stderr).toContain('unbrowse login --url "https://x.com/home"');
+      expect(out.stderr).toContain('unbrowse auth-capture --url "https://x.com/home"');
     });
   });
 
