@@ -77,7 +77,7 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
       // Flags that always consume the next arg as their value (even if it
       // starts with -- because nanoid IDs can begin with `-` / `--`).
       const valueExpectedFlags = new Set([
-        "skill", "endpoint", "intent", "url", "domain", "params", "path", "extract", "limit",
+        "skill", "skill-id", "endpoint", "endpoint-id", "intent", "task", "url", "domain", "params", "path", "extract", "limit",
         "session", "ref", "text", "value", "form-selector", "submit-selector", "wait-for", "timeout-ms",
         "target-origin", "target-href", "bundle-url", "bundle-source", "post-eval", "fingerprint",
         "impersonate", "origin", "bundle", "eval",
@@ -436,7 +436,7 @@ function telemetryDomainFromInput(domain?: string, url?: string): string | null 
 
 
 async function cmdExplain(flags: Record<string, string | boolean>): Promise<void> {
-  const intent = flags.intent as string | undefined;
+  const intent = (flags.intent ?? flags.task) as string | undefined;
   const url = flags.url as string | undefined;
   const top = parseInt((flags.top as string) ?? "5", 10) || 5;
   if (!intent || !url) {
@@ -494,7 +494,7 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
 }
 
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
-  const intent = flags.intent as string;
+  const intent = (flags.intent ?? flags.task) as string;
   if (!intent) die("--intent is required");
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
@@ -730,6 +730,18 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
 }
 
+async function cmdRun(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const url = (flags.url as string | undefined) ?? args[0];
+  const positionalTask = args.length > 1 ? args.slice(1).join(" ") : undefined;
+  const intent = ((flags.intent ?? flags.task) as string | undefined) ?? positionalTask;
+  if (!url || !intent) die('usage: unbrowse run <url> "task"');
+  await cmdResolve({
+    ...flags,
+    url,
+    intent,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Post-processing helpers for --path, --extract, --limit, --schema
 // ---------------------------------------------------------------------------
@@ -818,8 +830,9 @@ function schemaOf(value: unknown, depth = 4): unknown {
 }
 
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
-  const skillId = flags.skill as string;
+  const skillId = (flags.skill ?? flags["skill-id"]) as string;
   if (!skillId) die("--skill is required");
+  const endpointId = (flags.endpoint ?? flags["endpoint-id"]) as string | undefined;
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
   await ensureCliInstallTracked(hostType);
@@ -833,11 +846,11 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     hostType,
     properties: {
       command: "execute",
-      intent: typeof flags.intent === "string" ? flags.intent : null,
+      intent: typeof (flags.intent ?? flags.task) === "string" ? flags.intent ?? flags.task : null,
       domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
       url: typeof flags.url === "string" ? flags.url : null,
       skill_id: skillId,
-      endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
+      endpoint_id: endpointId ?? null,
     },
   });
 
@@ -848,8 +861,8 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
 
   try {
     const body: Record<string, unknown> = { params: {} };
-    if (flags.endpoint) {
-      (body.params as Record<string, unknown>).endpoint_id = flags.endpoint;
+    if (endpointId) {
+      (body.params as Record<string, unknown>).endpoint_id = endpointId;
     }
     if (flags.params) {
       body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
@@ -863,7 +876,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       body.context_url = flags.url;
       (body.params as Record<string, unknown>).url = flags.url;
     }
-    if (flags.intent) body.intent = flags.intent;
+    if (flags.intent ?? flags.task) body.intent = flags.intent ?? flags.task;
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
@@ -881,11 +894,11 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
         hostType,
         properties: {
           command: "execute",
-          intent: typeof flags.intent === "string" ? flags.intent : null,
+          intent: typeof (flags.intent ?? flags.task) === "string" ? flags.intent ?? flags.task : null,
           domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
           url: typeof flags.url === "string" ? flags.url : null,
           skill_id: skillId,
-          endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
+          endpoint_id: endpointId ?? null,
         },
       });
     }
@@ -896,7 +909,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     {
       const entry = impactFromResult("execute", result, {
         skill_id: skillId,
-        endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : undefined,
+        endpoint_id: endpointId,
       });
       if (entry) appendImpact(entry);
     }
@@ -986,7 +999,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       hostType,
       properties: {
         command: "execute",
-        intent: typeof flags.intent === "string" ? flags.intent : null,
+        intent: typeof (flags.intent ?? flags.task) === "string" ? flags.intent ?? flags.task : null,
         domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
         url: typeof flags.url === "string" ? flags.url : null,
         skill_id: skillId,
@@ -1894,6 +1907,7 @@ export const CLI_REFERENCE = {
 
     // ── The two primary call paths for an agent ───────────────────────────
     { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser." },
+    { name: "run", usage: '<url> "task"', desc: "One-shot agent path: resolve a task for a URL and auto-execute the best safe read endpoint. Accepts positional task text or --intent/--task." },
     { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Resolve an intent against the marketplace + local cache. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only. Pair with `unbrowse execute` when you want explicit endpoint pick." },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}']", desc: "Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object." },
     { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Print top-N candidate endpoints + evidence so an LLM (or you) can pick. No heuristic verdict — just primitives + evidence." },
@@ -3303,7 +3317,7 @@ async function main(): Promise<void> {
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
-    "health", "mcp", "setup", "resolve", "execute", "exec",
+    "health", "mcp", "setup", "resolve", "run", "execute", "exec",
     "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "config", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "inspect", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
@@ -3337,6 +3351,7 @@ async function main(): Promise<void> {
     case "mcp": return cmdMcp(flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
+    case "run": return cmdRun(args, flags);
     case "explain": return cmdExplain(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
