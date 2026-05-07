@@ -1,11 +1,12 @@
 import { nanoid } from "nanoid";
 import type { Env, SkillListItem, SkillManifest, EndpointDescriptor, EndpointCorroboration } from "../types.js";
-import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex } from "./discovery.js";
+import { indexEndpoints, removeEndpointsFromIndex, purgeSkillVectors } from "./discovery.js";
 import { generateDescriptions } from "./descriptions.js";
 import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
 import { summarizeEmergentDBError } from "./emergentdb.js";
 import { skillsKV } from "./kv.js";
 import { verifyReleaseManifest } from "./release-manifest.js";
+import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
 
 function kvKey(skillId: string): string {
   return `skill:${skillId}`;
@@ -20,6 +21,10 @@ function intentKey(domain: string, intent: string): string {
 }
 
 const SKILL_LIST_CARD_CACHE_KEY = "cache:skills:list:card:v1";
+
+function isVisibleSkill(skill: Pick<SkillManifest, "lifecycle">): boolean {
+  return skill.lifecycle !== "deprecated" && skill.lifecycle !== "disabled";
+}
 
 function hashIntent(s: string): string {
   let h = 0;
@@ -85,11 +90,13 @@ export async function listSkillCards(
     const parsed = JSON.parse(cached) as SkillListItem[];
     const filtered = opts.includeDeprecated
       ? parsed
-      : parsed.filter((skill) => skill.lifecycle !== "deprecated" && skill.lifecycle !== "disabled");
-    return opts.limit != null ? filtered.slice(0, opts.limit) : filtered;
+      : parsed.filter(isVisibleSkill);
+    const unsuppressed = filtered.filter((skill) => !isMarketplaceDomainSuppressed(env, skill.domain));
+    return opts.limit != null ? unsuppressed.slice(0, opts.limit) : unsuppressed;
   }
 
   const list = (await listSkills(env))
+    .filter((skill) => !isMarketplaceDomainSuppressed(env, skill.domain))
     .map(toSkillListItem)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
@@ -97,7 +104,7 @@ export async function listSkillCards(
 
   const filtered = opts.includeDeprecated
     ? list
-    : list.filter((skill) => skill.lifecycle !== "deprecated" && skill.lifecycle !== "disabled");
+    : list.filter(isVisibleSkill);
   return opts.limit != null ? filtered.slice(0, opts.limit) : filtered;
 }
 
@@ -113,8 +120,10 @@ export async function getSkill(env: Env, skillId: string): Promise<SkillManifest
 // Used to serve `unbrowse.ai/<domain>` as a single SKILL.md per domain.
 export async function getSkillByDomain(env: Env, domain: string): Promise<SkillManifest | null> {
   const target = domain.toLowerCase();
+  if (isMarketplaceDomainSuppressed(env, target)) return null;
   const all = await listSkills(env);
   const candidates = all.filter((s) => {
+    if (!isVisibleSkill(s)) return false;
     const d = (s.domain ?? "").toLowerCase();
     if (d === target) return true;
     // allow subdomain match: skill domain could be "api.github.com"
@@ -350,9 +359,78 @@ export async function deprecateSkill(env: Env, skillId: string): Promise<SkillMa
   skill.lifecycle = "deprecated";
   skill.updated_at = new Date().toISOString();
   await skillsKV(env).put(kvKey(skillId), JSON.stringify(skill));
-  await removeSkillFromIndex(env, skillId, skill.domain).catch(() => {});
+  await purgeSkillVectors(env, skillId, skill.endpoints.map((endpoint) => endpoint.endpoint_id), skill.domain).catch(() => {});
   await invalidateSkillListCaches(env);
   return skill;
+}
+
+export async function removeDomainFromMarketplace(
+  env: Env,
+  domain: string,
+  opts: { dryRun?: boolean } = {},
+): Promise<{
+  domain: string;
+  matched_skills: number;
+  disabled_skill_ids: string[];
+  deleted_keys: string[];
+  vectors_purged: number;
+  dry_run: boolean;
+}> {
+  const target = domain.trim().toLowerCase();
+  if (!target || !/^[a-z0-9.-]+$/i.test(target) || !target.includes(".")) {
+    throw new Error("invalid_domain");
+  }
+
+  const kv = skillsKV(env);
+  const skills = await listSkills(env);
+  const matches = skills.filter((skill) => (skill.domain ?? "").toLowerCase() === target);
+  const intentEntries = await kv.listWithValues(`intent-idx:${target}:`);
+  const deletedKeys = [
+    domainKey(target),
+    `domain:${target}`,
+    ...intentEntries.map((entry) => entry.key),
+  ];
+
+  if (opts.dryRun) {
+    return {
+      domain: target,
+      matched_skills: matches.length,
+      disabled_skill_ids: matches.map((skill) => skill.skill_id),
+      deleted_keys: deletedKeys,
+      vectors_purged: 0,
+      dry_run: true,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const disabled: string[] = [];
+  let vectorsPurged = 0;
+
+  for (const skill of matches) {
+    const endpointIds = skill.endpoints.map((endpoint) => endpoint.endpoint_id);
+    await purgeSkillVectors(env, skill.skill_id, endpointIds, skill.domain).catch(() => {});
+    vectorsPurged += endpointIds.length;
+    await kv.put(kvKey(skill.skill_id), JSON.stringify({
+      ...skill,
+      lifecycle: "disabled",
+      updated_at: now,
+    }));
+    disabled.push(skill.skill_id);
+  }
+
+  for (const key of deletedKeys) {
+    await kv.delete(key).catch(() => {});
+  }
+  await invalidateSkillListCaches(env);
+
+  return {
+    domain: target,
+    matched_skills: matches.length,
+    disabled_skill_ids: disabled,
+    deleted_keys: deletedKeys,
+    vectors_purged: vectorsPurged,
+    dry_run: false,
+  };
 }
 
 export async function updateEndpointScore(
