@@ -27,6 +27,10 @@ let supportedKindsCache:
   }
   | null = null;
 
+export function clearSupportedKindsCacheForTests(): void {
+  supportedKindsCache = null;
+}
+
 export interface ChainConfig {
   network: string;
   mainnetAsset: string;

@@ -1,11 +1,12 @@
 import "server-only";
 
 import { cache } from "react";
+import { getConfiguredApiV1Origin } from "@/lib/api-base";
 import { fetchWithTimeout } from "@/lib/server-fetch";
 import type { BlogPost, BlogListItem } from "./types";
 import { LEGACY_BLOG_POSTS } from "./legacy-posts";
 
-const API_BASE = "https://beta-api.unbrowse.ai/v1";
+const API_BASE = getConfiguredApiV1Origin();
 
 // ---------------------------------------------------------------------------
 // Single post

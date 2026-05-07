@@ -1,4 +1,6 @@
 import { searchSkills, listSkills, type SkillManifest } from "@/lib/api";
+import { getConfiguredApiOrigin } from "@/lib/api-base";
+import { getRegistrySkillHref, parseSearchMetadata } from "@/lib/registry-search";
 import { SearchBar } from "@/components/search-bar";
 import { SkillCard } from "@/components/skill-card";
 import Link from "next/link";
@@ -16,7 +18,7 @@ export default async function SearchPage({
 
   try {
     allSkills = await listSkills();
-  } catch (e) {
+  } catch {
     // Ignore, we will just handle empty gracefully
   }
 
@@ -26,7 +28,7 @@ export default async function SearchPage({
       
       // Helper to map a search result to its full SkillManifest
       const getFullSkill = (metadata: Record<string, unknown>): SkillManifest | undefined => {
-        const meta = parseMetadata(metadata);
+        const meta = parseSearchMetadata(metadata);
         const id = meta.skill_id;
         return allSkills.find((s) => s.skill_id === id);
       };
@@ -56,7 +58,7 @@ export default async function SearchPage({
           let localMatchIdOffset = 100000;
           for (const match of localMatches) {
             const alreadyExists = results.some(r => {
-              const meta = parseMetadata(r.metadata);
+              const meta = parseSearchMetadata(r.metadata);
               return meta.skill_id === match.skill_id || (getFullSkill(r.metadata)?.skill_id === match.skill_id);
             });
             if (!alreadyExists) {
@@ -85,7 +87,7 @@ export default async function SearchPage({
 
   // Helper to map a search result to its full SkillManifest
   const getFullSkill = (metadata: Record<string, unknown>): SkillManifest | undefined => {
-    const meta = parseMetadata(metadata);
+    const meta = parseSearchMetadata(metadata);
     const id = meta.skill_id;
     return allSkills.find((s) => s.skill_id === id);
   };
@@ -123,7 +125,7 @@ export default async function SearchPage({
                 <span className="font-bold">Search failed:</span> {error}
               </p>
               <p className="text-red-600 dark:text-red-500 text-xs mt-1">
-                Make sure the backend is running at {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787"}
+                Make sure the backend is reachable at {getConfiguredApiOrigin()}
               </p>
             </div>
           ) : results.length === 0 ? (
@@ -156,30 +158,30 @@ export default async function SearchPage({
                     );
                   }
 
-                  // Fallback for vector search results not found in the live registry (stale index, etc)
-                  const meta = parseMetadata(r.metadata);
-                  return (
-                    <Link
-                      key={r.id}
-                      href={`/skills/${meta.skill_id ?? r.id}`}
-                      className="group block p-6 bg-surface border border-border rounded-2xl
-                                 hover:border-border-strong hover:bg-surface-raised
-                                 transition-all duration-200 animate-fade-up flex flex-col h-full"
-                      style={{ animationDelay: `${i * 0.05}s` }}
-                    >
+                  // Fallback for vector search results not found in the live registry.
+                  const meta = parseSearchMetadata(r.metadata);
+                  const href = getRegistrySkillHref(r.metadata, allSkills);
+                  const cardClassName = "group block p-6 bg-surface border border-border rounded-2xl hover:border-border-strong hover:bg-surface-raised transition-all duration-200 animate-fade-up flex flex-col h-full";
+                  const card = (
+                    <>
                       <div className="flex items-start justify-between gap-4 mb-4">
                         <div className="min-w-0">
                           <h3 className="font-bold text-base text-text-primary truncate">
                             {(r.metadata?.title as string) ?? meta.name ?? "Untitled"}
                           </h3>
                         </div>
-                        <div className={`flex-shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase bg-surface-sunken text-text-muted border border-border`}>
-                          UNKNOWN
+                        <div className="flex-shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase bg-surface-sunken text-text-muted border border-border">
+                          {href ? "LIVE" : "INDEX ONLY"}
                         </div>
                       </div>
                       <p className="text-sm text-text-secondary leading-relaxed mb-5 line-clamp-2 flex-grow">
                         {meta.intent_signature ?? "No intent signature provided."}
                       </p>
+                      {!href ? (
+                        <p className="mb-5 text-xs text-text-muted">
+                          Search hit only. No live registry detail page yet.
+                        </p>
+                      ) : null}
                       
                       <div className="flex items-center justify-between pt-4 border-t border-border mt-auto">
                         <div className="flex items-center gap-2">
@@ -197,7 +199,25 @@ export default async function SearchPage({
                           {meta.domain && <span>{meta.domain}</span>}
                         </div>
                       </div>
+                    </>
+                  );
+                  return href ? (
+                    <Link
+                      key={r.id}
+                      href={href}
+                      className={cardClassName}
+                      style={{ animationDelay: `${i * 0.05}s` }}
+                    >
+                      {card}
                     </Link>
+                  ) : (
+                    <div
+                      key={r.id}
+                      className={`${cardClassName} cursor-default`}
+                      style={{ animationDelay: `${i * 0.05}s` }}
+                    >
+                      {card}
+                    </div>
                   );
                 })}
               </div>
@@ -252,13 +272,4 @@ export default async function SearchPage({
       )}
     </div>
   );
-}
-
-function parseMetadata(metadata: Record<string, unknown>): Record<string, string> {
-  try {
-    if (typeof metadata.content === "string") {
-      return JSON.parse(metadata.content) as Record<string, string>;
-    }
-  } catch {}
-  return {};
 }

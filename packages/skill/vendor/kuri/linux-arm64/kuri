@@ -1,0 +1,8 @@
+#!/bin/sh
+# Placeholder kuri binary for linux-arm64 — cross-compile from this host
+# failed (target system libs needed a sysroot Zig doesn't ship). The real
+# binary is built by CI on a native linux-arm64 runner.
+echo "[unbrowse] kuri binary for linux-arm64 not available in this build" >&2
+echo "[unbrowse] this happens when the npm package was published from a host" >&2
+echo "[unbrowse] that couldn't cross-compile to your platform. File a bug." >&2
+exit 1

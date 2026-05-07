@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { getConfiguredApiOrigin } from "@/lib/api-base";
 
 interface AuthState {
   apiKey: string | null;
@@ -31,7 +32,7 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = "unbrowse_auth";
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
+const API_URL = getConfiguredApiOrigin();
 
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 300_000;

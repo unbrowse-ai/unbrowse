@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
+import { getConfiguredApiOrigin } from "@/lib/api-base";
+
+const API_URL = getConfiguredApiOrigin();
 const SUPPRESSED_MARKETPLACE_DOMAINS = new Set(["pearlpediatric.curvehero.com"]);
 
 function normalizeDomain(value?: string | null): string {

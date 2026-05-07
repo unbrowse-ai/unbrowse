@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { getConfiguredApiOrigin } from "@/lib/api-base";
 import { Key, Copy, Check, ShieldAlert, KeyRound } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
+const API_URL = getConfiguredApiOrigin();
 
 export function ApiKeyGenerator() {
-  const { apiKey, agentName, register, isAuthenticated } = useAuth();
+  const { agentName, register, isAuthenticated } = useAuth();
   const [name, setName] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

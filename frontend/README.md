@@ -41,7 +41,7 @@ The frontend defaults to:
 NEXT_PUBLIC_API_URL=https://beta-api.unbrowse.ai
 ```
 
-That value is used by dashboard, leaderboard, blog, and other runtime fetch surfaces unless overridden.
+That value is used by dashboard, leaderboard, blog, landing telemetry, and other runtime fetch surfaces unless overridden. `NEXT_PUBLIC_API_BASE_URL` is accepted as a backwards-compatible alias for older local env files.
 
 ## Main surfaces
 
