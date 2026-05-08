@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../ranking/signals/bm25.js";
 import { semanticIntentAdjustment, AGENT_DESC_DELTA_WEIGHT, CURRENCY_TIME_DELTA_WEIGHT, COMMS_PATH_DELTA_WEIGHT, CHART_PRICING_DELTA_WEIGHT } from "../ranking/signals/intent-yield.js";
 import { NOISE_HOSTS, NOISE_PATHS, I18N_CONFIG_PATHS, AUTH_CONFIG_PATHS, SESSION_PLUMBING, STATIC_ASSET_PATTERNS, UI_ASSET_PATHS } from "../ranking/filters/noise-patterns.js";
+import { HARD_NEGATIVE_FLOOR, WEAK_NEGATIVE_FLOOR, PAGE_ARTIFACT_DEMOTION, clampToFloor } from "../ranking/clamps.js";
 
 function stableEndpointId(method: string, urlTemplate: string): string {
   if (!method || !urlTemplate) return nanoid();
@@ -3755,7 +3756,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // same domain/intent class, bury the page artifact below the API. Replaces
     // the trigger_url-based check that Phase 8.3 left brittle on test fixtures.
     if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
-      score = Math.min(score - 800, -2000);
+      score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
     }
 
     // Even with dom_extraction, a captured page artifact loses to an API sibling
@@ -3773,7 +3774,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
           !/captured (?:search form |page )?artifact/i.test(other.description ?? "")
       )
     ) {
-      score = Math.min(score - 800, -2000);
+      score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
     }
 
     if (intent && COMPANY_INTENT.test(intent)) {
@@ -3879,7 +3880,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     }
 
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
-      score = Math.min(score, -400);
+      score = clampToFloor(score, 0, WEAK_NEGATIVE_FLOOR);
     }
     if (descriptionMeta.needs_review && isCapturedPageArtifact) {
       score -= 120;
