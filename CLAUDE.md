@@ -723,3 +723,48 @@ If a future site requires the OPPOSITE preference (real XHR over page-
 artifact even for LIST_INTENT), the agent should JUDGE from response
 content via `unbrowse explain --top 5`, not bake another per-domain
 heuristic.
+
+## Decision-trace step naming convention
+
+`executeEndpoint` and capture pipelines emit `decision_trace` arrays that the
+calling agent reads to understand what happened. Step names should follow a
+hierarchical underscore-separated convention so the agent can pattern-match
+without parsing free-form English.
+
+**Pattern**: `<scope>_<action_or_state>`, optionally extended with
+`_<sub_state>` for fallback chains. Existing steps that conform:
+
+- `probe` / `decision` — bare verbs (the always-present ladder steps)
+- `server_fetch` / `browser` / `browser_default` / `browser_fallback` /
+  `trigger_intercept` — `<strategy>_<action>` (probe-decision dispatches)
+- `return_error` — `<scope>_<action>` (probe-gate short-circuit)
+- `recipe_replay` — `<feature>_<action>`
+- `auth_recovery_retry` — `<feature>_<action>` (the 401/403 retry)
+- `5xx_ssr_fastpath_fallback` — `<status_class>_<feature>_<action>` (Phase D)
+- `5xx_ssr_fastpath_fallback_success` / `_kuri_unavailable` /
+  `_extract_empty` / `_no_html` / `_error` — extends parent with `_<state>`
+
+**Reserved scope tokens**:
+- Status classes: `5xx`, `4xx`, `401`, `403`, `400`, etc. (lead with the
+  HTTP status that triggered the branch)
+- Feature names: `auth_recovery`, `ssr_fastpath`, `page_fetch`,
+  `vendor_block`, `bundle_replay`, `recipe_replay`
+- Strategies: `server`, `browser`, `trigger_intercept`, `recipe_replay`,
+  `return_error`
+
+**Sub-state tokens** (for fallback chains that can succeed or fail in
+multiple ways): `_success`, `_no_html`, `_extract_empty`, `_kuri_unavailable`,
+`_error`, `_retry`, `_skipped`. Always emit a sub-state so the agent can
+distinguish "the fallback ran and succeeded" from "the fallback ran and
+the body was empty" from "the fallback ran and threw".
+
+**When adding a new step**: pick the longest matching existing scope before
+inventing one. If unsure, lead with the status class that triggered the
+branch (e.g. `5xx_*` for any 5xx-handler); the agent already groups these.
+
+**Anti-patterns** (do not introduce these):
+- Mixed-case names: stick to lowercase + underscore
+- Sentence-shaped step names: `step: "trying the auth recovery now"` — no
+- Embedded data in the step name: put the data in sibling fields
+  (`{ step: "server_fetch", status: 500 }`, not `step: "server_fetch_500"`)
+- Localized words: stick to English; this is a machine-readable label
