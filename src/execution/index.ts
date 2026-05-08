@@ -21,6 +21,7 @@ import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOp
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
 import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../ranking/signals/bm25.js";
+import { semanticIntentAdjustment, AGENT_DESC_DELTA_WEIGHT, CURRENCY_TIME_DELTA_WEIGHT, COMMS_PATH_DELTA_WEIGHT, CHART_PRICING_DELTA_WEIGHT } from "../ranking/signals/intent-yield.js";
 
 function stableEndpointId(method: string, urlTemplate: string): string {
   if (!method || !urlTemplate) return nanoid();
@@ -3120,7 +3121,7 @@ export interface RankedEndpoint {
   score: number;
 }
 
-function intentResourceKinds(intent?: string): string[] {
+export function intentResourceKinds(intent?: string): string[] {
   const lower = (intent ?? "").toLowerCase();
   if (/\b(person|people|profile|profiles|user|users|member|members)\b/.test(lower)) return ["person", "people", "profile", "user", "member"];
   if (/\b(company|organization|org)\b/.test(lower)) return ["company", "organization", "org", "business"];
@@ -3130,7 +3131,7 @@ function intentResourceKinds(intent?: string): string[] {
   return [];
 }
 
-function intentActionKinds(intent?: string): string[] {
+export function intentActionKinds(intent?: string): string[] {
   const lower = (intent ?? "").toLowerCase();
   if (/\b(feed|timeline|stream|home)\b/.test(lower)) return ["list", "feed", "timeline"];
   if (/\b(search|find|lookup)\b/.test(lower)) return ["search", "list"];
@@ -3142,47 +3143,6 @@ function intentActionKinds(intent?: string): string[] {
 function isEntityDetailIntent(intent?: string): boolean {
   const lower = (intent ?? "").toLowerCase();
   return /\b(get|fetch|view)\b/.test(lower) && /\b(company|organization|org|business|person|people|profile|profiles|user|users|member|members)\b/.test(lower);
-}
-
-function semanticIntentAdjustment(endpoint: EndpointDescriptor, intent?: string): number {
-  const semantic = resolveEndpointSemantic(endpoint);
-  if (!semantic || !intent) return 0;
-  const resourceKinds = intentResourceKinds(intent);
-  const actionKinds = intentActionKinds(intent);
-  let delta = 0;
-
-  const resource = (semantic.resource_kind ?? "").toLowerCase();
-  const action = (semantic.action_kind ?? "").toLowerCase();
-  const negatives = new Set((semantic.negative_tags ?? []).map((tag) => tag.toLowerCase()));
-  const haystack = [
-    endpoint.url_template,
-    endpoint.description ?? "",
-    semantic.description_out ?? "",
-    semantic.response_summary ?? "",
-  ].join(" ").toLowerCase();
-  const uiScaffold = /(sharebox|closedsharebox|mailbox|messaging|conversation|notification|notifications|alerts?|presence|badging|launchpad|previewbanner|main_feed|feedtype)/i.test(haystack);
-
-  if (resourceKinds.length > 0) {
-    if (resourceKinds.some((kind) => resource.includes(kind) || kind.includes(resource))) delta += 80;
-    else if (resource) delta -= 90;
-  }
-
-  if (actionKinds.length > 0) {
-    if (actionKinds.some((kind) => action.includes(kind) || kind.includes(action))) delta += 25;
-    else if (action) delta -= 25;
-  }
-
-  if (negatives.has("config") || negatives.has("telemetry") || negatives.has("experiment") || negatives.has("auth")) {
-    delta -= 60;
-  }
-  if (negatives.has("adjacent") || negatives.has("ads")) {
-    delta -= 90;
-  }
-  if (uiScaffold && (resourceKinds.length > 0 || actionKinds.length > 0)) {
-    delta -= 220;
-  }
-
-  return delta;
 }
 
 /**
@@ -3653,7 +3613,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       }
       // Each matching core token = +100 points. "feed" matching gives +100,
       // "feed" + "post" matching gives +200, etc.
-      score += matches * 100;
+      score += matches * AGENT_DESC_DELTA_WEIGHT;
     }
 
     // === URL path to intent match — catches SSR-extracted and RPC-style endpoints ===
@@ -3724,13 +3684,13 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (rawTokens.length > 0 && !intent?.match(/\b(search|find|get|list|fetch)\b/i)?.input) {
       // Already handled by URL-to-intent match above; add bonus for explicit resource nouns
     }
-    if (CURRENCY_TIME_PATTERNS.test(pathname)) score += 15;
-    if (intent && COMMS_INTENT.test(intent) && COMMS_PATH.test(pathname)) score += 45;
+    if (CURRENCY_TIME_PATTERNS.test(pathname)) score += CURRENCY_TIME_DELTA_WEIGHT;
+    if (intent && COMMS_INTENT.test(intent) && COMMS_PATH.test(pathname)) score += COMMS_PATH_DELTA_WEIGHT;
     if (intent && COMMS_INTENT.test(intent) && DISCORD_META_PATHS.test(pathname)) score -= 220;
     if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/i.test(intent ?? "")) {
       const quoteHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})} ${JSON.stringify(semantic)}`.toLowerCase();
       if (/\/chart\b/i.test(pathname) && /(regularmarketprice|currentprice|previousclose|chartpreviousclose|price)/i.test(quoteHaystack)) {
-        score += 120;
+        score += CHART_PRICING_DELTA_WEIGHT;
       }
       if (SESSION_BOUND_QUERY.test(ep.url_template)) {
         // Crumb/csrf-bound URLs are unusable without live session — bury hard.
