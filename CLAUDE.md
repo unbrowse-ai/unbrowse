@@ -642,3 +642,55 @@ The flywheel is monetary: users earn by using the product. Supply creates demand
 6. Adjust channel mix based on what's converting
 7. Draft investor update if metrics moved
 8. Plan content calendar for the week
+
+## Bench verdicts: harness collects, agent judges (harness-collects-agent-judges)
+
+When building benchmarks for unbrowse (or any reverse-engineer / call /
+extract loop), DO NOT bake deterministic verdict heuristics into the
+harness. The harness collects artifacts; the agent in-thread judges
+whether the artifact satisfies the intent.
+
+This is the same principle already documented under
+`Agent-Experience Harness` and `Ranker philosophy: heuristics OUT`,
+extended explicitly to bench classification.
+
+Anti-pattern (do not do this in extract.py / bench-*.sh / classifier scripts):
+```python
+if trace.success is True and status_code == 200:
+    verdict = "PASS"
+if "invalid_replay_params" in err:
+    verdict = "REPAIR_REPLAY_PARAMS"
+if text_bytes < 100 and "sparse_capture" in signals:
+    verdict = "BROWSER_BLOCK"
+```
+
+`status_code == 200` does not mean the agent got useful data — could be a
+captcha page with HTTP 200, an empty array, or completely wrong shape. The
+heuristic verdicts mislead every downstream report and let category errors
+silently propagate (e.g. "amazon RE_OK_CALL_OK sc=200" might actually be a
+captcha page that didn't return any product listings).
+
+Right pattern (already memorialised in
+`feedback_harness_makes_visible_agent_judges.md`):
+1. Harness runs the loop and dumps RAW artifacts per URL: capture stdout
+   (full skill JSON), per-phase exit codes, execute response body (full,
+   not truncated), captured_meta, browser_block_signals.
+2. Harness emits a row of EVIDENCE (signals only) per URL — fields like
+   `phase1_endpoints_discovered`, `phase2_status_code`,
+   `phase2_response_bytes`, `phase2_response_excerpt` (first ~2KB).
+   NO verdict column the harness derived from heuristics.
+3. The agent (in-thread) reads each row's artifacts and judges:
+   "did the agent actually get USB-C cable listings for `intent=search
+   amazon for usb-c cables`?" by reading the actual response body and
+   matching it against the intent's content expectation.
+4. Heuristic groupings (BROWSER_BLOCK / VENDOR_BLOCKED) are a SORT-KEY for
+   triage order, NOT a verdict. The verdict is the agent's in-thread
+   judgment after opening the artifact.
+
+Reference: `scripts/bench-two-phase.sh` collects per-URL capture.out +
+execute.out + runs.jsonl rows. The `combined_verdict` column is a
+sort-key only; agent judges by opening artifacts.
+
+This rule applies to ANY bench that produces a per-URL outcome:
+bench-two-phase, bench-hard, bench-local, agent-experience harness,
+codex eval. Heuristic verdicts in any of these are leaven (1 Cor 5:7).

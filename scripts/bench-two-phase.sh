@@ -153,64 +153,83 @@ if obj is not None:
         else:
             phase1["phase1_status"] = "indexed"
 
-# ---- Phase 2: execute ----
+# ---- Phase 2: execute (EVIDENCE ONLY — no heuristic verdicts) ----
+# Per CLAUDE.md "harness collects, agent judges": we collect raw evidence
+# fields. We do NOT decide whether the call "succeeded" — status_code 200
+# can be a captcha page, an empty array, or the wrong shape entirely. The
+# agent reads phase2_response_excerpt in-thread and judges.
 phase2 = {
-    "phase2_status": "n_a",
+    "phase2_ran": False,
+    "phase2_exit": execute_exit if execute_exit is not None else "",
     "phase2_status_code": "",
     "phase2_error": "",
-    "phase2_evidence": "",
+    "phase2_trace_success": "",          # raw value from trace.success — agent decides if it's truthful
+    "phase2_response_bytes": 0,
+    "phase2_response_excerpt": "",       # first ~2KB of the response body — agent reads + judges
+    "phase2_result_shape": "",           # cheap shape signal (array/object/string/empty/error)
+    "phase2_raw_excerpt": "",            # first 200 chars of raw stdout — for parse-error diagnosis
 }
 
-# Phase 2 only runs if Phase 1 indexed something callable
 if execute_path and phase1["phase1_skill_id"] and phase1["phase1_endpoint_id"]:
-    if execute_exit == 124:
-        phase2["phase2_status"] = "timeout"
-    else:
-        raw2 = open(execute_path).read() if os.path.exists(execute_path) else ""
-        obj2 = first_json_object(raw2)
-        if obj2 is None:
-            phase2["phase2_status"] = "execute_parse_error"
-            phase2["phase2_evidence"] = (raw2 or "")[:200]
+    phase2["phase2_ran"] = True
+    raw2 = open(execute_path).read() if os.path.exists(execute_path) else ""
+    phase2["phase2_raw_excerpt"] = raw2[:200]
+    obj2 = first_json_object(raw2)
+    if obj2 is not None:
+        trace = obj2.get("trace") or {}
+        result_field = obj2.get("result")
+        sc  = trace.get("status_code")
+        err = trace.get("error") or ""
+        phase2["phase2_status_code"]   = str(sc) if sc is not None else ""
+        phase2["phase2_error"]         = err[:300]
+        phase2["phase2_trace_success"] = "" if trace.get("success") is None else str(trace.get("success"))
+        # Capture full response body for in-thread agent judgment.
+        body_str = json.dumps(result_field, ensure_ascii=False) if result_field is not None else ""
+        phase2["phase2_response_bytes"]   = len(body_str)
+        phase2["phase2_response_excerpt"] = body_str[:2000]
+        if isinstance(result_field, list):
+            phase2["phase2_result_shape"] = f"array[{len(result_field)}]"
+        elif isinstance(result_field, dict):
+            keys = list(result_field.keys())[:8]
+            phase2["phase2_result_shape"] = f"object{{{', '.join(keys)}}}"
+        elif isinstance(result_field, str):
+            phase2["phase2_result_shape"] = f"string[{len(result_field)}]"
+        elif result_field is None:
+            phase2["phase2_result_shape"] = "null"
         else:
-            trace = obj2.get("trace") or {}
-            sc = trace.get("status_code")
-            err = trace.get("error") or ""
-            phase2["phase2_status_code"] = str(sc or "")
-            phase2["phase2_error"] = err[:200]
-            if trace.get("success") is True:
-                phase2["phase2_status"] = "ok"
-            elif isinstance(sc, int) and 400 <= sc < 500:
-                phase2["phase2_status"] = "http_4xx"
-            elif isinstance(sc, int) and 500 <= sc < 600:
-                phase2["phase2_status"] = "http_5xx"
-            elif sc == 0 or "network" in err.lower() or "ZlibError" in err:
-                phase2["phase2_status"] = "network_error"
-            else:
-                phase2["phase2_status"] = "replay_failed"
+            phase2["phase2_result_shape"] = type(result_field).__name__
 
-# ---- Combined verdict ----
-def combine(p1s, p2s):
-    if p1s in ("vendor_blocked",): return "VENDOR_BLOCKED"
-    if p1s == "soft_block":        return "SOFT_BLOCKED"
+# ---- Triage SORT KEY (not a verdict) ----
+# This is a coarse bucket the agent uses to ORDER which rows to inspect first.
+# It is NOT the answer to "did the call succeed". Agent must open the
+# phase2_response_excerpt and judge against the intent.
+def triage_bucket(p1s, ph2):
+    if p1s in ("vendor_blocked",):
+        return "z_likely_vendor_blocked"
+    if p1s == "soft_block":
+        return "z_likely_soft_block"
     if p1s in ("capture_timeout","capture_error","capture_parse_error","no_endpoints"):
-        return "RE_FAILED"
-    if p1s in ("indexed", "indexed_doc_only") and p2s == "ok":
-        return "RE_OK_CALL_OK"
-    if p1s in ("indexed", "indexed_doc_only") and p2s in (
-        "http_4xx","http_5xx","network_error","replay_failed","timeout","execute_parse_error"
-    ):
-        return "RE_OK_CALL_FAILED"
-    return "UNKNOWN"
+        return "y_capture_didnt_yield_endpoint"
+    if not ph2["phase2_ran"]:
+        return "y_phase2_skipped"
+    if ph2["phase2_response_bytes"] > 0:
+        return "a_inspect_response_body"
+    if ph2["phase2_status_code"]:
+        return "b_inspect_status_code"
+    return "c_inspect_raw"
 
 row = {
     "goal": goal, "url": url,
     **phase1, **phase2,
-    "combined_verdict": combine(phase1["phase1_status"], phase2["phase2_status"]),
+    "triage_bucket": triage_bucket(phase1["phase1_status"], phase2),
     "capture_exit": capture_exit,
-    "execute_exit": execute_exit if execute_exit is not None else "",
 }
+# verdict deliberately absent — agent judges in-thread by reading
+# phase2_response_excerpt against `goal`. See AGENTS.md / CLAUDE.md
+# "Bench verdicts: harness collects, agent judges".
 print(json.dumps(row))
 PY
+
 
 i=0
 results_file="$RUN_DIR/results.jsonl"
@@ -295,11 +314,12 @@ print(json.dumps(row))
   printf '%s' "$enriched" | python3 -c "
 import sys, json
 d = json.loads(sys.stdin.read())
-parts = [d.get('combined_verdict','?'),
-         f\"P1={d['phase1_status']}\",
-         f\"P2={d['phase2_status']}\"]
+parts = [d.get('triage_bucket','?'),
+         f\"P1={d['phase1_status']}\"]
 if d['phase1_endpoints_discovered']: parts.append(f\"eps={d['phase1_endpoints_discovered']}\")
-if d['phase2_status_code']: parts.append(f\"sc={d['phase2_status_code']}\")
+if d.get('phase2_ran'): parts.append(f\"P2_ran sc={d.get('phase2_status_code','?')} bytes={d.get('phase2_response_bytes',0)}\")
+shape = d.get('phase2_result_shape','')
+if shape: parts.append(f\"shape={shape[:40]}\")
 err = d.get('phase2_error','')
 if err: parts.append(f\"err={err[:60]}\")
 print('  ' + ' | '.join(parts), file=sys.stderr)
@@ -308,34 +328,29 @@ done < "$CORPUS"
 
 echo "[two-phase] wrote $i rows to $results_file" >&2
 
+# Per CLAUDE.md "harness collects, agent judges": no heuristic verdict tally.
+# Print a triage_bucket histogram so the agent knows row counts and can pick
+# inspection order. The actual verdict for each row comes from the agent
+# reading phase2_response_excerpt against `goal` in-thread.
 python3 - "$results_file" "$RUN_DIR/summary.json" <<'PY'
 import sys, json, collections
 rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
-buckets = collections.Counter(r.get('combined_verdict') or 'UNKNOWN' for r in rows)
-total = len(rows)
-re_ok_call_ok      = buckets.get('RE_OK_CALL_OK', 0)
-re_ok_call_failed  = buckets.get('RE_OK_CALL_FAILED', 0)
-re_failed          = buckets.get('RE_FAILED', 0)
-blocked            = buckets.get('VENDOR_BLOCKED', 0) + buckets.get('SOFT_BLOCKED', 0)
-reachable          = total - blocked
+buckets = collections.Counter(r.get('triage_bucket') or '?' for r in rows)
+phase1_indexed = sum(1 for r in rows if r.get('phase1_skill_id') and r.get('phase1_endpoint_id'))
+phase2_ran     = sum(1 for r in rows if r.get('phase2_ran'))
 summary = {
-    'total': total,
-    'buckets': dict(buckets),
-    'reachable': reachable,
-    're_index_rate_pct': round(100*(re_ok_call_ok+re_ok_call_failed)/reachable, 1) if reachable else None,
-    'call_rate_pct':     round(100*re_ok_call_ok/reachable, 1) if reachable else None,
-    'replay_gap_pct':    round(100*re_ok_call_failed/(re_ok_call_ok+re_ok_call_failed), 1)
-                          if (re_ok_call_ok+re_ok_call_failed) else None,
+    'total': len(rows),
+    'phase1_published_a_skill_with_endpoint': phase1_indexed,
+    'phase2_actually_called': phase2_ran,
+    'triage_buckets': dict(buckets),
+    'note': 'Verdict per URL is agent-judged in-thread by reading phase2_response_excerpt against goal.',
 }
 open(sys.argv[2], 'w').write(json.dumps(summary, indent=2))
-print('\n[two-phase] summary:', file=sys.stderr)
-for k,v in buckets.most_common():
-    print(f'  {k:<25} {v}', file=sys.stderr)
-if reachable:
-    print(f'  RE+INDEX rate: {summary["re_index_rate_pct"]}% (captured a callable skill)', file=sys.stderr)
-    print(f'  CALL rate:     {summary["call_rate_pct"]}% (call succeeded)', file=sys.stderr)
-    if summary["replay_gap_pct"] is not None:
-        print(f'  REPLAY GAP:    {summary["replay_gap_pct"]}% of RE_OK rows failed Phase 2', file=sys.stderr)
+print('\n[two-phase] triage histogram (NOT a verdict — agent judges in-thread):', file=sys.stderr)
+for k, v in sorted(buckets.items()):
+    print(f'  {k:<35} {v}', file=sys.stderr)
+print(f'  phase1 published a skill+endpoint: {phase1_indexed}/{len(rows)}', file=sys.stderr)
+print(f'  phase2 actually called execute:    {phase2_ran}/{len(rows)}', file=sys.stderr)
 PY
 
 echo "[two-phase] done. run dir: $RUN_DIR" >&2
