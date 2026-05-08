@@ -3755,8 +3755,31 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // page artifact AND any sibling in the corpus is a real API endpoint for the
     // same domain/intent class, bury the page artifact below the API. Replaces
     // the trigger_url-based check that Phase 8.3 left brittle on test fixtures.
+    //
+    // EXCEPTION: for content-read intents (LIST_INTENT — search/list/find/...),
+    // when the page-artifact has high-confidence DOM extraction AND an array-
+    // shaped response, the page itself IS the data. The user wants product
+    // listings; the XHR siblings are usually telemetry/config (e.g. Amazon's
+    // patcConfig A/B-test rules) that ranked above search-results because
+    // they happen to match /api/-shaped URL patterns. Promote the page-
+    // artifact ABOVE structured-but-noisy XHR for these intents. Verified
+    // via bench-two-phase (run 20260508T075000Z): amazon + bing + others
+    // captured a doc_only synthetic + a telemetry XHR; ranker picked the
+    // telemetry; agent-judged response was wrong-shape for "get amazon search".
+    const looksLikeContentRead = !!intent && LIST_INTENT.test(intent);
+    const pageArtifactIsDataRich =
+      isCapturedPageArtifact
+      && !!ep.dom_extraction
+      && (ep.dom_extraction.confidence ?? 0) >= 0.8
+      && !!ep.response_schema
+      && ((ep.response_schema as Record<string, unknown>).type === "array"
+          || (ep.response_schema as Record<string, unknown>).type === "object");
     if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
       score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
+    } else if (looksLikeContentRead && pageArtifactIsDataRich) {
+      // Counter-promotion for content-read intents on data-rich page artifacts.
+      // Beats the structural API demotion magnitude so the page wins.
+      score += 250;
     }
 
     // Even with dom_extraction, a captured page artifact loses to an API sibling
