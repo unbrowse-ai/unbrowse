@@ -301,7 +301,21 @@ function summarizeResponseSchema(endpoint: EndpointDescriptor): string | undefin
 }
 
 function templatePathParamNames(urlTemplate: string): string[] {
-  return [...urlTemplate.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
+  // Only extract `{name}` placeholders from the URL PATH, not from the
+  // query string. Without this guard, a URL like
+  // `?clientName={clientName}&ref_={ref}` registers `clientName` and `ref`
+  // as required PATH params with no default_value/example_value (the
+  // populated values live on the duplicate QUERY-location specs),
+  // causing replay validation to fail with `invalid_replay_params`.
+  // Observed on amazon.com/s search skill in the 31-URL bench run
+  // 20260508T065655Z (10+ similar replay failures across the corpus).
+  try {
+    const path = new URL(urlTemplate).pathname;
+    return [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
+  } catch {
+    // Fallback for non-URL templates: scan the whole string.
+    return [...urlTemplate.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
+  }
 }
 
 function inferQuerySamples(matchedRequests: RawRequest[]): Map<string, unknown> {

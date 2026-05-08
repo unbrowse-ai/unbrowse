@@ -1,0 +1,54 @@
+# intent|url — hard-target benchmark, sourced from r/webscraping + HN
+# Public data only. No auth-gated. Diverse anti-bot stack coverage.
+# Each row is one intent the calling agent might have. The product must
+# either return real API operations or honestly mark the row BROWSER_BLOCK
+# with vendor evidence — never silently "PASS" with a dom-fallback synthetic.
+
+# --- Cloudflare Bot Management (most-cited "hardest" tier) ---
+search software reviews|https://www.g2.com/categories/crm
+get traffic stats for a domain|https://www.similarweb.com/website/openai.com/
+search jobs in san francisco|https://www.indeed.com/jobs?q=software+engineer&l=San+Francisco
+search company reviews|https://www.glassdoor.com/Reviews/index.htm?overall_rating_low=4
+list event tickets|https://www.ticketmaster.com/discover/concerts
+
+# --- DataDome (heavy classifier-side blocks) ---
+list listings on leboncoin|https://www.leboncoin.fr/recherche?text=velo
+list vinted listings|https://www.vinted.fr/catalog?search_text=nike
+get product page on hermes|https://www.hermes.com/us/en/category/men/
+search products on cdiscount|https://www.cdiscount.com/search/10/iphone.html
+
+# --- PerimeterX / HUMAN ---
+search homes for sale|https://www.zillow.com/homes/San-Francisco_rb/
+search rentals on realtor|https://www.realtor.com/realestateandhomes-search/San-Francisco_CA
+search hotels and stays|https://www.airbnb.com/s/Tokyo/homes
+list sneakers|https://www.footlocker.com/category/men/shoes.html
+
+# --- Akamai Bot Manager ---
+list nike sneakers|https://www.nike.com/w/mens-shoes-nik1zy7ok
+search flights southwest|https://www.southwest.com/air/flight-schedules/index.html
+search products on bestbuy|https://www.bestbuy.com/site/searchpage.jsp?st=laptop
+search products on target|https://www.target.com/s?searchTerm=coffee
+
+# --- Kasada ---
+list canada goose products|https://www.canadagoose.com/us/en/shop/mens/parkas
+search products decathlon|https://www.decathlon.fr/search?Ntt=running
+
+# --- Heavy SPA / GraphQL with no SSR (engineering-hard, not vendor-hard) ---
+search tiktok videos|https://www.tiktok.com/search?q=ai+agents
+search instagram explore|https://www.instagram.com/explore/tags/ai/
+get youtube search results|https://www.youtube.com/results?search_query=ai+agents
+
+# --- Search engines (sometimes block, sometimes don't) ---
+search google for ai agents|https://www.google.com/search?q=ai+agents
+search bing for ai agents|https://www.bing.com/search?q=ai+agents
+
+# --- Niche-but-cited (Reddit r/webscraping recurring complaints) ---
+search ebay listings|https://www.ebay.com/sch/i.html?_nkw=switch+console
+search etsy listings|https://www.etsy.com/search?q=mug
+search walmart products|https://www.walmart.com/search?q=coffee
+get amazon search|https://www.amazon.com/s?k=usb+c+cable
+
+# --- Reddit-mined additions (iter 10, sourced via /unbrowse on r/webscraping/top.json) ---
+get stock price chart|https://www.google.com/finance/quote/AAPL:NASDAQ
+get crypto price|https://www.google.com/finance/quote/BTC-USD
+search german real estate listings|https://www.immobilienscout24.de/Suche/de/berlin/berlin/wohnung-mieten
