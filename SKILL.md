@@ -357,6 +357,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `--dry-run` | Preview mutations without applying. |
 | `--params '{...}'` | Extra params as JSON. |
 | `-p key=val` | Single param via repeated flag (alternative to --params JSON). |
+| `--require-proof` | Filter resolve to only endpoints with independently verified proofs. |
 <!-- CLI_REFERENCE_END -->
 
 ### Examples

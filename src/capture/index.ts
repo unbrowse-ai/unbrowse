@@ -266,6 +266,8 @@ export interface CaptureResult {
   // === Harness #2: Visual context for agents ===
   // Screenshots at key capture points. Keys: "pre", "post", "interactions"
   screenshots?: Record<string, string>;
+  /** Proof metadata generated during capture, keyed by "METHOD:URL" */
+  zk_proofs?: Map<string, import("../types/proof.js").ZkProof>;
 }
 
 export interface RawRequest {

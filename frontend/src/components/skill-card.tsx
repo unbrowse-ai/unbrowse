@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Shield } from "lucide-react";
 import type { SkillManifest, SkillListItem } from "@/lib/api";
 
 const METHOD_COLORS: Record<string, string> = {
@@ -20,6 +21,9 @@ export function SkillCard({ skill }: { skill: SkillManifest | SkillListItem }) {
   const avgScore = skill.endpoints.length > 0
     ? skill.endpoints.reduce((s, e) => s + e.reliability_score, 0) / skill.endpoints.length
     : 0;
+  const verifiedProofs = skill.proof_summary?.verified_proofs ?? 0;
+  const totalEndpoints = skill.proof_summary?.total_endpoints ?? skill.endpoints.length;
+  const showProofBadge = verifiedProofs > 0;
 
     return (
       <Link
@@ -36,12 +40,24 @@ export function SkillCard({ skill }: { skill: SkillManifest | SkillListItem }) {
           </h3>
           <p className="text-sm text-text-muted font-mono mt-0.5">{skill.domain}</p>
         </div>
-        <div className={`flex-shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase
-          ${skill.lifecycle === "active"
-            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-            : "bg-surface-sunken text-text-muted border border-border"}
-        `}>
-          {skill.lifecycle}
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          {showProofBadge && (
+            <span
+              title={`${verifiedProofs} of ${totalEndpoints} endpoints have verified proofs`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase
+                         bg-emerald-50 text-emerald-700 border border-emerald-200"
+            >
+              <Shield className="w-3 h-3" />
+              Verified
+            </span>
+          )}
+          <div className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase
+            ${skill.lifecycle === "active"
+              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+              : "bg-surface-sunken text-text-muted border border-border"}
+          `}>
+            {skill.lifecycle}
+          </div>
         </div>
       </div>
 

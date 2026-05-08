@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- **Proof metadata groundwork**: Endpoints can carry capture commitments and future proof metadata.
+  - Commitment-only mode records response-body hash commitments without auth headers or cookies.
+  - Backend validates proof metadata shape on publish and rejects malformed proof objects.
+  - Commitment-only entries are preserved as client commitments, not marked as independently proven.
+  - Consuming agents see `proof_status` in resolve responses and can require independently verified proofs.
+  - Real TLSNotary/Reclaim verification, selective disclosure, proof-age decay, and proof-based payouts are intentionally deferred.
+
 ### Features
 
 * **ops:** add admin domain removal and emergency marketplace suppression for requested privacy removals.
@@ -358,7 +366,7 @@ Optional account-bound API keys via passwordless email signup. `unbrowse registe
 * **tests:** unstale MCP stdio assertions on tool descriptions ([3565dfe](https://github.com/unbrowse-ai/unbrowse-dev/commit/3565dfe6e64bfd3f929355213db728e515adc7b5))
 * **tests:** update payment messaging assertions to match Apr 2026 reframe ([c043451](https://github.com/unbrowse-ai/unbrowse-dev/commit/c043451a5d250bab9a8e308973c57bb92ed008c3))
 * tighten 2 self-introduced regressions (wallet bypass, headless literal) ([e3ecafd](https://github.com/unbrowse-ai/unbrowse-dev/commit/e3ecafd0daeedaef657de7a515761f9ad3959038))
-* **wallet:** skip local lobster config probe under bun:test ([ecb3521](https://github.com/unbrowse-ai/unbrowse-dev/commit/ecb352198ef0541bde756001d5be0b54ae295302))
+* **wallet:** skip local lobster config probe under bun:test ([ecb352198ef0541bde756001d5be0b54ae295302](https://github.com/unbrowse-ai/unbrowse-dev/commit/ecb352198ef0541bde756001d5be0b54ae295302))
 
 ## [6.4.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.3.0...v6.4.0) (2026-05-01)
 
