@@ -694,3 +694,32 @@ sort-key only; agent judges by opening artifacts.
 This rule applies to ANY bench that produces a per-URL outcome:
 bench-two-phase, bench-hard, bench-local, agent-experience harness,
 codex eval. Heuristic verdicts in any of these are leaven (1 Cor 5:7).
+
+## Page-artifact promotion for content-read intents (data-rich SSR pages)
+
+When `rankEndpoints` evaluates a published skill that has BOTH a captured
+page-artifact (doc_only synthetic with `dom_extraction`) AND XHR endpoints,
+the default behavior is to demote the page-artifact when ANY URL in the
+corpus looks API-shaped (`/api/`, `graphql`, `/rest/`, `/rpc/`, `voyager`).
+
+This is wrong for content-read intents on data-rich SSR pages. Observed
+on amazon.com/s, bing.com/search, and others: the published skill has 14+
+endpoints; the ranker picks `patcConfig`-style telemetry XHR (whose URL
+happens to look API-shaped) over the page-artifact that contains the
+actual product/search listings as a high-confidence DOM extraction.
+
+Rule: for `LIST_INTENT` (`search|list|find|trending|top|latest|discover|
+browse`), when the page-artifact has `dom_extraction.confidence >= 0.8`
+AND an array/object `response_schema`, promote it ABOVE structured-but-
+noisy XHR. The page IS the data for these intents. Lives at
+`src/execution/index.ts:rankEndpoints` next to PAGE_ARTIFACT_DEMOTION.
+
+Anti-pattern this replaces: trusting URL shape (`/api/...`) as a proxy
+for "this endpoint returns the data the user asked for". Many sites
+expose tracking/config XHRs at API-looking paths; the response is rules,
+flags, telemetry — not user-visible data.
+
+If a future site requires the OPPOSITE preference (real XHR over page-
+artifact even for LIST_INTENT), the agent should JUDGE from response
+content via `unbrowse explain --top 5`, not bake another per-domain
+heuristic.
