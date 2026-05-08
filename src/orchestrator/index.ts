@@ -2374,6 +2374,24 @@ export async function resolveAndExecute(
     );
     const allNegative = epRanked.length > 0 && epRanked.every((r) => r.score < 0);
     if ((epRanked.length === 0 || allNegative) && hostMatches) {
+      // If the ranker emptied the corpus (epRanked === 0) we still want the
+      // agent to see what the published skill actually contains — otherwise
+      // they have NO evidence to judge whether handoff is correct. Source
+      // candidates from epRanked first; if empty, fall back to the skill's
+      // raw endpoints (no ranker scores).
+      const sourceCandidates = epRanked.length > 0
+        ? epRanked.map((r) => ({ ep: r.endpoint as Record<string, unknown>, score: r.score as number }))
+        : (endpointScopedSkill.endpoints || []).map((ep) => ({ ep: ep as unknown as Record<string, unknown>, score: NaN }));
+      const fallbackShortlist = sourceCandidates.slice(0, 5).map(({ ep, score }) => ({
+        endpoint_id: ep.endpoint_id,
+        method: ep.method,
+        url_template: ep.url_template,
+        description: ep.description ?? (ep as Record<string, unknown>).description_out,
+        score: Number.isFinite(score) ? score : null,
+        agent_warning: epRanked.length === 0
+          ? "ranker filtered ALL candidates — corpus is shown raw; agent must judge whether any satisfies intent"
+          : "ranker scored ≤0; agent must judge whether this satisfies the intent",
+      }));
       return {
         result: {
           status: "resolve_hard_handoff",
@@ -2396,6 +2414,15 @@ export async function resolveAndExecute(
             endpoint_count: 0,
             cache_source: source,
           },
+          // Surface the ranker's top-N candidates (with their negative scores)
+          // in BOTH `available_endpoints` (for cmdExplain to read) and the
+          // dedicated diagnostic field. Agent in-thread judges whether the
+          // ranker's pessimism was right by reading the shortlist evidence.
+          available_endpoints: fallbackShortlist,
+          available_operations: fallbackShortlist,
+          shortlist_for_judgment: fallbackShortlist,
+          agent_facing_shortlist: fallbackShortlist,
+          judgment_question: `Ranker handed off all ${endpointScopedSkill.endpoints.length} endpoints as low-confidence for intent "${queryIntent}". Inspect shortlist — if any candidate's url_template/description suggests it MIGHT satisfy the intent despite the negative score, call execute against its endpoint_id and judge the response. Otherwise follow suggested_next_action.`,
         },
         trace: deferTrace,
         source: "deferral" as any,
