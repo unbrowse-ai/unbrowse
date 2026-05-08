@@ -270,23 +270,39 @@ for m in re.finditer(r'\{', raw):
     except Exception: continue
 print('')")
 
+  # Use `unbrowse explain --top N` — the canonical harness-collects-agent-judges
+  # primitive. Returns `shortlist_for_judgment` (top-N candidates + evidence)
+  # and `judgment_question` for the agent to read in-thread. The agent picks
+  # which endpoint to execute, not the heuristic ranker.
+  #
+  # Bench captures the FULL shortlist into the row (phase1_shortlist) so the
+  # agent can see all candidates, not just the ranker's top-1 pick.
+  p1_shortlist_json="[]"
   p1_endpoint=""
   if [ -n "$p1_skill" ]; then
-    skill_json=$($CLI_CMD skill "$p1_skill" 2>/dev/null || true)
-    p1_endpoint=$(printf '%s' "$skill_json" | python3 -c "
+    explain_out=$(timeout 30 $CLI_CMD explain --intent "$goal" --url "$url" --top 5 2>/dev/null || true)
+    p1_shortlist_json=$(printf '%s' "$explain_out" | python3 -c "
+import json, sys, re
+raw = sys.stdin.read()
+for m in re.finditer(r'\{', raw):
+    try:
+        d, _ = json.JSONDecoder(strict=False).raw_decode(raw[m.start():])
+        if isinstance(d, dict) and ('shortlist_for_judgment' in d or 'agent_facing_shortlist' in d):
+            sl = d.get('shortlist_for_judgment') or d.get('agent_facing_shortlist') or []
+            print(json.dumps(sl))
+            sys.exit(0)
+    except Exception: continue
+print('[]')")
+    # Default execute target: shortlist[0] (ranker's top pick) — but the row
+    # carries the full shortlist so the agent can override in judgment.
+    p1_endpoint=$(printf '%s' "$p1_shortlist_json" | python3 -c "
 import json, sys
-try:
-    d = json.loads(sys.stdin.read())
-    eps = d.get('endpoints') or []
-    if eps and isinstance(eps[0], dict):
-        print(eps[0].get('endpoint_id') or '')
-    else:
-        print('')
-except Exception:
+sl = json.loads(sys.stdin.read())
+if sl and isinstance(sl[0], dict):
+    print(sl[0].get('endpoint_id') or '')
+else:
     print('')")
   fi
-
-  # Phase 2 (only if we got a skill_id + endpoint_id)
   exe_exit=""
   if [ -n "$p1_skill" ] && [ -n "$p1_endpoint" ]; then
     echo "  P2 execute skill=$p1_skill ep=$p1_endpoint" >&2
@@ -300,12 +316,18 @@ except Exception:
 
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   record=$(python3 "$RUN_DIR/extract.py" "$cap_out" "$exe_out" "$goal" "$url" "$cap_exit" "${exe_exit:-}" "$p1_skill" "$p1_endpoint")
-  enriched=$(printf '%s' "$record" | python3 -c "
-import sys, json
+  # Inject (1) full shortlist from explain (harness-collects-agent-judges
+  # surface) (2) run_id/ts/note. Single python step.
+  enriched=$(printf '%s' "$record" | RUN_ID="$RUN_ID" TS="$ts" NOTE="$NOTE" SHORTLIST="$p1_shortlist_json" python3 -c "
+import sys, json, os
 row = json.loads(sys.stdin.read())
-row['run_id'] = '$RUN_ID'
-row['ts'] = '$ts'
-row['note'] = '''${NOTE//\'/}'''
+try:
+    row['phase1_shortlist'] = json.loads(os.environ.get('SHORTLIST', '[]'))
+except Exception:
+    row['phase1_shortlist'] = []
+row['run_id'] = os.environ.get('RUN_ID', '')
+row['ts'] = os.environ.get('TS', '')
+row['note'] = os.environ.get('NOTE', '')
 print(json.dumps(row))
 ")
   echo "$enriched" >> "$results_file"
