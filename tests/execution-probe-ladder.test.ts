@@ -265,4 +265,91 @@ describe("executeEndpoint probe-ladder dispatch", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  // Phase C — 400 + text/html → server (commit TBD)
+  // Footlocker pattern: HEAD probe rejected with 400+html for non-browser UA,
+  // GET often succeeds. Same shape as cdiscount HEAD-403 → GET-200 (a9c0ad58).
+  it("400 + text/html → server (Phase C unlock)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 400, content_type: "text/html; charset=utf-8" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("server");
+    expect(d.reason).toMatch(/400.*text\/html/);
+  });
+
+  it("400 + application/json → return-error (no over-trigger on real API errors)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 400, content_type: "application/json" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("return-error");
+  });
+
+  it("400 + empty content-type → return-error (no false-trigger without html signal)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 400, content_type: "" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("return-error");
+  });
+
+  it("400 + TEXT/HTML uppercase → server (case-insensitive)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 400, content_type: "TEXT/HTML" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("server");
+  });
+
+  it("priority preserved: 401 still goes to server even with text/html (vendor-block branch wins over Phase C)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 401, content_type: "text/html" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("server");
+    expect(d.reason).toMatch(/vendor-block/);
+  });
+
+  it("priority preserved: 404 + text/html → return-error (Phase C is 400-specific)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 404, content_type: "text/html" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("return-error");
+  });
+
+  it("priority preserved: 500 + text/html → return-error at probe; executor's Phase D fallback handles 5xx", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 500, content_type: "text/html" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("return-error");
+  });
+
+  // Step 5 lost-sheep guards: regex is /text\/html\b/i to prevent
+  // substring false-positives on impossible-but-theoretical content-types.
+  it("Phase C divers: text/htmlembedded → return-error (no substring false-positive)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 400, content_type: "text/htmlembedded" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("return-error");
+  });
+
+  it("Phase C divers: text/html5 → return-error (\\b stops at digit boundary in non-word sense)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 400, content_type: "text/html5" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("return-error");
+  });
+
+  it("Phase C divers: multi-value text/html, application/xhtml+xml → server", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 400, content_type: "text/html, application/xhtml+xml" }),
+      has_trigger_url: false,
+    });
+    expect(d.strategy).toBe("server");
+  });
 });

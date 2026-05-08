@@ -169,6 +169,17 @@ export function decideFromProbe(input: DecisionInput): Decision {
       reason: `probe status ${status} — fetch body for vendor-block classification`,
     };
   }
+  // 400 + text/html — soft block: HEAD often rejected for non-browser UA,
+  // but full GET via libcurl/Chrome131 JA4 frequently succeeds. Real API
+  // errors return application/json, so the text/html gate avoids wasted
+  // retries on legitimate JSON 400s. Footlocker observed: HEAD 400 + html,
+  // mirrors cdiscount HEAD-403 → GET-200 pattern from probe-gate fix a9c0ad58.
+  if (status === 400 && /text\/html\b/i.test(content_type)) {
+    return {
+      strategy: "server",
+      reason: `probe status 400 + text/html — HEAD often rejected for non-browser UA, GET often succeeds`,
+    };
+  }
   // Other 4xx/5xx — return as-is. No "let me try a different strategy" theatre.
   // The agent reads the actual server error and decides next move.
   if (status >= 400) {
