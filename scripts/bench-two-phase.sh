@@ -246,6 +246,9 @@ while IFS='|' read -r goal url; do
   if [ -n "$ONLY_URL" ] && [ "$url" != "$ONLY_URL" ]; then continue; fi
   i=$((i+1))
 
+  # Reset per-iteration state — these vars leak across URLs otherwise.
+  p1_skill=""; p1_endpoint=""; p1_skip_reason=""; p1_shortlist_json="[]"
+
   wipe_marketplace
   slug=$(printf '%s' "$url" | tr '/:?&=.' '_')
   cap_out="$RUN_DIR/${i}_${slug:0:50}_capture.out"
