@@ -637,6 +637,25 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       return true;
     }
 
+    // Synthetic page-artifact: capture pipeline emits these for doc_only
+    // sites (SSR / JSON-LD / Redux-rehydrated SPA where the page itself is
+    // the data surface). url_template === input page URL AND resource_kind
+    // is in synthetic set OR description matches the auto-generated form.
+    // Re-fetching via libcurl typically fails on CF/anti-bot — skip auto-
+    // execute and let the agent call execute explicitly.
+    function endpointIsSyntheticPageArtifact(endpoint: Record<string, unknown>): boolean {
+      if (!url) return false;
+      const tmpl = String(endpoint.url_template ?? endpoint.url ?? "").replace(/\/+$/, "");
+      const norm = url.replace(/\/+$/, "");
+      if (tmpl !== norm) return false;
+      const rk = String(endpoint.resource_kind ?? "").toLowerCase();
+      if (["message", "form", "resource", "page", "artifact"].includes(rk)) return true;
+      const desc = String(endpoint.description ?? endpoint.description_out ?? "").toLowerCase();
+      if (/captured (?:search )?(?:form|page) artifact/.test(desc)) return true;
+      if (/^searches .* with /.test(desc) || /^returns .* details with /.test(desc)) return true;
+      return false;
+    }
+
     // Agent default: when resolve has a safe read endpoint, execute it and return
     // data. Use --no-execute when the caller only wants endpoint metadata.
     const endpointsForAutoExecute = resolveAvailableEndpoints();
@@ -663,6 +682,17 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
             title: "Execute selected endpoint",
             command: `unbrowse execute --skill ${skillId} --endpoint ${bestEndpoint.endpoint_id}`,
             why: "Resolve found a candidate but did not auto-execute because the endpoint is not a safe ready GET.",
+          };
+        } else if (endpointIsSyntheticPageArtifact(bestEndpoint)) {
+          // Capture already fetched this URL via the browser; libcurl
+          // re-fetch typically fails on CF/anti-bot sites (ZlibError /
+          // HTTP 400 from HEAD probe). Surface the synthetic endpoint
+          // as available; the agent can call execute explicitly if it
+          // wants a replay attempt.
+          (result as Record<string, unknown>).next_action = {
+            title: "Synthetic page artifact",
+            command: `unbrowse execute --skill ${skillId} --endpoint ${bestEndpoint.endpoint_id}`,
+            why: "The captured endpoint is a synthetic page artifact; the SSR/JSON-LD payload was already extracted during capture. Re-fetching may be redundant.",
           };
         } else {
           info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
@@ -832,6 +862,29 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
     return true;
   }
 
+  // Synthetic page-artifact endpoint: capture pipeline emits these for
+  // doc_only sites where the input URL itself is the data surface (SSR /
+  // JSON-LD / Redux-rehydrated SPA). Re-fetching url_template via libcurl
+  // typically fails on CF/anti-bot sites (the agent already saw the page
+  // during capture). Detect these and SKIP auto-execute — the agent can
+  // call execute explicitly if it wants the artifact replayed.
+  // url_template === pageUrl AND (resource_kind in synthetic set OR
+  // description matches the auto-generated "Captured X artifact for Y" form).
+  function endpointIsSyntheticPageArtifact(
+    endpoint: Record<string, unknown>,
+    pageUrl: string,
+  ): boolean {
+    const tmpl = String(endpoint.url_template ?? endpoint.url ?? "").replace(/\/+$/, "");
+    const norm = pageUrl.replace(/\/+$/, "");
+    if (tmpl !== norm) return false;
+    const rk = String(endpoint.resource_kind ?? "").toLowerCase();
+    if (["message", "form", "resource", "page", "artifact"].includes(rk)) return true;
+    const desc = String(endpoint.description ?? endpoint.description_out ?? "").toLowerCase();
+    if (/captured (?:search )?(?:form|page) artifact/.test(desc)) return true;
+    if (/^searches .* with /.test(desc) || /^returns .* details with /.test(desc)) return true;
+    return false;
+  }
+
   async function resolveStep(label: string): Promise<Record<string, unknown>> {
     runPlan.push({ step: "resolve", mode: "direct_or_cached", status: "started", label });
     const body = resolveBody();
@@ -867,6 +920,28 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
           title: "Confirm third-party terms",
           command: `unbrowse run "${url}" "${intent}" --confirm-third-party-terms`,
           why: "The best endpoint requires explicit confirmation before execution.",
+        };
+      } else if (
+        !explicitEndpointId
+        && bestEndpoint
+        && endpointIsSyntheticPageArtifact(bestEndpoint, url)
+      ) {
+        // Don't re-fetch the page during auto-execute. The capture already
+        // ran the browser against this URL; replay via libcurl frequently
+        // fails on CF/anti-bot sites (ZlibError, HTTP 400 from HEAD probe).
+        // Surface as available so the agent can call execute explicitly
+        // if it wants the artifact replayed.
+        runPlan.push({
+          step: "execute",
+          mode: "direct_api",
+          status: "skipped",
+          reason: "synthetic_page_artifact",
+          endpoint_id: endpointToExecute,
+        });
+        result.next_action = {
+          title: "Synthetic page artifact",
+          command: `unbrowse execute --skill ${skillId} --endpoint ${endpointToExecute}`,
+          why: "The captured endpoint is a synthetic page artifact; the SSR/JSON-LD payload was already extracted during capture. Re-fetching is optional.",
         };
       } else if (explicitEndpointId || !bestEndpoint || endpointIsSafeToAutoExecute(bestEndpoint)) {
         runPlan.push({ step: "execute", mode: "direct_api", status: "started", endpoint_id: endpointToExecute });
@@ -914,10 +989,39 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
     return 0;
   }
 
+  // SSR markers — fields that prove a doc_only capture's HTML embeds
+  // structured data (page renders client-side without XHR). When these
+  // are present, the synthetic page-artifact is a real surface — let
+  // resolve see it instead of treating capture as "thin".
+  const SSR_MARKERS = new Set([
+    "@context", "@type", "potentialAction", "mainEntity", "@graph",
+    "__NEXT_DATA__", "pageProps",
+    "__NUXT__", "__INITIAL_STATE__", "__PRELOADED_STATE__",
+    "initialReduxState", "initialState",
+  ]);
+
+  function captureHasSsrData(result: Record<string, unknown>): boolean {
+    const note = (result.note_evidence as Record<string, unknown> | undefined) ?? {};
+    const fields = note.sample_field_names;
+    if (!Array.isArray(fields)) return false;
+    return fields.some((f) => {
+      if (typeof f !== "string") return false;
+      if (SSR_MARKERS.has(f)) return true;
+      // Generic JSON-LD: any field name ending in JsonLD / JsonLd / jsonld
+      return /[Jj]son[-_]?[Ll][Dd]$/.test(f);
+    });
+  }
+
   function captureLooksThin(result: Record<string, unknown>): boolean {
-    return result.auth_recommended === true
-      || endpointsDiscovered(result) === 0
-      || result.capture_pattern === "doc_only";
+    if (result.auth_recommended === true) return true;
+    if (endpointsDiscovered(result) === 0) return true;
+    if (result.capture_pattern === "doc_only") {
+      // doc_only with embedded SSR / JSON-LD data is NOT thin — the
+      // synthetic page-artifact endpoint is a real PASS_DOM_FALLBACK_ONLY
+      // surface. Let resolve.after_index pick it up.
+      return !captureHasSsrData(result);
+    }
+    return false;
   }
 
   function shouldIndexFallback(result: Record<string, unknown>): boolean {
