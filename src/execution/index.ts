@@ -2754,6 +2754,44 @@ export async function executeEndpoint(
   }
 
   if (!trace.success && (status === 404 || status === 429 || status >= 500)) {
+    // 5xx → ssr-fastpath fallback: when the captured endpoint returns a
+    // transient server error (or the captured pattern is stale), try
+    // libcurl-impersonate Chrome131 JA4 via Kuri sandbox at the page URL.
+    // This routes through a DIFFERENT network path than serverFetch (which
+    // uses Node fetch) — sites that 500 Node fetch (walmart) often return
+    // 200 to libcurl-impersonate. Recursion-guarded by isPageFetchEndpoint.
+    if (status >= 500 && !isPageFetchEndpoint(endpoint)) {
+      const fallbackIntent = options?.intent || skill.intent_signature || "";
+      const fallbackUrl = endpoint.trigger_url || url;
+      decisionTrace.push({ step: "5xx_ssr_fastpath_fallback", from: endpoint.endpoint_id, original_status: status, target: fallbackUrl });
+      try {
+        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, timeoutMs: 15_000 });
+        if (ssr) {
+          log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
+          // Run DOM extraction on the recovered HTML.
+          const extracted = extractFromDOM(ssr.html, fallbackIntent);
+          if (extracted.data) {
+            trace.success = true;
+            trace.status_code = ssr.status;
+            trace.error = undefined;
+            data = flattenExtracted(extracted.data);
+            trace.result = data;
+            decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_success", status: ssr.status, bytes: ssr.html.length });
+            // Skip the staleEndpointResult fall-through below.
+            // Schema drift + html-postprocess sections after this `if` block
+            // are guarded by `trace.success && ...` and will harmlessly run.
+            return { trace, result: data };
+          }
+          decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_extract_empty", status: ssr.status });
+        } else {
+          decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_no_html", reason: "ssr_returned_null" });
+        }
+      } catch (err) {
+        log("exec", `5xx ssr-fastpath fallback errored: ${err instanceof Error ? err.message : String(err)}`);
+        decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_error", reason: err instanceof Error ? err.message : String(err) });
+      }
+    }
     data = staleEndpointResult(status, skill, endpoint, options?.contextUrl);
     trace.result = data;
   }
