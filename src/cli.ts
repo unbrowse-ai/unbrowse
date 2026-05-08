@@ -1356,6 +1356,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     const limitFlag = flags.limit ? Number(flags.limit) : undefined;
     const schemaFlag = !!flags.schema;
     const rawFlag = !!flags.raw;
+    const summarizeFlag = !!flags.summarize;
     const resultError = resolveResultError(result);
     // --schema: show response structure without data
     if (schemaFlag && !rawFlag) {
@@ -1401,15 +1402,16 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       return;
     }
 
-    // Auto-wrap VERY-large responses with extraction_hints when no flags given.
-    // Per CLAUDE.md Agent UX North Star "Works for what was asked: --raw is
-    // the default truth" — agents calling execute with no flags expect data,
-    // not a schema preview. The previous 2KB threshold was too aggressive: a
-    // 30-row JSON list (~5KB) would fire extraction_hints, forcing the agent
-    // to retry with --raw or --extract. Bumped to 64KB so only genuinely huge
-    // responses (full HTML pages, mega-arrays) trigger the hint path.
+    // Default returns the full body. Pass --summarize to fold large responses
+    // into an extraction_hints envelope (schema_tree + size). Per CLAUDE.md
+    // Agent UX North Star "Works for what was asked: --raw is the default
+    // truth" — agents calling execute expect data, not a schema preview.
+    // Walmart's 930KB search result was hidden by the prior auto-truncation
+    // even though `success:true` and the body was on the wire; opt-in via
+    // --summarize keeps the convenience for interactive use without burying
+    // automated callers.
     const AUTOEXTRACT_HINT_THRESHOLD = 65_536;
-    if (!rawFlag && !pathFlag && !extractFlag && !schemaFlag) {
+    if (summarizeFlag && !pathFlag && !extractFlag && !schemaFlag) {
       const raw = JSON.stringify(result.result);
       if (raw && raw.length > AUTOEXTRACT_HINT_THRESHOLD) {
         const schema = schemaOf(result.result);
