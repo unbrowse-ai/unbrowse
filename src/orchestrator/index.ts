@@ -2396,10 +2396,18 @@ export async function resolveAndExecute(
         result: {
           status: "resolve_hard_handoff",
           message: `No cached API available for this intent on ${endpointScopedSkill.domain}.`
-            + ` Browser session required — drive interactively (snap/click/fill) or try a different task.`,
+            + ` For SSR-rendered pages (search results in HTML, e.g. Amazon, Bing),`
+            + ` try \`unbrowse fetch ${context?.url ?? endpointScopedSkill.domain}\` to get the page HTML and extract client-side.`
+            + ` Otherwise drive a browser session interactively (snap/click/fill).`,
           domain: endpointScopedSkill.domain,
-          suggested_next_action: "unbrowse snap --filter interactive",
+          // unbrowse fetch is the cheapest first-resort: many "no API exists"
+          // failures are SSR-page-as-data sites where the search results are
+          // already in the rendered HTML. The agent reads the markdown-
+          // converted page and extracts what it needs without needing capture
+          // to have published a synthetic page-artifact endpoint.
+          suggested_next_action: `unbrowse fetch ${context?.url ?? `https://${endpointScopedSkill.domain}`}`,
           commands: [
+            `unbrowse fetch ${context?.url ?? `https://${endpointScopedSkill.domain}`}`,
             "unbrowse snap --filter interactive",
             "unbrowse click <ref>",
             "unbrowse fill <ref> <value>",
