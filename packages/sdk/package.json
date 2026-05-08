@@ -19,7 +19,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "docs:validate": "node scripts/validate-docs.js",
+    "docs:validate:links": "node scripts/validate-links-deep.js",
+    "docs:validate:examples": "node scripts/validate-examples.js", 
+    "docs:validate:quality": "node scripts/validate-content-quality.js",
+    "docs:validate:all": "npm run docs:validate && npm run docs:validate:examples && npm run docs:validate:quality",
+    "docs:lint": "npm run docs:validate:all",
+    "test:docs": "npm run docs:validate:all"
+  }
   },
   "devDependencies": {
     "typescript": "^6.0.2"
