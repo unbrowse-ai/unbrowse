@@ -159,7 +159,17 @@ export function decideFromProbe(input: DecisionInput): Decision {
   const { probe, has_trigger_url, intent_wants_dom, has_dom_extraction } = input;
   const { status, content_type = "", byte_length } = probe;
 
-  // 4xx/5xx — return as-is. No "let me try a different strategy" theatre.
+  // 401/403 — fetch full body (not just probe stub). The body may carry
+  // vendor-block markers (DataDome, CF, PerimeterX, etc.) that the executor's
+  // classifyExecuteFailure() needs for honest bucketing — return-error short-
+  // circuits with a synthesized stub that has no body to classify.
+  if (status === 401 || status === 403) {
+    return {
+      strategy: "server",
+      reason: `probe status ${status} — fetch body for vendor-block classification`,
+    };
+  }
+  // Other 4xx/5xx — return as-is. No "let me try a different strategy" theatre.
   // The agent reads the actual server error and decides next move.
   if (status >= 400) {
     return {
