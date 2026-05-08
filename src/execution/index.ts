@@ -22,6 +22,7 @@ import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
 import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../ranking/signals/bm25.js";
 import { semanticIntentAdjustment, AGENT_DESC_DELTA_WEIGHT, CURRENCY_TIME_DELTA_WEIGHT, COMMS_PATH_DELTA_WEIGHT, CHART_PRICING_DELTA_WEIGHT } from "../ranking/signals/intent-yield.js";
+import { NOISE_HOSTS, NOISE_PATHS, I18N_CONFIG_PATHS, AUTH_CONFIG_PATHS, SESSION_PLUMBING, STATIC_ASSET_PATTERNS, UI_ASSET_PATHS } from "../ranking/filters/noise-patterns.js";
 
 function stableEndpointId(method: string, urlTemplate: string): string {
   if (!method || !urlTemplate) return nanoid();
@@ -3407,28 +3408,7 @@ export function buildGraphqlRequestParams(
 }
 
 export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string, contextUrl?: string, params?: Record<string, unknown>): RankedEndpoint[] {
-  // --- Hard-filter: hosts that NEVER contain useful data ---
-  const NOISE_HOSTS = /(id5-sync\.com|btloader\.com|presage\.io|onetrust\.com|adsrvr\.org|googlesyndication\.com|adtrafficquality\.google|amazon-adsystem\.com|crazyegg\.com|challenges\.cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|protechts\.net|demdex\.net|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|cloudflareinsights\.com|fonts\.googleapis\.com|recaptcha|waa-pa\.|signaler-pa\.|ogads-pa\.|reddit\.com\/pixels?|pixel-config\.|dns-finder\.com|cookieconsentpub|firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|apis\.google\.com|connect\.facebook\.net|bat\.bing\.com|static\.cloudflareinsights\.com|cdn\.mxpnl\.com|js\.hs-analytics\.net|snap\.licdn\.com|clc\.stackoverflow\.com|px\.ads|t\.co\/i|analytics\.|telemetry\.|stats\.)/i;
-
-  // Noise URL path patterns — tracking, telemetry, logging
-  const NOISE_PATHS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts|collect|tr\/|gen_204|generate_204|log$|logging|heartbeat|metrics|consent|sodar|tag$|event$|events$|impression|pageview|click|__|adx\/|\/cm\/ttc|\/pfb$|_stm$|videoads\/|prerolls|phantom\/)/i;
-
-  // i18n / locales / static config — translation files and navigation scaffolding, never data
-  const I18N_CONFIG_PATHS = /\/(i18n\/|locales\/|locale\/|translations?\/|l10n\/|lang\/[a-z]{2,5}\/|navigation\.json$|privacy[-_]compliance|privacy[-_]consent|consent[-_])/i;
-
-  // Auth/session/config — on-domain but not data
-  const AUTH_CONFIG_PATHS = /\/(csrf_meta|logged_in_user|analytics_user_data|onboarding|geolocation|auth|login|logout|register|signup|session|webConfig|config\.json|manifest\.json|robots\.txt|sitemap|favicon|opensearch|service-worker|sw\.js)\b/i;
-
-  // Session plumbing — infrastructure endpoints no user would ever want as data.
-  // Only true noise: account config, badge counts, feature flags, telemetry, DM settings.
-  // NOT filtered: HomeTimeline, Bookmarks, Notifications, UserByScreenName, etc. — real data.
-  const SESSION_PLUMBING = /(account\/settings|account\/multi|badge_count|DataSaverMode|permissionsState|email_phone_info|live_pipeline|user_flow|strato\/column|ces\/p2|IntercomStarter|getAltText|fleetline|FeatureHelper|VerifiedAvatar|ScheduledPromotion|DirectCall|DmSettings|PinnedTimeline)/i;
-
-  // Static assets
-  const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|mjs|png|jpg|jpeg|gif|svg|ico|webp|avif|mp4|mp3|wav|riv|lottie|wasm)(\?|%3F|$)/i;
-
-  // Animation/UI asset paths
-  const UI_ASSET_PATHS = /\/(rive|lottie|animations?|sprites?|assets\/static)\//i;
+  // Noise filter patterns moved to src/ranking/filters/noise-patterns.ts (P1 W3 cleanup)
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
     if (ep.verification_status === "disabled") return false;
