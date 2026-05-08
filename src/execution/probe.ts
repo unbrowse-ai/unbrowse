@@ -189,12 +189,20 @@ export function decideFromProbe(input: DecisionInput): Decision {
     };
   }
 
-  // Network error — escalate to browser (different DNS/TLS/UA path may work).
-  // Never to trigger-intercept (which would also need a working tab).
+  // Network error — route to libcurl-impersonate (server strategy) first.
+  // bun's fetch fails on ZlibError (gzip decompression) and certain TLS
+  // handshakes that Chrome 131 JA4 fingerprint handles cleanly. Browser is
+  // reserved for "JS-rendered page", not "HTTP layer broken". Observed on
+  // ticketmaster (ZlibError) + vinted (operation aborted) — both previously
+  // routed to Kuri tab and returned status:0 with `"SyntaxError: Invalid or
+  // unexpected token"` body. Routing to libcurl gets real bytes when the
+  // failure was bun-fetch-specific; if libcurl ALSO fails (vendor genuinely
+  // blocking), classifyExecuteFailure detects vendor markers in the body and
+  // buckets vendor_blocked honestly — strictly better signal either way.
   if (status === 0) {
     return {
-      strategy: "browser",
-      reason: `probe network error: ${probe.error ?? "unknown"}`,
+      strategy: "server",
+      reason: `probe network error (${probe.error ?? "unknown"}) — libcurl-impersonate likely succeeds where bun fetch failed`,
     };
   }
 
