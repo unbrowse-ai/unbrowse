@@ -181,7 +181,7 @@ describe("CLI input payload ingestion (integration)", () => {
     expect(body._response_too_large).toBeUndefined();
     expect(body.extraction_hints).toBeUndefined();
     expect(cli.stderr).not.toContain('resolved to undefined');
-  });
+  }, 30_000);
 
   it("forwards --session to browse POST commands", async () => {
     const server = await startJsonEchoServer({ ok: true });

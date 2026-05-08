@@ -406,7 +406,7 @@ print(cands[0][2].get('endpoint_id') if cands else '')
   if [ -n "$p1_skill" ] && [ -n "$p1_endpoint" ]; then
     echo "  P2 execute skill=$p1_skill ep=$p1_endpoint" >&2
     # shellcheck disable=SC2086
-    timeout "$TIMEOUT" $CLI_CMD execute --skill "$p1_skill" --endpoint "$p1_endpoint" --raw </dev/null > "$exe_out" 2>&1
+    timeout "$TIMEOUT" $CLI_CMD execute --skill "$p1_skill" --endpoint "$p1_endpoint" </dev/null > "$exe_out" 2>&1
     exe_exit=$?
   else
     : "${p1_skip_reason:=missing_skill_or_endpoint}"
