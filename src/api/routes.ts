@@ -19,7 +19,8 @@ import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION
 import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
 import { getContributionConfig } from "../config/contribution.js";
 import { getSkill } from "../marketplace/index.js";
-import { executeSkill, rankEndpoints } from "../execution/index.js";
+import { executeSkill } from "../execution/index.js";
+import { rankEndpoints } from "../ranking/index.js";
 import {
   extractBrowserAuth,
   importBrowserCookiesIntoTab,

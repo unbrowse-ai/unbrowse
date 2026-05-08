@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { rankEndpoints } from "../src/execution/index";
+import { rankEndpoints } from "../src/ranking/index";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 function ep(over: Partial<EndpointDescriptor>): EndpointDescriptor {

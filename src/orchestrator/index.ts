@@ -11,7 +11,8 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { decomposeGraphqlEndpoint, executeSkill, rankEndpoints } from "../execution/index.js";
+import { decomposeGraphqlEndpoint, executeSkill } from "../execution/index.js";
+import { rankEndpoints } from "../ranking/index.js";
 import {
   getSkillChunk,
   getEndpointDescriptionMetadata,
