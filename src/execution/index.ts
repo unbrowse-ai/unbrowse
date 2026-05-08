@@ -589,6 +589,57 @@ export function buildPageArtifactCapture(
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// page_fetch — the invariant floor endpoint.
+//
+// Every captured skill carries one of these. It's a plain GET against
+// the captured URL whose response is the rendered HTML page. When all
+// captured XHRs are telemetry (Amazon, Bing search), or when DOM
+// extraction failed, page_fetch is the always-callable bedrock the
+// agent can fall back on. Identified via dom_extraction.extraction_method
+// === "page_fetch"; ranks as a normal endpoint (with one targeted bonus
+// for content-read intents in rankEndpoints).
+// See .bench-history/ROOT_FIX_GUIDE.md for the full architecture.
+// ─────────────────────────────────────────────────────────────────────
+
+export function buildPageFetchEndpoint(
+  url: string,
+  intent: string,
+  authRequired = false,
+): EndpointDescriptor {
+  const computedTemplate = templatizeQueryParams(url);
+  return {
+    endpoint_id: stableEndpointId("GET", computedTemplate + "#page_fetch"),
+    method: "GET",
+    url_template: computedTemplate,
+    idempotency: "safe" as const,
+    verification_status: "verified" as const,
+    reliability_score: 0.5,
+    description: `Returns rendered page for "${intent}" on ${url}`,
+    response_schema: { type: "string", format: "html" } as Record<string, unknown>,
+    dom_extraction: {
+      extraction_method: "page_fetch",
+      // 0.5 confidence is intentionally moderate: above the 0.2 quality
+      // floor (so it's never filtered out), below typical structured-API
+      // scores (so a real /api/ endpoint that matches intent still wins),
+      // above DOM-extracted page-artifacts (so when an agent specifically
+      // wants the raw page they get it).
+      confidence: 0.5,
+    },
+    trigger_url: url,
+    semantic: {
+      action_kind: "fetch",
+      resource_kind: "page",
+      ...(authRequired ? { auth_required: true } : {}),
+      description_in: `Fetches the rendered page at ${url}`,
+      description_out: `Returns the rendered HTML for "${intent}"`,
+    },
+  };
+}
+
+export function isPageFetchEndpoint(ep: EndpointDescriptor): boolean {
+  return ep.dom_extraction?.extraction_method === "page_fetch";
+}
 
 async function trySeedPublicDocumentFetchSkill(
   skill: SkillManifest,
@@ -1382,9 +1433,24 @@ async function executeBrowserCapture(
 
   // Keep all captured endpoints locally so the resolver can use WS-backed skills,
   // but only publish HTTP endpoints until backend validation supports WS manifests.
-  const learnedEndpoints = domArtifactEndpoint
-    ? [...cleanEndpoints, domArtifactEndpoint]
-    : cleanEndpoints;
+  //
+  // INVARIANT: every published skill carries a `page_fetch` endpoint as
+  // bedrock floor. When XHR observation yielded only telemetry (Amazon
+  // search, Bing search) or DOM extraction couldn't synthesize a useful
+  // artifact, the agent can still call this endpoint to retrieve the
+  // rendered page (HTML→markdown via execute's existing GET path).
+  // See .bench-history/ROOT_FIX_GUIDE.md for the architecture.
+  const pageFetch = buildPageFetchEndpoint(url, intent, authBackedCapture);
+  const learnedEndpoints = [
+    ...cleanEndpoints,
+    ...(domArtifactEndpoint ? [domArtifactEndpoint] : []),
+    // Skip injection if the corpus already has a page_fetch endpoint
+    // (e.g. on re-capture of an existing skill that already had it).
+    ...(cleanEndpoints.some(isPageFetchEndpoint)
+        || (domArtifactEndpoint && isPageFetchEndpoint(domArtifactEndpoint))
+        ? []
+        : [pageFetch]),
+  ];
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill
       ? mergeEndpoints(existingSkill.endpoints, learnedEndpoints)
@@ -3780,6 +3846,14 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // Counter-promotion for content-read intents on data-rich page artifacts.
       // Beats the structural API demotion magnitude so the page wins.
       score += 250;
+    }
+
+    // page_fetch invariant floor (see .bench-history/ROOT_FIX_GUIDE.md):
+    // for content-read intents, the always-published page_fetch endpoint
+    // beats telemetry XHRs but loses to a real /api/ endpoint matching
+    // intent tokens. Single rule, no conditional ladders.
+    if (isPageFetchEndpoint(ep) && intent && LIST_INTENT.test(intent)) {
+      score = Math.max(score, 100);
     }
 
     // Even with dom_extraction, a captured page artifact loses to an API sibling
