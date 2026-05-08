@@ -33,10 +33,11 @@ search products on target|https://www.target.com/s?searchTerm=coffee
 list canada goose products|https://www.canadagoose.com/us/en/shop/mens/parkas
 search products decathlon|https://www.decathlon.fr/search?Ntt=running
 
-# --- Heavy SPA / GraphQL with no SSR (engineering-hard, not vendor-hard) ---
-search tiktok videos|https://www.tiktok.com/search?q=ai+agents
-search instagram explore|https://www.instagram.com/explore/tags/ai/
-get youtube search results|https://www.youtube.com/results?search_query=ai+agents
+# --- Auth-gated SPA / GraphQL — bench EXCLUDES (no login = no data; previously
+#     bucketed BLOCK as `y_capture_didnt_yield_endpoint`, polluting histogram) ---
+# search tiktok videos|https://www.tiktok.com/search?q=ai+agents
+# search instagram explore|https://www.instagram.com/explore/tags/ai/
+# get youtube search results|https://www.youtube.com/results?search_query=ai+agents
 
 # --- Search engines (sometimes block, sometimes don't) ---
 search google for ai agents|https://www.google.com/search?q=ai+agents
