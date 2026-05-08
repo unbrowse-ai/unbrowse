@@ -29,6 +29,7 @@ TIMEOUT=90
 CLI_CMD="unbrowse"
 ONLY_URL=""
 NOTE=""
+JUDGE_INLINE=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -37,6 +38,7 @@ while [ $# -gt 0 ]; do
     --use-source) CLI_CMD="bun src/cli.ts"; shift ;;
     --only-url) ONLY_URL="$2"; shift 2 ;;
     --note) NOTE="$2"; shift 2 ;;
+    --judge-inline) JUDGE_INLINE=1; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -333,8 +335,8 @@ print(json.dumps(row))
   echo "$enriched" >> "$results_file"
   echo "$enriched" >> "$HISTORY_JSONL"
 
-  printf '%s' "$enriched" | python3 -c "
-import sys, json
+  printf '%s' "$enriched" | JUDGE_INLINE="$JUDGE_INLINE" python3 -c "
+import sys, json, os
 d = json.loads(sys.stdin.read())
 parts = [d.get('triage_bucket','?'),
          f\"P1={d['phase1_status']}\"]
@@ -345,6 +347,27 @@ if shape: parts.append(f\"shape={shape[:40]}\")
 err = d.get('phase2_error','')
 if err: parts.append(f\"err={err[:60]}\")
 print('  ' + ' | '.join(parts), file=sys.stderr)
+
+# --judge-inline: per-URL markdown block to stderr so the agent
+# (when running this bench foreground in tool-output context) sees
+# evidence as it lands. One block per URL, ≤2KB so it fits in a single
+# notification chunk. Format is markdown so the agent can read it
+# directly without parsing JSON.
+if os.environ.get('JUDGE_INLINE') == '1':
+    excerpt = (d.get('phase2_response_excerpt') or '')[:800]
+    block = []
+    block.append(f\"### {d.get('url','?')}\")
+    block.append(f'  intent:   {d.get(\"goal\",\"\")}')
+    block.append(f\"  bucket:   {d.get('triage_bucket','?')}\")
+    block.append(f'  phase1:   status={d[\"phase1_status\"]} eps={d[\"phase1_endpoints_discovered\"]} skill={d.get(\"phase1_skill_id\",\"\")[:12]}')
+    if d.get('phase2_ran'):
+        block.append(f'  phase2:   sc={d.get(\"phase2_status_code\",\"\") or \"-\"} shape={d.get(\"phase2_result_shape\",\"\") or \"-\"} bytes={d.get(\"phase2_response_bytes\",0)}')
+    if err:
+        block.append(f'  err:      {err[:200]}')
+    if excerpt:
+        block.append(f'  excerpt:  {excerpt}')
+    block.append('')
+    print('\\n'.join(block), file=sys.stderr)
 "
 done < "$CORPUS"
 
