@@ -2765,8 +2765,18 @@ export async function executeEndpoint(
       const fallbackUrl = endpoint.trigger_url || url;
       decisionTrace.push({ step: "5xx_ssr_fastpath_fallback", from: endpoint.endpoint_id, original_status: status, target: fallbackUrl });
       try {
+        // Ensure a Kuri instance with /v1/sandbox/replay is reachable.
+        // The unbrowse server's embedded Kuri (port 6969) may lack the
+        // sandbox endpoint; spawn a standalone one at 8080 if needed.
+        const { ensureKuriSandboxReachable } = await import("../kuri/spawn.js");
+        const sandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+        const ready = await ensureKuriSandboxReachable(sandboxBase);
+        if (!ready) {
+          decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_kuri_unavailable", target_kuri: sandboxBase });
+          throw new Error(`Kuri sandbox not reachable at ${sandboxBase}`);
+        }
         const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
-        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, timeoutMs: 15_000 });
+        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000 });
         if (ssr) {
           log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
           // Run DOM extraction on the recovered HTML.
