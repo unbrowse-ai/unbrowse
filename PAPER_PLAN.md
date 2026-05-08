@@ -33,7 +33,7 @@ NORTHSTAR wins (product reality precedes paper rhetoric).
 | 14 | Tier 1 install fee $0.005–0.02 / skill | §7.5 | partial | x402 wired | no published price band |
 | 15 | Tier 3 search fee $0.001–0.005 / query | §7.5 | partial | search loop wired | no published price band |
 | 16 | x402 round-trip is the only added latency | §5.1 | shipped | apiRequest auto-pay | needs measurement |
-| 17 | Pre-publish ≥ 50% endpoint success + ≥ 1 verified | §6.1 | missing | publish allowed at any rate | no validation gate |
+| 17 | Pre-publish ≥ 50% endpoint success + ≥ 1 verified | §6.1 | shipped | `src/publish/validate.ts:validatePublishGate` (commit 6e1b5807); 14/0 tests in `tests/publish-validation*.test.ts` | — |
 | 18 | Routes stale > 24 h prioritized for re-verification | §6.3 | missing | — | no priority queue |
 | 19 | Speedup falls to 2.1× on bot-protected sites | §8.3.1 | shipped | anti-bot fallback (4451a4ce) | needs split-corpus benchmark |
 | 20 | Browser runtime ≈ 500 MB / instance | §4.1 | shipped | Kuri 464 KB cold start | needs RAM measurement |
