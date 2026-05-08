@@ -2678,14 +2678,29 @@ export async function executeEndpoint(
         if (trace.success) {
           trace.result = data;
         } else {
-          trace.error = `HTTP ${status}`;
-          data = staleEndpointResult(
-            status,
-            skill,
-            endpoint,
-            options?.contextUrl,
-            `Credentials were refreshed, but endpoint ${endpoint.endpoint_id} still returned HTTP ${status}. Treat this marketplace route as stale and use browser capture for this task.`,
-          );
+          // Classify the retry response body too — if recovery succeeded
+          // but the retry still hit DataDome/CF/PerimeterX (libcurl is still
+          // libcurl after a cookie refresh), honestly mark vendor_blocked.
+          const retryKind = classifyExecuteFailure({ status, body: data });
+          if (retryKind.kind === "vendor_blocked") {
+            trace.error = `HTTP ${status} (vendor_blocked: ${retryKind.vendor ?? "unknown"} — refreshed cookies still classified as bot)`;
+            data = staleEndpointResult(
+              status,
+              skill,
+              endpoint,
+              options?.contextUrl,
+              `Endpoint ${endpoint.endpoint_id} returned HTTP ${status} after credential refresh; classifier detected ${retryKind.vendor ?? "vendor"} bot mitigation. The auth refresh worked, but the libcurl signature is still being identified as non-browser. Open a live browser session for this site.`,
+            );
+          } else {
+            trace.error = `HTTP ${status}`;
+            data = staleEndpointResult(
+              status,
+              skill,
+              endpoint,
+              options?.contextUrl,
+              `Credentials were refreshed, but endpoint ${endpoint.endpoint_id} still returned HTTP ${status}. Treat this marketplace route as stale and use browser capture for this task.`,
+            );
+          }
           trace.result = data;
         }
       } else {
