@@ -234,6 +234,21 @@ def triage_bucket(p1s, ph2):
     # next_step (open browser) instead of trying to debug params.
     if "vendor_blocked:" in (ph2.get("phase2_error") or ""):
         return "z_likely_vendor_blocked_at_replay"
+    # Phase C bench-instrumentation: 4xx with substantial body + real content
+    # tokens → PASS-eligible bucket. Foot Locker pattern observed: status 400
+    # but full HTML page returned (548KB shoes catalog with app-id, canonical,
+    # meta description). Status code is bot-detection theatre; body is real.
+    # The agent reads phase2_response_excerpt and judges; coverage tally
+    # treats `a_inspect_response_body_4xx_real_content` as PASS-candidate.
+    bytes_ = ph2.get("phase2_response_bytes") or 0
+    excerpt = ph2.get("phase2_response_excerpt") or ""
+    if sc and sc.startswith("4") and bytes_ >= 10000:
+        # Content tokens — same broad set used by the Phase B-survey predicate
+        content_tokens = sum(1 for t in ["product","price","title","listing","review","rating","cart","shipping","sale","category","results","item","name","description","brand"] if t in excerpt.lower())
+        # Challenge tokens (title-priority block) — if title is a challenge, dont upgrade
+        title_block = any(t in excerpt.lower() for t in ["just a moment","attention required","accès bloqué","access denied","security |","pardon our interruption","verifying you are human"])
+        if content_tokens >= 3 and not title_block:
+            return "a_inspect_response_body_4xx_real_content"
     if (ph2.get("phase2_response_bytes") or 0) > 0:
         return "a_inspect_response_body"
     if ph2["phase2_status_code"]:
@@ -391,7 +406,7 @@ print(cands[0][2].get('endpoint_id') if cands else '')
   if [ -n "$p1_skill" ] && [ -n "$p1_endpoint" ]; then
     echo "  P2 execute skill=$p1_skill ep=$p1_endpoint" >&2
     # shellcheck disable=SC2086
-    timeout "$TIMEOUT" $CLI_CMD execute --skill "$p1_skill" --endpoint "$p1_endpoint" </dev/null > "$exe_out" 2>&1
+    timeout "$TIMEOUT" $CLI_CMD execute --skill "$p1_skill" --endpoint "$p1_endpoint" --raw </dev/null > "$exe_out" 2>&1
     exe_exit=$?
   else
     : "${p1_skip_reason:=missing_skill_or_endpoint}"
