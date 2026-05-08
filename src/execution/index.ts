@@ -2596,6 +2596,11 @@ export async function executeEndpoint(
   // Phase 7.2 promotes this to a top-level field on the response envelope.
   (trace as ExecutionTrace & { decision_trace?: Array<Record<string, unknown>> }).decision_trace = decisionTrace;
 
+  // Snapshot the raw upstream failure body BEFORE the empty-data stubbing
+  // below replaces it. Used by classifyExecuteFailure() in the auth-recovery
+  // branch to tell vendor_blocked apart from stale_credentials.
+  const rawFailureBody: unknown = !trace.success ? data : undefined;
+
   if (!trace.success) {
     trace.error = status === 0
       ? `HTTP 0 — network failure or browser fetch was blocked (DNS, TLS, CORS, anti-bot, or kuri tab error). Try \`unbrowse go\` to open a live session, then re-run.`
@@ -2684,18 +2689,37 @@ export async function executeEndpoint(
           trace.result = data;
         }
       } else {
-        // No recovery path worked — delete stale credentials
-        if (skill.auth_profile_ref) {
+        // Classify the failure body BEFORE assuming stale-credentials.
+        // DataDome / CF / PerimeterX / Akamai / etc. respond with 401/403 and
+        // a vendor-shaped body when classifying libcurl as a bot — recovery
+        // chain has no auth to refresh because the issue is bot detection.
+        const failureKind = classifyExecuteFailure({ status, body: rawFailureBody });
+        // No recovery path worked
+        if (skill.auth_profile_ref && failureKind.kind !== "vendor_blocked") {
+          // Only delete credentials when the failure is genuinely auth.
+          // Vendor-blocked sites have nothing to refresh; deleting their
+          // captured cookies wastes the user's next browser session.
           await deleteCredential(skill.auth_profile_ref);
         }
-        trace.error = `${trace.error} (stale credentials — re-authenticate via /v1/auth/login)`;
-        data = staleEndpointResult(
-          status,
-          skill,
-          endpoint,
-          options?.contextUrl,
-          `Endpoint ${endpoint.endpoint_id} returned HTTP ${status}, and credential recovery did not produce a usable session.`,
-        );
+        if (failureKind.kind === "vendor_blocked") {
+          trace.error = `${trace.error} (vendor_blocked: ${failureKind.vendor ?? "unknown"} — bot detection, not auth)`;
+          data = staleEndpointResult(
+            status,
+            skill,
+            endpoint,
+            options?.contextUrl,
+            `Endpoint ${endpoint.endpoint_id} returned HTTP ${status}; classifier detected ${failureKind.vendor ?? "vendor"} bot mitigation. This is not a credential issue — the libcurl replay was identified as non-browser. Open a live browser session for this site.`,
+          );
+        } else {
+          trace.error = `${trace.error} (stale credentials — re-authenticate via /v1/auth/login)`;
+          data = staleEndpointResult(
+            status,
+            skill,
+            endpoint,
+            options?.contextUrl,
+            `Endpoint ${endpoint.endpoint_id} returned HTTP ${status}, and credential recovery did not produce a usable session.`,
+          );
+        }
         trace.result = data;
       }
     } catch {
@@ -3278,6 +3302,94 @@ export function detectBrowserBlockSignals(input: {
     signals.push("low_capture");
   }
   return signals;
+}
+
+/**
+ * Classify why an EXECUTE replay failed when status ∈ {401, 403}. Companion
+ * to detectBrowserBlockSignals (which runs at capture time on the live page);
+ * this runs at execute time on the upstream replay response body so we can
+ * tell apart "your cookies expired" (stale_credentials, the existing path)
+ * from "DataDome/CF/PerimeterX classified your libcurl as a bot"
+ * (vendor_blocked, previously misreported as stale_credentials).
+ *
+ * Default = stale_credentials when nothing matches — preserves prior
+ * behavior on no-signal so this is a strict additive distinction.
+ */
+export function classifyExecuteFailure(input: {
+  status: number;
+  body: unknown;
+  headers?: Record<string, string | string[] | undefined>;
+}): { kind: "vendor_blocked" | "stale_credentials" | "transient"; vendor?: string; evidence?: string } {
+  const { status, body, headers } = input;
+  // Normalize body to a searchable string. JSON envelopes (already parsed)
+  // get stringified; HTML/text bodies pass through; null/undefined → "".
+  let bodyStr = "";
+  if (typeof body === "string") bodyStr = body;
+  else if (body != null) {
+    try { bodyStr = JSON.stringify(body); } catch { bodyStr = String(body); }
+  }
+  const sample = bodyStr.length > 16384 ? bodyStr.slice(0, 16384) : bodyStr;
+  const lower = sample.toLowerCase();
+  const headerLines: string[] = [];
+  if (headers) {
+    for (const [k, v] of Object.entries(headers)) {
+      if (v == null) continue;
+      const val = Array.isArray(v) ? v.join("; ") : v;
+      headerLines.push(`${k.toLowerCase()}: ${val.toLowerCase()}`);
+    }
+  }
+  const headerStr = headerLines.join("\n");
+
+  // Vendor markers — body OR headers can carry them. Order matters: more
+  // specific vendors first so we don't tag a DataDome page as "captcha_vendor".
+  // Patterns lifted from detectBrowserBlockSignals to keep one source of truth.
+  if (
+    /datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey|captcha-delivery|"action_message":"please[^"]+enable|x-dd-b|'rt':'c'/i.test(sample) ||
+    /\bdatadome=|x-datadome|x-dd-b/.test(headerStr)
+  ) return { kind: "vendor_blocked", vendor: "datadome", evidence: "body_or_header_marker" };
+  if (
+    /perimeterx|px-cloud|px-cdn|pxhd\.net|_pxhd|_pxvid|"appId":"px"/i.test(sample) ||
+    /\bpx_=|_pxhd=/.test(headerStr)
+  ) return { kind: "vendor_blocked", vendor: "perimeterx", evidence: "body_or_header_marker" };
+  if (
+    /akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i.test(sample) ||
+    /\b_abck=|akam-/.test(headerStr)
+  ) return { kind: "vendor_blocked", vendor: "akamai_bot_manager", evidence: "body_or_header_marker" };
+  if (
+    /cf-challenge|__cf_chl_|cf_clearance|turnstile|cdn-cgi\/challenge|challenges\.cloudflare/i.test(sample) ||
+    /\bcf-mitigated|server: cloudflare/.test(headerStr) && status === 403
+  ) return { kind: "vendor_blocked", vendor: "cloudflare", evidence: "body_or_header_marker" };
+  if (/_incapsula|incapsula|reese84|imperva/i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "imperva_incapsula", evidence: "body_marker" };
+  }
+  if (/\/_fs-ch-[a-z0-9]+\//i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "fastly_bot_management", evidence: "body_marker" };
+  }
+  if (/kasada|client\.kasada|ips\.kasada|x-kpsdk-/i.test(sample) || /\bx-kpsdk-/i.test(headerStr)) {
+    return { kind: "vendor_blocked", vendor: "kasada", evidence: "body_or_header_marker" };
+  }
+  if (/shape\.security|f5\.com\/shape|shapesecurity/i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "shape_security", evidence: "body_marker" };
+  }
+  if (/hcaptcha|h-captcha|recaptcha|arkoselabs|funcaptcha|g-recaptcha-response|data-sitekey/i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "captcha_vendor", evidence: "body_marker" };
+  }
+
+  // Title-of-an-HTML-error-page check — catches cases where the body is a
+  // generic challenge page without a vendor-specific marker.
+  const titleMatch = sample.match(/<title[^>]*>([^<]{0,200})<\/title>/i);
+  if (titleMatch) {
+    const t = titleMatch[1].toLowerCase();
+    if (/just a moment|attention required|access denied|pardon our interruption|verifying you are human|are you a robot|bot check|press and hold|unusual traffic|security check|client challenge|checking your browser|captcha|accès bloqué|acceso denegado|zugriff verweigert|アクセス拒否|访问被拒绝|доступ запрещ|blocked|access blocked|forbidden/i.test(t)) {
+      return { kind: "vendor_blocked", vendor: "generic_challenge", evidence: `title:${t.slice(0, 80)}` };
+    }
+  }
+
+  // Reserved for future 5xx work — not used this iteration.
+  if (status >= 500) return { kind: "transient", evidence: `http_${status}` };
+
+  // Default: preserve prior behavior — caller's stale_credentials path.
+  return { kind: "stale_credentials" };
 }
 
 /**
