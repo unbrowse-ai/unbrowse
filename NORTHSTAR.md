@@ -1,132 +1,707 @@
 # NORTHSTAR.md
 
-## The single sentence
+## The Single Sentence
 
-> **Every browser session an agent runs becomes a reusable Unbrowse skill, autonomously, with no capture step the agent or user has to think about.**
+> **An agent gives Unbrowse a URL and an intent; Unbrowse chooses the cheapest correct path to the outcome: direct call, shared graph, index, browser, or auth.**
 
-Kuri is the discovery engine. Unbrowse is the index and execution layer. The marketplace is the moat. The agent only ever calls `resolve` → `execute`. Everything else is plumbing that should disappear.
+Agents do not want to browse. They do not want to index. They do not want to pick endpoints. They want the web task done correctly, cheaply, and quickly.
 
----
+The public product is:
 
-## What the docs already say (synthesized)
-
-Reading across `CLAUDE.md`, `SKILL.md`, `README.md`, `AGENTS.md`, `OPENCLAW_AGENT_BROWSER_PRODUCT_SPEC.md`, and `newskillunbrowse.md`, the same vision shows up four different ways:
-
-1. **CLAUDE.md (Agent UX North Star)** — two-tool contract (resolve → execute), fewer errors, correct retrieval per entity, works-for-what-was-asked. *Browser-open is a failure mode, not a feature.* Stickiness comes from being the default browser via plugin + MCP, so every agent web task routes through us automatically.
-
-2. **CLAUDE.md (Architecture)** — Kuri is the primary browser, headless on every platform, with passive HAR + JS interceptor capture running on every session. Capture pipeline is *the same* for passive and explicit: `extractEndpoints → extractAuthHeaders → storeCredential → mergeEndpoints → generateLocalDescription → augmentEndpointsWithAgent → buildSkillOperationGraph → cachePublishedSkill → queueBackgroundIndex`. Marketplace publish is asynchronous; resolve falls through cache → marketplace → first-pass browser → live capture.
-
-3. **SKILL.md (Three execution paths)** — skill cache <200ms, shared marketplace sub-second, live browser 20–80s. Path 3 is where capture happens, and it indexes for everyone else's Path 1 and Path 2. The flywheel is: every Path 3 someone runs makes the next agent's request a Path 1 or Path 2.
-
-4. **OPENCLAW_AGENT_BROWSER_PRODUCT_SPEC.md (Original vision)** — discovery and learning happen *through agent-browser* (not a plugin, not a manual capture command); reverse-engineering and verification publish merged endpoints to a public marketplace; user credentials stay local; "if no match: perform live browse, capture HAR, reverse engineer, validate, publish, execute" — *all of this without the user composing it as separate steps.*
-
-**The thread that ties all four:** the user/agent does normal work in a browser, and the marketplace silently fills with high-quality skills. Capture is invisible. Publish is automatic. Resolution is the only surface.
-
-## The autonomy gap (what reality looks like today)
-
-The mental model in the docs has not been fully delivered. Five concrete gaps, in order of how much they cost the flywheel:
-
-1. **Single-browser monopoly is unenforced.**
-   Kuri only learns from Kuri sessions. Traffic that an agent generates through `chrome-devtools` MCP, Playwright, Puppeteer, the user's own logged-in Chrome, or any other browser MCP is invisible to Unbrowse. Today's session is the canonical example: the agent drove jmail.world through `chrome-devtools`, then `unbrowse resolve` had nothing — because Unbrowse never saw the traffic. The richest data source (the user's authenticated Chrome) is the largest hole.
-
-2. **Capture is checkpointed, not streaming.**
-   Routes captured during a session don't surface in the marketplace until `close` or `sync` triggers `queueBackgroundIndex`. The current SKILL.md workflow even *mandates* close → review → publish as discrete steps. That gates cross-agent reuse on a manual handoff. The same agent in the same session can't take advantage of routes it just captured ten seconds ago.
-
-3. **Resolve doesn't consult the in-flight capture buffer.**
-   Resolve ladder is cache → marketplace → first-pass browser (8s timeout) → live capture. It doesn't look at the just-captured-but-not-yet-published routes for the same domain in the active session. Result: agents loop through repeated live captures of routes Unbrowse already has in memory.
-
-4. **Per-domain heuristics keep growing back.**
-   `CLAUDE.md` calls per-host registries banned, but the temptation reappears every time capture is incomplete. The pattern is always: a site doesn't extract well → someone adds `if (host === "x.com") …` → 11th similar site silently breaks. The only durable fix is upstream — read the SSR payload, the embedded JSON, `<link rel="alternate">`, sitemap.xml, OpenSearch descriptors, JS heap state. Heuristics are debt; primitives are leverage.
-
-5. **Stale skills rank high.**
-   Auto-deprecation by failure rate is in the spec but not in production. Every site change degrades the index, and ranking is not aware. Agents trust ghosts.
-
-## The single-browser monopoly is the load-bearing fix
-
-Of the five gaps, #1 is the one that makes the others tractable. If every browser an agent touches feeds the same capture pipeline, then:
-
-- Streaming publish becomes valuable (more events to stream).
-- Resolve consulting in-flight capture becomes meaningful (more in-flight capture to consult).
-- Per-domain heuristics get starved of demand (because the upstream data is now reliably present).
-- Stale-skill detection has more signal (more execution attempts per route).
-
-The implementation shape: a CDP-attach mode where Unbrowse hooks any Chrome instance with a debug port — including ones started by other MCP servers, ones started by the user, ones started by Playwright/Puppeteer — and runs the same interceptor + HAR + enrichment pipeline as native Kuri sessions. Browser identity stops mattering. The agent doesn't have to know which browser is being driven; capture is universal.
-
-This is what the CLAUDE.md "stickiness strategy" ("make Unbrowse the default browser for every agent via plugin + MCP") was always pointing at. Plugin + MCP is the install path; CDP-attach is the runtime mechanism that makes the install actually load-bearing.
-
-## The two-tool contract (re-anchored)
-
-Every other tool in the surface area exists *because* something in the autonomy chain isn't yet automatic:
-
-| Tool | Why it exists today | What removes it |
-|---|---|---|
-| `go` | Resolve doesn't auto-open a browser when capture is needed | Resolve handles browse-session lifecycle internally |
-| `snap`/`click`/`fill`/`type`/`press`/`select`/`scroll` | Agent has to drive UI when Kuri can't auto-replay | Better DOM-fallback + structural extractors → fewer manual UI drives |
-| `close`/`sync` | Publish is checkpointed | Streaming background publish |
-| `index` | Index runs on demand | Always-on indexer |
-| `login` | Auth chain not autonomous | `sessions-scan` + cookie injection + OTP read fully chained |
-| `feedback` | We don't auto-detect bad executions | Auto-deprecate on failure-rate signal |
-
-Each of these is a feature *and* a tax. The feature lets agents work today. The tax is they leak the abstraction — the agent has to know the pipeline exists. Every release should be deleting one of these tools or making it never-needed.
-
-The destination: an agent installs Unbrowse, sets `UNBROWSE` as its browser, and only ever calls `resolve(intent, url)` → `execute(endpoint_id, params)`. Nothing else.
-
-## The flywheel (with autonomy as the engine)
-
-```
-Agent does real web work
-        │
-        ▼   (any browser, captured via CDP-attach)
-Kuri / attached Chrome runs the work
-        │
-        ▼   (always-on, passive, silent)
-Capture pipeline — HAR + interceptor + DOM
-        │
-        ▼   (streaming, not checkpointed)
-Enrichment — extract → auth → merge → describe → augment → graph → cache
-        │
-        ▼   (continuous background publish)
-Marketplace — versioned, deduped, ranked, deprecated
-        │
-        ▼   (resolve picks best path)
-Next agent: cache hit (Path 1) or marketplace hit (Path 2)
-        │
-        ▼
-30x faster, 90% cheaper than another browser session
-        │
-        ▼   (x402 mining)
-Contributing wallet earns
-        │
-        ▼
-Compounding supply for every domain anyone touches
+```bash
+unbrowse run <url> "task"
 ```
 
-The monetary layer (x402, mining) is the *incentive*, but the *engine* is invisible learning. If users have to think about contributing — `unbrowse capture`, `unbrowse publish`, `unbrowse index`, "open a session to teach it" — the engine is broken regardless of how the incentives are tuned.
+Everything else is an implementation primitive.
 
-## Tests for whether a feature is on the North Star
+## The Paper Claim
 
-Before shipping, every change answers five questions:
+The arXiv paper, *Internal APIs Are All You Need*, argues that browser-first agent architectures pay the same discovery tax repeatedly. Websites already expose first-party internal APIs behind their UI. Unbrowse turns those hidden interfaces into a shared route graph, then routes agents through:
 
-1. **Does this reduce the number of explicit steps an agent or user takes?** *(Want: yes.)*
-2. **Does this widen the set of browser sessions Unbrowse learns from?** *(Want: yes.)*
-3. **Does this shrink the time between "request was made in a browser" and "skill is callable from anywhere"?** *(Want: yes.)*
-4. **Does this require the agent to know that learning exists?** *(Want: no.)*
-5. **Does this add a per-domain heuristic?** *(Want: no — every shortcut is debt the 11th site collects.)*
+1. local cache
+2. shared graph
+3. browser fallback
 
-If any answer goes the wrong way, the feature is off the path even if it ships traction. *Especially* if it ships traction — because growth on a leaky foundation is harder to undo than slow growth on a sound one.
+The important product claim is not "we have many CLI commands." It is:
 
-## What this is *not*
+> Given an intent, Unbrowse automatically routes to the lowest-cost path that preserves correctness.
 
-- Not a prompt-the-agent-to-explore loop. Discovery is a side effect of real work, not a synthetic crawl.
-- Not "we'll capture the homepage and call it indexed." The unit is the endpoint behind a real intent, with real auth, real params, real response.
-- Not opt-in per session. Capture is always on; the only opt-out is at install time.
-- Not a UI feature. There's no "discoveries" tab the user reviews. The marketplace is the only surface.
-- Not heuristic registries. Site-specific shortcuts are a sign capture is incomplete upstream.
+That is the bar.
 
-## What "done" looks like
+## First Principles
 
-A user installs Unbrowse once. Their agent goes about its life — driving Kuri, driving the user's logged-in Chrome via CDP-attach, driving whatever browser anything else hands it. They never run a capture command. They never see a session UI. Six months later, the marketplace knows their long tail of personal SaaS, internal tools, and weird sites better than any public corpus, because every browser session anyone ever ran was indexed silently.
+### 1. Agents Want Outcomes, Not Modes
 
-When *another* agent — anywhere — needs the same intent on the same site, it resolves in milliseconds against a route the first user's mining contributed.
+The agent's job is not to decide whether to call:
 
-That's the North Star. Every PR either reduces an explicit step or closes a capture hole. If it doesn't, it's not on the path.
+- `resolve`
+- `execute`
+- `capture`
+- `index`
+- `go`
+- `snap`
+- `click`
+- `auth-capture`
+
+Those are internal levers. If an agent has to pick them, the abstraction leaked.
+
+The agent should express:
+
+```text
+intent + url + optional params
+```
+
+Unbrowse should return:
+
+```text
+result
+```
+
+or, when human/security action is required:
+
+```text
+next_action
+```
+
+with a clear `run_plan` explaining what happened.
+
+### 2. Correctness Dominates Speed
+
+A direct API call is better than browser automation only if it returns the right thing.
+
+Every candidate path must be gated by:
+
+- semantic match to the user's intent
+- request parameter compatibility
+- response schema/output confidence
+- auth/session requirements
+- side-effect classification
+- policy/payment/robots constraints
+- freshness and drift state
+- historical execution success
+
+Fast wrong output is worse than slow browser fallback.
+
+### 3. Browser Is Ground Truth, Not The Product
+
+Browser execution is the fallback and discovery instrument.
+
+It proves:
+
+- which route the site actually called
+- which params matter
+- which auth/session tokens are required
+- what response shape maps to the UI outcome
+- whether a route is stale
+
+But browser should not be the normal agent UX.
+
+The ideal state is not "agents browse better." The ideal state is "agents browse less because every browser session improves future direct execution."
+
+### 4. Indexing Is A Planner Decision
+
+Indexing should not be a user decision.
+
+Unbrowse should index when the expected value is positive:
+
+- no suitable route exists
+- existing route failed
+- schema drift is detected
+- browser capture observed new API evidence
+- the task shape is likely reusable
+- capture cost is lower than expected repeated rediscovery cost
+
+Unbrowse should not index to bypass:
+
+- `payment_required`
+- unsafe mutations
+- third-party confirmation gates
+- robots/policy denials
+- auth walls requiring human action
+
+### 5. The Graph Wins Only Against The Outside Option
+
+The shared graph is disciplined by browser rediscovery.
+
+An agent should use the graph only when:
+
+```text
+graph_fee + graph_latency + failure_risk
+<
+browser_rediscovery_cost
+```
+
+Browser rediscovery cost includes:
+
+- page load latency
+- browser runtime cost
+- LLM tokens spent reading DOM/page state
+- sequential interaction overhead
+- failure probability
+- retry cost
+- opportunity cost of blocking the agent
+
+This cost comparison should become executable product logic, not just paper language.
+
+## Product Contract
+
+### Public Surface
+
+Primary commands:
+
+```bash
+unbrowse run <url> "task"
+unbrowse auth <url>
+unbrowse fetch <url>
+```
+
+Advanced/debug primitives:
+
+```bash
+unbrowse resolve ...
+unbrowse execute ...
+unbrowse capture ...
+unbrowse go ...
+unbrowse snap ...
+unbrowse click ...
+unbrowse fill ...
+unbrowse sync
+unbrowse close
+```
+
+The advanced commands stay available because engineers need escape hatches. They should not be the happy path in docs, skills, MCP prompts, or agent memory.
+
+### `run` Input
+
+```json
+{
+  "url": "https://www.carousell.sg/search/beige%20pants",
+  "intent": "find beige cargo pants size L under S$50",
+  "params": {
+    "size": "L",
+    "budget_max": 50
+  },
+  "policy": {
+    "allow_browser": true,
+    "allow_index": true,
+    "allow_paid_graph": true,
+    "allow_side_effects": false
+  }
+}
+```
+
+Most users should never pass `policy`. Defaults should be conservative:
+
+- read-only direct calls allowed
+- capture/index allowed on true misses
+- browser fallback allowed for read tasks
+- auth returns `next_action`
+- side effects require explicit confirmation
+- payment/policy gates are not bypassed
+
+### `run` Output
+
+Success:
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "items": []
+  },
+  "run_plan": [
+    {"step": "resolve", "mode": "local_cache", "status": "miss"},
+    {"step": "resolve", "mode": "shared_graph", "status": "hit"},
+    {"step": "execute", "mode": "direct_api", "status": "complete"}
+  ]
+}
+```
+
+Needs auth:
+
+```json
+{
+  "status": "auth_required",
+  "next_action": {
+    "command": "unbrowse auth https://www.carousell.sg",
+    "why": "A site session is required before private routes can be executed."
+  },
+  "run_plan": [
+    {"step": "resolve", "mode": "local_cache", "status": "miss"},
+    {"step": "resolve", "mode": "shared_graph", "status": "hit"},
+    {"step": "execute", "mode": "direct_api", "status": "auth_required"}
+  ]
+}
+```
+
+Needs browser:
+
+```json
+{
+  "status": "browse_required",
+  "next_action": {
+    "command": "unbrowse snap --session sess_123 --filter interactive",
+    "why": "The task requires page interaction before a reusable route can be learned."
+  },
+  "run_plan": [
+    {"step": "resolve", "mode": "local_cache", "status": "miss"},
+    {"step": "resolve", "mode": "shared_graph", "status": "miss"},
+    {"step": "index", "mode": "capture", "status": "thin"},
+    {"step": "browse", "mode": "kuri_session", "status": "opened"}
+  ]
+}
+```
+
+The `run_plan` is mandatory. It is how agents debug decisions without having to choose the tools themselves.
+
+## Routing Algorithm
+
+### Current Desired Order
+
+```text
+1. classify task
+2. check local cache
+3. check installed skills
+4. query shared graph
+5. execute best safe direct route
+6. if true miss: capture and index
+7. retry direct route
+8. if auth blocked: return auth next_action
+9. if still unresolved and browser allowed: open browse session
+10. if side effect required: require explicit confirmation
+```
+
+### What Counts As A True Miss
+
+Index/browse fallback is allowed for:
+
+- `no_match`
+- `no_cached_match`
+- `not_found`
+- stale route with failed verification
+- route output failed schema/quality check
+- capture evidence indicates newer route candidate
+
+Fallback is not allowed for:
+
+- `payment_required`
+- `auth_required`
+- `requires_third_party_terms_confirmation`
+- `unsafe_mutation_unconfirmed`
+- `robots_denied`
+- policy denial
+- explicit user opt-out
+
+This distinction matters. Otherwise Unbrowse will accidentally use browser/capture to route around deliberate gates.
+
+## Server-Side Architecture
+
+The planner must live server-side.
+
+Do not keep `run` as CLI glue. CLI, MCP, local HTTP API, Codex, Claude, and future hosts need one shared planner.
+
+Target module:
+
+```text
+src/orchestrator/run-planner.ts
+```
+
+Target API:
+
+```ts
+type RunPlannerInput = {
+  url: string;
+  intent: string;
+  params?: Record<string, unknown>;
+  policy?: RunPolicy;
+  projection?: Projection;
+};
+
+type RunPlannerResult = {
+  status: "ok" | "auth_required" | "browse_required" | "payment_required" | "blocked" | "error";
+  result?: unknown;
+  next_action?: {
+    title: string;
+    command?: string;
+    tool?: string;
+    why: string;
+  };
+  run_plan: RunPlanStep[];
+};
+```
+
+Public entrypoints:
+
+```text
+POST /v1/run
+unbrowse run <url> "task"
+MCP tool: unbrowse_run
+```
+
+All three must call the same planner.
+
+## Cost Model
+
+Start simple. Do not overbuild.
+
+Each candidate path gets:
+
+```text
+expected_total_cost =
+  expected_latency_ms
+  + expected_token_cost
+  + expected_browser_runtime_cost
+  + expected_payment_fee
+  + expected_failure_cost
+  + policy_risk_penalty
+```
+
+Then filter by correctness and policy.
+
+Pick the cheapest remaining path.
+
+### Candidate Features
+
+Local/direct route:
+
+- last success timestamp
+- consecutive failures
+- schema drift score
+- median execution latency
+- auth requirement
+- side-effect class
+- semantic score
+- parameter fit
+
+Shared graph route:
+
+- graph search fee
+- install/payment fee
+- contributor trust
+- verification status
+- freshness
+- expected install latency
+
+Capture/index:
+
+- estimated capture latency
+- likelihood of discovering route
+- domain history
+- JS-heavy/static-site signals
+- expected reuse value
+
+Browser:
+
+- browser startup state
+- auth state
+- number of expected UI steps
+- captcha/bot wall signals
+- past success/failure for domain
+
+## Quality Gates
+
+A route is executable only if:
+
+- method is safe for auto-execute (`GET`/`HEAD`) or mutation is explicitly confirmed
+- required params are present or inferable
+- auth requirements are satisfied
+- third-party/payment/robots policy is satisfied
+- endpoint is not disabled
+- freshness is above threshold or revalidation succeeds
+- response shape passes task-level quality checks
+
+Task-level quality checks are not optional. For marketplace/listing tasks, returning JSON-LD aggregate metadata is not enough if the user asked for listings with prices and links.
+
+## Auth Model
+
+Auth is not just another fallback.
+
+Rules:
+
+- `run` may detect auth need.
+- `run` may reuse existing local auth.
+- `run` must not silently ask for credentials.
+- `run` must not pretend cookie import equals completed site login.
+- `run` returns `auth_required` with a clear `next_action`.
+- `auth <url>` opens a visible browser and saves cookies.
+- after auth, `run` resumes the same routing plan.
+
+For OAuth/OTP automation, the agent layer can chain primitives later. The core planner should keep auth state explicit and auditable.
+
+## Browser Model
+
+Browser is used when:
+
+- route does not exist
+- route exists but is stale and cannot be repaired directly
+- interaction is required to expose the route
+- user-visible state must be inspected
+- auth/session flow must be completed
+- anti-bot/captcha blocks direct execution
+
+Browser should feed the same capture/index pipeline automatically.
+
+The long-term goal is universal capture:
+
+- Kuri sessions
+- attached Chrome sessions
+- Playwright/Puppeteer sessions with CDP
+- user Chrome with debug port
+- agent-host browser sessions where attach is possible
+
+Every real browser session should become route evidence.
+
+## Indexing Model
+
+Indexing is a byproduct of demand.
+
+Do not crawl the web blindly. Learn from real tasks.
+
+Index artifacts:
+
+- request method/path/template
+- query/body/header param schema
+- auth/session token descriptors
+- response schema
+- sample values
+- route health/freshness
+- semantic descriptions
+- workflow DAG edges
+- side-effect class
+- policy/payment metadata
+
+Indexing should happen:
+
+- immediately after useful capture
+- in the background after browse checkpoints
+- after safe verification
+- after schema drift detection
+
+Freshly captured local routes should be usable by the same `run` call before remote publish completes.
+
+## CLI Cleanup Direction
+
+Current command surface is powerful but too exposed.
+
+Docs should present:
+
+```bash
+unbrowse run <url> "task"
+unbrowse auth <url>
+unbrowse fetch <url>
+```
+
+Advanced/debug docs can include:
+
+```bash
+unbrowse resolve ...
+unbrowse execute ...
+unbrowse capture ...
+unbrowse go ...
+unbrowse snap ...
+unbrowse click ...
+unbrowse fill ...
+unbrowse sync
+unbrowse close
+```
+
+Aliases:
+
+- `login` -> `auth`
+- `auth-capture` -> `auth`
+- `resolve` remains advanced
+- `capture` remains advanced
+- browser primitives remain advanced
+
+If an agent tutorial starts with `resolve`, `capture`, or `go`, it is teaching the implementation instead of the product.
+
+## MCP Cleanup Direction
+
+MCP should mirror the product surface:
+
+Primary:
+
+- `unbrowse_run`
+- `unbrowse_auth`
+- `unbrowse_fetch`
+
+Advanced:
+
+- `unbrowse_resolve`
+- `unbrowse_execute`
+- `unbrowse_capture`
+- `unbrowse_go`
+- `unbrowse_snap`
+- `unbrowse_click`
+- `unbrowse_fill`
+
+Tool descriptions must say when a tool is advanced. Agents overfit to tool names; the descriptions are routing policy.
+
+## Tests That Must Exist
+
+Product path tests:
+
+- `run` direct local hit executes safe endpoint.
+- `run` shared graph hit installs/executes safe endpoint.
+- `run` true miss captures/indexes, then retries.
+- `run` thin capture opens browse.
+- `run` auth wall returns `auth_required` and does not silently login.
+- `run` payment required does not capture/index around payment.
+- `run` third-party terms gate does not auto-execute.
+- `run` unsafe mutation requires explicit confirmation.
+- `run` protobuf endpoint beats JSON-LD fallback.
+- `run` Carousell-style search returns listing titles, prices, sellers, and links.
+- `run_plan` always explains the path taken.
+
+Regression tests:
+
+- stale route de-ranks after failures
+- schema drift triggers revalidation
+- captured route is usable before remote publish
+- auth capture opens visible browser even when stale headless CDP exists
+- no per-domain heuristics for common route extraction patterns
+
+Evals:
+
+- warm cache latency
+- cold miss to first useful route
+- browser fallback success rate
+- direct route correctness
+- task-level extraction quality
+- graph hit rate by domain/task
+- cost saved versus browser baseline
+
+## Milestone Plan
+
+### Milestone 1: Shared Planner
+
+Goal: remove CLI-only decision logic.
+
+Work:
+
+- add `src/orchestrator/run-planner.ts`
+- add `POST /v1/run`
+- route `unbrowse run` through `/v1/run`
+- preserve current `run_plan`
+- keep existing CLI behavior as compatibility target
+
+Done when:
+
+- CLI and HTTP return identical decisions for same input
+- tests cover direct, miss->capture, auth, payment, browse
+
+### Milestone 2: MCP Product Surface
+
+Goal: agents see the right default tool.
+
+Work:
+
+- add primary MCP `unbrowse_run`
+- add primary MCP `unbrowse_auth`
+- mark resolve/capture/browser tools as advanced
+- update skill docs and generated tool descriptions
+
+Done when:
+
+- an MCP-hosted agent can complete a Carousell-style search through `unbrowse_run`
+- no prompt guidance tells agents to manually choose capture first
+
+### Milestone 3: Real Cost Model
+
+Goal: route choice is score-driven, not hardcoded order only.
+
+Work:
+
+- define route candidate cost schema
+- add latency/freshness/failure/payment features
+- score local, graph, capture, browser candidates
+- expose score reasons in `run_plan`
+
+Done when:
+
+- planner can explain why graph beat browser
+- planner can explain why browser beat stale direct route
+
+### Milestone 4: Fresh Capture Reuse
+
+Goal: captured routes are usable in the same run.
+
+Work:
+
+- capture/index returns local route candidates
+- planner can execute freshly indexed candidates before remote publish
+- publish remains background/gated
+
+Done when:
+
+- first Carousell miss can capture protobuf/API route and return listings in one `run`
+
+### Milestone 5: Universal Browser Evidence
+
+Goal: all browser work feeds the graph.
+
+Work:
+
+- attach to existing Chrome/CDP sessions
+- ingest HAR/interceptor evidence from attached sessions
+- dedupe with Kuri-native sessions
+- keep credentials local
+
+Done when:
+
+- agent-driven Chrome traffic outside Kuri still becomes route evidence
+
+## Anti-Goals
+
+- Do not add more public top-level commands unless they simplify the default path.
+- Do not make agents choose between index/browse/resolve for normal tasks.
+- Do not add per-domain route extraction hacks unless there is no general primitive and the issue is blocking.
+- Do not treat JSON-LD aggregate metadata as success for listing/search tasks.
+- Do not use capture/browser fallback to bypass payment or policy gates.
+- Do not silently perform real-world side effects.
+- Do not publish credentials.
+- Do not make remote publish required before local reuse.
+
+## North-Star Review Checklist
+
+Every PR should answer:
+
+1. Does this make `run` more capable?
+2. Does this reduce agent decision burden?
+3. Does this improve correctness or observability of route choice?
+4. Does this reduce browser usage on repeated tasks?
+5. Does this turn real browser work into reusable route knowledge?
+6. Does this avoid per-domain special casing?
+7. Does this preserve auth/payment/policy boundaries?
+
+If the answer is mostly no, the PR is probably not on the North Star.
+
+## Done State
+
+The desired user experience:
+
+```bash
+unbrowse run "https://www.carousell.sg/search/beige%20pants" "find beige cargo pants size L under S$50 with links"
+```
+
+Unbrowse:
+
+1. checks local routes
+2. checks the shared graph
+3. calls the best API route if known
+4. captures/indexes if unknown
+5. retries direct execution
+6. opens browser only if interaction is needed
+7. returns results or the single next action
+
+The agent never asks:
+
+- Should I resolve?
+- Should I capture?
+- Which endpoint should I execute?
+- Should I open a browser?
+- How do I index this?
+
+That choice belongs to Unbrowse.
+
+This is how the product becomes the paper: not a better browser, but an execution optimizer that continuously turns browser work into shared callable APIs.

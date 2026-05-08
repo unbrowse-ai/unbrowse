@@ -34,3 +34,5 @@ Deprecated. Durable agent memory now lives in [AGENTS.md](/Users/lekt9/.codex/wo
 - Interactive site auth must force both `HEADLESS=false` and `KURI_HEADLESS=false`; Kuri launch config gives `KURI_HEADLESS` precedence, so setting only `HEADLESS=false` can leave `unbrowse login` invisibly headless.
 - Protobuf marketplace/search APIs are first-class route candidates: preserve captured protobuf bodies as `base64:` bytes, decode the generic wire format into JSON-safe fields/records, and avoid falling back to JSON-LD metadata when a protobuf data route is present.
 - The agent-facing CLI should make `run` the single decision surface: try direct cached/API execution, capture+index on miss, retry, then open live browse only when interaction/auth is needed. Keep `resolve`/`capture`/`go` as advanced primitives, not the happy path.
+
+- Product North Star lives in NORTHSTAR.md: `run` is the canonical outcome API; resolve/execute/capture/go are advanced primitives. Future planner work should move this policy server-side and keep docs/MCP/CLI aligned.
