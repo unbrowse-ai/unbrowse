@@ -15,6 +15,7 @@ import { getAgentWallet, mergeContributor, resolveSkillPaymentRecipient, syncSki
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
+import { verifyEndpointProofsInPlace, summarizeSkillProofs } from "../services/proof-verifier.js";
 
 type SkillRouteEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -169,6 +170,8 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
     }).catch((err) => console.warn(`[x402] ledger write failed: ${(err as Error).message}`)));
   }
 
+  // Backfill proof_summary on legacy skills that were stored before this field existed.
+  if (!skill.proof_summary) skill.proof_summary = summarizeSkillProofs(skill.endpoints);
   return c.json(skill);
 });
 
@@ -210,6 +213,24 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
   if (!validation.valid) {
     return c.json({ error: "Validation failed", details: validation.hardErrors }, 422);
   }
+
+  // Validate any proof metadata attached to endpoints. Only independently
+  // verified proof systems may be stamped verified/proven; commitment_only is
+  // retained as client-side evidence but remains unverified.
+  // Hard-reject 422 if any proof is structurally malformed (bad hash, future
+  // timestamp) — these are publisher bugs and shouldn't pollute the marketplace.
+  // Domain mismatches flow through with verified:false (caveat emptor).
+  const skillDomain = typeof body.domain === "string" ? body.domain : "";
+  if (skillDomain && Array.isArray(body.endpoints)) {
+    const proofResult = verifyEndpointProofsInPlace(
+      body.endpoints as Array<{ endpoint_id?: string; zk_proof?: Parameters<typeof verifyEndpointProofsInPlace>[0][number]["zk_proof"] }>,
+      skillDomain,
+    );
+    if (proofResult.malformed.length > 0) {
+      return c.json({ error: "Malformed ZK proof", details: proofResult.malformed }, 422);
+    }
+  }
+
   let skill;
   const agentId = c.get("agent_id");
   try {
@@ -229,6 +250,11 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
     console.error("[publish] error:", (err as Error).message, (err as Error).stack);
     return c.json({ error: "Failed to publish skill" }, 500);
   }
+
+  // Roll up proof verification status across endpoints. Cheap to compute and
+  // gives consumers (frontend cards, agent filters) a one-shot view without
+  // walking every endpoint.
+  skill.proof_summary = summarizeSkillProofs(skill.endpoints);
 
   // Track agent contribution and merge into contributors list
   if (agentId) {

@@ -2244,7 +2244,7 @@ export async function resolveAndExecute(
       );
       epRanked = epRanked.filter((ranked) => reachableEndpointIds.has(ranked.endpoint.endpoint_id));
     }
-    const workflowDag = toAgentWorkflowDagView(chunk, deferGraph, knownBindings);
+    const workflowDag = toAgentWorkflowDagView(chunk, deferGraph, knownBindings, endpointScopedSkill.endpoints);
     // Re-order workflowDag.operations to match rankEndpoints — otherwise the
     // agent reads `available_operations` (workflowDag) and sees one ranking
     // while executeSkill internally uses rankEndpoints and runs a different
@@ -2254,14 +2254,21 @@ export async function resolveAndExecute(
     const epRankedScoreByEndpointId = new Map(
       epRanked.map((r) => [r.endpoint.endpoint_id, r.score] as const),
     );
-    const sortedOperations = [...workflowDag.operations].sort((a, b) => {
+    let sortedOperations = [...workflowDag.operations].sort((a, b) => {
       const sa = epRankedScoreByEndpointId.get(a.endpoint_id) ?? -Infinity;
       const sb = epRankedScoreByEndpointId.get(b.endpoint_id) ?? -Infinity;
       return sb - sa;
     });
+    // --require-proof filter: drop unproven operations from the shortlist.
+    // Filter only narrows; deferral path is unchanged.
+    if (options?.require_proof) {
+      sortedOperations = sortedOperations.filter((op) => op.proof_status === "proven");
+    }
     workflowDag.operations = sortedOperations;
     if (workflowDag.suggested_next_operation_id !== undefined && sortedOperations.length > 0) {
       workflowDag.suggested_next_operation_id = sortedOperations[0].operation_id;
+    } else if (options?.require_proof && sortedOperations.length === 0) {
+      workflowDag.suggested_next_operation_id = undefined;
     }
 
     // A8-display fix — rewrite each operation's url_template to reflect what

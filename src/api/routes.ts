@@ -751,7 +751,7 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, visual_context, budget_ms } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, visual_context, budget_ms, require_proof } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
@@ -763,6 +763,7 @@ export async function registerRoutes(app: FastifyInstance) {
       skip_robots_check?: boolean;
       visual_context?: boolean;
       budget_ms?: number;
+      require_proof?: boolean;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
 
@@ -793,7 +794,7 @@ export async function registerRoutes(app: FastifyInstance) {
     }
 
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, client_scope: clientScope, budget_ms });
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, skip_robots_check, client_scope: clientScope, budget_ms, require_proof });
 
       // Surface timing breakdown
       const res = attachAgentOutcomeHints({ ...result } as Record<string, unknown>, {
@@ -1426,11 +1427,12 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/skills/:skill_id/chunk", async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { intent, operation_id, known_bindings, max_operations } = req.body as {
+    const { intent, operation_id, known_bindings, max_operations, require_proof } = req.body as {
       intent?: string;
       operation_id?: string;
       known_bindings?: Record<string, unknown>;
       max_operations?: number;
+      require_proof?: boolean;
     };
     const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
@@ -1439,7 +1441,7 @@ export async function registerRoutes(app: FastifyInstance) {
       seed_operation_id: operation_id,
       known_bindings,
       max_operations,
-    })));
+    }), skill.endpoints, { requireProof: require_proof === true }));
   });
 
   // POST /v1/skills/:skill_id/execute
