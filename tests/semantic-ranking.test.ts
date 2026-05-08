@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { rankEndpoints } from "../src/execution/index.js";
+import { rankEndpoints } from "../src/ranking/index.js";
 
 describe("rankEndpoints semantic intent adjustment", () => {
   test("prefers person search endpoints over company/config endpoints for people search", () => {
