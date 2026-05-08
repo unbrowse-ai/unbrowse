@@ -459,6 +459,11 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
     params: { url },
     context: { url },
     projection: { raw: true },
+    // explain bypasses the probe-only short-circuit so the orchestrator
+    // returns its full deferral envelope (shortlist + suggested_next_action
+    // + commands). Without this, probe wins for any URL that returns 200
+    // and explain shows empty shortlist with status:"no_match".
+    force_capture: true,
   };
   let result: Record<string, unknown>;
   try {
@@ -478,15 +483,16 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
       rank: i,
       endpoint_id: ep.endpoint_id,
       method: ep.method,
-      url: ep.url,
+      url: ep.url ?? ep.url_template,
       score: ep.score,
-      description: ep.description,
+      description: ep.description ?? ep.description_out,
       input_params: ep.input_params,
       schema_summary: ep.schema_summary,
       example_fields: ep.example_fields,
       sample_values: ep.sample_values,
       needs_params: ep.needs_params,
       trigger_url: ep.trigger_url,
+      agent_warning: ep.agent_warning,  // surfaced when ranker scored ≤0
     })),
     agent_facing_shortlist: ao.slice(0, top).map((op, i) => ({
       rank: i,
@@ -495,11 +501,20 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
       url_template: op.url_template ?? op.url,
       description: op.description_out ?? op.description,
     })),
+    // Pass through orchestrator's deferral guidance (resolve_hard_handoff
+    // path includes suggested_next_action + commands like `unbrowse fetch
+    // <url>` for SSR-data sites). Without this, cmdExplain hides the
+    // orchestrator's escape-hatch from the agent.
+    status: r.status,
+    message: r.message,
+    suggested_next_action: r.suggested_next_action,
+    commands: r.commands,
     judgment_question:
-      `Given the intent ${JSON.stringify(intent)} on ${JSON.stringify(url)}, ` +
-      `which of the candidate endpoints in shortlist_for_judgment best satisfies the intent? ` +
-      `Reply with the endpoint_id of the best match and a one-line reason. ` +
-      `If none match, say defer_to_capture.`,
+      r.judgment_question
+      ?? (`Given the intent ${JSON.stringify(intent)} on ${JSON.stringify(url)}, ` +
+          `which of the candidate endpoints in shortlist_for_judgment best satisfies the intent? ` +
+          `Reply with the endpoint_id of the best match and a one-line reason. ` +
+          `If none match, say defer_to_capture.`),
   };
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");
 }
