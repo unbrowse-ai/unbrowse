@@ -214,7 +214,27 @@ def triage_bucket(p1s, ph2):
         return "y_capture_didnt_yield_endpoint"
     if not ph2["phase2_ran"]:
         return "y_phase2_skipped"
-    if ph2["phase2_response_bytes"] > 0:
+    # Phase A — sandbox engine error / empty-200 rubric extension. Both
+    # are browser-side soft blocks: the request reached the upstream but
+    # came back unusable (Kuri JS engine error; or 200 with zero body
+    # because heavy SPA never rendered, or stealth wall returned 200+empty).
+    # Bucket as BROWSER_BLOCK so the agent does not waste time judging
+    # them as candidate PASS/FAIL rows.
+    sc = ph2.get("phase2_status_code", "")
+    excerpt = ph2.get("phase2_response_excerpt") or ""
+    if sc == "0" and "SyntaxError" in excerpt:
+        return "z_likely_browser_block_engine_error"
+    if sc == "200" and (ph2.get("phase2_response_bytes") or 0) == 0:
+        return "z_likely_browser_block_empty_200"
+    # Executor classifier already verdicted vendor_blocked — honor that.
+    # phase2_error like "HTTP 403 (vendor_blocked: datadome — bot detection, not auth)"
+    # comes from src/execution/index.ts:classifyExecuteFailure. The status
+    # code might be 4xx (we hit upstream) but the verdict is anti-bot, not
+    # product failure. Bucket as BROWSER_BLOCK so the agent reads the right
+    # next_step (open browser) instead of trying to debug params.
+    if "vendor_blocked:" in (ph2.get("phase2_error") or ""):
+        return "z_likely_vendor_blocked_at_replay"
+    if (ph2.get("phase2_response_bytes") or 0) > 0:
         return "a_inspect_response_body"
     if ph2["phase2_status_code"]:
         return "b_inspect_status_code"
