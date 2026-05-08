@@ -25,7 +25,7 @@ NORTHSTAR wins (product reality precedes paper rhetoric).
 | 6 | Subsequent call drops to 640 ms after cold-start | §7.4 | partial | cache hit path exists | no second-run telemetry |
 | 7 | 3–5 cached uses break even vs Playwright | §7.4 | missing | — | no breakeven calculator |
 | 8 | 500+ domains / ~10 000 endpoints in graph | §7.2 | shipped | marketplace counts | needs current-state snapshot |
-| 9 | Composite scoring: 40 sim / 30 reliability / 15 freshness / 15 verification | §3.3 | partial | rank deltas (51780d7e, 5c880731); Wave-1 seed at `src/ranking/index.ts`; P2 W1 weights+freshness at `src/ranking/{composite,freshness}.ts`; Wave-2 every src/ caller (orchestrator, routes, 6 rank tests) now imports from `src/ranking/` | composite not yet wired into runtime ranker (P1 W3) |
+| 9 | Composite scoring: 40 sim / 30 reliability / 15 freshness / 15 verification | §3.3 | partial | rank deltas (51780d7e, 5c880731); Wave-1 seed at `src/ranking/index.ts`; P2 W1 weights+freshness at `src/ranking/{composite,freshness}.ts`; Wave-2 every src/ caller imports from `src/ranking/`; W3 cluster #1 bm25 at `src/ranking/signals/bm25.ts` | 5 W3 clusters remain (intent-yield, intent-match, density-scoring, hard-clamp, cached-stale); composite not yet wired into runtime ranker |
 | 10 | Background verification every 6h | §3.4 / §6.3 | missing | ZK proofs at commit time only | no scheduled job |
 | 11 | Freshness 1/(1 + d/30) where d = days | §6.3 | partial | `src/ranking/freshness.ts` ships pure function + Date helper | not yet consumed by runtime ranker (P2 W2) |
 | 12 | Contributor share ≈ 70% of install revenue | §5.2.1 | missing | x402 pay loop only | no contributor ledger |
