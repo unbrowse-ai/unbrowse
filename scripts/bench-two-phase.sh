@@ -295,15 +295,74 @@ for m in re.finditer(r'\{', raw):
             sys.exit(0)
     except Exception: continue
 print('[]')")
-    # Default execute target: shortlist[0] (ranker's top pick) — but the row
-    # carries the full shortlist so the agent can override in judgment.
-    p1_endpoint=$(printf '%s' "$p1_shortlist_json" | python3 -c "
+    # Pick first EXECUTABLE shortlist entry — skip eps whose endpoint_id is
+    # empty/null (synthetic carry-forwards, doc_only stubs). Prefer verified
+    # status, then non-page_fetch (real XHR over synthetic), then reliability.
+    pick_out=$(printf '%s' "$p1_shortlist_json" | python3 -c "
 import json, sys
-sl = json.loads(sys.stdin.read())
-if sl and isinstance(sl[0], dict):
-    print(sl[0].get('endpoint_id') or '')
+sl = json.loads(sys.stdin.read()) if sys.stdin else []
+def score(ep):
+    if not isinstance(ep, dict): return -1
+    eid = ep.get('endpoint_id')
+    if not isinstance(eid, str) or not eid.strip(): return -1
+    s = 0
+    if ep.get('verification_status') == 'verified': s += 100
+    dom = ep.get('dom_extraction') or {}
+    if (dom.get('extraction_method') or '') != 'page_fetch': s += 50
+    try: s += float(ep.get('reliability_score') or 0) * 10
+    except: pass
+    return s
+candidates = [(score(ep), i, ep) for i, ep in enumerate(sl) if isinstance(ep, dict)]
+candidates = [c for c in candidates if c[0] >= 0]
+candidates.sort(key=lambda c: (-c[0], c[1]))
+if candidates:
+    print(candidates[0][2].get('endpoint_id') or '')
+    print('')
 else:
-    print('')")
+    print('')
+    print('phase1_zero_shortlist' if not sl else 'no_executable_endpoint_in_shortlist')
+")
+    p1_endpoint=$(printf '%s' "$pick_out" | sed -n '1p')
+    p1_skip_reason=$(printf '%s' "$pick_out" | sed -n '2p')
+    # Fallback when explain shortlist is empty but capture published a skill
+    # with endpoints. Walk `unbrowse skill <id>` JSON directly using the
+    # same precedence; lifts amazon/bing/etc. out of phase1_zero_shortlist
+    # when the explain chain regresses.
+    if [ -z "$p1_endpoint" ] && [ -n "$p1_skill" ]; then
+      skill_json=$(timeout 15 $CLI_CMD skill "$p1_skill" 2>/dev/null || true)
+      fallback_out=$(printf '%s' "$skill_json" | python3 -c "
+import json, sys, re
+raw = sys.stdin.read()
+manifest = None
+for m in re.finditer(r'\{', raw):
+    try:
+        d, _ = json.JSONDecoder(strict=False).raw_decode(raw[m.start():])
+        if isinstance(d, dict) and isinstance(d.get('endpoints'), list):
+            manifest = d; break
+    except Exception: continue
+eps = (manifest or {}).get('endpoints') or []
+def score(ep):
+    if not isinstance(ep, dict): return -1
+    eid = ep.get('endpoint_id')
+    if not isinstance(eid, str) or not eid.strip(): return -1
+    s = 0
+    if ep.get('verification_status') == 'verified': s += 100
+    dom = ep.get('dom_extraction') or {}
+    if (dom.get('extraction_method') or '') != 'page_fetch': s += 50
+    try: s += float(ep.get('reliability_score') or 0) * 10
+    except: pass
+    return s
+cands = [(score(ep), i, ep) for i, ep in enumerate(eps) if isinstance(ep, dict)]
+cands = [c for c in cands if c[0] >= 0]
+cands.sort(key=lambda c: (-c[0], c[1]))
+print(cands[0][2].get('endpoint_id') if cands else '')
+")
+      if [ -n "$fallback_out" ]; then
+        p1_endpoint="$fallback_out"
+        p1_skip_reason="recovered_via_skill_manifest"
+        echo "  fallback: skill-manifest recovered ep=$p1_endpoint" >&2
+      fi
+    fi
   fi
   exe_exit=""
   if [ -n "$p1_skill" ] && [ -n "$p1_endpoint" ]; then
@@ -312,7 +371,8 @@ else:
     timeout "$TIMEOUT" $CLI_CMD execute --skill "$p1_skill" --endpoint "$p1_endpoint" </dev/null > "$exe_out" 2>&1
     exe_exit=$?
   else
-    echo "  P2 skipped (skill=${p1_skill:-<none>} ep=${p1_endpoint:-<none>})" >&2
+    : "${p1_skip_reason:=missing_skill_or_endpoint}"
+    echo "  P2 skipped reason=$p1_skip_reason (skill=${p1_skill:-<none>} ep=${p1_endpoint:-<none>})" >&2
     : > "$exe_out"
   fi
 
@@ -320,13 +380,14 @@ else:
   record=$(python3 "$RUN_DIR/extract.py" "$cap_out" "$exe_out" "$goal" "$url" "$cap_exit" "${exe_exit:-}" "$p1_skill" "$p1_endpoint")
   # Inject (1) full shortlist from explain (harness-collects-agent-judges
   # surface) (2) run_id/ts/note. Single python step.
-  enriched=$(printf '%s' "$record" | RUN_ID="$RUN_ID" TS="$ts" NOTE="$NOTE" SHORTLIST="$p1_shortlist_json" python3 -c "
+  enriched=$(printf '%s' "$record" | RUN_ID="$RUN_ID" TS="$ts" NOTE="$NOTE" SHORTLIST="$p1_shortlist_json" SKIP_REASON="${p1_skip_reason:-}" python3 -c "
 import sys, json, os
 row = json.loads(sys.stdin.read())
 try:
     row['phase1_shortlist'] = json.loads(os.environ.get('SHORTLIST', '[]'))
 except Exception:
     row['phase1_shortlist'] = []
+row['phase2_skip_reason'] = os.environ.get('SKIP_REASON', '')
 row['run_id'] = os.environ.get('RUN_ID', '')
 row['ts'] = os.environ.get('TS', '')
 row['note'] = os.environ.get('NOTE', '')
