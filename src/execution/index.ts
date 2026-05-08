@@ -20,6 +20,7 @@ import { probeUrl, decideFromProbe } from "./probe.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
+import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../ranking/signals/bm25.js";
 
 function stableEndpointId(method: string, urlTemplate: string): string {
   if (!method || !urlTemplate) return nanoid();
@@ -2997,8 +2998,6 @@ function stem(word: string): string {
   return word;
 }
 
-const BM25_K1 = 1.2;
-const BM25_B = 0.75;
 const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "of", "to", "in", "for", "on", "with", "from",
   "get", "all", "this", "that", "is", "are", "was", "be", "it", "at", "by", "not",
@@ -3115,24 +3114,6 @@ function endpointToTokens(ep: EndpointDescriptor): string[] {
   return tokens.map((t) => stem(t.toLowerCase()));
 }
 
-function bm25Score(query: string[], doc: string[], avgDl: number, docCount: number, docFreqs: Map<string, number>): number {
-  const dl = doc.length;
-  const tf = new Map<string, number>();
-  for (const t of doc) tf.set(t, (tf.get(t) ?? 0) + 1);
-
-  let score = 0;
-  for (const term of query) {
-    const freq = tf.get(term) ?? 0;
-    if (freq === 0) continue;
-    // Real IDF: log((N - df + 0.5) / (df + 0.5) + 1) — terms appearing in fewer docs score higher
-    const df = docFreqs.get(term) ?? 0;
-    const idf = Math.log((docCount - df + 0.5) / (df + 0.5) + 1);
-    const num = freq * (BM25_K1 + 1);
-    const denom = freq + BM25_K1 * (1 - BM25_B + BM25_B * (dl / avgDl));
-    score += idf * (num / denom);
-  }
-  return score;
-}
 
 export interface RankedEndpoint {
   endpoint: EndpointDescriptor;
@@ -3640,7 +3621,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // Floor BM25 at 0 — single-doc corpora have negative IDF that would
       // otherwise penalize legitimate matches. Use the score only as a positive
       // signal; structural penalties below handle the demotion side.
-      score += Math.max(0, bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs)) * 20;
+      score += Math.max(0, bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs)) * BM25_DELTA_WEIGHT;
     }
 
     // === Description match bonus — separate from BM25 to avoid IDF dilution ===
