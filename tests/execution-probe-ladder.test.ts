@@ -75,15 +75,68 @@ describe("decideFromProbe", () => {
     expect(d.strategy).toBe("return-error");
   });
 
-  it("network error (status:0) → browser", () => {
+  it("network error (status:0) → server (libcurl-impersonate first, not browser)", () => {
     const d = decideFromProbe({
       probe: probe({ status: 0, error: "ENOTFOUND", method_used: "GET-1byte" }),
       has_trigger_url: true,
     });
-    expect(d.strategy).toBe("browser");
-    expect(d.reason).toContain("network error");
+    expect(d.strategy).toBe("server");
+    expect(d.reason).toContain("libcurl-impersonate");
   });
 
+  it("status:0 + ZlibError → server (bun fetch gzip bug, libcurl handles)", () => {
+    const d = decideFromProbe({
+      probe: probe({
+        status: 0,
+        error: "ZlibError fetching \"https://www.ticketmaster.com/discover/concerts\"",
+        method_used: "GET-1byte",
+      }),
+      has_trigger_url: true,
+    });
+    expect(d.strategy).toBe("server");
+    expect(d.reason).toContain("ZlibError");
+  });
+
+  it("status:0 + aborted → server (bun fetch TLS abort, libcurl handles)", () => {
+    const d = decideFromProbe({
+      probe: probe({
+        status: 0,
+        error: "The operation was aborted.",
+        method_used: "GET-1byte",
+      }),
+      has_trigger_url: true,
+    });
+    expect(d.strategy).toBe("server");
+    expect(d.reason).toContain("aborted");
+  });
+
+  it("edge: status:0 + undefined error → server with reason containing 'unknown'", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 0, error: undefined, method_used: "GET-1byte" }),
+      has_trigger_url: true,
+    });
+    expect(d.strategy).toBe("server");
+    expect(d.reason).toContain("unknown");
+  });
+
+  it("edge: status:0 + empty-string error → server (?? doesn't coalesce empty)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 0, error: "", method_used: "GET-1byte" }),
+      has_trigger_url: true,
+    });
+    expect(d.strategy).toBe("server");
+    expect(d.reason).toMatch(/probe network error/);
+  });
+
+  it("adversarial: status:0 + has_dom_extraction=true → server (HTTP broken trumps DOM-recipe)", () => {
+    const d = decideFromProbe({
+      probe: probe({ status: 0, error: "ENOTFOUND", method_used: "GET-1byte" }),
+      has_trigger_url: true,
+      has_dom_extraction: true,
+      intent_wants_dom: true,
+    });
+    expect(d.strategy).toBe("server");
+  });
   it("intent_wants_dom + non-html non-json → browser", () => {
     const d = decideFromProbe({
       probe: probe({ content_type: "image/png" }),
