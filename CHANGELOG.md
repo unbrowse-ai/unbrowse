@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — feat/agent-ux-run-planner
+
+### Plan & Observability Scaffolding
+
+* **plan-v16**: Track-A-only observability plan, drops Track B (source vessel empty) ([5ce0ae67](https://github.com/unbrowse-ai/unbrowse-dev/commit/5ce0ae67))
+* **CI**: bench-local-pr.yml + bench-history-write.yml workflow seeds with permissions, continue-on-error, hashFiles guard
+* **falsifiers**: 4 shape pins green (11/11 plan + 14/14 + 16/16 yml + 6/6 hard preflight)
+* **gating**: scripts/plan-v16-preflight.sh checks branch + commit + seed-content (≥100 bytes) before A1 PR work begins
+
 ## [6.9.69422](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.9.69421...v6.9.69422) (2026-05-09)
 
 ### Bug Fixes
