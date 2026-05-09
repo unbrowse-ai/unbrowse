@@ -51,9 +51,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - name: Install GitHub CLI
         run: |
           if command -v gh >/dev/null 2>&1; then
@@ -155,9 +160,14 @@ jobs:
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
       - run: bun run check:skill-docs
       - name: Download darwin-arm64 kuri artifact
@@ -289,9 +299,14 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
         working-directory: .
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
       - run: bun run deploy:ci
         env:
@@ -309,9 +324,14 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
         working-directory: .
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
       - run: bun run deploy:ci
         env:
@@ -325,9 +345,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
 
       - name: Resolve skill repo token
