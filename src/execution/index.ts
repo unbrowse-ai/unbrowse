@@ -2908,6 +2908,41 @@ export async function executeEndpoint(
           }
           // Fall through to staleEndpointResult.
         }
+        if (failureKind.kind === "vendor_blocked" && failureKind.vendor === "perimeterx") {
+          // plan-v13 Tier 2B: PerimeterX bundle-replay solver. Sibling to CF arm above.
+          try {
+            const { solvePxAndRetry } = await import("./px-challenge.js");
+            const pxTargetUrl = endpoint.trigger_url || url;
+            const pxBody = typeof rawFailureBody === "string" ? rawFailureBody : "";
+            const pxSandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+            decisionTrace.push({ step: "vendor_blocked_px_solver", vendor: "perimeterx", url: pxTargetUrl });
+            const pxResult = await solvePxAndRetry({
+              url: pxTargetUrl,
+              body: pxBody,
+              cookies,
+              kuriBase: pxSandboxBase,
+              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              timeoutMs: 30_000,
+            });
+            if (pxResult && pxResult.status >= 200 && pxResult.status < 300 && pxResult.html.length > 0) {
+              trace.success = true;
+              trace.status_code = pxResult.status;
+              trace.error = undefined;
+              data = pxResult.html;
+              trace.result = data;
+              decisionTrace.push({ step: "vendor_blocked_px_solver_retry_success", status: pxResult.status, bytes: pxResult.html.length });
+              return { trace, result: data, decision_trace: decisionTrace };
+            }
+            if (pxResult && pxResult.status >= 200 && pxResult.status < 300 && pxResult.html.length === 0) {
+              decisionTrace.push({ step: "vendor_blocked_px_solver_retry_extract_empty", status: pxResult.status });
+            } else {
+              decisionTrace.push({ step: "vendor_blocked_px_solver_retry_still_blocked" });
+            }
+          } catch (pxErr) {
+            decisionTrace.push({ step: "vendor_blocked_px_solver_error", message: pxErr instanceof Error ? pxErr.message : String(pxErr) });
+          }
+          // Fall through to staleEndpointResult.
+        }
         if (failureKind.kind === "vendor_blocked") {
           trace.error = `${trace.error} (vendor_blocked: ${failureKind.vendor ?? "unknown"} — bot detection, not auth)`;
           data = staleEndpointResult(
@@ -3673,6 +3708,7 @@ export function extractBundleSnapshot(input: {
   blockSignals: string[];
   targetOrigin: string;
   targetHref: string;
+  cookieNames?: string[];
 }): {
   vendor: string;
   bundle_urls: string[];
@@ -3681,9 +3717,41 @@ export function extractBundleSnapshot(input: {
   target_href: string;
   captured_at: number;
 } | null {
-  const { requestUrls, blockSignals, targetOrigin, targetHref } = input;
-  const vendor = blockSignals.find((s) => s.startsWith("vendor:"))?.slice("vendor:".length);
+  const { requestUrls, blockSignals, targetOrigin, targetHref, cookieNames } = input;
+  let vendor = blockSignals.find((s) => s.startsWith("vendor:"))?.slice("vendor:".length);
   if (!vendor) return null;
+
+  // Disambiguate misclassified perimeterx labels.
+  //
+  // The upstream URL-shape classifier (detectBrowserBlockSignals) tags any
+  // /<uuid>/<uuid>/(ips.js|tl|xhr|init) request stream as "perimeterx" because
+  // PX commonly serves first-party bundles at that shape. But Akamai Bot
+  // Manager and Kasada also use two-UUID-pair paths for their first-party
+  // bundles. Wiring the PerimeterX challenge solver against an Akamai/Kasada
+  // body would fail. Disambiguate using query-param markers on the captured
+  // bundle URLs and (when available) cookie-name evidence — pure structural
+  // signals, no per-host branches.
+  if (vendor === "perimeterx") {
+    const hasAkamaiQuery = requestUrls.some((u) => /[?&]akm_bmfp/i.test(u));
+    const hasKasadaQuery = requestUrls.some((u) => /[?&]x-kpsdk/i.test(u));
+    const cookieSet = (cookieNames ?? []).map((c) => c.toLowerCase());
+    const hasPxCookie = cookieSet.some((c) => c === "_pxhd" || c === "_px3" || c === "_pxvid");
+    if (hasAkamaiQuery && !hasPxCookie) {
+      vendor = "akamai_bot_manager";
+    } else if (hasKasadaQuery && !hasPxCookie) {
+      vendor = "kasada";
+    } else if (!hasPxCookie) {
+      // No disambiguation signal AND no PX cookie evidence → check whether
+      // anything in the captured URLs proves PX (vendor host or KP_UIDz).
+      // The two-UUID-pair shape alone is shared by PX/Akamai/Kasada and
+      // cannot be trusted as the sole signal. Bail rather than fire the
+      // wrong solver.
+      const hasPxUrlEvidence = requestUrls.some((u) =>
+        /perimeterx|px-cloud|px-cdn|pxhd\.net|KP_UIDz=/i.test(u),
+      );
+      if (!hasPxUrlEvidence) return null;
+    }
+  }
 
   // Per-vendor URL pattern matchers — keep in lockstep with detectBrowserBlockSignals.
   const matchers: Record<string, RegExp[]> = {
@@ -3694,12 +3762,20 @@ export function extractBundleSnapshot(input: {
     ],
     datadome: [/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i],
     imperva_incapsula: [/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i],
-    akamai_bot_manager: [/akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i],
+    akamai_bot_manager: [
+      /akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i,
+      /[?&]akm_bmfp/i,
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(ips\.js|tl|xhr|init)/i,
+    ],
     cloudflare: [/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i],
     fastly_bot_management: [/\/_fs-ch-[A-Za-z0-9]+\//],
     captcha_vendor: [/hcaptcha|recaptcha|arkoselabs|funcaptcha/i],
     shape_security: [/shape\.security|f5\.com\/shape|ShapeSecurity/i],
-    kasada: [/kasada|client\.kasada|ips\.kasada/i],
+    kasada: [
+      /kasada|client\.kasada|ips\.kasada/i,
+      /[?&]x-kpsdk/i,
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(ips\.js|tl|xhr|init)/i,
+    ],
   };
   const patterns = matchers[vendor] ?? [];
   const matched = requestUrls.filter((u) => patterns.some((p) => p.test(u)));
