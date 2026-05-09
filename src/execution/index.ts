@@ -2815,6 +2815,44 @@ export async function executeEndpoint(
           // captured cookies wastes the user's next browser session.
           await deleteCredential(skill.auth_profile_ref);
         }
+        if (failureKind.kind === "vendor_blocked" && failureKind.vendor === "cloudflare") {
+          // plan-v13 Tier 2A: attempt CF JS-challenge solve before declaring stale.
+          // Solver fetches the CF challenge bundle, runs it in the Kuri sandbox to
+          // obtain cf_clearance, then retries the original URL with merged cookies.
+          // Returns null on any failure path → fall through to staleEndpointResult.
+          try {
+            const { solveCfAndRetry } = await import("./cf-challenge.js");
+            const cfTargetUrl = endpoint.trigger_url || url;
+            const cfBody = typeof rawFailureBody === "string" ? rawFailureBody : "";
+            const cfSandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+            decisionTrace.push({ step: "vendor_blocked_cf_solver", vendor: "cloudflare", url: cfTargetUrl });
+            const cfResult = await solveCfAndRetry({
+              url: cfTargetUrl,
+              body: cfBody,
+              cookies,
+              kuriBase: cfSandboxBase,
+              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              timeoutMs: 15_000,
+            });
+            if (cfResult && cfResult.status >= 200 && cfResult.status < 300 && cfResult.html.length > 0) {
+              trace.success = true;
+              trace.status_code = cfResult.status;
+              trace.error = undefined;
+              data = cfResult.html;
+              trace.result = data;
+              decisionTrace.push({ step: "vendor_blocked_cf_solver_retry_success", status: cfResult.status, bytes: cfResult.html.length });
+              return { trace, result: data, decision_trace: decisionTrace };
+            }
+            if (cfResult && cfResult.status >= 200 && cfResult.status < 300 && cfResult.html.length === 0) {
+              decisionTrace.push({ step: "vendor_blocked_cf_solver_retry_extract_empty", status: cfResult.status });
+            } else {
+              decisionTrace.push({ step: "vendor_blocked_cf_solver_retry_still_blocked" });
+            }
+          } catch (cfErr) {
+            decisionTrace.push({ step: "vendor_blocked_cf_solver_error", message: cfErr instanceof Error ? cfErr.message : String(cfErr) });
+          }
+          // Fall through to staleEndpointResult.
+        }
         if (failureKind.kind === "vendor_blocked") {
           trace.error = `${trace.error} (vendor_blocked: ${failureKind.vendor ?? "unknown"} — bot detection, not auth)`;
           data = staleEndpointResult(
