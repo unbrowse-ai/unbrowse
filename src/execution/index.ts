@@ -1031,24 +1031,60 @@ async function executeBrowserCapture(
   const redirectedToLogin = captured.final_url !== url && (() => { try { return LOGIN_PATHS.test(new URL(String(captured.final_url)).pathname); } catch { return false; } })();
 
   if (redirectedToAuth || redirectedToLogin) {
-    const trace: ExecutionTrace = stampTrace({
-      trace_id: traceId,
-      skill_id: skill.skill_id,
-      endpoint_id: "browser-capture",
-      started_at: startedAt,
-      completed_at: new Date().toISOString(),
-      success: false,
-      error: "auth_required",
-    });
-    return {
-      trace,
-      result: {
+    // Phase B (plan-v10): before declaring auth_required, check whether the
+    // capture saw an anti-bot vendor marker — if yes, the "auth wall" was
+    // likely vendor-induced (Cloudflare/DataDome/PerimeterX serving a login
+    // page to non-browsers), and libcurl-impersonate may bypass it. If the
+    // capture saw NO vendor markers, this is real auth and SSR fast-path
+    // would just burn 15s before the same conclusion.
+    const requestUrls = (captured.requests ?? []).map((r) => String(r.url ?? ""));
+    const hasVendorChallenge = requestUrls.some((u) =>
+      /(captcha-delivery|cdn-cgi\/challenge-platform|datadome|perimeterx|kasada|akamai-bot|akm_bmfp|kpsdk|_abck=|_pxhd)/i.test(u),
+    );
+    if (hasVendorChallenge) {
+      try {
+        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000 });
+        if (ssr?.html && ssr.html.length > 1024) {
+          const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
+          if (ssrArtifact.endpoint && ssrArtifact.result) {
+            log("execution", `auth_required_ssr_reroute_success: ${ssr.html.length} bytes from libcurl, vendor signal detected (${requestUrls.find((u) => /captcha-delivery|cdn-cgi|datadome|perimeterx|kasada|akamai-bot|akm_bmfp|kpsdk|_abck|_pxhd/i.test(u))?.slice(0, 80)})`);
+            (captured as { html?: string }).html = ssr.html;
+          } else {
+            log("execution", `auth_required_ssr_reroute_failed_extraction_quality: ssrArtifact lacks endpoint+result`);
+          }
+        } else {
+          log("execution", `auth_required_ssr_reroute_failed_no_html: ssr null or <1KB`);
+        }
+      } catch (err) {
+        log("execution", `auth_required_ssr_reroute_error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else {
+      log("execution", `auth_required_ssr_reroute_skipped_no_vendor_signal: real auth, returning auth_required`);
+    }
+
+    // If SSR didn't unlock OR no vendor signal, return auth_required as before
+    if (!hasVendorChallenge || !((captured as { html?: string }).html && (captured as { html?: string }).html!.length > 1024 && /<(html|body)/i.test((captured as { html?: string }).html!))) {
+      const trace: ExecutionTrace = stampTrace({
+        trace_id: traceId,
+        skill_id: skill.skill_id,
+        endpoint_id: "browser-capture",
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        success: false,
         error: "auth_required",
-        provider: getRegistrableDomain(finalDomain),
-        login_url: captured.final_url,
-        message: `Site requires authentication. Call POST /v1/auth/login with {"url": "${captured.final_url}"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers.`,
-      },
-    };
+      });
+      return {
+        trace,
+        result: {
+          error: "auth_required",
+          provider: getRegistrableDomain(finalDomain),
+          login_url: captured.final_url,
+          message: `Site requires authentication. Call POST /v1/auth/login with {"url": "${captured.final_url}"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers.`,
+        },
+      };
+    }
+    // Else fall through with overridden captured.html — extractEndpoints will run on the libcurl HTML
   }
   const extractionTrace: { rows?: Array<Record<string, unknown>> } = {};
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
