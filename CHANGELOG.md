@@ -1,5 +1,19 @@
 # Changelog
 
+## [6.7.0-preview.13](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.12...v6.7.0-preview.13) (2026-05-09)
+
+### Features
+
+* **capture:** broaden vendor URL fingerprints + bench challenge_title branch ([499fc00](https://github.com/unbrowse-ai/unbrowse-dev/commit/499fc00093b4733132ef777b377ae91b75b7d726))
+* **capture:** plan-v12 Phase B — no-progress soft-deadline + SSR rescue ([ca67263](https://github.com/unbrowse-ai/unbrowse-dev/commit/ca6726396fc056ff7e1cf1be9ffc9c129cc4958f))
+* **capture:** SSR reroute on auth_required pre-empt (plan-v10 Phase B) ([e5aabda](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5aabdaf31210e0ab44c17e504d946ab1f4b74fe))
+* **execution:** plan-v13 Tier 1 + Tier 2A — kuri-vendor CI scaffold + CF bundle-replay solver ([a708c49](https://github.com/unbrowse-ai/unbrowse-dev/commit/a708c490d8a687736d1edc07f494fa9420364802))
+* **sandbox:** plan-v10 Phase A — thread proxy through SandboxReplayRequest ([e46b2bb](https://github.com/unbrowse-ai/unbrowse-dev/commit/e46b2bb5a0b3ffbec5040238db1d133a322bfc9b))
+
+### Bug Fixes
+
+* **sdk:** remove duplicate closing brace in package.json that broke release-it JSON parse ([d4c34d9](https://github.com/unbrowse-ai/unbrowse-dev/commit/d4c34d9dbcbaa580379c2d3574c3be459d32bfe9))
+
 ## [Unreleased]
 
 ### Features
