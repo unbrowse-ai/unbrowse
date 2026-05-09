@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.9.69421](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.9.69420...v6.9.69421) (2026-05-09)
+
+### Bug Fixes
+
+* **kuri-vendor:** update darwin-arm64 sha256 to 894ecb9b build hash ([56bbf03](https://github.com/unbrowse-ai/unbrowse-dev/commit/56bbf033265220cebc615a578803f3d387d57a19))
+
+### Performance
+
+* **ci:** use pre-installed bun on self-hosted runners (skip setup-bun download) ([3b74c38](https://github.com/unbrowse-ai/unbrowse-dev/commit/3b74c3832c4b66090b0b6d65740936b965038223))
+* **release:** debloat upload + skip win-x64 build ([f9efd5b](https://github.com/unbrowse-ai/unbrowse-dev/commit/f9efd5b457930cbb9e211f83bd647094601bbd0e))
+
 ## [6.9.69420](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0...v6.9.69420) (2026-05-09)
 
 ## [](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.7.0-preview.13...vnull) (2026-05-09)
