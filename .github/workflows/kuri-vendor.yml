@@ -45,7 +45,7 @@ jobs:
       - name: Install Zig 0.16.0
         # Kuri's build.zig.zon declares minimum_zig_version 0.16.0; 0.13/0.14
         # will be rejected outright. Bump only with matching upstream proof.
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
 
