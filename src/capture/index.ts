@@ -140,9 +140,16 @@ export async function enableNetworkHeaderCapture(tabId: string): Promise<void> {
 export function getCapturedNetworkHeaders(tabId: string): Map<string, Record<string, string>> {
   return cdpCapturedHeaders.get(tabId) ?? new Map();
 }
-// Hard timeout per capture: 90s prevents stuck tabs from holding slots forever
+// Hard timeout per capture: 90s prevents stuck tabs from holding slots forever.
 const CAPTURE_TIMEOUT_MS = 90_000;
 const CAPTURE_NAV_TIMEOUT_MS = 20_000;
+// No-progress soft-deadline: if the page has fired ZERO network requests after
+// this many ms, the SPA has hung (bestbuy + Akamai pattern observed
+// 2026-05-09). Bail out early with an empty CaptureResult so
+// executeBrowserCapture L1303 SSR fast-path runs with budget remaining
+// before the bench wrapper's outer shell SIGTERM (≥60s) fires. Plan-v12
+// Phase B.
+const CAPTURE_NO_PROGRESS_MS = 30_000;
 
 /**
  * Races `fn()` against an AbortSignal so that each CDP phase exits immediately
@@ -1323,6 +1330,12 @@ export async function captureSession(
 
   const domain = new URL(url).hostname;
   let captureTimedOut = false;
+  // No-progress soft-deadline flag (Plan-v12 Phase B). Distinct from
+  // captureTimedOut: this fires earlier (30s) and only when ZERO network
+  // activity has been observed. Unlike captureTimedOut, it does NOT throw —
+  // we want the empty-state CaptureResult to flow through executeBrowserCapture
+  // so its existing L1303 SSR fast-path call site picks up the rescue.
+  let noProgressBail = false;
   let retryFreshTab = false;
   let captureError: unknown;
   const abortController = new AbortController();
@@ -1377,6 +1390,21 @@ export async function captureSession(
     // This is the primary capture path for LinkedIn Voyager and similar SPA APIs.
     const cdpNetworkEntries: kuri.KuriHarEntry[] = [];
     const cdpRequestMap = new Map<string, { method: string; url: string; headers: Array<{name: string; value: string}>; postData?: string }>();
+    // No-progress watchdog (Plan-v12 Phase B). Inspects cdpRequestMap.size at
+    // fire-time. cdpRequestMap is populated continuously by Network.requestWillBeSent
+    // events, so it's the earliest signal that the page is doing ANY network
+    // activity. If the page is hung (bestbuy SPA pattern), this fires at 30s
+    // and aborts so the orchestrator's existing SSR fast-path runs with budget
+    // remaining before the bench's outer shell SIGTERM (≥60s).
+    const noProgressHandle = setTimeout(() => {
+      if (cdpRequestMap.size === 0) {
+        noProgressBail = true;
+        captureTimedOut = true;  // route through existing throw/abort plumbing
+        abortController.abort();
+        resetTab(tabId).catch(() => {});
+        log("capture", `no_progress_bail: 0 CDP requests after ${CAPTURE_NO_PROGRESS_MS}ms — aborting for SSR rescue`);
+      }
+    }, CAPTURE_NO_PROGRESS_MS);
     const cdpResponseMeta = new Map<string, { status: number; headers: Array<{name: string; value: string}>; mimeType: string }>();
     const cdpFinishedRequests = new Set<string>();
     let cdpWs: WebSocket | null = null;
@@ -1795,7 +1823,20 @@ export async function captureSession(
     const rawCookies = await phase("extractCookies", () => extractCookiesFromPage(tabId, url));
     const sessionCookies = filterFirstPartySessionCookies(rawCookies, url, final_url);
 
-    if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
+    if (captureTimedOut) {
+      if (noProgressBail) {
+        // Plan-v12 Phase B: distinct error code so executeBrowserCapture
+        // can route to SSR fast-path rescue instead of returning generic
+        // capture_timeout. cdpRequestMap was empty at fire time → page
+        // never started network activity → libcurl-impersonate is the
+        // best chance at meaningful HTML.
+        throw Object.assign(
+          new Error(`captureSession no_progress_bail after ${CAPTURE_NO_PROGRESS_MS}ms for ${url}`),
+          { code: "no_progress_bail" },
+        );
+      }
+      throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
+    }
     log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
 
     const responseBodyCount = responseBodies.size;
@@ -1847,6 +1888,7 @@ export async function captureSession(
     }
   } finally {
     clearTimeout(timeoutHandle);
+    clearTimeout(noProgressHandle);
     abortController.abort(); // no-op if already aborted; prevents stale phase rejections
     await resetTab(tabId);
     releaseTabSlot(tabId);
