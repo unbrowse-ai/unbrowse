@@ -1044,7 +1044,7 @@ async function executeBrowserCapture(
     if (hasVendorChallenge) {
       try {
         const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
-        const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000 });
+        const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr?.html && ssr.html.length > 1024) {
           const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
           if (ssrArtifact.endpoint && ssrArtifact.result) {
@@ -1301,7 +1301,7 @@ async function executeBrowserCapture(
   if (cleanEndpoints.length === 0 && (!domArtifactEndpoint || !domArtifactResult || pageArtifact.quality_note)) {
     try {
       const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
-      const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000 });
+      const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
       if (ssr?.html && ssr.html.length > 1024) {
         const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
         if (ssrArtifact.endpoint && ssrArtifact.result) {
@@ -2837,7 +2837,7 @@ export async function executeEndpoint(
           throw new Error(`Kuri sandbox not reachable at ${sandboxBase}`);
         }
         const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
-        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000 });
+        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr) {
           log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
           // Run DOM extraction on the recovered HTML.
