@@ -1251,11 +1251,36 @@ async function executeBrowserCapture(
   const pageArtifact = captured.html
     ? buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
     : {};
-  const domArtifactEndpoint = pageArtifact.endpoint;
-  const domArtifactResult = pageArtifact.result;
+  let domArtifactEndpoint = pageArtifact.endpoint;
+  let domArtifactResult = pageArtifact.result;
   const inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
   const hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
 
+  // SSR fast-path before declaring failure: when capture has no clean endpoints
+  // AND no usable page artifact, try libcurl-impersonate (Chrome 131 JA4) via
+  // Kuri sandbox. bun's Kuri tab might have failed to render or capture XHRs;
+  // libcurl succeeds on many SSR sites Kuri couldn't. Helper at
+  // src/capture/ssr-fastpath.ts is already used at L2778 for 5xx execute
+  // fallback — this is the 2nd caller. Plan-v9 Phase A.
+  if (cleanEndpoints.length === 0 && (!domArtifactEndpoint || !domArtifactResult || pageArtifact.quality_note)) {
+    try {
+      const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+      const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000 });
+      if (ssr?.html && ssr.html.length > 1024) {
+        const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
+        if (ssrArtifact.endpoint && ssrArtifact.result) {
+          domArtifactEndpoint = ssrArtifact.endpoint;
+          domArtifactResult = ssrArtifact.result;
+          pageArtifact.endpoint = ssrArtifact.endpoint;
+          pageArtifact.result = ssrArtifact.result;
+          delete pageArtifact.quality_note;
+          log("execution", `ssr_fastpath_capture_fallback_success: ${ssr.html.length} bytes from libcurl, dom-extracted endpoint`);
+        }
+      }
+    } catch (err) {
+      log("execution", `ssr_fastpath_capture_fallback_error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
   if (inferredOnlyCapture && !hasSupportEvidence) {
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
