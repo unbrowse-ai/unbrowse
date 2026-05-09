@@ -179,6 +179,18 @@ jobs:
         run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri
       - name: Build Kuri vendor binaries (uses pre-staged artifacts where present)
         run: node packages/skill/scripts/build-kuri-binaries.mjs
+      - name: Sync manifest sha256 to actual artifact (zig builds are non-deterministic)
+        run: |
+          HASH=$(sha256sum packages/skill/vendor/kuri/darwin-arm64/kuri | awk '{print $1}')
+          echo "[manifest-sync] darwin-arm64 binary hash: $HASH"
+          node -e "
+            const fs = require('fs');
+            const p = 'packages/skill/vendor/kuri/manifest.json';
+            const m = JSON.parse(fs.readFileSync(p));
+            m.binaries['darwin-arm64'].sha256 = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');
+            console.log('[manifest-sync] manifest updated');
+          " "$HASH"
       - run: bun run check:kuri-vendor
         name: Check baked Kuri vendor state
       - name: Leak guard — block sensitive ops names from public artifacts
