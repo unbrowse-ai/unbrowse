@@ -56,6 +56,24 @@ export default async function SkillDetailPage({ params }: { params: Promise<{ id
                   {ep.verification_status}
                 </span>
                 {ep.response_schema != null && <span className="text-blue-400">has schema</span>}
+                {ep.zk_proof?.verified && ep.zk_proof.proof_type !== "commitment_only" && (
+                  <span className="text-emerald-500" title={`Proof verified at ${ep.zk_proof.verified_at ?? "—"}`}>
+                    proven
+                  </span>
+                )}
+                {ep.zk_proof?.proof_type === "commitment_only" && (
+                  <span className="text-yellow-500" title={ep.zk_proof.verification_failure ?? "client-side commitment only"}>
+                    commitment
+                  </span>
+                )}
+                {ep.zk_proof && ep.zk_proof.proof_type !== "commitment_only" && !ep.zk_proof.verified && (
+                  <span className="text-yellow-500" title={ep.zk_proof.verification_failure ?? "proof not verified"}>
+                    unverified
+                  </span>
+                )}
+                {!ep.zk_proof && (
+                  <span className="text-text-muted">no proof</span>
+                )}
               </div>
             </div>
           ))}

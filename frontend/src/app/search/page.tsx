@@ -3,15 +3,17 @@ import { getConfiguredApiOrigin } from "@/lib/api-base";
 import { getRegistrySkillHref, parseSearchMetadata } from "@/lib/registry-search";
 import { SearchBar } from "@/components/search-bar";
 import { SkillCard } from "@/components/skill-card";
+import { VerifiedOnlyToggle } from "@/components/verified-only-toggle";
 import Link from "next/link";
 import { Database, Globe2 } from "lucide-react";
 
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; domain?: string }>;
+  searchParams: Promise<{ q?: string; domain?: string; verified?: string }>;
 }) {
-  const { q, domain } = await searchParams;
+  const { q, domain, verified } = await searchParams;
+  const verifiedOnly = verified === "true";
   let results: Awaited<ReturnType<typeof searchSkills>> = [];
   let allSkills: SkillManifest[] = [];
   let error = "";
@@ -80,6 +82,17 @@ export default async function SearchPage({
         
         // Sort by score descending
         results.sort((a, b) => b.score - a.score);
+
+        // Verified-only filter: drop results whose backing skill has no verified proofs.
+        // Skills not present in the live registry pass through (we can't tell — better
+        // false-positives than dropping legitimate hits).
+        if (verifiedOnly) {
+          results = results.filter((r) => {
+            const fullSkill = getFullSkill(r.metadata);
+            if (!fullSkill) return true;
+            return (fullSkill.proof_summary?.verified_proofs ?? 0) > 0;
+          });
+        }
       } catch (e) {
         error = (e as Error).message;
       }
@@ -112,8 +125,9 @@ export default async function SearchPage({
       {!q && <div className="mb-20" />}
 
       {/* Search bar */}
-      <div className="max-w-2xl mx-auto animate-fade-up stagger-4 mb-16 flex justify-center w-full">
+      <div className="max-w-2xl mx-auto animate-fade-up stagger-4 mb-16 flex flex-col items-center gap-3 w-full">
         <SearchBar initial={q ?? ""} />
+        <VerifiedOnlyToggle />
       </div>
 
       {/* Results */}
@@ -254,19 +268,26 @@ export default async function SearchPage({
               Recently Indexed Skills
             </h3>
             
-            {allSkills.filter(s => s.lifecycle !== "deprecated").length > 0 ? (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {allSkills.filter(s => s.lifecycle !== "deprecated").slice(0, 9).map((skill, i) => (
-                  <div key={skill.skill_id} className="animate-fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
-                    <SkillCard skill={skill} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-surface-sunken border border-border rounded-2xl">
-                <p className="text-text-muted">No skills found in the registry.</p>
-              </div>
-            )}
+            {(() => {
+              const recent = allSkills
+                .filter((s) => s.lifecycle !== "deprecated")
+                .filter((s) => !verifiedOnly || (s.proof_summary?.verified_proofs ?? 0) > 0);
+              return recent.length > 0 ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recent.slice(0, 9).map((skill, i) => (
+                    <div key={skill.skill_id} className="animate-fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
+                      <SkillCard skill={skill} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-surface-sunken border border-border rounded-2xl">
+                  <p className="text-text-muted">
+                    {verifiedOnly ? "No skills with independently verified proofs yet." : "No skills found in the registry."}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
