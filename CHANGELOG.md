@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.9.69422](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.9.69421...v6.9.69422) (2026-05-09)
+
+### Bug Fixes
+
+* **ci:** sync kuri manifest sha256 to artifact hash before vendor guard ([6cae2e3](https://github.com/unbrowse-ai/unbrowse-dev/commit/6cae2e3841ba5a2f215e9bd0a4c29a1663a16a4f))
+
 ## [6.9.69421](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.9.69420...v6.9.69421) (2026-05-09)
 
 ### Bug Fixes
