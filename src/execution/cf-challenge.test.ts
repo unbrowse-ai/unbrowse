@@ -121,3 +121,15 @@ describe("solveCfAndRetry", () => {
     }
   });
 });
+
+describe("cross-vendor isolation", () => {
+  it("returns null for a PerimeterX challenge body — CF detector must not fire on /<uuid>/<uuid>/init.js", () => {
+    // Mirror of px-challenge.test.ts case 3 in the inverse direction. PX
+    // challenge HTML embeds /<uuid>/<uuid>/init.js, which has no /cdn-cgi/
+    // segment — the CF regex must reject it cleanly so the two vendor
+    // detectors cannot steal each other's challenge bodies.
+    const body = `<html><head><script src="/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/init.js"></script></head></html>`;
+    const got = extractCfBundleUrl(body, "https://www.canadagoose.com/");
+    expect(got).toBeNull();
+  });
+});
