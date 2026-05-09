@@ -1,0 +1,48 @@
+name: Bench History Write
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/execution/**"
+      - "src/capture/**"
+      - "src/sandbox/**"
+      - "src/reverse-engineer/**"
+
+# Step 5 finding: serialize main pushes (different shas write different files,
+# but `git push` race against main is real). Do not cancel — every sha records.
+concurrency:
+  group: bench-history-main
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run bench-local
+        continue-on-error: true
+        env:
+          UNBROWSE_PROXY_URL: ${{ secrets.IPROYAL_URL }}
+        run: bash scripts/bench-local.sh --use-source --corpus-file scripts/corpus/hard-target-bench.txt --timeout 120 --force-capture
+
+      # NOTE: scripts/evidence-to-history.ts does not yet exist on feat/agent-ux-run-planner.
+      # It must be added in the same PR that lands this workflow, or this step fails.
+      - name: Convert evidence to history JSON
+        # if bench fails (continue-on-error), evidence.csv may be missing or empty — skip rather than crash
+        if: ${{ hashFiles('.bench-local/evidence.csv') != '' }}
+        run: bun scripts/evidence-to-history.ts --evidence .bench-local/evidence.csv --sha ${{ github.sha }} --out .bench-history/${{ github.sha }}.json
+
+      - name: Commit + push history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .bench-history/
+          git commit -m "chore(bench-history): record sha ${{ github.sha }} [skip ci]"
+          git push origin main
