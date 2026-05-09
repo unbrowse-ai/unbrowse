@@ -22,6 +22,7 @@ import { webhookRoutes } from "./routes/webhooks.js";
 import { creditRoutes } from "./routes/credits.js";
 import { authRoutes } from "./routes/auth.js";
 import { accountRoutes } from "./routes/account.js";
+import { syntheticRoutes } from "./routes/synthetic.js";
 import { flushQueuedGithubNotifications } from "./services/github-webhooks.js";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -76,6 +77,12 @@ app.route("/v1", issueRoutes);
 app.route("/v1", skillRoutes);
 app.route("/v1", statsRoutes);
 app.route("/v1", dashboardRoutes);
+
+// Plan-v15 Tier 3: synthetic CF/PX challenge fixtures for CI bench.
+// Public test fixture — no auth gate (anyone can reproduce the bench), but
+// rate-limited inside the router. Path is /v1/test/* (not /v1/internal/*)
+// so the URL doesn't falsely imply a protected surface.
+app.route("/v1/test", syntheticRoutes);
 
 export { app };
 
