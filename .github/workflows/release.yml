@@ -95,11 +95,23 @@ jobs:
       - name: Create or update GitHub release assets
         run: |
           TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
           TARGET_REPO="${UNBROWSE_RELEASE_REPO}"
+          # Upload only the version-scoped tarballs that install.mjs / verify-release-assets.mjs
+          # actually consume (4 platforms × ~25MB) plus the signed manifest. Skips raw 69MB binaries
+          # and stale tarballs from prior builds. ~4.7x smaller upload than the prior unbrowse-* glob.
+          ASSETS=(
+            "dist/unbrowse-v${VERSION}-darwin-arm64.tar.gz"
+            "dist/unbrowse-v${VERSION}-darwin-x64.tar.gz"
+            "dist/unbrowse-v${VERSION}-linux-arm64.tar.gz"
+            "dist/unbrowse-v${VERSION}-linux-x64.tar.gz"
+            "dist/release-manifest.json"
+            "dist/release-manifest.sig"
+          )
           if gh release view "$TAG" --repo "$TARGET_REPO" >/dev/null 2>&1; then
-            gh release upload "$TAG" --repo "$TARGET_REPO" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber
+            gh release upload "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --clobber
           else
-            gh release create "$TAG" --repo "$TARGET_REPO" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --title "$TAG" --notes "Release ${TAG}"
+            gh release create "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --title "$TAG" --notes "Release ${TAG}"
           fi
 
   verify-release-assets:
