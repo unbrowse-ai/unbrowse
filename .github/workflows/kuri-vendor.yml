@@ -1,9 +1,12 @@
 name: kuri-vendor
 
-# Plant the Tier 1 seed (plan-v13 Day 3): manual-dispatch matrix that builds
-# kuri from lekt9/kuri@feat/sandbox-proxy across 4 targets and uploads the
-# resulting binaries as artifacts. Manifest update + commit is a downstream
-# manual step (Step 6 work) — this workflow does NOT auto-commit binaries.
+# Tier 1 (plan-v13): manual-dispatch native build of kuri darwin-arm64 from
+# lekt9/kuri@feat/sandbox-proxy. Cross-platform matrix (darwin-x64,
+# linux-arm64, linux-x64) is deferred — Zig 0.16's cross-compile mode
+# requires sysroots GH-hosted runners don't ship (libiconv/icucore for
+# macOS, libidn2/libz for linux). Native darwin-arm64 works without
+# -Dtarget; that's what release.yml uses successfully today. Cross-
+# platform binaries are a separate workstream (file an issue when needed).
 
 on:
   workflow_dispatch:
@@ -24,15 +27,7 @@ jobs:
           - platform: darwin-arm64
             runner: macos-latest
             zig_target: aarch64-macos
-          - platform: darwin-x64
-            runner: macos-latest
-            zig_target: x86_64-macos
-          - platform: linux-arm64
-            runner: ubuntu-latest
-            zig_target: aarch64-linux
-          - platform: linux-x64
-            runner: ubuntu-latest
-            zig_target: x86_64-linux
+          # darwin-x64, linux-arm64, linux-x64 deferred — see header comment.
 
     steps:
       - name: Checkout kuri
@@ -49,12 +44,14 @@ jobs:
         with:
           version: 0.16.0
 
-      - name: Build kuri (${{ matrix.zig_target }})
+      - name: Build kuri (native ${{ matrix.zig_target }})
+        # Native build only — no -Dtarget. Zig cross-compile mode triggered
+        # by -Dtarget skips the macOS SDK lookup for libiconv/icucore even
+        # when arch matches the runner. release.yml uses this same pattern.
         working-directory: kuri
         run: |
-          zig build -Doptimize=ReleaseSafe -Dtarget=${{ matrix.zig_target }}
+          zig build -Doptimize=ReleaseSafe
           ls -la zig-out/bin/
-
       - name: Locate binary
         id: locate
         working-directory: kuri
