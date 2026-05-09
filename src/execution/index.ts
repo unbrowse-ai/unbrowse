@@ -3392,13 +3392,21 @@ export function detectBrowserBlockSignals(input: {
     ) {
       vendorHits.add("perimeterx");
     }
-    if (/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i.test(u)) vendorHits.add("datadome");
+    // captcha-delivery.com is DataDome's hosted captcha CDN — observed in
+    // rejected_samples for g2.com and leboncoin.fr but not matched by the
+    // body-marker patterns above. Adding here promotes those rows from
+    // soft_block → vendor_blocked in the bench classifier.
+    if (/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey|captcha-delivery\.com/i.test(u)) vendorHits.add("datadome");
     if (/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i.test(u)) vendorHits.add("imperva_incapsula");
     // Akamai Bot Manager — used by walmart, delta, target, many retail
     // Detected via: _abck cookie usage, akam.net, bot-defender, /_bm/ paths,
     // and Akamai sensor_data collection endpoint.
     if (/akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i.test(u)) vendorHits.add("akamai_bot_manager");
-    if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i.test(u)) vendorHits.add("cloudflare");
+    // cdn-cgi/challenge-platform is Cloudflare's managed challenge JS path
+    // (Turnstile + JS-detect). Observed in rejected_samples for g2.com.
+    // The other tokens cover challenge cookies and Turnstile widget hosts;
+    // this adds the script-load path the page itself fetches.
+    if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare|cdn-cgi\/challenge-platform/i.test(u)) vendorHits.add("cloudflare");
     if (/\/_fs-ch-[A-Za-z0-9]+\//.test(u)) vendorHits.add("fastly_bot_management");
     if (/hcaptcha|recaptcha|arkoselabs|funcaptcha/i.test(u)) vendorHits.add("captcha_vendor");
     if (/shape\.security|f5\.com\/shape|ShapeSecurity/i.test(u)) vendorHits.add("shape_security");

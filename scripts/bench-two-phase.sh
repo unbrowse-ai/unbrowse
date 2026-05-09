@@ -146,6 +146,12 @@ if obj is not None:
         except: tb = 0
         if has_real_vendor:
             phase1["phase1_status"] = "vendor_blocked"
+        elif "challenge_title" in bs:
+            # title fingerprint matches a known anti-bot/edge-error page
+            # (Just a moment / request could not be satisfied / etc) — body
+            # evidence of vendor block even when no vendor: URL signal fired.
+            # Mirrors the title regex in detectBrowserBlockSignals.
+            phase1["phase1_status"] = "vendor_blocked"
         elif tb < 100 and "sparse_capture_mostly_noise" in bs:
             phase1["phase1_status"] = "soft_block"
         elif phase1["phase1_endpoints_discovered"] == 0:
