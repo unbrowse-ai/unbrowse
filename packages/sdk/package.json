@@ -27,7 +27,6 @@
     "docs:validate:all": "npm run docs:validate && npm run docs:validate:examples && npm run docs:validate:quality",
     "docs:lint": "npm run docs:validate:all",
     "test:docs": "npm run docs:validate:all"
-  }
   },
   "devDependencies": {
     "typescript": "^6.0.2"
