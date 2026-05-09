@@ -1,0 +1,76 @@
+name: kuri-vendor
+
+# Plant the Tier 1 seed (plan-v13 Day 3): manual-dispatch matrix that builds
+# kuri from lekt9/kuri@feat/sandbox-proxy across 4 targets and uploads the
+# resulting binaries as artifacts. Manifest update + commit is a downstream
+# manual step (Step 6 work) — this workflow does NOT auto-commit binaries.
+
+on:
+  workflow_dispatch:
+    inputs:
+      kuri_ref:
+        description: "kuri ref to build (branch, tag, or commit). Must be >= 894ecb9b503f60665a31d2c4c8e96b17d9da3f61."
+        required: false
+        default: "feat/sandbox-proxy"
+
+jobs:
+  build:
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-latest
+            zig_target: aarch64-macos
+          - platform: darwin-x64
+            runner: macos-latest
+            zig_target: x86_64-macos
+          - platform: linux-arm64
+            runner: ubuntu-latest
+            zig_target: aarch64-linux
+          - platform: linux-x64
+            runner: ubuntu-latest
+            zig_target: x86_64-linux
+
+    steps:
+      - name: Checkout kuri
+        uses: actions/checkout@v4
+        with:
+          repository: lekt9/kuri
+          ref: ${{ github.event.inputs.kuri_ref }}
+          path: kuri
+
+      - name: Install Zig 0.16.0
+        # Kuri's build.zig.zon declares minimum_zig_version 0.16.0; 0.13/0.14
+        # will be rejected outright. Bump only with matching upstream proof.
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+
+      - name: Build kuri (${{ matrix.zig_target }})
+        working-directory: kuri
+        run: |
+          zig build -Doptimize=ReleaseSafe -Dtarget=${{ matrix.zig_target }}
+          ls -la zig-out/bin/
+
+      - name: Locate binary
+        id: locate
+        working-directory: kuri
+        run: |
+          BIN_PATH=$(find zig-out -type f -name 'kuri' | head -n1)
+          if [ -z "$BIN_PATH" ]; then
+            echo "kuri binary not found under zig-out/" >&2
+            exit 1
+          fi
+          echo "bin_path=kuri/$BIN_PATH" >> "$GITHUB_OUTPUT"
+          shasum -a 256 "$BIN_PATH" || sha256sum "$BIN_PATH"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-${{ matrix.platform }}
+          path: ${{ steps.locate.outputs.bin_path }}
+          if-no-files-found: error
+          retention-days: 14
