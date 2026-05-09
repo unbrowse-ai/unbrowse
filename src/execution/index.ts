@@ -998,6 +998,44 @@ async function executeBrowserCapture(
       };
     }
     const message = captureErr instanceof Error ? captureErr.message : String(captureErr);
+    // Plan-v12 Phase B: no_progress_bail from captureSession → try SSR
+    // fast-path rescue before declaring capture_failed. Bail fires when
+    // the page made ZERO network requests in 30s — libcurl-impersonate
+    // (Chrome 131 JA4) is more likely to return useful HTML than waiting
+    // longer on a hung Kuri tab. Mirrors the auth_required vendor-challenge
+    // SSR rescue at L1095 but synthesizes a return directly since we have
+    // no captured.* state to splice into.
+    if (err.code === "no_progress_bail") {
+      try {
+        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        const ssr = await trySsrFastPathOnBlock({
+          url, seedCookies: cookies, timeoutMs: 15_000,
+          proxy: process.env.UNBROWSE_PROXY_URL,
+        });
+        if (ssr?.html && ssr.html.length > 1024) {
+          const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
+          if (ssrArtifact.endpoint && ssrArtifact.result) {
+            log("execution", `no_progress_bail_ssr_fastpath_success: ${ssr.html.length} bytes from libcurl`);
+            const trace: ExecutionTrace = stampTrace({
+              trace_id: traceId,
+              skill_id: skill.skill_id,
+              endpoint_id: "browser-capture",
+              started_at: startedAt,
+              completed_at: new Date().toISOString(),
+              success: true,
+              decision_trace: [{ step: "no_progress_bail_ssr_fastpath_success", html_bytes: ssr.html.length }],
+            });
+            return { trace, result: ssrArtifact.result as Record<string, unknown> };
+          }
+          log("execution", "no_progress_bail_ssr_fastpath_failed_extraction_quality");
+        } else {
+          log("execution", "no_progress_bail_ssr_fastpath_failed_no_html");
+        }
+      } catch (ssrErr) {
+        log("execution", `no_progress_bail_ssr_fastpath_error: ${ssrErr instanceof Error ? ssrErr.message : String(ssrErr)}`);
+      }
+      // SSR rescue failed → fall through to normal error normalization
+    }
     const normalizedError = /unable to connect/i.test(message)
       ? "connection_failed"
       : /timed out/i.test(message)
