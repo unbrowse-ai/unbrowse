@@ -38,6 +38,10 @@ export interface SsrFastPathInput {
   impersonate?: string;
   timeoutMs?: number;
   extraHeaders?: Record<string, string>;
+  /** Optional proxy URL forwarded to runBundleReplay → Kuri's libcurl handle.
+   * Caller may pass `process.env.UNBROWSE_PROXY_URL` to opt into residential
+   * proxy routing for the SSR fast-path (plan-v10 Phase A). */
+  proxy?: string;
 }
 
 /**
@@ -77,6 +81,7 @@ export async function trySsrFastPathOnBlock(input: SsrFastPathInput): Promise<Ss
       impersonate: input.impersonate ?? "chrome131",
       timeoutMs: input.timeoutMs ?? 15_000,
       seedCookies: input.seedCookies,
+      ...(input.proxy ? { proxy: input.proxy } : {}),
     }, { kuriBase: input.kuriBase });
 
     if (!resp.ok) return null;
