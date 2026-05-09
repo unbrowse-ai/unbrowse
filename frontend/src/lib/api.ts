@@ -33,6 +33,32 @@ function searchResultDomain(result: SearchResult): string | null {
   }
 }
 
+export interface ProofCommitment {
+  response_body_hash: string;
+  domain: string;
+  url_template: string;
+  method: string;
+  response_status: number;
+  captured_at: string;
+}
+
+export interface ZkProof {
+  proof_type: "tlsnotary" | "reclaim" | "commitment_only";
+  verified: boolean;
+  verified_at?: string;
+  verification_failure?: string;
+  commitment: ProofCommitment;
+  notary_id: string;
+  generated_at: string;
+}
+
+export interface ProofSummary {
+  total_endpoints: number;
+  endpoints_with_proof: number;
+  verified_proofs: number;
+  proof_types: Record<string, number>;
+}
+
 export interface SkillManifest {
   skill_id: string;
   version: string;
@@ -47,6 +73,7 @@ export interface SkillManifest {
   lifecycle: "active" | "deprecated" | "disabled";
   created_at: string;
   updated_at: string;
+  proof_summary?: ProofSummary;
 }
 
 export interface PopularSkillSummary {
@@ -72,6 +99,7 @@ export interface EndpointDescriptor {
   verification_status: "verified" | "unverified" | "failed" | "pending";
   reliability_score: number;
   response_schema?: unknown;
+  zk_proof?: ZkProof;
 }
 
 export interface SkillListEndpointPreview {
@@ -79,6 +107,7 @@ export interface SkillListEndpointPreview {
   method: string;
   verification_status: "verified" | "unverified" | "failed" | "pending" | "disabled";
   reliability_score: number;
+  zk_proof?: { verified: boolean };
 }
 
 export interface SkillListItem {
@@ -97,6 +126,7 @@ export interface SkillListItem {
   endpoint_count: number;
   avg_reliability_score: number;
   endpoints: SkillListEndpointPreview[];
+  proof_summary?: ProofSummary;
 }
 
 export interface SearchResult {

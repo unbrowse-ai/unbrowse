@@ -1541,9 +1541,16 @@ function readableOperationTitle(operation: SkillOperationNode): string {
   return `${action} ${resource}`.trim();
 }
 
-function toAgentAvailableOperation(operation: SkillOperationNode): AgentAvailableOperation {
+function endpointProofStatus(endpoint?: EndpointDescriptor): AgentAvailableOperation["proof_status"] {
+  if (!endpoint?.zk_proof) return "no_proof";
+  if (endpoint.zk_proof.proof_type === "commitment_only") return "client_commitment";
+  return endpoint.zk_proof.verified ? "proven" : "unverified_proof";
+}
+
+function toAgentAvailableOperation(operation: SkillOperationNode, endpoint?: EndpointDescriptor): AgentAvailableOperation {
   const required = summarizeBindingKeys(operation.requires);
   const yields = summarizeBindingKeys(operation.provides);
+  const proof_status = endpointProofStatus(endpoint);
   return {
     operation_id: operation.operation_id,
     method: operation.method,
@@ -1558,6 +1565,7 @@ function toAgentAvailableOperation(operation: SkillOperationNode): AgentAvailabl
     yields,
     example_request: operation.example_request,
     example_response_compact: operation.example_response_compact,
+    proof_status,
   };
 }
 
@@ -1581,9 +1589,14 @@ export function toAgentWorkflowDagView(
   chunk: SkillChunk,
   graph: SkillOperationGraph,
   knownBindings: Record<string, unknown> = {},
+  endpoints?: EndpointDescriptor[],
 ): AgentWorkflowDagView {
   const runnableOperationIds = new Set(chunk.available_operation_ids);
-  const operations: AgentWorkflowDagOperation[] = chunk.operations.map((operation) => ({
+  const endpointById = endpoints ? new Map(endpoints.map((ep) => [ep.endpoint_id, ep])) : undefined;
+  const operations: AgentWorkflowDagOperation[] = chunk.operations.map((operation) => {
+    const endpoint = endpointById?.get(operation.endpoint_id);
+    const proof_status: AgentWorkflowDagOperation["proof_status"] = endpointProofStatus(endpoint);
+    return {
     operation_id: operation.operation_id,
     endpoint_id: operation.endpoint_id,
     method: operation.method,
@@ -1594,6 +1607,7 @@ export function toAgentWorkflowDagView(
     description_out: operation.description_out,
     requires: summarizeBindingKeys(operation.requires),
     yields: summarizeBindingKeys(operation.provides),
+    proof_status,
     // C7 fix — when an operation has no required bindings AND its
     // url_template has no unresolved {param} slots, the URL itself IS the
     // operation. Mark it runnable even if isOperationHardExcluded
@@ -1608,7 +1622,8 @@ export function toAgentWorkflowDagView(
     prefetch_get_operations: getOperationPrefetchTargets(graph, operation.operation_id, knownBindings)
       .filter((target) => chunk.operations.some((candidate) => candidate.operation_id === target.operation.operation_id))
       .map(toAgentPrefetchOperation),
-  }));
+    };
+  });
 
   return {
     skill_id: chunk.skill_id,
@@ -1627,11 +1642,17 @@ export function toAgentWorkflowDagView(
   };
 }
 
-export function toAgentSkillChunkView(chunk: SkillChunk): AgentSkillChunkView {
+export function toAgentSkillChunkView(
+  chunk: SkillChunk,
+  endpoints?: EndpointDescriptor[],
+  opts?: { requireProof?: boolean },
+): AgentSkillChunkView {
+  const endpointById = endpoints ? new Map(endpoints.map((ep) => [ep.endpoint_id, ep])) : undefined;
   const availableOperations = chunk.available_operation_ids
     .map((operationId) => chunk.operations.find((operation) => operation.operation_id === operationId))
     .filter((operation): operation is SkillOperationNode => !!operation)
-    .map(toAgentAvailableOperation);
+    .map((operation) => toAgentAvailableOperation(operation, endpointById?.get(operation.endpoint_id)))
+    .filter((op) => !opts?.requireProof || op.proof_status === "proven");
 
   return {
     skill_id: chunk.skill_id,

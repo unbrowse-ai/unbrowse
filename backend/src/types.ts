@@ -155,6 +155,44 @@ export interface ResponseSchema {
   inferred_from_samples: number;
 }
 
+export interface ProofCommitment {
+  response_body_hash: string;
+  domain: string;
+  url_template: string;
+  method: string;
+  response_status: number;
+  captured_at: string;
+  schema_hash?: string;
+}
+
+export interface ZkProof {
+  proof_type: "tlsnotary" | "reclaim" | "commitment_only";
+  proof_data: string;
+  commitment: ProofCommitment;
+  notary_id: string;
+  generated_at: string;
+  verified: boolean;
+  verified_at?: string;
+  verification_failure?: string;
+}
+
+export interface ProofVerificationResult {
+  valid: boolean;
+  proof_type: string;
+  verified_at: string;
+  domain_match: boolean;
+  response_hash_match: boolean;
+  failure_reason?: string;
+  failure_kind?: "malformed_proof" | "malformed_hash" | "future_timestamp" | "domain_mismatch" | "unverified_proof" | null;
+}
+
+export interface ProofSummary {
+  total_endpoints: number;
+  endpoints_with_proof: number;
+  verified_proofs: number;
+  proof_types: Record<string, number>;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
@@ -183,6 +221,8 @@ export interface EndpointDescriptor {
   constraints?: EndpointConstraint[];
   /** Agent-contributed best practices, tips, and gotchas */
   annotations?: EndpointAnnotation[];
+  /** Optional proof metadata or client-side commitment */
+  zk_proof?: ZkProof;
 }
 
 export interface EndpointConstraint {
@@ -261,6 +301,8 @@ export interface SkillManifest {
   provenance_events?: SkillSubmissionProvenance[];
   /** Server-owned graph trust state. */
   trust?: SkillTrustMetadata;
+  /** Roll-up of ZK proof verification status across endpoints. */
+  proof_summary?: ProofSummary;
 }
 
 export interface SkillListEndpointPreview {

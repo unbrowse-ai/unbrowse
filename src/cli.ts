@@ -575,6 +575,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     if (flags["force-capture"]) body.force_capture = true;
     if (flags["skip-robots"]) body.skip_robots_check = true;
+    if (flags["require-proof"]) body.require_proof = true;
     // Phase 8.1 — per-call latency budget for the parallel resolve race.
     // Default 8000ms when unset; sub-probe values (<200ms) return no_match fast.
     const budgetFlag = flags.budget;
@@ -2424,6 +2425,14 @@ export const CLI_REFERENCE = {
     { flag: "--dry-run", desc: "Preview mutations without applying." },
     { flag: "--params '{...}'", desc: "Extra params as JSON." },
     { flag: "-p key=val", desc: "Single param via repeated flag (alternative to --params JSON)." },
+    { flag: "--require-proof", desc: "Filter resolve to only endpoints with independently verified proofs." },
+  ],
+  envVars: [
+    { name: "UNBROWSE_URL", desc: "Local server URL (default: http://localhost:6969)" },
+    { name: "UNBROWSE_API_URL", desc: "Marketplace/backend URL (default: https://beta-api.unbrowse.ai)" },
+    { name: "UNBROWSE_ZK_PROOF=1", desc: "Enable commitment metadata generation helpers" },
+    { name: "UNBROWSE_NOTARY_URL=<url>", desc: "Reserved for future TLSNotary integration; current client is a stub" },
+    { name: "HEADLESS=false", desc: "Show browser window (dev/auth flows only; production always headless)" },
   ],
   fetchFlags: [
     { flag: "--raw", desc: "Keep HTML/JSON bytes; skip turndown markdown conversion." },
@@ -2782,6 +2791,13 @@ function printHelp(): void {
     for (const f of (r as any).fetchFlags as Array<{flag: string; desc: string}>) {
       lines.push(`  ${f.flag}`.padEnd(fPad) + f.desc);
     }
+  }
+
+  // Env vars
+  lines.push("", "Environment variables:");
+  const ePad = Math.max(...r.envVars.map((v) => `  ${v.name}`.length)) + 2;
+  for (const v of r.envVars) {
+    lines.push(`  ${v.name}`.padEnd(ePad) + v.desc);
   }
 
   // Examples
