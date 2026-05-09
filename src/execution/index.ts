@@ -1279,7 +1279,7 @@ async function executeBrowserCapture(
     }
   }
 
-  const cleanEndpoints = endpoints.filter((ep) => {
+  let cleanEndpoints = endpoints.filter((ep) => {
     try {
       const host = new URL(ep.url_template).hostname;
       return !AUTH_PROVIDERS.test(host) && !LOGIN_PATHS.test(new URL(ep.url_template).pathname);
@@ -1327,8 +1327,8 @@ async function executeBrowserCapture(
     : {};
   let domArtifactEndpoint = pageArtifact.endpoint;
   let domArtifactResult = pageArtifact.result;
-  const inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
-  const hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
+  let inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
+  let hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
 
   // SSR fast-path before declaring failure: when capture has no clean endpoints
   // AND no usable page artifact, try libcurl-impersonate (Chrome 131 JA4) via
@@ -1355,6 +1355,56 @@ async function executeBrowserCapture(
       log("execution", `ssr_fastpath_capture_fallback_error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+
+  // plan-v14 Tier 1: capture-side CF challenge solver. Sibling to SSR fastpath above.
+  const captureDecisionTrace: Array<Record<string, unknown>> = [];
+  if (cleanEndpoints.length === 0 && typeof captured.html === "string" && captured.html.length > 0 && captured.html.startsWith("<")) {
+    try {
+      const { extractCfBundleUrl, solveCfAndRetry } = await import("./cf-challenge.js");
+      const cfBundle = extractCfBundleUrl(captured.html, url);
+      if (cfBundle) {
+        captureDecisionTrace.push({ step: "capture_cf_solver", url, bundle: cfBundle });
+        log("execution", `capture_cf_solver: detected CF challenge bundle ${cfBundle}`);
+        const solved = await solveCfAndRetry({
+          url,
+          body: captured.html,
+          cookies: captured.cookies ?? [],
+          kuriBase: process.env.KURI_BASE_URL,
+          ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+          timeoutMs: 30_000,
+        });
+        if (solved && solved.html.length > 0) {
+          (captured as { html?: string }).html = solved.html;
+          const reExtracted = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
+          if (reExtracted.length > 0) {
+            cleanEndpoints = reExtracted.filter((ep) => {
+              try {
+                const host = new URL(ep.url_template).hostname;
+                return !AUTH_PROVIDERS.test(host) && !LOGIN_PATHS.test(new URL(ep.url_template).pathname);
+              } catch { return true; }
+            });
+            captureDecisionTrace.push({ step: "capture_cf_solver_retry_success", bytes: solved.html.length, endpoints: cleanEndpoints.length });
+            log("execution", `capture_cf_solver_retry_success: re-extracted ${cleanEndpoints.length} endpoints from cleared HTML`);
+          } else {
+            captureDecisionTrace.push({ step: "capture_cf_solver_retry_no_endpoints", bytes: solved.html.length });
+            log("execution", "capture_cf_solver_retry_no_endpoints: cleared HTML returned but extractEndpoints empty");
+          }
+        } else {
+          captureDecisionTrace.push({ step: "capture_cf_solver_no_clearance" });
+          log("execution", "capture_cf_solver_no_clearance: solver returned null");
+        }
+      }
+    } catch (cfErr) {
+      captureDecisionTrace.push({ step: "capture_cf_solver_error", message: cfErr instanceof Error ? cfErr.message : String(cfErr) });
+      log("execution", `capture_cf_solver_error: ${cfErr instanceof Error ? cfErr.message : String(cfErr)}`);
+    }
+  }
+  // plan-v14 Tier 1 fix: recompute the inferred/support flags AFTER the CF arm
+  // may have re-extracted endpoints. Without this, L1402 gates against stale
+  // (pre-solver) values computed at L1330 — could fire bundle_routes_only on
+  // freshly-solved real endpoints, or skip the gate when it should fire.
+  inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
+  hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
   if (inferredOnlyCapture && !hasSupportEvidence) {
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
@@ -1364,6 +1414,7 @@ async function executeBrowserCapture(
       completed_at: new Date().toISOString(),
       success: false,
       error: "bundle_routes_only",
+      decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
     });
     return {
       trace,
@@ -1430,6 +1481,7 @@ async function executeBrowserCapture(
           completed_at: new Date().toISOString(),
           success: true,
           result: domArtifactResult.data,
+          decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
         });
         // Always return data to the caller — quality gate only blocks publishing
         return {
@@ -1448,6 +1500,7 @@ async function executeBrowserCapture(
         completed_at: new Date().toISOString(),
         success: false,
         error: pageArtifact.quality_note,
+        decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
       });
       return {
         trace,
@@ -1490,6 +1543,7 @@ async function executeBrowserCapture(
       completed_at: new Date().toISOString(),
       success: false,
       error: "no_endpoints",
+      decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
     });
     return {
       trace,
@@ -1630,6 +1684,7 @@ async function executeBrowserCapture(
     completed_at: completedAt,
     success: true,
     result: { learned_skill_id: learned.skill_id, endpoints_discovered: cleanEndpoints.length },
+    decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
   });
 
   // Detect tracking-only capture: all endpoints lack a response_schema, meaning no real

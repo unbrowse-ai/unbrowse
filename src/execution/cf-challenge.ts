@@ -27,8 +27,14 @@ import { runBundleReplay, type SeedCookie } from "../sandbox/bundle-replay-clien
 // hex blob identifying the bundle version. Only this exact shape counts —
 // `/cdn-cgi/scripts/email-decode/...` and other `/cdn-cgi/...` assets are
 // NOT challenge runtimes and must be rejected.
+// Require a `src="` or `src='` prefix immediately before the bundle path.
+// Real CF challenge HTML always emits the bundle as `<script src="...">`;
+// the prefix requirement prunes false positives where the path appears in
+// HTML comments, JSON-encoded log payloads, or other non-script contexts
+// that would otherwise waste a kuri sandbox slot fetching a bogus URL.
+// The path itself is captured in group 1 for the caller to resolve.
 const CF_BUNDLE_RE =
-  /\/cdn-cgi\/challenge-platform\/h\/[gb]\/scripts\/jsd\/[a-f0-9]+\/main\.js/i;
+  /src=["'](\/cdn-cgi\/challenge-platform\/h\/[gb]\/scripts\/jsd\/[a-f0-9]+\/main\.js)/i;
 
 /**
  * Extract the absolute URL of the Cloudflare JS challenge bundle from a
@@ -45,7 +51,7 @@ export function extractCfBundleUrl(
   if (!body || typeof body !== "string") return null;
   const match = body.match(CF_BUNDLE_RE);
   if (!match) return null;
-  const path = match[0];
+  const path = match[1] ?? match[0];
   try {
     return new URL(path, requestUrl).toString();
   } catch {
