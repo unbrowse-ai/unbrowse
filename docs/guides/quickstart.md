@@ -118,7 +118,7 @@ unbrowse search --intent "get stock prices" --domain "finance.yahoo.com" --prett
 Open an auth flow when a site needs login:
 
 ```bash
-unbrowse login --url "https://calendar.google.com"
+unbrowse auth-capture --url "https://calendar.google.com"
 ```
 
 ## TypeScript SDK

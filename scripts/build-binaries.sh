@@ -59,7 +59,10 @@ if [ "${1:-}" = "--all" ]; then
   build_target "darwin-x64"
   build_target "linux-arm64"
   build_target "linux-x64"
-  build_target "win-x64"
+  # win-x64 intentionally skipped — not in packages/skill/scripts/release-assets.mjs
+  # SUPPORTED_TARGETS, install.mjs never resolves it, verify-release-assets.mjs
+  # never checks it. Building+uploading saves ~95MB / release. Re-add when Windows
+  # is added to SUPPORTED_TARGETS.
   echo "[build] all platforms built:"
   ls -lh "$DIST_DIR"/unbrowse-*
 else

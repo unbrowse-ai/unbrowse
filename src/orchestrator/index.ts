@@ -11,7 +11,8 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { decomposeGraphqlEndpoint, executeSkill, rankEndpoints } from "../execution/index.js";
+import { decomposeGraphqlEndpoint, executeSkill } from "../execution/index.js";
+import { rankEndpoints } from "../ranking/index.js";
 import {
   getSkillChunk,
   getEndpointDescriptionMetadata,
@@ -2380,14 +2381,40 @@ export async function resolveAndExecute(
     );
     const allNegative = epRanked.length > 0 && epRanked.every((r) => r.score < 0);
     if ((epRanked.length === 0 || allNegative) && hostMatches) {
+      // If the ranker emptied the corpus (epRanked === 0) we still want the
+      // agent to see what the published skill actually contains — otherwise
+      // they have NO evidence to judge whether handoff is correct. Source
+      // candidates from epRanked first; if empty, fall back to the skill's
+      // raw endpoints (no ranker scores).
+      const sourceCandidates = epRanked.length > 0
+        ? epRanked.map((r) => ({ ep: r.endpoint as Record<string, unknown>, score: r.score as number }))
+        : (endpointScopedSkill.endpoints || []).map((ep) => ({ ep: ep as unknown as Record<string, unknown>, score: NaN }));
+      const fallbackShortlist = sourceCandidates.slice(0, 5).map(({ ep, score }) => ({
+        endpoint_id: ep.endpoint_id,
+        method: ep.method,
+        url_template: ep.url_template,
+        description: ep.description ?? (ep as Record<string, unknown>).description_out,
+        score: Number.isFinite(score) ? score : null,
+        agent_warning: epRanked.length === 0
+          ? "ranker filtered ALL candidates — corpus is shown raw; agent must judge whether any satisfies intent"
+          : "ranker scored ≤0; agent must judge whether this satisfies the intent",
+      }));
       return {
         result: {
           status: "resolve_hard_handoff",
           message: `No cached API available for this intent on ${endpointScopedSkill.domain}.`
-            + ` Browser session required — drive interactively (snap/click/fill) or try a different task.`,
+            + ` For SSR-rendered pages (search results in HTML, e.g. Amazon, Bing),`
+            + ` try \`unbrowse fetch ${context?.url ?? endpointScopedSkill.domain}\` to get the page HTML and extract client-side.`
+            + ` Otherwise drive a browser session interactively (snap/click/fill).`,
           domain: endpointScopedSkill.domain,
-          suggested_next_action: "unbrowse snap --filter interactive",
+          // unbrowse fetch is the cheapest first-resort: many "no API exists"
+          // failures are SSR-page-as-data sites where the search results are
+          // already in the rendered HTML. The agent reads the markdown-
+          // converted page and extracts what it needs without needing capture
+          // to have published a synthetic page-artifact endpoint.
+          suggested_next_action: `unbrowse fetch ${context?.url ?? `https://${endpointScopedSkill.domain}`}`,
           commands: [
+            `unbrowse fetch ${context?.url ?? `https://${endpointScopedSkill.domain}`}`,
             "unbrowse snap --filter interactive",
             "unbrowse click <ref>",
             "unbrowse fill <ref> <value>",
@@ -2402,6 +2429,15 @@ export async function resolveAndExecute(
             endpoint_count: 0,
             cache_source: source,
           },
+          // Surface the ranker's top-N candidates (with their negative scores)
+          // in BOTH `available_endpoints` (for cmdExplain to read) and the
+          // dedicated diagnostic field. Agent in-thread judges whether the
+          // ranker's pessimism was right by reading the shortlist evidence.
+          available_endpoints: fallbackShortlist,
+          available_operations: fallbackShortlist,
+          shortlist_for_judgment: fallbackShortlist,
+          agent_facing_shortlist: fallbackShortlist,
+          judgment_question: `Ranker handed off all ${endpointScopedSkill.endpoints.length} endpoints as low-confidence for intent "${queryIntent}". Inspect shortlist — if any candidate's url_template/description suggests it MIGHT satisfy the intent despite the negative score, call execute against its endpoint_id and judge the response. Otherwise follow suggested_next_action.`,
         },
         trace: deferTrace,
         source: "deferral" as any,

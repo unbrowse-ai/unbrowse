@@ -224,6 +224,18 @@ def _classify(row):
         text_bytes = 0
     if bs_str and "vendor:captcha_vendor" in bs_str and text_bytes < 2000:
         return "BROWSER_BLOCK"
+    # Mode 1 soft-block: page rendered ~nothing AND sparse capture without
+    # an explicit vendor signal. Observed on g2.com (text=6), target (text=90),
+    # etsy (text=8) — all CF/JS-challenge interstitials that don't trip
+    # the vendor classifier but functionally blocked the agent. Treat as
+    # BROWSER_BLOCK so the bench doesn't blame the product for upstream blocks.
+    if (
+        text_bytes < 100
+        and bs_str
+        and "sparse_capture_mostly_noise" in bs_str
+        and not has_real_vendor
+    ):
+        return "BROWSER_BLOCK"
     diag = row.get("capture_diagnostic") or ""
     if diag in ("no_endpoints_extracted", "all_endpoints_filtered_by_noise_rules"):
         return "BROWSER_BLOCK"

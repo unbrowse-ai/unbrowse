@@ -77,7 +77,7 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
       // Flags that always consume the next arg as their value (even if it
       // starts with -- because nanoid IDs can begin with `-` / `--`).
       const valueExpectedFlags = new Set([
-        "skill", "endpoint", "intent", "url", "domain", "params", "path", "extract", "limit",
+        "skill", "skill-id", "endpoint", "endpoint-id", "intent", "task", "query", "url", "domain", "params", "path", "extract", "limit",
         "session", "ref", "text", "value", "form-selector", "submit-selector", "wait-for", "timeout-ms",
         "target-origin", "target-href", "bundle-url", "bundle-source", "post-eval", "fingerprint",
         "impersonate", "origin", "bundle", "eval",
@@ -196,12 +196,23 @@ async function ensureKuriReachable(kuriBase: string): Promise<void> {
   const { existsSync, openSync } = await import("node:fs");
   const { join, dirname } = await import("node:path");
   const { fileURLToPath } = await import("node:url");
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const kuriTarget = (() => {
+    if (process.platform === "darwin" && process.arch === "arm64") return "darwin-arm64";
+    if (process.platform === "darwin" && process.arch === "x64") return "darwin-x64";
+    if (process.platform === "linux" && process.arch === "arm64") return "linux-arm64";
+    if (process.platform === "linux" && process.arch === "x64") return "linux-x64";
+    if (process.platform === "win32" && process.arch === "x64") return "win-x64";
+    return null;
+  })();
+  const kuriBinName = process.platform === "win32" ? "kuri.exe" : "kuri";
 
   const candidates = [
     process.env.UNBROWSE_KURI_BIN,
+    process.env.KURI_BIN,
     join(process.cwd(), "submodules/kuri/zig-out/bin/kuri"),
-    join(dirname(fileURLToPath(import.meta.url)), "../packages/skill/vendor/kuri/darwin-arm64/kuri"),
-    join(dirname(fileURLToPath(import.meta.url)), "../packages/skill/vendor/kuri/linux-x64/kuri"),
+    kuriTarget ? join(moduleDir, "../vendor/kuri", kuriTarget, kuriBinName) : undefined,
+    kuriTarget ? join(moduleDir, "../packages/skill/vendor/kuri", kuriTarget, kuriBinName) : undefined,
     "/opt/homebrew/bin/kuri",
     "/usr/local/bin/kuri",
   ].filter((p): p is string => !!p && existsSync(p));
@@ -436,7 +447,7 @@ function telemetryDomainFromInput(domain?: string, url?: string): string | null 
 
 
 async function cmdExplain(flags: Record<string, string | boolean>): Promise<void> {
-  const intent = flags.intent as string | undefined;
+  const intent = (flags.intent ?? flags.task) as string | undefined;
   const url = flags.url as string | undefined;
   const top = parseInt((flags.top as string) ?? "5", 10) || 5;
   if (!intent || !url) {
@@ -448,6 +459,11 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
     params: { url },
     context: { url },
     projection: { raw: true },
+    // explain bypasses the probe-only short-circuit so the orchestrator
+    // returns its full deferral envelope (shortlist + suggested_next_action
+    // + commands). Without this, probe wins for any URL that returns 200
+    // and explain shows empty shortlist with status:"no_match".
+    force_capture: true,
   };
   let result: Record<string, unknown>;
   try {
@@ -467,15 +483,16 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
       rank: i,
       endpoint_id: ep.endpoint_id,
       method: ep.method,
-      url: ep.url,
+      url: ep.url ?? ep.url_template,
       score: ep.score,
-      description: ep.description,
+      description: ep.description ?? ep.description_out,
       input_params: ep.input_params,
       schema_summary: ep.schema_summary,
       example_fields: ep.example_fields,
       sample_values: ep.sample_values,
       needs_params: ep.needs_params,
       trigger_url: ep.trigger_url,
+      agent_warning: ep.agent_warning,  // surfaced when ranker scored ≤0
     })),
     agent_facing_shortlist: ao.slice(0, top).map((op, i) => ({
       rank: i,
@@ -484,17 +501,26 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
       url_template: op.url_template ?? op.url,
       description: op.description_out ?? op.description,
     })),
+    // Pass through orchestrator's deferral guidance (resolve_hard_handoff
+    // path includes suggested_next_action + commands like `unbrowse fetch
+    // <url>` for SSR-data sites). Without this, cmdExplain hides the
+    // orchestrator's escape-hatch from the agent.
+    status: r.status,
+    message: r.message,
+    suggested_next_action: r.suggested_next_action,
+    commands: r.commands,
     judgment_question:
-      `Given the intent ${JSON.stringify(intent)} on ${JSON.stringify(url)}, ` +
-      `which of the candidate endpoints in shortlist_for_judgment best satisfies the intent? ` +
-      `Reply with the endpoint_id of the best match and a one-line reason. ` +
-      `If none match, say defer_to_capture.`,
+      r.judgment_question
+      ?? (`Given the intent ${JSON.stringify(intent)} on ${JSON.stringify(url)}, ` +
+          `which of the candidate endpoints in shortlist_for_judgment best satisfies the intent? ` +
+          `Reply with the endpoint_id of the best match and a one-line reason. ` +
+          `If none match, say defer_to_capture.`),
   };
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");
 }
 
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
-  const intent = flags.intent as string;
+  const intent = (flags.intent ?? flags.task ?? flags.query) as string;
   if (!intent) die("--intent is required");
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
@@ -604,7 +630,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     const resultError = resolveResultError(result);
     if (resultError === "auth_required") {
       const loginUrl = resolveLoginUrl(result, url);
-      if (loginUrl) info(`Authentication required. Run: unbrowse login --url "${loginUrl}"`);
+      if (loginUrl) info(`Authentication required. Run: unbrowse auth-capture --url "${loginUrl}"`);
     }
 
     // When agent explicitly picked an endpoint but resolve deferred, execute it directly
@@ -625,6 +651,25 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       if (method !== "GET" && method !== "HEAD") return false;
       if (endpoint.needs_params && Object.keys(extraParams).length === 0) return false;
       return true;
+    }
+
+    // Synthetic page-artifact: capture pipeline emits these for doc_only
+    // sites (SSR / JSON-LD / Redux-rehydrated SPA where the page itself is
+    // the data surface). url_template === input page URL AND resource_kind
+    // is in synthetic set OR description matches the auto-generated form.
+    // Re-fetching via libcurl typically fails on CF/anti-bot — skip auto-
+    // execute and let the agent call execute explicitly.
+    function endpointIsSyntheticPageArtifact(endpoint: Record<string, unknown>): boolean {
+      if (!url) return false;
+      const tmpl = String(endpoint.url_template ?? endpoint.url ?? "").replace(/\/+$/, "");
+      const norm = url.replace(/\/+$/, "");
+      if (tmpl !== norm) return false;
+      const rk = String(endpoint.resource_kind ?? "").toLowerCase();
+      if (["message", "form", "resource", "page", "artifact"].includes(rk)) return true;
+      const desc = String(endpoint.description ?? endpoint.description_out ?? "").toLowerCase();
+      if (/captured (?:search )?(?:form|page) artifact/.test(desc)) return true;
+      if (/^searches .* with /.test(desc) || /^returns .* details with /.test(desc)) return true;
+      return false;
     }
 
     // Agent default: when resolve has a safe read endpoint, execute it and return
@@ -653,6 +698,17 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
             title: "Execute selected endpoint",
             command: `unbrowse execute --skill ${skillId} --endpoint ${bestEndpoint.endpoint_id}`,
             why: "Resolve found a candidate but did not auto-execute because the endpoint is not a safe ready GET.",
+          };
+        } else if (endpointIsSyntheticPageArtifact(bestEndpoint)) {
+          // Capture already fetched this URL via the browser; libcurl
+          // re-fetch typically fails on CF/anti-bot sites (ZlibError /
+          // HTTP 400 from HEAD probe). Surface the synthetic endpoint
+          // as available; the agent can call execute explicitly if it
+          // wants a replay attempt.
+          (result as Record<string, unknown>).next_action = {
+            title: "Synthetic page artifact",
+            command: `unbrowse execute --skill ${skillId} --endpoint ${bestEndpoint.endpoint_id}`,
+            why: "The captured endpoint is a synthetic page artifact; the SSR/JSON-LD payload was already extracted during capture. Re-fetching may be redundant.",
           };
         } else {
           info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
@@ -724,6 +780,398 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
         domain: telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined),
         url: typeof flags.url === "string" ? flags.url : null,
         failure_stage: "resolve",
+        failure_reason: message,
+      },
+    });
+    throw error;
+  }
+}
+
+async function cmdRun(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const url = (flags.url as string | undefined) ?? args[0];
+  const positionalTask = args.length > 1 ? args.slice(1).join(" ") : undefined;
+  const intent = ((flags.intent ?? flags.task ?? flags.query) as string | undefined) ?? positionalTask;
+  if (!url || !intent) die('usage: unbrowse run <url> "task"');
+
+  maybeShowContributionNotice();
+  const hostType = detectTelemetryHostType();
+  await ensureCliInstallTracked(hostType);
+  await recordFunnelTelemetryEvent("cli_invoked", {
+    source: "cli",
+    hostType,
+    properties: { command: "run" },
+  });
+  await recordFunnelTelemetryEvent("resolve_started", {
+    source: "cli",
+    hostType,
+    properties: {
+      command: "run",
+      intent,
+      domain: telemetryDomainFromInput(undefined, url),
+      url,
+      has_url: true,
+      auto_execute: true,
+    },
+  });
+
+  const cliKv = (flags as Record<string, unknown>)._params as Record<string, string> | undefined;
+  const extraParams = {
+    ...(flags.params ? JSON.parse(flags.params as string) : {}),
+    ...(cliKv && Object.keys(cliKv).length > 0 ? cliKv : {}),
+  };
+  const endpointFlag = flags["endpoint-id"] ?? flags.endpoint;
+  const explicitEndpointId = typeof endpointFlag === "string" ? endpointFlag : undefined;
+  const noExecute = flags["no-execute"] === true;
+  const runPlan: Array<Record<string, unknown>> = [];
+
+  function resolveBody(): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      intent,
+      params: { url, ...extraParams },
+      context: { url },
+      projection: { raw: true },
+    };
+    if (explicitEndpointId) {
+      body.params = { ...(body.params as Record<string, unknown>), endpoint_id: explicitEndpointId };
+    }
+    if (flags["dry-run"]) body.dry_run = true;
+    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
+    if (flags["skip-robots"]) body.skip_robots_check = true;
+    const budgetFlag = flags.budget;
+    if (typeof budgetFlag === "string") {
+      const parsed = parseInt(budgetFlag, 10);
+      if (Number.isFinite(parsed) && parsed > 0) body.budget_ms = parsed;
+    } else {
+      body.budget_ms = 8_000;
+    }
+    return body;
+  }
+
+  function execBody(endpointId: string): Record<string, unknown> {
+    return {
+      params: { endpoint_id: endpointId, url, ...extraParams },
+      intent,
+      projection: { raw: true },
+      ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
+      ...(flags["skip-robots"] ? { skip_robots_check: true } : {}),
+    };
+  }
+
+  function resolveSkillIdFrom(result: Record<string, unknown>): string | undefined {
+    return (result.skill as Record<string, unknown>)?.skill_id as string
+      ?? result.skill_id as string
+      ?? (result.result as Record<string, unknown> | undefined)?.skill_id as string;
+  }
+
+  function resolveAvailableEndpointsFrom(result: Record<string, unknown>): Array<Record<string, unknown>> | undefined {
+    return (Array.isArray(result.available_endpoints)
+      ? result.available_endpoints
+      : Array.isArray((result.result as Record<string, unknown> | undefined)?.available_endpoints)
+        ? (result.result as Record<string, unknown>).available_endpoints
+        : undefined) as Array<Record<string, unknown>> | undefined;
+  }
+
+  function endpointIsSafeToAutoExecute(endpoint: Record<string, unknown>): boolean {
+    const method = String(endpoint.method ?? "GET").toUpperCase();
+    if (method !== "GET" && method !== "HEAD") return false;
+    if (endpoint.needs_params && Object.keys(extraParams).length === 0) return false;
+    return true;
+  }
+
+  // Synthetic page-artifact endpoint: capture pipeline emits these for
+  // doc_only sites where the input URL itself is the data surface (SSR /
+  // JSON-LD / Redux-rehydrated SPA). Re-fetching url_template via libcurl
+  // typically fails on CF/anti-bot sites (the agent already saw the page
+  // during capture). Detect these and SKIP auto-execute — the agent can
+  // call execute explicitly if it wants the artifact replayed.
+  // url_template === pageUrl AND (resource_kind in synthetic set OR
+  // description matches the auto-generated "Captured X artifact for Y" form).
+  function endpointIsSyntheticPageArtifact(
+    endpoint: Record<string, unknown>,
+    pageUrl: string,
+  ): boolean {
+    const tmpl = String(endpoint.url_template ?? endpoint.url ?? "").replace(/\/+$/, "");
+    const norm = pageUrl.replace(/\/+$/, "");
+    if (tmpl !== norm) return false;
+    const rk = String(endpoint.resource_kind ?? "").toLowerCase();
+    if (["message", "form", "resource", "page", "artifact"].includes(rk)) return true;
+    const desc = String(endpoint.description ?? endpoint.description_out ?? "").toLowerCase();
+    if (/captured (?:search )?(?:form|page) artifact/.test(desc)) return true;
+    if (/^searches .* with /.test(desc) || /^returns .* details with /.test(desc)) return true;
+    return false;
+  }
+
+  async function resolveStep(label: string): Promise<Record<string, unknown>> {
+    runPlan.push({ step: "resolve", mode: "direct_or_cached", status: "started", label });
+    const body = resolveBody();
+    const cliTimeoutMs = (typeof body.budget_ms === "number" ? body.budget_ms : 8_000) + 30_000;
+    let result = await withPendingNotice(
+      api("POST", "/v1/intent/resolve", body, { timeoutMs: cliTimeoutMs }) as Promise<Record<string, unknown>>,
+      "Still working. Searching cached routes...",
+    );
+    runPlan[runPlan.length - 1] = {
+      ...runPlan[runPlan.length - 1],
+      status: isResolveSuccessResult(result) ? "hit" : "miss",
+      error: resolveResultError(result) ?? null,
+      source: typeof result.source === "string" ? result.source : null,
+    };
+
+    const endpoints = resolveAvailableEndpointsFrom(result);
+    const skillId = resolveSkillIdFrom(result);
+    const endpointToExecute = explicitEndpointId ?? endpoints?.[0]?.endpoint_id;
+    if (!noExecute && skillId && typeof endpointToExecute === "string") {
+      const bestEndpoint = endpoints?.find((endpoint) => endpoint.endpoint_id === endpointToExecute) ?? endpoints?.[0];
+      if (
+        bestEndpoint?.requires_third_party_terms_confirmation === true &&
+        !flags["confirm-third-party-terms"]
+      ) {
+        runPlan.push({
+          step: "execute",
+          mode: "direct_api",
+          status: "skipped",
+          reason: "requires_third_party_terms_confirmation",
+          endpoint_id: endpointToExecute,
+        });
+        result.next_action = {
+          title: "Confirm third-party terms",
+          command: `unbrowse run "${url}" "${intent}" --confirm-third-party-terms`,
+          why: "The best endpoint requires explicit confirmation before execution.",
+        };
+      } else if (
+        !explicitEndpointId
+        && bestEndpoint
+        && endpointIsSyntheticPageArtifact(bestEndpoint, url)
+      ) {
+        // Don't re-fetch the page during auto-execute. The capture already
+        // ran the browser against this URL; replay via libcurl frequently
+        // fails on CF/anti-bot sites (ZlibError, HTTP 400 from HEAD probe).
+        // Surface as available so the agent can call execute explicitly
+        // if it wants the artifact replayed.
+        runPlan.push({
+          step: "execute",
+          mode: "direct_api",
+          status: "skipped",
+          reason: "synthetic_page_artifact",
+          endpoint_id: endpointToExecute,
+        });
+        result.next_action = {
+          title: "Synthetic page artifact",
+          command: `unbrowse execute --skill ${skillId} --endpoint ${endpointToExecute}`,
+          why: "The captured endpoint is a synthetic page artifact; the SSR/JSON-LD payload was already extracted during capture. Re-fetching is optional.",
+        };
+      } else if (explicitEndpointId || !bestEndpoint || endpointIsSafeToAutoExecute(bestEndpoint)) {
+        runPlan.push({ step: "execute", mode: "direct_api", status: "started", endpoint_id: endpointToExecute });
+        const resolvedSource = typeof result.source === "string" ? result.source : undefined;
+        result = await withPendingNotice(
+          api("POST", `/v1/skills/${skillId}/execute`, execBody(endpointToExecute)) as Promise<Record<string, unknown>>,
+          "Executing best endpoint...",
+        );
+        if (resolvedSource && typeof result.source !== "string") result.source = resolvedSource;
+        runPlan[runPlan.length - 1] = {
+          ...runPlan[runPlan.length - 1],
+          status: isResolveSuccessResult(result) ? "complete" : "error",
+          error: resolveResultError(result) ?? null,
+        };
+      } else {
+        runPlan.push({
+          step: "execute",
+          mode: "direct_api",
+          status: "skipped",
+          reason: "endpoint_not_safe_or_missing_params",
+          endpoint_id: endpointToExecute,
+        });
+        result.next_action = {
+          title: "Execute selected endpoint",
+          command: `unbrowse execute --skill ${skillId} --endpoint ${endpointToExecute}`,
+          why: "Run found a candidate but did not auto-execute because it is not a safe ready GET.",
+        };
+      }
+    }
+    return result;
+  }
+
+  function decorate(result: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...result,
+      ...slimTrace(result),
+      run_plan: runPlan,
+    };
+  }
+
+  function endpointsDiscovered(result: Record<string, unknown>): number {
+    if (typeof result.endpoints_discovered === "number") return result.endpoints_discovered;
+    if (Array.isArray(result.endpoints)) return result.endpoints.length;
+    if (Array.isArray(result.available_endpoints)) return result.available_endpoints.length;
+    return 0;
+  }
+
+  // SSR markers — fields that prove a doc_only capture's HTML embeds
+  // structured data (page renders client-side without XHR). When these
+  // are present, the synthetic page-artifact is a real surface — let
+  // resolve see it instead of treating capture as "thin".
+  const SSR_MARKERS = new Set([
+    "@context", "@type", "potentialAction", "mainEntity", "@graph",
+    "__NEXT_DATA__", "pageProps",
+    "__NUXT__", "__INITIAL_STATE__", "__PRELOADED_STATE__",
+    "initialReduxState", "initialState",
+  ]);
+
+  function captureHasSsrData(result: Record<string, unknown>): boolean {
+    const note = (result.note_evidence as Record<string, unknown> | undefined) ?? {};
+    const fields = note.sample_field_names;
+    if (!Array.isArray(fields)) return false;
+    return fields.some((f) => {
+      if (typeof f !== "string") return false;
+      if (SSR_MARKERS.has(f)) return true;
+      // Generic JSON-LD: any field name ending in JsonLD / JsonLd / jsonld
+      return /[Jj]son[-_]?[Ll][Dd]$/.test(f);
+    });
+  }
+
+  function captureLooksThin(result: Record<string, unknown>): boolean {
+    if (result.auth_recommended === true) return true;
+    if (endpointsDiscovered(result) === 0) return true;
+    if (result.capture_pattern === "doc_only") {
+      // doc_only with embedded SSR / JSON-LD data is NOT thin — the
+      // synthetic page-artifact endpoint is a real PASS_DOM_FALLBACK_ONLY
+      // surface. Let resolve.after_index pick it up.
+      return !captureHasSsrData(result);
+    }
+    return false;
+  }
+
+  function shouldIndexFallback(result: Record<string, unknown>): boolean {
+    const error = resolveResultError(result);
+    const status = (result.result as Record<string, unknown> | undefined)?.status as string | undefined
+      ?? result.status as string | undefined;
+    if (error === "auth_required" || status === "auth_required") return false;
+    if (error) return ["no_match", "no_cached_match", "not_found"].includes(error);
+    if (status) return ["no_match", "no_cached_match", "not_found"].includes(status);
+    return !isResolveSuccessResult(result);
+  }
+
+  try {
+    let result = await resolveStep("initial");
+    const firstError = resolveResultError(result);
+    if (firstError === "auth_required") {
+      const loginUrl = resolveLoginUrl(result, url);
+      output(decorate({
+        ...result,
+        next_action: {
+          title: "Authenticate site",
+          command: `unbrowse auth "${loginUrl}"`,
+          why: "The site needs an interactive login before Unbrowse can call or index private routes.",
+        },
+      }), !!flags.pretty);
+      return;
+    }
+    if (isResolveSuccessResult(result)) {
+      output(decorate(result), !!flags.pretty);
+      return;
+    }
+    if (!shouldIndexFallback(result)) {
+      output(decorate(result), !!flags.pretty);
+      return;
+    }
+
+    if (flags["no-index"]) {
+      output(decorate({
+        ...result,
+        next_action: {
+          title: "Index this page",
+          command: `unbrowse run "${url}" "${intent}"`,
+          why: "--no-index stopped the automatic capture/index fallback.",
+        },
+      }), !!flags.pretty);
+      return;
+    }
+
+    runPlan.push({ step: "index", mode: "capture", status: "started" });
+    const capture = await withPendingNotice(
+      api("POST", "/v1/capture", { url, intent }) as Promise<Record<string, unknown>>,
+      "No trusted route yet. Capturing and indexing the page...",
+    );
+    runPlan[runPlan.length - 1] = {
+      ...runPlan[runPlan.length - 1],
+      status: capture.error ? "error" : "complete",
+      endpoints_discovered: endpointsDiscovered(capture),
+      auth_recommended: capture.auth_recommended === true,
+      capture_pattern: capture.capture_pattern ?? null,
+    };
+
+    if (!captureLooksThin(capture)) {
+      result = await resolveStep("after_index");
+      if (isResolveSuccessResult(result)) {
+        output(decorate(result), !!flags.pretty);
+        return;
+      }
+      if (resolveResultError(result) === "auth_required") {
+        const loginUrl = resolveLoginUrl(result, url);
+        output(decorate({
+          ...result,
+          next_action: {
+            title: "Authenticate site",
+            command: `unbrowse auth "${loginUrl}"`,
+            why: "The newly indexed route needs a site session before execution.",
+          },
+        }), !!flags.pretty);
+        return;
+      }
+      if (!shouldIndexFallback(result)) {
+        output(decorate(result), !!flags.pretty);
+        return;
+      }
+    }
+
+    if (flags["no-browse"]) {
+      output(decorate({
+        status: "needs_browser",
+        capture,
+        resolve_result: result,
+        next_action: {
+          title: "Browse interactively",
+          command: `unbrowse go "${url}"`,
+          why: "--no-browse stopped the automatic live-browser fallback.",
+        },
+      }), !!flags.pretty);
+      return;
+    }
+
+    runPlan.push({ step: "browse", mode: "kuri_session", status: "started" });
+    const browse = await withPendingNotice(
+      api("POST", "/v1/browse/go", { url }) as Promise<Record<string, unknown>>,
+      "Opening a browser session because direct/indexed routes were not enough...",
+    );
+    runPlan[runPlan.length - 1] = {
+      ...runPlan[runPlan.length - 1],
+      status: browse.error ? "error" : "opened",
+      session_id: browse.session_id ?? null,
+      auth_required: browse.auth_required === true,
+    };
+    output(decorate({
+      status: "browse_required",
+      capture,
+      resolve_result: result,
+      browse,
+      next_action: {
+        title: "Continue in browser",
+        command: browse.session_id
+          ? `unbrowse snap --session ${browse.session_id} --filter interactive`
+          : "unbrowse snap --filter interactive",
+        why: "The task needs page interaction before Unbrowse can finish or learn the reusable route.",
+      },
+    }), !!flags.pretty);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordFunnelTelemetryEvent("resolve_failed", {
+      source: "cli",
+      hostType,
+      properties: {
+        command: "run",
+        intent,
+        domain: telemetryDomainFromInput(undefined, url),
+        url,
+        failure_stage: "run",
         failure_reason: message,
       },
     });
@@ -819,8 +1267,9 @@ function schemaOf(value: unknown, depth = 4): unknown {
 }
 
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
-  const skillId = flags.skill as string;
+  const skillId = (flags.skill ?? flags["skill-id"]) as string;
   if (!skillId) die("--skill is required");
+  const endpointId = (flags.endpoint ?? flags["endpoint-id"]) as string | undefined;
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
   await ensureCliInstallTracked(hostType);
@@ -834,11 +1283,11 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     hostType,
     properties: {
       command: "execute",
-      intent: typeof flags.intent === "string" ? flags.intent : null,
+      intent: typeof (flags.intent ?? flags.task) === "string" ? flags.intent ?? flags.task : null,
       domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
       url: typeof flags.url === "string" ? flags.url : null,
       skill_id: skillId,
-      endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
+      endpoint_id: endpointId ?? null,
     },
   });
 
@@ -849,8 +1298,8 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
 
   try {
     const body: Record<string, unknown> = { params: {} };
-    if (flags.endpoint) {
-      (body.params as Record<string, unknown>).endpoint_id = flags.endpoint;
+    if (endpointId) {
+      (body.params as Record<string, unknown>).endpoint_id = endpointId;
     }
     if (flags.params) {
       body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
@@ -864,7 +1313,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       body.context_url = flags.url;
       (body.params as Record<string, unknown>).url = flags.url;
     }
-    if (flags.intent) body.intent = flags.intent;
+    if (flags.intent ?? flags.task) body.intent = flags.intent ?? flags.task;
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
@@ -882,11 +1331,11 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
         hostType,
         properties: {
           command: "execute",
-          intent: typeof flags.intent === "string" ? flags.intent : null,
+          intent: typeof (flags.intent ?? flags.task) === "string" ? flags.intent ?? flags.task : null,
           domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
           url: typeof flags.url === "string" ? flags.url : null,
           skill_id: skillId,
-          endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
+          endpoint_id: endpointId ?? null,
         },
       });
     }
@@ -897,7 +1346,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     {
       const entry = impactFromResult("execute", result, {
         skill_id: skillId,
-        endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : undefined,
+        endpoint_id: endpointId,
       });
       if (entry) appendImpact(entry);
     }
@@ -908,6 +1357,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     const limitFlag = flags.limit ? Number(flags.limit) : undefined;
     const schemaFlag = !!flags.schema;
     const rawFlag = !!flags.raw;
+    const summarizeFlag = !!flags.summarize;
     const resultError = resolveResultError(result);
     // --schema: show response structure without data
     if (schemaFlag && !rawFlag) {
@@ -953,15 +1403,16 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       return;
     }
 
-    // Auto-wrap VERY-large responses with extraction_hints when no flags given.
-    // Per CLAUDE.md Agent UX North Star "Works for what was asked: --raw is
-    // the default truth" — agents calling execute with no flags expect data,
-    // not a schema preview. The previous 2KB threshold was too aggressive: a
-    // 30-row JSON list (~5KB) would fire extraction_hints, forcing the agent
-    // to retry with --raw or --extract. Bumped to 64KB so only genuinely huge
-    // responses (full HTML pages, mega-arrays) trigger the hint path.
+    // Default returns the full body. Pass --summarize to fold large responses
+    // into an extraction_hints envelope (schema_tree + size). Per CLAUDE.md
+    // Agent UX North Star "Works for what was asked: --raw is the default
+    // truth" — agents calling execute expect data, not a schema preview.
+    // Walmart's 930KB search result was hidden by the prior auto-truncation
+    // even though `success:true` and the body was on the wire; opt-in via
+    // --summarize keeps the convenience for interactive use without burying
+    // automated callers.
     const AUTOEXTRACT_HINT_THRESHOLD = 65_536;
-    if (!rawFlag && !pathFlag && !extractFlag && !schemaFlag) {
+    if (summarizeFlag && !pathFlag && !extractFlag && !schemaFlag) {
       const raw = JSON.stringify(result.result);
       if (raw && raw.length > AUTOEXTRACT_HINT_THRESHOLD) {
         const schema = schemaOf(result.result);
@@ -987,7 +1438,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       hostType,
       properties: {
         command: "execute",
-        intent: typeof flags.intent === "string" ? flags.intent : null,
+        intent: typeof (flags.intent ?? flags.task) === "string" ? flags.intent ?? flags.task : null,
         domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
         url: typeof flags.url === "string" ? flags.url : null,
         skill_id: skillId,
@@ -1156,10 +1607,11 @@ async function cmdConfig(args: string[], flags: Record<string, string | boolean>
   die("usage: unbrowse config get telemetry | unbrowse config set telemetry false");
 }
 
-async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
-  const url = flags.url as string;
-  if (!url) die("--url is required");
-  output(await api("POST", "/v1/auth/login", { url }), !!flags.pretty);
+async function cmdLogin(flags: Record<string, string | boolean>, args: string[] = []): Promise<void> {
+  const url = (flags.url as string | undefined) ?? args[0];
+  if (!url) die("usage: unbrowse auth <url>");
+  info("[unbrowse] Opening a visible browser for site login. Complete sign-in in the Chrome window; cookies will be saved for future runs.");
+  output(await api("POST", "/v1/auth/login", { url, interactive_only: true }), !!flags.pretty);
 }
 
 async function cmdSkills(flags: Record<string, string | boolean>): Promise<void> {
@@ -1894,13 +2346,14 @@ export const CLI_REFERENCE = {
 
     // ── The two primary call paths for an agent ───────────────────────────
     { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser." },
-    { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Resolve an intent against the marketplace + local cache. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only. Pair with `unbrowse execute` when you want explicit endpoint pick." },
+    { name: "run", usage: '<url> "task"', desc: "One-shot agent path. Chooses direct cached/API replay first, captures+indexes on miss, retries, then opens browser only when interaction is needed. Accepts positional task text or --intent/--task/--query." },
+    { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Advanced: resolve an intent against marketplace + local cache only. --task and --query are accepted aliases for --intent. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only." },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}']", desc: "Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object." },
     { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Print top-N candidate endpoints + evidence so an LLM (or you) can pick. No heuristic verdict — just primitives + evidence." },
 
     // ── Capture (live-browser indexing) ───────────────────────────────────
-    { name: "capture", usage: "--url <url> --intent <intent> [--retries N]  |  --corpus <file> --out <file> [--retries N]", desc: "Live-browser HAR capture; discovers + indexes API endpoints. --retries keeps the best result across N attempts. --corpus runs over a JSON file of cases. Marketplace publish gated by `unbrowse mode`." },
-    { name: "auth-capture", usage: '--url "..."', desc: "Open a Kuri tab so you can sign in to a site; cookies persist for future fetch/resolve. (Old name: `login`.)" },
+    { name: "capture", usage: "--url <url> --intent <intent> [--retries N]  |  --corpus <file> --out <file> [--retries N]", desc: "Advanced: live-browser HAR capture; discovers + indexes API endpoints. `run` calls this automatically on misses. Marketplace publish gated by `unbrowse mode`." },
+    { name: "auth", usage: '<url>', desc: "Open a visible browser so you can sign in to a site; cookies persist for future run/fetch/resolve. (Old names: `auth-capture`, `login`.)" },
     { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Per-domain LLM-prose notes consumed by augment on next capture. Populate after reading capture's note_evidence." },
 
     // ── Skill management ──────────────────────────────────────────────────
@@ -1951,7 +2404,8 @@ export const CLI_REFERENCE = {
     { from: "corpus-test", to: "capture --url X --retries N" },
     { from: "corpus-run", to: "capture --corpus FILE --out FILE" },
     { from: "register", to: "account --register" },
-    { from: "login", to: "auth-capture" },
+    { from: "auth-capture", to: "auth" },
+    { from: "login", to: "auth" },
   ],
 
   globalFlags: [
@@ -3318,8 +3772,8 @@ async function main(): Promise<void> {
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
-    "health", "mcp", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "config", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
+    "health", "mcp", "setup", "resolve", "run", "execute", "exec",
+    "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "config", "auth", "auth-capture", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "inspect", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
@@ -3352,6 +3806,7 @@ async function main(): Promise<void> {
     case "mcp": return cmdMcp(flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
+    case "run": return cmdRun(args, flags);
     case "explain": return cmdExplain(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
@@ -3428,11 +3883,13 @@ async function main(): Promise<void> {
     // auth-capture — open a Kuri tab so the user can sign in to a site;
     // cookies are persisted automatically and used by future fetch/resolve.
     // Old name `login` was misleading (sounded like Unbrowse account login).
+    case "auth":
+      return cmdLogin(flags, args);
     case "auth-capture":
-      return cmdLogin(flags);
+      return cmdLogin(flags, args);
     case "login":
-      info("[deprecated] `login` is now `auth-capture` (the old name suggested Unbrowse account login, but it captures site auth)");
-      return cmdLogin(flags);
+      info("[deprecated] `login` is now `auth` (the old name suggested Unbrowse account login, but it captures site auth)");
+      return cmdLogin(flags, args);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }

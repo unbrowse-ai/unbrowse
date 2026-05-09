@@ -51,9 +51,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - name: Install GitHub CLI
         run: |
           if command -v gh >/dev/null 2>&1; then
@@ -95,11 +100,23 @@ jobs:
       - name: Create or update GitHub release assets
         run: |
           TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
           TARGET_REPO="${UNBROWSE_RELEASE_REPO}"
+          # Upload only the version-scoped tarballs that install.mjs / verify-release-assets.mjs
+          # actually consume (4 platforms × ~25MB) plus the signed manifest. Skips raw 69MB binaries
+          # and stale tarballs from prior builds. ~4.7x smaller upload than the prior unbrowse-* glob.
+          ASSETS=(
+            "dist/unbrowse-v${VERSION}-darwin-arm64.tar.gz"
+            "dist/unbrowse-v${VERSION}-darwin-x64.tar.gz"
+            "dist/unbrowse-v${VERSION}-linux-arm64.tar.gz"
+            "dist/unbrowse-v${VERSION}-linux-x64.tar.gz"
+            "dist/release-manifest.json"
+            "dist/release-manifest.sig"
+          )
           if gh release view "$TAG" --repo "$TARGET_REPO" >/dev/null 2>&1; then
-            gh release upload "$TAG" --repo "$TARGET_REPO" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber
+            gh release upload "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --clobber
           else
-            gh release create "$TAG" --repo "$TARGET_REPO" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --title "$TAG" --notes "Release ${TAG}"
+            gh release create "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --title "$TAG" --notes "Release ${TAG}"
           fi
 
   verify-release-assets:
@@ -143,9 +160,14 @@ jobs:
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
       - run: bun run check:skill-docs
       - name: Download darwin-arm64 kuri artifact
@@ -157,6 +179,18 @@ jobs:
         run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri
       - name: Build Kuri vendor binaries (uses pre-staged artifacts where present)
         run: node packages/skill/scripts/build-kuri-binaries.mjs
+      - name: Sync manifest sha256 to actual artifact (zig builds are non-deterministic)
+        run: |
+          HASH=$(sha256sum packages/skill/vendor/kuri/darwin-arm64/kuri | awk '{print $1}')
+          echo "[manifest-sync] darwin-arm64 binary hash: $HASH"
+          node -e "
+            const fs = require('fs');
+            const p = 'packages/skill/vendor/kuri/manifest.json';
+            const m = JSON.parse(fs.readFileSync(p));
+            m.binaries['darwin-arm64'].sha256 = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');
+            console.log('[manifest-sync] manifest updated');
+          " "$HASH"
       - run: bun run check:kuri-vendor
         name: Check baked Kuri vendor state
       - name: Leak guard — block sensitive ops names from public artifacts
@@ -277,9 +311,14 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
         working-directory: .
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
       - run: bun run deploy:ci
         env:
@@ -297,9 +336,14 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
         working-directory: .
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
       - run: bun run deploy:ci
         env:
@@ -313,9 +357,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
 
       - name: Resolve skill repo token
