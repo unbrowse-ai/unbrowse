@@ -19,7 +19,8 @@ import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION
 import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
 import { getContributionConfig } from "../config/contribution.js";
 import { getSkill } from "../marketplace/index.js";
-import { executeSkill, rankEndpoints } from "../execution/index.js";
+import { executeSkill } from "../execution/index.js";
+import { rankEndpoints } from "../ranking/index.js";
 import {
   extractBrowserAuth,
   importBrowserCookiesIntoTab,
@@ -1652,6 +1653,7 @@ export async function registerRoutes(app: FastifyInstance) {
       chromium_cookie_db_path,
       safe_storage_service,
       browser_name,
+      interactive_only,
     } = req.body as {
       url: string;
       browser?: "auto" | "firefox" | "chrome" | "chromium";
@@ -1662,6 +1664,7 @@ export async function registerRoutes(app: FastifyInstance) {
       chromium_cookie_db_path?: string;
       safe_storage_service?: string;
       browser_name?: string;
+      interactive_only?: boolean;
     };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
@@ -1676,6 +1679,7 @@ export async function registerRoutes(app: FastifyInstance) {
           safeStorageService: safe_storage_service,
           browserName: browser_name,
         },
+        interactiveOnly: interactive_only === true,
       });
       return reply.send(result);
     } catch (err) {

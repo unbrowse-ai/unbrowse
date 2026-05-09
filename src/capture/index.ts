@@ -140,9 +140,16 @@ export async function enableNetworkHeaderCapture(tabId: string): Promise<void> {
 export function getCapturedNetworkHeaders(tabId: string): Map<string, Record<string, string>> {
   return cdpCapturedHeaders.get(tabId) ?? new Map();
 }
-// Hard timeout per capture: 90s prevents stuck tabs from holding slots forever
+// Hard timeout per capture: 90s prevents stuck tabs from holding slots forever.
 const CAPTURE_TIMEOUT_MS = 90_000;
 const CAPTURE_NAV_TIMEOUT_MS = 20_000;
+// No-progress soft-deadline: if the page has fired ZERO network requests after
+// this many ms, the SPA has hung (bestbuy + Akamai pattern observed
+// 2026-05-09). Bail out early with an empty CaptureResult so
+// executeBrowserCapture L1303 SSR fast-path runs with budget remaining
+// before the bench wrapper's outer shell SIGTERM (≥60s) fires. Plan-v12
+// Phase B.
+const CAPTURE_NO_PROGRESS_MS = 30_000;
 
 /**
  * Races `fn()` against an AbortSignal so that each CDP phase exits immediately
@@ -543,8 +550,9 @@ export const INTERCEPTOR_SCRIPT = `(function() {
     return origFetch.apply(this, args).then(function(response) {
       if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return response;
       var ct = response.headers.get('content-type') || '';
+      var isProto = ct.indexOf('protobuf') !== -1 || ct.indexOf('x-protobuf') !== -1;
       var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
-      var isData = ct.indexOf('json') !== -1 || ct.indexOf('application/x-protobuf') !== -1 ||
+      var isData = ct.indexOf('json') !== -1 || isProto ||
                    ct.indexOf('text/plain') !== -1 ||
                    url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1 ||
                    url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1 ||
@@ -552,9 +560,18 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       if (!isJs && !isData) return response;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return response;
       var clone = response.clone();
+      var bodyPromise = isProto
+        ? clone.arrayBuffer().then(function(buf) {
+            var bytes = new Uint8Array(buf), s = '', chunk = 0x8000;
+            for (var i = 0; i < bytes.length; i += chunk) {
+              s += String.fromCharCode.apply(null, Array.prototype.slice.call(bytes, i, i + chunk));
+            }
+            return 'base64:' + btoa(s);
+          })
+        : clone.text();
       // Resolve request body (from Request object clone) and response body in parallel
       Promise.all([
-        clone.text(),
+        bodyPromise,
         reqBodyPromise ? reqBodyPromise : Promise.resolve(reqBody)
       ]).then(function(results) {
         var body = results[0];
@@ -605,8 +622,9 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return;
       var ct = xhr.getResponseHeader('content-type') || '';
       var url = xhr.__unbrowse_url || '';
+      var isProto = ct.indexOf('protobuf') !== -1 || ct.indexOf('x-protobuf') !== -1;
       var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
-      var isData = ct.indexOf('json') !== -1 || ct.indexOf('application/x-protobuf') !== -1 ||
+      var isData = ct.indexOf('json') !== -1 || isProto ||
                    ct.indexOf('text/plain') !== -1 ||
                    url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1 ||
                    url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1 ||
@@ -614,6 +632,9 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       if (!isJs && !isData) return;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return;
       var rawRespBody = xhr.responseText || '';
+      if (isProto && rawRespBody) {
+        try { rawRespBody = 'base64:' + btoa(rawRespBody); } catch(e) {}
+      }
       var limit = isJs ? MAX_JS_BODY : MAX_BODY;
       // For JS bundles, drop the entry entirely if response is too large (not useful)
       if (isJs && rawRespBody.length > limit) return;
@@ -669,9 +690,9 @@ export async function injectInterceptor(tabId: string): Promise<void> {
   // Split into setup (globals + fetch) and XHR parts
   const SETUP = `(function(){if(window.__unbrowse_interceptor_installed)return;window.__unbrowse_interceptor_installed=true;window.__unbrowse_intercepted=[];window.__UB_MAX=2*1024*1024;window.__UB_MAX_JS=2*1024*1024;window.__UB_MAX_N=500;})()`;
 
-  const FETCH_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oF=window.fetch;window.fetch=function(){var a=arguments,isR=a[0]&&typeof a[0]==='object'&&typeof a[0].url==='string',u=typeof a[0]==='string'?a[0]:(isR?a[0].url:''),o=a[1]||{},m=(o.method||(isR?a[0].method:null)||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,M):void 0,rbP=null;if(!rb&&isR&&m!=='GET'&&m!=='HEAD'){try{var rc=a[0].clone();rbP=rc.text().then(function(t){return t?t.substring(0,M):void 0}).catch(function(){return void 0})}catch(e){}}var rh={};if(isR&&a[0].headers&&typeof a[0].headers.forEach==='function')a[0].headers.forEach(function(v,k){rh[k]=v});if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k]})}return oF.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=MN)return r;var ct=r.headers.get('content-type')||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return r;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return r;var c=r.clone();Promise.all([c.text(),rbP?rbP:Promise.resolve(rb)]).then(function(res){var b=res[0],rrb=res[1];var lim=isJ?MJ:M;if(isJ&&b.length>lim)return;var rb2=b.length>lim?'':b;var rr={};r.headers.forEach(function(v,k){rr[k]=v});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rrb,response_status:r.status,response_headers:rr,response_body:rb2,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})}).catch(function(){});return r}).catch(function(e){throw e})}})()`;
+  const FETCH_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;function B(buf){var bytes=new Uint8Array(buf),s='',ch=32768;for(var i=0;i<bytes.length;i+=ch)s+=String.fromCharCode.apply(null,Array.prototype.slice.call(bytes,i,i+ch));return'base64:'+btoa(s)}var oF=window.fetch;window.fetch=function(){var a=arguments,isR=a[0]&&typeof a[0]==='object'&&typeof a[0].url==='string',u=typeof a[0]==='string'?a[0]:(isR?a[0].url:''),o=a[1]||{},m=(o.method||(isR?a[0].method:null)||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,M):void 0,rbP=null;if(!rb&&isR&&m!=='GET'&&m!=='HEAD'){try{var rc=a[0].clone();rbP=rc.text().then(function(t){return t?t.substring(0,M):void 0}).catch(function(){return void 0})}catch(e){}}var rh={};if(isR&&a[0].headers&&typeof a[0].headers.forEach==='function')a[0].headers.forEach(function(v,k){rh[k]=v});if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k]})}return oF.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=MN)return r;var ct=r.headers.get('content-type')||'',isP=ct.indexOf('protobuf')!==-1||ct.indexOf('x-protobuf')!==-1;var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||isP||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return r;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return r;var c=r.clone(),bp=isP?c.arrayBuffer().then(B):c.text();Promise.all([bp,rbP?rbP:Promise.resolve(rb)]).then(function(res){var b=res[0],rrb=res[1];var lim=isJ?MJ:M;if(isJ&&b.length>lim)return;var rb2=b.length>lim?'':b;var rr={};r.headers.forEach(function(v,k){rr[k]=v});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rrb,response_status:r.status,response_headers:rr,response_body:rb2,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})}).catch(function(){});return r}).catch(function(e){throw e})}})()`;
 
-  const XHR_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oO=XMLHttpRequest.prototype.open,oS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__ub_m=m;this.__ub_u=u;this.__ub_h={};var oSH=this.setRequestHeader.bind(this);this.setRequestHeader=function(k,v){this.__ub_h[k]=v;oSH(k,v)}.bind(this);return oO.apply(this,arguments)};XMLHttpRequest.prototype.send=function(b){var x=this;x.addEventListener('load',function(){if(window.__unbrowse_intercepted.length>=MN)return;var ct=x.getResponseHeader('content-type')||'',u=x.__ub_u||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return;var rb=x.responseText||'';var lim=isJ?MJ:M;if(isJ&&rb.length>lim)return;var rb2=rb.length>lim?'':rb;window.__unbrowse_intercepted.push({url:u,method:(x.__ub_m||'GET').toUpperCase(),request_headers:x.__ub_h||{},request_body:b?String(b).substring(0,M):void 0,response_status:x.status,response_headers:{},response_body:rb2,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})});return oS.apply(this,arguments)}})()`;
+  const XHR_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oO=XMLHttpRequest.prototype.open,oS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__ub_m=m;this.__ub_u=u;this.__ub_h={};var oSH=this.setRequestHeader.bind(this);this.setRequestHeader=function(k,v){this.__ub_h[k]=v;oSH(k,v)}.bind(this);return oO.apply(this,arguments)};XMLHttpRequest.prototype.send=function(b){var x=this;x.addEventListener('load',function(){if(window.__unbrowse_intercepted.length>=MN)return;var ct=x.getResponseHeader('content-type')||'',u=x.__ub_u||'',isP=ct.indexOf('protobuf')!==-1||ct.indexOf('x-protobuf')!==-1;var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||isP||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return;var rb=x.responseText||'';if(isP&&rb){try{rb='base64:'+btoa(rb)}catch(e){}}var lim=isJ?MJ:M;if(isJ&&rb.length>lim)return;var rb2=rb.length>lim?'':rb;window.__unbrowse_intercepted.push({url:u,method:(x.__ub_m||'GET').toUpperCase(),request_headers:x.__ub_h||{},request_body:b?String(b).substring(0,M):void 0,response_status:x.status,response_headers:{},response_body:rb2,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})});return oS.apply(this,arguments)}})()`;
 
   // Inject in 3 small chunks
   for (const chunk of [SETUP, FETCH_PATCH, XHR_PATCH]) {
@@ -1311,6 +1332,12 @@ export async function captureSession(
 
   const domain = new URL(url).hostname;
   let captureTimedOut = false;
+  // No-progress soft-deadline flag (Plan-v12 Phase B). Distinct from
+  // captureTimedOut: this fires earlier (30s) and only when ZERO network
+  // activity has been observed. Unlike captureTimedOut, it does NOT throw —
+  // we want the empty-state CaptureResult to flow through executeBrowserCapture
+  // so its existing L1303 SSR fast-path call site picks up the rescue.
+  let noProgressBail = false;
   let retryFreshTab = false;
   let captureError: unknown;
   const abortController = new AbortController();
@@ -1323,6 +1350,9 @@ export async function captureSession(
     abortController.abort();
     resetTab(tabId).catch(() => {});
   }, CAPTURE_TIMEOUT_MS);
+  // Function-scope so the finally block (~L1893) can clearTimeout it even if
+  // the try block throws before reaching the assignment site.
+  let noProgressHandle: ReturnType<typeof setTimeout> | undefined;
 
   try {
     // Set headers: client hints + auth headers
@@ -1365,6 +1395,21 @@ export async function captureSession(
     // This is the primary capture path for LinkedIn Voyager and similar SPA APIs.
     const cdpNetworkEntries: kuri.KuriHarEntry[] = [];
     const cdpRequestMap = new Map<string, { method: string; url: string; headers: Array<{name: string; value: string}>; postData?: string }>();
+    // No-progress watchdog (Plan-v12 Phase B). Inspects cdpRequestMap.size at
+    // fire-time. cdpRequestMap is populated continuously by Network.requestWillBeSent
+    // events, so it's the earliest signal that the page is doing ANY network
+    // activity. If the page is hung (bestbuy SPA pattern), this fires at 30s
+    // and aborts so the orchestrator's existing SSR fast-path runs with budget
+    // remaining before the bench's outer shell SIGTERM (≥60s).
+    noProgressHandle = setTimeout(() => {
+      if (cdpRequestMap.size === 0) {
+        noProgressBail = true;
+        captureTimedOut = true;  // route through existing throw/abort plumbing
+        abortController.abort();
+        resetTab(tabId).catch(() => {});
+        log("capture", `no_progress_bail: 0 CDP requests after ${CAPTURE_NO_PROGRESS_MS}ms — aborting for SSR rescue`);
+      }
+    }, CAPTURE_NO_PROGRESS_MS);
     const cdpResponseMeta = new Map<string, { status: number; headers: Array<{name: string; value: string}>; mimeType: string }>();
     const cdpFinishedRequests = new Set<string>();
     let cdpWs: WebSocket | null = null;
@@ -1783,7 +1828,20 @@ export async function captureSession(
     const rawCookies = await phase("extractCookies", () => extractCookiesFromPage(tabId, url));
     const sessionCookies = filterFirstPartySessionCookies(rawCookies, url, final_url);
 
-    if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
+    if (captureTimedOut) {
+      if (noProgressBail) {
+        // Plan-v12 Phase B: distinct error code so executeBrowserCapture
+        // can route to SSR fast-path rescue instead of returning generic
+        // capture_timeout. cdpRequestMap was empty at fire time → page
+        // never started network activity → libcurl-impersonate is the
+        // best chance at meaningful HTML.
+        throw Object.assign(
+          new Error(`captureSession no_progress_bail after ${CAPTURE_NO_PROGRESS_MS}ms for ${url}`),
+          { code: "no_progress_bail" },
+        );
+      }
+      throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
+    }
     log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
 
     const responseBodyCount = responseBodies.size;
@@ -1835,6 +1893,7 @@ export async function captureSession(
     }
   } finally {
     clearTimeout(timeoutHandle);
+    if (noProgressHandle) clearTimeout(noProgressHandle);
     abortController.abort(); // no-op if already aborted; prevents stale phase rejections
     await resetTab(tabId);
     releaseTabSlot(tabId);

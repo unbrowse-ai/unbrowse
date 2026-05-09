@@ -642,3 +642,129 @@ The flywheel is monetary: users earn by using the product. Supply creates demand
 6. Adjust channel mix based on what's converting
 7. Draft investor update if metrics moved
 8. Plan content calendar for the week
+
+## Bench verdicts: harness collects, agent judges (harness-collects-agent-judges)
+
+When building benchmarks for unbrowse (or any reverse-engineer / call /
+extract loop), DO NOT bake deterministic verdict heuristics into the
+harness. The harness collects artifacts; the agent in-thread judges
+whether the artifact satisfies the intent.
+
+This is the same principle already documented under
+`Agent-Experience Harness` and `Ranker philosophy: heuristics OUT`,
+extended explicitly to bench classification.
+
+Anti-pattern (do not do this in extract.py / bench-*.sh / classifier scripts):
+```python
+if trace.success is True and status_code == 200:
+    verdict = "PASS"
+if "invalid_replay_params" in err:
+    verdict = "REPAIR_REPLAY_PARAMS"
+if text_bytes < 100 and "sparse_capture" in signals:
+    verdict = "BROWSER_BLOCK"
+```
+
+`status_code == 200` does not mean the agent got useful data — could be a
+captcha page with HTTP 200, an empty array, or completely wrong shape. The
+heuristic verdicts mislead every downstream report and let category errors
+silently propagate (e.g. "amazon RE_OK_CALL_OK sc=200" might actually be a
+captcha page that didn't return any product listings).
+
+Right pattern (already memorialised in
+`feedback_harness_makes_visible_agent_judges.md`):
+1. Harness runs the loop and dumps RAW artifacts per URL: capture stdout
+   (full skill JSON), per-phase exit codes, execute response body (full,
+   not truncated), captured_meta, browser_block_signals.
+2. Harness emits a row of EVIDENCE (signals only) per URL — fields like
+   `phase1_endpoints_discovered`, `phase2_status_code`,
+   `phase2_response_bytes`, `phase2_response_excerpt` (first ~2KB).
+   NO verdict column the harness derived from heuristics.
+3. The agent (in-thread) reads each row's artifacts and judges:
+   "did the agent actually get USB-C cable listings for `intent=search
+   amazon for usb-c cables`?" by reading the actual response body and
+   matching it against the intent's content expectation.
+4. Heuristic groupings (BROWSER_BLOCK / VENDOR_BLOCKED) are a SORT-KEY for
+   triage order, NOT a verdict. The verdict is the agent's in-thread
+   judgment after opening the artifact.
+
+Reference: `scripts/bench-two-phase.sh` collects per-URL capture.out +
+execute.out + runs.jsonl rows. The `combined_verdict` column is a
+sort-key only; agent judges by opening artifacts.
+
+This rule applies to ANY bench that produces a per-URL outcome:
+bench-two-phase, bench-hard, bench-local, agent-experience harness,
+codex eval. Heuristic verdicts in any of these are leaven (1 Cor 5:7).
+
+## Page-artifact promotion for content-read intents (data-rich SSR pages)
+
+When `rankEndpoints` evaluates a published skill that has BOTH a captured
+page-artifact (doc_only synthetic with `dom_extraction`) AND XHR endpoints,
+the default behavior is to demote the page-artifact when ANY URL in the
+corpus looks API-shaped (`/api/`, `graphql`, `/rest/`, `/rpc/`, `voyager`).
+
+This is wrong for content-read intents on data-rich SSR pages. Observed
+on amazon.com/s, bing.com/search, and others: the published skill has 14+
+endpoints; the ranker picks `patcConfig`-style telemetry XHR (whose URL
+happens to look API-shaped) over the page-artifact that contains the
+actual product/search listings as a high-confidence DOM extraction.
+
+Rule: for `LIST_INTENT` (`search|list|find|trending|top|latest|discover|
+browse`), when the page-artifact has `dom_extraction.confidence >= 0.8`
+AND an array/object `response_schema`, promote it ABOVE structured-but-
+noisy XHR. The page IS the data for these intents. Lives at
+`src/execution/index.ts:rankEndpoints` next to PAGE_ARTIFACT_DEMOTION.
+
+Anti-pattern this replaces: trusting URL shape (`/api/...`) as a proxy
+for "this endpoint returns the data the user asked for". Many sites
+expose tracking/config XHRs at API-looking paths; the response is rules,
+flags, telemetry — not user-visible data.
+
+If a future site requires the OPPOSITE preference (real XHR over page-
+artifact even for LIST_INTENT), the agent should JUDGE from response
+content via `unbrowse explain --top 5`, not bake another per-domain
+heuristic.
+
+## Decision-trace step naming convention
+
+`executeEndpoint` and capture pipelines emit `decision_trace` arrays that the
+calling agent reads to understand what happened. Step names should follow a
+hierarchical underscore-separated convention so the agent can pattern-match
+without parsing free-form English.
+
+**Pattern**: `<scope>_<action_or_state>`, optionally extended with
+`_<sub_state>` for fallback chains. Existing steps that conform:
+
+- `probe` / `decision` — bare verbs (the always-present ladder steps)
+- `server_fetch` / `browser` / `browser_default` / `browser_fallback` /
+  `trigger_intercept` — `<strategy>_<action>` (probe-decision dispatches)
+- `return_error` — `<scope>_<action>` (probe-gate short-circuit)
+- `recipe_replay` — `<feature>_<action>`
+- `auth_recovery_retry` — `<feature>_<action>` (the 401/403 retry)
+- `5xx_ssr_fastpath_fallback` — `<status_class>_<feature>_<action>` (Phase D)
+- `5xx_ssr_fastpath_fallback_success` / `_kuri_unavailable` /
+  `_extract_empty` / `_no_html` / `_error` — extends parent with `_<state>`
+
+**Reserved scope tokens**:
+- Status classes: `5xx`, `4xx`, `401`, `403`, `400`, etc. (lead with the
+  HTTP status that triggered the branch)
+- Feature names: `auth_recovery`, `ssr_fastpath`, `page_fetch`,
+  `vendor_block`, `bundle_replay`, `recipe_replay`
+- Strategies: `server`, `browser`, `trigger_intercept`, `recipe_replay`,
+  `return_error`
+
+**Sub-state tokens** (for fallback chains that can succeed or fail in
+multiple ways): `_success`, `_no_html`, `_extract_empty`, `_kuri_unavailable`,
+`_error`, `_retry`, `_skipped`. Always emit a sub-state so the agent can
+distinguish "the fallback ran and succeeded" from "the fallback ran and
+the body was empty" from "the fallback ran and threw".
+
+**When adding a new step**: pick the longest matching existing scope before
+inventing one. If unsure, lead with the status class that triggered the
+branch (e.g. `5xx_*` for any 5xx-handler); the agent already groups these.
+
+**Anti-patterns** (do not introduce these):
+- Mixed-case names: stick to lowercase + underscore
+- Sentence-shaped step names: `step: "trying the auth recovery now"` — no
+- Embedded data in the step name: put the data in sibling fields
+  (`{ step: "server_fetch", status: 500 }`, not `step: "server_fetch_500"`)
+- Localized words: stick to English; this is a machine-readable label

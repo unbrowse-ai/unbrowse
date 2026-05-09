@@ -31,3 +31,8 @@ Deprecated. Durable agent memory now lives in [AGENTS.md](/Users/lekt9/.codex/wo
 - Use the repo `experiments` preset for `lewis/experiments` runtime tests; it should stay publish-enabled but isolated from the main `prod` local profile.
 - Preview npm/binary releases should be built with an embedded default backend URL at build time, not only a wrapper env override, so downloaded compiled binaries talk to the intended preview backend by default.
 - staging/experiments frontend deploys should use `wrangler deploy` after `opennextjs-cloudflare build`; the direct OpenNext deploy path tries to prefill R2 incremental cache and 403s under current CI credentials.
+- Interactive site auth must force both `HEADLESS=false` and `KURI_HEADLESS=false`; Kuri launch config gives `KURI_HEADLESS` precedence, so setting only `HEADLESS=false` can leave `unbrowse login` invisibly headless.
+- Protobuf marketplace/search APIs are first-class route candidates: preserve captured protobuf bodies as `base64:` bytes, decode the generic wire format into JSON-safe fields/records, and avoid falling back to JSON-LD metadata when a protobuf data route is present.
+- The agent-facing CLI should make `run` the single decision surface: try direct cached/API execution, capture+index on miss, retry, then open live browse only when interaction/auth is needed. Keep `resolve`/`capture`/`go` as advanced primitives, not the happy path.
+
+- Product North Star lives in NORTHSTAR.md: `run` is the canonical outcome API; resolve/execute/capture/go are advanced primitives. Future planner work should move this policy server-side and keep docs/MCP/CLI aligned.

@@ -118,3 +118,6 @@ frontend/scripts/check-typecheck.sh
 docs/endpoint-as-cell.md
 docs/moat/
 docs/strategy/
+
+# Python cache from extract.py invocations
+scripts/__pycache__/

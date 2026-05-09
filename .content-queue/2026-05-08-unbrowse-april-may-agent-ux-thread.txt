@@ -1,0 +1,77 @@
+April-May 2026 update for Unbrowse:
+
+We changed the shape of the product from "reverse-engineer a website" to "the agent should not have to think about the browser."
+
+If you build agents, that UX shift matters.
+
+---
+
+New default: `unbrowse fetch <url>`
+
+One verb. Give it a URL, get usable content back.
+
+Markdown when you want to read. Raw body when you need the original.
+
+No resolve -> inspect -> execute ceremony just to answer a simple question.
+
+---
+
+Under that, GET endpoints now auto-execute.
+
+So an agent asking for data gets rows or content, not a shortlist of endpoints and another tool decision.
+
+Less branching in the agent loop. Fewer chances to pick the wrong thing.
+
+---
+
+The browser got quieter too.
+
+Unbrowse can attach to the Chrome you already have open, including logged-in sessions and tools like Playwright/devtools MCP, instead of spawning another browser for every agent.
+
+---
+
+That matters because the first browse should not die as exhaust.
+
+While an agent browses, Unbrowse watches the routes, keeps an in-flight buffer, and streams useful routes toward reuse.
+
+The next agent can hit the route, not replay the whole page.
+
+---
+
+Execution is less guessy now.
+
+Captured endpoints keep a `proven_recipe`: the request shape that actually worked.
+
+Next run, Unbrowse replays that first, probes cheaply, then falls back to browser only when it has to.
+
+---
+
+For users, setup got more normal.
+
+Magic-link accounts. Dashboard pairing. Browser cookies piped into the sandbox.
+
+Fallback across Chrome, Dia, Arc, and Brave when the active session lives somewhere else.
+
+---
+
+Privacy got clearer:
+
+private by default, explicit share modes, `unbrowse config set telemetry false` for local-only fetches, and marketplace publishing gated on the user's contribution choice.
+
+---
+
+The result:
+
+agents spend less time operating the browser and more time doing the job.
+
+Fewer tool calls. Better auth reuse. More useful content on the first response. Routes compound when you opt in.
+
+---
+
+Try the new path:
+
+`npm i -g unbrowse@latest`
+`unbrowse setup`
+`unbrowse fetch https://example.com`
+
+The goal is simple: browse once when you must, reuse APIs when you can.

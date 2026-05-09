@@ -1,0 +1,9 @@
+- [stage 1 / survey] Boyd — Observe — inventory before action — Frontend public reads, landing telemetry, dynamic docs, and CLI copy were wired through different API-origin and execution assumptions.
+- [stage 2 / frame] Parnas — Information hiding — layers and contracts — Website API reads belong to the Worker origin; execution belongs to the local CLI/runtime contract; skill install is not runtime install.
+- [stage 3 / stub] Brooks — Plan to throw one away — first walkable artifact — Added one shared API-origin helper and moved public skill/detail copy onto CLI-first commands.
+- [stage 4 / signal] Deming — measurement before more building — Added regression coverage for API-origin aliases and public skill instructions.
+- [stage 5 / stress] Murphy — adversarial behavior — Probed stale localhost, stale registry-link, stale auto-register, stale wallet, and landing-token paths.
+- [stage 6 / compose] Aristotle — end-to-end integration — Frontend build plus landing/dashboard tests prove the patched API and CLI surfaces still compose.
+- [stage 7 / verdict] Eisenhower — decide before shipping — PROMOTE: local-first CLI and Worker API boundaries are now explicit and tested.
+- [stage 8 / audit] Feynman — cold independent review — Diff, stale-string scan, touched-file ESLint, build, and default test gate survived review; repo-wide direct ESLint still has unrelated pre-existing debt.
+- [stage 9 / release] Reid Hoffman — reachable by intended user — Handoff includes changed paths, verification, known lint-script issue, and unrelated dirty worktree notes.

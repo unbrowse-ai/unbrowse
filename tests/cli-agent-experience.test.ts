@@ -60,6 +60,315 @@ async function runCli(baseUrl: string, args: string[]): Promise<{ code: number; 
 }
 
 describe("cli agent experience", () => {
+  it("accepts --task as an alias for --intent on resolve", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        expect(requests.at(-1)?.body?.intent).toBe("search listings");
+        return Response.json({
+          trace: { success: true },
+          result: { status: "ok", items: [] },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "resolve",
+        "--url", "https://www.carousell.sg/search/beige%20shirt",
+        "--task", "search listings",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok", items: [] });
+    });
+  });
+
+  it("accepts --query as an alias for --intent on resolve", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        expect(requests.at(-1)?.body?.intent).toBe("beige sweater Serangoon");
+        return Response.json({
+          trace: { success: true },
+          result: { status: "ok", items: [] },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "resolve",
+        "--url", "https://www.carousell.sg",
+        "--query", "beige sweater Serangoon",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok", items: [] });
+    });
+  });
+
+  it("runs a URL and positional task through resolve without requiring flag juggling", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        expect(requests.at(-1)?.body).toMatchObject({
+          intent: "list beige shirts",
+          params: { url: "https://www.carousell.sg/search/beige%20shirt" },
+          context: { url: "https://www.carousell.sg/search/beige%20shirt" },
+        });
+        return Response.json({
+          trace: { success: true },
+          result: { status: "ok", items: [{ title: "beige shirt" }] },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "run",
+        "https://www.carousell.sg/search/beige%20shirt",
+        "list beige shirts",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok", items: [{ title: "beige shirt" }] });
+    });
+  });
+
+  it("auto-executes a safe direct endpoint from run", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        return Response.json({
+          skill: { skill_id: "skill-carousell" },
+          available_endpoints: [
+            { endpoint_id: "ep-search", method: "GET", description: "Search listings" },
+          ],
+        });
+      }
+      if (path === "/v1/skills/skill-carousell/execute") {
+        expect(requests.at(-1)?.body).toMatchObject({
+          intent: "list beige shirts",
+          params: {
+            endpoint_id: "ep-search",
+            url: "https://www.carousell.sg/search/beige%20shirt",
+          },
+        });
+        return Response.json({
+          trace: { success: true, skill_id: "skill-carousell", endpoint_id: "ep-search" },
+          result: { status: "ok", items: [{ title: "beige shirt" }] },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl, requests) => {
+      const out = await runCli(baseUrl, [
+        "run",
+        "https://www.carousell.sg/search/beige%20shirt",
+        "list beige shirts",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok", items: [{ title: "beige shirt" }] });
+      expect(requests.map((entry) => entry.path).filter((path) => path !== "/health")).toEqual([
+        "/v1/intent/resolve",
+        "/v1/skills/skill-carousell/execute",
+      ]);
+      expect(out.body.run_plan).toContainEqual(expect.objectContaining({ step: "execute", status: "complete", endpoint_id: "ep-search" }));
+    });
+  });
+
+  it("auto-indexes on a run miss and retries resolve against the fresh capture", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        const resolveCount = requests.filter((entry) => entry.path === "/v1/intent/resolve").length;
+        expect(requests.at(-1)?.body).toMatchObject({
+          intent: "list beige pants with links",
+          params: { url: "https://www.carousell.sg/search/beige%20pants" },
+          context: { url: "https://www.carousell.sg/search/beige%20pants" },
+        });
+        if (resolveCount === 1) {
+          return Response.json({ result: { status: "no_match" } });
+        }
+        return Response.json({
+          trace: { success: true },
+          result: { status: "ok", items: [{ title: "GU cargo", url: "https://www.carousell.sg/p/gu-1/" }] },
+        });
+      }
+      if (path === "/v1/capture") {
+        expect(requests.at(-1)?.body).toMatchObject({
+          url: "https://www.carousell.sg/search/beige%20pants",
+          intent: "list beige pants with links",
+        });
+        return Response.json({ skill_id: "skill-carousell", endpoints_discovered: 2, endpoints: [{ method: "GET" }, { method: "GET" }] });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl, requests) => {
+      const out = await runCli(baseUrl, [
+        "run",
+        "https://www.carousell.sg/search/beige%20pants",
+        "list beige pants with links",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({
+        status: "ok",
+        items: [{ title: "GU cargo", url: "https://www.carousell.sg/p/gu-1/" }],
+      });
+      expect(requests.map((entry) => entry.path).filter((path) => path !== "/health")).toEqual([
+        "/v1/intent/resolve",
+        "/v1/capture",
+        "/v1/intent/resolve",
+      ]);
+      expect(out.body.run_plan).toEqual([
+        expect.objectContaining({ step: "resolve", status: "miss" }),
+        expect.objectContaining({ step: "index", status: "complete", endpoints_discovered: 2 }),
+        expect.objectContaining({ step: "resolve", status: "hit" }),
+      ]);
+    });
+  });
+
+  it("opens a browse session when run cannot satisfy the task through direct/indexed routes", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        return Response.json({ result: { status: "no_match" } });
+      }
+      if (path === "/v1/capture") {
+        return Response.json({ skill_id: "skill-thin", endpoints_discovered: 0, endpoints: [] });
+      }
+      if (path === "/v1/browse/go") {
+        expect(requests.at(-1)?.body).toEqual({ url: "https://www.carousell.sg/search/beige%20pants" });
+        return Response.json({ ok: true, session_id: "sess-123" });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "run",
+        "https://www.carousell.sg/search/beige%20pants",
+        "find pants near Serangoon",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.status).toBe("browse_required");
+      expect(out.body.next_action).toMatchObject({
+        command: "unbrowse snap --session sess-123 --filter interactive",
+      });
+      expect(out.body.run_plan).toContainEqual(expect.objectContaining({ step: "browse", status: "opened", session_id: "sess-123" }));
+    });
+  });
+
+  it("does not capture/index to bypass a payment-required direct route", async () => {
+    await withStubServer(async (req) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        return Response.json({
+          error: "payment_required",
+          message: "Endpoint requires payment",
+          payment: { amount: "0.001" },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl, requests) => {
+      const out = await runCli(baseUrl, [
+        "run",
+        "https://paid.example/search",
+        "search listings",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.error).toBe("payment_required");
+      expect(requests.map((entry) => entry.path).filter((path) => path !== "/health")).toEqual([
+        "/v1/intent/resolve",
+      ]);
+    });
+  });
+
+  it("accepts --skill-id and --endpoint-id aliases on execute", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/skills/skill_123/execute") {
+        expect(requests.at(-1)?.body?.params).toMatchObject({ endpoint_id: "endpoint_456" });
+        return Response.json({
+          trace: { success: true, skill_id: "skill_123", endpoint_id: "endpoint_456" },
+          result: { status: "ok" },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "execute",
+        "--skill-id", "skill_123",
+        "--endpoint-id", "endpoint_456",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.result).toEqual({ status: "ok" });
+    });
+  });
+
+  it("forces an interactive browser for auth-capture instead of cookie-import only", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/auth/login") {
+        expect(requests.at(-1)?.body).toEqual({
+          url: "https://www.carousell.sg/",
+          interactive_only: true,
+        });
+        return Response.json({
+          success: true,
+          domain: "www.carousell.sg",
+          cookies_stored: 6,
+          source: "interactive",
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "auth-capture",
+        "--url", "https://www.carousell.sg/",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.source).toBe("interactive");
+    });
+  });
+
+  it("accepts auth as the consolidated site login command", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/auth/login") {
+        expect(requests.at(-1)?.body).toEqual({
+          url: "https://www.carousell.sg/",
+          interactive_only: true,
+        });
+        return Response.json({
+          success: true,
+          domain: "www.carousell.sg",
+          cookies_stored: 6,
+          source: "interactive",
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "auth",
+        "https://www.carousell.sg/",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(out.body.source).toBe("interactive");
+    });
+  });
+
   it("routes settings updates to the local settings endpoint", async () => {
     await withStubServer(async (req, requests) => {
       const path = new URL(req.url).pathname;
@@ -208,7 +517,7 @@ describe("cli agent experience", () => {
       expect(out.code).toBe(0);
       expect(out.body.result.error).toBe("auth_required");
       expect(resolveCalls).toBe(1);
-      expect(out.stderr).toContain('unbrowse login --url "https://x.com/home"');
+      expect(out.stderr).toContain('unbrowse auth-capture --url "https://x.com/home"');
     });
   });
 
