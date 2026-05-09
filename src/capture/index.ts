@@ -1348,6 +1348,9 @@ export async function captureSession(
     abortController.abort();
     resetTab(tabId).catch(() => {});
   }, CAPTURE_TIMEOUT_MS);
+  // Function-scope so the finally block (~L1893) can clearTimeout it even if
+  // the try block throws before reaching the assignment site.
+  let noProgressHandle: ReturnType<typeof setTimeout> | undefined;
 
   try {
     // Set headers: client hints + auth headers
@@ -1396,7 +1399,7 @@ export async function captureSession(
     // activity. If the page is hung (bestbuy SPA pattern), this fires at 30s
     // and aborts so the orchestrator's existing SSR fast-path runs with budget
     // remaining before the bench's outer shell SIGTERM (≥60s).
-    const noProgressHandle = setTimeout(() => {
+    noProgressHandle = setTimeout(() => {
       if (cdpRequestMap.size === 0) {
         noProgressBail = true;
         captureTimedOut = true;  // route through existing throw/abort plumbing
@@ -1888,7 +1891,7 @@ export async function captureSession(
     }
   } finally {
     clearTimeout(timeoutHandle);
-    clearTimeout(noProgressHandle);
+    if (noProgressHandle) clearTimeout(noProgressHandle);
     abortController.abort(); // no-op if already aborted; prevents stale phase rejections
     await resetTab(tabId);
     releaseTabSlot(tabId);
