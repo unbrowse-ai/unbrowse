@@ -1,5 +1,7 @@
 # Unbrowse
 
+> **Heads up: this OSS repo is a 2025 snapshot.** Current production builds are closed-source for safety reasons. The TypeScript SDK (`@unbrowse/sdk`) is MIT and is the supported integration surface. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for what's open vs. proprietary, and [docs/sdk/onboarding-validators.md](./docs/sdk/onboarding-validators.md) / [docs/sdk/onboarding-users.md](./docs/sdk/onboarding-users.md) for getting set up.
+
 Unbrowse is a local Model Context Protocol (MCP) server and CLI that turns any website into a reusable API interface for agents. It captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
 
 One agent learns a site once. Every later agent gets the fast path.

@@ -1,4 +1,8 @@
 import type {
+  AttributionLedger,
+  AvailableEndpoint,
+  CreatorTransactionsResponse,
+  Dashboard,
   ExecuteInput,
   ExecuteResponse,
   FeedbackInput,
@@ -103,6 +107,20 @@ export class Unbrowse {
     this.defaultHeaders = options.headers;
     this.fetchImpl = options.fetch ?? fetch;
     this.timeoutMs = options.timeoutMs;
+  }
+
+  /**
+   * Build a `params` object from an `AvailableEndpoint.input_params` spec, using
+   * the `example_value` of each declared key. Skips keys without an example.
+   */
+  static paramsFromInputSpec(
+    spec: AvailableEndpoint["input_params"] | undefined,
+  ): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const p of spec ?? []) {
+      if (p.example_value !== undefined) out[p.key] = p.example_value;
+    }
+    return out;
   }
 
   async request<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
@@ -235,5 +253,51 @@ export class Unbrowse {
 
   async health(options?: RequestOptions): Promise<HealthResponse> {
     return this.request<HealthResponse>("GET", "/health", undefined, options);
+  }
+
+  /**
+   * Earnings/spending dashboard for the authenticated agent.
+   * Requires `apiKey` set on the client. Backend: `GET /v1/dashboard/me`.
+   */
+  async dashboard(options?: RequestOptions): Promise<Dashboard> {
+    return this.request<Dashboard>("GET", "/v1/dashboard/me", undefined, options);
+  }
+
+  /**
+   * Public dashboard for any wallet address. Backend: `GET /v1/dashboard/wallet/:walletAddress`.
+   */
+  async dashboardByWallet(walletAddress: string, options?: RequestOptions): Promise<Dashboard> {
+    return this.request<Dashboard>(
+      "GET",
+      `/v1/dashboard/wallet/${encodeURIComponent(walletAddress)}`,
+      undefined,
+      options,
+    );
+  }
+
+  /**
+   * Per-transaction earnings ledger for a creator agent.
+   * Backend: `GET /v1/transactions/creator/:agentId`.
+   */
+  async creatorTransactions(agentId: string, options?: RequestOptions): Promise<CreatorTransactionsResponse> {
+    return this.request<CreatorTransactionsResponse>(
+      "GET",
+      `/v1/transactions/creator/${encodeURIComponent(agentId)}`,
+      undefined,
+      options,
+    );
+  }
+
+  /**
+   * Indexer earnings via delta-based attribution.
+   * Backend: `GET /v1/attribution/indexer/:indexerId`.
+   */
+  async indexerAttribution(indexerId: string, options?: RequestOptions): Promise<AttributionLedger> {
+    return this.request<AttributionLedger>(
+      "GET",
+      `/v1/attribution/indexer/${encodeURIComponent(indexerId)}`,
+      undefined,
+      options,
+    );
   }
 }
