@@ -41,6 +41,19 @@ export interface Env {
   PUBLIC_FRONTEND_URL?: string;
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_ZONE_ID?: string;
+  /**
+   * Comma-separated list of additional reserved domains. Non-admin publishers
+   * cannot publish skills for these domains (or their subdomains). Combined
+   * with the seed list in `services/domain-reservations.ts`.
+   */
+  RESERVED_DOMAINS?: string;
+  /**
+   * Comma-separated list of domains where the well-known HTTP probe is
+   * waived (test fixtures, internal hosts). Most operators leave this empty.
+   */
+  DOMAIN_VERIFY_SKIP?: string;
+  /** Set to "1"/"true" to require .well-known probe before any non-admin publish. */
+  REQUIRE_DOMAIN_VERIFICATION?: string;
 }
 
 // --- Agent identity ---
@@ -282,6 +295,20 @@ export interface SkillManifest {
   needs_reindex?: boolean;
   /** Agent ID of the indexer who published this skill — used for Tier 1 attribution */
   indexer_id?: string;
+  /**
+   * Agent ID of the original publisher. Server-owned. Surfaced on
+   * `unbrowse.ai/<domain>` so consumers can see who claimed the domain.
+   * Set by the publish handler on first non-admin publish; subsequent
+   * publishes from the same agent preserve it.
+   */
+  owner_agent_id?: string;
+  /**
+   * Whether the publisher has completed the .well-known HTTP probe for this
+   * domain. Set by the verification handler, never by the publisher.
+   */
+  domain_verified?: boolean;
+  /** ISO timestamp of the .well-known probe. */
+  domain_verified_at?: string;
   /** All agents who contributed endpoints to this skill, with their shares */
   contributors?: SkillContributor[];
   /** Cascade Split address for this skill — x402 payments route here */

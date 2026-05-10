@@ -59,6 +59,9 @@ Every code change is judged against the calling agent's experience. The four inv
 - Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
 - Kuri must work as a bundled runtime from the package/monorepo vendor path. Do not require end users to install Zig or a separate `kuri` binary.
 - When touching Kuri discovery, packaging, runtime paths, or `packages/skill`, run `node packages/skill/scripts/assert-kuri-vendor.mjs`.
+- **Pre-commit hook fails on merge commits when `submodules/kuri/` is empty.** `prepare-pack.mjs` throws "Broken Kuri source checkout". For merge commits where the submodule isn't relevant, use `git commit --no-verify`. For non-merge commits, run `bash scripts/ensure-submodules.sh` first.
+- **`EndpointDescriptor` lives in three files; all must stay in sync.** `backend/src/types.ts` (worker), `src/types/skill.ts` (CLI/MCP), `frontend/src/lib/api.ts` (Next.js). Same for `SkillManifest`. New endpoint fields must land in all three or the Next.js build fails with TS2339.
+- **Squash-merged PRs disappear from main's history.** Branches built on top of the original commit (e.g. `56a606db` from PR #430) produce dozens of `AA` (add/add) conflicts when merging origin/main. Resolution rule: `git checkout --theirs <files>` for files the branch never touched, `git checkout --ours <files>` for files the branch rewrote. Then a clean merge commit on top.
 
 ## bench-local (fastest iteration loop)
 
@@ -343,6 +346,9 @@ Omit empty sections. No emojis. No file paths or function names.
 - **Always use `/codex` to run tests**. Do not write test assertions by hand — use the `/codex` plugin to generate and execute all unit tests, e2e tests, and regression tests. This prevents fabricated/hallucinated test results.
 - **Never fake a passing test**. If a test can't be run, say so. Do not write a test that asserts hardcoded expected values you haven't verified by actually running the code.
 - **Run tests after every code change**. Use `bun test <file>` for targeted runs. All graph/DAG tests: `bun test tests/graph-*.test.ts tests/dag-*.test.ts`. Sanitization: `bun test tests/sanitize-for-publish.test.ts`.
+- **For backend security/auth work, list test files explicitly.** Bare `bun test` runs the slow issue-regressions matrix. The targeted set: `bun test ./backend/tests/{skills-trust-promotion,skills-publish-proofs,proof-verifier,x402-skill-route,auth-routes-magic-flow,auth-failure-modes,protected-routes-auth}.test.ts` runs in ~70 ms with full coverage of the publish/auth/x402 surface.
+- **Root `bun --bun tsc --noEmit` has ~27 pre-existing errors** in unmodified files (api/routes.ts, browser/index.ts, browser-cookies.ts, etc.). They are baseline noise — diff your error count against `origin/main` before assuming you regressed something. Backend tsc (`bun --bun tsc --noEmit -p backend/tsconfig.json`) is clean and is the better signal for backend changes.
+- **codex-cli ≥0.128 quirks.** `codex review --base <branch>` and `[PROMPT]` are mutually exclusive — pass `--base` alone. `mktemp "$DIR/codex-err-XXXXXX.txt"` collides on rerun; use `mktemp "$DIR/codex-err-XXXXXXXX"` (X's must end the template, no extension).
 - **Tests must hit real code paths** — no mocks, no stubs, no fake HTTP responses. If a test needs a network call, gate it behind an env var for CI, don't mock it.
 - **Bug fix protocol**: when a bug is reported, write a failing test FIRST that reproduces it, then fix the code and verify the test passes.
 
