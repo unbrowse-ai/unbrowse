@@ -2943,6 +2943,41 @@ export async function executeEndpoint(
           }
           // Fall through to staleEndpointResult.
         }
+        if (failureKind.kind === "vendor_blocked" && failureKind.vendor === "akamai_bot_manager") {
+          // plan-v13 Tier 2B: Akamai bundle-replay solver. Sibling to PX arm above.
+          try {
+            const { solveAkamaiAndRetry } = await import("./akamai-challenge.js");
+            const akTargetUrl = endpoint.trigger_url || url;
+            const akBody = typeof rawFailureBody === "string" ? rawFailureBody : "";
+            const akSandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+            decisionTrace.push({ step: "vendor_blocked_akamai_solver", vendor: "akamai_bot_manager", url: akTargetUrl });
+            const akResult = await solveAkamaiAndRetry({
+              url: akTargetUrl,
+              body: akBody,
+              cookies,
+              kuriBase: akSandboxBase,
+              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              timeoutMs: 15_000,
+            });
+            if (akResult && akResult.status >= 200 && akResult.status < 300 && akResult.html.length > 0) {
+              trace.success = true;
+              trace.status_code = akResult.status;
+              trace.error = undefined;
+              data = akResult.html;
+              trace.result = data;
+              decisionTrace.push({ step: "vendor_blocked_akamai_solver_retry_success", status: akResult.status, bytes: akResult.html.length });
+              return { trace, result: data, decision_trace: decisionTrace };
+            }
+            if (akResult && akResult.status >= 200 && akResult.status < 300 && akResult.html.length === 0) {
+              decisionTrace.push({ step: "vendor_blocked_akamai_solver_retry_extract_empty", status: akResult.status });
+            } else {
+              decisionTrace.push({ step: "vendor_blocked_akamai_solver_retry_still_blocked" });
+            }
+          } catch (akErr) {
+            decisionTrace.push({ step: "vendor_blocked_akamai_solver_error", message: akErr instanceof Error ? akErr.message : String(akErr) });
+          }
+          // Fall through to staleEndpointResult.
+        }
         if (failureKind.kind === "vendor_blocked") {
           trace.error = `${trace.error} (vendor_blocked: ${failureKind.vendor ?? "unknown"} — bot detection, not auth)`;
           data = staleEndpointResult(

@@ -101,13 +101,17 @@ export interface SolveAkamaiRetryResult {
 export async function solveAkamaiAndRetry(
   input: SolveAkamaiRetryInput,
 ): Promise<SolveAkamaiRetryResult | null> {
+  // 1. Extract the challenge bundle URL from the response body.
   const bundleUrl = extractAkamaiBundleUrl(input.body, input.url);
   if (!bundleUrl) return null;
 
-  // Bundle fetch sanity gate (mirrors CF 1024-byte minimum).
+  // 2. Fetch the bundle source. Public Akamai asset, no auth needed.
   let bundleSource: string;
   try {
-    const bundleResp = await globalThis.fetch(bundleUrl, { method: "GET" });
+    const bundleResp = await globalThis.fetch(bundleUrl, {
+      method: "GET",
+      // Proxy is only honored by the sandbox runtime; bundle fetch goes direct.
+    });
     if (bundleResp.status !== 200) return null;
     bundleSource = await bundleResp.text();
     if (!bundleSource || bundleSource.length < 1024) return null;
@@ -115,6 +119,7 @@ export async function solveAkamaiAndRetry(
     return null;
   }
 
+  // 3. Run the bundle in the Kuri sandbox to obtain _abck.
   let targetOrigin: string;
   try {
     targetOrigin = new URL(input.url).origin;
@@ -122,27 +127,63 @@ export async function solveAkamaiAndRetry(
     return null;
   }
 
-  // TODO Step 6 Dominion: wire real call.
-  // Reference signature for when the stub is removed:
-  //   const replay = await runBundleReplay(
-  //     {
-  //       targetOrigin,
-  //       targetHref: input.url,
-  //       bundleSource,
-  //       seedCookies: input.cookies ?? [],
-  //       timeoutMs: input.timeoutMs ?? 15_000,
-  //       ...(input.proxy ? { proxy: input.proxy } : {}),
-  //     },
-  //     { kuriBase: input.kuriBase },
-  //   );
-  //   const hasAbck = replay?.cookies?.some((c) => c.name === "_abck") ?? false;
-  //   if (!hasAbck) return null;
-  //   ... merge + retry as in CF ...
-  void runBundleReplay;
-  void targetOrigin;
-  void bundleSource;
-  void mergeCookieJar;
-  return null;
+  let solvedCookies: SeedCookie[] = [];
+  try {
+    const replay = await runBundleReplay(
+      {
+        targetOrigin,
+        targetHref: input.url,
+        bundleSource,
+        seedCookies: input.cookies ?? [],
+        timeoutMs: input.timeoutMs ?? 15_000,
+        ...(input.proxy ? { proxy: input.proxy } : {}),
+      },
+      { kuriBase: input.kuriBase },
+    );
+    if (!replay || !Array.isArray(replay.cookies) || replay.cookies.length === 0) {
+      return null;
+    }
+    solvedCookies = replay.cookies.map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+      secure: c.secure,
+      http_only: c.http_only,
+      same_site: c.same_site,
+      expires: c.expires,
+    }));
+  } catch {
+    return null;
+  }
+
+  // 4. Verify _abck is present — otherwise the challenge didn't solve.
+  const hasClearance = solvedCookies.some((c) => c.name === "_abck");
+  if (!hasClearance) return null;
+
+  // 5. Merge seed cookies with solved cookies (solved wins on name collision)
+  // and retry the original URL.
+  const merged = mergeCookieJar(input.cookies ?? [], solvedCookies);
+  const cookieHeader = merged
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
+
+  try {
+    const retry = await globalThis.fetch(input.url, {
+      method: "GET",
+      headers: cookieHeader ? { cookie: cookieHeader } : {},
+    });
+    // Anything 4xx/5xx is treated as still-blocked; caller handles fallthrough.
+    if (retry.status < 200 || retry.status >= 400) return null;
+    const html = await retry.text();
+    return {
+      status: retry.status,
+      html,
+      cookies: merged,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
