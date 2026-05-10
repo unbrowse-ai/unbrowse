@@ -66,13 +66,29 @@ app.get("/_synthetic_px_challenge", (c) => {
   return c.text(body, 403);
 });
 
-export { app as syntheticRoutes };
-    return c.json({ status: "synthetic_px_pass", items: ["a", "b"] }, 200);
+/**
+ * Plan-v17 Tier 1: synthetic Akamai challenge fixture.
+ * Returns 403 with Akamai-shaped body when no _abck cookie present;
+ * 200 when cookie armed.
+ */
+app.get("/_synthetic_akamai_challenge", (c) => {
+  const cookie = c.req.header("cookie") || "";
+  if (parseCookieValue(cookie, "_abck") === "ok") {
+    return c.json({ status: "synthetic_akamai_pass", items: ["a", "b"] }, 200);
   }
   const body = `<!doctype html><html><body>
-<script src="/aaaaaaaa-bbbb-4cba-9bbb-eeeeeeeeeeee/aaaaaaaa-bbbb-4cba-9bbb-eeeeeeeeeeee/init.js"></script>
+<script src="/akam-abc123def456.js"></script>
 </body></html>`;
   return c.text(body, 403);
+});
+
+// Step 5 (Creatures) — mock Akamai sensor bundle so synthetic e2e round-trip is runnable.
+// Returns >1024 bytes of inert JS to satisfy bundle-size gate; sandbox replay would emit _abck via
+// a real bundle's CDP behavior, but for fixture-level testing the existence of the bundle is enough.
+app.get("/akam-:hex.js", (c) => {
+  const filler = "/* synthetic akamai sensor */ ".repeat(40); // ~1200 bytes
+  const js = `${filler}\nvar _akamai_synthetic = true;\n`;
+  return c.text(js, 200, { "content-type": "application/javascript" });
 });
 
 export { app as syntheticRoutes };

@@ -10,6 +10,7 @@
 import { describe, it, expect } from "bun:test";
 import { extractCfBundleUrl } from "../../src/execution/cf-challenge.js";
 import { extractPxBundleUrl } from "../../src/execution/px-challenge.js";
+import { syntheticRoutes } from "../src/routes/synthetic.js";
 
 // Synthetic CF body — copied verbatim from backend/src/routes/synthetic.ts
 const CF_SYNTHETIC_BODY = `<!doctype html><html><head><title>Just a moment...</title></head><body>
@@ -50,5 +51,29 @@ describe("synthetic PX fixture", () => {
     expect(url).toBe(
       "https://x.com/aaaaaaaa-bbbb-4cba-9bbb-eeeeeeeeeeee/aaaaaaaa-bbbb-4cba-9bbb-eeeeeeeeeeee/init.js",
     );
+  });
+});
+
+describe("synthetic Akamai fixture (Plan-v17 Tier 1)", () => {
+  it("unarmed GET /_synthetic_akamai_challenge -> 403 with Akamai sensor reference", async () => {
+    const res = await syntheticRoutes.fetch(
+      new Request("http://localhost/_synthetic_akamai_challenge"),
+    );
+    expect(res.status).toBe(403);
+    const body = await res.text();
+    expect(body).toContain("<script src=\"/akam-");
+  });
+
+  it("armed GET /_synthetic_akamai_challenge with _abck=ok -> 200 JSON pass body", async () => {
+    const res = await syntheticRoutes.fetch(
+      new Request("http://localhost/_synthetic_akamai_challenge", {
+        headers: { Cookie: "_abck=ok" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { status: string; items: string[] };
+    expect(json.status).toBe("synthetic_akamai_pass");
+    expect(Array.isArray(json.items)).toBe(true);
+    expect(json.items.length).toBe(2);
   });
 });
