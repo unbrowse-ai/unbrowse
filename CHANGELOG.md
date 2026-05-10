@@ -2,7 +2,13 @@
 
 ## Unreleased — feat/agent-ux-run-planner
 
-### Plan & Observability Scaffolding
+### Plan & Solver Scaffolding
+
+* **plan-v17**: Akamai + Kasada bundle-replay solver plan with Tier 1-4 ([80ae1f46](https://github.com/unbrowse-ai/unbrowse-dev/commit/80ae1f46))
+* **stubs**: `src/execution/{akamai,kasada}-challenge.ts` typecheck-clean, mirror cf/px structure; awaiting Tier 1-2 PR wiring at `index.ts:2945`
+* **falsifiers**: 3 shape pins green (12+15+19 cases) with Step 5 + Step 8 audit fixes baked in
+
+### Plan & Observability Scaffolding (prior)
 
 * **plan-v16**: Track-A-only observability plan, drops Track B (source vessel empty) ([5ce0ae67](https://github.com/unbrowse-ai/unbrowse-dev/commit/5ce0ae67))
 * **CI**: bench-local-pr.yml + bench-history-write.yml workflow seeds with permissions, continue-on-error, hashFiles guard
