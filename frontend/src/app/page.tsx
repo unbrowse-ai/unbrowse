@@ -495,11 +495,11 @@ export default function Home() {
          </div>
        </section>
 
-       {/* ═══ 3-Panel Visual ═══ */}
-       <ThreePanelVisual />
-
        {/* ═══ Registry Showcase ═══ */}
        <RegistryShowcase />
+
+       {/* ═══ 3-Panel Visual ═══ */}
+       <ThreePanelVisual />
 
       {/* ═══ Fixed Footer Bar ═══ */}
       <footer className="fixed bottom-0 inset-x-0 z-40 bg-[#060402]/90 backdrop-blur-sm" style={{ borderTop: '1px solid rgba(255,122,32,0.2)' }}>

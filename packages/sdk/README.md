@@ -2,9 +2,21 @@
 
 Thin TypeScript SDK for the canonical Unbrowse local server API.
 
-This is the narrow surface:
+Transform any intent + URL into structured data via API endpoints discovered from real browsing traffic.
 
-- `resolve()` for intent -> search/capture/execute
+> The SDK (this package) is MIT-licensed. The `unbrowse` runtime binary it talks to is proprietary and distributed via npm. See [`docs/OPEN-SOURCE-NOTICE.md`](../../docs/OPEN-SOURCE-NOTICE.md) for the split.
+
+## 📚 [Complete Documentation](docs/)
+
+**New to Unbrowse SDK?** Start with the [Getting Started Guide](docs/getting-started/installation.md)
+
+**Looking for examples?** Check out the [Use Case Recipes](docs/examples/)
+
+**Need API details?** Browse the [API Reference](docs/api-reference/)
+
+## Core Methods
+
+- `resolve()` for intent → search/capture/execute
 - `execute()` for explicit skill replays
 - `login()` / `importAuth()` for gated sites
 - `search()`, `searchDomain()`, `getSkill()`, `feedback()`, `stats()`, `health()`

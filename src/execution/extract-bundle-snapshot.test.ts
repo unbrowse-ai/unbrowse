@@ -29,7 +29,6 @@ describe("extractBundleSnapshot", () => {
     expect(r!.bundle_urls).toContain(
       "https://www.reddit.com/c1234567-89ab-4cde-9012-3456789abcde/c1234567-89ab-4cde-9012-3456789abcde/ips.js",
     );
-    // /init and the collector are not .js, classified as cookie-issuing.
     expect(r!.cookie_issuing_urls.length).toBeGreaterThan(0);
     expect(r!.target_origin).toBe("https://www.reddit.com");
   });
@@ -50,8 +49,6 @@ describe("extractBundleSnapshot", () => {
   });
 
   it("returns null when vendor signal but no matching URLs", () => {
-    // Vendor signal could fire from challenge_title alone in detector;
-    // snapshot should not produce empty payload.
     const r = extractBundleSnapshot({
       requestUrls: ["https://example.com/some-other-thing"],
       blockSignals: ["vendor:datadome"],
@@ -59,5 +56,63 @@ describe("extractBundleSnapshot", () => {
       targetHref: "https://example.com/",
     });
     expect(r).toBeNull();
+  });
+
+  // plan-v13 Tier 2B: vendor disambiguation when upstream classifier mislabels
+  // an Akamai/Kasada two-UUID-pair bundle as PerimeterX.
+  it("classifies two-UUID-pair bundle as akamai_bot_manager when akm_bmfp query param present", () => {
+    const r = extractBundleSnapshot({
+      requestUrls: [
+        "https://www.example.com/c1234567-89ab-4cde-9012-3456789abcde/c1234567-89ab-4cde-9012-3456789abcde/ips.js?akm_bmfp_b2=x",
+      ],
+      blockSignals: ["vendor:perimeterx"],
+      targetOrigin: "https://www.example.com",
+      targetHref: "https://www.example.com/",
+    });
+    expect(r).not.toBeNull();
+    expect(r!.vendor).toBe("akamai_bot_manager");
+    expect(r!.bundle_urls.length).toBeGreaterThan(0);
+  });
+
+  it("classifies two-UUID-pair bundle as kasada when x-kpsdk query param present", () => {
+    const r = extractBundleSnapshot({
+      requestUrls: [
+        "https://www.example.com/c1234567-89ab-4cde-9012-3456789abcde/c1234567-89ab-4cde-9012-3456789abcde/init.js?x-kpsdk-im=y",
+      ],
+      blockSignals: ["vendor:perimeterx"],
+      targetOrigin: "https://www.example.com",
+      targetHref: "https://www.example.com/",
+    });
+    expect(r).not.toBeNull();
+    expect(r!.vendor).toBe("kasada");
+    expect(r!.bundle_urls.length).toBeGreaterThan(0);
+  });
+
+  it("classifies two-UUID-pair bundle as perimeterx when _pxhd cookie present", () => {
+    const r = extractBundleSnapshot({
+      requestUrls: [
+        "https://www.example.com/c1234567-89ab-4cde-9012-3456789abcde/c1234567-89ab-4cde-9012-3456789abcde/init.js",
+      ],
+      blockSignals: ["vendor:perimeterx"],
+      targetOrigin: "https://www.example.com",
+      targetHref: "https://www.example.com/",
+      cookieNames: ["_pxhd"],
+    });
+    expect(r).not.toBeNull();
+    expect(r!.vendor).toBe("perimeterx");
+  });
+
+  it("does not produce a perimeterx false-positive when no disambiguation signal present", () => {
+    const r = extractBundleSnapshot({
+      requestUrls: [
+        "https://www.example.com/c1234567-89ab-4cde-9012-3456789abcde/c1234567-89ab-4cde-9012-3456789abcde/init.js",
+      ],
+      blockSignals: ["vendor:perimeterx"],
+      targetOrigin: "https://www.example.com",
+      targetHref: "https://www.example.com/",
+    });
+    if (r !== null) {
+      expect(r.vendor).not.toBe("perimeterx");
+    }
   });
 });

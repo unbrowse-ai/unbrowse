@@ -20,6 +20,10 @@ import { probeUrl, decideFromProbe } from "./probe.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
+import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../ranking/signals/bm25.js";
+import { semanticIntentAdjustment, AGENT_DESC_DELTA_WEIGHT, CURRENCY_TIME_DELTA_WEIGHT, COMMS_PATH_DELTA_WEIGHT, CHART_PRICING_DELTA_WEIGHT } from "../ranking/signals/intent-yield.js";
+import { NOISE_HOSTS, NOISE_PATHS, I18N_CONFIG_PATHS, AUTH_CONFIG_PATHS, SESSION_PLUMBING, STATIC_ASSET_PATTERNS, UI_ASSET_PATHS } from "../ranking/filters/noise-patterns.js";
+import { HARD_NEGATIVE_FLOOR, WEAK_NEGATIVE_FLOOR, PAGE_ARTIFACT_DEMOTION, clampToFloor } from "../ranking/clamps.js";
 
 function stableEndpointId(method: string, urlTemplate: string): string {
   if (!method || !urlTemplate) return nanoid();
@@ -585,6 +589,57 @@ export function buildPageArtifactCapture(
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// page_fetch — the invariant floor endpoint.
+//
+// Every captured skill carries one of these. It's a plain GET against
+// the captured URL whose response is the rendered HTML page. When all
+// captured XHRs are telemetry (Amazon, Bing search), or when DOM
+// extraction failed, page_fetch is the always-callable bedrock the
+// agent can fall back on. Identified via dom_extraction.extraction_method
+// === "page_fetch"; ranks as a normal endpoint (with one targeted bonus
+// for content-read intents in rankEndpoints).
+// See .bench-history/ROOT_FIX_GUIDE.md for the full architecture.
+// ─────────────────────────────────────────────────────────────────────
+
+export function buildPageFetchEndpoint(
+  url: string,
+  intent: string,
+  authRequired = false,
+): EndpointDescriptor {
+  const computedTemplate = templatizeQueryParams(url);
+  return {
+    endpoint_id: stableEndpointId("GET", computedTemplate + "#page_fetch"),
+    method: "GET",
+    url_template: computedTemplate,
+    idempotency: "safe" as const,
+    verification_status: "verified" as const,
+    reliability_score: 0.5,
+    description: `Returns rendered page for "${intent}" on ${url}`,
+    response_schema: { type: "string", format: "html" } as Record<string, unknown>,
+    dom_extraction: {
+      extraction_method: "page_fetch",
+      // 0.5 confidence is intentionally moderate: above the 0.2 quality
+      // floor (so it's never filtered out), below typical structured-API
+      // scores (so a real /api/ endpoint that matches intent still wins),
+      // above DOM-extracted page-artifacts (so when an agent specifically
+      // wants the raw page they get it).
+      confidence: 0.5,
+    },
+    trigger_url: url,
+    semantic: {
+      action_kind: "fetch",
+      resource_kind: "page",
+      ...(authRequired ? { auth_required: true } : {}),
+      description_in: `Fetches the rendered page at ${url}`,
+      description_out: `Returns the rendered HTML for "${intent}"`,
+    },
+  };
+}
+
+export function isPageFetchEndpoint(ep: EndpointDescriptor): boolean {
+  return ep.dom_extraction?.extraction_method === "page_fetch";
+}
 
 async function trySeedPublicDocumentFetchSkill(
   skill: SkillManifest,
@@ -943,6 +998,44 @@ async function executeBrowserCapture(
       };
     }
     const message = captureErr instanceof Error ? captureErr.message : String(captureErr);
+    // Plan-v12 Phase B: no_progress_bail from captureSession → try SSR
+    // fast-path rescue before declaring capture_failed. Bail fires when
+    // the page made ZERO network requests in 30s — libcurl-impersonate
+    // (Chrome 131 JA4) is more likely to return useful HTML than waiting
+    // longer on a hung Kuri tab. Mirrors the auth_required vendor-challenge
+    // SSR rescue at L1095 but synthesizes a return directly since we have
+    // no captured.* state to splice into.
+    if (err.code === "no_progress_bail") {
+      try {
+        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        const ssr = await trySsrFastPathOnBlock({
+          url, seedCookies: cookies, timeoutMs: 15_000,
+          proxy: process.env.UNBROWSE_PROXY_URL,
+        });
+        if (ssr?.html && ssr.html.length > 1024) {
+          const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
+          if (ssrArtifact.endpoint && ssrArtifact.result) {
+            log("execution", `no_progress_bail_ssr_fastpath_success: ${ssr.html.length} bytes from libcurl`);
+            const trace: ExecutionTrace = stampTrace({
+              trace_id: traceId,
+              skill_id: skill.skill_id,
+              endpoint_id: "browser-capture",
+              started_at: startedAt,
+              completed_at: new Date().toISOString(),
+              success: true,
+              decision_trace: [{ step: "no_progress_bail_ssr_fastpath_success", html_bytes: ssr.html.length }],
+            });
+            return { trace, result: ssrArtifact.result as Record<string, unknown> };
+          }
+          log("execution", "no_progress_bail_ssr_fastpath_failed_extraction_quality");
+        } else {
+          log("execution", "no_progress_bail_ssr_fastpath_failed_no_html");
+        }
+      } catch (ssrErr) {
+        log("execution", `no_progress_bail_ssr_fastpath_error: ${ssrErr instanceof Error ? ssrErr.message : String(ssrErr)}`);
+      }
+      // SSR rescue failed → fall through to normal error normalization
+    }
     const normalizedError = /unable to connect/i.test(message)
       ? "connection_failed"
       : /timed out/i.test(message)
@@ -976,24 +1069,60 @@ async function executeBrowserCapture(
   const redirectedToLogin = captured.final_url !== url && (() => { try { return LOGIN_PATHS.test(new URL(String(captured.final_url)).pathname); } catch { return false; } })();
 
   if (redirectedToAuth || redirectedToLogin) {
-    const trace: ExecutionTrace = stampTrace({
-      trace_id: traceId,
-      skill_id: skill.skill_id,
-      endpoint_id: "browser-capture",
-      started_at: startedAt,
-      completed_at: new Date().toISOString(),
-      success: false,
-      error: "auth_required",
-    });
-    return {
-      trace,
-      result: {
+    // Phase B (plan-v10): before declaring auth_required, check whether the
+    // capture saw an anti-bot vendor marker — if yes, the "auth wall" was
+    // likely vendor-induced (Cloudflare/DataDome/PerimeterX serving a login
+    // page to non-browsers), and libcurl-impersonate may bypass it. If the
+    // capture saw NO vendor markers, this is real auth and SSR fast-path
+    // would just burn 15s before the same conclusion.
+    const requestUrls = (captured.requests ?? []).map((r) => String(r.url ?? ""));
+    const hasVendorChallenge = requestUrls.some((u) =>
+      /(captcha-delivery|cdn-cgi\/challenge-platform|datadome|perimeterx|kasada|akamai-bot|akm_bmfp|kpsdk|_abck=|_pxhd)/i.test(u),
+    );
+    if (hasVendorChallenge) {
+      try {
+        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
+        if (ssr?.html && ssr.html.length > 1024) {
+          const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
+          if (ssrArtifact.endpoint && ssrArtifact.result) {
+            log("execution", `auth_required_ssr_reroute_success: ${ssr.html.length} bytes from libcurl, vendor signal detected (${requestUrls.find((u) => /captcha-delivery|cdn-cgi|datadome|perimeterx|kasada|akamai-bot|akm_bmfp|kpsdk|_abck|_pxhd/i.test(u))?.slice(0, 80)})`);
+            (captured as { html?: string }).html = ssr.html;
+          } else {
+            log("execution", `auth_required_ssr_reroute_failed_extraction_quality: ssrArtifact lacks endpoint+result`);
+          }
+        } else {
+          log("execution", `auth_required_ssr_reroute_failed_no_html: ssr null or <1KB`);
+        }
+      } catch (err) {
+        log("execution", `auth_required_ssr_reroute_error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else {
+      log("execution", `auth_required_ssr_reroute_skipped_no_vendor_signal: real auth, returning auth_required`);
+    }
+
+    // If SSR didn't unlock OR no vendor signal, return auth_required as before
+    if (!hasVendorChallenge || !((captured as { html?: string }).html && (captured as { html?: string }).html!.length > 1024 && /<(html|body)/i.test((captured as { html?: string }).html!))) {
+      const trace: ExecutionTrace = stampTrace({
+        trace_id: traceId,
+        skill_id: skill.skill_id,
+        endpoint_id: "browser-capture",
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        success: false,
         error: "auth_required",
-        provider: getRegistrableDomain(finalDomain),
-        login_url: captured.final_url,
-        message: `Site requires authentication. Call POST /v1/auth/login with {"url": "${captured.final_url}"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers.`,
-      },
-    };
+      });
+      return {
+        trace,
+        result: {
+          error: "auth_required",
+          provider: getRegistrableDomain(finalDomain),
+          login_url: captured.final_url,
+          message: `Site requires authentication. Call POST /v1/auth/login with {"url": "${captured.final_url}"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers.`,
+        },
+      };
+    }
+    // Else fall through with overridden captured.html — extractEndpoints will run on the libcurl HTML
   }
   const extractionTrace: { rows?: Array<Record<string, unknown>> } = {};
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
@@ -1150,7 +1279,7 @@ async function executeBrowserCapture(
     }
   }
 
-  const cleanEndpoints = endpoints.filter((ep) => {
+  let cleanEndpoints = endpoints.filter((ep) => {
     try {
       const host = new URL(ep.url_template).hostname;
       return !AUTH_PROVIDERS.test(host) && !LOGIN_PATHS.test(new URL(ep.url_template).pathname);
@@ -1196,11 +1325,86 @@ async function executeBrowserCapture(
   const pageArtifact = captured.html
     ? buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
     : {};
-  const domArtifactEndpoint = pageArtifact.endpoint;
-  const domArtifactResult = pageArtifact.result;
-  const inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
-  const hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
+  let domArtifactEndpoint = pageArtifact.endpoint;
+  let domArtifactResult = pageArtifact.result;
+  let inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
+  let hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
 
+  // SSR fast-path before declaring failure: when capture has no clean endpoints
+  // AND no usable page artifact, try libcurl-impersonate (Chrome 131 JA4) via
+  // Kuri sandbox. bun's Kuri tab might have failed to render or capture XHRs;
+  // libcurl succeeds on many SSR sites Kuri couldn't. Helper at
+  // src/capture/ssr-fastpath.ts is already used at L2778 for 5xx execute
+  // fallback — this is the 2nd caller. Plan-v9 Phase A.
+  if (cleanEndpoints.length === 0 && (!domArtifactEndpoint || !domArtifactResult || pageArtifact.quality_note)) {
+    try {
+      const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+      const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
+      if (ssr?.html && ssr.html.length > 1024) {
+        const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
+        if (ssrArtifact.endpoint && ssrArtifact.result) {
+          domArtifactEndpoint = ssrArtifact.endpoint;
+          domArtifactResult = ssrArtifact.result;
+          pageArtifact.endpoint = ssrArtifact.endpoint;
+          pageArtifact.result = ssrArtifact.result;
+          delete pageArtifact.quality_note;
+          log("execution", `ssr_fastpath_capture_fallback_success: ${ssr.html.length} bytes from libcurl, dom-extracted endpoint`);
+        }
+      }
+    } catch (err) {
+      log("execution", `ssr_fastpath_capture_fallback_error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // plan-v14 Tier 1: capture-side CF challenge solver. Sibling to SSR fastpath above.
+  const captureDecisionTrace: Array<Record<string, unknown>> = [];
+  if (cleanEndpoints.length === 0 && typeof captured.html === "string" && captured.html.length > 0 && captured.html.startsWith("<")) {
+    try {
+      const { extractCfBundleUrl, solveCfAndRetry } = await import("./cf-challenge.js");
+      const cfBundle = extractCfBundleUrl(captured.html, url);
+      if (cfBundle) {
+        captureDecisionTrace.push({ step: "capture_cf_solver", url, bundle: cfBundle });
+        log("execution", `capture_cf_solver: detected CF challenge bundle ${cfBundle}`);
+        const solved = await solveCfAndRetry({
+          url,
+          body: captured.html,
+          cookies: captured.cookies ?? [],
+          kuriBase: process.env.KURI_BASE_URL,
+          ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+          timeoutMs: 30_000,
+        });
+        if (solved && solved.html.length > 0) {
+          (captured as { html?: string }).html = solved.html;
+          const reExtracted = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
+          if (reExtracted.length > 0) {
+            cleanEndpoints = reExtracted.filter((ep) => {
+              try {
+                const host = new URL(ep.url_template).hostname;
+                return !AUTH_PROVIDERS.test(host) && !LOGIN_PATHS.test(new URL(ep.url_template).pathname);
+              } catch { return true; }
+            });
+            captureDecisionTrace.push({ step: "capture_cf_solver_retry_success", bytes: solved.html.length, endpoints: cleanEndpoints.length });
+            log("execution", `capture_cf_solver_retry_success: re-extracted ${cleanEndpoints.length} endpoints from cleared HTML`);
+          } else {
+            captureDecisionTrace.push({ step: "capture_cf_solver_retry_no_endpoints", bytes: solved.html.length });
+            log("execution", "capture_cf_solver_retry_no_endpoints: cleared HTML returned but extractEndpoints empty");
+          }
+        } else {
+          captureDecisionTrace.push({ step: "capture_cf_solver_no_clearance" });
+          log("execution", "capture_cf_solver_no_clearance: solver returned null");
+        }
+      }
+    } catch (cfErr) {
+      captureDecisionTrace.push({ step: "capture_cf_solver_error", message: cfErr instanceof Error ? cfErr.message : String(cfErr) });
+      log("execution", `capture_cf_solver_error: ${cfErr instanceof Error ? cfErr.message : String(cfErr)}`);
+    }
+  }
+  // plan-v14 Tier 1 fix: recompute the inferred/support flags AFTER the CF arm
+  // may have re-extracted endpoints. Without this, L1402 gates against stale
+  // (pre-solver) values computed at L1330 — could fire bundle_routes_only on
+  // freshly-solved real endpoints, or skip the gate when it should fire.
+  inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
+  hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
   if (inferredOnlyCapture && !hasSupportEvidence) {
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
@@ -1210,6 +1414,7 @@ async function executeBrowserCapture(
       completed_at: new Date().toISOString(),
       success: false,
       error: "bundle_routes_only",
+      decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
     });
     return {
       trace,
@@ -1276,6 +1481,7 @@ async function executeBrowserCapture(
           completed_at: new Date().toISOString(),
           success: true,
           result: domArtifactResult.data,
+          decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
         });
         // Always return data to the caller — quality gate only blocks publishing
         return {
@@ -1294,6 +1500,7 @@ async function executeBrowserCapture(
         completed_at: new Date().toISOString(),
         success: false,
         error: pageArtifact.quality_note,
+        decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
       });
       return {
         trace,
@@ -1336,6 +1543,7 @@ async function executeBrowserCapture(
       completed_at: new Date().toISOString(),
       success: false,
       error: "no_endpoints",
+      decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
     });
     return {
       trace,
@@ -1378,9 +1586,24 @@ async function executeBrowserCapture(
 
   // Keep all captured endpoints locally so the resolver can use WS-backed skills,
   // but only publish HTTP endpoints until backend validation supports WS manifests.
-  const learnedEndpoints = domArtifactEndpoint
-    ? [...cleanEndpoints, domArtifactEndpoint]
-    : cleanEndpoints;
+  //
+  // INVARIANT: every published skill carries a `page_fetch` endpoint as
+  // bedrock floor. When XHR observation yielded only telemetry (Amazon
+  // search, Bing search) or DOM extraction couldn't synthesize a useful
+  // artifact, the agent can still call this endpoint to retrieve the
+  // rendered page (HTML→markdown via execute's existing GET path).
+  // See .bench-history/ROOT_FIX_GUIDE.md for the architecture.
+  const pageFetch = buildPageFetchEndpoint(url, intent, authBackedCapture);
+  const learnedEndpoints = [
+    ...cleanEndpoints,
+    ...(domArtifactEndpoint ? [domArtifactEndpoint] : []),
+    // Skip injection if the corpus already has a page_fetch endpoint
+    // (e.g. on re-capture of an existing skill that already had it).
+    ...(cleanEndpoints.some(isPageFetchEndpoint)
+        || (domArtifactEndpoint && isPageFetchEndpoint(domArtifactEndpoint))
+        ? []
+        : [pageFetch]),
+  ];
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill
       ? mergeEndpoints(existingSkill.endpoints, learnedEndpoints)
@@ -1461,6 +1684,7 @@ async function executeBrowserCapture(
     completed_at: completedAt,
     success: true,
     result: { learned_skill_id: learned.skill_id, endpoints_discovered: cleanEndpoints.length },
+    decision_trace: captureDecisionTrace.length ? captureDecisionTrace : undefined,
   });
 
   // Detect tracking-only capture: all endpoints lack a response_schema, meaning no real
@@ -2526,6 +2750,11 @@ export async function executeEndpoint(
   // Phase 7.2 promotes this to a top-level field on the response envelope.
   (trace as ExecutionTrace & { decision_trace?: Array<Record<string, unknown>> }).decision_trace = decisionTrace;
 
+  // Snapshot the raw upstream failure body BEFORE the empty-data stubbing
+  // below replaces it. Used by classifyExecuteFailure() in the auth-recovery
+  // branch to tell vendor_blocked apart from stale_credentials.
+  const rawFailureBody: unknown = !trace.success ? data : undefined;
+
   if (!trace.success) {
     trace.error = status === 0
       ? `HTTP 0 — network failure or browser fetch was blocked (DNS, TLS, CORS, anti-bot, or kuri tab error). Try \`unbrowse go\` to open a live session, then re-run.`
@@ -2603,29 +2832,171 @@ export async function executeEndpoint(
         if (trace.success) {
           trace.result = data;
         } else {
-          trace.error = `HTTP ${status}`;
+          // Classify the retry response body too — if recovery succeeded
+          // but the retry still hit DataDome/CF/PerimeterX (libcurl is still
+          // libcurl after a cookie refresh), honestly mark vendor_blocked.
+          const retryKind = classifyExecuteFailure({ status, body: data });
+          if (retryKind.kind === "vendor_blocked") {
+            trace.error = `HTTP ${status} (vendor_blocked: ${retryKind.vendor ?? "unknown"} — refreshed cookies still classified as bot)`;
+            data = staleEndpointResult(
+              status,
+              skill,
+              endpoint,
+              options?.contextUrl,
+              `Endpoint ${endpoint.endpoint_id} returned HTTP ${status} after credential refresh; classifier detected ${retryKind.vendor ?? "vendor"} bot mitigation. The auth refresh worked, but the libcurl signature is still being identified as non-browser. Open a live browser session for this site.`,
+            );
+          } else {
+            trace.error = `HTTP ${status}`;
+            data = staleEndpointResult(
+              status,
+              skill,
+              endpoint,
+              options?.contextUrl,
+              `Credentials were refreshed, but endpoint ${endpoint.endpoint_id} still returned HTTP ${status}. Treat this marketplace route as stale and use browser capture for this task.`,
+            );
+          }
+          trace.result = data;
+        }
+      } else {
+        // Classify the failure body BEFORE assuming stale-credentials.
+        // DataDome / CF / PerimeterX / Akamai / etc. respond with 401/403 and
+        // a vendor-shaped body when classifying libcurl as a bot — recovery
+        // chain has no auth to refresh because the issue is bot detection.
+        const failureKind = classifyExecuteFailure({ status, body: rawFailureBody });
+        // No recovery path worked
+        if (skill.auth_profile_ref && failureKind.kind !== "vendor_blocked") {
+          // Only delete credentials when the failure is genuinely auth.
+          // Vendor-blocked sites have nothing to refresh; deleting their
+          // captured cookies wastes the user's next browser session.
+          await deleteCredential(skill.auth_profile_ref);
+        }
+        if (failureKind.kind === "vendor_blocked" && failureKind.vendor === "cloudflare") {
+          // plan-v13 Tier 2A: attempt CF JS-challenge solve before declaring stale.
+          // Solver fetches the CF challenge bundle, runs it in the Kuri sandbox to
+          // obtain cf_clearance, then retries the original URL with merged cookies.
+          // Returns null on any failure path → fall through to staleEndpointResult.
+          try {
+            const { solveCfAndRetry } = await import("./cf-challenge.js");
+            const cfTargetUrl = endpoint.trigger_url || url;
+            const cfBody = typeof rawFailureBody === "string" ? rawFailureBody : "";
+            const cfSandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+            decisionTrace.push({ step: "vendor_blocked_cf_solver", vendor: "cloudflare", url: cfTargetUrl });
+            const cfResult = await solveCfAndRetry({
+              url: cfTargetUrl,
+              body: cfBody,
+              cookies,
+              kuriBase: cfSandboxBase,
+              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              timeoutMs: 15_000,
+            });
+            if (cfResult && cfResult.status >= 200 && cfResult.status < 300 && cfResult.html.length > 0) {
+              trace.success = true;
+              trace.status_code = cfResult.status;
+              trace.error = undefined;
+              data = cfResult.html;
+              trace.result = data;
+              decisionTrace.push({ step: "vendor_blocked_cf_solver_retry_success", status: cfResult.status, bytes: cfResult.html.length });
+              return { trace, result: data, decision_trace: decisionTrace };
+            }
+            if (cfResult && cfResult.status >= 200 && cfResult.status < 300 && cfResult.html.length === 0) {
+              decisionTrace.push({ step: "vendor_blocked_cf_solver_retry_extract_empty", status: cfResult.status });
+            } else {
+              decisionTrace.push({ step: "vendor_blocked_cf_solver_retry_still_blocked" });
+            }
+          } catch (cfErr) {
+            decisionTrace.push({ step: "vendor_blocked_cf_solver_error", message: cfErr instanceof Error ? cfErr.message : String(cfErr) });
+          }
+          // Fall through to staleEndpointResult.
+        }
+        if (failureKind.kind === "vendor_blocked" && failureKind.vendor === "perimeterx") {
+          // plan-v13 Tier 2B: PerimeterX bundle-replay solver. Sibling to CF arm above.
+          try {
+            const { solvePxAndRetry } = await import("./px-challenge.js");
+            const pxTargetUrl = endpoint.trigger_url || url;
+            const pxBody = typeof rawFailureBody === "string" ? rawFailureBody : "";
+            const pxSandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+            decisionTrace.push({ step: "vendor_blocked_px_solver", vendor: "perimeterx", url: pxTargetUrl });
+            const pxResult = await solvePxAndRetry({
+              url: pxTargetUrl,
+              body: pxBody,
+              cookies,
+              kuriBase: pxSandboxBase,
+              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              timeoutMs: 30_000,
+            });
+            if (pxResult && pxResult.status >= 200 && pxResult.status < 300 && pxResult.html.length > 0) {
+              trace.success = true;
+              trace.status_code = pxResult.status;
+              trace.error = undefined;
+              data = pxResult.html;
+              trace.result = data;
+              decisionTrace.push({ step: "vendor_blocked_px_solver_retry_success", status: pxResult.status, bytes: pxResult.html.length });
+              return { trace, result: data, decision_trace: decisionTrace };
+            }
+            if (pxResult && pxResult.status >= 200 && pxResult.status < 300 && pxResult.html.length === 0) {
+              decisionTrace.push({ step: "vendor_blocked_px_solver_retry_extract_empty", status: pxResult.status });
+            } else {
+              decisionTrace.push({ step: "vendor_blocked_px_solver_retry_still_blocked" });
+            }
+          } catch (pxErr) {
+            decisionTrace.push({ step: "vendor_blocked_px_solver_error", message: pxErr instanceof Error ? pxErr.message : String(pxErr) });
+          }
+          // Fall through to staleEndpointResult.
+        }
+        if (failureKind.kind === "vendor_blocked" && failureKind.vendor === "akamai_bot_manager") {
+          // plan-v13 Tier 2B: Akamai bundle-replay solver. Sibling to PX arm above.
+          try {
+            const { solveAkamaiAndRetry } = await import("./akamai-challenge.js");
+            const akTargetUrl = endpoint.trigger_url || url;
+            const akBody = typeof rawFailureBody === "string" ? rawFailureBody : "";
+            const akSandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+            decisionTrace.push({ step: "vendor_blocked_akamai_solver", vendor: "akamai_bot_manager", url: akTargetUrl });
+            const akResult = await solveAkamaiAndRetry({
+              url: akTargetUrl,
+              body: akBody,
+              cookies,
+              kuriBase: akSandboxBase,
+              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              timeoutMs: 15_000,
+            });
+            if (akResult && akResult.status >= 200 && akResult.status < 300 && akResult.html.length > 0) {
+              trace.success = true;
+              trace.status_code = akResult.status;
+              trace.error = undefined;
+              data = akResult.html;
+              trace.result = data;
+              decisionTrace.push({ step: "vendor_blocked_akamai_solver_retry_success", status: akResult.status, bytes: akResult.html.length });
+              return { trace, result: data, decision_trace: decisionTrace };
+            }
+            if (akResult && akResult.status >= 200 && akResult.status < 300 && akResult.html.length === 0) {
+              decisionTrace.push({ step: "vendor_blocked_akamai_solver_retry_extract_empty", status: akResult.status });
+            } else {
+              decisionTrace.push({ step: "vendor_blocked_akamai_solver_retry_still_blocked" });
+            }
+          } catch (akErr) {
+            decisionTrace.push({ step: "vendor_blocked_akamai_solver_error", message: akErr instanceof Error ? akErr.message : String(akErr) });
+          }
+          // Fall through to staleEndpointResult.
+        }
+        if (failureKind.kind === "vendor_blocked") {
+          trace.error = `${trace.error} (vendor_blocked: ${failureKind.vendor ?? "unknown"} — bot detection, not auth)`;
           data = staleEndpointResult(
             status,
             skill,
             endpoint,
             options?.contextUrl,
-            `Credentials were refreshed, but endpoint ${endpoint.endpoint_id} still returned HTTP ${status}. Treat this marketplace route as stale and use browser capture for this task.`,
+            `Endpoint ${endpoint.endpoint_id} returned HTTP ${status}; classifier detected ${failureKind.vendor ?? "vendor"} bot mitigation. This is not a credential issue — the libcurl replay was identified as non-browser. Open a live browser session for this site.`,
           );
-          trace.result = data;
+        } else {
+          trace.error = `${trace.error} (stale credentials — re-authenticate via /v1/auth/login)`;
+          data = staleEndpointResult(
+            status,
+            skill,
+            endpoint,
+            options?.contextUrl,
+            `Endpoint ${endpoint.endpoint_id} returned HTTP ${status}, and credential recovery did not produce a usable session.`,
+          );
         }
-      } else {
-        // No recovery path worked — delete stale credentials
-        if (skill.auth_profile_ref) {
-          await deleteCredential(skill.auth_profile_ref);
-        }
-        trace.error = `${trace.error} (stale credentials — re-authenticate via /v1/auth/login)`;
-        data = staleEndpointResult(
-          status,
-          skill,
-          endpoint,
-          options?.contextUrl,
-          `Endpoint ${endpoint.endpoint_id} returned HTTP ${status}, and credential recovery did not produce a usable session.`,
-        );
         trace.result = data;
       }
     } catch {
@@ -2645,6 +3016,54 @@ export async function executeEndpoint(
   }
 
   if (!trace.success && (status === 404 || status === 429 || status >= 500)) {
+    // 5xx → ssr-fastpath fallback: when the captured endpoint returns a
+    // transient server error (or the captured pattern is stale), try
+    // libcurl-impersonate Chrome131 JA4 via Kuri sandbox at the page URL.
+    // This routes through a DIFFERENT network path than serverFetch (which
+    // uses Node fetch) — sites that 500 Node fetch (walmart) often return
+    // 200 to libcurl-impersonate. Recursion-guarded by isPageFetchEndpoint.
+    if (status >= 500 && !isPageFetchEndpoint(endpoint)) {
+      const fallbackIntent = options?.intent || skill.intent_signature || "";
+      const fallbackUrl = endpoint.trigger_url || url;
+      decisionTrace.push({ step: "5xx_ssr_fastpath_fallback", from: endpoint.endpoint_id, original_status: status, target: fallbackUrl });
+      try {
+        // Ensure a Kuri instance with /v1/sandbox/replay is reachable.
+        // The unbrowse server's embedded Kuri (port 6969) may lack the
+        // sandbox endpoint; spawn a standalone one at 8080 if needed.
+        const { ensureKuriSandboxReachable } = await import("../kuri/spawn.js");
+        const sandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+        const ready = await ensureKuriSandboxReachable(sandboxBase);
+        if (!ready) {
+          decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_kuri_unavailable", target_kuri: sandboxBase });
+          throw new Error(`Kuri sandbox not reachable at ${sandboxBase}`);
+        }
+        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
+        if (ssr) {
+          log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
+          // Run DOM extraction on the recovered HTML.
+          const extracted = extractFromDOM(ssr.html, fallbackIntent);
+          if (extracted.data) {
+            trace.success = true;
+            trace.status_code = ssr.status;
+            trace.error = undefined;
+            data = flattenExtracted(extracted.data);
+            trace.result = data;
+            decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_success", status: ssr.status, bytes: ssr.html.length });
+            // Skip the staleEndpointResult fall-through below.
+            // Schema drift + html-postprocess sections after this `if` block
+            // are guarded by `trace.success && ...` and will harmlessly run.
+            return { trace, result: data };
+          }
+          decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_extract_empty", status: ssr.status });
+        } else {
+          decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_no_html", reason: "ssr_returned_null" });
+        }
+      } catch (err) {
+        log("exec", `5xx ssr-fastpath fallback errored: ${err instanceof Error ? err.message : String(err)}`);
+        decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_error", reason: err instanceof Error ? err.message : String(err) });
+      }
+    }
     data = staleEndpointResult(status, skill, endpoint, options?.contextUrl);
     trace.result = data;
   }
@@ -2997,8 +3416,6 @@ function stem(word: string): string {
   return word;
 }
 
-const BM25_K1 = 1.2;
-const BM25_B = 0.75;
 const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "of", "to", "in", "for", "on", "with", "from",
   "get", "all", "this", "that", "is", "are", "was", "be", "it", "at", "by", "not",
@@ -3115,31 +3532,13 @@ function endpointToTokens(ep: EndpointDescriptor): string[] {
   return tokens.map((t) => stem(t.toLowerCase()));
 }
 
-function bm25Score(query: string[], doc: string[], avgDl: number, docCount: number, docFreqs: Map<string, number>): number {
-  const dl = doc.length;
-  const tf = new Map<string, number>();
-  for (const t of doc) tf.set(t, (tf.get(t) ?? 0) + 1);
-
-  let score = 0;
-  for (const term of query) {
-    const freq = tf.get(term) ?? 0;
-    if (freq === 0) continue;
-    // Real IDF: log((N - df + 0.5) / (df + 0.5) + 1) — terms appearing in fewer docs score higher
-    const df = docFreqs.get(term) ?? 0;
-    const idf = Math.log((docCount - df + 0.5) / (df + 0.5) + 1);
-    const num = freq * (BM25_K1 + 1);
-    const denom = freq + BM25_K1 * (1 - BM25_B + BM25_B * (dl / avgDl));
-    score += idf * (num / denom);
-  }
-  return score;
-}
 
 export interface RankedEndpoint {
   endpoint: EndpointDescriptor;
   score: number;
 }
 
-function intentResourceKinds(intent?: string): string[] {
+export function intentResourceKinds(intent?: string): string[] {
   const lower = (intent ?? "").toLowerCase();
   if (/\b(person|people|profile|profiles|user|users|member|members)\b/.test(lower)) return ["person", "people", "profile", "user", "member"];
   if (/\b(company|organization|org)\b/.test(lower)) return ["company", "organization", "org", "business"];
@@ -3149,7 +3548,7 @@ function intentResourceKinds(intent?: string): string[] {
   return [];
 }
 
-function intentActionKinds(intent?: string): string[] {
+export function intentActionKinds(intent?: string): string[] {
   const lower = (intent ?? "").toLowerCase();
   if (/\b(feed|timeline|stream|home)\b/.test(lower)) return ["list", "feed", "timeline"];
   if (/\b(search|find|lookup)\b/.test(lower)) return ["search", "list"];
@@ -3161,47 +3560,6 @@ function intentActionKinds(intent?: string): string[] {
 function isEntityDetailIntent(intent?: string): boolean {
   const lower = (intent ?? "").toLowerCase();
   return /\b(get|fetch|view)\b/.test(lower) && /\b(company|organization|org|business|person|people|profile|profiles|user|users|member|members)\b/.test(lower);
-}
-
-function semanticIntentAdjustment(endpoint: EndpointDescriptor, intent?: string): number {
-  const semantic = resolveEndpointSemantic(endpoint);
-  if (!semantic || !intent) return 0;
-  const resourceKinds = intentResourceKinds(intent);
-  const actionKinds = intentActionKinds(intent);
-  let delta = 0;
-
-  const resource = (semantic.resource_kind ?? "").toLowerCase();
-  const action = (semantic.action_kind ?? "").toLowerCase();
-  const negatives = new Set((semantic.negative_tags ?? []).map((tag) => tag.toLowerCase()));
-  const haystack = [
-    endpoint.url_template,
-    endpoint.description ?? "",
-    semantic.description_out ?? "",
-    semantic.response_summary ?? "",
-  ].join(" ").toLowerCase();
-  const uiScaffold = /(sharebox|closedsharebox|mailbox|messaging|conversation|notification|notifications|alerts?|presence|badging|launchpad|previewbanner|main_feed|feedtype)/i.test(haystack);
-
-  if (resourceKinds.length > 0) {
-    if (resourceKinds.some((kind) => resource.includes(kind) || kind.includes(resource))) delta += 80;
-    else if (resource) delta -= 90;
-  }
-
-  if (actionKinds.length > 0) {
-    if (actionKinds.some((kind) => action.includes(kind) || kind.includes(action))) delta += 25;
-    else if (action) delta -= 25;
-  }
-
-  if (negatives.has("config") || negatives.has("telemetry") || negatives.has("experiment") || negatives.has("auth")) {
-    delta -= 60;
-  }
-  if (negatives.has("adjacent") || negatives.has("ads")) {
-    delta -= 90;
-  }
-  if (uiScaffold && (resourceKinds.length > 0 || actionKinds.length > 0)) {
-    delta -= 220;
-  }
-
-  return delta;
 }
 
 /**
@@ -3235,13 +3593,21 @@ export function detectBrowserBlockSignals(input: {
     ) {
       vendorHits.add("perimeterx");
     }
-    if (/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i.test(u)) vendorHits.add("datadome");
+    // captcha-delivery.com is DataDome's hosted captcha CDN — observed in
+    // rejected_samples for g2.com and leboncoin.fr but not matched by the
+    // body-marker patterns above. Adding here promotes those rows from
+    // soft_block → vendor_blocked in the bench classifier.
+    if (/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey|captcha-delivery\.com/i.test(u)) vendorHits.add("datadome");
     if (/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i.test(u)) vendorHits.add("imperva_incapsula");
     // Akamai Bot Manager — used by walmart, delta, target, many retail
     // Detected via: _abck cookie usage, akam.net, bot-defender, /_bm/ paths,
     // and Akamai sensor_data collection endpoint.
     if (/akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i.test(u)) vendorHits.add("akamai_bot_manager");
-    if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i.test(u)) vendorHits.add("cloudflare");
+    // cdn-cgi/challenge-platform is Cloudflare's managed challenge JS path
+    // (Turnstile + JS-detect). Observed in rejected_samples for g2.com.
+    // The other tokens cover challenge cookies and Turnstile widget hosts;
+    // this adds the script-load path the page itself fetches.
+    if (/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare|cdn-cgi\/challenge-platform/i.test(u)) vendorHits.add("cloudflare");
     if (/\/_fs-ch-[A-Za-z0-9]+\//.test(u)) vendorHits.add("fastly_bot_management");
     if (/hcaptcha|recaptcha|arkoselabs|funcaptcha/i.test(u)) vendorHits.add("captcha_vendor");
     if (/shape\.security|f5\.com\/shape|ShapeSecurity/i.test(u)) vendorHits.add("shape_security");
@@ -3272,6 +3638,94 @@ export function detectBrowserBlockSignals(input: {
 }
 
 /**
+ * Classify why an EXECUTE replay failed when status ∈ {401, 403}. Companion
+ * to detectBrowserBlockSignals (which runs at capture time on the live page);
+ * this runs at execute time on the upstream replay response body so we can
+ * tell apart "your cookies expired" (stale_credentials, the existing path)
+ * from "DataDome/CF/PerimeterX classified your libcurl as a bot"
+ * (vendor_blocked, previously misreported as stale_credentials).
+ *
+ * Default = stale_credentials when nothing matches — preserves prior
+ * behavior on no-signal so this is a strict additive distinction.
+ */
+export function classifyExecuteFailure(input: {
+  status: number;
+  body: unknown;
+  headers?: Record<string, string | string[] | undefined>;
+}): { kind: "vendor_blocked" | "stale_credentials" | "transient"; vendor?: string; evidence?: string } {
+  const { status, body, headers } = input;
+  // Normalize body to a searchable string. JSON envelopes (already parsed)
+  // get stringified; HTML/text bodies pass through; null/undefined → "".
+  let bodyStr = "";
+  if (typeof body === "string") bodyStr = body;
+  else if (body != null) {
+    try { bodyStr = JSON.stringify(body); } catch { bodyStr = String(body); }
+  }
+  const sample = bodyStr.length > 16384 ? bodyStr.slice(0, 16384) : bodyStr;
+  const lower = sample.toLowerCase();
+  const headerLines: string[] = [];
+  if (headers) {
+    for (const [k, v] of Object.entries(headers)) {
+      if (v == null) continue;
+      const val = Array.isArray(v) ? v.join("; ") : v;
+      headerLines.push(`${k.toLowerCase()}: ${val.toLowerCase()}`);
+    }
+  }
+  const headerStr = headerLines.join("\n");
+
+  // Vendor markers — body OR headers can carry them. Order matters: more
+  // specific vendors first so we don't tag a DataDome page as "captcha_vendor".
+  // Patterns lifted from detectBrowserBlockSignals to keep one source of truth.
+  if (
+    /datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey|captcha-delivery|"action_message":"please[^"]+enable|x-dd-b|'rt':'c'/i.test(sample) ||
+    /\bdatadome=|x-datadome|x-dd-b/.test(headerStr)
+  ) return { kind: "vendor_blocked", vendor: "datadome", evidence: "body_or_header_marker" };
+  if (
+    /perimeterx|px-cloud|px-cdn|pxhd\.net|_pxhd|_pxvid|"appId":"px"/i.test(sample) ||
+    /\bpx_=|_pxhd=/.test(headerStr)
+  ) return { kind: "vendor_blocked", vendor: "perimeterx", evidence: "body_or_header_marker" };
+  if (
+    /akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i.test(sample) ||
+    /\b_abck=|akam-/.test(headerStr)
+  ) return { kind: "vendor_blocked", vendor: "akamai_bot_manager", evidence: "body_or_header_marker" };
+  if (
+    /cf-challenge|__cf_chl_|cf_clearance|turnstile|cdn-cgi\/challenge|challenges\.cloudflare/i.test(sample) ||
+    /\bcf-mitigated|server: cloudflare/.test(headerStr) && status === 403
+  ) return { kind: "vendor_blocked", vendor: "cloudflare", evidence: "body_or_header_marker" };
+  if (/_incapsula|incapsula|reese84|imperva/i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "imperva_incapsula", evidence: "body_marker" };
+  }
+  if (/\/_fs-ch-[a-z0-9]+\//i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "fastly_bot_management", evidence: "body_marker" };
+  }
+  if (/kasada|client\.kasada|ips\.kasada|x-kpsdk-/i.test(sample) || /\bx-kpsdk-/i.test(headerStr)) {
+    return { kind: "vendor_blocked", vendor: "kasada", evidence: "body_or_header_marker" };
+  }
+  if (/shape\.security|f5\.com\/shape|shapesecurity/i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "shape_security", evidence: "body_marker" };
+  }
+  if (/hcaptcha|h-captcha|recaptcha|arkoselabs|funcaptcha|g-recaptcha-response|data-sitekey/i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "captcha_vendor", evidence: "body_marker" };
+  }
+
+  // Title-of-an-HTML-error-page check — catches cases where the body is a
+  // generic challenge page without a vendor-specific marker.
+  const titleMatch = sample.match(/<title[^>]*>([^<]{0,200})<\/title>/i);
+  if (titleMatch) {
+    const t = titleMatch[1].toLowerCase();
+    if (/just a moment|attention required|access denied|pardon our interruption|verifying you are human|are you a robot|bot check|press and hold|unusual traffic|security check|client challenge|checking your browser|captcha|accès bloqué|acceso denegado|zugriff verweigert|アクセス拒否|访问被拒绝|доступ запрещ|blocked|access blocked|forbidden/i.test(t)) {
+      return { kind: "vendor_blocked", vendor: "generic_challenge", evidence: `title:${t.slice(0, 80)}` };
+    }
+  }
+
+  // Reserved for future 5xx work — not used this iteration.
+  if (status >= 500) return { kind: "transient", evidence: `http_${status}` };
+
+  // Default: preserve prior behavior — caller's stale_credentials path.
+  return { kind: "stale_credentials" };
+}
+
+/**
  * Extract a bundle replay snapshot from captured network traffic. Companion
  * to detectBrowserBlockSignals — when that returns a vendor signal, this
  * pulls out the URLs that triggered it so the deep-reveng sandbox runtime
@@ -3289,6 +3743,7 @@ export function extractBundleSnapshot(input: {
   blockSignals: string[];
   targetOrigin: string;
   targetHref: string;
+  cookieNames?: string[];
 }): {
   vendor: string;
   bundle_urls: string[];
@@ -3297,9 +3752,41 @@ export function extractBundleSnapshot(input: {
   target_href: string;
   captured_at: number;
 } | null {
-  const { requestUrls, blockSignals, targetOrigin, targetHref } = input;
-  const vendor = blockSignals.find((s) => s.startsWith("vendor:"))?.slice("vendor:".length);
+  const { requestUrls, blockSignals, targetOrigin, targetHref, cookieNames } = input;
+  let vendor = blockSignals.find((s) => s.startsWith("vendor:"))?.slice("vendor:".length);
   if (!vendor) return null;
+
+  // Disambiguate misclassified perimeterx labels.
+  //
+  // The upstream URL-shape classifier (detectBrowserBlockSignals) tags any
+  // /<uuid>/<uuid>/(ips.js|tl|xhr|init) request stream as "perimeterx" because
+  // PX commonly serves first-party bundles at that shape. But Akamai Bot
+  // Manager and Kasada also use two-UUID-pair paths for their first-party
+  // bundles. Wiring the PerimeterX challenge solver against an Akamai/Kasada
+  // body would fail. Disambiguate using query-param markers on the captured
+  // bundle URLs and (when available) cookie-name evidence — pure structural
+  // signals, no per-host branches.
+  if (vendor === "perimeterx") {
+    const hasAkamaiQuery = requestUrls.some((u) => /[?&]akm_bmfp/i.test(u));
+    const hasKasadaQuery = requestUrls.some((u) => /[?&]x-kpsdk/i.test(u));
+    const cookieSet = (cookieNames ?? []).map((c) => c.toLowerCase());
+    const hasPxCookie = cookieSet.some((c) => c === "_pxhd" || c === "_px3" || c === "_pxvid");
+    if (hasAkamaiQuery && !hasPxCookie) {
+      vendor = "akamai_bot_manager";
+    } else if (hasKasadaQuery && !hasPxCookie) {
+      vendor = "kasada";
+    } else if (!hasPxCookie) {
+      // No disambiguation signal AND no PX cookie evidence → check whether
+      // anything in the captured URLs proves PX (vendor host or KP_UIDz).
+      // The two-UUID-pair shape alone is shared by PX/Akamai/Kasada and
+      // cannot be trusted as the sole signal. Bail rather than fire the
+      // wrong solver.
+      const hasPxUrlEvidence = requestUrls.some((u) =>
+        /perimeterx|px-cloud|px-cdn|pxhd\.net|KP_UIDz=/i.test(u),
+      );
+      if (!hasPxUrlEvidence) return null;
+    }
+  }
 
   // Per-vendor URL pattern matchers — keep in lockstep with detectBrowserBlockSignals.
   const matchers: Record<string, RegExp[]> = {
@@ -3310,12 +3797,20 @@ export function extractBundleSnapshot(input: {
     ],
     datadome: [/datadome|js\.datadome|dd\.datadome|_dd\.s|ddjskey/i],
     imperva_incapsula: [/akamaihd|ak-challenge|_Incapsula|incapsula|reese84/i],
-    akamai_bot_manager: [/akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i],
+    akamai_bot_manager: [
+      /akam\.net|bot-defender|\/_bm\/|sensor[-_]data|bm\.nuid|_abck/i,
+      /[?&]akm_bmfp/i,
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(ips\.js|tl|xhr|init)/i,
+    ],
     cloudflare: [/cf-challenge|__cf_chl_|turnstile|challenges\.cloudflare/i],
     fastly_bot_management: [/\/_fs-ch-[A-Za-z0-9]+\//],
     captcha_vendor: [/hcaptcha|recaptcha|arkoselabs|funcaptcha/i],
     shape_security: [/shape\.security|f5\.com\/shape|ShapeSecurity/i],
-    kasada: [/kasada|client\.kasada|ips\.kasada/i],
+    kasada: [
+      /kasada|client\.kasada|ips\.kasada/i,
+      /[?&]x-kpsdk/i,
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(ips\.js|tl|xhr|init)/i,
+    ],
   };
   const patterns = matchers[vendor] ?? [];
   const matched = requestUrls.filter((u) => patterns.some((p) => p.test(u)));
@@ -3466,28 +3961,7 @@ export function buildGraphqlRequestParams(
 }
 
 export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string, contextUrl?: string, params?: Record<string, unknown>): RankedEndpoint[] {
-  // --- Hard-filter: hosts that NEVER contain useful data ---
-  const NOISE_HOSTS = /(id5-sync\.com|btloader\.com|presage\.io|onetrust\.com|adsrvr\.org|googlesyndication\.com|adtrafficquality\.google|amazon-adsystem\.com|crazyegg\.com|challenges\.cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|protechts\.net|demdex\.net|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|cloudflareinsights\.com|fonts\.googleapis\.com|recaptcha|waa-pa\.|signaler-pa\.|ogads-pa\.|reddit\.com\/pixels?|pixel-config\.|dns-finder\.com|cookieconsentpub|firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|apis\.google\.com|connect\.facebook\.net|bat\.bing\.com|static\.cloudflareinsights\.com|cdn\.mxpnl\.com|js\.hs-analytics\.net|snap\.licdn\.com|clc\.stackoverflow\.com|px\.ads|t\.co\/i|analytics\.|telemetry\.|stats\.)/i;
-
-  // Noise URL path patterns — tracking, telemetry, logging
-  const NOISE_PATHS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts|collect|tr\/|gen_204|generate_204|log$|logging|heartbeat|metrics|consent|sodar|tag$|event$|events$|impression|pageview|click|__|adx\/|\/cm\/ttc|\/pfb$|_stm$|videoads\/|prerolls|phantom\/)/i;
-
-  // i18n / locales / static config — translation files and navigation scaffolding, never data
-  const I18N_CONFIG_PATHS = /\/(i18n\/|locales\/|locale\/|translations?\/|l10n\/|lang\/[a-z]{2,5}\/|navigation\.json$|privacy[-_]compliance|privacy[-_]consent|consent[-_])/i;
-
-  // Auth/session/config — on-domain but not data
-  const AUTH_CONFIG_PATHS = /\/(csrf_meta|logged_in_user|analytics_user_data|onboarding|geolocation|auth|login|logout|register|signup|session|webConfig|config\.json|manifest\.json|robots\.txt|sitemap|favicon|opensearch|service-worker|sw\.js)\b/i;
-
-  // Session plumbing — infrastructure endpoints no user would ever want as data.
-  // Only true noise: account config, badge counts, feature flags, telemetry, DM settings.
-  // NOT filtered: HomeTimeline, Bookmarks, Notifications, UserByScreenName, etc. — real data.
-  const SESSION_PLUMBING = /(account\/settings|account\/multi|badge_count|DataSaverMode|permissionsState|email_phone_info|live_pipeline|user_flow|strato\/column|ces\/p2|IntercomStarter|getAltText|fleetline|FeatureHelper|VerifiedAvatar|ScheduledPromotion|DirectCall|DmSettings|PinnedTimeline)/i;
-
-  // Static assets
-  const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|mjs|png|jpg|jpeg|gif|svg|ico|webp|avif|mp4|mp3|wav|riv|lottie|wasm)(\?|%3F|$)/i;
-
-  // Animation/UI asset paths
-  const UI_ASSET_PATHS = /\/(rive|lottie|animations?|sprites?|assets\/static)\//i;
+  // Noise filter patterns moved to src/ranking/filters/noise-patterns.ts (P1 W3 cleanup)
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
     if (ep.verification_status === "disabled") return false;
@@ -3640,7 +4114,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // Floor BM25 at 0 — single-doc corpora have negative IDF that would
       // otherwise penalize legitimate matches. Use the score only as a positive
       // signal; structural penalties below handle the demotion side.
-      score += Math.max(0, bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs)) * 20;
+      score += Math.max(0, bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs)) * BM25_DELTA_WEIGHT;
     }
 
     // === Description match bonus — separate from BM25 to avoid IDF dilution ===
@@ -3672,7 +4146,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       }
       // Each matching core token = +100 points. "feed" matching gives +100,
       // "feed" + "post" matching gives +200, etc.
-      score += matches * 100;
+      score += matches * AGENT_DESC_DELTA_WEIGHT;
     }
 
     // === URL path to intent match — catches SSR-extracted and RPC-style endpoints ===
@@ -3743,13 +4217,13 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (rawTokens.length > 0 && !intent?.match(/\b(search|find|get|list|fetch)\b/i)?.input) {
       // Already handled by URL-to-intent match above; add bonus for explicit resource nouns
     }
-    if (CURRENCY_TIME_PATTERNS.test(pathname)) score += 15;
-    if (intent && COMMS_INTENT.test(intent) && COMMS_PATH.test(pathname)) score += 45;
+    if (CURRENCY_TIME_PATTERNS.test(pathname)) score += CURRENCY_TIME_DELTA_WEIGHT;
+    if (intent && COMMS_INTENT.test(intent) && COMMS_PATH.test(pathname)) score += COMMS_PATH_DELTA_WEIGHT;
     if (intent && COMMS_INTENT.test(intent) && DISCORD_META_PATHS.test(pathname)) score -= 220;
     if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/i.test(intent ?? "")) {
       const quoteHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})} ${JSON.stringify(semantic)}`.toLowerCase();
       if (/\/chart\b/i.test(pathname) && /(regularmarketprice|currentprice|previousclose|chartpreviousclose|price)/i.test(quoteHaystack)) {
-        score += 120;
+        score += CHART_PRICING_DELTA_WEIGHT;
       }
       if (SESSION_BOUND_QUERY.test(ep.url_template)) {
         // Crumb/csrf-bound URLs are unusable without live session — bury hard.
@@ -3833,8 +4307,39 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // page artifact AND any sibling in the corpus is a real API endpoint for the
     // same domain/intent class, bury the page artifact below the API. Replaces
     // the trigger_url-based check that Phase 8.3 left brittle on test fixtures.
+    //
+    // EXCEPTION: for content-read intents (LIST_INTENT — search/list/find/...),
+    // when the page-artifact has high-confidence DOM extraction AND an array-
+    // shaped response, the page itself IS the data. The user wants product
+    // listings; the XHR siblings are usually telemetry/config (e.g. Amazon's
+    // patcConfig A/B-test rules) that ranked above search-results because
+    // they happen to match /api/-shaped URL patterns. Promote the page-
+    // artifact ABOVE structured-but-noisy XHR for these intents. Verified
+    // via bench-two-phase (run 20260508T075000Z): amazon + bing + others
+    // captured a doc_only synthetic + a telemetry XHR; ranker picked the
+    // telemetry; agent-judged response was wrong-shape for "get amazon search".
+    const looksLikeContentRead = !!intent && LIST_INTENT.test(intent);
+    const pageArtifactIsDataRich =
+      isCapturedPageArtifact
+      && !!ep.dom_extraction
+      && (ep.dom_extraction.confidence ?? 0) >= 0.8
+      && !!ep.response_schema
+      && ((ep.response_schema as Record<string, unknown>).type === "array"
+          || (ep.response_schema as Record<string, unknown>).type === "object");
     if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
-      score = Math.min(score - 800, -2000);
+      score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
+    } else if (looksLikeContentRead && pageArtifactIsDataRich) {
+      // Counter-promotion for content-read intents on data-rich page artifacts.
+      // Beats the structural API demotion magnitude so the page wins.
+      score += 250;
+    }
+
+    // page_fetch invariant floor (see .bench-history/ROOT_FIX_GUIDE.md):
+    // for content-read intents, the always-published page_fetch endpoint
+    // beats telemetry XHRs but loses to a real /api/ endpoint matching
+    // intent tokens. Single rule, no conditional ladders.
+    if (isPageFetchEndpoint(ep) && intent && LIST_INTENT.test(intent)) {
+      score = Math.max(score, 100);
     }
 
     // Even with dom_extraction, a captured page artifact loses to an API sibling
@@ -3852,7 +4357,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
           !/captured (?:search form |page )?artifact/i.test(other.description ?? "")
       )
     ) {
-      score = Math.min(score - 800, -2000);
+      score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
     }
 
     if (intent && COMPANY_INTENT.test(intent)) {
@@ -3958,7 +4463,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     }
 
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
-      score = Math.min(score, -400);
+      score = clampToFloor(score, 0, WEAK_NEGATIVE_FLOOR);
     }
     if (descriptionMeta.needs_review && isCapturedPageArtifact) {
       score -= 120;

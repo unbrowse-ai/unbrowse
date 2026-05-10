@@ -1,0 +1,9 @@
+- [stage 1 / survey] Boyd — Observe — inventory before action — Source truth is `docs/release-2026-05.md`, `CHANGELOG.md`, and git log from 2026-04-08 to 2026-05-08.
+- [stage 2 / frame] Parnas — Information hiding — layers and contracts — Audience layer is agent builders; product layer is fewer decisions; proof layer is concrete verbs/features.
+- [stage 3 / stub] Brooks — Plan to throw one away — first walkable artifact — Thread skeleton should move from old pain to new default path, then proof, privacy, and CTA.
+- [stage 4 / signal] Deming — measurement before more building — Signals are tweet length, factual traceability to repo docs, and non-template human voice.
+- [stage 5 / stress] Murphy — adversarial behavior — Avoid overclaiming full autonomy, hiding privacy defaults, or turning an update into a changelog dump.
+- [stage 6 / compose] Aristotle — end-to-end integration — Final artifact must work as Typefully thread text and as an Outline reference note.
+- [stage 7 / verdict] Eisenhower — decide before shipping — PROMOTE: doc evidence supports a clear April-May UX announcement.
+- [stage 8 / audit] Feynman — cold independent review — Cold pass trimmed vague claims and kept concrete commands/features.
+- [stage 9 / release] Reid Hoffman — reachable by intended user — Ship as Outline document plus Typefully draft.

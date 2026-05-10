@@ -509,7 +509,18 @@ let serverReadyPromise: Promise<void> | null = null;
 
 async function ensureServerReady(): Promise<void> {
   if (!serverReadyPromise) {
-    serverReadyPromise = ensureLocalServer(BASE_URL, NO_AUTO_START, import.meta.url);
+    // Reset on rejection so the next call retries auto-start instead of
+    // permanently caching the failure. Without this, a single transient
+    // first-call failure (cold-start race, brief port contention, slow
+    // disk on a sleepy machine) wedges every subsequent tool call into
+    // the same stale "server not running" error for the rest of the MCP
+    // session — the model gives up and tells the user unbrowse is down
+    // even though a retry would succeed.
+    serverReadyPromise = ensureLocalServer(BASE_URL, NO_AUTO_START, import.meta.url)
+      .catch((err) => {
+        serverReadyPromise = null;
+        throw err;
+      });
   }
   return serverReadyPromise;
 }

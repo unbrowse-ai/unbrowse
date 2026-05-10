@@ -1,0 +1,73 @@
+name: kuri-vendor
+
+# Tier 1 (plan-v13): manual-dispatch native build of kuri darwin-arm64 from
+# lekt9/kuri@feat/sandbox-proxy. Cross-platform matrix (darwin-x64,
+# linux-arm64, linux-x64) is deferred — Zig 0.16's cross-compile mode
+# requires sysroots GH-hosted runners don't ship (libiconv/icucore for
+# macOS, libidn2/libz for linux). Native darwin-arm64 works without
+# -Dtarget; that's what release.yml uses successfully today. Cross-
+# platform binaries are a separate workstream (file an issue when needed).
+
+on:
+  workflow_dispatch:
+    inputs:
+      kuri_ref:
+        description: "kuri ref to build (branch, tag, or commit). Must be >= 894ecb9b503f60665a31d2c4c8e96b17d9da3f61."
+        required: false
+        default: "feat/sandbox-proxy"
+
+jobs:
+  build:
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-latest
+            zig_target: aarch64-macos
+          # darwin-x64, linux-arm64, linux-x64 deferred — see header comment.
+
+    steps:
+      - name: Checkout kuri
+        uses: actions/checkout@v4
+        with:
+          repository: lekt9/kuri
+          ref: ${{ github.event.inputs.kuri_ref }}
+          path: kuri
+
+      - name: Install Zig 0.16.0
+        # Kuri's build.zig.zon declares minimum_zig_version 0.16.0; 0.13/0.14
+        # will be rejected outright. Bump only with matching upstream proof.
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Build kuri (native ${{ matrix.zig_target }})
+        # Native build only — no -Dtarget. Zig cross-compile mode triggered
+        # by -Dtarget skips the macOS SDK lookup for libiconv/icucore even
+        # when arch matches the runner. release.yml uses this same pattern.
+        working-directory: kuri
+        run: |
+          zig build -Doptimize=ReleaseSafe
+          ls -la zig-out/bin/
+      - name: Locate binary
+        id: locate
+        working-directory: kuri
+        run: |
+          BIN_PATH=$(find zig-out -type f -name 'kuri' | head -n1)
+          if [ -z "$BIN_PATH" ]; then
+            echo "kuri binary not found under zig-out/" >&2
+            exit 1
+          fi
+          echo "bin_path=kuri/$BIN_PATH" >> "$GITHUB_OUTPUT"
+          shasum -a 256 "$BIN_PATH" || sha256sum "$BIN_PATH"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-${{ matrix.platform }}
+          path: ${{ steps.locate.outputs.bin_path }}
+          if-no-files-found: error
+          retention-days: 14

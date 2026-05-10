@@ -16,9 +16,9 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 - All notable changes must be written into `CHANGELOG.md`
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
 - Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
-- Durable agent memory lives in `docs/agent-memory.md`. Read it before substantial work.
-- Keep `docs/agent-memory.md` self-updating: when Lewis states a durable preference, recurring correction, decision, workflow, or project fact that will matter later, append a short bullet. Skip one-off noise.
-- If a new lesson would have prevented repeated prompting, write it into `docs/agent-memory.md` before handoff.
+- Durable agent memory lives in this file (`AGENTS.md`). Read it before substantial work.
+- Keep `AGENTS.md` self-updating: when Lewis states a durable preference, recurring correction, decision, workflow, or project fact that will matter later, append a short bullet. Skip one-off noise.
+- If a new lesson would have prevented repeated prompting, write it into `AGENTS.md` before handoff. (The older `docs/agent-memory.md` is archived at `docs/archive/agent-memory.md`; do not write to it.)
 - When shipping new behavior, add or extend end-to-end coverage for that specific behavior on the real Unbrowse path; do not rely only on existing broad suites.
 - Telemetry and analytics storage live in this repo's backend storage path (`statsKV` / `DATABASE_URL`), not a separate module or submodule.
 - For external registry submissions, install docs, and public references, use `unbrowse-ai/unbrowse` — not `unbrowse-ai/unbrowse-dev`
@@ -89,3 +89,47 @@ When `go` detects an auth wall, it returns `auth_required: true`. The resolve pi
 - Only create PRs and issues — do not push directly to `main`
 - Protect `main` with required checks before merge. Minimum repo checks: `Repo Sanity`, `Unit Tests`, `Quality Gate`, `Backend Tests`, `Typecheck Backend`, `Package CLI`, `CLI E2E`.
 - Secrets needed for releases: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SKILL_REPO_TOKEN`, `DATABASE_URL`
+
+## Bench verdicts: harness collects, agent judges
+
+When building benchmarks for unbrowse (or any reverse-engineer / call /
+extract loop), DO NOT bake deterministic verdict heuristics into the
+harness. The harness collects artifacts; the agent in-thread judges
+whether the artifact satisfies the intent.
+
+Anti-pattern (do not do this):
+```python
+if trace.success is True and status_code == 200:
+    verdict = "PASS"
+if "invalid_replay_params" in err:
+    verdict = "REPAIR_REPLAY_PARAMS"
+if text_bytes < 100 and "sparse_capture" in signals:
+    verdict = "BROWSER_BLOCK"
+```
+
+`status_code == 200` does not mean the agent got useful data — could
+be a captcha page, an empty array, the wrong shape. `invalid_replay_params`
+might be a real fail, or the harness ran with insufficient inputs. Heuristic
+verdicts mislead and bake category errors into every downstream report.
+
+Right pattern:
+1. Harness runs the loop and dumps RAW artifacts per URL: capture stdout,
+   skill JSON, execute response body (full, not truncated), per-phase exit codes,
+   captured_meta, browser_block_signals.
+2. Harness emits a row of evidence (signals only) per URL — fields like
+   `phase1_endpoints_discovered`, `phase2_status_code`, `phase2_response_bytes`,
+   `phase2_response_excerpt`. NO verdict column the harness derived.
+3. The agent (in-thread) reads each row's artifacts and judges:
+   "did the agent actually get USB-C cable listings for `intent=search amazon
+   for usb-c cables`?" — by reading the actual response body and matching
+   against the intent's content expectation.
+4. Heuristic groupings (BROWSER_BLOCK / VENDOR_BLOCKED) are a SORT-KEY for
+   triage order, not a verdict. The verdict is the agent's in-thread judgment.
+
+Reference skills: `unbrowse-dogfood` (canonical resolve+execute+verify
+loop), `harness-makes-visible-agent-judges` (memory feedback in
+`.claude/projects/...memory/`).
+
+Two-phase bench (`scripts/bench-two-phase.sh`): collects per-URL
+capture.out + execute.out + runs.jsonl rows. The `combined_verdict`
+column is a sort-key only — agent judges by opening artifacts.

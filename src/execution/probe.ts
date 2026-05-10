@@ -159,7 +159,28 @@ export function decideFromProbe(input: DecisionInput): Decision {
   const { probe, has_trigger_url, intent_wants_dom, has_dom_extraction } = input;
   const { status, content_type = "", byte_length } = probe;
 
-  // 4xx/5xx — return as-is. No "let me try a different strategy" theatre.
+  // 401/403 — fetch full body (not just probe stub). The body may carry
+  // vendor-block markers (DataDome, CF, PerimeterX, etc.) that the executor's
+  // classifyExecuteFailure() needs for honest bucketing — return-error short-
+  // circuits with a synthesized stub that has no body to classify.
+  if (status === 401 || status === 403) {
+    return {
+      strategy: "server",
+      reason: `probe status ${status} — fetch body for vendor-block classification`,
+    };
+  }
+  // 400 + text/html — soft block: HEAD often rejected for non-browser UA,
+  // but full GET via libcurl/Chrome131 JA4 frequently succeeds. Real API
+  // errors return application/json, so the text/html gate avoids wasted
+  // retries on legitimate JSON 400s. Footlocker observed: HEAD 400 + html,
+  // mirrors cdiscount HEAD-403 → GET-200 pattern from probe-gate fix a9c0ad58.
+  if (status === 400 && /text\/html\b/i.test(content_type)) {
+    return {
+      strategy: "server",
+      reason: `probe status 400 + text/html — HEAD often rejected for non-browser UA, GET often succeeds`,
+    };
+  }
+  // Other 4xx/5xx — return as-is. No "let me try a different strategy" theatre.
   // The agent reads the actual server error and decides next move.
   if (status >= 400) {
     return {
@@ -168,12 +189,20 @@ export function decideFromProbe(input: DecisionInput): Decision {
     };
   }
 
-  // Network error — escalate to browser (different DNS/TLS/UA path may work).
-  // Never to trigger-intercept (which would also need a working tab).
+  // Network error — route to libcurl-impersonate (server strategy) first.
+  // bun's fetch fails on ZlibError (gzip decompression) and certain TLS
+  // handshakes that Chrome 131 JA4 fingerprint handles cleanly. Browser is
+  // reserved for "JS-rendered page", not "HTTP layer broken". Observed on
+  // ticketmaster (ZlibError) + vinted (operation aborted) — both previously
+  // routed to Kuri tab and returned status:0 with `"SyntaxError: Invalid or
+  // unexpected token"` body. Routing to libcurl gets real bytes when the
+  // failure was bun-fetch-specific; if libcurl ALSO fails (vendor genuinely
+  // blocking), classifyExecuteFailure detects vendor markers in the body and
+  // buckets vendor_blocked honestly — strictly better signal either way.
   if (status === 0) {
     return {
-      strategy: "browser",
-      reason: `probe network error: ${probe.error ?? "unknown"}`,
+      strategy: "server",
+      reason: `probe network error (${probe.error ?? "unknown"}) — libcurl-impersonate likely succeeds where bun fetch failed`,
     };
   }
 
