@@ -77,3 +77,35 @@ describe("synthetic Akamai fixture (Plan-v17 Tier 1)", () => {
     expect(json.items.length).toBe(2);
   });
 });
+
+/**
+ * Plan-v17-tier1 e2e proof — full data flow without kuri sandbox:
+ *   (a) GET unarmed → 403 with akam-*.js script (already covered above)
+ *   (b) extractAkamaiBundleUrl finds the bundle URL from that body
+ *   (c) GET that bundle URL via the mock route → 200 with >1024 bytes
+ * If all 3 link up, the Akamai arm in index.ts:2946 has a path to actually fire
+ * against the synthetic fixture (sandbox replay still requires kuri running).
+ */
+import { extractAkamaiBundleUrl } from "../../src/execution/akamai-challenge.js";
+
+describe("synthetic Akamai e2e (extractor + fixture + bundle mock)", () => {
+  it("extractor finds bundle URL in synthetic 403 body", async () => {
+    const res = await syntheticRoutes.fetch(
+      new Request("http://localhost/_synthetic_akamai_challenge"),
+    );
+    expect(res.status).toBe(403);
+    const body = await res.text();
+    const bundleUrl = extractAkamaiBundleUrl(body, "http://localhost/_synthetic_akamai_challenge");
+    expect(bundleUrl).toBe("http://localhost/akam-abc123def456.js");
+  });
+
+  it("bundle mock returns >1024 bytes JS satisfying solver size gate", async () => {
+    const res = await syntheticRoutes.fetch(
+      new Request("http://localhost/akam-abc123def456.js"),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/javascript");
+    const js = await res.text();
+    expect(js.length).toBeGreaterThan(1024);
+  });
+});

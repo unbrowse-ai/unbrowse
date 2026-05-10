@@ -85,7 +85,7 @@ app.get("/_synthetic_akamai_challenge", (c) => {
 // Step 5 (Creatures) — mock Akamai sensor bundle so synthetic e2e round-trip is runnable.
 // Returns >1024 bytes of inert JS to satisfy bundle-size gate; sandbox replay would emit _abck via
 // a real bundle's CDP behavior, but for fixture-level testing the existence of the bundle is enough.
-app.get("/akam-:hex.js", (c) => {
+app.get("/akam-*", (c) => {
   const filler = "/* synthetic akamai sensor */ ".repeat(40); // ~1200 bytes
   const js = `${filler}\nvar _akamai_synthetic = true;\n`;
   return c.text(js, 200, { "content-type": "application/javascript" });
