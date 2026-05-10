@@ -35,6 +35,8 @@ export interface EndpointCorroboration {
   last_submission_at: string;
   submitter_agent_ids?: string[];
   verified_release_submitter_ids?: string[];
+  /** Count of submissions that included an independently verified proof */
+  zk_verified_count?: number;
 }
 
 export interface AuthProfile {
@@ -222,6 +224,8 @@ export interface EndpointDescriptor {
   /** Phase 7.2: Proven recipe — exact request that produced a known-good response.
    *  Replayed first by the executor before any probe/dispatch. */
   proven_recipe?: ProvenRecipe;
+  /** Proof metadata or client-side commitment attached to this endpoint */
+  zk_proof?: import("./proof.js").ZkProof;
 }
 export interface EndpointConstraint {
   /** The parameter or field this constraint applies to */
@@ -350,6 +354,8 @@ export interface AgentAvailableOperation {
   yields: string[];
   example_request?: unknown;
   example_response_compact?: unknown;
+  /** Whether this endpoint has proof metadata and its verification status */
+  proof_status?: "proven" | "client_commitment" | "unverified_proof" | "no_proof";
 }
 
 export interface AgentPrefetchOperation {
@@ -377,6 +383,8 @@ export interface AgentWorkflowDagOperation {
   yields: string[];
   runnable: boolean;
   prefetch_get_operations: AgentPrefetchOperation[];
+  /** Whether this endpoint has proof metadata and its verification status */
+  proof_status?: "proven" | "client_commitment" | "unverified_proof" | "no_proof";
 }
 
 export interface AgentWorkflowDagView {
@@ -558,6 +566,8 @@ export interface ExecutionOptions {
   skip_robots_check?: boolean;
   /** Phase 8.1 — wall-clock budget in ms for the parallel resolve race. Default 8000. */
   budget_ms?: number;
+  /** When true, the resolve shortlist is filtered to only independently verified proofs. */
+  require_proof?: boolean;
 }
 
 export interface ValidationResult {

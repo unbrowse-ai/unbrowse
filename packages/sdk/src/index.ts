@@ -1,7 +1,14 @@
 export { Unbrowse } from "./client.js";
 export { UnbrowseApiError } from "./errors.js";
 export type {
+  AttributionLedger,
   AvailableEndpoint,
+  CreatorTransaction,
+  CreatorTransactionsResponse,
+  Dashboard,
+  DashboardContributions,
+  DashboardEarnings,
+  DashboardSpending,
   EndpointDescriptor,
   ExecuteInput,
   ExecuteResponse,
@@ -26,4 +33,5 @@ export type {
   StealAuthInput,
   StealAuthResponse,
   UnbrowseClientOptions,
+  WalletInfo,
 } from "./contracts.js";

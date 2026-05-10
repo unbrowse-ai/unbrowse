@@ -44,6 +44,12 @@ export interface SandboxReplayRequest {
    * Same shape as findBestBrowserSession's BrowserCookie output, so you can
    * pass cookies extracted from the user's real Chrome/Arc/Brave directly. */
   seedCookies?: SeedCookie[];
+  /** Optional proxy URL — e.g. "http://user:pass@host:port" or "socks5://host:port".
+   * Forwarded to Kuri's libcurl-impersonate handle via CURLOPT_PROXY (plan-v10
+   * Phase A). Requires Kuri >= the SHA carrying the CURLOPT_PROXY patches in
+   * sandbox/curl_lib.zig (see plan-v11). When the vendored Kuri binary doesn't
+   * support proxy, the field is silently ignored on the Kuri side. */
+  proxy?: string;
 }
 
 /** Seed cookie shape — compatible with src/auth/browser-cookies.ts BrowserCookie. */
@@ -130,6 +136,7 @@ export async function runBundleReplay(
       same_site: c.same_site ?? c.sameSite ?? "",
       expires: c.expires ?? 0,
     })),
+    ...(req.proxy ? { proxy: req.proxy } : {}),
   });
 
   const resp = await fetch(`${base}/v1/sandbox/replay`, {

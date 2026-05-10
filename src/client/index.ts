@@ -556,7 +556,7 @@ async function apiRequest<T = unknown>(
   method: string,
   path: string,
   body?: unknown,
-  opts?: { noAuth?: boolean; timeoutMs?: number; skipAutoUpdate?: boolean },
+  opts?: { noAuth?: boolean; timeoutMs?: number; skipAutoUpdate?: boolean; extraHeaders?: Record<string, string> },
 ): Promise<{ data: T; headers: Headers }> {
   const key = opts?.noAuth ? "" : getApiKey();
   const releaseAttestationHeaders = buildReleaseAttestationHeaders(
@@ -579,6 +579,7 @@ async function apiRequest<T = unknown>(
         "X-Unbrowse-Git-Sha": GIT_SHA,
         ...releaseAttestationHeaders,
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        ...(opts?.extraHeaders ?? {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
@@ -673,7 +674,7 @@ async function apiRequest<T = unknown>(
   return { data: data as T, headers: res.headers };
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean; timeoutMs?: number }): Promise<T> {
+async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean; timeoutMs?: number; extraHeaders?: Record<string, string> }): Promise<T> {
   const { data } = await apiRequest<T>(method, path, body, opts);
   return data;
 }
@@ -1215,10 +1216,15 @@ export async function publishSkill(
   }
   if (LOCAL_ONLY) throw new Error("local-only mode");
   const wallet = getLocalWalletContext();
+  const proofCount = (draft.endpoints ?? []).filter(e => e.zk_proof).length;
+  const proofHeaders: Record<string, string> = {};
+  if (proofCount > 0) {
+    proofHeaders["X-Unbrowse-Zk-Proof-Count"] = String(proofCount);
+  }
   const published = await api<SkillManifest & { warnings: string[] }>("POST", "/v1/skills", {
     ...draft,
     ...(wallet.wallet_address ? wallet : {}),
-  }, { timeoutMs: PUBLISH_TIMEOUT_MS });
+  }, { timeoutMs: PUBLISH_TIMEOUT_MS, extraHeaders: proofHeaders });
 
   const cascade = await ensureCascadeSplitForSkill(published).catch((err) => ({
     warning: `cascade_split_failed:${(err as Error).message}`,

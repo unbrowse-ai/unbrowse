@@ -325,6 +325,71 @@ export interface HealthResponse {
   [key: string]: unknown;
 }
 
+// Earnings & dashboard surface.
+// Backend handlers: backend/src/routes/{dashboard,transactions,attribution}.ts
+export interface DashboardEarnings {
+  total_usd?: number;
+  unsettled_usd?: number;
+  by_skill?: Array<{ skill_id: string; executions: number; usd: number }>;
+  [key: string]: unknown;
+}
+
+export interface DashboardSpending {
+  total_usd?: number;
+  by_skill?: Array<{ skill_id: string; executions: number; usd: number }>;
+  [key: string]: unknown;
+}
+
+export interface DashboardContributions {
+  routes_published?: number;
+  routes_active?: number;
+  unique_domains?: number;
+  [key: string]: unknown;
+}
+
+export interface Dashboard {
+  agent_id?: string;
+  wallet_address?: string;
+  earnings?: DashboardEarnings;
+  spending?: DashboardSpending;
+  contributions?: DashboardContributions;
+  [key: string]: unknown;
+}
+
+export interface CreatorTransaction {
+  tx_id: string;
+  skill_id?: string;
+  endpoint_id?: string;
+  amount_usd?: number;
+  amount_uc?: number;
+  settled_at?: string;
+  [key: string]: unknown;
+}
+
+export interface CreatorTransactionsResponse {
+  ledger?: {
+    total_usd?: number;
+    unsettled_usd?: number;
+    [key: string]: unknown;
+  };
+  transactions?: CreatorTransaction[];
+  [key: string]: unknown;
+}
+
+export interface AttributionLedger {
+  indexer_id?: string;
+  total_usd?: number;
+  by_skill?: Array<{ skill_id: string; usd: number; executions: number }>;
+  [key: string]: unknown;
+}
+
+export interface WalletInfo {
+  wallet_address?: string;
+  wallet_provider?: string;
+  [key: string]: unknown;
+}
+
+
 export interface UnbrowseClientOptions {
   baseUrl?: string;
   apiKey?: string;

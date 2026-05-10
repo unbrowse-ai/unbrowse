@@ -322,6 +322,10 @@ function scoreEndpoint(endpoint: EndpointDescriptor): number {
   if (endpoint.trigger_url) score -= 6;
   if (isCanonicalDocumentReplay(endpoint)) score += 18;
   if (isFragileGraphqlEndpoint(endpoint)) score -= 25;
+  if (endpoint.zk_proof) {
+    score += endpoint.zk_proof.proof_type === "commitment_only" ? 3 : 5;
+    if (endpoint.zk_proof.verified && endpoint.zk_proof.proof_type !== "commitment_only") score += 35;
+  }
   return score;
 }
 

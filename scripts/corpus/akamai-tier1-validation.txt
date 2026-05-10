@@ -1,0 +1,5 @@
+# intent|url — plan-v17-tier1 Akamai validation subset (4 rows)
+list nike sneakers|https://www.nike.com/w/mens-shoes-nik1zy7ok
+search flights southwest|https://www.southwest.com/air/flight-schedules/index.html
+search products on bestbuy|https://www.bestbuy.com/site/searchpage.jsp?st=laptop
+search products on target|https://www.target.com/s?searchTerm=coffee
