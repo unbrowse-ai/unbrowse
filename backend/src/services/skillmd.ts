@@ -59,15 +59,53 @@ export function renderSkillMd(skill: SkillManifest): string {
     `endpoint_count: ${endpoints.length}`,
     `version: ${escapeYaml(skill.version)}`,
     `updated_at: ${escapeYaml(skill.updated_at)}`,
-    "---",
-    "",
   ];
+
+  // Surface who published the skill so consumers can see who claimed the
+  // domain. owner_agent_id is server-set on first non-admin publish; older
+  // skills fall back to indexer_id (the attribution field). Domain
+  // verification status, when present, is also surfaced — false / missing
+  // means the publisher hasn't completed the .well-known probe.
+  const publisherId = skill.owner_agent_id ?? skill.indexer_id;
+  if (publisherId) {
+    fm.push(`publisher_agent_id: ${escapeYaml(publisherId)}`);
+  }
+  if (typeof skill.domain_verified === "boolean") {
+    fm.push(`domain_verified: ${skill.domain_verified}`);
+    if (skill.domain_verified_at) {
+      fm.push(`domain_verified_at: ${escapeYaml(skill.domain_verified_at)}`);
+    }
+  }
+  fm.push("---");
+  fm.push("");
 
   const body: string[] = [];
   body.push(`# ${skill.name}`);
   body.push("");
   body.push(skill.description || `Indexed API skill for ${skill.domain}.`);
   body.push("");
+
+  // Publisher + verification provenance, rendered as a block agents and humans
+  // can read at a glance. We surface the publisher's agent_id (truncated for
+  // readability) and the domain-verification status; no proof status here —
+  // that lives in the per-endpoint section per the SKILL.md trust boundary.
+  if (publisherId || typeof skill.domain_verified === "boolean") {
+    body.push("## Provenance");
+    body.push("");
+    if (publisherId) {
+      const short = publisherId.length > 16 ? `${publisherId.slice(0, 12)}…` : publisherId;
+      body.push(`- **Publisher**: \`${short}\``);
+    }
+    if (typeof skill.domain_verified === "boolean") {
+      const verifyLabel = skill.domain_verified ? "✓ verified" : "not verified";
+      const when = skill.domain_verified && skill.domain_verified_at
+        ? ` (${skill.domain_verified_at.slice(0, 10)})`
+        : "";
+      body.push(`- **Domain control**: ${verifyLabel}${when} — \`/.well-known/unbrowse-verify-*\` HTTP probe`);
+    }
+    body.push("");
+  }
+
   body.push("## Prerequisite");
   body.push("");
   body.push("This skill is executed through the **unbrowse** runtime. Install once:");

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Security
+
+- **Reserved-domain publish gate.** A seed list of high-impact brand and infrastructure domains (stripe.com, paypal.com, github.com, npmjs.com, the major cloud consoles, slack.com, x.com, mail.google.com, unbrowse.ai, etc.) now requires admin publish. Non-admin publish for any reserved domain (or its subdomains) returns 403 with `error: "publish_forbidden_reserved_domain"`. Operators can extend the list at runtime via `RESERVED_DOMAINS=<csv>`. This prevents pre-blast squatters from claiming `domain: "stripe.com"` and seeding the marketplace with prompt-injection content downstream agents would read.
+- **Publisher agent_id surfaced on SKILL.md.** The marketplace front matter and body now include `publisher_agent_id` (truncated for readability) plus `domain_verified` / `domain_verified_at` when set. Agents resolving `unbrowse.ai/<domain>` can now see who claimed the skill and whether they completed the .well-known probe.
+- **`.well-known/unbrowse-verify-{nanoid}` domain control probe.** New endpoints `POST /v1/skills/by-domain/:domain/verify/challenge` (issues a single-use 30-min token) and `POST /v1/skills/by-domain/:domain/verify/probe` (server fetches `https://<domain>/.well-known/<token>` and matches the body, then stamps `domain_verified: true` on the skill record). Probe is https-only, no redirects, 5-second timeout, body cap 4 KB, host blocklist (RFC1918, loopback, numeric/hex-encoded IPs). Operators can flip `REQUIRE_DOMAIN_VERIFICATION=1` to make verification mandatory before any non-admin publish — currently optional, surfaced for trust signal only.
+
 ### Features
 
 * **reverse-engineer:** decode protobuf API responses into JSON-safe records so binary search/listing endpoints can be indexed and replayed.

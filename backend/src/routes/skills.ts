@@ -223,10 +223,28 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
       transport: "cli",
     });
   } catch (err) {
-    if ((err as Error).message.startsWith("release_manifest_")) {
-      return c.json({ error: (err as Error).message }, 400);
+    const msg = (err as Error).message;
+    if (msg.startsWith("publish_forbidden_reserved_domain:")) {
+      const reserved = msg.slice("publish_forbidden_reserved_domain:".length);
+      return c.json({
+        error: "publish_forbidden_reserved_domain",
+        message: `"${reserved}" is on the reserved-domain list and may only be published by admin keys.`,
+        reserved_domain: reserved,
+      }, 403);
     }
-    console.error("[publish] error:", (err as Error).message, (err as Error).stack);
+    if (msg.startsWith("publish_forbidden_domain_unverified:")) {
+      const domain = msg.slice("publish_forbidden_domain_unverified:".length);
+      return c.json({
+        error: "publish_forbidden_domain_unverified",
+        message: `Domain control for "${domain}" has not been verified. POST /v1/skills/by-domain/${domain}/verify/challenge to start the .well-known probe flow.`,
+        domain,
+        next_step: `/v1/skills/by-domain/${domain}/verify/challenge`,
+      }, 403);
+    }
+    if (msg.startsWith("release_manifest_")) {
+      return c.json({ error: msg }, 400);
+    }
+    console.error("[publish] error:", msg, (err as Error).stack);
     return c.json({ error: "Failed to publish skill" }, 500);
   }
 
@@ -368,4 +386,83 @@ skillRoutes.post("/skills/:id/endpoints/:eid/annotate", bearerAuth, async (c) =>
   }
 
   return c.json({ ok: true, added });
+});
+
+// POST /v1/skills/by-domain/:domain/verify/challenge — request a domain verification token
+//
+// SECURITY: the publisher must demonstrate control of the DNS hostname before
+// the marketplace stamps `domain_verified: true`. We issue a single-use token,
+// the publisher serves it at /.well-known/<token> on their domain, and
+// /probe (below) fetches and matches the body. The token is bound to the
+// requesting agent_id so a different agent's probe call won't succeed against
+// someone else's challenge.
+skillRoutes.post("/skills/by-domain/:domain/verify/challenge", bearerAuth, async (c) => {
+  const domainParam = decodeURIComponent(c.req.param("domain") ?? "").toLowerCase();
+  if (!domainParam || !/^[a-z0-9.-]+$/.test(domainParam) || !domainParam.includes(".")) {
+    return c.json({ error: "invalid_domain" }, 400);
+  }
+  const { issueDomainChallenge } = await import("../services/domain-verifier.js");
+  const challenge = await issueDomainChallenge(c.env, domainParam, c.get("agent_id"));
+  return c.json({
+    domain: challenge.domain,
+    token: challenge.token,
+    path: challenge.path,
+    expected_url: challenge.expected_url,
+    body: challenge.body,
+    expires_at: challenge.expires_at,
+    instructions: `Serve the body string at ${challenge.expected_url} (text/plain). Then POST /v1/skills/by-domain/${challenge.domain}/verify/probe.`,
+  });
+});
+
+// POST /v1/skills/by-domain/:domain/verify/probe — run the .well-known probe
+skillRoutes.post("/skills/by-domain/:domain/verify/probe", bearerAuth, async (c) => {
+  const domainParam = decodeURIComponent(c.req.param("domain") ?? "").toLowerCase();
+  if (!domainParam || !/^[a-z0-9.-]+$/.test(domainParam) || !domainParam.includes(".")) {
+    return c.json({ error: "invalid_domain" }, 400);
+  }
+  const { loadDomainChallenge, probeDomain, markDomainVerified, clearDomainChallenge } =
+    await import("../services/domain-verifier.js");
+  const challenge = await loadDomainChallenge(c.env, domainParam);
+  if (!challenge) {
+    return c.json({
+      error: "no_challenge",
+      message: "No active challenge for this domain. POST .../verify/challenge first.",
+    }, 404);
+  }
+  const callerAgentId = c.get("agent_id");
+  if (challenge.agent_id !== callerAgentId && callerAgentId !== "__admin__") {
+    return c.json({
+      error: "challenge_owner_mismatch",
+      message: "This challenge was issued to a different agent.",
+    }, 403);
+  }
+
+  const result = await probeDomain(c.env, challenge);
+  if (!result.ok) {
+    return c.json({
+      ok: false,
+      reason: result.reason,
+      detail: result.detail,
+      status: result.status,
+      expected_url: challenge.expected_url,
+    }, 400);
+  }
+
+  const stamped = await markDomainVerified(c.env, domainParam);
+  if (!stamped) {
+    // Probe succeeded but no skill exists yet for this domain — keep the
+    // challenge alive so the publisher can publish + re-probe in one move.
+    return c.json({
+      ok: true,
+      verified: false,
+      message: "Probe succeeded but no published skill found for this domain yet. Publish first, then re-run probe.",
+    });
+  }
+  await clearDomainChallenge(c.env, domainParam);
+  return c.json({
+    ok: true,
+    verified: true,
+    domain: domainParam,
+    verified_at: new Date().toISOString(),
+  });
 });

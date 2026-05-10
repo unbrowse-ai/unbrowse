@@ -7,6 +7,7 @@ import { summarizeEmergentDBError } from "./emergentdb.js";
 import { skillsKV } from "./kv.js";
 import { verifyReleaseManifest } from "./release-manifest.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
+import { matchedReservedDomain } from "./domain-reservations.js";
 
 function kvKey(skillId: string): string {
   return `skill:${skillId}`;
@@ -153,6 +154,34 @@ export async function publishSkill(
 ): Promise<SkillManifest & { index_status: string }> {
   const existing = await findExistingByDomain(env, draft.domain);
   const now = new Date().toISOString();
+
+  // Reserved-domain gate: high-impact brand and infra domains can only be
+  // published by admin keys. Without this, any agent could squat
+  // `domain: "stripe.com"` and seed the marketplace with prompt-injection
+  // content downstream agents would read. The ownership gate elsewhere
+  // freezes a squat in place once it lands; this prevents it from landing.
+  const submitterAgentId = context?.submitter_agent_id;
+  const isAdminSubmission = submitterAgentId === "__admin__";
+  if (!isAdminSubmission) {
+    const reserved = matchedReservedDomain(env, draft.domain);
+    if (reserved) {
+      throw new Error(`publish_forbidden_reserved_domain:${reserved}`);
+    }
+  }
+
+  // Optional: require .well-known domain-verification probe before any
+  // non-admin publish lands. Operators flip `REQUIRE_DOMAIN_VERIFICATION=1`
+  // once the publisher tooling supports the challenge/probe flow. Existing
+  // verified skills (re-publishes) bypass; admins always bypass.
+  const requireVerification = ((env as { REQUIRE_DOMAIN_VERIFICATION?: string }).REQUIRE_DOMAIN_VERIFICATION ?? "").toLowerCase();
+  const requireVerificationOn = requireVerification === "1" || requireVerification === "true";
+  if (requireVerificationOn && !isAdminSubmission) {
+    const verified = existing?.domain_verified === true;
+    if (!verified) {
+      throw new Error(`publish_forbidden_domain_unverified:${draft.domain.toLowerCase()}`);
+    }
+  }
+
   const releaseVerification = await verifyReleaseManifest(
     env,
     context?.client_release_manifest,
@@ -209,9 +238,17 @@ export async function publishSkill(
       prev_version: existing.version,
       name: draft.domain,
       intent_signature: draft.domain,
-      owner_type: context?.submitter_agent_id && context.submitter_agent_id !== "__admin__"
+      owner_type: submitterAgentId && !isAdminSubmission
         ? "agent"
         : draft.owner_type,
+      // Server-owned: never copied from draft. Existing ownership is preserved
+      // across re-publishes; first non-admin publish onto an unowned skill
+      // claims it; admin re-publishes leave ownership unchanged.
+      owner_agent_id: existing.owner_agent_id
+        ?? (submitterAgentId && !isAdminSubmission ? submitterAgentId : undefined),
+      // domain_verified is server-set by the .well-known probe; preserve.
+      domain_verified: existing.domain_verified,
+      domain_verified_at: existing.domain_verified_at,
       endpoints: mergedEndpoints,
       intents: Array.from(intents),
       provenance_events: [...(existing.provenance_events ?? []), provenanceEvent],
@@ -226,9 +263,13 @@ export async function publishSkill(
       schema_version: "1",
       name: draft.domain,
       intent_signature: draft.domain,
-      owner_type: context?.submitter_agent_id && context.submitter_agent_id !== "__admin__"
+      owner_type: submitterAgentId && !isAdminSubmission
         ? "agent"
         : draft.owner_type,
+      // First publisher (non-admin) owns the skill. Admin publishes leave it
+      // unowned so the first agent submission can claim it.
+      owner_agent_id: submitterAgentId && !isAdminSubmission ? submitterAgentId : undefined,
+      domain_verified: false,
       lifecycle: "active",
       provenance_events: [provenanceEvent],
       endpoints: draft.endpoints.map((endpoint) => ({
