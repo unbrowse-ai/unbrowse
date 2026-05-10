@@ -2,6 +2,23 @@
 
 ## Unreleased — feat/agent-ux-run-planner
 
+### Akamai Bundle-Replay Solver (Tier 1)
+
+* **akamai**: solveAkamaiAndRetry activated end-to-end — extract bundle → libcurl-impersonate fetch → runBundleReplay sandbox → `_abck` cookie gate → retry with merged cookie jar ([1d618d84](https://github.com/unbrowse-ai/unbrowse-dev/commit/1d618d84))
+* **wiring**: vendor_blocked switch arm at `src/execution/index.ts:2946` mirrors CF/PX exactly; 5 decision-trace step names emitted
+* **synthetic**: `/v1/test/_synthetic_akamai_challenge` + `/akam-:hex.js` mock bundle make e2e fixture runnable
+* **falsifiers**: 5 shape pins green (14/14 + 10/10 + 15/15 + 19/19 + 6/6 = 64 cases) with mutation-immunity verified for stub-regression, await-removal, cookie-merge-comment, and executor-not-wired
+* **bench validation**: empirical {nike, southwest, bestbuy, target} BROWSER_BLOCK → PASS check deferred to PR runner with IPRoyal proxy
+
+### docs: SDK + onboarding for validators / users / developers
+
+* **SDK docs tree** (new): `packages/sdk/docs/{getting-started,api-reference,examples}/` filling the gap referenced by `packages/sdk/README.md`. Every TS snippet verified against the real `contracts.ts` (resolve returns `available_endpoints`/`next_actions`, execute returns `result` + `r.trace.success` not top-level `success`, `feedback` requires `rating: number`, `SkillManifest.skill_id` not `.id`). Independent `tsc --noEmit` PASS exit 0.
+* **Audience docs** (new): `docs/sdk/{onboarding-validators,onboarding-users,developer-recipes,rewards-and-economics}.md` covering swarm-as-validator clients, solo mining, 8 SDK recipes, and the 90/10 split with live-vs-roadmap anti-fraud disclosure (replay-verification + reputation-weighted payouts marked as planned, not enforced).
+* **Trust membrane**: `docs/OPEN-SOURCE-NOTICE.md` with banners on `README.md`, `SKILL.md`, `packages/sdk/README.md` — explicit OSS-frozen warning, MIT/proprietary split table, NDA path for enterprise integrators.
+* **Archive**: 7 stale docs moved to `docs/archive/` (orchestrator analysis, yq contributions, backend regression, agent-experience-issues, public-docs audit, agent-memory, windows-port-plan); `docs/archive/README.md` policy added; `AGENTS.md` updated to stop pointing at the archived `agent-memory.md`.
+* **Validator script**: `scripts/validate-sdk-docs.sh` runs three luminaries (relative-link integrity, `/v1/*` route existence, `unbrowse <cmd>` dispatch existence) over the 21-doc corpus including root README/SKILL/docs/README. Exit 0 green.
+* **Term collision**: `validator` in product docs ≠ whitepaper's future verification/staking role. Both onboarding-validators.md and rewards-and-economics.md carry a Term note pointing at `docs/whitepaper/network-layer.md`.
+
 ### Plan & Solver Scaffolding
 
 * **plan-v17**: Akamai + Kasada bundle-replay solver plan with Tier 1-4 ([80ae1f46](https://github.com/unbrowse-ai/unbrowse-dev/commit/80ae1f46))
