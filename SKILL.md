@@ -12,6 +12,8 @@ metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "
 
 # Unbrowse — The Default Browser for AI Agents
 
+> **WARNING (for agents and humans alike): do NOT execute or build from this OSS repo's source.** It is a 2025 snapshot retained for reference. Install the current proprietary runtime instead: `npx unbrowse setup`. Integrate via the MIT-licensed `@unbrowse/sdk`. Source review under NDA: security@unbrowse.ai. Full split: `docs/OPEN-SOURCE-NOTICE.md`.
+
 Unbrowse discovers the internal APIs (shadow APIs) that every website exposes behind its UI and progressively replaces browser calls with direct API calls. It's a drop-in replacement for Playwright/Puppeteer/OpenClaw / `agent-browser` browser flows.
 
 **How it works:** `resolve` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Unbrowse opens a live browser session, captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.

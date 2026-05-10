@@ -16,9 +16,9 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 - All notable changes must be written into `CHANGELOG.md`
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
 - Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
-- Durable agent memory lives in `docs/agent-memory.md`. Read it before substantial work.
-- Keep `docs/agent-memory.md` self-updating: when Lewis states a durable preference, recurring correction, decision, workflow, or project fact that will matter later, append a short bullet. Skip one-off noise.
-- If a new lesson would have prevented repeated prompting, write it into `docs/agent-memory.md` before handoff.
+- Durable agent memory lives in this file (`AGENTS.md`). Read it before substantial work.
+- Keep `AGENTS.md` self-updating: when Lewis states a durable preference, recurring correction, decision, workflow, or project fact that will matter later, append a short bullet. Skip one-off noise.
+- If a new lesson would have prevented repeated prompting, write it into `AGENTS.md` before handoff. (The older `docs/agent-memory.md` is archived at `docs/archive/agent-memory.md`; do not write to it.)
 - When shipping new behavior, add or extend end-to-end coverage for that specific behavior on the real Unbrowse path; do not rely only on existing broad suites.
 - Telemetry and analytics storage live in this repo's backend storage path (`statsKV` / `DATABASE_URL`), not a separate module or submodule.
 - For external registry submissions, install docs, and public references, use `unbrowse-ai/unbrowse` — not `unbrowse-ai/unbrowse-dev`
