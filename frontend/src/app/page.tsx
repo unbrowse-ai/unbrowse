@@ -34,8 +34,8 @@ export const revalidate = 60;
 const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? "MCP is the default. Run npx unbrowse setup --mcp and Unbrowse auto-detects your MCP client (Claude Code, Claude Desktop, Cursor, Windsurf, Codex, OpenClaw) and wires the server in one step. For manual setups, point your client at unbrowse mcp over stdio. The CLI (npm install -g unbrowse then unbrowse resolve/execute) still works for hosts that can't speak MCP yet, but every new flow lands in MCP first."
-  : "MCP is the default. Run npx unbrowse setup --mcp and your client (Claude, Cursor, Codex, OpenClaw) gets wired in one step. The CLI is still supported for legacy hosts.";
+  ? "Run npx unbrowse setup --mcp. Unbrowse auto-detects your MCP client (Claude Code, Claude Desktop, Cursor, Windsurf, Codex, OpenClaw) and registers the MCP server in one step. For Claude Code specifically: claude mcp add unbrowse -- npx -y unbrowse mcp. For other clients you can also drop {\"unbrowse\": {\"command\": \"npx\", \"args\": [\"-y\", \"unbrowse\", \"mcp\"]}} into your mcp.json. Restart the host and Unbrowse is wired in."
+  : "Run npx unbrowse setup --mcp and your MCP client (Claude, Cursor, Codex, OpenClaw) gets wired in one step.";
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -86,7 +86,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "MCP is the default. Run npx unbrowse setup --mcp for one-command installation that wires the Unbrowse MCP server into Claude Code, Claude Desktop, Cursor, Windsurf, Codex, or OpenClaw. To wire manually, point your MCP client at unbrowse mcp (stdio transport). Already installed? Upgrade with npm install -g unbrowse@latest && unbrowse setup --mcp. The legacy CLI (unbrowse resolve / unbrowse execute) is still supported for hosts that can't speak MCP yet.",
+        text: "Run npx unbrowse setup --mcp for one-command installation that registers the Unbrowse MCP server with Claude Code, Claude Desktop, Cursor, Windsurf, Codex, or OpenClaw. For Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp. For other clients, add {\"unbrowse\": {\"command\": \"npx\", \"args\": [\"-y\", \"unbrowse\", \"mcp\"]}} to your mcp.json and restart the host.",
       },
     },
     {
@@ -425,7 +425,7 @@ export default function Home() {
               </div>
               <h3 className="text-lg font-semibold mb-2 tracking-tight">Auto-discovers APIs</h3>
               <p className="text-text-secondary text-sm leading-relaxed mb-4 flex-1">
-                Your agent runs <code className="text-orange-500 font-medium font-mono text-xs">unbrowse resolve</code> and we instantly map the site's undocumented endpoints for immediate use.
+                Your agent calls Unbrowse over MCP and the right shadow endpoint comes back — schemas, parameters, sample values, all ready to call.
               </p>
               <div className="pt-4 border-t border-[rgba(255,122,32,0.12)] space-y-2">
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
