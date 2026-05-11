@@ -47,6 +47,33 @@ rsync -a --delete "$DOCS_DIR/" "$TARGET_REPO/docs/"
 echo "=== Syncing $SKILL_MD -> $TARGET_REPO/SKILL.md ==="
 cp "$SKILL_MD" "$TARGET_REPO/SKILL.md"
 
+# --------------------------------------------------------------------------
+# 2b. Enforce binary-only: delete anything in target that isn't on the allowlist.
+# The public mirror MUST NOT carry build inputs. Source ships via npm dist/*.js
+# (registry tarball) and via platform binary tarballs attached to GitHub Releases.
+# --------------------------------------------------------------------------
+
+echo "=== Enforcing binary-only allowlist on $TARGET_REPO ==="
+ALLOWED=(
+  ".git" ".gitignore" ".env.example" ".zigrep_archive"
+  "LICENSE" "README.md" "SKILL.md"
+  "docs" "bin" "setup" "vendor" "package.json"
+)
+shopt -s nullglob dotglob
+for entry in "$TARGET_REPO"/*; do
+  name="$(basename "$entry")"
+  [ "$name" = "." ] || [ "$name" = ".." ] && continue
+  ok=0
+  for allowed in "${ALLOWED[@]}"; do
+    if [ "$name" = "$allowed" ]; then ok=1; break; fi
+  done
+  if [ "$ok" = "0" ]; then
+    echo "  removing disallowed path: $name"
+    rm -rf "$entry"
+  fi
+done
+shopt -u dotglob
+
 echo ""
 echo "Sync complete. Files in $TARGET_REPO:"
 ls -la "$TARGET_REPO/"
