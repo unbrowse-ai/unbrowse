@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.11.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.5...v6.11.0-preview.6) (2026-05-11)
+
+## [6.11.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.4...v6.11.0-preview.5) (2026-05-11)
+
+### Features
+
+* **server:** idle reaper for mcp-serve to stop zombie daemon accumulation ([d09a378](https://github.com/unbrowse-ai/unbrowse-dev/commit/d09a37857d6ea0f6958355051b1cabae2e7df270))
+* **sessions:** persist browse sessions to sessions.jsonl for daemon-restart survival ([c070df1](https://github.com/unbrowse-ai/unbrowse-dev/commit/c070df1fc1c9f0df21746f5983234139d7297535))
+
 ## [6.11.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.3...v6.11.0-preview.4) (2026-05-11)
 
 ## [6.11.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.2...v6.11.0-preview.3) (2026-05-11)

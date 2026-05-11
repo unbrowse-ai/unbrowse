@@ -586,6 +586,43 @@ async function ensureServerReady(): Promise<void> {
   return serverReadyPromise;
 }
 
+// Drop the cached "server is ready" promise so the next ensureServerReady()
+// re-runs ensureLocalServer and respawns the disposable daemon. Called when
+// api() observes a connection failure (idle reaper killed `unbrowse serve`,
+// daemon crashed, port contention) — sessions.jsonl rehydration restores
+// any open browse sessions on respawn.
+function invalidateServerReady(): void {
+  serverReadyPromise = null;
+}
+
+function isConnectError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  // Codes seen in the wild: Node/undici → ECONNREFUSED/ECONNRESET/etc;
+  // Bun → ConnectionRefused / ConnectionReset / Timeout.
+  const codes = new Set([
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "EHOSTUNREACH",
+    "ENETUNREACH",
+    "ETIMEDOUT",
+    "ConnectionRefused",
+    "ConnectionReset",
+    "Timeout",
+  ]);
+  const messageRegex = /ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|fetch failed|Unable to connect|Connection refused/i;
+  const seen = new Set<unknown>();
+  let cur: unknown = err;
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    const code = (cur as { code?: unknown }).code;
+    if (typeof code === "string" && codes.has(code)) return true;
+    const message = (cur as { message?: unknown }).message;
+    if (typeof message === "string" && messageRegex.test(message)) return true;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 function getVersion(): string {
   let dir = path.dirname(fileURLToPath(import.meta.url));
   const root = path.parse(dir).root;
@@ -791,14 +828,29 @@ async function api(method: string, route: string, body?: unknown): Promise<unkno
     if (query) target += `${target.includes("?") ? "&" : "?"}${query}`;
     requestBody = undefined;
   }
-  const res = await fetch(target, {
-    method,
-    headers: {
-      ...(requestBody ? { "Content-Type": "application/json" } : {}),
-      "x-unbrowse-client-id": CLIENT_ID,
-    },
-    body: requestBody ? JSON.stringify(requestBody) : undefined,
-  });
+
+  const doFetch = () =>
+    fetch(target, {
+      method,
+      headers: {
+        ...(requestBody ? { "Content-Type": "application/json" } : {}),
+        "x-unbrowse-client-id": CLIENT_ID,
+      },
+      body: requestBody ? JSON.stringify(requestBody) : undefined,
+    });
+
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch (err) {
+    // Disposable daemon design: `unbrowse serve` self-exits after idle
+    // (and sessions persist via sessions.jsonl). If we hit a connect error,
+    // assume the daemon was reaped and respawn it, then retry once.
+    if (!isConnectError(err)) throw err;
+    invalidateServerReady();
+    await ensureServerReady();
+    res = await doFetch();
+  }
 
   const contentType = res.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
