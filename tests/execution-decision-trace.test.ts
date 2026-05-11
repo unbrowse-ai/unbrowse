@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-import { executeSkill } from "../src/execution/index.js";
+import { executeSkill, matchResponseSignal } from "../src/execution/index.js";
 import { authRuntime } from "../src/auth/runtime.js";
 import type { EndpointDescriptor, SkillManifest } from "../src/types/index.js";
 
@@ -39,6 +39,39 @@ function mkSkill(endpoint: EndpointDescriptor): SkillManifest {
 }
 
 describe("ExecutionResult envelope shape (Phase 7.2)", () => {
+  it("accepts replayed JSON when top-level keys match despite byte-size drift", () => {
+    const signal = {
+      status: 200,
+      byte_length_min: 1_000,
+      byte_length_max: 2_000,
+      json_top_keys: ["code", "message", "data"],
+    };
+
+    expect(matchResponseSignal({
+      status: 200,
+      data: { code: 0, message: "OK", data: { total_count: 0, list: [] } },
+    }, signal)).toEqual({ match: true });
+
+    expect(matchResponseSignal({
+      status: 200,
+      data: { code: 0, message: "OK", data: { list: Array.from({ length: 200 }, (_, i) => ({ id: i })) } },
+    }, signal)).toEqual({ match: true });
+  });
+
+  it("still rejects replayed JSON when required top-level keys are missing", () => {
+    const signal = {
+      status: 200,
+      byte_length_min: 1,
+      byte_length_max: 100_000,
+      json_top_keys: ["code", "message", "data"],
+    };
+
+    expect(matchResponseSignal({
+      status: 200,
+      data: { error: "captcha_required" },
+    }, signal)).toEqual({ match: false, reason: "missing_top_keys: code,message,data" });
+  });
+
   it("decision_trace is at the top level of ExecutionResult", async () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const method = (init.method || "GET").toUpperCase();

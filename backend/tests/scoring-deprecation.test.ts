@@ -109,4 +109,27 @@ describe("computeReliabilityScore + deprecation gate", () => {
     expect(executionFailureWeight(hardTrace)).toBe(3);
     expect(executionFailureWeight(softTrace)).toBe(1);
   });
+
+  it("treats trigger_timeout, endpoint_not_found, stale_endpoint, and vendor_blocked errors as hard failures", () => {
+    const base = {
+      trace_id: "x",
+      skill_id: "s",
+      endpoint_id: "e",
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      success: false,
+      status_code: 0,
+    } as const;
+
+    expect(executionFailureWeight({ ...base, error: "trigger_timeout" } satisfies ExecutionTrace)).toBe(3);
+    expect(executionFailureWeight({ ...base, error: "endpoint_not_found" } satisfies ExecutionTrace)).toBe(3);
+    expect(executionFailureWeight({ ...base, error: "stale_endpoint" } satisfies ExecutionTrace)).toBe(3);
+    expect(executionFailureWeight({
+      ...base,
+      error: "HTTP 403 (vendor_blocked: datadome — refreshed cookies still classified as bot)",
+    } satisfies ExecutionTrace)).toBe(3);
+
+    // Unknown / transient errors stay at weight 1
+    expect(executionFailureWeight({ ...base, error: "network_blip" } satisfies ExecutionTrace)).toBe(1);
+  });
 });

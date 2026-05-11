@@ -3367,15 +3367,6 @@ export function matchResponseSignal(
   if (result.status !== signal.status) {
     return { match: false, reason: `status_changed: ${signal.status} → ${result.status}` };
   }
-  const bodyLen = typeof result.data === "string"
-    ? Buffer.byteLength(result.data)
-    : Buffer.byteLength(JSON.stringify(result.data ?? null));
-  if (signal.byte_length_min !== undefined && bodyLen < signal.byte_length_min) {
-    return { match: false, reason: `body_shrunk: ${bodyLen}B < min ${signal.byte_length_min}B` };
-  }
-  if (signal.byte_length_max !== undefined && bodyLen > signal.byte_length_max) {
-    return { match: false, reason: `body_grew: ${bodyLen}B > max ${signal.byte_length_max}B` };
-  }
   if (
     signal.json_top_keys &&
     result.data &&
@@ -3387,6 +3378,16 @@ export function matchResponseSignal(
     if (missing.length > 0) {
       return { match: false, reason: `missing_top_keys: ${missing.slice(0, 3).join(",")}` };
     }
+    return { match: true };
+  }
+  const bodyLen = typeof result.data === "string"
+    ? Buffer.byteLength(result.data)
+    : Buffer.byteLength(JSON.stringify(result.data ?? null));
+  if (signal.byte_length_min !== undefined && bodyLen < signal.byte_length_min) {
+    return { match: false, reason: `body_shrunk: ${bodyLen}B < min ${signal.byte_length_min}B` };
+  }
+  if (signal.byte_length_max !== undefined && bodyLen > signal.byte_length_max) {
+    return { match: false, reason: `body_grew: ${bodyLen}B > max ${signal.byte_length_max}B` };
   }
   return { match: true };
 }
@@ -4173,8 +4174,17 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         score += Math.min(propCount * 2, 20);
       }
     }
-    score += (ep.reliability_score ?? 0) * 5;
+    // Reliability: undefined (no opinion) is neutral. Defined-and-low actively demotes —
+    // the auto-deprecation threshold is 0.2, anything below that has hit the consecutive-
+    // failure gate and should fall to the bottom of the shortlist.
+    if (typeof ep.reliability_score === "number") {
+      if (ep.reliability_score < 0.2) score -= 60;
+      else if (ep.reliability_score < 0.5) score -= 15;
+      else score += ep.reliability_score * 10;
+    }
     if (ep.verification_status === "verified") score += 15;
+    else if (ep.verification_status === "failed") score -= 40;
+    else if (ep.verification_status === "pending") score -= 10;
     if (ep.method === "WS" && ep.response_schema) score += 3;
 
     // === Domain affinity ===

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **resolve:** Exa web search runs in parallel with marketplace on every `/search/resolve` call; when marketplace has no viable skills and Exa highlights contain ≥150 chars of relevant content, resolve returns a synthesized answer directly without opening a browser.
+
+### Bug Fixes
+
+* **execution:** accept proven JSON API replays when required top-level keys match despite response size drift, avoiding unnecessary trigger-intercept/browser fallbacks for paginated or empty results.
+* **marketplace:** count `trigger_timeout`, `endpoint_not_found`, and `vendor_blocked` outcomes as hard failures alongside 4xx/5xx, so stale endpoints auto-deprecate after two strikes instead of lingering in the resolve shortlist.
+* **ranking:** demote endpoints with low `reliability_score` (−60 below 0.2, −15 below 0.5) and penalize `verification_status: failed/pending`, so a measured-bad endpoint ranks below an unmeasured peer.
+
 ## [6.12.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.12.0-preview.0...v6.12.0) (2026-05-11)
 
 ## [6.12.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0...v6.12.0-preview.0) (2026-05-11)

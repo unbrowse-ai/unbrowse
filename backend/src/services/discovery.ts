@@ -2,6 +2,7 @@ import type { Env } from "../types.js";
 import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
 import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
+import { exaSearch, type ExaWebResult } from "./exa.js";
 
 const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
@@ -19,6 +20,7 @@ export interface ResolvedSearchResult {
   domain_results: SearchResult;
   global_results: SearchResult;
   skipped_global: boolean;
+  exa_results?: ExaWebResult[];
 }
 
 function resultDomain(result: { metadata: Record<string, unknown> }): string | null {
@@ -388,22 +390,37 @@ export async function searchIntentResolve(
   console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) try { return filterSuppressedResolvedSearchResults(env, JSON.parse(hit) as ResolvedSearchResult); } catch { /* fall through */ }
 
+  // Exa fires in parallel with graph searches — it's a best-effort enrichment,
+  // never on the critical path. Skip when key not configured.
+  const exaPromise: Promise<ExaWebResult[]> = env.EXA_API_KEY
+    ? exaSearch(env.EXA_API_KEY, intent).catch((err) => {
+        console.error("[search-resolve] exa error:", (err as Error).message);
+        return [] as ExaWebResult[];
+      })
+    : Promise.resolve([] as ExaWebResult[]);
+
   if (!domain) {
     let global_results = await graphSearch(env, "global", intent, globalK).catch((err) => {
       console.error(`[search-resolve] global error:`, (err as Error).message);
       return [] as SearchResult;
     });
     global_results = filterSuppressedSearchResults(env, rescoreWithComposite(global_results));
+    const exa_results = await exaPromise;
     const t2 = Date.now();
-    const resolved = { domain_results: [] as SearchResult, global_results, skipped_global: false };
-    console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length}`);
+    const resolved: ResolvedSearchResult = {
+      domain_results: [] as SearchResult,
+      global_results,
+      skipped_global: false,
+      ...(exa_results.length > 0 && { exa_results }),
+    };
+    console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length} exa=${exa_results.length}`);
     console.log(`[perf:search-resolve] TOTAL: ${t2 - t0}ms`);
     if (global_results.length > 0) cachePut(env, ckey, JSON.stringify(resolved));
     return resolved;
   }
 
   if (isMarketplaceDomainSuppressed(env, domain)) {
-    const resolved = { domain_results: [] as SearchResult, global_results: [] as SearchResult, skipped_global: true };
+    const resolved: ResolvedSearchResult = { domain_results: [] as SearchResult, global_results: [] as SearchResult, skipped_global: true };
     cachePut(env, ckey, JSON.stringify(resolved));
     return resolved;
   }
@@ -423,14 +440,20 @@ export async function searchIntentResolve(
   const skipped_global = shouldSkipGlobalSearch(domain_results, domain);
   let global_results = skipped_global ? [] : await globalPromise;
   if (!skipped_global) global_results = filterSuppressedSearchResults(env, rescoreWithComposite(global_results));
+  const exa_results = await exaPromise;
   const t3 = Date.now();
   console.log(
     `[perf:search-resolve] global-search: ${skipped_global ? "skipped" : `${t3 - t2}ms results=${global_results.length}`}`,
   );
-  console.log(`[perf:search-resolve] TOTAL: ${t3 - t0}ms`);
+  console.log(`[perf:search-resolve] exa=${exa_results.length} TOTAL: ${t3 - t0}ms`);
 
-  const resolved = { domain_results, global_results, skipped_global };
-  if (domain_results.length > 0 || global_results.length > 0) {
+  const resolved: ResolvedSearchResult = {
+    domain_results,
+    global_results,
+    skipped_global,
+    ...(exa_results.length > 0 && { exa_results }),
+  };
+  if (domain_results.length > 0 || global_results.length > 0 || exa_results.length > 0) {
     cachePut(env, ckey, JSON.stringify(resolved));
   }
   return resolved;

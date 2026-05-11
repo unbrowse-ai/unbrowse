@@ -580,7 +580,7 @@ export interface OrchestrationTiming {
   get_skill_ms: number;
   execute_ms: number;
   total_ms: number;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache" | "browser-action";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache" | "browser-action" | "exa";
   cache_hit: boolean;
   candidates_found: number;
   candidates_tried: number;

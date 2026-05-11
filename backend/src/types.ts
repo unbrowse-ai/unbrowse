@@ -41,6 +41,8 @@ export interface Env {
   PUBLIC_FRONTEND_URL?: string;
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_ZONE_ID?: string;
+  /** Exa web search — parallel step in resolve, surfaces highlights when marketplace misses. */
+  EXA_API_KEY?: string;
   /**
    * Comma-separated list of additional reserved domains. Non-admin publishers
    * cannot publish skills for these domains (or their subdomains). Combined
