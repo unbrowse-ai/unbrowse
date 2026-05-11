@@ -20,7 +20,6 @@ export type RunPolicy = {
   allow_paid_graph?: boolean;
   allow_side_effects?: boolean;
   confirm_third_party_terms?: boolean;
-  skip_robots?: boolean;
   budget_ms?: number;
 };
 
@@ -129,7 +128,6 @@ export type RunPlannerDeps = {
     intent: string;
     params?: Record<string, unknown>;
     confirm_third_party_terms?: boolean;
-    skip_robots?: boolean;
   }) => Promise<ExecuteOutcome>;
 
   capture: (args: { url: string; intent: string }) => Promise<CaptureOutcome>;
@@ -145,7 +143,6 @@ export const DEFAULT_RUN_POLICY: Required<RunPolicy> = {
   allow_paid_graph: true,
   allow_side_effects: false,
   confirm_third_party_terms: false,
-  skip_robots: false,
   budget_ms: 8000,
 };
 
@@ -244,7 +241,6 @@ export async function runPlanner(
         intent: input.intent,
         params: input.params,
         confirm_third_party_terms: policy.confirm_third_party_terms,
-        skip_robots: policy.skip_robots,
       });
     } catch (err) {
       run_plan[run_plan.length - 1].status = "error";

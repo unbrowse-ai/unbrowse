@@ -562,8 +562,6 @@ export interface ExecutionOptions {
   client_scope?: string;
   /** Set only when the caller has already completed payment verification for a paid run */
   payment_verified?: boolean;
-  /** Skip robots.txt compliance check (e.g. for testing or trusted internal domains) */
-  skip_robots_check?: boolean;
   /** Phase 8.1 — wall-clock budget in ms for the parallel resolve race. Default 8000. */
   budget_ms?: number;
   /** When true, the resolve shortlist is filtered to only independently verified proofs. */

@@ -83,7 +83,6 @@ describe("run-planner: policy defaults", () => {
     expect(p.allow_paid_graph).toBe(true);
     expect(p.allow_side_effects).toBe(false);
     expect(p.confirm_third_party_terms).toBe(false);
-    expect(p.skip_robots).toBe(false);
     expect(p.budget_ms).toBe(8000);
   });
 

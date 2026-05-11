@@ -50,7 +50,6 @@ import {
   generateLocalDescription,
 } from "../orchestrator/index.js";
 import { checkPaymentRequirement } from "../payments/index.js";
-import { isAllowedByRobots } from "./robots.js";
 import { annotateEndpointPolicy, endpointRequiresThirdPartyTermsConfirmation, getEndpointPolicy } from "../site-policy.js";
 import {
   mergeWorkflowArtifacts,
@@ -2413,11 +2412,7 @@ export async function executeEndpoint(
     !!skill.auth_profile_ref ||
     endpoint.semantic?.auth_required === true;
 
-  // robots.txt: log-only, never block. Unbrowse acts as the user's browser with their cookies.
-  if (!hasAuthContext) {
-    const allowed = await isAllowedByRobots(url);
-    if (!allowed) log("exec", `robots.txt would block ${url} (not enforced)`);
-  }
+
 
   const serverFetch = async (
     extraHeaders: Record<string, string> = {},
