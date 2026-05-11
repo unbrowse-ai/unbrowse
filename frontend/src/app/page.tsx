@@ -34,8 +34,8 @@ export const revalidate = 60;
 const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? "For skill-compatible hosts, start with npx skills add unbrowse-ai/unbrowse. If you want the local runtime wired automatically, use the one-shot installer script. If you do not want auto-detect, the manual fallback is npm install -g unbrowse. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths. OpenClaw, Hermes, and ElizaOS use native browser-replacement integrations rather than simple package installs, so their full setup lives in the docs."
-  : "Start with the shared skill: npx skills add unbrowse-ai/unbrowse. The landing page is intentionally pinned to that path for now. Full host-specific wiring and runtime setup still live in skill.md when you need them.";
+  ? "MCP is the default. Run npx unbrowse setup --mcp and Unbrowse auto-detects your MCP client (Claude Code, Claude Desktop, Cursor, Windsurf, Codex, OpenClaw) and wires the server in one step. For manual setups, point your client at unbrowse mcp over stdio. The CLI (npm install -g unbrowse then unbrowse resolve/execute) still works for hosts that can't speak MCP yet, but every new flow lands in MCP first."
+  : "MCP is the default. Run npx unbrowse setup --mcp and your client (Claude, Cursor, Codex, OpenClaw) gets wired in one step. The CLI is still supported for legacy hosts.";
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -86,7 +86,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
+        text: "MCP is the default. Run npx unbrowse setup --mcp for one-command installation that wires the Unbrowse MCP server into Claude Code, Claude Desktop, Cursor, Windsurf, Codex, or OpenClaw. To wire manually, point your MCP client at unbrowse mcp (stdio transport). Already installed? Upgrade with npm install -g unbrowse@latest && unbrowse setup --mcp. The legacy CLI (unbrowse resolve / unbrowse execute) is still supported for hosts that can't speak MCP yet.",
       },
     },
     {
@@ -197,11 +197,11 @@ export default function Home() {
           <p>
             Unbrowse is an open-source CLI tool that reverse-engineers the shadow APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
-          <p>Setup: npx unbrowse setup</p>
-          <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup</p>
-          <p>For skill hosts: npx skills add unbrowse-ai/unbrowse</p>
+          <p>MCP setup (default): npx unbrowse setup --mcp</p>
+          <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup --mcp</p>
+          <p>Manual MCP wiring: point your client at &quot;unbrowse mcp&quot; (stdio transport)</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
-          <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
+          <p>Legacy CLI (still supported): unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
       </section>
 

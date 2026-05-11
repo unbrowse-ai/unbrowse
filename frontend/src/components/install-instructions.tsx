@@ -13,54 +13,78 @@ interface TLine { type: LineType; text: string; }
 
 const TABS = [
   {
-    id: "claude",
-    label: "CLAUDE / OPENCLAW",
-    copyText: "npx unbrowse setup",
+    id: "claude-code",
+    label: "CLAUDE CODE",
+    copyText: "npx unbrowse setup --mcp",
     lines: [
-      { type: "header",  text: "▸  UNBROWSE SETUP  ·  CLAUDE CODE + OPENCLAW" },
+      { type: "header",  text: "▸  UNBROWSE MCP  ·  CLAUDE CODE" },
       { type: "divider", text: "──────────────────────────────────────────────" },
-      { type: "comment", text: "  ##  one-command full setup" },
-      { type: "cmd",     text: "  $  npx unbrowse setup" },
+      { type: "comment", text: "  ##  one command — installs + registers MCP server" },
+      { type: "cmd",     text: "  $  npx unbrowse setup --mcp" },
       { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  install globally + wire host" },
-      { type: "cmd",     text: "  $  npm install -g unbrowse" },
-      { type: "cmd",     text: "  $  unbrowse setup" },
+      { type: "comment", text: "  ##  or wire manually" },
+      { type: "cmd",     text: "  $  claude mcp add unbrowse -- npx -y unbrowse mcp" },
       { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  already installed?  upgrade" },
-      { type: "cmd",     text: "  $  npm install -g unbrowse@latest && unbrowse setup" },
+      { type: "comment", text: "  ##  upgrade existing install" },
+      { type: "cmd",     text: "  $  npm install -g unbrowse@latest && unbrowse setup --mcp" },
       { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  add skill for agent workflows" },
-      { type: "cmd",     text: "  $  npx skills add unbrowse-ai/unbrowse" },
-      { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  invoke" },
-      { type: "cmd",     text: '  $  unbrowse resolve --intent "get events" --url "lu.ma"' },
-      { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  earn from discovered routes — set up Crossmint lobster.cash" },
-      { type: "cmd",     text: "  $  npx @crossmint/lobster-cli setup" },
+      { type: "comment", text: "  ##  then, from inside claude" },
+      { type: "cmd",     text: '  >  resolve "get events" on lu.ma, then execute the top result' },
     ] as TLine[],
   },
   {
     id: "cursor",
-    label: "CURSOR",
-    copyText: "npx unbrowse setup",
+    label: "CURSOR / WINDSURF",
+    copyText: "npx unbrowse setup --mcp",
     lines: [
-      { type: "header",  text: "▸  UNBROWSE SETUP  ·  CURSOR" },
+      { type: "header",  text: "▸  UNBROWSE MCP  ·  CURSOR / WINDSURF / CLAUDE DESKTOP" },
       { type: "divider", text: "──────────────────────────────────────────────" },
-      { type: "comment", text: "  ##  one-command full setup" },
-      { type: "cmd",     text: "  $  npx unbrowse setup" },
+      { type: "comment", text: "  ##  auto-detect + wire the MCP server" },
+      { type: "cmd",     text: "  $  npx unbrowse setup --mcp" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  manual: add to your mcp config" },
+      { type: "cmd",     text: '  {  "unbrowse": { "command": "npx", "args": ["-y", "unbrowse", "mcp"] }  }' },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  verify the server is healthy" },
+      { type: "cmd",     text: "  $  unbrowse health" },
+    ] as TLine[],
+  },
+  {
+    id: "codex",
+    label: "CODEX / OPENCLAW",
+    copyText: "npx unbrowse setup --mcp",
+    lines: [
+      { type: "header",  text: "▸  UNBROWSE MCP  ·  CODEX + OPENCLAW + ANY MCP CLIENT" },
+      { type: "divider", text: "──────────────────────────────────────────────" },
+      { type: "comment", text: "  ##  install + register" },
+      { type: "cmd",     text: "  $  npx unbrowse setup --mcp" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  stdio transport for any other client" },
+      { type: "cmd",     text: "  $  unbrowse mcp" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  earn from discovered routes" },
+      { type: "cmd",     text: "  $  npx @crossmint/lobster-cli setup" },
+    ] as TLine[],
+  },
+  {
+    id: "cli",
+    label: "CLI (LEGACY)",
+    copyText: "npm install -g unbrowse && unbrowse setup",
+    lines: [
+      { type: "header",  text: "▸  CLI FALLBACK  ·  STILL SUPPORTED" },
+      { type: "divider", text: "──────────────────────────────────────────────" },
+      { type: "comment", text: "  ##  MCP is the default — use the CLI only if your" },
+      { type: "comment", text: "  ##  host can't speak MCP, or for one-off shell use." },
       { type: "blank",   text: "" },
       { type: "comment", text: "  ##  install globally" },
       { type: "cmd",     text: "  $  npm install -g unbrowse" },
       { type: "cmd",     text: "  $  unbrowse setup" },
       { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  upgrade existing install" },
+      { type: "comment", text: "  ##  invoke from a shell" },
+      { type: "cmd",     text: '  $  unbrowse resolve --intent "get events" --url "lu.ma"' },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  upgrade later" },
       { type: "cmd",     text: "  $  npm install -g unbrowse@latest && unbrowse setup" },
-      { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  add skill in cursor" },
-      { type: "cmd",     text: "  $  npx skills add unbrowse-ai/unbrowse" },
-      { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  verify" },
-      { type: "cmd",     text: "  $  unbrowse health" },
     ] as TLine[],
   },
 ] as const;
@@ -81,7 +105,7 @@ function lineStyle(type: LineType): React.CSSProperties {
 }
 
 export function InstallInstructions() {
-  const [active, setActive]       = useState<string>("claude");
+  const [active, setActive]       = useState<string>("claude-code");
   const [visible, setVisible]     = useState(0);
   const [cursor, setCursor]       = useState(true);
   const [copied, setCopied]       = useState(false);
@@ -166,12 +190,12 @@ export function InstallInstructions() {
         <div style={{ display: isMobile ? "none" : "flex", alignItems: "center", gap: "10px" }}>
           <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: O }} />
           <span style={{ fontFamily: "monospace", fontSize: 10, color: O_DIM, letterSpacing: "0.18em", textTransform: "uppercase" }}>
-            unbrowse terminal
+            unbrowse mcp
           </span>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {TABS.map((t) => (
             <button
               key={t.id}
