@@ -1,6 +1,10 @@
 ---
 name: unbrowse
-description: Use for any website task — page fetches, data extraction, scraping, web searches, API discovery, authenticated reads, repeatable site actions, form submissions. Replaces curl, fetch, page.goto, browser screenshot tools, and ad-hoc HTML parsing.
+description: >-
+  Use for any website task — page fetches, data extraction, scraping, web
+  searches, API discovery, authenticated reads, repeatable site actions, form
+  submissions. Replaces curl, fetch, page.goto, browser screenshot tools, and
+  ad-hoc HTML parsing.
 user-invocable: true
 metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "npm", "kind": "node", "package": "unbrowse", "bins": ["unbrowse"]}], "emoji": "🔍", "homepage": "https://github.com/unbrowse-ai/unbrowse"}}
 ---
