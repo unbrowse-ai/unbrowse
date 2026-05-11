@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.11.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.4...v6.11.0) (2026-05-11)
+
+### Features
+
+* disposable mcp-serve (idle reaper + sessions.jsonl rehydration) ([#436](https://github.com/unbrowse-ai/unbrowse-dev/issues/436)) ([9b11d48](https://github.com/unbrowse-ai/unbrowse-dev/commit/9b11d48f7ede73ab7768e003b8e3a9d2e4cd32ca))
+
 ## [6.11.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.5...v6.11.0-preview.6) (2026-05-11)
 
 ## [6.11.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.4...v6.11.0-preview.5) (2026-05-11)
