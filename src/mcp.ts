@@ -638,7 +638,7 @@ function maybePostProcessResult(result: Record<string, unknown>, args: Record<st
   return result;
 }
 
-function addExecuteNextStepHints(
+export function addExecuteNextStepHints(
   result: Record<string, unknown>,
   args: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -677,10 +677,20 @@ function addExecuteNextStepHints(
     hints.contribute = "If you learned something about this endpoint (required params, gotchas, best practices), call unbrowse_annotate to share it with other agents.";
   }
 
-  return { ...result, _workflow_hints: hints };
+  const next_action: Record<string, unknown> = {
+    title: "Record feedback for this execution",
+    command: "unbrowse_feedback",
+    command_args: {
+      ...(skillId ? { skill: skillId } : {}),
+      ...(endpointId ? { endpoint: endpointId } : {}),
+    },
+    why: "Closes the trust loop and weights this endpoint in future resolves.",
+  };
+
+  return { ...result, next_action, _workflow_hints: hints };
 }
 
-function addCaptureNextStepHints(
+export function addCaptureNextStepHints(
   result: unknown,
   _args: Record<string, unknown>,
 ): unknown {
@@ -696,7 +706,14 @@ function addCaptureNextStepHints(
     hints.review_command = `unbrowse_review with skill="${skillId}"`;
   }
 
-  return { ...result, _workflow_hints: hints };
+  const next_action: Record<string, unknown> = {
+    title: "Review the captured endpoints",
+    command: "unbrowse_review",
+    command_args: skillId ? { skill: skillId } : {},
+    why: "Required before publish so the marketplace gets a real schema.",
+  };
+
+  return { ...result, next_action, _workflow_hints: hints };
 }
 
 async function api(method: string, route: string, body?: unknown): Promise<unknown> {
@@ -812,6 +829,20 @@ export function addResolveMissGuidance(
       discovery_mode: "browser_first",
       resolve_mode: "cache_only",
     },
+    // Only emit next_action when we can populate a dispatchable command.
+    // unbrowse_go requires `url`; if we only have a domain or nothing,
+    // omit next_action rather than promise an undispatchable call.
+    ...(url ? {
+      next_action: {
+        title: "Open a browse session to discover endpoints",
+        command: "unbrowse_go",
+        command_args: {
+          url,
+          ...(typeof args.intent === "string" ? { intent: args.intent } : {}),
+        },
+        why: "No cached route yet; live capture is the next step.",
+      },
+    } : {}),
   };
 }
 
