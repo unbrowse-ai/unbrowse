@@ -11,6 +11,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1.0,
     },
     {
+      url: `${baseUrl}/mcp-is-now-the-default`,
+      lastModified: new Date("2026-05-12"),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
       url: `${baseUrl}/internal-apis-are-all-you-need`,
       lastModified: new Date("2026-03-25"),
       changeFrequency: "weekly",
