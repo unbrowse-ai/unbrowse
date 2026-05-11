@@ -198,10 +198,9 @@ export default function Home() {
             Unbrowse is an open-source CLI tool that reverse-engineers the shadow APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
           <p>MCP setup (default): npx unbrowse setup --mcp</p>
-          <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup --mcp</p>
-          <p>Manual MCP wiring: point your client at &quot;unbrowse mcp&quot; (stdio transport)</p>
+          <p>Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp</p>
+          <p>Manual MCP wiring: add to mcp.json with command &quot;npx&quot; args [&quot;-y&quot;, &quot;unbrowse&quot;, &quot;mcp&quot;]</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
-          <p>Legacy CLI (still supported): unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
       </section>
 
@@ -314,13 +313,13 @@ export default function Home() {
               <div className="border-b border-[rgba(255,122,32,0.2)] bg-[rgba(0,0,0,0.35)] px-5 py-4 sm:px-6 sm:py-5">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">##  Install First</p>
+                    <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">##  MCP Install</p>
                     <h2 className="mt-1 text-xl sm:text-2xl font-mono tracking-tight text-[#FFB060]" style={{ textShadow: '0 0 20px rgba(255,176,96,0.4)' }}>
-                      $ unbrowse setup
+                      $ unbrowse setup --mcp
                     </h2>
                   </div>
                   <p className="max-w-sm text-sm leading-relaxed text-[rgba(255,122,32,0.55)] font-mono">
-                    Fresh install or quick upgrade. Same setup flow either way.
+                    Wires the Unbrowse MCP server into your agent host. One command per client.
                   </p>
                 </div>
               </div>
