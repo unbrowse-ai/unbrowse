@@ -481,6 +481,49 @@ function workflowPromptMessages(args: Record<string, unknown>): { description: s
   };
 }
 
+// Phase 3 (cheatsheet): workflow recipes that encode multi-step tool
+// sequences as injectable templates. Mirrors `workflowPromptMessages`
+// shape: { description, messages: [{ role, content: { type:"text", text }}] }.
+
+function resolveExecuteFeedbackRecipe(args: Record<string, unknown>): { description: string; messages: Array<Record<string, unknown>> } {
+  const intent = typeof args.intent === "string" ? args.intent : "<the user's intent>";
+  const url = typeof args.url === "string" ? args.url : "<optional target url or domain>";
+  const text = `Workflow: cached intent → ranked endpoint → execution → feedback.
+
+1. Call unbrowse_resolve with intent="${intent}" and url="${url}".
+   - Reads ranked marketplace endpoints (available_endpoints).
+   - On status="no_cached_match", switch to workflow:browse-and-publish.
+2. Pick the best endpoint from the shortlist by example_response_compact, requires, and yields.
+3. Call unbrowse_execute with the chosen { skill, endpoint, params }.
+   - The result carries next_action.command === "unbrowse_feedback" with the right { skill, endpoint } in command_args.
+4. MANDATORY: call unbrowse_feedback with skill, endpoint, rating (1-5).
+   - 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless.
+5. Present the execute result to the user. Do not respond before feedback fires.`;
+  return {
+    description: "Cached-intent path: resolve → execute → feedback.",
+    messages: [{ role: "assistant", content: { type: "text", text } }],
+  };
+}
+
+function browseAndPublishRecipe(args: Record<string, unknown>): { description: string; messages: Array<Record<string, unknown>> } {
+  const intent = typeof args.intent === "string" ? args.intent : "<the user's intent>";
+  const url = typeof args.url === "string" ? args.url : "<target page url>";
+  const text = `Workflow: cold intent on a new domain → live capture → publish a reusable skill.
+
+1. Confirm unbrowse_resolve returned no_cached_match for intent="${intent}" url="${url}".
+2. Call unbrowse_go with url="${url}". A live browser tab opens; capture begins passively. (tools/list now expands — new session tools are revealed.)
+3. Loop: unbrowse_snap → act (click/fill/type/press/select/scroll/submit) → re-snap. Always act on element refs from the freshest snap.
+4. When you have the user's answer, call unbrowse_close (or unbrowse_sync to checkpoint).
+   - The result carries next_action.command === "unbrowse_review".
+5. MANDATORY: call unbrowse_review with the skill + endpoints. Write proper descriptions + action_kind/resource_kind.
+6. MANDATORY: call unbrowse_publish twice — first to inspect, then with confirm_publish=true to ship.
+7. Present the captured data to the user. Do NOT respond before review + publish fire — this is the failure mode (Aiko eatigo 2026-05-11).`;
+  return {
+    description: "Cold-intent path: go → browse → close → review → publish.",
+    messages: [{ role: "assistant", content: { type: "text", text } }],
+  };
+}
+
 const prompts: PromptDefinition[] = [
   {
     name: "plan_workflow_execution",
@@ -492,6 +535,24 @@ const prompts: PromptDefinition[] = [
       { name: "user_goal", description: "Optional alternate wording for the goal.", required: false },
     ],
     get: workflowPromptMessages,
+  },
+  {
+    name: "workflow:resolve-execute-feedback",
+    description: "Cached-intent playbook: resolve → pick → execute → feedback. Use for any 'find X on site Y' task when the site has prior coverage.",
+    arguments: [
+      { name: "intent", description: "The user's natural-language ask.", required: true },
+      { name: "url", description: "Target URL or domain hint.", required: false },
+    ],
+    get: resolveExecuteFeedbackRecipe,
+  },
+  {
+    name: "workflow:browse-and-publish",
+    description: "Cold-intent playbook: open a browse session, capture the user's answer, then close + review + publish before responding. Required on first-visit to a new domain.",
+    arguments: [
+      { name: "intent", description: "The user's natural-language ask.", required: true },
+      { name: "url", description: "Target URL.", required: true },
+    ],
+    get: browseAndPublishRecipe,
   },
 ];
 
@@ -1475,10 +1536,13 @@ const tools: ToolDefinition[] = [
     annotations: { openWorldHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/go", {
+      const result = await api("POST", "/v1/browse/go", {
         url: args.url,
         ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
-      }), "Live browse session opened.");
+      });
+      const wrapped = successResult(result, "Live browse session opened.");
+      setBrowseSessionOpen(true);
+      return wrapped;
     },
   },
   {
@@ -1768,7 +1832,9 @@ const tools: ToolDefinition[] = [
       await ensureServerReady();
       const result = await api("POST", "/v1/browse/close", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined);
       const withHints = addCaptureNextStepHints(result, args);
-      return successResult(withHints, "Browse session closed. See _workflow_hints for required next steps: call unbrowse_review then unbrowse_publish.");
+      const wrapped = successResult(withHints, "Browse session closed. See _workflow_hints for required next steps: call unbrowse_review then unbrowse_publish.");
+      setBrowseSessionOpen(false);
+      return wrapped;
     },
   },
   {
@@ -1878,10 +1944,49 @@ function jsonRpcResult(id: JsonRpcId, result: unknown): void {
   writeStdout({ jsonrpc: "2.0", id, result });
 }
 
+function jsonRpcNotification(method: string, params?: Record<string, unknown>): void {
+  writeStdout({ jsonrpc: "2.0", method, ...(params ? { params } : {}) });
+}
+
+// Phase 2 (cheatsheet): session-aware tool visibility for on-the-fly reveal.
+const SESSION_TOOL_NAMES = new Set([
+  "unbrowse_snap",
+  "unbrowse_click",
+  "unbrowse_fill",
+  "unbrowse_type",
+  "unbrowse_press",
+  "unbrowse_select",
+  "unbrowse_scroll",
+  "unbrowse_submit",
+  "unbrowse_screenshot",
+  "unbrowse_text",
+  "unbrowse_markdown",
+  "unbrowse_cookies",
+  "unbrowse_eval",
+  "unbrowse_sync",
+  "unbrowse_close",
+]);
+
+let browseSessionOpen = false;
+
+export function setBrowseSessionOpen(open: boolean): void {
+  const changed = browseSessionOpen !== open;
+  browseSessionOpen = open;
+  if (changed) jsonRpcNotification("notifications/tools/list_changed");
+}
+
+export function getBrowseSessionOpen(): boolean {
+  return browseSessionOpen;
+}
+
+function visibleTools(): typeof tools {
+  return browseSessionOpen ? tools : tools.filter((t) => !SESSION_TOOL_NAMES.has(t.name));
+}
+
 let initializeSeen = false;
 let negotiatedProtocolVersion = LATEST_PROTOCOL_VERSION;
 
-async function handleRequest(message: JsonRpcRequest): Promise<void> {
+export async function handleRequest(message: JsonRpcRequest): Promise<void> {
   const id = message.id ?? null;
   const method = message.method;
   const params = isPlainObject(message.params) ? message.params : {};
@@ -1909,13 +2014,13 @@ async function handleRequest(message: JsonRpcRequest): Promise<void> {
       protocolVersion: negotiatedProtocolVersion,
       capabilities: {
         tools: {
-          listChanged: false,
+          listChanged: true,
         },
         resources: {
           listChanged: false,
         },
         prompts: {
-          listChanged: false,
+          listChanged: true,
         },
       },
       serverInfo: {
@@ -1943,7 +2048,7 @@ async function handleRequest(message: JsonRpcRequest): Promise<void> {
 
   if (method === "tools/list") {
     jsonRpcResult(id, {
-      tools: tools.map(listTool),
+      tools: visibleTools().map(listTool),
     });
     return;
   }

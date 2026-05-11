@@ -74,8 +74,8 @@ LOOP: explore until you have what the user asked for
         ├── unbrowse_select { ref, value }     ← src/mcp.ts:1591
         ├── unbrowse_scroll                    ← src/mcp.ts:1614
         ├── unbrowse_submit                    ← src/mcp.ts:1636   form submission
-        ├── unbrowse_text / unbrowse_markdown  ← src/mcp.ts:1680/1663  read page content
-        └── unbrowse_eval { expression }       ← src/mcp.ts:1722   JS escape hatch (avoid if possible)
+        ├── unbrowse_text / unbrowse_markdown  ← src/mcp.ts:1683/1663  read page content
+        └── unbrowse_eval { expression }       ← src/mcp.ts:1725   JS escape hatch (avoid if possible)
         │
         │   ← After every snap, act on the [eN] element ref from the new tree,
         │     not on stale refs from a previous snap. The DOM changes.
@@ -86,8 +86,8 @@ LOOP: explore until you have what the user asked for
         │
         ├─ When you have the answer for the user:
         │
-unbrowse_close { session_id? }                 ← src/mcp.ts:1759
-        │   (or unbrowse_sync to checkpoint without closing — src/mcp.ts:1743)
+unbrowse_close { session_id? }                 ← src/mcp.ts:1762
+        │   (or unbrowse_sync to checkpoint without closing — src/mcp.ts:1746)
         │
         ├─ result.next_action.command === "unbrowse_review"   (post Phase 1, src/mcp.ts:709)
         │
@@ -141,6 +141,24 @@ Every result that previously carried `_workflow_hints` now ALSO carries a root-l
 
 `next_action` is omitted when the suggested call is not dispatchable (e.g. `unbrowse_go` needs a `url` but resolve had only a domain — `src/mcp.ts:832`). In that case the prose hint still describes the intent verbally.
 
+#### Dynamic tool reveal (Phase 2, shipped 2026-05-11)
+
+Two cheatsheet primitives the server now uses on the wire:
+
+1. **`initialize` declares** `capabilities.tools.listChanged: true` and `capabilities.prompts.listChanged: true`.
+2. **`tools/list` is state-dependent.** Before any `unbrowse_go`, the server returns ~18 tools (resolve/execute/feedback/skills/auth/etc.). After `unbrowse_go` succeeds, the server emits `{ "jsonrpc": "2.0", "method": "notifications/tools/list_changed" }` and the next `tools/list` returns all 33 (the 15 session-bound tools — `unbrowse_snap`, `click`, `fill`, `type`, `press`, `select`, `scroll`, `submit`, `screenshot`, `text`, `markdown`, `cookies`, `eval`, `sync`, `close` — are revealed). On `unbrowse_close`, the notification fires again and the list shrinks back.
+
+**Caller obligation:** when you receive `notifications/tools/list_changed`, re-issue `tools/list` immediately. The MCP spec requires this; without it, your agent never sees the freshly-revealed session tools.
+
+#### Workflow recipes via `prompts/get` (Phase 3, shipped 2026-05-11)
+
+`prompts/list` now includes:
+
+- `workflow:resolve-execute-feedback` — args: `{ intent, url? }`. Returns the cached-intent playbook (§2a).
+- `workflow:browse-and-publish` — args: `{ intent, url }`. Returns the cold-intent playbook (§2b). Encodes the non-skippable close→review→publish sequence as injectable text — Aiko's failure mode (§M1) prevented by recipe injection rather than reasoning over prose.
+
+Calling `prompts/get` returns `{ description, messages: [{ role:"assistant", content:{ type:"text", text:"..." }}] }`. The text is templated against the args and lists the exact tool sequence to follow.
+
 #### Error shapes
 
 | `result.status` or `result.error` | What it means | Next move |
@@ -171,9 +189,9 @@ unbrowse_resolve { intent, url }               ← retry, should now succeed
 
 | Tool | Line | When |
 |---|---|---|
-| `unbrowse_diagnose` | `src/mcp.ts:1809` | A previous call returned wrong/empty data; capture visual + structured context |
-| `unbrowse_trace` | `src/mcp.ts:1834` | Get execution trace with diagnostic scores + screenshots |
-| `unbrowse_validate` | `src/mcp.ts:1851` | Verify a captured skill is still correct (screenshots vs schema) |
+| `unbrowse_diagnose` | `src/mcp.ts:1875` | A previous call returned wrong/empty data; capture visual + structured context |
+| `unbrowse_trace` | `src/mcp.ts:1900` | Get execution trace with diagnostic scores + screenshots |
+| `unbrowse_validate` | `src/mcp.ts:1917` | Verify a captured skill is still correct (screenshots vs schema) |
 
 Use sparingly; these are escape hatches for the agent or for Lewis when something looks broken.
 
@@ -195,69 +213,69 @@ Every tool registered by `src/mcp.ts` (33 total). Read top to bottom for a categ
 
 | Tool | Line | Required | Summary |
 |---|---|---|---|
-| `unbrowse_health` | 934 | — | Local runtime health + version trace. Use to confirm MCP is alive. |
-| `unbrowse_resolve` | 944 | `intent` | Rank cached marketplace endpoints by intent + url. Start here for ANY web task. |
-| `unbrowse_execute` | 1021 | `skill`, `endpoint` | Call a chosen endpoint. Pass `params` for templates/queries. |
-| `unbrowse_stats` | 1076 | — | Lifetime impact: time saved, tokens saved, browser calls avoided. |
-| `unbrowse_feedback` | 1172 | `skill`, `endpoint`, `rating` | MANDATORY after execute. 5=right+fast → 1=useless. |
+| `unbrowse_health` | 995 | — | Local runtime health + version trace. Use to confirm MCP is alive. |
+| `unbrowse_resolve` | 1005 | `intent` | Rank cached marketplace endpoints by intent + url. Start here for ANY web task. |
+| `unbrowse_execute` | 1082 | `skill`, `endpoint` | Call a chosen endpoint. Pass `params` for templates/queries. |
+| `unbrowse_stats` | 1137 | — | Lifetime impact: time saved, tokens saved, browser calls avoided. |
+| `unbrowse_feedback` | 1233 | `skill`, `endpoint`, `rating` | MANDATORY after execute. 5=right+fast → 1=useless. |
 
 ### Skill management (6)
 
 | Tool | Line | Required | Summary |
 |---|---|---|---|
-| `unbrowse_index` | 1200 | `skill` | Recompute local DAG + workflow contracts for a cached skill. |
-| `unbrowse_review` | 1217 | `skill`, `endpoints` | Write descriptions + action_kind/resource_kind. MANDATORY after browse. |
-| `unbrowse_publish` | 1282 | `skill` | Two-call: first inspect, then `confirm_publish: true` to ship to marketplace. |
-| `unbrowse_annotate` | 1775 | `skill`, `endpoint` | Contribute learned constraints/best practices to an endpoint. |
-| `unbrowse_skills` | 1418 | — | List locally available + learned skills. |
-| `unbrowse_skill` | 1428 | `id` | Fetch one skill manifest by id. |
+| `unbrowse_index` | 1261 | `skill` | Recompute local DAG + workflow contracts for a cached skill. |
+| `unbrowse_review` | 1278 | `skill`, `endpoints` | Write descriptions + action_kind/resource_kind. MANDATORY after browse. |
+| `unbrowse_publish` | 1343 | `skill` | Two-call: first inspect, then `confirm_publish: true` to ship to marketplace. |
+| `unbrowse_annotate` | 1841 | `skill`, `endpoint` | Contribute learned constraints/best practices to an endpoint. |
+| `unbrowse_skills` | 1479 | — | List locally available + learned skills. |
+| `unbrowse_skill` | 1489 | `id` | Fetch one skill manifest by id. |
 
 ### Settings / auth / sessions (3)
 
 | Tool | Line | Required | Summary |
 |---|---|---|---|
-| `unbrowse_settings` | 1349 | — | Show or update capture/publish policy + domain rules. |
-| `unbrowse_auth_capture` | 1397 | `url` | Open Chrome tab for the user to sign in to a target site; cookies persist. |
-| `unbrowse_sessions` | 1445 | `domain` | Read stored session logs for one domain. |
+| `unbrowse_settings` | 1410 | — | Show or update capture/publish policy + domain rules. |
+| `unbrowse_auth_capture` | 1458 | `url` | Open Chrome tab for the user to sign in to a target site; cookies persist. |
+| `unbrowse_sessions` | 1506 | `domain` | Read stored session logs for one domain. |
 
 ### Browse open / close (3)
 
 | Tool | Line | Required | Summary |
 |---|---|---|---|
-| `unbrowse_go` | 1464 | `url` | Open a live Chrome tab and begin passive capture. Implicit session_id. |
-| `unbrowse_sync` | 1743 | — | Checkpoint capture mid-session, queue index pipeline, keep tab open. |
-| `unbrowse_close` | 1759 | — | Close the session, checkpoint, queue index. ALWAYS followed by review + publish on first-visit. |
+| `unbrowse_go` | 1525 | `url` | Open a live Chrome tab and begin passive capture. Implicit session_id. |
+| `unbrowse_sync` | 1807 | — | Checkpoint capture mid-session, queue index pipeline, keep tab open. |
+| `unbrowse_close` | 1823 | — | Close the session, checkpoint, queue index. ALWAYS followed by review + publish on first-visit. |
 
 ### Browse read (5)
 
 | Tool | Line | Required | Summary |
 |---|---|---|---|
-| `unbrowse_snap` | 1485 | — | A11y tree with `[eN]` refs. Re-snap after every action that changes the DOM. |
-| `unbrowse_screenshot` | 1664 | — | PNG of current tab. Diagnosis use. |
-| `unbrowse_text` | 1680 | — | Plain text of current page. |
-| `unbrowse_markdown` | 1694 | — | Markdown render of current page. Prefer over `_text` for structured content. |
-| `unbrowse_cookies` | 1708 | — | Inspect cookies visible to the current tab. |
+| `unbrowse_snap` | 1549 | — | A11y tree with `[eN]` refs. Re-snap after every action that changes the DOM. |
+| `unbrowse_screenshot` | 1728 | — | PNG of current tab. Diagnosis use. |
+| `unbrowse_text` | 1744 | — | Plain text of current page. |
+| `unbrowse_markdown` | 1758 | — | Markdown render of current page. Prefer over `_text` for structured content. |
+| `unbrowse_cookies` | 1772 | — | Inspect cookies visible to the current tab. |
 
 ### Browse act (8)
 
 | Tool | Line | Required | Summary |
 |---|---|---|---|
-| `unbrowse_click` | 1505 | `ref` | Click element by `[eN]` ref from a recent snap. |
-| `unbrowse_fill` | 1526 | `ref`, `value` | Set input value by ref (no keystrokes — direct). |
-| `unbrowse_type` | 1549 | `text` | Type with key events at the currently focused element. |
-| `unbrowse_press` | 1570 | `key` | Press a key (e.g. "Enter", "Tab", "Escape"). |
-| `unbrowse_select` | 1591 | `ref`, `value` | Select option in a `<select>` by ref. |
-| `unbrowse_scroll` | 1614 | — | Scroll current page. |
-| `unbrowse_submit` | 1636 | — | Submit the currently focused form. |
-| `unbrowse_eval` | 1722 | `expression` | Run JS in the tab. Escape hatch; prefer structured tools when possible. |
+| `unbrowse_click` | 1569 | `ref` | Click element by `[eN]` ref from a recent snap. |
+| `unbrowse_fill` | 1590 | `ref`, `value` | Set input value by ref (no keystrokes — direct). |
+| `unbrowse_type` | 1613 | `text` | Type with key events at the currently focused element. |
+| `unbrowse_press` | 1634 | `key` | Press a key (e.g. "Enter", "Tab", "Escape"). |
+| `unbrowse_select` | 1655 | `ref`, `value` | Select option in a `<select>` by ref. |
+| `unbrowse_scroll` | 1678 | — | Scroll current page. |
+| `unbrowse_submit` | 1700 | — | Submit the currently focused form. |
+| `unbrowse_eval` | 1786 | `expression` | Run JS in the tab. Escape hatch; prefer structured tools when possible. |
 
 ### Diagnosis (3)
 
 | Tool | Line | Required | Summary |
 |---|---|---|---|
-| `unbrowse_diagnose` | 1809 | — | Capture visual + structured context when something is wrong. |
-| `unbrowse_trace` | 1834 | — | Execution trace with diagnostic scores + visual context. |
-| `unbrowse_validate` | 1851 | `skill_id` | Validate a captured skill quality by screenshotting current behavior. |
+| `unbrowse_diagnose` | 1875 | — | Capture visual + structured context when something is wrong. |
+| `unbrowse_trace` | 1900 | — | Execution trace with diagnostic scores + visual context. |
+| `unbrowse_validate` | 1917 | `skill_id` | Validate a captured skill quality by screenshotting current behavior. |
 
 ---
 
