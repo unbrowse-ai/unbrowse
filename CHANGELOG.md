@@ -1,5 +1,18 @@
 # Changelog
 
+## [6.12.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0...v6.12.0-preview.0) (2026-05-11)
+
+### Features
+
+* **blog:** announce v6.11.0 — MCP is the default ([307f1e0](https://github.com/unbrowse-ai/unbrowse-dev/commit/307f1e006474be00b92f33b0c377c23515be4d82))
+* **frontend:** MCP-first installer; CLI as legacy fallback tab ([0144115](https://github.com/unbrowse-ai/unbrowse-dev/commit/014411504e10cfb612ba83a08acc18c847a95575))
+
+### Refactoring
+
+* **frontend:** installer section is MCP-only; drop CLI/resolve copy ([21120f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/21120f4dfba493c8307d6250fb1b3715fb5f7e51))
+* **frontend:** strip last CLI/resolve mentions from landing page ([a4320f9](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4320f9022a866f27223e15101b6b5a9e528f4b8))
+* remove robots.txt machinery across the app ([dabcaa5](https://github.com/unbrowse-ai/unbrowse-dev/commit/dabcaa5d098407d0ec67d671dfa821931d137b17))
+
 ## [6.11.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.4...v6.11.0) (2026-05-11)
 
 ### Features
