@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.11.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.1...v6.11.0-preview.2) (2026-05-11)
+
+### Features
+
+* **mcp:** listChanged + workflow recipe prompts (cheatsheet phases 2-3) ([a6e4154](https://github.com/unbrowse-ai/unbrowse-dev/commit/a6e41540800e3c018a9d941c543e4b2c89e58686))
+
 ## [6.11.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.11.0-preview.0...v6.11.0-preview.1) (2026-05-11)
 
 ## [6.11.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.10.0...v6.11.0-preview.0) (2026-05-11)
