@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.13.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.12.0...v6.13.0-preview.0) (2026-05-11)
+
+### Features
+
+* Exa parallel web search + stale endpoint eviction improvements ([23cf65d](https://github.com/unbrowse-ai/unbrowse-dev/commit/23cf65d428e2a7367e081f6aba66f721041c6bf5))
+
 ## Unreleased
 
 ### Features
