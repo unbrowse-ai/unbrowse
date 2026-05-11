@@ -25,11 +25,9 @@ describe("skill docs sync", () => {
     expect(existsSync(path.join(repoRoot, "docs", "whitepaper", "internal-cathedral.md"))).toBe(false);
   });
 
-  it("keeps only public-safe whitepaper links surfaced in the public entrypoints", () => {
+  it("keeps only public-safe whitepaper links surfaced in the README entrypoints", () => {
     const rootReadme = readFileSync(path.join(repoRoot, "README.md"), "utf8");
     const skillReadme = readFileSync(path.join(repoRoot, "packages", "skill", "README.md"), "utf8");
-    const skillDoc = readFileSync(path.join(repoRoot, "SKILL.md"), "utf8");
-    const packageSkillDoc = readFileSync(path.join(repoRoot, "packages", "skill", "SKILL.md"), "utf8");
     const networkLayer = readFileSync(path.join(repoRoot, "docs", "whitepaper", "network-layer.md"), "utf8");
 
     expect(rootReadme).toContain("./docs/whitepaper/README.md");
@@ -41,16 +39,11 @@ describe("skill docs sync", () => {
     expect(skillReadme).toContain("30x faster");
     expect(skillReadme).toContain("90% cheaper");
     expect(skillReadme).not.toContain("internal-cathedral");
-    expect(skillDoc).toContain("./docs/whitepaper/for-investors.md");
-    expect(skillDoc).toContain("OpenClaw / `agent-browser`");
-    expect(skillDoc).toContain("30x faster");
-    expect(skillDoc).toContain("90% cheaper");
-    expect(skillDoc).not.toContain("internal-cathedral");
-    expect(packageSkillDoc).toContain("OpenClaw / `agent-browser`");
-    expect(packageSkillDoc).toContain("30x faster");
-    expect(packageSkillDoc).toContain("90% cheaper");
-    expect(packageSkillDoc).not.toContain("internal-cathedral");
     expect(networkLayer.toLowerCase()).not.toContain("cathedral");
+    // SKILL.md content assertions removed when SKILL was tightened per writing-skills
+    // canon (cut marketing prose, whitepaper links, OpenClaw branding, perf numbers).
+    // The skill body is now triggering-conditions + workflow only; README files
+    // still carry the marketing/whitepaper surface.
   });
 
   it("surfaces the synced docs from the standalone skill README", () => {
@@ -62,14 +55,9 @@ describe("skill docs sync", () => {
     expect(readme).toContain("./docs/RELEASING.md");
   });
 
-  it("surfaces the synced docs from the standalone skill instructions", () => {
-    const skill = readFileSync(path.join(repoRoot, "packages", "skill", "SKILL.md"), "utf8");
-
-    expect(skill).toContain("## Docs");
-    expect(skill).toContain("./docs/guides/quickstart.md");
-    expect(skill).toContain("./docs/codex-eval-harness.md");
-    expect(skill).toContain("./docs/RELEASING.md");
-  });
+  // (Removed: SKILL.md `## Docs` link surface — skills are agent-readable
+  //  workflow guides per writing-skills canon, not link directories. The
+  //  README surfaces the docs index.)
 
   it("keeps skill frontmatter YAML-safe for skills.sh discovery", () => {
     for (const skillPath of yamlSafeSkillDocs) {
