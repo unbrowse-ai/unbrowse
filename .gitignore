@@ -121,3 +121,6 @@ docs/strategy/
 
 # Python cache from extract.py invocations
 scripts/__pycache__/
+
+# Bundle-attribution viewer scratch output
+packages/skill/dist-sm/

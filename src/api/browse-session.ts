@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getKuriErrorMessage } from "../kuri/client.js";
+import { recordSessionCreate, recordSessionDrop, recordSessionUpdate } from "./session-store.js";
 
 export interface BrowseSession {
   sessionId: string;
@@ -177,11 +178,22 @@ export function createRegisteredBrowseSession(
 ): BrowseSession {
   const existing = [...sessions.values()].find((session) => session.tabId === input.tabId);
   if (existing) {
+    const urlChanged = existing.url !== input.url;
+    const domainChanged = existing.domain !== input.domain;
+    const harChanged = input.harActive !== undefined && existing.harActive !== input.harActive;
     existing.url = input.url;
     existing.domain = input.domain;
     existing.harActive = input.harActive ?? existing.harActive;
     existing.brokerPort = input.brokerPort ?? existing.brokerPort;
     existing.client = input.client ?? existing.client;
+    if (urlChanged || domainChanged || harChanged) {
+      void recordSessionUpdate({
+        sessionId: existing.sessionId,
+        url: urlChanged ? input.url : undefined,
+        domain: domainChanged ? input.domain : undefined,
+        harActive: harChanged ? input.harActive : undefined,
+      });
+    }
     return existing;
   }
 
@@ -196,6 +208,15 @@ export function createRegisteredBrowseSession(
     client: input.client,
   };
   sessions.set(sessionId, session);
+  void recordSessionCreate({
+    sessionId,
+    tabId: session.tabId,
+    url: session.url,
+    domain: session.domain,
+    harActive: session.harActive,
+    brokerPort: session.brokerPort,
+    ts: Date.now(),
+  });
   return session;
 }
 
@@ -206,6 +227,9 @@ export function removeBrowseSession(
   const existing = sessions.get(sessionId);
   sessions.delete(sessionId);
   cleanupSessionQueue(sessionId);
+  if (existing) {
+    void recordSessionDrop(sessionId);
+  }
   return existing;
 }
 

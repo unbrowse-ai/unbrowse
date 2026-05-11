@@ -18,6 +18,8 @@ type StartServerOptions = {
   logger?: boolean;
   pidFile?: string;
   scheduleVerification?: boolean;
+  /** Override the reaper's exit behavior. Default: process.exit(0). Tests pass a tracking callback. */
+  onIdleExit?: () => void;
 };
 
 export type RunningUnbrowseServer = {
@@ -101,11 +103,67 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   const app = Fastify({ logger: options.logger ?? true });
   await app.register(cors, { origin: true });
   await registerRateLimiter(app);
+
+  // Idle reaper: bump lastActivityTs on every request so the interval below
+  // knows when the daemon is genuinely quiet.
+  let lastActivityTs = Date.now();
+  app.addHook("onRequest", (_req, _reply, done) => {
+    lastActivityTs = Date.now();
+    done();
+  });
+
   await registerRoutes(app);
+
+  // Rehydrate browse sessions from ~/.unbrowse/sessions.jsonl so active
+  // sessions survive mcp-serve restarts (reaper, crash, OOM). Must happen
+  // after registerRoutes so the in-memory Map is initialized. Dead tabs
+  // are caught lazily by isBrowseSessionLive — we don't probe Kuri here.
+  try {
+    const { rehydrateBrowseSessions } = await import("./api/routes.js");
+    const result = rehydrateBrowseSessions();
+    if (result.restored > 0) {
+      app.log.info({ restored: result.restored }, "[session-store] rehydrated browse sessions from disk");
+    }
+  } catch (err) {
+    app.log.warn({ err }, "[session-store] rehydrate failed");
+  }
   await app.listen({ port, host });
   if (options.scheduleVerification ?? true) {
     schedulePeriodicVerification();
     schedulePeriodicStaleCleanup();
+  }
+
+  // Idle reaper — self-exit when no HTTP activity AND no browse sessions
+  // for UNBROWSE_SERVE_IDLE_MS. Stops the zombie-process accumulation where
+  // every Ctrl-C'd Claude session leaves a detached daemon behind.
+  // Set UNBROWSE_SERVE_IDLE_MS=0 to disable (long-running dev servers).
+  const idleMs = Number(process.env.UNBROWSE_SERVE_IDLE_MS ?? 60_000);
+  const idleCheckMs = Number(process.env.UNBROWSE_SERVE_IDLE_CHECK_MS ?? 10_000);
+  let reaperTimer: NodeJS.Timeout | undefined;
+  if (idleMs > 0) {
+    const { getBrowseSessionCount } = await import("./api/routes.js");
+    reaperTimer = setInterval(() => {
+      const idleFor = Date.now() - lastActivityTs;
+      if (idleFor < idleMs) return;
+      const sessions = getBrowseSessionCount();
+      if (sessions > 0) return;
+      app.log.info({ idleFor, idleMs }, "[reaper] idle, exiting");
+      const onExit = options.onIdleExit ?? (() => process.exit(0));
+      void (async () => {
+        try {
+          if (reaperTimer) clearInterval(reaperTimer);
+          reaperTimer = undefined;
+          await shutdownAllBrowsers();
+          await app.close();
+          clearPidFile(pidFile);
+        } catch (err) {
+          app.log.error({ err }, "[reaper] shutdown error");
+        } finally {
+          onExit();
+        }
+      })();
+    }, idleCheckMs);
+    reaperTimer.unref?.();
   }
 
   return {
@@ -113,6 +171,7 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
     host,
     port,
     async close(options?: { shutdownBrowsers?: boolean }): Promise<void> {
+      if (reaperTimer) clearInterval(reaperTimer);
       if (options?.shutdownBrowsers ?? true) {
         await shutdownAllBrowsers();
       }

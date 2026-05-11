@@ -47,6 +47,7 @@ import {
   removeBrowseSession,
 } from "./browse-session.js";
 import { cacheBrowseRequests, harEntriesToRawRequests } from "./browse-index.js";
+import { readActiveSessions } from "./session-store.js";
 import { isUrlWaitHint, resolveSubmitWaitHint, submitBrowseForm } from "./browse-submit.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
 import {
@@ -238,6 +239,55 @@ function passiveIndexHar(
 }
 // ── Browse session state (module-level so orchestrator can register sessions) ──
 const browseSessions = new Map<string, BrowseSession>();
+
+/**
+ * Number of registered browse sessions. Exposed for the mcp-serve idle
+ * reaper — when this is zero AND no HTTP activity for UNBROWSE_SERVE_IDLE_MS,
+ * the daemon self-exits to stop zombie-process accumulation.
+ */
+export function getBrowseSessionCount(): number {
+  return browseSessions.size;
+}
+
+/**
+ * Test-only: clear the in-memory browse session Map. Does NOT touch
+ * sessions.jsonl. Used by tests to reset module state between cases.
+ */
+export function __clearBrowseSessionsForTest(): void {
+  browseSessions.clear();
+}
+
+/**
+ * Rehydrate browse sessions from ~/.unbrowse/sessions.jsonl into the
+ * in-memory Map. Called on daemon startup so active sessions survive
+ * mcp-serve restarts (reaper, crash, OOM). Dead tabs are caught lazily
+ * by `isBrowseSessionLive` on first use — we don't probe Kuri here
+ * because Kuri may not be up yet at server-bootstrap time.
+ *
+ * Skips the `client` field — that's rebuilt lazily from brokerPort via
+ * `brokerForSession` when the session is next touched.
+ */
+export function rehydrateBrowseSessions(): { restored: number } {
+  let restored = 0;
+  try {
+    for (const s of readActiveSessions()) {
+      if (browseSessions.has(s.sessionId)) continue;
+      browseSessions.set(s.sessionId, {
+        sessionId: s.sessionId,
+        tabId: s.tabId,
+        url: s.url,
+        domain: s.domain,
+        harActive: s.harActive,
+        brokerPort: s.brokerPort,
+        // client is undefined — brokerForSession will resolve it from brokerPort
+      });
+      restored++;
+    }
+  } catch (err) {
+    console.warn(`[session-store] rehydrate failed: ${(err as Error).message}`);
+  }
+  return { restored };
+}
 const inspectedHarEntries = new Map<string, KuriHarEntry[]>();
 
 function rememberInspectedHarEntries(sessionId: string, entries: KuriHarEntry[]): void {
