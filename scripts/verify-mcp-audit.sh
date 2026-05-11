@@ -32,22 +32,30 @@ check_blockfalse() {
   awk -v k="$key" '
     $0 ~ "^[[:space:]]*"k":[[:space:]]*\\{[[:space:]]*$" { inblock=1; next }
     inblock && /listChanged:[[:space:]]*false/ { found=1; exit }
-    inblock && /^\s*\},?\s*$/ { inblock=0 }
+    inblock && /^[[:space:]]*\},?[[:space:]]*$/ { inblock=0 }
     END { exit found?0:1 }
   ' "$mcp"
 }
 
-check "Gap 1a — tools.listChanged is false"      check_blockfalse tools
-check "Gap 1b — resources.listChanged is false"  check_blockfalse resources
-check "Gap 1c — prompts.listChanged is false"    check_blockfalse prompts
-
-# Gap 1d: no real emission. Require the protocol method name as a quoted
-# string literal; comments-only mentions don't count (code_only strips them).
-check_no_real_list_changed() {
-  ! code_only "$mcp" | grep -qE '"notifications/tools/list_changed"'
+# Helpers to assert listChanged=true on a block (Phase 2 closed Gap 1a/1c)
+check_blocktrue() {
+  local key=$1
+  awk -v k="$key" '
+    $0 ~ "^[[:space:]]*"k":[[:space:]]*\\{[[:space:]]*$" { inblock=1; next }
+    inblock && /listChanged:[[:space:]]*true/ { found=1; exit }
+    inblock && /^[[:space:]]*\},?[[:space:]]*$/ { inblock=0 }
+    END { exit found?0:1 }
+  ' "$mcp"
 }
-check "Gap 1d — no real list_changed notification dispatched" check_no_real_list_changed
+check "Gap 1a (CLOSED Phase 2) — tools.listChanged is true"      check_blocktrue tools
+check "Gap 1b — resources.listChanged is false (deliberate scope)" check_blockfalse resources
+check "Gap 1c (CLOSED Phase 2) — prompts.listChanged is true"    check_blocktrue prompts
 
+# Gap 1d closed: notifications/tools/list_changed is now dispatched (real, not comment-only)
+check_real_list_changed() {
+  code_only "$mcp" | grep -qE '"notifications/tools/list_changed"'
+}
+check "Gap 1d (CLOSED Phase 2) — list_changed notification dispatched" check_real_list_changed
 check "Gap 2a — MCP injects _workflow_hints" \
   bash -c "grep -q '_workflow_hints' $mcp"
 check "Gap 2b (CLOSED Phase 1) — MCP NOW emits a root-level next_action object" \
@@ -55,8 +63,8 @@ check "Gap 2b (CLOSED Phase 1) — MCP NOW emits a root-level next_action object
 check "Gap 2c — CLI emits a structured next_action object" \
   bash -c "grep -E 'next_action:[[:space:]]*\{' $cli >/dev/null"
 
-check "Gap 3 — no workflow:* recipe names in MCP" \
-  bash -c "! grep -E '\"workflow:[a-z-]+\"' $mcp >/dev/null"
+check "Gap 3 (CLOSED Phase 3) — MCP NOW exposes workflow:* recipe names" \
+  bash -c "grep -E '\"workflow:[a-z-]+\"' $mcp >/dev/null"
 
 check "Parity — prompts/list handler present" \
   bash -c "grep -q 'ListPromptsRequestSchema\|prompts/list' $mcp"

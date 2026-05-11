@@ -14,12 +14,12 @@
 | Intent-based tool descriptions | PASS | `enrichToolDescription` at `598-601`, `913-914` |
 | Tool-result hints injected | PASS | `_workflow_hints` at `641-681` (execute), `683-722` (capture), `747-818` (resolve-miss), `1034`/`1723`/`1740` (callers) |
 | Auth-error / resolve-miss remediation | PASS | `747-818`, `970-973` |
-| **`listChanged: true` on capabilities** | FAIL | hardcoded `false` at `1881`, `1884`, `1887` |
-| **`notifications/tools/list_changed` emitted** | FAIL | zero occurrences in `src/mcp.ts` |
+| **`listChanged: true` on capabilities** | PASS (Phase 2, 2026-05-11) | `src/mcp.ts:2015-2025`: tools.listChanged=true, prompts.listChanged=true. resources stays false (deliberately out of scope this loop). |
+| **`notifications/tools/list_changed` emitted** | PASS (Phase 2, 2026-05-11) | `src/mcp.ts:1947-1984`: `jsonRpcNotification` helper + `setBrowseSessionOpen` emits on state transitions; wired into `unbrowse_go` / `unbrowse_close` handlers. |
 | **Structured `next_action` shape** | PASS (Phase 1, 2026-05-11) | `src/mcp.ts:680`/`709`/`831-840`: `next_action: { title, command, command_args, why }` at result root in all three `add*Hints` functions. CLI shape mirrored, dispatchable JSON `command_args` replaces CLI shell-string `command`. |
-| **Multi-step workflow recipe prompts** | FAIL | prompts surface exists but no `workflow:*` recipes |
+| **Multi-step workflow recipe prompts** | PASS (Phase 3, 2026-05-11) | `src/mcp.ts:484-525` recipe functions, registered in `prompts` array at lines 539-557 as `workflow:resolve-execute-feedback` and `workflow:browse-and-publish`. Templated `{intent}` and `{url}` substitution; mirrors `workflowPromptMessages` shape. |
 
-**Bottom line:** command parity is complete, primitives are wired, but the dynamism the cheatsheet sells (on-the-fly reveal + prompts-as-recipes + structured next-action) is absent.
+**Bottom line (2026-05-11 after Phases 1-3):** command parity, primitives, structured `next_action`, dynamic tool reveal (`listChanged: true` + `notifications/tools/list_changed`), and workflow recipe prompts all shipped. Resources `listChanged` stays `false` (deliberate scope). Aiko-style failures (the eatigo trace that started this work) are now prevented through three independent layers: dispatchable `next_action` shape, server-pushed tool-list updates, and recipe-as-injectable-playbook.
 
 ## Gap 1 — Static capability declaration
 
