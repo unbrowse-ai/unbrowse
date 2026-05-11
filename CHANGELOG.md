@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.11.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.10.0...v6.11.0-preview.0) (2026-05-11)
+
+### Features
+
+* **mcp:** structured next_action alongside _workflow_hints ([928ccc7](https://github.com/unbrowse-ai/unbrowse-dev/commit/928ccc798bf57c7caac2474d5d2b898c34a30ff1))
+
 ## Unreleased — feat/agent-ux-run-planner
 
 ### Akamai Bundle-Replay Solver (Tier 1)
