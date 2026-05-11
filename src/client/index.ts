@@ -1316,6 +1316,7 @@ export async function searchIntentResolve(
   global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   skipped_global: boolean;
   actual_cost_uc?: number;
+  exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }>;
 }> {
   if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
   try {

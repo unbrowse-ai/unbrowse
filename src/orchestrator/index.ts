@@ -1154,7 +1154,7 @@ export interface ResolveResultWithDiagnostic {
 export interface OrchestratorResult {
   result: ResolveResultWithDiagnostic | unknown;
   trace: ExecutionTrace;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass" | "route-cache" | "browser-action" | "defer";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass" | "route-cache" | "browser-action" | "defer" | "exa";
   skill: SkillManifest;
   timing: OrchestrationTiming;
 }
@@ -3973,7 +3973,7 @@ export async function resolveAndExecute(
     if (typeof searchResponse.actual_cost_uc === "number" && searchResponse.actual_cost_uc > 0) {
       timing.paid_search_uc = searchResponse.actual_cost_uc;
     }
-    const { domain_results: domainResults, global_results: globalResults } = searchResponse;
+    const { domain_results: domainResults, global_results: globalResults, exa_results: exaResults } = searchResponse as typeof searchResponse & { exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }> };
     timing.search_ms = Date.now() - ts0;
     console.log(`[marketplace] search: ${domainResults.length} domain + ${globalResults.length} global results (${timing.search_ms}ms)`);
 
@@ -4148,6 +4148,36 @@ export async function resolveAndExecute(
           return deferred.orchestratorResult;
         }
         console.log("[marketplace] stale top skill; retrying via live capture");
+      }
+    }
+
+    // Exa web search: when marketplace has no viable skills and Exa returned rich highlights,
+    // synthesize an answer directly from the web excerpts — no browser needed.
+    if (viable.length === 0 && exaResults?.length) {
+      const richHit = exaResults.find((r) => (r.highlights ?? []).join(" ").length >= 150);
+      if (richHit) {
+        console.log(`[exa] returning highlights answer from ${richHit.url} (${(richHit.highlights ?? []).join(" ").length} chars)`);
+        const exaTrace: ExecutionTrace = {
+          trace_id: nanoid(),
+          skill_id: "exa-web-search",
+          endpoint_id: "highlights",
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+          status_code: 200,
+        };
+        return {
+          result: {
+            data: richHit.highlights,
+            source_url: richHit.url,
+            source_title: richHit.title,
+            exa_answer: true,
+          },
+          trace: exaTrace,
+          source: "exa" as const,
+          skill: { skill_id: "exa-web-search", domain: (() => { try { return new URL(richHit.url).hostname; } catch { return richHit.url; } })() } as unknown as SkillManifest,
+          timing: finalize("exa", null, "exa-web-search", undefined, exaTrace),
+        };
       }
     }
   } // end !forceCapture

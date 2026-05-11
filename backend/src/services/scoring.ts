@@ -12,7 +12,16 @@ export function executionFailureWeight(trace: ExecutionTrace): number {
   if (status === 401 || status === 403 || status === 404 || status === 410 || status === 429 || status >= 500) {
     return 3;
   }
-  if (trace.error === "stale_endpoint") return 3;
+  const err = typeof trace.error === "string" ? trace.error : "";
+  // Hard "this endpoint is broken/gone" signals — weight as 404-class so two strikes auto-deprecate.
+  if (
+    err === "stale_endpoint" ||
+    err === "endpoint_not_found" ||
+    err === "trigger_timeout" ||
+    err.includes("vendor_blocked")
+  ) {
+    return 3;
+  }
   return 1;
 }
 

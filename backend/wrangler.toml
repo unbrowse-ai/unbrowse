@@ -11,6 +11,11 @@ first_party_worker = true
 [triggers]
 crons = ["17 */6 * * *"]
 
+# Secrets (set via `wrangler secret put`):
+#   EMERGENTDB_API_KEY, NEBIUS_API_KEY, API_KEY, FAL_KEY, TURBOBOX_URL,
+#   RESEND_API_KEY, CASCADE_SIGNER_SECRET_KEY, CLOUDFLARE_API_TOKEN
+#   EXA_API_KEY  — Exa web search, optional; resolve still works without it
+
 [vars]
 ENVIRONMENT = "production"
 PAYMENTS_ENABLED = "true"
