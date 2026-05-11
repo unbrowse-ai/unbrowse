@@ -1068,7 +1068,6 @@ const tools: ToolDefinition[] = [
         dry_run: { type: "boolean", description: "Preview unsafe calls without applying them." },
         confirm_third_party_terms: { type: "boolean", description: "Explicitly confirm policy-sensitive third-party terms risk for flagged domains/actions." },
         force_capture: { type: "boolean", description: "Bypass cache and re-capture the exact URL." },
-        skip_robots: { type: "boolean", description: "Bypass robots.txt compliance check." },
         raw: { type: "boolean", description: "Keep raw projection enabled. Default true." },
         schema: { type: "boolean", description: "Return a schema tree instead of data." },
         path: { type: "string", description: "Drill into the result before returning it, e.g. data.items[] ." },
@@ -1102,7 +1101,6 @@ const tools: ToolDefinition[] = [
       if (args.dry_run === true) body.dry_run = true;
       if (args.confirm_third_party_terms === true) body.confirm_third_party_terms = true;
       if (args.force_capture === true) body.force_capture = true;
-      if (args.skip_robots === true) body.skip_robots_check = true;
 
       let result = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
 
@@ -1144,7 +1142,6 @@ const tools: ToolDefinition[] = [
         dry_run: { type: "boolean", description: "Preview unsafe calls without applying them." },
         confirm_unsafe: { type: "boolean", description: "Confirm mutation if the endpoint is unsafe." },
         confirm_third_party_terms: { type: "boolean", description: "Explicitly confirm policy-sensitive third-party terms risk for flagged domains/actions." },
-        skip_robots: { type: "boolean", description: "Bypass robots.txt compliance check." },
         raw: { type: "boolean", description: "Keep raw projection enabled. Default true." },
         schema: { type: "boolean", description: "Return a schema tree instead of data." },
         path: { type: "string", description: "Drill into the result before returning it, e.g. data.items[] ." },
@@ -1168,7 +1165,6 @@ const tools: ToolDefinition[] = [
       if (args.dry_run === true) body.dry_run = true;
       if (args.confirm_unsafe === true) body.confirm_unsafe = true;
       if (args.confirm_third_party_terms === true) body.confirm_third_party_terms = true;
-      if (args.skip_robots === true) body.skip_robots_check = true;
 
       const result = await api("POST", `/v1/skills/${args.skill}/execute`, body) as Record<string, unknown>;
       const nestedError = resolveNestedError(result);

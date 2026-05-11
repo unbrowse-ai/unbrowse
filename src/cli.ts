@@ -574,7 +574,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     if (flags["force-capture"]) body.force_capture = true;
-    if (flags["skip-robots"]) body.skip_robots_check = true;
     if (flags["require-proof"]) body.require_proof = true;
     // Phase 8.1 — per-call latency budget for the parallel resolve race.
     // Default 8000ms when unset; sub-probe values (<200ms) return no_match fast.
@@ -593,7 +592,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
         intent,
         projection: { raw: true },
         ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
-        ...(flags["skip-robots"] ? { skip_robots_check: true } : {}),
       };
     }
 
@@ -836,7 +834,6 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
     }
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
-    if (flags["skip-robots"]) body.skip_robots_check = true;
     const budgetFlag = flags.budget;
     if (typeof budgetFlag === "string") {
       const parsed = parseInt(budgetFlag, 10);
@@ -853,7 +850,6 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
       intent,
       projection: { raw: true },
       ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
-      ...(flags["skip-robots"] ? { skip_robots_check: true } : {}),
     };
   }
 
@@ -1317,7 +1313,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
     if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
-    if (flags["skip-robots"]) body.skip_robots_check = true;
     body.projection = { raw: true };
 
     let result = await withPendingNotice(

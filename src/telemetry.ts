@@ -89,7 +89,6 @@ export function classifyFailure(error: string | undefined): TraceFailureReason {
   if (e.includes("timeout") || e.includes("timed out")) return "timeout";
   if (e.includes("empty") || e.includes("no result")) return "empty_response";
   if (e.includes("missing") || e.includes("dependency")) return "dependency_missing";
-  if (e.includes("robots") || e.includes("disallowed")) return "robots_disallowed";
   return "unknown";
 }
 
