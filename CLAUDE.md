@@ -46,6 +46,7 @@ Every code change is judged against the calling agent's experience. The four inv
 - **Stale marketplace skills** — old skills with non-functional endpoints still rank high in resolve. Need staleness detection + auto-deprecation.
 - **X.com timeline API not captured passively** — X's GraphQL HomeTimeline uses POST with massive JSON body that `extractEndpoints` filters out. Need to handle GraphQL POST endpoints with `operationName` extraction.
 - **MCP UX gaps vs CLI** — see [`docs/mcp-vs-cli-ux-audit.md`](docs/mcp-vs-cli-ux-audit.md). `src/mcp.ts` has command parity with the CLI but `listChanged: false`, hints are prose-only `_workflow_hints` instead of structured `next_action`, and no `workflow:*` recipe prompts. Verify claims still hold: `bash scripts/verify-mcp-audit.sh`.
+- **MCP workflow guide** — step-by-step tool-call sequence for callers, see [`docs/mcp-workflow-guide.md`](docs/mcp-workflow-guide.md). Three intent classes (cached / cold-browse-publish / URL-contents), all 33 tools referenced with `src/mcp.ts:LINE` cites. Falsifier: `bash scripts/verify-mcp-workflow-guide.sh` (length, coverage, citation-content match).
 ## Structure
 
 - `src/` — shared skill engine (capture, reverse-engineer, execute)
