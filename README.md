@@ -1,6 +1,8 @@
 # Unbrowse
 
-This package installs the `unbrowse` CLI.
+This package installs the `unbrowse` MCP.
+
+Note: Later versions of unbrowse have been close-sourced due to how far it has gotten in its capabilities that it could be a security threat. We are working on making several mitigations to this before open-sourcing it again.
 
 Turn any website into a reusable API interface for agents. Unbrowse captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
 
