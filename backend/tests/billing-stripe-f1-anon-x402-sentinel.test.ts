@@ -56,9 +56,9 @@ describe("F1 sentinel — unconfigured Stripe must NOT silently admit", () => {
     }
   });
 
-  it("admin path still admits (escape hatch unchanged)", async () => {
+  it("admin path falls through to x402 (escape hatch removed to preserve x402-search-route contract)", async () => {
     const r = await subscriptionAdmits(NO_STRIPE_ENV, ctx({ agent_id: "__admin__" }));
-    expect(r.admit).toBe(true);
-    expect(r.reason).toBe("admit_admin");
+    expect(r.admit).toBe(false);
+    expect(r.reason).toBe("no_user");
   });
 });

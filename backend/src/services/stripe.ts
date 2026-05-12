@@ -277,18 +277,15 @@ export async function subscriptionAdmits(
   ctx: AuthCtx,
 ): Promise<SubscriptionAdmitResult> {
   const userId = ctx.get("user_id");
-  const agentId = ctx.get("agent_id");
-
-  // Admin escape hatch (Landmine 4): API_KEY env path sets agent_id="__admin__"
-  // with no user_id. Admit, but do NOT debit a counter.
-  if (!userId && agentId === "__admin__") {
-    return { admit: true, reason: "admit_admin" };
-  }
 
   // Missing user_id (Landmine 1 / Falsifier F1): fall through to x402 cleanly.
+  // The legacy admin path (API_KEY → agent_id="__admin__") is NOT given an
+  // escape hatch here — admin calls hit x402 like everyone else, preserving
+  // the existing x402-search-route.test.ts contract.
   if (!userId) {
     return { admit: false, reason: "no_user" };
   }
+
 
   const kv = statsKV(env);
   const customerId = (await kv.get(KV_KEYS.userCustomer(userId))) as
