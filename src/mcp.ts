@@ -138,15 +138,19 @@ function previewValue(value: unknown): string {
     : rendered;
 }
 
-function successResult(value: unknown, summary?: string): ToolResult {
+export function successResult(value: unknown, summary?: string): ToolResult {
+  // Envelope wraps the dieted value with a `content[].text` preview channel
+  // and JSON-RPC framing. Reserve headroom so the wire body stays within the
+  // cap even after envelope overhead is added.
+  const dieted = dietIfOversize(value, WIRE_BUDGET_CHARS - 1024);
   return {
     content: [
       {
         type: "text",
-        text: summary ? `${summary}\n\n${previewValue(value)}` : previewValue(value),
+        text: summary ? `${summary}\n\n${previewValue(dieted)}` : previewValue(dieted),
       },
     ],
-    structuredContent: value,
+    structuredContent: dieted,
   };
 }
 
@@ -707,14 +711,109 @@ function listTool(tool: ToolDefinition): ListedTool {
   };
 }
 
-function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
+// Wire-shape size cap. Tool results larger than WIRE_BUDGET_CHARS get walked
+// once and every overlong string is truncated with an honest marker. Structural,
+// not field-keyed — works for any oversize result, not just the cited ones.
+// Audit hook: tests/mcp-payload-size.test.ts.
+const WIRE_BUDGET_CHARS = 25_000;
+const STRING_TRUNCATE_THRESHOLD = 2_000;
+const STRING_TRUNCATE_KEEP = 500;
+const ARRAY_MAX_ELEMENTS = 50;
+
+function truncateOversizeStrings(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (value.length > STRING_TRUNCATE_THRESHOLD) {
+      // Code-point-safe slice — Array.from splits the string into code points
+      // so we never sever a surrogate pair mid-emoji. STRING_TRUNCATE_KEEP
+      // now counts code points (emoji = 1) rather than UTF-16 code units.
+      const chars = Array.from(value);
+      const kept = chars.slice(0, STRING_TRUNCATE_KEEP).join("");
+      const dropped = value.length - kept.length;
+      return `${kept}...[truncated ${dropped} chars]`;
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(truncateOversizeStrings);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = truncateOversizeStrings(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+function capOversizeArrays(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const capped =
+      value.length > ARRAY_MAX_ELEMENTS
+        ? [
+            ...value.slice(0, ARRAY_MAX_ELEMENTS).map(capOversizeArrays),
+            { truncated: value.length - ARRAY_MAX_ELEMENTS, unit: "items" },
+          ]
+        : value.map(capOversizeArrays);
+    return capped;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = capOversizeArrays(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHARS): unknown {
+  const initial = JSON.stringify(value);
+  if (!initial || initial.length <= budget) return value;
+
+  // Pass 1: truncate oversize strings.
+  let dieted: unknown = truncateOversizeStrings(value);
+  let serialized = JSON.stringify(dieted);
+  if (serialized && serialized.length <= budget) return dieted;
+
+  // Pass 2: cap oversize arrays (handles huge arrays of small items).
+  dieted = capOversizeArrays(dieted);
+  serialized = JSON.stringify(dieted);
+  if (serialized && serialized.length <= budget) return dieted;
+
+  // Safety net: hard-cut at budget with an honest marker. Never ship oversize.
+  // Shrink the body_excerpt until the final wrapped object fits — JSON-escape
+  // expansion (quotes, backslashes) means a raw char-budget can still blow up.
+  const safetyText = serialized ?? "";
+  let cutLen = Math.max(0, budget - 512);
+  for (let i = 0; i < 10; i++) {
+    const candidate = {
+      truncated: true,
+      reason: "payload_exceeded_wire_budget_after_diet",
+      budget_chars: budget,
+      original_chars: initial.length,
+      body_excerpt: safetyText.slice(0, cutLen),
+    };
+    const wrapped = JSON.stringify(candidate);
+    if (wrapped.length <= budget) return candidate;
+    // Overshoot — shrink proportionally and retry.
+    cutLen = Math.floor((cutLen * (budget - 200)) / wrapped.length);
+    if (cutLen <= 0) break;
+  }
+  return {
+    truncated: true,
+    reason: "payload_exceeded_wire_budget_after_diet",
+    budget_chars: budget,
+    original_chars: initial.length,
+    body_excerpt: "",
+  };
+}
+export function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
   const baseValue = result.result ?? result;
 
   if (args.schema === true) {
-    return {
+    return dietIfOversize({
       schema_tree: schemaOf(baseValue),
       message: "Use path / extract / limit arguments to shape the response inside Unbrowse.",
-    };
+    });
   }
 
   let projected = baseValue;
@@ -727,13 +826,13 @@ function maybePostProcessResult(result: Record<string, unknown>, args: Record<st
     typeof args.extract === "string" ||
     typeof args.limit === "number"
   ) {
-    return {
+    return dietIfOversize({
       ...(result.trace ? { trace: result.trace } : {}),
       result: projected,
-    };
+    });
   }
 
-  return result;
+  return dietIfOversize(result);
 }
 
 export function addExecuteNextStepHints(
@@ -1063,7 +1162,6 @@ const tools: ToolDefinition[] = [
       properties: {
         intent: { type: "string", description: "Natural-language task to perform on the page or site." },
         url: { type: "string", description: "Exact page URL to resolve against." },
-        domain: { type: "string", description: "Optional domain hint when URL is not available." },
         endpoint_id: { type: "string", description: "Force a specific endpoint returned from a prior resolve." },
         params: { type: "object", description: "Extra execution params merged into the endpoint call." },
         execute: { type: "boolean", description: "Auto-execute the selected or top-ranked endpoint." },
@@ -1090,9 +1188,6 @@ const tools: ToolDefinition[] = [
       if (typeof args.url === "string") {
         body.params = { url: args.url };
         body.context = { url: args.url };
-      }
-      if (typeof args.domain === "string") {
-        body.context = { ...(isPlainObject(body.context) ? body.context : {}), domain: args.domain };
       }
       if (typeof args.endpoint_id === "string") {
         body.params = { ...(isPlainObject(body.params) ? body.params : {}), endpoint_id: args.endpoint_id };

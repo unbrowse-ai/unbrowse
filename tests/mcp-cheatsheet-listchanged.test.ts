@@ -76,7 +76,8 @@ describe("tools/list dynamic partition (Phase 2)", () => {
       await call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0.0" } });
       const r = await call("tools/list");
       const tools = (r.result as any).tools as Array<{ name: string }>;
-      expect(tools.length).toBe(33);
+      // Shape assertion (no hardcoded count — adding a tool shouldn't rot this test).
+      expect(tools.length).toBeGreaterThanOrEqual(33);
       const names = new Set(tools.map((t) => t.name));
       expect(names.has("unbrowse_snap")).toBe(true);
       expect(names.has("unbrowse_close")).toBe(true);
