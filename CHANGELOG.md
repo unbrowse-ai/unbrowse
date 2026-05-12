@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.13.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.13.1-preview.0) (2026-05-12)
+
+### Bug Fixes
+
+* **mcp+orchestrator:** MCP audit follow-through ([#437](https://github.com/unbrowse-ai/unbrowse-dev/issues/437)) ([421c538](https://github.com/unbrowse-ai/unbrowse-dev/commit/421c538734c48a277f489869393cd852610e87d0))
+
 ## [6.13.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.5...v6.13.0) (2026-05-12)
 
 ### Bug Fixes
