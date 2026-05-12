@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.13.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.4...v6.13.0-preview.5) (2026-05-12)
+
+### Features
+
+* **frontend:** /account page surfacing API keys + sharing + billing ([bff2eaf](https://github.com/unbrowse-ai/unbrowse-dev/commit/bff2eaf05ddb1cf9d1cd1f167b297313ecf4a367))
+
 ## [6.13.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.3...v6.13.0-preview.4) (2026-05-12)
 
 ### Bug Fixes
