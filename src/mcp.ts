@@ -1159,7 +1159,6 @@ const tools: ToolDefinition[] = [
       properties: {
         intent: { type: "string", description: "Natural-language task to perform on the page or site." },
         url: { type: "string", description: "Exact page URL to resolve against." },
-        domain: { type: "string", description: "Optional domain hint when URL is not available." },
         endpoint_id: { type: "string", description: "Force a specific endpoint returned from a prior resolve." },
         params: { type: "object", description: "Extra execution params merged into the endpoint call." },
         execute: { type: "boolean", description: "Auto-execute the selected or top-ranked endpoint." },
@@ -1186,9 +1185,6 @@ const tools: ToolDefinition[] = [
       if (typeof args.url === "string") {
         body.params = { url: args.url };
         body.context = { url: args.url };
-      }
-      if (typeof args.domain === "string") {
-        body.context = { ...(isPlainObject(body.context) ? body.context : {}), domain: args.domain };
       }
       if (typeof args.endpoint_id === "string") {
         body.params = { ...(isPlainObject(body.params) ? body.params : {}), endpoint_id: args.endpoint_id };
