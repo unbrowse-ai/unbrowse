@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.13.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.3...v6.13.0-preview.4) (2026-05-12)
+
+### Bug Fixes
+
+* **billing:** remove __admin__ escape hatch from subscriptionAdmits ([f68a955](https://github.com/unbrowse-ai/unbrowse-dev/commit/f68a95539aebb06c85bbe4978d2f52808a923ab5))
+
 ## [6.13.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.2...v6.13.0-preview.3) (2026-05-12)
 
 ### Features
