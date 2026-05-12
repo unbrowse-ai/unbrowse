@@ -267,9 +267,9 @@ describe("MCP stdio", () => {
       })}\n`);
       const init = await nextMessage(rl, child);
       expect(init.result.protocolVersion).toBe("2025-11-25");
-      expect(init.result.capabilities.tools.listChanged).toBe(false);
+      expect(init.result.capabilities.tools.listChanged).toBe(true);
       expect(init.result.capabilities.resources.listChanged).toBe(false);
-      expect(init.result.capabilities.prompts.listChanged).toBe(false);
+      expect(init.result.capabilities.prompts.listChanged).toBe(true);
       expect(init.result.instructions).toContain("Always use the CLI");
       expect(init.result.instructions).toContain("TOOL POLICY");
 
