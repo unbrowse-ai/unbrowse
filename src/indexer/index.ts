@@ -25,13 +25,24 @@ import { getUnbrowseConfigPath } from "../settings.js";
 import { getEndpointDescriptionMetadata } from "../graph/index.js";
 import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
 import { getContributionConfig } from "../config/contribution.js";
-import { writeJob, type JobEnvelope } from "./queue-store.js";
+import { writeJob, listJobs, heartbeatAgeMs, type JobEnvelope } from "./queue-store.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
 
 function getQueueDir(): string {
   return join(process.env.HOME ?? "/tmp", ".unbrowse", "queue", "pending");
+}
+
+/** Heartbeat coalesce: if a drain worker touched the queue dir within the last
+ * ~2 seconds, assume it's still alive and skip spawning another. */
+async function isWorkerActive(queueDir: string): Promise<boolean> {
+  try {
+    const age = await heartbeatAgeMs(queueDir);
+    return age < 2000;
+  } catch {
+    return false;
+  }
 }
 
 /** Read agent_id from local config — used for contributor attribution on publish. */
@@ -204,7 +215,9 @@ export function queueBackgroundIndex(job: BackgroundIndexJob): void {
     return;
   }
 
-  // Disk path (Day 5): write envelope; worker (Day 6) will spawn separately.
+  // Disk path (Day 6): write envelope, then spawn detached drain worker
+  // unless a heartbeat says one is already active (<2s old).
+  const queueDir = getQueueDir();
   const envelope: JobEnvelope = {
     version: 1,
     domain: job.domain,
@@ -212,9 +225,28 @@ export function queueBackgroundIndex(job: BackgroundIndexJob): void {
     attempts: 0,
     job,
   };
-  writeJob(getQueueDir(), envelope).catch(err =>
-    console.error(`[capture-pipeline] queue write failed: ${(err as Error).message}`),
-  );
+  writeJob(queueDir, envelope)
+    .then(async () => {
+      if (await isWorkerActive(queueDir)) return;
+      try {
+        const { spawn } = await import("node:child_process");
+        const entry = process.argv[1] ?? "";
+        if (!entry) {
+          console.error("[capture-pipeline] cannot spawn drain worker: missing argv[1]");
+          return;
+        }
+        const child = spawn(process.execPath, [entry, "__drain-queue"], {
+          detached: true,
+          stdio: "ignore",
+        });
+        child.unref();
+      } catch (err) {
+        console.error(`[capture-pipeline] drain worker spawn failed: ${(err as Error).message}`);
+      }
+    })
+    .catch(err =>
+      console.error(`[capture-pipeline] queue write failed: ${(err as Error).message}`),
+    );
 }
 
 export function mergeBackgroundIndexJobs(
@@ -507,23 +539,77 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   }
 }
 
+export { processIndexJob as _processIndexJobForCli };
+
+/** Check if a domain has an indexing job running. */
 /** Check if a domain has an indexing job running. */
 export function isIndexingInFlight(domain: string): boolean {
-  return indexInFlight.has(domain);
+  if (shouldRunInline()) {
+    return indexInFlight.has(domain);
+  }
+  // Disk mode: check pending envelopes + lock file for this domain.
+  const queueDir = getQueueDir();
+  const sanitized = domain.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.\.+/g, "__");
+  const cap = sanitized.length > 200 ? sanitized.slice(0, 200) : sanitized;
+  try {
+    if (existsSync(join(queueDir, `${cap}.lock`))) return true;
+    if (!existsSync(queueDir)) return false;
+    for (const name of readdirSync(queueDir)) {
+      if (!name.endsWith(".json")) continue;
+      if (name.endsWith(".tmp")) continue;
+      if (name === `${cap}.json` || name.startsWith(`${cap}.`)) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
 }
 
 /** Await all in-flight background index jobs. Call before process exit. */
+/** Await all in-flight background index jobs. Call before process exit. */
 export async function drainPendingIndexJobs(): Promise<void> {
-  let logged = false;
-  while (indexInFlight.size > 0) {
-    const pending = [...indexInFlight.values()];
-    if (!logged) {
-      console.error(`[capture-pipeline] draining ${pending.length} pending job(s)...`);
-      logged = true;
+  if (shouldRunInline()) {
+    let logged = false;
+    while (indexInFlight.size > 0) {
+      const pending = [...indexInFlight.values()];
+      if (!logged) {
+        console.error(`[capture-pipeline] draining ${pending.length} pending job(s)...`);
+        logged = true;
+      }
+      await Promise.allSettled(pending);
     }
-    await Promise.allSettled(pending);
+    console.error(`[capture-pipeline] all jobs drained`);
+    return;
   }
-  console.error(`[capture-pipeline] all jobs drained`);
+
+  // Disk mode: poll until pending is empty AND dead/ has been quiet for 500ms.
+  const queueDir = getQueueDir();
+  const deadDir = join(queueDir, "dead");
+  const timeoutAt = Date.now() + 30_000;
+  let lastDeadCount = -1;
+  let deadStableSince = Date.now();
+  while (true) {
+    const jobs = await listJobs(queueDir);
+    let deadCount = 0;
+    try {
+      if (existsSync(deadDir)) {
+        deadCount = readdirSync(deadDir).filter(n => n.endsWith(".json") && !n.endsWith(".tmp")).length;
+      }
+    } catch {
+      deadCount = lastDeadCount < 0 ? 0 : lastDeadCount;
+    }
+    if (deadCount !== lastDeadCount) {
+      lastDeadCount = deadCount;
+      deadStableSince = Date.now();
+    }
+    if (jobs.length === 0 && Date.now() - deadStableSince >= 500) {
+      return;
+    }
+    if (Date.now() >= timeoutAt) {
+      throw new Error(`drainPendingIndexJobs: queue not drained after 30s (pending=${jobs.length}, dead=${deadCount})`);
+    }
+    await new Promise(r => setTimeout(r, 50));
+  }
 }
 
 export function resetIndexQueueForTests(): void {

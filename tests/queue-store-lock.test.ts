@@ -3,7 +3,7 @@ import { test, expect, describe, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, writeFile, stat, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { acquireLock } from "../src/indexer/queue-store.js";
+import { acquireLock, touchHeartbeat, heartbeatAgeMs } from "../src/indexer/queue-store.js";
 
 function pickDeadPid(): number {
   for (const candidate of [2_000_000, 99_999_999, 1_999_999]) {
@@ -81,5 +81,37 @@ describe("acquireLock", () => {
     const body = await readFile(lockPath, "utf8");
     expect(body).toBe(String(process.pid));
     await release!();
+  });
+});
+
+describe("heartbeat", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "unbrowse-heartbeat-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test("touchHeartbeat creates the file with current mtime", async () => {
+    const before = Date.now();
+    await touchHeartbeat(dir);
+    const st = await stat(join(dir, ".heartbeat"));
+    expect(st.isFile()).toBe(true);
+    expect(Math.abs(st.mtimeMs - before)).toBeLessThan(5000);
+  });
+
+  test("heartbeatAgeMs returns Infinity when heartbeat absent", async () => {
+    const age = await heartbeatAgeMs(dir);
+    expect(age).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  test("heartbeatAgeMs grows over time", async () => {
+    await touchHeartbeat(dir);
+    await new Promise((r) => setTimeout(r, 60));
+    const age = await heartbeatAgeMs(dir);
+    expect(age).toBeGreaterThanOrEqual(50);
   });
 });
