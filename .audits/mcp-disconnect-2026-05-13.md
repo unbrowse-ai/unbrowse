@@ -23,7 +23,7 @@ During a multi-turn session, Lewis asked for Eatigo Singapore restaurants (deliv
 **BUG** — composite finding across three layers:
 
 1. **MCP disconnect**: TRANSIENT. No code change.
-2. **LinkedIn resolve `no_match`**: BUG, but in a different layer than Day-3 first claimed. The failure is in **capture phase** (likely login-wall redirect or auth-state requirement that bypasses cookies), not in `extractEndpoints` filter rejection. The xfail unit test (`tests/extraction-filter-bypass.test.ts` — listicle-DOM admission) is the **wrong reproducer for this bug** and has been removed in this same commit. A proper reproducer requires a full-pipeline integration test or live `unbrowse resolve` smoke against the guest-jobs URL.
+2. **LinkedIn resolve `no_match`**: BUG, but in a different layer than Day-3 first claimed. The failure is in **capture phase** (likely login-wall redirect or auth-state requirement that bypasses cookies), not in `extractEndpoints` filter rejection. The xfail block in `tests/extraction-filter-bypass.test.ts` (the listicle-DOM admission case) was the **wrong reproducer for this bug** and has been removed in commit 36df7937; the surrounding test file remains. A proper reproducer requires a full-pipeline integration test or live `unbrowse resolve` smoke against the guest-jobs URL.
 3. **Server wedge**: a transient liveness issue observed mid-investigation (Kuri `ConnectionRefused` blocking new captures). Has self-resolved by audit-write time. Worth a separate ticket: "unbrowse server should fail-fast when Kuri CDP connection refused for >N seconds instead of looping the request."
 
 ## Action
