@@ -1,12 +1,13 @@
 // Round-trip test for queue-store.ts — Day-3 seed.
 import { test, expect, describe, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, readdir } from "node:fs/promises";
+import { mkdtemp, rm, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, isAbsolute, basename, dirname } from "node:path";
 import {
   writeJob,
   listJobs,
   deleteJob,
+  isJobEnvelope,
   type JobEnvelope,
 } from "../src/indexer/queue-store.js";
 
@@ -86,5 +87,104 @@ describe("queue-store round-trip", () => {
     const path = await writeJob(queueDir, envelope);
     await deleteJob(path);
     await expect(deleteJob(path)).resolves.toBeUndefined();
+  });
+
+  test("hostile domain '../etc/passwd' stays inside queue dir", async () => {
+    const envelope = makeEnvelope({ domain: "../etc/passwd" });
+    const written = await writeJob(queueDir, envelope);
+    expect(isAbsolute(written)).toBe(true);
+    expect(dirname(written)).toBe(queueDir);
+    const base = basename(written);
+    expect(base.includes("/")).toBe(false);
+    expect(base.includes("..")).toBe(false);
+    const listed = await listJobs(queueDir);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.envelope.domain).toBe("../etc/passwd");
+  });
+
+  test("hostile domain with backslashes and null bytes", async () => {
+    const envelope = makeEnvelope({ domain: "a\\b\x00c d" });
+    const written = await writeJob(queueDir, envelope);
+    const base = basename(written);
+    expect(base.includes("\\")).toBe(false);
+    expect(base.includes("\x00")).toBe(false);
+    expect(dirname(written)).toBe(queueDir);
+    const listed = await listJobs(queueDir);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.envelope.domain).toBe("a\\b\x00c d");
+  });
+
+  test("empty domain produces a usable filename", async () => {
+    const envelope = makeEnvelope({ domain: "" });
+    const written = await writeJob(queueDir, envelope);
+    const base = basename(written);
+    expect(base.length).toBeGreaterThan(0);
+    expect(dirname(written)).toBe(queueDir);
+    expect(/^[._]/.test(base)).toBe(true);
+    const listed = await listJobs(queueDir);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.envelope.domain).toBe("");
+  });
+
+  test("unicode domain transliterates to safe ascii filename", async () => {
+    const envelope = makeEnvelope({ domain: "测试.example.com" });
+    const written = await writeJob(queueDir, envelope);
+    const base = basename(written);
+    expect(/^[A-Za-z0-9._-]+$/.test(base)).toBe(true);
+    const listed = await listJobs(queueDir);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.envelope.domain).toBe("测试.example.com");
+  });
+
+  test("very long domain (>500 chars) does not exceed filesystem name limits", async () => {
+    const longDomain = "a".repeat(600);
+    const envelope = makeEnvelope({ domain: longDomain });
+    const written = await writeJob(queueDir, envelope);
+    const base = basename(written);
+    expect(Buffer.byteLength(base, "utf8")).toBeLessThanOrEqual(255);
+    expect(dirname(written)).toBe(queueDir);
+    const listed = await listJobs(queueDir);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.envelope.domain).toBe(longDomain);
+  });
+
+  test("listJobs skips corrupt JSON files", async () => {
+    const good = makeEnvelope({ queuedAt: 1000 });
+    await writeJob(queueDir, good);
+    await writeFile(join(queueDir, "corrupt.json"), "{ this is not valid json");
+    const listed = await listJobs(queueDir);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.envelope.queuedAt).toBe(1000);
+  });
+
+  test("listJobs skips wrong-version envelopes", async () => {
+    const good = makeEnvelope({ queuedAt: 2000 });
+    await writeJob(queueDir, good);
+    const wrongVersion = { ...makeEnvelope({ queuedAt: 9999 }), version: 2 };
+    await writeFile(join(queueDir, "wrongver.json"), JSON.stringify(wrongVersion));
+    const listed = await listJobs(queueDir);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.envelope.queuedAt).toBe(2000);
+  });
+
+  test("listJobs skips envelopes missing required fields", async () => {
+    const good = makeEnvelope({ queuedAt: 3000 });
+    await writeJob(queueDir, good);
+    await writeFile(join(queueDir, "missing.json"), JSON.stringify({ version: 1, domain: "x" }));
+    const listed = await listJobs(queueDir);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.envelope.queuedAt).toBe(3000);
+  });
+
+  test("isJobEnvelope rejects null, primitives, and wrong shapes", () => {
+    expect(isJobEnvelope(null)).toBe(false);
+    expect(isJobEnvelope(undefined)).toBe(false);
+    expect(isJobEnvelope("string")).toBe(false);
+    expect(isJobEnvelope(42)).toBe(false);
+    expect(isJobEnvelope({ version: 1 })).toBe(false);
+    expect(isJobEnvelope({ version: 2, domain: "x", queuedAt: 0, attempts: 0, job: {} })).toBe(false);
+    expect(isJobEnvelope({ version: 1, domain: "x", queuedAt: 0, attempts: -1, job: {} })).toBe(false);
+    expect(isJobEnvelope({ version: 1, domain: "x", queuedAt: NaN, attempts: 0, job: {} })).toBe(false);
+    expect(isJobEnvelope({ version: 1, domain: "x", queuedAt: 0, attempts: 0, job: {} })).toBe(true);
   });
 });

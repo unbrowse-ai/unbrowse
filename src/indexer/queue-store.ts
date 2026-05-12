@@ -13,7 +13,9 @@ export interface JobEnvelope {
 }
 
 function sanitizeDomain(domain: string): string {
-  return domain.replace(/[^a-zA-Z0-9.-]/g, "_");
+  const replaced = domain.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.\.+/g, "__");
+  // Cap basename at 200 chars so `${name}.${queuedAt}-${rand}.json.tmp` fits in 255 bytes
+  return replaced.length > 200 ? replaced.slice(0, 200) : replaced;
 }
 
 export async function writeJob(queueDir: string, envelope: JobEnvelope): Promise<string> {
@@ -26,6 +28,17 @@ export async function writeJob(queueDir: string, envelope: JobEnvelope): Promise
   await writeFile(tmpPath, JSON.stringify(envelope));
   await rename(tmpPath, finalPath);
   return finalPath;
+}
+
+export function isJobEnvelope(value: unknown): value is JobEnvelope {
+  if (value === null || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  if (v.version !== 1) return false;
+  if (typeof v.domain !== "string") return false;
+  if (typeof v.queuedAt !== "number" || !Number.isFinite(v.queuedAt)) return false;
+  if (typeof v.attempts !== "number" || !Number.isFinite(v.attempts) || v.attempts < 0) return false;
+  if (v.job === null || typeof v.job !== "object") return false;
+  return true;
 }
 
 export async function listJobs(
@@ -45,9 +58,15 @@ export async function listJobs(
     if (!entry.name.endsWith(".json")) continue;
     if (entry.name.endsWith(".tmp")) continue;
     const path = join(absDir, entry.name);
-    const raw = await readFile(path, "utf8");
-    const envelope = JSON.parse(raw) as JobEnvelope;
-    results.push({ path, envelope });
+    let parsed: unknown;
+    try {
+      const raw = await readFile(path, "utf8");
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (!isJobEnvelope(parsed)) continue;
+    results.push({ path, envelope: parsed });
   }
   results.sort((a, b) => a.envelope.queuedAt - b.envelope.queuedAt);
   return results;
