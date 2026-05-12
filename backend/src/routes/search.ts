@@ -56,6 +56,31 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
 ): Promise<Response | null> {
   if (!shouldRequireSearchPayment(c.env)) return null;
 
+  // Subscription admission lane (parallel to x402). If the caller's bearer key
+  // resolves to a user with an active subscription, admit. F1: no user / no
+  // sub falls through to x402 below.
+  const { subscriptionAdmits, recordUsage } = await import("../services/stripe.js");
+  const admit = await subscriptionAdmits(
+    c.env,
+    c as unknown as Parameters<typeof subscriptionAdmits>[1],
+  ).catch((err) => {
+    console.warn("[admission] subscriptionAdmits threw, falling through to x402:", (err as Error).message);
+    return { admit: false as const, reason: "no_user" as const };
+  });
+  if (admit.admit) {
+    const uid = (c as unknown as { get: (k: string) => string | undefined }).get("user_id");
+    if (admit.reason !== "admit_admin" && uid) {
+      await recordUsage(c.env, uid, 1).catch((err) =>
+        console.warn("[admission] recordUsage failed (admitted anyway):", (err as Error).message),
+      );
+    }
+    c.header(
+      "X-Unbrowse-Billing",
+      `${admit.reason === "admit_overage" ? "overage" : admit.reason === "admit_admin" ? "admin" : "subscription"} consumed=${admit.consumed ?? 0}/${admit.quota ?? 0}`,
+    );
+    return null;
+  }
+
   const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
   const legacyProofHeader = c.req.header("X-Payment-Proof");
   if (!paymentHeader && !legacyProofHeader) {

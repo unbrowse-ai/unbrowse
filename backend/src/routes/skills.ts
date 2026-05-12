@@ -129,6 +129,49 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
 
   // Free skills (price=0 or below floor) skip the gate
   if (priceResult.price_usd > 0 && paymentsEnabled(c.env)) {
+    // Subscription admission lane (parallel to x402). If the caller presents a
+    // bearer key resolving to an authenticated user with an active subscription,
+    // admit without firing x402. F1: when no key or no sub, fall through.
+    const authzHeader = c.req.header("Authorization");
+    if (authzHeader?.startsWith("Bearer ")) {
+      try {
+        const token = authzHeader.slice("Bearer ".length).trim();
+        if (c.env.API_KEY && token === c.env.API_KEY) {
+          c.set("agent_id", "__admin__");
+        } else {
+          const { verifyLocalKey } = await import("../services/keys.js");
+          const { lookupUserIdByKey } = await import("../services/accounts.js");
+          const verified = await verifyLocalKey(c.env, token);
+          if (verified?.valid && verified.keyId) {
+            c.set("agent_id", verified.keyId);
+            const uid = await lookupUserIdByKey(c.env, verified.keyId).catch(() => null);
+            if (uid) c.set("user_id", uid);
+          }
+        }
+      } catch (err) {
+        console.warn("[admission] optional auth lookup failed:", (err as Error).message);
+      }
+    }
+
+    const { subscriptionAdmits, recordUsage } = await import("../services/stripe.js");
+    const admit = await subscriptionAdmits(c.env, c).catch((err) => {
+      console.warn("[admission] subscriptionAdmits threw, falling through to x402:", (err as Error).message);
+      return { admit: false as const, reason: "no_user" as const };
+    });
+    const admittedViaSub = admit.admit;
+    if (admittedViaSub) {
+      if (admit.reason !== "admit_admin" && c.get("user_id")) {
+        await recordUsage(c.env, c.get("user_id")!, 1).catch((err) =>
+          console.warn("[admission] recordUsage failed (admitted anyway):", (err as Error).message),
+        );
+      }
+      c.header(
+        "X-Unbrowse-Billing",
+        `${admit.reason === "admit_overage" ? "overage" : admit.reason === "admit_admin" ? "admin" : "subscription"} consumed=${admit.consumed ?? 0}/${admit.quota ?? 0}`,
+      );
+    }
+
+    if (!admittedViaSub) {
     const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const legacyProofHeader = c.req.header("X-Payment-Proof");
 
@@ -168,6 +211,7 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       price_usd: priceResult.price_usd,
       payment_proof: proof,
     }).catch((err) => console.warn(`[x402] ledger write failed: ${(err as Error).message}`)));
+    }
   }
 
   // Backfill proof_summary on legacy skills that were stored before this field existed.

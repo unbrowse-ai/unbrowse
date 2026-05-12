@@ -18,7 +18,7 @@ import {
 } from "../middleware/x402-gate.js";
 import { recordTransaction } from "../services/transactions.js";
 
-type DemoEnv = { Bindings: Env; Variables: { agent_id: string } };
+type DemoEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
 export const demoRoutes = new Hono<DemoEnv>();
 
@@ -72,6 +72,29 @@ demoRoutes.post("/demos/generate", async (c) => {
   const priceUsd = TIER_PRICES[tier] ?? TIER_PRICES.basic;
 
   if (paymentsEnabled(c.env) && priceUsd > 0) {
+    // Subscription admission lane (parallel to x402). If the caller's bearer
+    // key resolves to a user with an active subscription, admit. F1: no user /
+    // no sub falls through to x402 below.
+    const { subscriptionAdmits, recordUsage } = await import("../services/stripe.js");
+    const admit = await subscriptionAdmits(c.env, c).catch((err) => {
+      console.warn("[admission] subscriptionAdmits threw, falling through to x402:", (err as Error).message);
+      return { admit: false as const, reason: "no_user" as const };
+    });
+    const admittedViaSub = admit.admit;
+    if (admittedViaSub) {
+      const uid = c.get("user_id");
+      if (admit.reason !== "admit_admin" && uid) {
+        await recordUsage(c.env, uid, 1).catch((err) =>
+          console.warn("[admission] recordUsage failed (admitted anyway):", (err as Error).message),
+        );
+      }
+      c.header(
+        "X-Unbrowse-Billing",
+        `${admit.reason === "admit_overage" ? "overage" : admit.reason === "admit_admin" ? "admin" : "subscription"} consumed=${admit.consumed ?? 0}/${admit.quota ?? 0}`,
+      );
+    }
+
+    if (!admittedViaSub) {
     const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const legacyProofHeader = c.req.header("X-Payment-Proof");
 
@@ -113,6 +136,7 @@ demoRoutes.post("/demos/generate", async (c) => {
       price_usd: priceUsd,
       payment_proof: proof,
     }).catch((err) => console.warn(`[x402] ledger write failed: ${(err as Error).message}`)));
+    }
   }
 
   // Create job
