@@ -1,61 +1,118 @@
-# Hand-off — Unbrowse MCP Audit loop (jl/default)
+# Hand-off — Unbrowse MCP Audit loop (jl/default) — Round 2
 
-**Loop status:** Day 9 / 9 — Emergence. SHIPPED on issue #1 only; three issues remain owed.
-**Branch:** `jl/default` (worktree at `/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse-jl-default`)
-**Commits on this branch above `565679d8` (v6.13.0):**
+**Loop status:** Day 9 / 9 — Emergence. SHIPPED on AC1 / AC2 / AC3 / AC3.5. Tickets filed for the 3 pre-existing test failures the prior loop hand-off mis-labeled "rename leftovers."
 
-| Commit | Day | Subject |
-|---|---|---|
-| `636eacef` | 3 Land | `test(mcp): failing payload-size cap + audit-the-audit measurements` |
-| `5213389e` | 6 Dominion | `fix(mcp): cap tool-result wire body at 25KB` |
-| `957f1c52` | (prior loop) | `feat(bench): draft release-gate harness + judge` — separate scope, not MCP audit |
-| `8e8eb5a1` | 9 Emergence | `fix(mcp): extend diet to cap oversize arrays + UTF-safe string truncation` |
+**Branch:** `jl/default` (worktree at `/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse-jl-default`).
 
-For an MCP-audit-only PR, cherry-pick `636eacef`, `5213389e`, `8e8eb5a1` — skip `957f1c52`.
+**Commits on this branch above `9f1752eb` (prior loop's hand-off commit):**
 
-## What shipped (issue #1 — payload diet, P0)
+| Commit | Day | Subject | AC |
+|---|---|---|---|
+| `163e08af` | 5 Creatures | `fix(mcp): remove domain field from unbrowse_resolve schema (substrate-lie)` | AC2 |
+| `cbfc2537` | 5 Creatures | `fix(orchestrator): add marketplace_by_host racer for cold-domain resolves` | AC1 |
+| `0129d7aa` | 5 Creatures | `fix(mcp): apply dietIfOversize in successResult so all handlers inherit wire cap` | AC3 |
+| `b8e339e2` | 5 Creatures | `fix(mcp): reserve envelope headroom in successResult diet cap` | AC3.5 (lost sheep) |
 
-- `src/mcp.ts`: exported `maybePostProcessResult`; added `dietIfOversize` as a three-phase walk:
-  1. `truncateOversizeStrings` — strings >2 000 chars truncated to first 500 code-points + `"...[truncated N chars]"` marker. Code-point-safe via `Array.from`.
-  2. `capOversizeArrays` — top-level arrays longer than 50 elements get sliced to first 50 + `{ truncated: M items }` marker.
-  3. Safety net — if wrapped JSON still over 25 000 chars, iterative `body_excerpt` shrink with predictable bound.
-- `tests/mcp-payload-size.test.ts`: 7/7 green. Covers three oversize shapes — few large strings (audit-cited), deep nesting (4-level × 10-children × 50-char leaves), and 100K-element-array (the gap Day-8 adversarial review found).
-- Full `tests/mcp-*.test.ts`: 33 pass / 3 fail. Net +7 pass vs the loop's baseline of 26/7. **Zero regressions.**
+All four use `fix(...)` conventional-commit prefixes; release-it will pick
+them up into the next CHANGELOG without manual edit.
+
+## What shipped (AC1, AC2, AC3, AC3.5)
+
+### AC1 — Marketplace racer fires for cold hosts
+
+- `src/orchestrator/resolve-race.ts` — added a second marketplace racer
+  alongside the existing `knownSkillId`-gated one. New racer fires whenever
+  `URL(args.contextUrl).host` resolves; reuses the existing `marketplaceLookup`
+  DI seam (test contract was a single callable receiving the host string).
+  Guards against double-call when host happens to equal `knownSkillId`.
+- Test: `tests/mcp-marketplace-host-racer.test.ts` — 1 pass.
+
+### AC2 — `unbrowse_resolve` no longer advertises `domain`
+
+- `src/mcp.ts` — removed `domain` from `unbrowse_resolve`'s
+  `inputSchema.properties` and the L1189-1191 `args.domain` body-merge.
+- Root cause: Day-1 sub-agent traced domain-only path — it silently
+  degrades to `normalizeRouteContext("root")` in
+  `src/orchestrator/index.ts:3669-3672`. Schema was lying about what the
+  field unlocks. Future loop can re-add the field once AC1's
+  `marketplace_by_host` racer makes domain-only meaningful.
+- Test: `tests/mcp-resolve-domain-input.test.ts` — 1 pass.
+
+### AC3 — Diet coverage extended to all tool returns
+
+- `src/mcp.ts` — exported `successResult` and `dietIfOversize`; modified
+  `successResult` to pass values through `dietIfOversize` before envelope
+  assembly. All 7 content-returning handlers (`unbrowse_resolve`,
+  `unbrowse_execute`, `unbrowse_snap`, `unbrowse_text`,
+  `unbrowse_markdown`, `unbrowse_skills`, `unbrowse_trace`,
+  `unbrowse_validate`) now inherit the wire-budget cap from one site.
+- `maybePostProcessResult` was NOT touched — it handles `path`/`extract`/
+  `limit` projection, a different concern. Its inner `dietIfOversize` calls
+  become idempotent no-ops after this change.
+- Test: `tests/mcp-diet-coverage.test.ts` — 2 pass.
+
+### AC3.5 — Envelope headroom (lost sheep, Day-5 adversarial test)
+
+- `src/mcp.ts:successResult` — pass `WIRE_BUDGET_CHARS - 1024` to
+  `dietIfOversize` instead of the default. Reserves 1024 chars for envelope
+  overhead (text preview + structuredContent wrapper + JSON-RPC framing).
+- Found by `tests/mcp-diet-coverage-adversarial.test.ts` case 3 (array of
+  100 × 10K-char strings) — wire body was 25_254 chars before fix, ≤25_000
+  after.
+- Test: 4/4 cases pass (surrogate-pair boundary, deep nesting, oversize
+  array of oversize strings, JSON-encoded body field).
+
+## Test status (AC4 baseline)
+
+```
+bun test tests/mcp-*.test.ts
+→ 41 pass / 3 fail
+```
+
+The 3 failures are the SAME 3 pre-existing failures from the prior loop's
+hand-off — no new regressions. Each one is filed as a distinct ticket in
+this directory (AC5):
+
+- [`.audits/ticket-mcp-stdio-listchanged-contract-drift.md`](./ticket-mcp-stdio-listchanged-contract-drift.md)
+- [`.audits/ticket-mcp-cheatsheet-tool-count-stale.md`](./ticket-mcp-cheatsheet-tool-count-stale.md)
+- [`.audits/ticket-mcp-resolve-guidance-next-tools-rename.md`](./ticket-mcp-resolve-guidance-next-tools-rename.md)
+
+The prior loop's hand-off labeled all three "rename leftovers." Day-8
+Audit 7 (carried forward in this loop's plan) established they are three
+different bugs. Tickets split them correctly.
 
 ## What is owed (next loop)
 
-| Issue | Severity | Surface | Notes |
+| Item | Severity | Surface | Notes |
 |---|---|---|---|
-| #2 resolve ladder skips marketplace | P1 | `src/orchestrator/resolve-race.ts:302-314` | Marketplace racer only registers when `knownSkillId` is set. Cold domains never enter marketplace. Restructure so marketplace runs whenever the host has any published skill. |
-| #3 `unbrowse_run` input substrate-lie | P1 | `src/mcp.ts:1061-1081` | Tool advertises `domain:` as optional but orchestrator rejects domain-only. Either accept end-to-end (resolve to canonical URL upstream) or remove from declared schema. Smallest remaining fix. |
-| #4 `ok:false` on `shortlist_returned` | P2 | `src/mcp.ts` near `successResult` / `errorResult` | Per Day-8 Audit 13: `MCP_WRAP_SUFFICIENT` — ~20 LoC at handler boundary, no backend coordination required. Reserve `ok:false` for real failures; return `ok:true, status:"shortlist_returned", next_action:{...}`. |
-| Diet coverage gap | P1 | `src/mcp.ts` handlers for `unbrowse_snap`, `unbrowse_text`, `unbrowse_markdown`, `unbrowse_skills`, `unbrowse_trace`, `unbrowse_validate` | These 6 handlers return browser-extracted content and bypass `maybePostProcessResult`. Either route them through, or move the cap to `jsonRpcResult` so every tool inherits it. Day-9 scope explicitly excluded. |
-| 3 separate pre-existing test failures | P2 | `tests/mcp-stdio.test.ts`, `tests/mcp-cheatsheet-listchanged.test.ts`, `tests/mcp-resolve-guidance.test.ts` | Day-6 commit msg called these "rename leftovers" but Day-8 Audit 7 found three different bugs: listChanged contract drift (with contradicting sibling test), hardcoded tool count `33` vs actual `36`, and the actual `unbrowse_login`→`unbrowse_auth_capture` rename. File three tickets, not one. |
-
-## Audit accuracy
-
-The audit at `.audits/unbrowse-mcp-audit-6.10.0-to-6.13.0.md` is **5/5 verified** for cited char-counts (Day-8 Audit 8 found the 3 sessions Day-3 had marked `not_located` — they live in different `~/.claude/projects/*` hash dirs). All five cited oversize examples (79 865, 116 718, 83 163, 64 416, 55 422) confirmed within 0.07%.
-
-Update `.audits/measurements.md` if cleaning before merge.
+| Issue #4 from prior hand-off — `ok:false` on `shortlist_returned` | P2 | `src/mcp.ts` near `successResult` / `errorResult` | Deferred from this loop's plan as out-of-scope. ~20 LoC at handler boundary. |
+| AC1 backend follow-up — `GET /v1/skills?host=` | P2 | `backend/src/routes/skills.ts`, `backend/src/services/marketplace.ts` | Today's racer reuses the existing marketplaceLookup callback (works in tests). For scale, add a host-filtered backend route — see `getSkillByDomain` at `backend/src/services/marketplace.ts:122-137` for the seed. |
+| SKILL.md docs reference removed `--domain` flag | P3 | `SKILL.md:255`, `SKILL.md:379` | Day-5 ripple-search found these; not touched in this loop. Resolve CLI example + search example still mention `--domain "..."`. |
+| Three filed tickets (above) | P2 | `tests/` | Three small isolated fixes; pick up in any order. |
 
 ## Pre-merge checklist
 
-- [ ] Cherry-pick `636eacef` + `5213389e` + `8e8eb5a1` to a feature branch off main (`rach/restart-base` is the working branch per project CLAUDE.md — main is broken).
-- [ ] Drop the prior-loop's `957f1c52` if not relevant to the MCP-audit PR.
-- [ ] Clean untracked `harness/probes/*` and `tests/bench-gate-contract.test.ts` from prior loop firing (or include if release-gate is also being shipped).
-- [ ] Kill 27 stale `unbrowse|kuri` processes from aiko-v2 spillover before any local test run: `pkill -9 -f 'unbrowse mcp|kuri serve'`.
-- [ ] Decide: document `WIRE_BUDGET_CHARS = 25_000` rationale in a code comment, or change to 16 KB to match the audit's own "sidecar" recommendation. Day-8 Audit 1 flagged this as undocumented.
-- [ ] `bun run release:preview` to cut the next version.
+- [ ] Branch base: `rach/restart-base` (working branch per project CLAUDE.md;
+      `main` is broken).
+- [ ] Cherry-pick `163e08af`, `cbfc2537`, `0129d7aa`, `b8e339e2`. Order doesn't
+      matter — they touch disjoint surfaces (`resolve-race.ts` vs `mcp.ts`).
+- [ ] Drop the prior loop's `957f1c52` (release-gate harness) if not relevant
+      to this PR.
+- [ ] Kill stale `unbrowse|kuri` processes before any local re-test:
+      `pkill -9 -f 'unbrowse mcp|kuri serve'`.
+- [ ] `bun run release:preview` to cut the next version. The four `fix(...)`
+      commits flow through release-it's conventional-changelog into
+      `CHANGELOG.md` automatically.
 
 ## Loop self-grade
 
-| Day | Verdict | Score range |
-|---|---|---|
-| 1 Light | Inventory complete; 5 sessions verified-present | 1–5 |
-| 3 Land | Failing test + audit-the-audit committed; bypassed pre-commit hook (deviation) | 0–8 |
-| 6 Dominion | Diet implemented; 4/4 test green; 0 regressions; overstated "clean" | 1–9 |
-| 7 Sabbath | Script: REJECT (4.7/10 avg). Human: HOLD (1 of 4 fixes shipped, scope correct) | 8 |
-| 8 Judgement | 13 adversarial auditors found 3 P0/P1 holes in the diet + 2 wrongly-classified test failures | 2–10 |
-| 9 Emergence | Two diet holes purged; 7/7 payload-size green; honest hand-off | this doc |
+| Day | Verdict |
+|---|---|
+| 1 Light | Inventory complete; one contradiction surfaced (B was downstream, not at MCP boundary); baseline reproduces |
+| 2 Firmament | Three vessels picked: 2nd racer (AC1), schema removal option-b (AC2), `successResult` as diet site (AC3) |
+| 4 Luminaries | 3 failing tests / 4 assertions installed; all red as designed (Steps 3, 6, 7, 8 skipped by framework) |
+| 5 Creatures | 4 commits land all ACs; adversarial test caught a 254-char envelope overshoot; mustard-seed fix flips it green; 41 pass / 3 baseline fail; no new regressions |
+| 9 Emergence | Three tickets filed correctly (the prior loop's "rename leftovers" was a mis-classification — Day-8 was right that they're 3 different bugs); CHANGELOG flows via conventional-commit machinery; this doc |
 
-Average across 24 grade rows: ~5.5 / 10. PROMOTE only on issue #1; HOLD on #2/#3/#4 and on extending the diet to 6 more handlers.
+PROMOTE on all four shipped ACs. HOLD on the three filed tickets and the AC1
+backend route (clearly delegated to next loop, not silently dropped).
