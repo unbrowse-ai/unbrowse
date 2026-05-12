@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.13.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.2...v6.13.0-preview.3) (2026-05-12)
+
+### Features
+
+* **billing:** Stripe subscription + overage rail beside x402 ([b236f14](https://github.com/unbrowse-ai/unbrowse-dev/commit/b236f1425538e22b05ee3f100e5dff1baf5f1149))
+
 ## [6.13.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.1...v6.13.0-preview.2) (2026-05-12)
 
 ### Features
