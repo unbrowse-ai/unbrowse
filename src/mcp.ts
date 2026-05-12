@@ -707,14 +707,47 @@ function listTool(tool: ToolDefinition): ListedTool {
   };
 }
 
-function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
+// Wire-shape size cap. Tool results larger than WIRE_BUDGET_CHARS get walked
+// once and every overlong string is truncated with an honest marker. Structural,
+// not field-keyed — works for any oversize result, not just the cited ones.
+// Audit hook: tests/mcp-payload-size.test.ts.
+const WIRE_BUDGET_CHARS = 25_000;
+const STRING_TRUNCATE_THRESHOLD = 2_000;
+const STRING_TRUNCATE_KEEP = 500;
+
+function truncateOversizeStrings(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (value.length > STRING_TRUNCATE_THRESHOLD) {
+      const dropped = value.length - STRING_TRUNCATE_KEEP;
+      return `${value.slice(0, STRING_TRUNCATE_KEEP)}...[truncated ${dropped} chars]`;
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(truncateOversizeStrings);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = truncateOversizeStrings(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHARS): unknown {
+  const initial = JSON.stringify(value);
+  if (!initial || initial.length <= budget) return value;
+  return truncateOversizeStrings(value);
+}
+
+export function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
   const baseValue = result.result ?? result;
 
   if (args.schema === true) {
-    return {
+    return dietIfOversize({
       schema_tree: schemaOf(baseValue),
       message: "Use path / extract / limit arguments to shape the response inside Unbrowse.",
-    };
+    });
   }
 
   let projected = baseValue;
@@ -727,13 +760,13 @@ function maybePostProcessResult(result: Record<string, unknown>, args: Record<st
     typeof args.extract === "string" ||
     typeof args.limit === "number"
   ) {
-    return {
+    return dietIfOversize({
       ...(result.trace ? { trace: result.trace } : {}),
       result: projected,
-    };
+    });
   }
 
-  return result;
+  return dietIfOversize(result);
 }
 
 export function addExecuteNextStepHints(
