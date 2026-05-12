@@ -23,10 +23,12 @@ afterEach(async () => {
 });
 
 describe("contribution config — defaults + read/write", () => {
-  it("returns DEFAULT (private) on fresh install (no config file)", async () => {
+  it("returns DEFAULT (public, opt-out) on fresh install (no config file)", async () => {
     const { getContributionConfig } = await import("../src/config/contribution.js");
     const cfg = getContributionConfig();
-    expect(cfg.contribution.share_pointers).toBe(false);
+    // Default is opt-out: share_pointers=true. Review-gate is what holds back
+    // unreviewed captures from the public marketplace, not this flag.
+    expect(cfg.contribution.share_pointers).toBe(true);
     expect(cfg.contribution.set_via).toBe("default");
     expect(cfg.rev_share.opted_in).toBe(false);
     expect(cfg.rev_share.wallet_address).toBeUndefined();
@@ -66,7 +68,9 @@ describe("contribution config — existing-user migration", () => {
     writeFileSync(cfgPath, JSON.stringify({ agent_id: "agent-old", some_other: "data" }));
     const { getContributionConfig } = await import("../src/config/contribution.js");
     const cfg = getContributionConfig();
-    expect(cfg.contribution.share_pointers).toBe(false);
+    // Migrated users inherit the new opt-out default (public). The 5-stderr-
+    // notice window is their cue to flip to private via `unbrowse mode private`.
+    expect(cfg.contribution.share_pointers).toBe(true);
     expect(cfg.contribution.set_via).toBe("default");
     expect(cfg.notice_shown_count).toBe(5);
     // Should have persisted the migration

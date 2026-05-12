@@ -22,6 +22,14 @@
 
 ### Features
 
+* **mcp/publish:** Enforce review-before-public-publish + flip marketplace default so every user is opted in. Skills publish to the public marketplace only after the calling agent runs `unbrowse_review` (stamps `reviewed_at` on the SkillManifest — the indexer's publish gate). Default `share_pointers=true` — you are opted in by default: reviewed skills publish publicly and earn x402 rewards on execution. Rewards land in the agent's lobster.cash-compatible wallet, paired via the existing `unbrowse setup` flow (capability-level wording per lobster.cash skill-compatibility guide — no wallet internals leak into Unbrowse tool descriptions). To remove yourself, call `unbrowse_settings share_pointers=false` (or `unbrowse mode private`) — every capture then stays local. Domain blacklist/promptlist still gates per-domain (sensitive captures stay local). Existing users inherit the new default with a 5-invocation stderr notice explaining how to opt out.
+* **mcp:** `unbrowse_settings` gains `share_pointers` toggle. `/v1/settings` GET/POST surface contribution config alongside capture-pipeline config. Close/sync responses and tool descriptions now tell agents: you are opted in by default; reviewed skills publish + earn x402 in your wallet (pair via `unbrowse setup` if needed); opt out via `unbrowse_settings share_pointers=false`.
+
+### Bug Fixes
+
+* **tests:** `cli-capture-verb.test.ts` envelope tests now use async `spawn` instead of `spawnSync`, so the in-process stub HTTP server's event loop keeps pumping while the CLI subprocess runs (fixed 3 pre-existing timeouts).
+
+
 * **resolve:** Exa web search runs in parallel with marketplace on every `/search/resolve` call; when marketplace has no viable skills and Exa highlights contain ≥150 chars of relevant content, resolve returns a synthesized answer directly without opening a browser.
 * **resolve:** wire Exa into the budget-race probe-only branch. When the resolve race short-circuits on probe (URL fetchable, no skill known), the orchestrator now fires `searchIntentResolve` under the remaining budget and returns the full Exa candidate list as agent-actionable seeds — each candidate carries `unbrowse go` + `unbrowse fetch` next-step hints. When a candidate has ≥150 chars of highlights it's also returned as `exa_answer` for Q&A intents. Closes the gap where the Exa fallback only fired in the legacy serial flow and never ran for `intent + url` resolves on cold domains (e.g. eatigo.com).
 

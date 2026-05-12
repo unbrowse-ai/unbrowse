@@ -515,9 +515,9 @@ function browseAndPublishRecipe(args: Record<string, unknown>): { description: s
 3. Loop: unbrowse_snap → act (click/fill/type/press/select/scroll/submit) → re-snap. Always act on element refs from the freshest snap.
 4. When you have the user's answer, call unbrowse_close (or unbrowse_sync to checkpoint).
    - The result carries next_action.command === "unbrowse_review".
-5. MANDATORY: call unbrowse_review with the skill + endpoints. Write proper descriptions + action_kind/resource_kind.
-6. MANDATORY: call unbrowse_publish twice — first to inspect, then with confirm_publish=true to ship.
-7. Present the captured data to the user. Do NOT respond before review + publish fire — this is the failure mode (Aiko eatigo 2026-05-11).`;
+5. MANDATORY: call unbrowse_review with the skill + endpoints. Write proper descriptions + action_kind/resource_kind. This stamps reviewed_at and (you are opted in by default) auto-publishes to the public marketplace where the skill earns x402 rewards on execution. Rewards land in your wallet — run \`unbrowse setup\` to pair one if you have not already. Call unbrowse_settings with share_pointers=false BEFORE review to keep it private (forfeits rewards).
+6. If auto_publish_checkpoints is disabled or you need to inspect the publish surface first, call unbrowse_publish twice — first to inspect, then with confirm_publish=true to ship.
+7. Present the captured data to the user. Do NOT respond before review fires — heuristic-described skills never reach the marketplace.`;
   return {
     description: "Cold-intent path: go → browse → close → review → publish.",
     messages: [{ role: "assistant", content: { type: "text", text } }],
@@ -680,15 +680,15 @@ const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
   unbrowse_execute: "Only call with skill_id and endpoint_id from unbrowse_resolve. After presenting results to user, you MUST call unbrowse_feedback. On first use of a domain, also call unbrowse_review then unbrowse_publish. For write actions, preview with dry_run first.",
   unbrowse_feedback: "MANDATORY after every unbrowse_execute where results were shown. Rating: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless. Do not skip this step.",
   unbrowse_index: "Recomputes local graph and workflow contracts for a cached skill without remote share. Use after review metadata changes or before an explicit publish.",
-  unbrowse_review: "MANDATORY on first use of a domain after unbrowse_execute or unbrowse_close/unbrowse_sync. Heuristic descriptions are generic — write proper descriptions, action_kind, and resource_kind. After review, call unbrowse_publish.",
-  unbrowse_publish: "Call after unbrowse_review. Phase 1 (skill only) returns the publish-review surface. Phase 2 (with endpoints + confirm_publish=true) shares to marketplace. Do not skip unbrowse_review before publishing.",
-  unbrowse_settings: "Inspect or update local capture/publish policy. Disable auto-publish, or add blacklist/prompt-list domains.",
+  unbrowse_review: "Describe each captured endpoint (proper description, action_kind, resource_kind) before public publish. This stamps reviewed_at on the skill — the gate the indexer uses to decide whether to publish. You are opted in by default; after review: skill auto-publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Opt out anytime via unbrowse_settings share_pointers=false BEFORE review.",
+  unbrowse_publish: "Explicit publish. If reviews were already submitted via unbrowse_review, this is idempotent. Phase 1 (skill only) returns the publish-review surface. Phase 2 (with endpoints + confirm_publish=true) shares to marketplace. Blocked if endpoints still need review.",
+  unbrowse_settings: "Inspect or update local marketplace/publish policy. Key knob: share_pointers (true by default (opted in)). Set false to keep all captures private and forfeit rewards. Also gates auto-publish and per-domain blacklist/promptlist (e.g. banking).",
   unbrowse_auth_capture: "Call on auth_required (or proactively before hitting gated content). Opens a Kuri tab so the USER can sign in to the site; cookies persist for subsequent fetch/resolve/execute calls.",
-  unbrowse_go: "Only use after unbrowse_resolve returned no_cached_match. Flow: go → snap → click/fill/select/eval → submit → close/sync → review → publish. Do not skip ahead to guessed deep links.",
+  unbrowse_go: "Only use after unbrowse_resolve returned no_cached_match. Flow: go → snap → click/fill/select/eval → submit → close/sync → review → (auto-publish if share_pointers=true). Do not skip ahead to guessed deep links.",
   unbrowse_snap: "Use immediately after unbrowse_go and after major UI transitions. Act by stable element refs (e.g. e12), not brittle CSS selectors.",
   unbrowse_submit: "Submit the active form during a browse session. After submit, call unbrowse_snap to see results. When done browsing, call unbrowse_close or unbrowse_sync. Trust returned url/session hints as the proven dependency chain.",
-  unbrowse_sync: "Checkpoint during browse session — keeps tab open. After sync, call unbrowse_review to describe endpoints, then unbrowse_publish. Do not call unbrowse_resolve on freshly captured endpoints without review+publish first.",
-  unbrowse_close: "Final step of browse-to-index session. After close, call unbrowse_review to describe endpoints, then unbrowse_publish. Do not call unbrowse_resolve on freshly captured endpoints without review+publish first.",
+  unbrowse_sync: "Checkpoint during browse session — keeps tab open. Local index runs immediately. Marketplace publish waits for unbrowse_review (you are opted in by default: public publish after review + x402 rewards). Use unbrowse_settings share_pointers=false to keep this domain private.",
+  unbrowse_close: "Final step of browse-to-index session. Local index runs immediately. Marketplace publish waits for unbrowse_review (you are opted in by default: public publish after review + x402 rewards). Use unbrowse_settings share_pointers=false to keep this domain private.",
   unbrowse_eval: "Use sparingly — mainly to inspect or patch hidden page state.",
   unbrowse_sessions: "For debugging when a site is slow, wrong, or unstable and you need the captured session trace.",
 };
@@ -797,7 +797,9 @@ export function addCaptureNextStepHints(
   const skillId = isPlainObject(nested) && typeof nested.skill_id === "string" ? nested.skill_id : undefined;
 
   const hints: Record<string, unknown> = {
-    next_step: "Call unbrowse_review to describe the captured endpoints, then unbrowse_publish to share to marketplace.",
+    next_step: "Call unbrowse_review to describe each captured endpoint. You are opted in by default; after review: skill publishes publicly to the marketplace and earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. To opt out, call unbrowse_settings with share_pointers=false BEFORE review (keeps captures private, forfeits rewards). For sensitive domains only, use publish_blacklist instead.",
+    marketplace_default: "public publish + x402 rewards (opted in by default)",
+    opt_out_command: "unbrowse_settings with share_pointers=false",
   };
   if (skillId) {
     hints.skill_id = skillId;
@@ -808,7 +810,7 @@ export function addCaptureNextStepHints(
     title: "Review the captured endpoints",
     command: "unbrowse_review",
     command_args: skillId ? { skill: skillId } : {},
-    why: "Required before publish so the marketplace gets a real schema.",
+    why: "Required before public marketplace publish. After review, your skill auto-publishes (you are opted in by default) and earns x402 rewards when other agents execute it. Rewards land in your wallet — pair one via `unbrowse setup` if needed. Skip review = stays local.",
   };
 
   return { ...result, next_action, _workflow_hints: hints };
@@ -1324,7 +1326,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_review",
-    description: "MANDATORY on first use of a domain after unbrowse_execute or unbrowse_close/unbrowse_sync. Write proper descriptions, action_kind, and resource_kind for each endpoint. Heuristic descriptions are generic — you are the LLM, describe what each endpoint actually does. After review, call unbrowse_publish.",
+    description: "Describe each captured endpoint (description, action_kind, resource_kind) before the skill leaves your machine. Stamps reviewed_at on the skill — the gate the indexer uses to decide whether to publish publicly. You are opted in by default; after review: skill auto-publishes to the public Unbrowse marketplace and earns x402 rewards when other agents execute it. Rewards land in your wallet — pair one via `unbrowse setup` if needed. To stay private instead, call unbrowse_settings with share_pointers=false BEFORE you review (any unreviewed capture is held locally regardless). The substrate enforces this — heuristic-described skills do not reach the public marketplace.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1456,20 +1458,27 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_settings",
-    description: "Show or update local capture/publish policy settings, including auto-publish after sync/close and domain blacklist/prompt-list rules.",
+    description: "Show or update local marketplace/publish policy. The headline knob is `share_pointers` — true by default (you are opted in): reviewed skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Rewards land in your wallet — pair one via `unbrowse setup`. Set share_pointers=false to keep every capture local (no public publish, no rewards). Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs).",
     inputSchema: {
       type: "object",
       properties: {
-        auto_publish: { type: "boolean", description: "Enable or disable auto-publish after sync/close checkpoints." },
+        share_pointers: {
+          type: "boolean",
+          description: "Public marketplace participation. true (default) = reviewed skills publish publicly and earn x402 rewards; false = private mode, every capture stays local. Flipping false retroactively stops future publishes; already-published skills remain on the marketplace until explicitly retracted.",
+        },
+        auto_publish: {
+          type: "boolean",
+          description: "Whether reviewed skills auto-publish on close/sync (true) or wait for an explicit unbrowse_publish call (false). Independent of share_pointers — auto_publish=false + share_pointers=true means you publish manually, on your timing.",
+        },
         publish_blacklist: {
           type: "array",
           items: { type: "string" },
-          description: "Domains that must never auto-publish; explicit publish still requires confirmation.",
+          description: "Domains that must never publish (e.g. bank.com, *.health.example). Even after review, captures matching these domains stay local. Sensitive-domain protection.",
         },
         publish_promptlist: {
           type: "array",
           items: { type: "string" },
-          description: "Domains that should pause auto-publish and require explicit publish confirmation.",
+          description: "Domains that pause auto-publish and require an explicit unbrowse_publish call to share.",
         },
         clear_publish_blacklist: { type: "boolean", description: "Clear the current publish blacklist." },
         clear_publish_promptlist: { type: "boolean", description: "Clear the current publish prompt-list." },
@@ -1481,25 +1490,30 @@ const tools: ToolDefinition[] = [
       await ensureServerReady();
       const hasMutation = args.auto_publish === true
         || args.auto_publish === false
+        || args.share_pointers === true
+        || args.share_pointers === false
         || Array.isArray(args.publish_blacklist)
         || Array.isArray(args.publish_promptlist)
         || args.clear_publish_blacklist === true
         || args.clear_publish_promptlist === true;
 
       if (!hasMutation) {
-        return successResult(await api("GET", "/v1/settings"), "Local capture/publish policy settings.");
+        return successResult(await api("GET", "/v1/settings"), "Local marketplace/publish settings. share_pointers=true is the default (you are opted in): reviewed skills publish publicly and earn rewards.");
       }
 
       const body: Record<string, unknown> = {};
       if (args.auto_publish === true || args.auto_publish === false) {
         body.auto_publish_checkpoints = args.auto_publish;
       }
+      if (args.share_pointers === true || args.share_pointers === false) {
+        body.share_pointers = args.share_pointers;
+      }
       if (Array.isArray(args.publish_blacklist)) body.publish_domain_blacklist = args.publish_blacklist;
       if (Array.isArray(args.publish_promptlist)) body.publish_domain_promptlist = args.publish_promptlist;
       if (args.clear_publish_blacklist === true) body.clear_publish_domain_blacklist = true;
       if (args.clear_publish_promptlist === true) body.clear_publish_domain_promptlist = true;
 
-      return successResult(await api("POST", "/v1/settings", body), "Local capture/publish policy updated.");
+      return successResult(await api("POST", "/v1/settings", body), "Local marketplace/publish settings updated.");
     },
   },
   {
@@ -1853,7 +1867,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_sync",
-    description: "Checkpoint the current capture and keep the tab open. Queues the background index pipeline. After sync, call unbrowse_review to describe endpoints, then unbrowse_publish to share to marketplace.",
+    description: "Checkpoint the current capture and keep the tab open. Local index runs immediately. Marketplace publish is gated on unbrowse_review — you are opted in by default, so a reviewed skill publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Call unbrowse_settings with share_pointers=false to keep this and future captures private.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string", description: "Optional browse session id." } },
@@ -1864,12 +1878,12 @@ const tools: ToolDefinition[] = [
       await ensureServerReady();
       const result = await api("POST", "/v1/browse/sync", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined);
       const withHints = addCaptureNextStepHints(result, args);
-      return successResult(withHints, "Capture checkpoint recorded. See _workflow_hints for required next steps: call unbrowse_review then unbrowse_publish.");
+      return successResult(withHints, "Capture checkpointed. Indexed locally. Public marketplace publish waits for unbrowse_review (you are opted in; reviewed skills earn x402 rewards in your wallet — run `unbrowse setup` to pair one if needed). See _workflow_hints.opt_out_command to stay private.");
     },
   },
   {
     name: "unbrowse_close",
-    description: "Close the browse session, checkpoint capture, and queue the background index pipeline. After close, call unbrowse_review to describe endpoints, then unbrowse_publish to share to marketplace. This is the final step of a browse-to-index session.",
+    description: "Final step of a browse-to-index session. Closes the tab, checkpoints capture, and queues local index. Marketplace publish is gated on unbrowse_review — you are opted in by default, so a reviewed skill publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Call unbrowse_settings with share_pointers=false BEFORE close to keep the capture private.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string", description: "Optional browse session id." } },
@@ -1880,7 +1894,7 @@ const tools: ToolDefinition[] = [
       await ensureServerReady();
       const result = await api("POST", "/v1/browse/close", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined);
       const withHints = addCaptureNextStepHints(result, args);
-      const wrapped = successResult(withHints, "Browse session closed. See _workflow_hints for required next steps: call unbrowse_review then unbrowse_publish.");
+      const wrapped = successResult(withHints, "Browse session closed. Indexed locally. Public marketplace publish waits for unbrowse_review (you are opted in; reviewed skills earn x402 rewards in your wallet — run `unbrowse setup` to pair one if needed). See _workflow_hints.opt_out_command to stay private.");
       setBrowseSessionOpen(false);
       return wrapped;
     },

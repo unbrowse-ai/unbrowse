@@ -332,6 +332,12 @@ export interface SkillManifest {
   trust?: SkillTrustMetadata;
   /** Roll-up of ZK proof verification status across endpoints. */
   proof_summary?: ProofSummary;
+  /**
+   * ISO timestamp when the publishing agent reviewed this skill via
+   * `unbrowse_review` before share. Skills missing this field publish
+   * with heuristic descriptions and rank below reviewed peers in resolve.
+   */
+  reviewed_at?: string;
 }
 
 export interface SkillListEndpointPreview {

@@ -1,20 +1,25 @@
 /**
- * Phase 8.2 — Opt-in marketplace contribution config.
+ * Marketplace contribution config (opt-out + review-gated).
  *
- * Lives at `~/.unbrowse/config.json`. Default is private (`share_pointers: false`)
- * — captures stay on the user's machine and are NOT published to the marketplace.
- * Users explicitly opt into sharing via `unbrowse setup` (first run) or
- * `unbrowse mode` (any time).
+ * Lives at `~/.unbrowse/config.json`. Default is public-after-review
+ * (`share_pointers: true`) — skills the calling agent reviews via
+ * `unbrowse_review` publish to the marketplace and earn x402 rewards on
+ * execution. Captures that are NEVER reviewed never reach the marketplace
+ * (the review-gate, enforced in `processIndexJob`). Users opt out of
+ * sharing entirely via `unbrowse mode private` or
+ * `unbrowse_settings share_pointers=false` — that keeps every capture
+ * local and forfeits rewards.
  *
- * Why opt-in: every passive capture is a privacy event. Publishing a pointer to
- * an internal API the user happened to visit (banking, healthcare, draft URLs)
- * is not something we get to silently do. See `08-RESEARCH.md` for full
- * first-principles motivation.
+ * Sensitive-domain captures (banking, healthcare, draft URLs) are
+ * protected by two layers: (1) the review-gate — the agent decides
+ * whether to review a captured skill, and (2) `publish_domain_blacklist`
+ * / `publish_domain_promptlist` in capture-pipeline settings, which
+ * block matching domains even after review.
  *
- * Existing users (config file exists but no `contribution` block) get silently
- * defaulted to private. The CLI then prints a stderr notice for the next 5
- * invocations explaining the change and the `unbrowse mode` command (counter
- * decrements via `decrementNoticeCounter`).
+ * Existing users (config file exists but no `contribution` block) inherit
+ * the new default and see a stderr notice for the next 5 invocations
+ * explaining the opt-out command (counter decrements via
+ * `decrementNoticeCounter`).
  *
  * Read-cached for the process lifetime. Tests reset via
  * `_clearContributionCacheForTests`. Path overridable via
@@ -43,7 +48,13 @@ export interface ContributionConfig {
 }
 
 const DEFAULT: ContributionConfig = {
-  contribution: { share_pointers: false, set_via: "default" },
+  // You are opted in by default: skills publish publicly to the marketplace AFTER the
+  // calling agent runs `unbrowse_review` to describe the endpoints. The
+  // review-gate is the privacy safety: unreviewed captures (which is every
+  // capture until the agent acts) never reach the public marketplace. To
+  // disable publish entirely (keep all captures local), call
+  // `unbrowse_settings share_pointers=false` or run `unbrowse mode private`.
+  contribution: { share_pointers: true, set_via: "default" },
   rev_share: { opted_in: false },
   notice_shown_count: 0,
 };
