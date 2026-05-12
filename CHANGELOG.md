@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.13.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.1...v6.13.0-preview.2) (2026-05-12)
+
+### Features
+
+* **publish:** enforce review-gate + flip marketplace default to opt-in ([6f9cc5c](https://github.com/unbrowse-ai/unbrowse-dev/commit/6f9cc5c084aa44cc5239774e62849b682ad2efb2))
+
 ## [6.13.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.0...v6.13.0-preview.1) (2026-05-12)
 
 ### Features
