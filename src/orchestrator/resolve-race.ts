@@ -313,6 +313,32 @@ export async function runResolveRace(args: RunResolveRaceArgs): Promise<RunResol
     });
   }
 
+  // Racer 2b: marketplace lookup by host — fires whenever the contextUrl has a
+  // resolvable host (cold-domain case). Without this, a published skill for
+  // reddit.com would never be consulted unless the caller already knew the
+  // skill_id. AC1 of MCP audit hand-off.
+  const marketplaceHost = (() => {
+    if (!args.contextUrl) return null;
+    try {
+      return new URL(args.contextUrl).host || null;
+    } catch {
+      return null;
+    }
+  })();
+  if (marketplaceHost && marketplaceHost !== args.knownSkillId) {
+    racers.push({
+      name: "marketplace",
+      start: async () => {
+        const t = Date.now();
+        const lookup = args.marketplaceLookup ?? getSkillCached;
+        const skill = await lookup(marketplaceHost, args.clientScope);
+        if (!skill) throw new Error("not_found");
+        return { kind: "marketplace" as const, skill, ms: Date.now() - t };
+      },
+      isValid: (r) => r.kind === "marketplace" && Array.isArray((r as RaceWinnerMarketplace).skill.endpoints) && (r as RaceWinnerMarketplace).skill.endpoints.length > 0,
+    });
+  }
+
   // Racer 3: probe — always available when a URL exists. Uses Phase 7 probeUrl.
   // We construct an AbortController so the in-flight fetch is canceled when
   // another racer wins or the deadline fires.
