@@ -139,7 +139,10 @@ function previewValue(value: unknown): string {
 }
 
 export function successResult(value: unknown, summary?: string): ToolResult {
-  const dieted = dietIfOversize(value);
+  // Envelope wraps the dieted value with a `content[].text` preview channel
+  // and JSON-RPC framing. Reserve headroom so the wire body stays within the
+  // cap even after envelope overhead is added.
+  const dieted = dietIfOversize(value, WIRE_BUDGET_CHARS - 1024);
   return {
     content: [
       {
