@@ -1,3 +1,26 @@
+# ✅ CLOSED in commits `a29c20f0` + (this commit)
+
+Both the listChanged contract drift AND the follow-on TOOL POLICY drift
+are now resolved. Final `bun test tests/mcp-*.test.ts` reports 44 pass /
+0 fail. The fix landed as a series of targeted updates to stale
+assertions in `tests/mcp-stdio.test.ts`:
+
+- L270, L272: `tools.listChanged` / `prompts.listChanged` flipped to `true`
+  to match the dynamic-list contract.
+- L274: replaced stale `"TOOL POLICY"` marker with `"ALWAYS resolve first"`,
+  which is anchored in SKILL.md's `## Rules` section.
+- L292, L302-307: removed assertions for `unbrowse_snap`/`_click`/`_close`
+  presence + inputSchemas — these are dynamically hidden until a browse
+  session is open and are exercised in
+  `tests/mcp-cheatsheet-listchanged.test.ts`. Not duplicated here.
+- L296-297: replaced stale `"Two tool calls is the contract"` description
+  marker with `"ranked shortlist"`, anchored in the current resolve tool
+  description.
+
+What follows is the original ticket text for historical reference.
+
+---
+
 # Ticket — `mcp-stdio.test.ts` expects `listChanged:false` but server now advertises `true`
 
 **Severity:** P2 (test/contract drift, no user impact)

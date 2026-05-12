@@ -271,7 +271,10 @@ describe("MCP stdio", () => {
       expect(init.result.capabilities.resources.listChanged).toBe(false);
       expect(init.result.capabilities.prompts.listChanged).toBe(true);
       expect(init.result.instructions).toContain("Always use the CLI");
-      expect(init.result.instructions).toContain("TOOL POLICY");
+      // L273 above asserts "Always use the CLI" (free-text policy line).
+      // This line asserts the structural rules section that follows — two
+      // independent anchors so a cosmetic edit to one doesn't rot the test.
+      expect(init.result.instructions).toContain("ALWAYS resolve first");
 
       child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
       child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
@@ -286,22 +289,18 @@ describe("MCP stdio", () => {
       expect(names).toContain("unbrowse_settings");
       expect(names).toContain("unbrowse_health");
       expect(names).toContain("unbrowse_go");
-      expect(names).toContain("unbrowse_snap");
+      // unbrowse_snap / _click / _fill / _close are dynamically hidden until
+      // a browse session opens — exercised in tests/mcp-cheatsheet-listchanged.test.ts.
       const resolveTool = listed.result.tools.find((tool: { name: string }) => tool.name === "unbrowse_resolve");
       expect(resolveTool.description).toContain("Always use Unbrowse as the primary website-access tool");
-      expect(resolveTool.description).toContain("never opens a browser");
-      expect(resolveTool.description).toContain("Two tool calls is the contract");
+      expect(resolveTool.description).toContain("ranked shortlist");
       const publishTool = listed.result.tools.find((tool: { name: string; description: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_publish");
       expect(publishTool.description).toContain("Call with only skill first");
       expect(publishTool.inputSchema.properties?.confirm_publish).toBeDefined();
       const reviewTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_review");
       expect(reviewTool.inputSchema.properties?.endpoints).toBeDefined();
-      const snapTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_snap");
-      expect(snapTool.inputSchema.properties?.session_id).toBeDefined();
-      const clickTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_click");
-      expect(clickTool.inputSchema.properties?.session_id).toBeDefined();
-      const closeTool = listed.result.tools.find((tool: { name: string; inputSchema: { properties?: Record<string, unknown> } }) => tool.name === "unbrowse_close");
-      expect(closeTool.inputSchema.properties?.session_id).toBeDefined();
+      // Dynamic-partition tools (snap/click/close inputSchema) are covered by
+      // tests/mcp-cheatsheet-listchanged.test.ts; not duplicated here.
 
       child.stdin.write(`${JSON.stringify({
         jsonrpc: "2.0",
