@@ -22,7 +22,9 @@ done < <(grep -n '^## ' "$file" || true)
 
 if [ "${#headings[@]}" -lt 6 ]; then
   echo "FAIL: found ${#headings[@]} H2 headings, need 6"
-  for h in "${headings[@]}"; do echo "  $h"; done
+  if [ "${#headings[@]}" -gt 0 ]; then
+    for h in "${headings[@]}"; do echo "  $h"; done
+  fi
   exit 1
 fi
 
@@ -40,11 +42,19 @@ done
 
 # Verdict enum: first non-blank line after `## Verdict` must start with
 # TRANSIENT, BUG, or UNKNOWN (case-insensitive, optional **bold**).
-verdict_lineno="$(grep -n '^## Verdict' "$file" | head -1 | cut -d: -f1)"
-if [ -z "$verdict_lineno" ]; then
+verdict_lines="$(grep -n '^## Verdict' "$file" || true)"
+verdict_count="$(printf '%s\n' "$verdict_lines" | grep -c '.' || true)"
+if [ "$verdict_count" -eq 0 ]; then
   echo "FAIL: no '## Verdict' heading found"
   exit 1
 fi
+if [ "$verdict_count" -gt 1 ]; then
+  echo "FAIL: duplicate '## Verdict' heading — found $verdict_count occurrences (must be exactly 1)"
+  printf '%s\n' "$verdict_lines" | sed 's/^/  /'
+  exit 1
+fi
+verdict_lineno="$(printf '%s' "$verdict_lines" | cut -d: -f1)"
+
 
 verdict_value="$(awk -v start="$verdict_lineno" 'NR>start && NF>0 {print; exit}' "$file")"
 verdict_clean="$(printf '%s' "$verdict_value" | sed -E 's/^[[:space:]*]+//' | awk '{print $1}' | tr -cd '[:alpha:]')"
