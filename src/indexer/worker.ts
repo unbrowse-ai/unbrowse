@@ -1,30 +1,24 @@
 // Drain loop for the background index queue. Day-5 creature.
-import { mkdir, rename } from "node:fs/promises";
-import { join, basename } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import type { BackgroundIndexJob } from "./index.js";
-import { listJobs, deleteJob, writeJob, acquireLock, type JobEnvelope } from "./queue-store.js";
-// JobEnvelope is part of the contract; reference it to keep it imported under isolatedModules.
-export type _DrainJobEnvelope = JobEnvelope;
+import { listJobs, deleteJob, writeJob, acquireLock, touchHeartbeat, sanitizeDomain } from "./queue-store.js";
 
 export type DrainProcessor = (job: BackgroundIndexJob) => Promise<void>;
-
-function sanitizedDomainOf(domain: string): string {
-  const replaced = domain.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.\.+/g, "__");
-  return replaced.length > 200 ? replaced.slice(0, 200) : replaced;
-}
 
 export async function drainOnce(
   queueDir: string,
   processor: DrainProcessor,
   maxAttempts: number = 3,
 ): Promise<{ processed: number; failed: number; deadLettered: number }> {
+  await touchHeartbeat(queueDir).catch(() => {});
   let processed = 0;
   let failed = 0;
   let deadLettered = 0;
 
   const jobs = await listJobs(queueDir);
   for (const { path, envelope } of jobs) {
-    const lockPath = join(queueDir, sanitizedDomainOf(envelope.domain) + ".lock");
+    const lockPath = join(queueDir, sanitizeDomain(envelope.domain) + ".lock");
     const release = await acquireLock(lockPath);
     if (release === null) continue;
 
@@ -78,6 +72,7 @@ export async function drainUntilEmpty(
 
   let lastProgressAt = Date.now();
   for (;;) {
+    await touchHeartbeat(queueDir).catch(() => {});
     const result = await drainOnce(queueDir, processor, maxAttempts);
     const madeProgress =
       result.processed > 0 || result.failed > 0 || result.deadLettered > 0;

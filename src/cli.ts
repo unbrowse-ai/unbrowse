@@ -50,6 +50,51 @@ const FRONTEND_URL = (process.env.UNBROWSE_FRONTEND_URL || process.env.PUBLIC_FR
 let walletNudgeShown = false;
 
 // ---------------------------------------------------------------------------
+// Background-queue sweep (opportunistic) + hidden __drain-queue verb
+// ---------------------------------------------------------------------------
+
+import { stat as _statForQueue, readdir as _readdirForQueue } from "node:fs/promises";
+import { join as _joinForQueue } from "node:path";
+
+function _getQueueDir(): string {
+  return _joinForQueue(process.env.HOME ?? "/tmp", ".unbrowse", "queue", "pending");
+}
+function _getHeartbeatPath(): string {
+  return _joinForQueue(process.env.HOME ?? "/tmp", ".unbrowse", "queue", ".heartbeat");
+}
+async function _isHeartbeatStale(maxAgeMs: number = 10_000): Promise<boolean> {
+  try {
+    const s = await _statForQueue(_getHeartbeatPath());
+    return Date.now() - s.mtimeMs > maxAgeMs;
+  } catch {
+    return true;
+  }
+}
+async function _hasPendingJobs(): Promise<boolean> {
+  try {
+    const entries = await _readdirForQueue(_getQueueDir());
+    return entries.some((e) => e.endsWith(".json") && !e.endsWith(".tmp"));
+  } catch {
+    return false;
+  }
+}
+function _spawnDrainWorker(): void {
+  const child = spawn(process.execPath, [process.argv[1] ?? "", "__drain-queue"], {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+}
+async function _maybeSweepQueue(): Promise<void> {
+  if (process.env.UNBROWSE_NO_SWEEP === "1") return;
+  if (process.env.UNBROWSE_INLINE_INDEX === "1") return;
+  if (!(await _hasPendingJobs())) return;
+  if (!(await _isHeartbeatStale())) return;
+  _spawnDrainWorker();
+}
+
+
+// ---------------------------------------------------------------------------
 // Arg parser
 // ---------------------------------------------------------------------------
 
@@ -3791,6 +3836,21 @@ async function main(): Promise<void> {
     }
     command = subcommand;
   }
+
+  if (command === "__drain-queue") {
+    try {
+      const { drainUntilEmpty } = await import("./indexer/worker.js");
+      const { _processIndexJobForCli } = await import("./indexer/index.js");
+      await drainUntilEmpty(_getQueueDir(), _processIndexJobForCli);
+      process.exit(0);
+    } catch (err) {
+      console.error(`[__drain-queue] error: ${(err as Error)?.message ?? err}`);
+      process.exit(1);
+    }
+  }
+
+  _maybeSweepQueue().catch(() => {});
+
   // Stash CLI -p key=val params on flags object so command handlers can read them.
   if (Object.keys(cliParams).length > 0) {
     (flags as Record<string, unknown>)._params = cliParams;

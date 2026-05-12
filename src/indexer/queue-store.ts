@@ -1,5 +1,5 @@
 // Pure disk I/O for the background index queue. Day-3 seed.
-import { mkdir, writeFile, rename, readdir, readFile, unlink, open } from "node:fs/promises";
+import { mkdir, writeFile, rename, readdir, readFile, unlink, open, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { BackgroundIndexJob } from "./index.js";
@@ -12,7 +12,7 @@ export interface JobEnvelope {
   job: BackgroundIndexJob;
 }
 
-function sanitizeDomain(domain: string): string {
+export function sanitizeDomain(domain: string): string {
   const replaced = domain.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.\.+/g, "__");
   // Cap basename at 200 chars so `${name}.${queuedAt}-${rand}.json.tmp` fits in 255 bytes
   return replaced.length > 200 ? replaced.slice(0, 200) : replaced;
@@ -110,27 +110,23 @@ export async function acquireLock(lockPath: string): Promise<(() => Promise<void
   const first = await tryCreate();
   if (first !== undefined) return first;
 
-  // EEXIST: inspect holder
+  // EEXIST: inspect holder. "Alive" → return null; otherwise (stale, ESRCH, or
+  // corrupt PID content) fall through to unlink + retry.
   let alive = false;
-  let corrupt = false;
   try {
     const raw = await readFile(lockPath, "utf8");
     const pid = Number.parseInt(raw.trim(), 10);
-    if (!Number.isFinite(pid) || pid <= 0) {
-      corrupt = true;
-    } else {
+    if (Number.isFinite(pid) && pid > 0) {
       try {
         process.kill(pid, 0);
         alive = true;
       } catch (e) {
         const code = (e as NodeJS.ErrnoException).code;
         if (code === "EPERM") alive = true;
-        else if (code === "ESRCH") alive = false;
-        else corrupt = true;
       }
     }
   } catch {
-    corrupt = true;
+    // Corrupt or unreadable lock content — treat as stale.
   }
 
   if (alive) return null;
@@ -143,7 +139,24 @@ export async function acquireLock(lockPath: string): Promise<(() => Promise<void
       // Someone else may have cleaned it; either way, attempt one more create
     }
   }
-  void corrupt;
   const second = await tryCreate();
   return second === undefined ? null : second;
+}
+
+export async function touchHeartbeat(queueDir: string): Promise<void> {
+  const absDir = resolve(queueDir);
+  await mkdir(absDir, { recursive: true });
+  const path = join(absDir, ".heartbeat");
+  await writeFile(path, String(Date.now()));
+}
+
+export async function heartbeatAgeMs(queueDir: string): Promise<number> {
+  const path = join(resolve(queueDir), ".heartbeat");
+  try {
+    const st = await stat(path);
+    return Date.now() - st.mtimeMs;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return Number.POSITIVE_INFINITY;
+    throw err;
+  }
 }
