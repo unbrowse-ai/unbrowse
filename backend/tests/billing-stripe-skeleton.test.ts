@@ -42,11 +42,12 @@ function ctx(vars: { agent_id?: string; user_id?: string } = {}) {
 }
 
 describe("admission — landmines that resolve WITHOUT touching the SDK", () => {
-  it("admits __admin__ without user_id and skips usage", async () => {
+  it("legacy __admin__ without user_id falls through to x402 (no escape hatch)", async () => {
+    // Admin escape hatch was removed — admin calls hit x402 like everyone else,
+    // preserving the existing x402-search-route.test.ts contract.
     const result = await subscriptionAdmits(BASE_ENV, ctx({ agent_id: "__admin__" }));
-    expect(result.admit).toBe(true);
-    expect(result.reason).toBe("admit_admin");
-    expect(result.consumed).toBeUndefined();
+    expect(result.admit).toBe(false);
+    expect(result.reason).toBe("no_user");
   });
 
   it("returns no_user (admit=false) when user_id is missing — x402 falls through (F1)", async () => {
