@@ -557,12 +557,16 @@ export default function AccountPage() {
         <p className="text-sm text-text-secondary mb-8">
           Sign in to view your account.
         </p>
-        <div className="rounded-2xl border border-border bg-surface-sunken p-5 text-sm text-text-secondary">
-          No API key found.{" "}
-          <Link href="/" className="text-text-primary underline">
-            Go to the home page
-          </Link>{" "}
-          to sign in or generate a key.
+        <div className="rounded-2xl border border-border bg-surface-sunken p-5 text-sm text-text-secondary space-y-3">
+          <p>No API key found in this browser.</p>
+          <div className="flex gap-3">
+            <Link href="/login" className="rounded-2xl bg-text-primary text-surface px-4 py-2 text-sm font-medium hover:opacity-90">
+              Sign in with email
+            </Link>
+            <Link href="/" className="rounded-2xl border border-border px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface-raised">
+              Generate a key on the home page
+            </Link>
+          </div>
         </div>
       </main>
     );
