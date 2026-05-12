@@ -4093,6 +4093,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     let pathname = "";
     let hostname = "";
     let contextPath = "";
+    let contextHost = "";
     let contextLeaf = "";
     let contextQueryKeys = new Set<string>();
     const semantic = resolveEndpointSemantic(ep);
@@ -4109,6 +4110,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       if (contextUrl) {
         const cu = new URL(contextUrl);
         contextPath = cu.pathname;
+        contextHost = cu.hostname;
         const contextSegs = cu.pathname.split("/").filter(Boolean);
         contextLeaf = contextSegs.length > 0 ? decodeURIComponent(contextSegs[contextSegs.length - 1] ?? "").toLowerCase() : "";
         contextQueryKeys = new Set([...cu.searchParams.keys()]);
@@ -4269,6 +4271,29 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       const endpointSegs = pathname.split("/").filter(Boolean);
       if (contextSegs.length > 0 && endpointSegs.length > 0 && contextSegs[0] === endpointSegs[0]) {
         score += 12;
+      }
+
+      // Cross-entity segment mismatch: endpoint was captured for a different entity than
+      // the one in the context URL (e.g. r/programming captured but user wants r/singularity).
+      // Concrete literal path segments that contradict the context URL's corresponding
+      // segment are a hard wrong-entity signal. Placeholder segments ({subreddit}) are skipped
+      // Cross-entity penalty only fires when the endpoint and the context URL share a host
+      // AND the endpoint is not a generic API root (/graphql, /api, /rest, /rpc). For
+      // cross-subdomain GraphQL (e.g. gql.opensea.io vs opensea.io), positional path
+      // comparison is meaningless — different services have different path conventions.
+      const sameHost = contextHost !== "" && hostname === contextHost;
+      const isGenericApiRoot = /^\/?(graphql|api|rest|rpc|gql)\/?$/i.test(pathname);
+      if (sameHost && !isGenericApiRoot) {
+        const compareLen = Math.min(contextSegs.length, endpointSegs.length);
+        let concreteMismatches = 0;
+        for (let si = 0; si < compareLen; si++) {
+          const epSeg = endpointSegs[si];
+          if (/^\{[^}]+\}$/.test(epSeg)) continue; // placeholder — no commitment
+          const epDecoded = decodeURIComponent(epSeg).toLowerCase();
+          const ctxDecoded = decodeURIComponent(contextSegs[si]).toLowerCase();
+          if (epDecoded !== ctxDecoded) concreteMismatches++;
+        }
+        if (concreteMismatches > 0) score -= concreteMismatches * 180;
       }
 
       if (contextQueryKeys.size > 0) {
