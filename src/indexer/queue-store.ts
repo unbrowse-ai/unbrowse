@@ -1,5 +1,5 @@
 // Pure disk I/O for the background index queue. Day-3 seed.
-import { mkdir, writeFile, rename, readdir, readFile, unlink } from "node:fs/promises";
+import { mkdir, writeFile, rename, readdir, readFile, unlink, open } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { BackgroundIndexJob } from "./index.js";
@@ -79,4 +79,71 @@ export async function deleteJob(path: string): Promise<void> {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
     throw err;
   }
+}
+
+export async function acquireLock(lockPath: string): Promise<(() => Promise<void>) | null> {
+  const tryCreate = async (): Promise<(() => Promise<void>) | null> => {
+    try {
+      const handle = await open(lockPath, "wx");
+      try {
+        await handle.writeFile(String(process.pid));
+      } finally {
+        await handle.close();
+      }
+      let released = false;
+      return async () => {
+        if (released) return;
+        released = true;
+        try {
+          await unlink(lockPath);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+          throw err;
+        }
+      };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      return undefined as any;
+    }
+  };
+
+  const first = await tryCreate();
+  if (first !== undefined) return first;
+
+  // EEXIST: inspect holder
+  let alive = false;
+  let corrupt = false;
+  try {
+    const raw = await readFile(lockPath, "utf8");
+    const pid = Number.parseInt(raw.trim(), 10);
+    if (!Number.isFinite(pid) || pid <= 0) {
+      corrupt = true;
+    } else {
+      try {
+        process.kill(pid, 0);
+        alive = true;
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code === "EPERM") alive = true;
+        else if (code === "ESRCH") alive = false;
+        else corrupt = true;
+      }
+    }
+  } catch {
+    corrupt = true;
+  }
+
+  if (alive) return null;
+
+  // Stale or corrupt — unlink and retry once
+  try {
+    await unlink(lockPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      // Someone else may have cleaned it; either way, attempt one more create
+    }
+  }
+  void corrupt;
+  const second = await tryCreate();
+  return second === undefined ? null : second;
 }

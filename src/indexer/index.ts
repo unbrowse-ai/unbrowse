@@ -25,9 +25,14 @@ import { getUnbrowseConfigPath } from "../settings.js";
 import { getEndpointDescriptionMetadata } from "../graph/index.js";
 import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
 import { getContributionConfig } from "../config/contribution.js";
+import { writeJob, type JobEnvelope } from "./queue-store.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
+
+function getQueueDir(): string {
+  return join(process.env.HOME ?? "/tmp", ".unbrowse", "queue", "pending");
+}
 
 /** Read agent_id from local config — used for contributor attribution on publish. */
 function getLocalAgentId(): string | undefined {
@@ -137,6 +142,11 @@ const pendingIndexJobs = new Map<string, BackgroundIndexJob>();
 type BackgroundIndexProcessor = (job: BackgroundIndexJob) => Promise<void>;
 let backgroundIndexProcessor: BackgroundIndexProcessor = processIndexJob;
 
+function shouldRunInline(): boolean {
+  if (process.env.UNBROWSE_INLINE_INDEX === "1") return true;
+  return backgroundIndexProcessor !== processIndexJob;
+}
+
 export interface BackgroundIndexJob {
   skill: SkillManifest;
   domain: string;
@@ -163,32 +173,47 @@ export interface IndexedSkillState {
  * job completes.
  */
 export function queueBackgroundIndex(job: BackgroundIndexJob): void {
-  const key = job.domain;
-  if (indexInFlight.has(key)) {
-    const pending = pendingIndexJobs.get(key);
-    pendingIndexJobs.set(key, pending ? mergeBackgroundIndexJobs(pending, job) : job);
-    console.error(`[capture-pipeline] coalesced pending job for ${key}: already in flight`);
+  if (shouldRunInline()) {
+    const key = job.domain;
+    if (indexInFlight.has(key)) {
+      const pending = pendingIndexJobs.get(key);
+      pendingIndexJobs.set(key, pending ? mergeBackgroundIndexJobs(pending, job) : job);
+      console.error(`[capture-pipeline] coalesced pending job for ${key}: already in flight`);
+      return;
+    }
+
+    const work = backgroundIndexProcessor(job)
+      .catch(err =>
+        console.error(`[capture-pipeline] failed for ${key}: ${(err as Error).message}`)
+      )
+      .finally(() => {
+        indexInFlight.delete(key);
+        const pending = pendingIndexJobs.get(key);
+        if (pending) {
+          pendingIndexJobs.delete(key);
+          console.error(`[capture-pipeline] replaying coalesced job for ${key}`);
+          queueBackgroundIndex(pending);
+        }
+      });
+
+    indexInFlight.set(key, work);
+    console.error(
+      `[capture-pipeline] queued for ${key}`
+        + (job.publishAfterIndex ? " (index+publish)" : " (index-only)"),
+    );
     return;
   }
 
-  const work = backgroundIndexProcessor(job)
-    .catch(err =>
-      console.error(`[capture-pipeline] failed for ${key}: ${(err as Error).message}`)
-    )
-    .finally(() => {
-      indexInFlight.delete(key);
-      const pending = pendingIndexJobs.get(key);
-      if (pending) {
-        pendingIndexJobs.delete(key);
-        console.error(`[capture-pipeline] replaying coalesced job for ${key}`);
-        queueBackgroundIndex(pending);
-      }
-    });
-
-  indexInFlight.set(key, work);
-  console.error(
-    `[capture-pipeline] queued for ${key}`
-      + (job.publishAfterIndex ? " (index+publish)" : " (index-only)"),
+  // Disk path (Day 5): write envelope; worker (Day 6) will spawn separately.
+  const envelope: JobEnvelope = {
+    version: 1,
+    domain: job.domain,
+    queuedAt: Date.now(),
+    attempts: 0,
+    job,
+  };
+  writeJob(getQueueDir(), envelope).catch(err =>
+    console.error(`[capture-pipeline] queue write failed: ${(err as Error).message}`),
   );
 }
 
