@@ -138,15 +138,16 @@ function previewValue(value: unknown): string {
     : rendered;
 }
 
-function successResult(value: unknown, summary?: string): ToolResult {
+export function successResult(value: unknown, summary?: string): ToolResult {
+  const dieted = dietIfOversize(value);
   return {
     content: [
       {
         type: "text",
-        text: summary ? `${summary}\n\n${previewValue(value)}` : previewValue(value),
+        text: summary ? `${summary}\n\n${previewValue(dieted)}` : previewValue(dieted),
       },
     ],
-    structuredContent: value,
+    structuredContent: dieted,
   };
 }
 
@@ -761,7 +762,7 @@ function capOversizeArrays(value: unknown): unknown {
   return value;
 }
 
-function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHARS): unknown {
+export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHARS): unknown {
   const initial = JSON.stringify(value);
   if (!initial || initial.length <= budget) return value;
 
@@ -802,7 +803,6 @@ function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHARS): unk
     body_excerpt: "",
   };
 }
-
 export function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
   const baseValue = result.result ?? result;
 
