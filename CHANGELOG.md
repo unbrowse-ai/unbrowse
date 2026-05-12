@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.13.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.0...v6.13.0-preview.1) (2026-05-12)
+
+### Features
+
+* **resolve:** wire Exa into budget-race probe-only branch ([f84110e](https://github.com/unbrowse-ai/unbrowse-dev/commit/f84110e8e20ba74350d637bcb6ea722079c4f368))
+
+### Bug Fixes
+
+* **capture:** detect X.com-style GraphQL bodies (variables + features) ([ae938a8](https://github.com/unbrowse-ai/unbrowse-dev/commit/ae938a8eb099b73d167f5869559bf2b0b3791286))
+* **execution:** evict stale endpoints from local route cache on 404/410 ([2fe5625](https://github.com/unbrowse-ai/unbrowse-dev/commit/2fe5625132db9fe0c467ce7b3c8ea443f08c5283))
+* **ranking:** penalize cross-entity URL template mismatches ([6d9b65e](https://github.com/unbrowse-ai/unbrowse-dev/commit/6d9b65ee665e55a012da90d874a4d7cc9c513889))
+
 ## [6.13.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.12.0...v6.13.0-preview.0) (2026-05-11)
 
 ### Features
