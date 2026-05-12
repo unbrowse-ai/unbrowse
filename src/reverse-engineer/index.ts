@@ -374,7 +374,7 @@ function isGraphqlRequestBody(body: string | undefined): boolean {
         if (typeof obj.fb_api_req_friendly_name === "string") return true;
         const q = typeof obj.query === "string" ? obj.query : "";
         if (/^\s*(query|mutation|subscription)\b/i.test(q)) return true;
-        if ("variables" in obj && "extensions" in obj) return true;
+        if ("variables" in obj && ("extensions" in obj || "features" in obj)) return true;
       }
     } catch { /* not JSON */ }
   }
