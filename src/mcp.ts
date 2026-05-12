@@ -9,7 +9,7 @@ import { ensureLocalServer } from "./runtime/local-server.js";
 import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./workflow/publish.js";
 import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
-import { getAgentId, getCreatorEarnings, getMyProfile, getTransactionHistory } from "./client/index.js";
+import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory } from "./client/index.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -1992,6 +1992,75 @@ const tools: ToolDefinition[] = [
       await ensureServerReady();
       const result = await api("GET", `/v1/skills/${args.skill_id}/validate`, args.url ? { url: args.url } : undefined);
       return successResult(result, "Skill validation complete. Returns screenshots + endpoint match quality.");
+    },
+  },
+  {
+    name: "billing_status",
+    description: "Returns the caller's Stripe subscription status (plan, quota, current-period usage).",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+    handler: async () => {
+      const apiKey = getApiKey();
+      if (!apiKey) return errorResult("No API key configured. Run `unbrowse setup` first.");
+      const { DEFAULT_BACKEND_URL } = await import("./version.js");
+      const base = process.env.UNBROWSE_API_URL ?? process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
+      const r = await fetch(`${base}/v1/billing/me`, { headers: { Authorization: `Bearer ${apiKey}` } });
+      const body = (await r.json()) as Record<string, unknown>;
+      if (typeof body.error === "string") return errorResult(body.error, body);
+      return successResult(body, "Billing status.");
+    },
+  },
+  {
+    name: "billing_subscribe_url",
+    description: "Returns a Stripe Checkout URL the user can open to subscribe to a paid plan.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        return_url: { type: "string", description: "Optional URL to redirect to after checkout completes." },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      const apiKey = getApiKey();
+      if (!apiKey) return errorResult("No API key configured. Run `unbrowse setup` first.");
+      const { DEFAULT_BACKEND_URL } = await import("./version.js");
+      const base = process.env.UNBROWSE_API_URL ?? process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
+      const payload: Record<string, unknown> = {};
+      if (typeof args.return_url === "string") payload.return_url = args.return_url;
+      const r = await fetch(`${base}/v1/billing/checkout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = (await r.json()) as Record<string, unknown>;
+      if (typeof body.error === "string") return errorResult(body.error, body);
+      return successResult(body, "Stripe checkout URL.");
+    },
+  },
+  {
+    name: "billing_portal_url",
+    description: "Returns a Stripe customer-portal URL the user can open to manage their subscription.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        return_url: { type: "string", description: "Optional URL to redirect to after the portal session ends." },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      const apiKey = getApiKey();
+      if (!apiKey) return errorResult("No API key configured. Run `unbrowse setup` first.");
+      const { DEFAULT_BACKEND_URL } = await import("./version.js");
+      const base = process.env.UNBROWSE_API_URL ?? process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
+      const query = typeof args.return_url === "string" ? `?return_url=${encodeURIComponent(args.return_url)}` : "";
+      const r = await fetch(`${base}/v1/billing/portal${query}`, { headers: { Authorization: `Bearer ${apiKey}` } });
+      const body = (await r.json()) as Record<string, unknown>;
+      if (typeof body.error === "string") return errorResult(body.error, body);
+      return successResult(body, "Stripe customer portal URL.");
     },
   },
 ];

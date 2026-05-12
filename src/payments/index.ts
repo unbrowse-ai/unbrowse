@@ -28,7 +28,48 @@ export interface PaymentRequirement {
   memo?: string;
 }
 
-export type PaymentMethod = "credits" | "x402" | "free" | "indexing";
+export type PaymentMethod = "credits" | "x402" | "free" | "indexing" | "subscription";
+
+// ---------------------------------------------------------------------------
+// Subscription billing header parsing — X-Unbrowse-Billing
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse the X-Unbrowse-Billing header value emitted by the backend when a
+ * request is admitted under a subscription / overage / admin path.
+ *
+ * Recognized shapes:
+ *   - "subscription consumed=N/Q"
+ *   - "overage consumed=N/Q"
+ *   - "admin consumed=N/Q"   (Q may be 0)
+ *
+ * Returns null if the header is absent or malformed.
+ */
+export function parseSubscriptionBillingHeader(
+  headerValue: string | undefined,
+): { kind: "subscription" | "overage" | "admin"; consumed: number; quota: number } | null {
+  if (!headerValue) return null;
+  const m = headerValue.trim().match(/^(subscription|overage|admin)\s+consumed=(\d+)\/(\d+)\s*$/);
+  if (!m) return null;
+  const kind = m[1] as "subscription" | "overage" | "admin";
+  const consumed = Number.parseInt(m[2], 10);
+  const quota = Number.parseInt(m[3], 10);
+  if (!Number.isFinite(consumed) || !Number.isFinite(quota)) return null;
+  return { kind, consumed, quota };
+}
+
+/**
+ * Inspect a fetch Response for an X-Unbrowse-Billing header and convert it
+ * into a {method, consumed, quota} record. Returns null when the header is
+ * absent or malformed.
+ */
+export function extractBillingFromResponse(
+  response: Response,
+): { method: PaymentMethod; consumed?: number; quota?: number } | null {
+  const parsed = parseSubscriptionBillingHeader(response.headers.get("X-Unbrowse-Billing") ?? undefined);
+  if (!parsed) return null;
+  return { method: "subscription", consumed: parsed.consumed, quota: parsed.quota };
+}
 
 export type PaymentStatus =
   | "paid"

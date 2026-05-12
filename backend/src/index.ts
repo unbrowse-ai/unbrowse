@@ -20,6 +20,7 @@ import { blogRoutes } from "./routes/blog.js";
 import { landingRoutes } from "./routes/landing.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { creditRoutes } from "./routes/credits.js";
+import { billingRoutes } from "./routes/billing.js";
 import { authRoutes } from "./routes/auth.js";
 import { accountRoutes } from "./routes/account.js";
 import { syntheticRoutes } from "./routes/synthetic.js";
@@ -67,6 +68,7 @@ app.route("/v1", blogRoutes);
 app.route("/v1", landingRoutes);
 app.route("/v1", webhookRoutes);
 app.route("/v1", creditRoutes);
+app.route("/v1", billingRoutes);
 app.route("/v1", authRoutes);
 app.route("/v1", accountRoutes);
 

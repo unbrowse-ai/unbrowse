@@ -56,6 +56,17 @@ export interface Env {
   DOMAIN_VERIFY_SKIP?: string;
   /** Set to "1"/"true" to require .well-known probe before any non-admin publish. */
   REQUIRE_DOMAIN_VERIFICATION?: string;
+  /**
+   * Stripe — subscription wrapper around x402. Optional; when unset, the
+   * admission ladder falls through to the existing x402 / credits paths
+   * unchanged (falsifier F1).
+   */
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  /** Stripe price ID for the base subscription tier (monthly quota). */
+  STRIPE_PRICE_BASE?: string;
+  /** Stripe price ID for metered overage (per-unit) above the quota. */
+  STRIPE_PRICE_OVERAGE?: string;
 }
 
 // --- Agent identity ---

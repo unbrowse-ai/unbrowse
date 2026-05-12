@@ -2736,6 +2736,80 @@ async function cmdEarnings(flags: Record<string, string | boolean>): Promise<voi
   }
 }
 
+function formatBillingStatus(body: Record<string, unknown>): string {
+  const status = body?.status as string | undefined;
+  if (!status || status === "none") {
+    return "Plan: none (use `unbrowse billing subscribe` to enroll)";
+  }
+  const periodEnd = body?.currentPeriodEnd as number | undefined;
+  const lines: (string | null)[] = [
+    `Plan:    ${status}`,
+    `Quota:   ${body?.quota ?? "?"}`,
+    `Renews:  ${typeof periodEnd === "number" ? new Date(periodEnd * 1000).toISOString().slice(0, 10) : "?"}`,
+    body?.cancelAtPeriodEnd ? "(cancels at period end)" : null,
+  ];
+  return lines.filter((l): l is string => l !== null).join("\n");
+}
+
+async function cmdBilling(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.error("unbrowse billing: no API key configured. Run `unbrowse setup` first.");
+    process.exit(1);
+  }
+  const sub = (args[0] ?? "status").toLowerCase();
+  const { DEFAULT_BACKEND_URL } = await import("./version.js");
+  const base = process.env.UNBROWSE_API_URL ?? process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+  const jsonOnly = !!flags.json;
+
+  if (sub === "status") {
+    const r = await fetch(`${base}/v1/billing/me`, { headers });
+    const body = (await r.json()) as Record<string, unknown>;
+    if (jsonOnly) {
+      console.log(JSON.stringify(body));
+    } else {
+      console.log(formatBillingStatus(body));
+    }
+    return;
+  }
+
+  if (sub === "subscribe") {
+    const r = await fetch(`${base}/v1/billing/checkout`, { method: "POST", headers, body: "{}" });
+    const body = (await r.json()) as { url?: string; error?: string };
+    if (jsonOnly) {
+      console.log(JSON.stringify(body));
+    } else if (body.url) {
+      console.log(body.url);
+    } else {
+      console.error(body.error ?? "unknown error");
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (sub === "portal") {
+    const r = await fetch(`${base}/v1/billing/portal`, { headers });
+    const body = (await r.json()) as { url?: string; error?: string };
+    if (jsonOnly) {
+      console.log(JSON.stringify(body));
+    } else if (body.url) {
+      console.log(body.url);
+    } else {
+      console.error(body.error ?? "unknown error");
+      process.exit(1);
+    }
+    return;
+  }
+
+  console.error(`unknown billing subcommand: ${sub}. Use: status, subscribe, portal`);
+  process.exit(1);
+}
+
+
 function printHelp(): void {
   const r = CLI_REFERENCE;
   const lines: string[] = [
@@ -3756,6 +3830,7 @@ async function main(): Promise<void> {
   }
   if (command === "flywheel") { info("[deprecated] `flywheel` is now `stats --flywheel`"); return cmdFlywheel(flags); }
   if (command === "earnings") { info("[deprecated] `earnings` is now `stats --earnings`"); return cmdEarnings(flags); }
+  if (command === "billing") return cmdBilling(args, flags);
   if (command === "sessions-scan") return cmdSessionsScan(flags);
   if (command === "register") { info("[deprecated] `register` is now `account --register`"); return cmdRegister(flags); }
   if (command === "account") {
@@ -3772,7 +3847,7 @@ async function main(): Promise<void> {
     "status", "inspect", "stop", "restart", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
-    "connect-chrome", "stats", "flywheel", "earnings", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
+    "connect-chrome", "stats", "flywheel", "earnings", "billing", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
