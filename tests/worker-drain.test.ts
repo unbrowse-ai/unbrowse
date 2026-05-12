@@ -189,4 +189,33 @@ describe("worker drain", () => {
     const stillThere = await readFile(tmpPath, "utf8");
     expect(JSON.parse(stillThere).job.domain).toBe("ghost.com");
   });
+
+  test("retry leaves EXACTLY ONE envelope on disk (no duplicate-job race)", async () => {
+    // Audit #2/#3 P1 regression: the retry path used writeJob(new)+deleteJob(old),
+    // which on SIGKILL between the two ops left BOTH the bumped envelope and
+    // the original on disk. Next drain would see two files for the same job
+    // and process it twice. Fix: rewriteJobAtPath does atomic .tmp + rename
+    // over the original path — file count is invariant across crashes.
+    await writeJob(queueDir, envelope(makeJob({ domain: "dup.com", cacheKey: "kd" })));
+
+    const processor: DrainProcessor = async () => {
+      throw new Error("always");
+    };
+
+    await drainOnce(queueDir, processor);
+    const afterFirst = await listJobs(queueDir);
+    expect(afterFirst.length).toBe(1);
+    expect(afterFirst[0]!.envelope.attempts).toBe(1);
+
+    await drainOnce(queueDir, processor);
+    const afterSecond = await listJobs(queueDir);
+    expect(afterSecond.length).toBe(1);
+    expect(afterSecond[0]!.envelope.attempts).toBe(2);
+
+    // Raw on-disk file count must also be exactly 1 (no stranded .tmp, no
+    // duplicate full envelope from the pre-fix race).
+    const raw = await readdir(queueDir);
+    const jsonFiles = raw.filter((e) => e.endsWith(".json"));
+    expect(jsonFiles.length).toBe(1);
+  });
 });

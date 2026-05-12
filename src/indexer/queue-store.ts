@@ -30,6 +30,19 @@ export async function writeJob(queueDir: string, envelope: JobEnvelope): Promise
   return finalPath;
 }
 
+// Atomically replace the envelope at `path` with `envelope`. Writes to a sibling
+// `.tmp` then renames over the target — the file at `path` always observes
+// either the old contents or the new, never partial. Used for retry-counter
+// bumps where we must NOT leave both old and new envelopes on disk
+// concurrently (would duplicate the job on next drain). The on-disk filename
+// keeps its original `queuedAt-rand` suffix; listJobs sorts by envelope.queuedAt
+// (the JSON value), so callers can rotate the in-JSON queuedAt to re-queue.
+export async function rewriteJobAtPath(path: string, envelope: JobEnvelope): Promise<void> {
+  const tmpPath = `${path}.tmp`;
+  await writeFile(tmpPath, JSON.stringify(envelope));
+  await rename(tmpPath, path);
+}
+
 export function isJobEnvelope(value: unknown): value is JobEnvelope {
   if (value === null || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
