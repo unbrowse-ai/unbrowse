@@ -50,7 +50,7 @@ export function Navbar() {
           >
             Discord
           </a>
-          {isAuthenticated && <NavLink href="/dashboard">Dashboard</NavLink>}
+          {isAuthenticated && <><NavLink href="/dashboard">Dashboard</NavLink><NavLink href="/account">Account</NavLink></>}
 
           <div className="w-px h-5 bg-border mx-3" />
 
@@ -157,7 +157,7 @@ export function Navbar() {
             >
               Discord
             </a>
-            {isAuthenticated && <MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</MobileNavLink>}
+            {isAuthenticated && <><MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</MobileNavLink><MobileNavLink href="/account" onClick={() => setMobileOpen(false)}>Account</MobileNavLink></>}
           </div>
         </div>
       )}
