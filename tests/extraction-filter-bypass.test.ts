@@ -212,3 +212,49 @@ describe("extractor filter bypasses (regression probes)", () => {
     expect(endpoints.length).toBe(0);
   });
 });
+
+describe("X.com GraphQL body detection (isGraphqlRequestBody)", () => {
+  it("admits X.com HomeTimeline body (variables + features, no extensions)", () => {
+    const xBody = JSON.stringify({
+      variables: { count: 20, includePromotedContent: true, latestControlAvailable: true },
+      features: { rweb_lists_timeline_redesign_enabled: true, responsive_web_graphql_exclude_directive_enabled: true },
+      queryId: "U0cdisy7QFIoTfu3-Okw0A",
+    });
+    const endpoints = extractEndpoints(
+      [{
+        url: "https://x.com/i/api/graphql/U0cdisy7QFIoTfu3-Okw0A/HomeTimeline",
+        method: "POST",
+        request_headers: { "content-type": "application/json", authorization: "Bearer AAAA" },
+        request_body: xBody,
+        response_status: 200,
+        response_headers: { "content-type": "application/json" },
+        response_body: JSON.stringify({ data: { home: { home_timeline_urt: { instructions: [] } } } }),
+        timestamp: new Date().toISOString(),
+      }],
+      undefined,
+      { pageUrl: "https://x.com/home", intent: "get twitter home timeline" },
+    );
+    expect(endpoints.length).toBeGreaterThan(0);
+    const home = endpoints.find((e) => e.url_template.includes("HomeTimeline"));
+    expect(home).toBeDefined();
+  });
+
+  it("does not regress: still admits variables + extensions shape", () => {
+    const body = JSON.stringify({ operationName: "SearchTweets", variables: { q: "unbrowse" }, extensions: { persistedQuery: { version: 1, sha256Hash: "abc" } } });
+    const endpoints = extractEndpoints(
+      [{
+        url: "https://x.com/i/api/graphql/abc123/SearchTweets",
+        method: "POST",
+        request_headers: { "content-type": "application/json" },
+        request_body: body,
+        response_status: 200,
+        response_headers: { "content-type": "application/json" },
+        response_body: JSON.stringify({ data: { search_by_raw_query: { search_timeline: { timeline: { instructions: [] } } } } }),
+        timestamp: new Date().toISOString(),
+      }],
+      undefined,
+      { pageUrl: "https://x.com/search?q=unbrowse", intent: "search twitter for unbrowse" },
+    );
+    expect(endpoints.length).toBeGreaterThan(0);
+  });
+});
