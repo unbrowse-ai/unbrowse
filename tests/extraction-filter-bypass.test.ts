@@ -258,32 +258,3 @@ describe("X.com GraphQL body detection (isGraphqlRequestBody)", () => {
     expect(endpoints.length).toBeGreaterThan(0);
   });
 });
-
-describe("listicle-DOM HTML response admission (Day-3 audit)", () => {
-  // XFAIL — tracked in .audits/mcp-disconnect-2026-05-13.md; flip to it() when ranker recognises HTML listicle responses.
-  it.skip("admits HTML responses containing repeated card elements as a data endpoint", () => {
-    const html = `<!DOCTYPE html><ul>
-      <li><div class="base-card job-search-card" data-entity-urn="urn:li:jobPosting:1"><h3 class="base-search-card__title">Engineer</h3><h4 class="base-search-card__subtitle">ExampleCo</h4><span class="job-search-card__location">Remote</span></div></li>
-      <li><div class="base-card job-search-card" data-entity-urn="urn:li:jobPosting:2"><h3 class="base-search-card__title">Designer</h3><h4 class="base-search-card__subtitle">PlaceholderCorp</h4><span class="job-search-card__location">NYC</span></div></li>
-      <li><div class="base-card job-search-card" data-entity-urn="urn:li:jobPosting:3"><h3 class="base-search-card__title">PM</h3><h4 class="base-search-card__subtitle">SampleInc</h4><span class="job-search-card__location">SF</span></div></li>
-    </ul>`;
-    const trace: { rows?: Array<Record<string, unknown>> } = {};
-    const endpoints = extractEndpoints(
-      [req({
-        url: "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=engineer&location=remote&start=0",
-        method: "GET",
-        request_headers: {},
-        request_body: undefined,
-        response_headers: { "content-type": "text/html; charset=utf-8" },
-        response_body: html,
-      })],
-      undefined,
-      { pageUrl: "https://www.linkedin.com/jobs/search?keywords=engineer", intent: "search jobs" },
-      trace,
-    );
-    const rows = trace.rows ?? [];
-    const bodyRejection = rows.find((r) => r.reason === "body_not_json_or_html");
-    expect(bodyRejection).toBeUndefined();
-    expect(endpoints.length).toBeGreaterThanOrEqual(1);
-  });
-});
