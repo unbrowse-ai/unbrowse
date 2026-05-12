@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.13.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.5...v6.13.0) (2026-05-12)
+
+### Bug Fixes
+
+* **frontend:** show Sign In in navbar when anonymous; link /account to /login ([7d6924a](https://github.com/unbrowse-ai/unbrowse-dev/commit/7d6924a368f3835f4a3bc9e53c7855c5a4b6a969))
+
 ## [6.13.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.4...v6.13.0-preview.5) (2026-05-12)
 
 ### Features
