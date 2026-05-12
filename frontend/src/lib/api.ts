@@ -74,6 +74,7 @@ export interface SkillManifest {
   created_at: string;
   updated_at: string;
   proof_summary?: ProofSummary;
+  reviewed_at?: string;
 }
 
 export interface PopularSkillSummary {

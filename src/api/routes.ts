@@ -17,7 +17,7 @@ import { getRegistrableDomain } from "../domain.js";
 import { generateLocalDescription, writeSkillSnapshot, readSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
-import { getContributionConfig } from "../config/contribution.js";
+import { getContributionConfig, setContributionConfig } from "../config/contribution.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill } from "../execution/index.js";
 import { rankEndpoints } from "../ranking/index.js";
@@ -528,6 +528,9 @@ export async function registerRoutes(app: FastifyInstance) {
     sessionId?: string,
   ): string {
     const sessionHint = sessionId ? ` --session ${sessionId}` : "";
+    const reviewCommand = result.skill_id
+      ? `unbrowse_review --skill ${result.skill_id} ...`
+      : "unbrowse_review with skill id from this response";
     const publishCommand = checkpointPublishCommand(
       result.skill_id,
       result.publish_policy.mode === "blacklisted" || result.publish_policy.mode === "prompt",
@@ -539,10 +542,17 @@ export async function registerRoutes(app: FastifyInstance) {
         : "Final checkpoint recorded, but no new capture was available to index or publish.";
     }
 
+    const sharePointers = getContributionConfig().contribution.share_pointers;
+
     if (result.publish_policy.mode === "auto") {
+      if (!sharePointers) {
+        return action === "sync"
+          ? `Checkpoint saved. Local index queued. share_pointers=false (private) — nothing publishes to the public marketplace. Run \`${reviewCommand}\` to enrich descriptions locally, or flip to public via \`unbrowse_settings share_pointers=true\` to earn x402 rewards. Continue browsing then \`unbrowse close${sessionHint}\`.`
+          : `Final checkpoint saved. Local index queued. share_pointers=false (private) — nothing publishes to the public marketplace. Run \`${reviewCommand}\` to enrich descriptions locally, or flip to public via \`unbrowse_settings share_pointers=true\` to earn x402 rewards on execution. Rewards land in your wallet — run \`unbrowse setup\` to pair one if you have not already.`;
+      }
       return action === "sync"
-        ? `Checkpoint saved. Background index + publish queued. Continue browsing, then run \`unbrowse close${sessionHint}\` for the final checkpoint.`
-        : "Final checkpoint saved. Background index + publish queued. Inspect the indexed contract or wait for publish to complete.";
+        ? `Checkpoint saved. Local index queued. Public marketplace publish is GATED on review — call \`${reviewCommand}\` to ship (you are opted in by default: reviewed skills publish publicly and earn x402 rewards in your wallet — pair one via \`unbrowse setup\` if needed). To keep this domain private instead, call \`unbrowse_settings share_pointers=false\` BEFORE review. Continue browsing then \`unbrowse close${sessionHint}\`.`
+        : `Final checkpoint saved. Local index queued. Public marketplace publish is GATED on review — call \`${reviewCommand}\` to ship (you are opted in by default: reviewed skills publish publicly and earn x402 rewards in your wallet — pair one via \`unbrowse setup\` if needed). To keep this domain private instead, call \`unbrowse_settings share_pointers=false\` BEFORE review.`;
     }
 
     const base = result.publish_policy.mode === "disabled"
@@ -550,7 +560,7 @@ export async function registerRoutes(app: FastifyInstance) {
       : `Checkpoint saved. Local index queued, but auto-publish did not run: ${result.publish_policy.reason}`;
 
     const suffix = result.skill_id
-      ? ` Review the indexed contract, then run \`${publishCommand}\` only if you own this index.`
+      ? ` Review the indexed contract via \`${reviewCommand}\`, then run \`${publishCommand}\` only if you own this index.`
       : "";
 
     if (action === "sync") {
@@ -580,8 +590,15 @@ export async function registerRoutes(app: FastifyInstance) {
   });
 
   app.get("/v1/settings", async (_req, reply) => {
+    const contributionCfg = getContributionConfig();
     return reply.send({
       capture_pipeline: getCapturePipelineSettings(),
+      contribution: {
+        share_pointers: contributionCfg.contribution.share_pointers,
+        set_via: contributionCfg.contribution.set_via,
+        ...(contributionCfg.contribution.set_at ? { set_at: contributionCfg.contribution.set_at } : {}),
+      },
+      marketplace_visibility: contributionCfg.contribution.share_pointers ? "public" : "private",
     });
   });
 
@@ -617,6 +634,7 @@ export async function registerRoutes(app: FastifyInstance) {
       publish_domain_promptlist?: string[];
       clear_publish_domain_blacklist?: boolean;
       clear_publish_domain_promptlist?: boolean;
+      share_pointers?: boolean;
     };
 
     const settings = updateCapturePipelineSettings({
@@ -633,12 +651,34 @@ export async function registerRoutes(app: FastifyInstance) {
       clear_publish_domain_promptlist: body.clear_publish_domain_promptlist === true,
     });
 
+    if (typeof body.share_pointers === "boolean") {
+      setContributionConfig({
+        contribution: { share_pointers: body.share_pointers, set_via: "mode-command" },
+      });
+    }
+
+    const contributionCfg = getContributionConfig();
+    const sharePointers = contributionCfg.contribution.share_pointers;
+
+    let next_step: string;
+    if (!sharePointers) {
+      next_step = "share_pointers=false (private). Captures stay local; nothing publishes to the public marketplace and no x402 rewards accrue. Flip back with share_pointers=true.";
+    } else if (!settings.auto_publish_checkpoints) {
+      next_step = "share_pointers=true but auto_publish_checkpoints=false: reviewed skills will not auto-publish on close/sync. Use unbrowse_publish explicitly, or re-enable auto_publish.";
+    } else {
+      next_step = "share_pointers=true (you are opted in by default). Reviewed skills publish publicly to the marketplace and earn x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Unreviewed captures stay local. Domain blacklist/promptlist still gates per-domain.";
+    }
+
     return reply.send({
       ok: true,
       capture_pipeline: settings,
-      next_step: settings.auto_publish_checkpoints
-        ? "Auto-publish after sync/close is enabled unless a domain rule blocks it."
-        : "Auto-publish after sync/close is disabled. Use index for local recompute and publish only when you explicitly want remote share.",
+      contribution: {
+        share_pointers: sharePointers,
+        set_via: contributionCfg.contribution.set_via,
+        ...(contributionCfg.contribution.set_at ? { set_at: contributionCfg.contribution.set_at } : {}),
+      },
+      marketplace_visibility: sharePointers ? "public" : "private",
+      next_step,
     });
   });
 
@@ -1102,17 +1142,49 @@ export async function registerRoutes(app: FastifyInstance) {
 
     const updated = mergeAgentReview(skill.endpoints, reviews);
     skill.endpoints = updated;
-    skill.updated_at = new Date().toISOString();
+    const reviewedAt = new Date().toISOString();
+    skill.updated_at = reviewedAt;
+    // reviewed_at acts as the publish-gate marker: processIndexJob skips
+    // marketplace publish for any skill missing this field. Stamping it
+    // here is what unlocks the public publish path.
+    skill.reviewed_at = reviewedAt;
     const updatedWorkflowArtifact = applyWorkflowSchemaReviews(readWorkflowArtifact(skill.skill_id), reviews);
     if (updatedWorkflowArtifact) writeWorkflowArtifact(updatedWorkflowArtifact);
 
     const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
+
+    // You are opted in by default: publish publicly once reviewed. share_pointers=false
+    // means the user explicitly removed themselves from the marketplace; the
+    // domain blacklist/promptlist still gates per-domain. publishIndexedSkill
+    // handles the rest of the validation chain.
+    const { contribution } = getContributionConfig();
+    const checkpointDecision = decideCheckpointPublish(indexed.domain);
+    let publishStatus: "indexed" | "published" | "blocked-validation" | "awaiting_share_optin" | "blocked_by_domain_rule" = "indexed";
+    let publishMessage: string | undefined;
+    if (!contribution.share_pointers) {
+      publishStatus = "awaiting_share_optin";
+      publishMessage = "share_pointers=false — skill reviewed and indexed locally, but not published. Run `unbrowse_settings share_pointers=true` (or `unbrowse mode public`) to publish and earn x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already.";
+    } else if (!checkpointDecision.publishQueued) {
+      publishStatus = "blocked_by_domain_rule";
+      publishMessage = checkpointDecision.reason;
+    } else {
+      try {
+        const publishResult = await publishIndexedSkill(indexed);
+        publishStatus = publishResult.publishStatus;
+      } catch (err) {
+        publishStatus = "indexed";
+        publishMessage = `Publish attempt failed: ${(err as Error).message}. Skill remains indexed locally; retry via unbrowse_publish.`;
+      }
+    }
+
     return reply.send({
       ok: true,
       skill_id: indexed.skill.skill_id,
       endpoints_updated: reviews.length,
       indexed: true,
-      publish_status: "indexed",
+      reviewed_at: reviewedAt,
+      publish_status: publishStatus,
+      ...(publishMessage ? { publish_message: publishMessage } : {}),
       endpoint_count: indexed.skill.endpoints.length,
     });
   });

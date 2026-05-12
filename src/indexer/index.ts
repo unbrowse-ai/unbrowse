@@ -421,6 +421,43 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
   };
 }
 
+/**
+ * Pure predicate for the index→publish gate. Two doors:
+ *   1. `share_pointers` (opt-out flag): false → user has removed themselves
+ *      from the public marketplace; nothing publishes.
+ *   2. `reviewed_at` (review-gate): missing → skill carries heuristic
+ *      descriptions; never goes to the marketplace. The review handler
+ *      stamps `reviewed_at` and re-runs this predicate.
+ *
+ * Returns the decision plus a human-readable reason that callers can log
+ * or surface to the agent. Exported so unit tests can exercise both
+ * doors without invoking the network-bound publishIndexedSkill path.
+ */
+export function shouldPublishAfterIndex(
+  skill: { reviewed_at?: string; skill_id?: string },
+  contribution: { share_pointers: boolean },
+): { publish: boolean; gate: "ok" | "share_pointers_off" | "awaiting_review"; reason: string } {
+  if (!contribution.share_pointers) {
+    return {
+      publish: false,
+      gate: "share_pointers_off",
+      reason: "share_pointers=false (private mode). Run `unbrowse mode public` to opt back in and earn x402 rewards.",
+    };
+  }
+  if (!skill.reviewed_at) {
+    return {
+      publish: false,
+      gate: "awaiting_review",
+      reason: "awaiting review — call unbrowse_review to describe endpoints and publish (default opt-out), or unbrowse_settings share_pointers=false to stay private.",
+    };
+  }
+  return {
+    publish: true,
+    gate: "ok",
+    reason: "reviewed + share_pointers=true",
+  };
+}
+
 async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   const indexed = await indexSkillLocally(job);
   console.error(`[capture-pipeline] local index completed for ${indexed.domain} -> ${indexed.skill.skill_id}`);
@@ -430,15 +467,11 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     return;
   }
 
-  // Phase 8.2 — gate marketplace publish on the user's contribution mode.
-  // When share_pointers=false (default), the local index/cache write above
-  // still happened — only the remote publish is skipped. This is a
-  // privacy-preserving default; users opt into sharing via `unbrowse setup`
-  // or `unbrowse mode`.
   const { contribution } = getContributionConfig();
-  if (!contribution.share_pointers) {
+  const decision = shouldPublishAfterIndex(indexed.skill, contribution);
+  if (!decision.publish) {
     console.error(
-      `[capture-pipeline] share_pointers=false — skipping marketplace publish for skill ${indexed.skill.skill_id} (${indexed.domain}). Run \`unbrowse mode\` to opt into sharing.`,
+      `[capture-pipeline] ${decision.gate} — skipping marketplace publish for skill ${indexed.skill.skill_id} (${indexed.domain}): ${decision.reason}`,
     );
     return;
   }

@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
-import { spawnSync } from "node:child_process";
 
 let workDir: string;
 let cfgPath: string;
@@ -51,16 +50,26 @@ function startStubBackend(canned: (req: CapturedRequest) => { status: number; bo
   });
 }
 
-function runCli(args: string[], env: NodeJS.ProcessEnv): { stdout: string; stderr: string; status: number } {
-  // Run the CLI as a subprocess against the stub backend. --no-auto-start
-  // skips the local-server bootstrap so we're purely exercising the verb +
-  // HTTP envelope shape.
-  const res = spawnSync("bun", ["src/cli.ts", ...args, "--no-auto-start"], {
-    cwd: process.cwd(),
-    env: { ...process.env, ...env },
-    encoding: "utf-8",
+async function runCli(args: string[], env: NodeJS.ProcessEnv): Promise<{ stdout: string; stderr: string; status: number }> {
+  // Async spawn — spawnSync blocks the parent event loop, so the stub HTTP
+  // server in this same process can't accept connections during CLI execution.
+  // The CLI's fetchServerHealth then times out and ensureLocalServer throws
+  // "Server not running" before any /v1/* call lands. Real spawn keeps the
+  // event loop pumping so the stub answers /health.
+  const { spawn } = await import("node:child_process");
+  return new Promise((resolve) => {
+    const child = spawn("bun", ["src/cli.ts", ...args, "--no-auto-start"], {
+      cwd: process.cwd(),
+      env: { ...process.env, ...env },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => { stdout += d.toString("utf-8"); });
+    child.stderr.on("data", (d) => { stderr += d.toString("utf-8"); });
+    child.on("close", (status) => {
+      resolve({ stdout, stderr, status: status ?? 0 });
+    });
   });
-  return { stdout: res.stdout ?? "", stderr: res.stderr ?? "", status: res.status ?? 0 };
 }
 
 describe("unbrowse capture verb — envelope + share_pointers gate", () => {
@@ -78,7 +87,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
       },
     }));
     try {
-      const { stdout, status } = runCli(
+      const { stdout, status } = await runCli(
         ["capture", "--url", "https://example.com", "--intent", "list things"],
         { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
@@ -116,7 +125,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
       },
     }));
     try {
-      const { stdout, status } = runCli(
+      const { stdout, status } = await runCli(
         ["capture", "--url", "https://x.test", "--intent", "x"],
         { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
@@ -142,7 +151,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
       },
     }));
     try {
-      const { stdout, status } = runCli(
+      const { stdout, status } = await runCli(
         ["capture", "--url", "https://empty.test", "--intent", "noop"],
         { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
@@ -158,23 +167,18 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
 });
 
 describe("/v1/capture route — share_pointers gate parity", () => {
-  it("marketplace_published=false when share_pointers=false (default)", async () => {
-    // Stub the orchestrator + execution layers — we're testing the gate logic,
-    // not the live browser pipeline.
+  it("marketplace_published mirrors share_pointers (default true)", async () => {
     const fastify = (await import("fastify")).default;
     const { _clearContributionCacheForTests } = await import("../src/config/contribution.js");
     _clearContributionCacheForTests();
 
     const app = fastify();
-    // Mount a minimal version of the route that mirrors the gate logic,
-    // exercising the same getContributionConfig() path the prod handler uses.
     app.post("/v1/capture", async (req, reply) => {
       const body = req.body as { url?: string; intent?: string };
       if (!body.url) return reply.code(400).send({ error: "url required" });
       const { getContributionConfig } = await import("../src/config/contribution.js");
       const sharePointers = getContributionConfig().contribution.share_pointers;
       const endpointsCount = 2;
-      // success=true to mirror the prod path
       const marketplacePublished = sharePointers && endpointsCount > 0;
       return reply.send({
         skill_id: "skill-test",
@@ -186,19 +190,19 @@ describe("/v1/capture route — share_pointers gate parity", () => {
     });
 
     try {
-      // Default config (no file) → share_pointers=false
+      // Default config (no file) → share_pointers=true (opt-out).
       const r1 = await app.inject({ method: "POST", url: "/v1/capture", payload: { url: "https://t.test", intent: "x" } });
       expect(r1.statusCode).toBe(200);
       const j1 = JSON.parse(r1.body);
-      expect(j1.marketplace_published).toBe(false);
+      expect(j1.marketplace_published).toBe(true);
 
-      // Flip the user opt-in
+      // User opts out
       const { setContributionConfig } = await import("../src/config/contribution.js");
-      setContributionConfig({ contribution: { share_pointers: true, set_via: "setup-prompt" } });
+      setContributionConfig({ contribution: { share_pointers: false, set_via: "mode-command" } });
 
       const r2 = await app.inject({ method: "POST", url: "/v1/capture", payload: { url: "https://t.test", intent: "x" } });
       const j2 = JSON.parse(r2.body);
-      expect(j2.marketplace_published).toBe(true);
+      expect(j2.marketplace_published).toBe(false);
     } finally {
       await app.close();
     }
