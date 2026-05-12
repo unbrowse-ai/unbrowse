@@ -79,11 +79,34 @@ async function _hasPendingJobs(): Promise<boolean> {
   }
 }
 function _spawnDrainWorker(): void {
-  const child = spawn(process.execPath, [process.argv[1] ?? "", "__drain-queue"], {
-    detached: true,
-    stdio: "ignore",
-  });
-  child.unref();
+  // Audit #6 P1 fix: mirror index.ts spawn guards. Without entry guard and
+  // error/exit listeners, a packaged binary with empty argv[1] (or any spawn
+  // failure) silently leaks jobs forever since stdio:"ignore" hides the child's
+  // immediate exit and the heartbeat never gets written.
+  const entry = process.argv[1];
+  if (!entry) {
+    console.error("[unbrowse:sweep] cannot spawn drain worker: process.argv[1] is empty");
+    return;
+  }
+  try {
+    const child = spawn(process.execPath, [entry, "__drain-queue"], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.on("error", (err) => {
+      console.error(`[unbrowse:sweep] drain worker spawn failed: ${(err as Error).message}`);
+    });
+    child.on("exit", (code, signal) => {
+      if (code !== null && code !== 0) {
+        console.error(`[unbrowse:sweep] drain worker exited with code ${code}`);
+      } else if (signal) {
+        console.error(`[unbrowse:sweep] drain worker killed by signal ${signal}`);
+      }
+    });
+    child.unref();
+  } catch (err) {
+    console.error(`[unbrowse:sweep] drain worker spawn threw: ${(err as Error).message}`);
+  }
 }
 async function _maybeSweepQueue(): Promise<void> {
   if (process.env.UNBROWSE_NO_SWEEP === "1") return;

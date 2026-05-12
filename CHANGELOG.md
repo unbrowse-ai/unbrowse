@@ -7,15 +7,26 @@
 - **Disk-backed background index queue** (Phase 1 of stateless unbrowse). The
   background index queue now persists to `~/.unbrowse/queue/pending/` on disk
   instead of in-memory `Map`s. A short-lived `unbrowse <verb>` invocation writes
-  the job and exits; a detached worker drains. Crash-resilient: jobs survive
-  process exit; failed jobs retry up to 3 times then move to
-  `~/.unbrowse/queue/dead/`. Public API unchanged
-  (`queueBackgroundIndex`/`drainPendingIndexJobs`/`isIndexingInFlight`); existing
-  tests pass byte-for-byte because they install a custom processor via
-  `setBackgroundIndexProcessorForTests` which routes through the in-memory
-  inline path. Opt out of disk mode with `UNBROWSE_INLINE_INDEX=1` (test
-  default). Hidden CLI verb `__drain-queue` runs the drainer. See
-  `docs/stateless-unbrowse-plan.md` for the full design.
+  the job and exits; a detached worker drains under a per-domain lock and
+  touches `~/.unbrowse/queue/.heartbeat` each iteration for liveness. Failed
+  jobs retry up to 3 times via atomic in-place envelope rewrite (no
+  duplicate-job race on crash) then move to `~/.unbrowse/queue/dead/`. Public
+  API signatures (`queueBackgroundIndex` / `drainPendingIndexJobs` /
+  `isIndexingInFlight`) unchanged; disk mode is the production default, and
+  `drainPendingIndexJobs` gains a 30-second polling timeout when running in
+  that mode. Every `unbrowse <verb>` invocation does an opportunistic sweep
+  of the queue if the heartbeat is stale (>10s).
+
+  Existing tests pass byte-for-byte: the new `tests/_setup.ts` (preloaded by
+  `bunfig.toml`) sets `UNBROWSE_INLINE_INDEX=1` and `UNBROWSE_NO_SWEEP=1` for
+  `bun test`, routing through the in-memory inline path. Tests that need the
+  disk path explicitly clear the env vars.
+
+  New env vars: `UNBROWSE_INLINE_INDEX=1` forces inline (test default);
+  `UNBROWSE_NO_SWEEP=1` disables the opportunistic startup sweep. Hidden CLI
+  verb `__drain-queue` runs `drainUntilEmpty(processIndexJob)` and exits.
+  See `docs/stateless-unbrowse-plan.md` and
+  `docs/stateless-unbrowse-plan-acceptance-audit.md`.
 
 ## [6.13.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.13.1-preview.0) (2026-05-12)
 

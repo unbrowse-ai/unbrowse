@@ -2,7 +2,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { BackgroundIndexJob } from "./index.js";
-import { listJobs, deleteJob, writeJob, acquireLock, touchHeartbeat, sanitizeDomain } from "./queue-store.js";
+import { listJobs, deleteJob, writeJob, rewriteJobAtPath, acquireLock, touchHeartbeat, sanitizeDomain } from "./queue-store.js";
 
 export type DrainProcessor = (job: BackgroundIndexJob) => Promise<void>;
 
@@ -42,14 +42,17 @@ export async function drainOnce(
           await deleteJob(path);
           deadLettered++;
         } else {
-          await writeJob(queueDir, {
+          // Atomic in-place rewrite: bumps attempts + rotates queuedAt to the
+          // back of the queue without ever having two envelopes on disk for
+          // the same job (audit #2/#3 P1 fix — was writeJob+deleteJob with a
+          // SIGKILL window that duplicated jobs).
+          await rewriteJobAtPath(path, {
             version: 1,
             domain: envelope.domain,
             queuedAt: Date.now(),
             attempts: newAttempts,
             job: envelope.job,
           });
-          await deleteJob(path);
           failed++;
         }
       }
