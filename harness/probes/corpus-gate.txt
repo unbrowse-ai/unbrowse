@@ -1,0 +1,68 @@
+# Release-Gate Bench corpus (release-gate-bench-plan.md)
+# Format: lane | intent | contextUrl
+# Lanes: anchor (10) semantic-rank (8) graphql (6) ssr-list (8) auth-gated (8) hostile (10)
+# Total: 50
+# Coverage denominator excludes auth-gated + hostile that resolve as EXCLUDED_*.
+# Hostile-lane PASS is a yellow flag (anti-bot honey-trap), not celebrated.
+
+# ─── anchor (10) — must-pass; regression here blocks the release ──────────────
+anchor | get top hacker news stories | https://news.ycombinator.com/
+anchor | get package info | https://www.npmjs.com/package/openai
+anchor | search rust crates | https://crates.io/search?q=tokio
+anchor | search github repos | https://github.com/search?q=anthropic&type=repositories
+anchor | get wikipedia article | https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)
+anchor | get mdn page | https://developer.mozilla.org/en-US/docs/Web/API/fetch
+anchor | get arxiv abstract | https://arxiv.org/abs/2604.00694
+anchor | get pypi package info | https://pypi.org/project/anthropic/
+anchor | get dockerhub image tags | https://hub.docker.com/r/library/nginx/tags
+anchor | get devto post | https://dev.to/anthropic
+
+# ─── semantic-rank (8) — A1/A8 entity substitution; catches reddit r/X bug ────
+semantic-rank | get singularity subreddit posts | https://www.reddit.com/r/singularity/
+semantic-rank | get programming subreddit posts | https://www.reddit.com/r/programming/
+semantic-rank | get repo info for anthropics/anthropic-sdk-python | https://github.com/anthropics/anthropic-sdk-python
+semantic-rank | get repo info for vercel/next.js | https://github.com/vercel/next.js
+semantic-rank | get stackoverflow question | https://stackoverflow.com/questions/77531837
+semantic-rank | get stackoverflow question | https://stackoverflow.com/questions/231767
+semantic-rank | get openlibrary work | https://openlibrary.org/works/OL45804W
+semantic-rank | get openlibrary work | https://openlibrary.org/works/OL27448W
+
+# ─── graphql (6) — POST + operationName extraction; X timeline regression ─────
+graphql | search tweets about AI agents | https://x.com/search?q=AI+agents&src=typed_query
+graphql | tweets from elonmusk | https://x.com/elonmusk
+graphql | get home timeline | https://x.com/home
+graphql | get linkedin feed posts | https://www.linkedin.com/feed/
+graphql | get threads timeline | https://www.threads.net/
+graphql | get instagram reels feed | https://www.instagram.com/reels/
+
+# ─── ssr-list (8) — data-rich SSR; page-artifact promotion ────────────────────
+ssr-list | search amazon for usb-c cables | https://www.amazon.com/s?k=usb-c+cable
+ssr-list | search bing for ai agents | https://www.bing.com/search?q=AI+agents
+ssr-list | search jupiter swap SOL to USDC | https://jup.ag/swap/SOL-USDC
+ssr-list | search beatsaver maps | https://beatsaver.com/?q=camellia
+ssr-list | search pubmed papers | https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning
+ssr-list | search hotels in Tokyo | https://www.priceline.com/relax/at/tokyo
+ssr-list | search ebay listings | https://www.ebay.com/sch/i.html?_nkw=keyboard
+ssr-list | search openlibrary books | https://openlibrary.org/search?q=dune
+
+# ─── auth-gated (8) — must hand off, not crash; excluded from denominator ─────
+auth-gated | get gmail inbox messages | https://mail.google.com/mail/u/0/#inbox
+auth-gated | get jmail messages | https://jmail.world/
+auth-gated | get linkedin feed posts | https://www.linkedin.com/feed/
+auth-gated | get notion page content | https://www.notion.so/
+auth-gated | list google drive files | https://drive.google.com/drive/my-drive
+auth-gated | get figma file canvas | https://www.figma.com/files/recent
+auth-gated | get slack channel messages | https://app.slack.com/client/T0/C0
+auth-gated | get x home timeline cold | https://x.com/home
+
+# ─── hostile (10) — vendor-shielded; expected BROWSER_BLOCK; excluded ─────────
+hostile | search ticketmaster events | https://www.ticketmaster.com/search?q=concert
+hostile | search instacart products | https://www.instacart.com/store/s?k=milk
+hostile | search g2 reviews | https://www.g2.com/search?query=crm
+hostile | search zillow listings | https://www.zillow.com/homes/for_sale/
+hostile | search realtor listings | https://www.realtor.com/realestateandhomes-search/Austin_TX
+hostile | search southwest flights | https://www.southwest.com/air/flight-schedules/index.html
+hostile | search nike shoes | https://www.nike.com/w/mens-shoes-nik1zy7ok
+hostile | search target products | https://www.target.com/s?searchTerm=coffee
+hostile | search bestbuy laptops | https://www.bestbuy.com/site/searchpage.jsp?st=laptop
+hostile | search stockx sneakers | https://stockx.com/search?s=jordan

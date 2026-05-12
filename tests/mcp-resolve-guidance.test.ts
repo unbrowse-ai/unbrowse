@@ -51,7 +51,7 @@ describe("addResolveMissGuidance", () => {
         mode: "auth_then_retry",
         when: "The site is gated and the browser flow needs a logged-in session first.",
         next_tools: [
-          "unbrowse_login",
+          "unbrowse_auth_capture",
           "unbrowse_go",
           "unbrowse_snap",
         ],
