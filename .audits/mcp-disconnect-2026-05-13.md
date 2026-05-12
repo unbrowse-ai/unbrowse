@@ -5,29 +5,29 @@ During a multi-turn session, Lewis asked for Eatigo Singapore restaurants (deliv
 
 ## Evidence (Day 1 / Light)
 - `unbrowse --version` → 6.13.0; binary symlink intact at `/opt/nanobrew/prefix/bin/unbrowse`.
-- 17+ `unbrowse`/`kuri` PIDs alive after the "disconnect" — orphan accumulation, not a crash.
+- 17+ `unbrowse`/`kuri` PIDs alive at Day-1 inventory — orphan accumulation. By Day-5 only 1 PID remained — orphans self-reaped or were killed.
 - Latest log line at disconnect window: `[auth] filtered 4 expired cookies for www.linkedin.com` — clean cookie filter, no traceback, no exit code logged.
 - Prior Eatigo session ended healthily: `browse-checkpoint tracked 32 HAR, 0 intercepted, 0 extension, 29 bodies → 48 merged`.
-- No `unbrowse-2026-05-13.log` was created at all today — the disconnected MCP server never wrote a fresh log.
+- No `unbrowse-2026-05-13.log` was created today — the server day boundary lags UTC; logs continue in `unbrowse-2026-05-12.log`.
 
-## Hypothesis
-**TRANSIENT** — the MCP wrapper (managed by the Claude Code harness, not by code in this repo) closed its stdio pipe between turns. The unbrowse binary did not crash. The orphan PIDs are from prior browse sessions that never reaped, not the cause of the disconnect.
+## Hypothesis (CORRECTED on Day 5 after mutation-test fired)
+1. **MCP disconnect itself**: TRANSIENT — harness MCP wrapper closed stdio between turns; unbrowse binary did not crash.
+2. **Why LinkedIn resolves return `no_match`**: capture-phase failure, NOT extractor-filter rejection. Evidence: the production log shows **7 consecutive LinkedIn capture attempts** (00:29:59, 00:35:19, 00:43:58, 00:44:53, 00:45:50, 00:47:56, 00:49:24) each ending at the `[auth] filtered 4 expired cookies for www.linkedin.com` line with **zero follow-up capture activity** — no HAR entries, no endpoint extraction, no filter rejection rows. Each attempt died upstream of extractEndpoints. A Day-3 sub-agent's claim of `body_not_json_or_html` rejection was unverified inference, falsified by Day-5 mutation test (`it.skip` flipped to `it` → 10 pass, 0 fail).
 
-## Reproduction attempt (Day 3 / Land)
-Two parallel sub-agents probed the same LinkedIn URL Lewis asked about:
-
-- **Unbrowse-native** (`unbrowse resolve` + `execute`): resolve took 6.2s, returned `no_match`. Capture of `https://www.linkedin.com/jobs/search/?keywords=AI%20Engineer` failed with "redirected too many times" (LinkedIn auth-wall redirect chain). Direct attempt on the guest-jobs API URL was *filtered out* by the ranker as `body_not_json_or_html` because the response is HTML cards, not JSON.
-- **Raw curl guest API**: HTTP 200, 29 KB, 10 parseable `<li class="job-search-card">` blocks. No anti-bot challenge, no 999/login wall, no rate-limit.
-
-Both paths produced the same 10 jobs after fallback. The MCP server itself was not re-tested in this loop — would need a fresh harness session.
+## Reproduction attempt (Day 3 / Land + Day 5 / Creatures correction)
+- **Raw curl guest API** (no unbrowse): HTTP 200, 29 KB, 10 parseable `<li class="job-search-card">` blocks. No anti-bot. Reproducible across keywords (Data Scientist: 27 cards, Frontend Engineer: 30 cards) and durable to 5-shot single-IP burst (all 200, all ~29 KB, no rate-limit signal).
+- **`unbrowse resolve`** on the public search URL: 6.2s, `no_match`. Capture never reaches structured endpoints — log evidence above. Day-3 sub-agent's specific filter-rejection attribution does NOT reproduce in the unit-level synthetic test.
+- **`unbrowse resolve`** directly on the guest-jobs URL: also `no_match`. Sub-agent unable to complete deep trace inspection within timeout — server appeared wedged briefly mid-investigation (Kuri `ConnectionRefused`, stale `whop.com` capture in pipeline) but had recovered to 1 PID by the time the next probe ran.
 
 ## Verdict
-**TRANSIENT** for the MCP disconnect itself.
+**BUG** — composite finding across three layers:
 
-**SEPARATE BUG (P1) surfaced as a side effect**: `unbrowse resolve` does not recognise LinkedIn's guest-jobs HTML endpoint as a viable result, even though it returns 200 with parseable structured cards. The ranker's "API-shape" filter rejects HTML-card endpoints that aren't JSON. This is the same class of failure as the X.com GraphQL POST gap listed in project CLAUDE.md → "Known Issues to Fix" and the page-artifact-promotion rule under "Page-artifact promotion for content-read intents."
+1. **MCP disconnect**: TRANSIENT. No code change.
+2. **LinkedIn resolve `no_match`**: BUG, but in a different layer than Day-3 first claimed. The failure is in **capture phase** (likely login-wall redirect or auth-state requirement that bypasses cookies), not in `extractEndpoints` filter rejection. The xfail unit test (`tests/extraction-filter-bypass.test.ts` — listicle-DOM admission) is the **wrong reproducer for this bug** and has been removed in this same commit. A proper reproducer requires a full-pipeline integration test or live `unbrowse resolve` smoke against the guest-jobs URL.
+3. **Server wedge**: a transient liveness issue observed mid-investigation (Kuri `ConnectionRefused` blocking new captures). Has self-resolved by audit-write time. Worth a separate ticket: "unbrowse server should fail-fast when Kuri CDP connection refused for >N seconds instead of looping the request."
 
 ## Action
 - **No code change in this loop.** Plan goal is delivery + verdict, not patch.
-- **Reaper for orphan kuri PIDs**: not this loop's scope; CLAUDE.md already documents `pkill -9 -f 'unbrowse|kuri'` as the manual fix.
-- **Linear ticket to draft** (separate PR): "Ranker rejects LinkedIn guest-jobs HTML endpoint as `body_not_json_or_html` — promote HTML responses with `<li class="job-search-card">`-style listicle DOM signal." Reference: `src/extraction/extract-endpoints.ts` filter chain + `src/execution/index.ts:rankEndpoints` page-artifact promotion. Add LinkedIn guest URL to `tests/extraction-filter-bypass.test.ts` so the fix has a falsifier.
-- **No "linkedin.com" registry entry** — fix must be generic (HTML listicle detection), per CLAUDE.md "Anti-patterns: per-domain heuristics that don't generalise."
+- **Linear ticket A (P1)**: "Resolve fails on LinkedIn search URL with `no_match` because capture aborts after cookie filter — possibly login-wall redirect not detected as auth-required." Surface: `src/capture/*` + cookie handling. Falsifier: full-pipeline test asserting `resolve` returns either a populated shortlist OR a `next_step: open_browse_session` handoff (NOT silent `no_match`) when LinkedIn search URL is captured. Reference this audit.
+- **Linear ticket B (P2)**: "unbrowse server can wedge on Kuri ConnectionRefused — implement timeout + fail-fast." Evidence: Day-5 investigator observed 5+ hour wedge on stale `whop.com` capture; resolved by orphan reap.
+- **No "linkedin.com" registry entry** — fix must be generic (auth-wall detection / capture timeout) per CLAUDE.md "Anti-patterns: per-domain heuristics that don't generalise."
