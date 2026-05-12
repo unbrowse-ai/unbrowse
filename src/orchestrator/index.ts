@@ -3522,8 +3522,93 @@ export async function resolveAndExecute(
         // PASS instead of a budget-deadline no_match.
         return buildDeferral(w.skill, "marketplace", { decision_trace: decisionTrace });
       }
-      // probe-only winner: structurally fetchable but no skill known. Same UX
-      // as no_match — surface probe evidence + next_step capture.
+      // probe-only winner: structurally fetchable but no skill known.
+      // Before returning no_match, ask Exa what the open web has on this intent.
+      //
+      // Two shapes share one round-trip:
+      //  - exa_answer: the single richest highlight (>=150 chars) for Q&A intents.
+      //  - exa_candidates: ALL exa URLs as agent-actionable seeds (each with
+      //    `unbrowse_go` + `unbrowse_fetch` next_step hints). The agent picks
+      //    one to capture/fetch, which then flows through the indexing
+      //    pipeline → marketplace publish → next caller hits a real skill.
+      //    This is the link-discovery → flywheel kickstarter.
+      const raceProbeDomain = (() => {
+        try { return new URL(raceContextUrl).hostname; } catch { return undefined; }
+      })();
+      const exaBudgetMs = Math.max(1000, budgetMs - raceOutcome.ms);
+      type ExaHit = { url: string; title?: string; score: number; highlights?: string[] };
+      let exaHits: ExaHit[] = [];
+      try {
+        const exaSearch = await Promise.race<
+          | { exa_results?: ExaHit[] }
+          | null
+        >([
+          searchIntentResolve(
+            queryIntent,
+            raceProbeDomain,
+            MARKETPLACE_DOMAIN_SEARCH_K,
+            MARKETPLACE_GLOBAL_SEARCH_K,
+          ),
+          new Promise((res) => setTimeout(() => res(null), exaBudgetMs)),
+        ]);
+        exaHits = exaSearch?.exa_results ?? [];
+      } catch {
+        // Exa fallback is best-effort. X402 / network errors fall through.
+      }
+      if (exaHits.length > 0) {
+        const richHit = exaHits.find((r) => (r.highlights ?? []).join(" ").length >= 150) ?? null;
+        const candidates = exaHits.map((hit) => ({
+          url: hit.url,
+          title: hit.title,
+          score: hit.score,
+          highlights_excerpt: (hit.highlights ?? []).join(" ").slice(0, 240),
+          next_step: {
+            go: `unbrowse go --url ${JSON.stringify(hit.url)}`,
+            fetch: `unbrowse fetch --url ${JSON.stringify(hit.url)}`,
+          },
+        }));
+        console.log(`[exa] probe-fallback: ${exaHits.length} candidate(s)${richHit ? `, rich=${richHit.url}` : ""}`);
+        const exaTrace: ExecutionTrace = {
+          trace_id: nanoid(),
+          skill_id: "exa-web-search",
+          endpoint_id: richHit ? "highlights" : "candidates",
+          started_at: new Date(t0).toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+          status_code: 200,
+        };
+        const exaSkillDomain = richHit
+          ? (() => { try { return new URL(richHit.url).hostname; } catch { return richHit.url; } })()
+          : "exa-web-search";
+        const exaSkill = {
+          skill_id: "exa-web-search",
+          domain: exaSkillDomain,
+        } as unknown as SkillManifest;
+        return {
+          result: {
+            ...(richHit
+              ? {
+                  data: richHit.highlights,
+                  source_url: richHit.url,
+                  source_title: richHit.title,
+                  exa_answer: true,
+                }
+              : { exa_answer: false }),
+            exa_candidates: candidates,
+            probe_evidence: { status: w.status, content_type: w.content_type, byte_length: w.byte_length },
+            next_step: {
+              hint: "Pick a URL from exa_candidates, then `unbrowse go` to capture+index, or `unbrowse fetch` for the raw contents. Capturing publishes a skill so the next caller hits a real endpoint.",
+              capture_current: `unbrowse capture --url ${JSON.stringify(raceContextUrl)} --intent ${JSON.stringify(intent)}`,
+            },
+            decision_trace: decisionTrace,
+          },
+          trace: exaTrace,
+          source: "exa" as const,
+          skill: exaSkill,
+          timing: finalize("exa", null, "exa-web-search", undefined, exaTrace),
+        };
+      }
+      // Exa had nothing either — surface probe evidence + next_step capture.
       const probeTrace: ExecutionTrace = {
         trace_id: nanoid(),
         skill_id: "",

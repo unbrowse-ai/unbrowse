@@ -11,6 +11,7 @@
 ### Features
 
 * **resolve:** Exa web search runs in parallel with marketplace on every `/search/resolve` call; when marketplace has no viable skills and Exa highlights contain ≥150 chars of relevant content, resolve returns a synthesized answer directly without opening a browser.
+* **resolve:** wire Exa into the budget-race probe-only branch. When the resolve race short-circuits on probe (URL fetchable, no skill known), the orchestrator now fires `searchIntentResolve` under the remaining budget and returns the full Exa candidate list as agent-actionable seeds — each candidate carries `unbrowse go` + `unbrowse fetch` next-step hints. When a candidate has ≥150 chars of highlights it's also returned as `exa_answer` for Q&A intents. Closes the gap where the Exa fallback only fired in the legacy serial flow and never ran for `intent + url` resolves on cold domains (e.g. eatigo.com).
 
 ### Bug Fixes
 
