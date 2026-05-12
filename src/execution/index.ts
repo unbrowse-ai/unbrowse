@@ -13,7 +13,7 @@ import { forceVisibleKuriEnv, getStoredAuth, getAuthCookies, refreshAuthFromBrow
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
-import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
+import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import { probeUrl, decideFromProbe } from "./probe.js";
@@ -2770,6 +2770,16 @@ export async function executeEndpoint(
         message: trace.error,
         status_code: status,
       };
+    }
+    // Stale-endpoint eviction. 404/410 are unambiguous "this URL is gone"
+    // signals — evict from the local route cache so subsequent resolves
+    // don't keep serving it. Backend will auto-deprecate after 2 strikes;
+    // this is the local mirror so THIS client stops attempting it now.
+    if (status === 404 || status === 410) {
+      try {
+        const evicted = evictCachedEndpoint(skill.skill_id, endpoint.endpoint_id, options?.client_scope);
+        if (evicted) log("exec", `evicted stale endpoint ${endpoint.endpoint_id} from local cache (HTTP ${status})`);
+      } catch { /* best-effort */ }
     }
   } else {
     trace.result = data;

@@ -1073,6 +1073,37 @@ export function cachePublishedSkill(skill: SkillManifest, scopeId?: string): voi
   writeSkillCache(skill, scopeId);
 }
 
+/**
+ * Evict a single endpoint from the cached SkillManifest after the runtime sees a
+ * hard "this endpoint is gone" signal (HTTP 404/410, stale_endpoint, etc.). Keeps
+ * the skill manifest itself alive so other endpoints under the same skill remain
+ * callable. Returns true if an endpoint was removed.
+ *
+ * Without this, the local route cache keeps serving a dead endpoint until TTL
+ * expiry, even after the backend auto-deprecates it. Two-layer fix: the backend
+ * marks it disabled (so resolve stops returning it for OTHER clients), and the
+ * client evicts it (so THIS client stops trying it on subsequent resolves).
+ */
+export function evictCachedEndpoint(skillId: string, endpointId: string, scopeId?: string): boolean {
+  try {
+    const skill = getRecentLocalSkill(skillId, scopeId);
+    if (!skill || !Array.isArray(skill.endpoints)) return false;
+    const before = skill.endpoints.length;
+    const next = skill.endpoints.filter((e) => e.endpoint_id !== endpointId);
+    if (next.length === before) return false;
+    const updated: SkillManifest = { ...skill, endpoints: next };
+    recentLocalSkills.set(scopedSkillKey(skillId, scopeId), updated);
+    // Persist so a process restart doesn't resurrect the dead endpoint.
+    try {
+      const skillCacheDir = getSkillCacheDir();
+      if (!existsSync(skillCacheDir)) mkdirSync(skillCacheDir, { recursive: true });
+      writeFileSync(skillCachePath(skillId), JSON.stringify(updated), "utf-8");
+    } catch { /* best-effort */ }
+    return true;
+  } catch { return false; }
+}
+
+
 export function getRecentLocalSkill(skillId: string, scopeId?: string): SkillManifest | null {
   // 1. In-memory recent map (per-process; cleared on restart).
   const inMemory = recentLocalSkills.get(scopedSkillKey(skillId, scopeId)) ?? recentLocalSkills.get(skillId);

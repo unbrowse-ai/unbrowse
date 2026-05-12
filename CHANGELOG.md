@@ -18,6 +18,9 @@
 * **execution:** accept proven JSON API replays when required top-level keys match despite response size drift, avoiding unnecessary trigger-intercept/browser fallbacks for paginated or empty results.
 * **marketplace:** count `trigger_timeout`, `endpoint_not_found`, and `vendor_blocked` outcomes as hard failures alongside 4xx/5xx, so stale endpoints auto-deprecate after two strikes instead of lingering in the resolve shortlist.
 * **ranking:** demote endpoints with low `reliability_score` (−60 below 0.2, −15 below 0.5) and penalize `verification_status: failed/pending`, so a measured-bad endpoint ranks below an unmeasured peer.
+* **ranking:** penalize cross-entity URL template mismatches when the endpoint and the context URL share a host — concrete (non-placeholder) path segments that contradict the context URL (e.g., `/r/programming` captured while the user asked about `/r/singularity`) now score 180 points lower per mismatching segment. Cross-subdomain GraphQL roots (`/graphql`, `/api`) are excluded because their paths don't carry entity commitments.
+* **capture:** recognize X.com–style GraphQL request bodies (`variables` + `features`) in `isGraphqlRequestBody`, so HomeTimeline/SearchTimeline and other X GraphQL POSTs get extracted instead of being silently dropped.
+* **execution:** evict an endpoint from the local route cache on HTTP 404/410 so subsequent resolves no longer keep serving a dead URL until TTL expiry. Mirrors the backend's auto-deprecation locally.
 
 ## [6.12.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.12.0-preview.0...v6.12.0) (2026-05-11)
 
