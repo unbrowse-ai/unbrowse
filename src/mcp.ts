@@ -714,12 +714,18 @@ function listTool(tool: ToolDefinition): ListedTool {
 const WIRE_BUDGET_CHARS = 25_000;
 const STRING_TRUNCATE_THRESHOLD = 2_000;
 const STRING_TRUNCATE_KEEP = 500;
+const ARRAY_MAX_ELEMENTS = 50;
 
 function truncateOversizeStrings(value: unknown): unknown {
   if (typeof value === "string") {
     if (value.length > STRING_TRUNCATE_THRESHOLD) {
-      const dropped = value.length - STRING_TRUNCATE_KEEP;
-      return `${value.slice(0, STRING_TRUNCATE_KEEP)}...[truncated ${dropped} chars]`;
+      // Code-point-safe slice — Array.from splits the string into code points
+      // so we never sever a surrogate pair mid-emoji. STRING_TRUNCATE_KEEP
+      // now counts code points (emoji = 1) rather than UTF-16 code units.
+      const chars = Array.from(value);
+      const kept = chars.slice(0, STRING_TRUNCATE_KEEP).join("");
+      const dropped = value.length - kept.length;
+      return `${kept}...[truncated ${dropped} chars]`;
     }
     return value;
   }
@@ -734,10 +740,67 @@ function truncateOversizeStrings(value: unknown): unknown {
   return value;
 }
 
+function capOversizeArrays(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const capped =
+      value.length > ARRAY_MAX_ELEMENTS
+        ? [
+            ...value.slice(0, ARRAY_MAX_ELEMENTS).map(capOversizeArrays),
+            { truncated: value.length - ARRAY_MAX_ELEMENTS, unit: "items" },
+          ]
+        : value.map(capOversizeArrays);
+    return capped;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = capOversizeArrays(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHARS): unknown {
   const initial = JSON.stringify(value);
   if (!initial || initial.length <= budget) return value;
-  return truncateOversizeStrings(value);
+
+  // Pass 1: truncate oversize strings.
+  let dieted: unknown = truncateOversizeStrings(value);
+  let serialized = JSON.stringify(dieted);
+  if (serialized && serialized.length <= budget) return dieted;
+
+  // Pass 2: cap oversize arrays (handles huge arrays of small items).
+  dieted = capOversizeArrays(dieted);
+  serialized = JSON.stringify(dieted);
+  if (serialized && serialized.length <= budget) return dieted;
+
+  // Safety net: hard-cut at budget with an honest marker. Never ship oversize.
+  // Shrink the body_excerpt until the final wrapped object fits — JSON-escape
+  // expansion (quotes, backslashes) means a raw char-budget can still blow up.
+  const safetyText = serialized ?? "";
+  let cutLen = Math.max(0, budget - 512);
+  for (let i = 0; i < 10; i++) {
+    const candidate = {
+      truncated: true,
+      reason: "payload_exceeded_wire_budget_after_diet",
+      budget_chars: budget,
+      original_chars: initial.length,
+      body_excerpt: safetyText.slice(0, cutLen),
+    };
+    const wrapped = JSON.stringify(candidate);
+    if (wrapped.length <= budget) return candidate;
+    // Overshoot — shrink proportionally and retry.
+    cutLen = Math.floor((cutLen * (budget - 200)) / wrapped.length);
+    if (cutLen <= 0) break;
+  }
+  return {
+    truncated: true,
+    reason: "payload_exceeded_wire_budget_after_diet",
+    budget_chars: budget,
+    original_chars: initial.length,
+    body_excerpt: "",
+  };
 }
 
 export function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {

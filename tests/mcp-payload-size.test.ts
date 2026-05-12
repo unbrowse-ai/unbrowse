@@ -74,3 +74,65 @@ describe("MCP payload size cap — wire-shape invariant (Day 3 Land seed)", () =
     });
   }
 });
+
+describe("MCP payload size cap — Day 9 emergence holes (huge arrays, deep nesting, unicode)", () => {
+  const fn = (mcp as Record<string, unknown>).maybePostProcessResult as
+    | ((r: Record<string, unknown>, a: Record<string, unknown>) => unknown)
+    | undefined;
+
+  test("huge array of small objects is capped below wire budget", () => {
+    const items = Array.from({ length: 100_000 }, (_, i) => ({
+      id: i,
+      label: `item-${i}`,
+      score: i / 100_000,
+    }));
+    const fat = { result: items } as Record<string, unknown>;
+    const processed = typeof fn === "function" ? fn(fat, {}) : fat;
+    const size = bodySize(processed);
+    expect(
+      size,
+      `100K small-object array yielded ${size} chars; diet must cap arrays.`,
+    ).toBeLessThanOrEqual(SIZE_BUDGET_CHARS);
+  });
+
+  test("deeply nested arrays-of-arrays are capped below wire budget", () => {
+    // 4 levels deep, fan-out 10, 50-char leaves — naive serialize is well
+    // over 25KB and stresses both the string pass and the array cap.
+    const leaf = "y".repeat(50);
+    const build = (depth: number): unknown =>
+      depth === 0 ? leaf : Array.from({ length: 10 }, () => build(depth - 1));
+    const fat = { result: build(4) } as Record<string, unknown>;
+    const processed = typeof fn === "function" ? fn(fat, {}) : fat;
+    const size = bodySize(processed);
+    expect(
+      size,
+      `deep nested fixture yielded ${size} chars; diet must cap arrays at each level.`,
+    ).toBeLessThanOrEqual(SIZE_BUDGET_CHARS);
+  });
+
+  test("unicode truncation never leaves orphan surrogates", () => {
+    const emoji = "\u{1F600}"; // 😀 — single code point, two UTF-16 units
+    const big = emoji.repeat(3000);
+    const fat = { result: { x: big } } as Record<string, unknown>;
+    const processed = typeof fn === "function" ? fn(fat, {}) : fat;
+    // Round-trip through JSON to prove the wire shape is well-formed.
+    const roundTrip = JSON.parse(JSON.stringify(processed)) as {
+      result: { x: string };
+    };
+    const body = roundTrip.result.x;
+    // Strip the trailing "...[truncated N chars]" marker before checking
+    // for orphan surrogates in the truncated body.
+    const markerIdx = body.indexOf("...[truncated ");
+    const truncatedBody = markerIdx >= 0 ? body.slice(0, markerIdx) : body;
+    // Every iterated code point must be either length 1 (BMP) or length 2
+    // (full surrogate pair). A length-1 high or low surrogate would be an
+    // orphan — that is the bug Day 8 caught.
+    const ok = [...truncatedBody].every((c) => c.length === 2 || c.length === 1);
+    expect(ok, "truncated unicode body contains orphan surrogate halves").toBe(true);
+    // And it should be all emoji (length-2 code units when iterated).
+    expect(
+      [...truncatedBody].every((c) => c === emoji),
+      "truncated body should preserve whole emoji glyphs only",
+    ).toBe(true);
+  });
+});
