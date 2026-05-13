@@ -13,9 +13,22 @@ export interface JobEnvelope {
 }
 
 export function sanitizeDomain(domain: string): string {
-  const replaced = domain.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.\.+/g, "__");
+  // NFC normalize first: composed and decomposed unicode (e.g. precomposed Ë
+  // vs E + combining diaeresis) collapse to the same byte sequence before the
+  // regex replace strips non-ASCII. Two visually-identical domains now produce
+  // the same filename and the same envelope.domain field.
+  const normalized = domain.normalize("NFC");
+  const replaced = normalized.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.\.+/g, "__");
   // Cap basename at 200 chars so `${name}.${queuedAt}-${rand}.json.tmp` fits in 255 bytes
-  return replaced.length > 200 ? replaced.slice(0, 200) : replaced;
+  const capped = replaced.length > 200 ? replaced.slice(0, 200) : replaced;
+  // Windows reserved-name protection: prefix any output matching CON / PRN /
+  // AUX / NUL / COM[1-9] / LPT[1-9] (case-insensitive, dotted or bare) with
+  // "_" so the filesystem won't reject or special-case it on Windows. The
+  // check runs AFTER sanitize so e.g. raw "@CON" → "_CON" → "__CON".
+  if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i.test(capped)) {
+    return `_${capped}`;
+  }
+  return capped;
 }
 
 export async function writeJob(queueDir: string, envelope: JobEnvelope): Promise<string> {
@@ -247,4 +260,55 @@ export async function heartbeatAgeMs(queueDir: string): Promise<number> {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return Number.POSITIVE_INFINITY;
     throw err;
   }
+}
+
+export interface RejectedFile {
+  path: string;
+  reason: "corrupt_json" | "wrong_version" | "missing_fields";
+}
+
+// Like listJobs but reports rejects instead of silently dropping them.
+// Accepted entries match listJobs (sorted by envelope.queuedAt ascending).
+// Rejected entries classify why each file failed validation, sorted by path.
+export async function listJobsWithRejects(queueDir: string): Promise<{
+  accepted: Array<{ path: string; envelope: JobEnvelope }>;
+  rejected: RejectedFile[];
+}> {
+  const absDir = resolve(queueDir);
+  let entries;
+  try {
+    entries = await readdir(absDir, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { accepted: [], rejected: [] };
+    throw err;
+  }
+  const accepted: Array<{ path: string; envelope: JobEnvelope }> = [];
+  const rejected: RejectedFile[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.endsWith(".json")) continue;
+    if (entry.name.endsWith(".tmp")) continue;
+    const path = join(absDir, entry.name);
+    let parsed: unknown;
+    try {
+      const raw = await readFile(path, "utf8");
+      parsed = JSON.parse(raw);
+    } catch {
+      rejected.push({ path, reason: "corrupt_json" });
+      continue;
+    }
+    const v = parsed as { version?: unknown } | null;
+    if (v === null || typeof v !== "object" || (v as Record<string, unknown>).version !== 1) {
+      rejected.push({ path, reason: "wrong_version" });
+      continue;
+    }
+    if (!isJobEnvelope(parsed)) {
+      rejected.push({ path, reason: "missing_fields" });
+      continue;
+    }
+    accepted.push({ path, envelope: parsed });
+  }
+  accepted.sort((a, b) => a.envelope.queuedAt - b.envelope.queuedAt);
+  rejected.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return { accepted, rejected };
 }

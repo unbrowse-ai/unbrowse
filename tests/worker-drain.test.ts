@@ -56,7 +56,7 @@ describe("worker drain", () => {
     };
 
     const result = await drainOnce(queueDir, processor);
-    expect(result).toEqual({ processed: 3, failed: 0, deadLettered: 0 });
+    expect(result).toEqual({ processed: 3, failed: 0, deadLettered: 0, rejected: 0 });
     expect(new Set(processed).size).toBe(3);
     expect(processed).toContain("a.com");
     expect(processed).toContain("b.com");
@@ -109,7 +109,7 @@ describe("worker drain", () => {
     };
 
     const r1 = await drainOnce(queueDir, processor);
-    expect(r1).toEqual({ processed: 0, failed: 1, deadLettered: 0 });
+    expect(r1).toEqual({ processed: 0, failed: 1, deadLettered: 0, rejected: 0 });
 
     let after1 = await listJobs(queueDir);
     expect(after1.length).toBe(1);
@@ -180,7 +180,7 @@ describe("worker drain", () => {
     };
 
     const result = await drainOnce(queueDir, processor);
-    expect(result).toEqual({ processed: 1, failed: 0, deadLettered: 0 });
+    expect(result).toEqual({ processed: 1, failed: 0, deadLettered: 0, rejected: 0 });
     expect(processed).toEqual(["real.com"]);
 
     // .tmp file still on disk untouched
