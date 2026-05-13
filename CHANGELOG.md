@@ -86,6 +86,27 @@
   `sweepStaleTmp`, `RejectedFile`, `touchHeartbeat` (Phase 1), `heartbeatAgeMs`
   (Phase 1).
 
+  Two correctness improvements surfaced by the Day-6 pruning audit + the
+  Day-8 cold-auditor review (independent of the original 6-item audit list):
+
+  - `isIndexingInFlight` (disk-mode) had its own inline domain-sanitize regex
+    that diverged from the canonical `sanitizeDomain` after the Day-5 NFC and
+    Windows-reserved hardening. A non-ASCII NFD-encoded domain would derive
+    a different lock path on the in-flight check vs. on the worker's
+    actual lock acquisition. Both call sites now share `sanitizeDomain`.
+
+  - `tryAcquireWorkerSlot` did not `mkdir -p` the queueDir before
+    `acquireLock`'s `open(wx)`. A first-time user invoking
+    `unbrowse __drain-queue` cold (no prior `writeJob` had ever run, so no
+    queue dir existed) would crash with ENOENT. Now matches the pattern in
+    `writeJob` and `touchHeartbeat` and ensures the dir exists.
+
+  Known limitation (deferred to Phase 1.1.1): if `mkdir <queueDir>/quarantine/
+  <reason>/` fails (e.g. EACCES), the rejected file remains in `pending/` and
+  is re-listed every `drainOnce` tick — log spam, no data loss, but no
+  forward progress. Drain still idle-exits eventually. Proper fix requires
+  per-file failure tracking; the current behaviour is safe but noisy.
+
   See `docs/stateless-unbrowse-phase-1-1-acceptance-audit.md` for the
   per-criterion verification.
 

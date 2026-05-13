@@ -232,6 +232,11 @@ export async function acquireLock(lockPath: string, queueDir?: string): Promise<
 // (a) uses the canonical worker.lock path under queueDir and (b) threads
 // queueDir through so PID-reuse heartbeat cross-check kicks in.
 export async function tryAcquireWorkerSlot(queueDir: string): Promise<(() => Promise<void>) | null> {
+  // Cold-start fix (Day-8 audit #3): writeJob and touchHeartbeat already
+  // mkdir -p their parent dir; tryAcquireWorkerSlot was the lone path where
+  // acquireLock's open(wx) would hit ENOENT on a fresh HOME. Match the
+  // pattern: ensure the queueDir exists before any lock attempt.
+  await mkdir(resolve(queueDir), { recursive: true });
   const release = await acquireLock(join(queueDir, "worker.lock"), queueDir);
   if (release !== null) {
     // Seal the cold-start race window: touch heartbeat IMMEDIATELY so a
