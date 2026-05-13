@@ -2710,6 +2710,7 @@ export async function executeEndpoint(
             ...(probe.content_type ? { content_type: probe.content_type } : {}),
           },
           trace_id: nanoid(),
+          response_headers: probe.retry_after ? { "retry-after": probe.retry_after } : {},
         };
         decisionTrace.push({ step: "return_error", status: probe.status });
         workflowChosenStrategy = workflowChosenStrategy ?? "server";
