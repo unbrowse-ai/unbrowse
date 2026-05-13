@@ -34,6 +34,32 @@
 * **mcp,tests,docs:** judgement — close 5 Phase-2 audit findings (Day 8) ([b918711](https://github.com/unbrowse-ai/unbrowse-dev/commit/b9187116917a9c4541680c0edaeabb9ac5bbd7d7)), closes [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4) [#5](https://github.com/unbrowse-ai/unbrowse-dev/issues/5) [#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7) [#13](https://github.com/unbrowse-ai/unbrowse-dev/issues/13) [#11](https://github.com/unbrowse-ai/unbrowse-dev/issues/11) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9) [#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10) [#12](https://github.com/unbrowse-ai/unbrowse-dev/issues/12)
 * **mcp+orchestrator:** MCP audit follow-through ([#437](https://github.com/unbrowse-ai/unbrowse-dev/issues/437)) ([421c538](https://github.com/unbrowse-ai/unbrowse-dev/commit/421c538734c48a277f489869393cd852610e87d0))
 
+
+### fix
+
+- **mcp: surface actionable recovery hints on projection diet-fallback.**
+  When `unbrowse_execute` is called with `path`/`extract`/`limit` and the
+  projected result still exceeds the 25 K wire budget after pass-1 string
+  truncate + pass-2 array cap, `dietIfOversize` now augments the
+  `{truncated, reason, body_excerpt}` wrapper with `suggested_limit`
+  (positive integer derived from `budget / original_chars × caller_limit`)
+  and `next_step` (human-readable "call again with limit=N"). Caller's
+  intent is treated as authoritative — when projection is supplied, the
+  agent gets a path back to clean data; when it is not, the wrapper
+  shape is unchanged (back-compat with `mcp-projection-stdio.test.ts`).
+  Edit footprint: `src/mcp.ts` `dietIfOversize` (added `DietHints`
+  interface + projection-aware hints lambda + `buildWrapper` closure) and
+  `maybePostProcessResult` (pass `has_projection`/`caller_limit` from the
+  projection branch). Three other call sites of `dietIfOversize` — the
+  `successResult` wrapper, the `schema=true` branch, and the no-projection
+  fallthrough in `maybePostProcessResult` — take default arguments and
+  are unchanged.
+  Pinned by `tests/mcp-truncation-next-step.test.ts` (6 tests covering
+  happy path, two edges, two adversarial, one negative) and
+  `tests/mcp-eatigo-shape.test.ts` (doc reproducer from
+  `docs/mcp-issues-2026-05-13.md`). Bench artifact at
+  `.harness-out/projection-bench.mjs` runs 5 scenarios end-to-end via
+  live stdio MCP. Closes AC3 from `docs/mcp-issues-2026-05-13.md`.
 ## Unreleased
 
 ### docs

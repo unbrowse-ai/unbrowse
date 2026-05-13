@@ -784,7 +784,16 @@ function capOversizeArrays(value: unknown): unknown {
   return value;
 }
 
-export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHARS): unknown {
+export interface DietHints {
+  has_projection?: boolean;
+  caller_limit?: number;
+}
+
+export function dietIfOversize(
+  value: unknown,
+  budget: number = WIRE_BUDGET_CHARS,
+  hints?: DietHints,
+): unknown {
   const initial = JSON.stringify(value);
   if (!initial || initial.length <= budget) return value;
 
@@ -798,32 +807,50 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
   serialized = JSON.stringify(dieted);
   if (serialized && serialized.length <= budget) return dieted;
 
+  // Projection-aware recovery hints (AC3 — docs/mcp-issues-2026-05-13.md).
+  // Only emitted when the caller supplied path/extract/limit — generic callers
+  // see the unchanged wrapper shape so back-compat with mcp-projection-stdio.test.ts
+  // and downstream consumers is preserved.
+  const projectionHints = hints?.has_projection
+    ? (() => {
+        const ratio = budget / initial.length;
+        const baseN =
+          typeof hints.caller_limit === "number" && hints.caller_limit > 0
+            ? hints.caller_limit
+            : ARRAY_MAX_ELEMENTS;
+        const suggested = Math.max(1, Math.floor(baseN * ratio * 0.8));
+        return {
+          suggested_limit: suggested,
+          next_step:
+            `Projection still exceeded the ${budget}-char wire budget. ` +
+            `Call again with limit=${suggested} (or smaller), or extract fewer fields.`,
+        };
+      })()
+    : undefined;
+
+  const buildWrapper = (excerpt: string) => ({
+    truncated: true as const,
+    reason: "payload_exceeded_wire_budget_after_diet" as const,
+    budget_chars: budget,
+    original_chars: initial.length,
+    body_excerpt: excerpt,
+    ...(projectionHints ?? {}),
+  });
+
   // Safety net: hard-cut at budget with an honest marker. Never ship oversize.
   // Shrink the body_excerpt until the final wrapped object fits — JSON-escape
   // expansion (quotes, backslashes) means a raw char-budget can still blow up.
   const safetyText = serialized ?? "";
   let cutLen = Math.max(0, budget - 512);
   for (let i = 0; i < 10; i++) {
-    const candidate = {
-      truncated: true,
-      reason: "payload_exceeded_wire_budget_after_diet",
-      budget_chars: budget,
-      original_chars: initial.length,
-      body_excerpt: safetyText.slice(0, cutLen),
-    };
+    const candidate = buildWrapper(safetyText.slice(0, cutLen));
     const wrapped = JSON.stringify(candidate);
     if (wrapped.length <= budget) return candidate;
     // Overshoot — shrink proportionally and retry.
     cutLen = Math.floor((cutLen * (budget - 200)) / wrapped.length);
     if (cutLen <= 0) break;
   }
-  return {
-    truncated: true,
-    reason: "payload_exceeded_wire_budget_after_diet",
-    budget_chars: budget,
-    original_chars: initial.length,
-    body_excerpt: "",
-  };
+  return buildWrapper("");
 }
 export function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
   const baseValue = result.result ?? result;
@@ -845,10 +872,17 @@ export function maybePostProcessResult(result: Record<string, unknown>, args: Re
     typeof args.extract === "string" ||
     typeof args.limit === "number"
   ) {
-    return dietIfOversize({
-      ...(result.trace ? { trace: result.trace } : {}),
-      result: projected,
-    });
+    return dietIfOversize(
+      {
+        ...(result.trace ? { trace: result.trace } : {}),
+        result: projected,
+      },
+      undefined,
+      {
+        has_projection: true,
+        caller_limit: typeof args.limit === "number" ? args.limit : undefined,
+      },
+    );
   }
 
   return dietIfOversize(result);
