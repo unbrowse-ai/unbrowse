@@ -335,6 +335,11 @@ Omit empty sections. No emojis. No file paths or function names.
 - **`src/kuri/client.ts` is now extended by Unbrowse** — auth profile methods, `HEADLESS=false`, cookie injection. Coordinate with Kuri submodule on `adding-extensions` branch when updating.
 - **Never edit `src/kuri/client.ts`** unless explicitly asked. Kuri is a separately maintained Zig binary; its Node client wrapper is fragile and tightly coupled.
 - **Always kill the running unbrowse server** after `npm i -g` before testing. The old process keeps serving stale code. Run: `pkill -9 -f 'unbrowse|kuri'; sleep 2` then retry.
+- **Auto-spawned Fastify daemon is the real footgun**. When the unbrowse MCP server starts (`bun src/mcp.ts`), it auto-spawns a detached Fastify HTTP daemon at `localhost:6969` so MCP tool handlers can `fetch()` real routes. The MCP stdio process itself is stateless-per-call — the daemon is what lingers. As of Phase 2 (commit chain `7282cfc6..6e21ef90`):
+  - `MCP_SERVER_MODE=1` (set automatically when MCP spawns the daemon) tightens the idle-reaper window to 15 seconds. Without this, the daemon waits 60s for the default reaper after MCP exits.
+  - `unbrowse serve` is the explicit foreground command. Use it when you want a long-lived server you control. Defaults `UNBROWSE_SERVE_IDLE_MS=0` (no auto-exit). Kill with SIGTERM/SIGINT for clean shutdown.
+  - `--no-auto-start` (CLI flag, `bun src/mcp.ts --no-auto-start`) skips the auto-spawn entirely. Useful when a daemon already exists or when you want to manage it independently.
+  - `pkill -9 -f 'unbrowse|kuri'; sleep 2` remains the nuclear option if any of the above leaves a zombie. The "Always kill" rule above still applies for SIGKILL-during-request edge cases that pin the activity bump. Phase 2.1 will revisit after a two-week production observation window.
 - **Guard HAR entry iteration**. Kuri HAR entries may have `undefined` headers/response fields. Always use `entry.request.headers ?? []`, never bare `entry.request.headers`.
 - **Guard kuri evaluate results**. `kuri.getCurrentUrl` and `kuri.getPageHtml` may return `"[object Object]"` when Kuri's CDP response shape changes. Validate URL starts with `http` and HTML starts with `<`.
 - **`rach/restart-base` is the working branch**, not `main`. Main is broken. Do not merge from or rebase onto main.
