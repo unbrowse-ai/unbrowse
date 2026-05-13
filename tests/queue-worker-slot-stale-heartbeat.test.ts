@@ -44,4 +44,35 @@ describe("tryAcquireWorkerSlot heartbeat cross-check", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  test("threshold edge: 29s-old heartbeat, live PID → lock held", async () => {
+    const dir = await freshDir();
+    try {
+      await writeFile(join(dir, "worker.lock"), String(process.pid));
+      await touchHeartbeat(dir);
+      const past = new Date(Date.now() - 29_000);
+      await utimes(join(dir, ".heartbeat"), past, past);
+
+      const result = await tryAcquireWorkerSlot(dir);
+      expect(result).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("threshold edge: 31s-old heartbeat, live PID → lock reclaimed", async () => {
+    const dir = await freshDir();
+    try {
+      await writeFile(join(dir, "worker.lock"), String(process.pid));
+      await touchHeartbeat(dir);
+      const past = new Date(Date.now() - 31_000);
+      await utimes(join(dir, ".heartbeat"), past, past);
+
+      const release = await tryAcquireWorkerSlot(dir);
+      expect(release).not.toBeNull();
+      await release!();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
