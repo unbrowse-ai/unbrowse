@@ -158,17 +158,29 @@ export async function acquireLock(lockPath: string, queueDir?: string): Promise<
 
   // EEXIST: inspect holder. "Alive" → return null; otherwise (stale, ESRCH, or
   // corrupt PID content) fall through to unlink + retry.
+  // EEXIST: inspect holder. "Alive" → return null; otherwise (stale, ESRCH, or
+  // corrupt PID content) fall through to unlink + retry.
   let alive = false;
+  let midWrite = false;
   try {
     const raw = await readFile(lockPath, "utf8");
-    const pid = Number.parseInt(raw.trim(), 10);
-    if (Number.isFinite(pid) && pid > 0) {
-      try {
-        process.kill(pid, 0);
-        alive = true;
-      } catch (e) {
-        const code = (e as NodeJS.ErrnoException).code;
-        if (code === "EPERM") alive = true;
+    if (raw.trim() === "") {
+      // The lock file exists but its content hasn't been written yet —
+      // another caller's open(wx) succeeded but its writeFile(pid) hasn't
+      // completed. That's the cold-start race window. Treat as held (the
+      // writer is mid-acquire); do NOT reclaim or both callers end up with
+      // a release fn. Day-4 Luminary fix #2.
+      midWrite = true;
+    } else {
+      const pid = Number.parseInt(raw.trim(), 10);
+      if (Number.isFinite(pid) && pid > 0) {
+        try {
+          process.kill(pid, 0);
+          alive = true;
+        } catch (e) {
+          const code = (e as NodeJS.ErrnoException).code;
+          if (code === "EPERM") alive = true;
+        }
       }
     }
   } catch {
@@ -181,13 +193,16 @@ export async function acquireLock(lockPath: string, queueDir?: string): Promise<
   if (alive && queueDir !== undefined) {
     try {
       const age = await heartbeatAgeMs(queueDir);
-      if (age > 30_000) alive = false;
+      // Infinity = no .heartbeat file yet (fresh acquire). Decide on PID alone in that case;
+      // a concurrent acquirer in the cold-start race window must not reclaim a live holder
+      // just because the heartbeat hasn't been written yet. Day-4 Luminary fix.
+      if (Number.isFinite(age) && age > 30_000) alive = false;
     } catch {
       // heartbeat probe shouldn't make a live lock release; ignore.
     }
   }
 
-  if (alive) return null;
+  if (alive || midWrite) return null;
 
   // Stale or corrupt — unlink and retry once
   try {
@@ -206,7 +221,14 @@ export async function acquireLock(lockPath: string, queueDir?: string): Promise<
 // (a) uses the canonical worker.lock path under queueDir and (b) threads
 // queueDir through so PID-reuse heartbeat cross-check kicks in.
 export async function tryAcquireWorkerSlot(queueDir: string): Promise<(() => Promise<void>) | null> {
-  return acquireLock(join(queueDir, "worker.lock"), queueDir);
+  const release = await acquireLock(join(queueDir, "worker.lock"), queueDir);
+  if (release !== null) {
+    // Seal the cold-start race window: touch heartbeat IMMEDIATELY so a
+    // concurrent acquirer arriving in the gap before drainOnce's own first
+    // touchHeartbeat tick will see a fresh signal and not try to reclaim.
+    await touchHeartbeat(queueDir).catch(() => {});
+  }
+  return release;
 }
 
 export async function touchHeartbeat(queueDir: string): Promise<void> {
