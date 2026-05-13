@@ -25,7 +25,7 @@ import { getUnbrowseConfigPath } from "../settings.js";
 import { getEndpointDescriptionMetadata } from "../graph/index.js";
 import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
 import { getContributionConfig } from "../config/contribution.js";
-import { writeJob, listJobs, heartbeatAgeMs, type JobEnvelope } from "./queue-store.js";
+import { writeJob, listJobs, heartbeatAgeMs, tryAcquireWorkerSlot, type JobEnvelope } from "./queue-store.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
@@ -228,6 +228,12 @@ export function queueBackgroundIndex(job: BackgroundIndexJob): void {
   writeJob(queueDir, envelope)
     .then(async () => {
       if (await isWorkerActive(queueDir)) return;
+      // Phase 1.1 Day 5 (Model B): gate the spawn on the global worker slot.
+      // If another worker holds the slot, skip the spawn entirely. Otherwise
+      // parent holds the slot just long enough to spawn; the child re-acquires
+      // on its own startup and becomes the canonical holder for its lifetime.
+      const slot = await tryAcquireWorkerSlot(queueDir);
+      if (slot === null) return;
       try {
         const { spawn } = await import("node:child_process");
         const entry = process.argv[1] ?? "";
@@ -242,6 +248,8 @@ export function queueBackgroundIndex(job: BackgroundIndexJob): void {
         child.unref();
       } catch (err) {
         console.error(`[capture-pipeline] drain worker spawn failed: ${(err as Error).message}`);
+      } finally {
+        await slot();
       }
     })
     .catch(err =>

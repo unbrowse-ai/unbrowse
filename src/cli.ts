@@ -78,7 +78,7 @@ async function _hasPendingJobs(): Promise<boolean> {
     return false;
   }
 }
-function _spawnDrainWorker(): void {
+async function _spawnDrainWorker(): Promise<void> {
   // Audit #6 P1 fix: mirror index.ts spawn guards. Without entry guard and
   // error/exit listeners, a packaged binary with empty argv[1] (or any spawn
   // failure) silently leaks jobs forever since stdio:"ignore" hides the child's
@@ -88,6 +88,12 @@ function _spawnDrainWorker(): void {
     console.error("[unbrowse:sweep] cannot spawn drain worker: process.argv[1] is empty");
     return;
   }
+  // Phase 1.1 Day 5 (Model B): gate the spawn on the global worker slot.
+  // Parent holds the slot just long enough to spawn; the child re-acquires
+  // on its own startup and becomes the canonical holder for its lifetime.
+  const { tryAcquireWorkerSlot } = await import("./indexer/queue-store.js");
+  const slot = await tryAcquireWorkerSlot(_getQueueDir());
+  if (slot === null) return;
   try {
     const child = spawn(process.execPath, [entry, "__drain-queue"], {
       detached: true,
@@ -106,6 +112,8 @@ function _spawnDrainWorker(): void {
     child.unref();
   } catch (err) {
     console.error(`[unbrowse:sweep] drain worker spawn threw: ${(err as Error).message}`);
+  } finally {
+    await slot();
   }
 }
 async function _maybeSweepQueue(): Promise<void> {
@@ -113,7 +121,7 @@ async function _maybeSweepQueue(): Promise<void> {
   if (process.env.UNBROWSE_INLINE_INDEX === "1") return;
   if (!(await _hasPendingJobs())) return;
   if (!(await _isHeartbeatStale())) return;
-  _spawnDrainWorker();
+  await _spawnDrainWorker();
 }
 
 
@@ -3862,9 +3870,21 @@ async function main(): Promise<void> {
 
   if (command === "__drain-queue") {
     try {
-      const { drainUntilEmpty } = await import("./indexer/worker.js");
-      const { _processIndexJobForCli } = await import("./indexer/index.js");
-      await drainUntilEmpty(_getQueueDir(), _processIndexJobForCli);
+      const queueDir = _getQueueDir();
+      const { tryAcquireWorkerSlot } = await import("./indexer/queue-store.js");
+      // Phase 1.1 Day 5 (Model B): child holds the slot for its lifetime.
+      // If another worker already holds it, exit cleanly — the sibling drains.
+      const slot = await tryAcquireWorkerSlot(queueDir);
+      if (slot === null) {
+        process.exit(0);
+      }
+      try {
+        const { drainUntilEmpty } = await import("./indexer/worker.js");
+        const { _processIndexJobForCli } = await import("./indexer/index.js");
+        await drainUntilEmpty(queueDir, _processIndexJobForCli);
+      } finally {
+        await slot();
+      }
       process.exit(0);
     } catch (err) {
       console.error(`[__drain-queue] error: ${(err as Error)?.message ?? err}`);

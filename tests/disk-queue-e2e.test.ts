@@ -121,7 +121,7 @@ describe("disk-queue end-to-end", () => {
       const res = await drainOnce(queueDir, async () => {
         /* no-op */
       });
-      expect(res).toEqual({ processed: 0, failed: 0, deadLettered: 0 });
+      expect(res).toEqual({ processed: 0, failed: 0, deadLettered: 0, rejected: 0 });
     },
     20000,
   );

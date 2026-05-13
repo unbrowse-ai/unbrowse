@@ -90,7 +90,7 @@ describe("worker dead-letter behavior", () => {
       };
 
       const result = await drainOnce(queueDir, throwing, 1);
-      expect(result).toEqual({ processed: 0, failed: 0, deadLettered: 1 });
+      expect(result).toEqual({ processed: 0, failed: 0, deadLettered: 1, rejected: 0 });
       expect(await listQueueFiles(queueDir)).toEqual([]);
       const dead = await listDeadFiles(queueDir);
       expect(dead.length).toBe(1);
