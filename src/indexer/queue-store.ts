@@ -94,7 +94,40 @@ export async function deleteJob(path: string): Promise<void> {
   }
 }
 
-export async function acquireLock(lockPath: string): Promise<(() => Promise<void>) | null> {
+// Unlink `*.tmp` files in `queueDir` whose mtime is older than maxAgeMs.
+// Fire-and-forget hygiene against SIGKILL-orphaned writes (writeJob writes
+// `<finalPath>.tmp` then renames; a crash between the two leaves the .tmp
+// behind forever, since listJobs filters them out but never unlinks them).
+// On missing queueDir: returns 0. Per-file errors are swallowed.
+export async function sweepStaleTmp(queueDir: string, maxAgeMs: number = 60_000): Promise<number> {
+  const absDir = resolve(queueDir);
+  let entries: string[];
+  try {
+    entries = await readdir(absDir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw err;
+  }
+  const now = Date.now();
+  let unlinked = 0;
+  for (const name of entries) {
+    if (!name.endsWith(".tmp")) continue;
+    const path = join(absDir, name);
+    try {
+      const st = await stat(path);
+      if (now - st.mtimeMs > maxAgeMs) {
+        await unlink(path);
+        unlinked += 1;
+      }
+    } catch {
+      // ENOENT (raced), EPERM, or other I/O — best-effort, keep going.
+      continue;
+    }
+  }
+  return unlinked;
+}
+
+export async function acquireLock(lockPath: string, queueDir?: string): Promise<(() => Promise<void>) | null> {
   const tryCreate = async (): Promise<(() => Promise<void>) | null> => {
     try {
       const handle = await open(lockPath, "wx");
@@ -142,6 +175,18 @@ export async function acquireLock(lockPath: string): Promise<(() => Promise<void
     // Corrupt or unreadable lock content — treat as stale.
   }
 
+  // P1-3: PID-reuse safety. If a queueDir was provided and the lock-holder's
+  // PID looks alive, ALSO require the heartbeat be fresh. A long-uptime
+  // system that reused a stale PID would otherwise hold the lock forever.
+  if (alive && queueDir !== undefined) {
+    try {
+      const age = await heartbeatAgeMs(queueDir);
+      if (age > 30_000) alive = false;
+    } catch {
+      // heartbeat probe shouldn't make a live lock release; ignore.
+    }
+  }
+
   if (alive) return null;
 
   // Stale or corrupt — unlink and retry once
@@ -154,6 +199,14 @@ export async function acquireLock(lockPath: string): Promise<(() => Promise<void
   }
   const second = await tryCreate();
   return second === undefined ? null : second;
+}
+
+// Global singleton lock for the drain worker. Bounds the system to one
+// active drain worker per machine. Wrapper around acquireLock that
+// (a) uses the canonical worker.lock path under queueDir and (b) threads
+// queueDir through so PID-reuse heartbeat cross-check kicks in.
+export async function tryAcquireWorkerSlot(queueDir: string): Promise<(() => Promise<void>) | null> {
+  return acquireLock(join(queueDir, "worker.lock"), queueDir);
 }
 
 export async function touchHeartbeat(queueDir: string): Promise<void> {
