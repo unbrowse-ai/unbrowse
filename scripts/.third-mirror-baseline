@@ -1,0 +1,5 @@
+# third-mirror drift baseline — created 2026-05-13T06:50:33Z
+# canonical: src/mcp.ts :: maybePostProcessResult
+# mirror:    .agents/skills/unbrowse/src/mcp.ts :: maybePostProcessResult
+CANON_HASH=25933a93e09062a1386dd5f158e7dce752c2f0a5ff3a9ad8f342ab9bd92b50db
+MIRROR_HASH=ebe47f7618837e1466121b3dd5f510a6d59f7f20e3a81e122065edf106dd05e8
