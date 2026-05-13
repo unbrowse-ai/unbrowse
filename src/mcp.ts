@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureLocalServer } from "./runtime/local-server.js";
+import { ensureLocalServer, getManagedServerPid, stopManagedServer } from "./runtime/local-server.js";
 import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./workflow/publish.js";
 import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
@@ -572,6 +572,13 @@ function listPrompt(prompt: PromptDefinition): ListedPrompt {
 
 let serverReadyPromise: Promise<void> | null = null;
 
+// Phase 2 Day-3 seed: track whether ensureLocalServer was the one to spawn
+// the daemon (i.e. there was no managed pid before ensureServerReady but one
+// exists after). The stdin-EOF watcher in main() reads this to decide whether
+// stopping the daemon on parent disconnect is OUR responsibility or whether
+// it belongs to whoever already had it running.
+let spawnedTheDaemon = false;
+
 async function ensureServerReady(): Promise<void> {
   if (!serverReadyPromise) {
     // Reset on rejection so the next call retries auto-start instead of
@@ -581,7 +588,14 @@ async function ensureServerReady(): Promise<void> {
     // the same stale "server not running" error for the rest of the MCP
     // session — the model gives up and tells the user unbrowse is down
     // even though a retry would succeed.
+    const pidBefore = getManagedServerPid(BASE_URL, null);
     serverReadyPromise = ensureLocalServer(BASE_URL, NO_AUTO_START, import.meta.url)
+      .then(() => {
+        if (!pidBefore && !NO_AUTO_START) {
+          const pidAfter = getManagedServerPid(BASE_URL, null);
+          if (pidAfter) spawnedTheDaemon = true;
+        }
+      })
       .catch((err) => {
         serverReadyPromise = null;
         throw err;
@@ -589,7 +603,6 @@ async function ensureServerReady(): Promise<void> {
   }
   return serverReadyPromise;
 }
-
 // Drop the cached "server is ready" promise so the next ensureServerReady()
 // re-runs ensureLocalServer and respawns the disposable daemon. Called when
 // api() observes a connection failure (idle reaper killed `unbrowse serve`,
@@ -2368,6 +2381,33 @@ async function main(): Promise<void> {
   writeStderr(`starting stdio server on ${BASE_URL} (${NO_AUTO_START ? "no auto-start" : "auto-start enabled"})`);
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
 
+  // Phase 2 Day-3 seed: when the parent IDE disconnects (stdin closes), stop
+  // any daemon WE spawned. Without this, the daemon outlives the MCP process
+  // and waits 60s for its idle reaper — exactly the "stale unbrowse server"
+  // footgun CLAUDE.md warns about. Only fires if we set spawnedTheDaemon in
+  // ensureServerReady; if --no-auto-start was passed, the daemon is someone
+  // else's and we leave it alone. Idempotent: stdin "end" and "close" may
+  let eofHandled = false;
+  const onStdinClose = async (): Promise<void> => {
+    if (eofHandled) return;
+    eofHandled = true;
+    // Drain the in-flight ensureServerReady chain so its post-spawn .then()
+    // has a chance to set spawnedTheDaemon before we decide. Without this,
+    // an IDE that closes stdin during the initial spawn window sees
+    // spawnedTheDaemon=false and leaks the daemon.
+    if (serverReadyPromise) {
+      try { await serverReadyPromise; } catch { /* ignore — spawn failed, nothing to stop */ }
+    }
+    if (!spawnedTheDaemon) return;
+    try {
+      await stopManagedServer(BASE_URL, null, { force: true, timeoutMs: 3_000 });
+    } catch (err) {
+      writeStderr(`[mcp:stdin-eof] stop failed: ${(err as Error).message}`);
+    }
+  };
+  process.stdin.on("end", () => { void onStdinClose(); });
+  process.stdin.on("close", () => { void onStdinClose(); });
+
   for await (const line of rl) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -2383,6 +2423,13 @@ async function main(): Promise<void> {
       writeStderr(error instanceof Error ? error.stack ?? error.message : String(error));
     }
   }
+
+  // readline drained → stdin EOF → IDE disconnected. The "end"/"close"
+  // listeners above are best-effort, but readline consumes the stdin
+  // stream and may swallow those events on some runtimes (bun + node
+  // readline differ). Awaiting here is the deterministic hook: the
+  // process does not exit until stopManagedServer resolves.
+  await onStdinClose();
 }
 
 main().catch((error) => {

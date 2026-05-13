@@ -3924,6 +3924,27 @@ async function main(): Promise<void> {
   if (command === "status") return cmdStatus(flags);
   if (command === "stop") return cmdStop(flags);
   if (command === "restart") return cmdRestart(flags);
+  if (command === "serve") {
+    // Explicit long-lived foreground server. The user controls lifetime via
+    // SIGINT/SIGTERM — disable the idle reaper unless they opt in.
+    process.env.UNBROWSE_SERVE_IDLE_MS = process.env.UNBROWSE_SERVE_IDLE_MS ?? "0";
+    // Not MCP-spawned; clear the flag so logger/ToS behave as a normal daemon.
+    delete process.env.MCP_SERVER_MODE;
+    const { startUnbrowseServer, installServerExitCleanup } = await import("./server.js");
+    const server = await startUnbrowseServer({ logger: true });
+    console.log(`[serve] listening on http://${server.host}:${server.port}`);
+    installServerExitCleanup();
+    const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+      try { await server.close({ shutdownBrowsers: true }); } catch {}
+      const code = signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 0;
+      process.exit(code);
+    };
+    process.on("SIGINT", () => { void shutdown("SIGINT"); });
+    process.on("SIGTERM", () => { void shutdown("SIGTERM"); });
+    // Block forever — Fastify's listener keeps the loop alive, but be explicit.
+    await new Promise<void>(() => {});
+    return;
+  }
   if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
   if (command === "connect-chrome") return cmdConnectChrome();
   if (command === "stats") {
@@ -3947,7 +3968,7 @@ async function main(): Promise<void> {
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "run", "execute", "exec",
     "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "config", "auth", "auth-capture", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
-    "status", "inspect", "stop", "restart", "upgrade", "update",
+    "status", "inspect", "stop", "restart", "serve", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
     "connect-chrome", "stats", "flywheel", "earnings", "billing", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
