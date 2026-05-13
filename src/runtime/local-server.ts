@@ -1,4 +1,5 @@
 import { existsSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
@@ -98,6 +99,55 @@ export function getManagedServerPid(baseUrl: string, health?: ServerHealth | nul
   if (statePid && isPidAlive(statePid)) return statePid;
 
   return null;
+}
+
+// Returns free / owned / foreign for the port in baseUrl, so ensureLocalServer can fast-fail on foreign holders.
+export async function probePortOwnership(
+  baseUrl: string,
+): Promise<
+  | { kind: "free" }
+  | { kind: "owned"; pid: number }
+  | { kind: "foreign"; pid: number | null }
+> {
+  let port: number;
+  let host: string;
+  try {
+    const u = new URL(baseUrl);
+    port = parseInt(u.port || "80", 10);
+    host = u.hostname || "127.0.0.1";
+  } catch {
+    return { kind: "foreign", pid: null };
+  }
+  if (!Number.isFinite(port) || port <= 0) {
+    return { kind: "foreign", pid: null };
+  }
+
+  // Attempt to bind; if EADDRINUSE the port is held.
+  const bindError: NodeJS.ErrnoException | null = await new Promise((resolve) => {
+    const probeServer = net.createServer();
+    probeServer.once("error", (err: NodeJS.ErrnoException) => {
+      try { probeServer.close(); } catch { /* ignore */ }
+      resolve(err);
+    });
+    probeServer.once("listening", () => {
+      probeServer.close(() => resolve(null));
+    });
+    probeServer.listen(port, host);
+  });
+
+  if (bindError === null) return { kind: "free" };
+  if (bindError.code !== "EADDRINUSE") {
+    // Other bind error (EACCES, EADDRNOTAVAIL). Treat as foreign-blocked.
+    return { kind: "foreign", pid: null };
+  }
+
+  // Port is held. Distinguish owned vs foreign by asking the runtime who's there.
+  const ownedPid = getManagedServerPid(baseUrl);
+  if (ownedPid && isPidAlive(ownedPid)) {
+    return { kind: "owned", pid: ownedPid };
+  }
+  // We have no managed PID for this port: foreign process.
+  return { kind: "foreign", pid: null };
 }
 
 function readPidState(pidFile: string): PidState | null {
@@ -290,6 +340,18 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
 
   if (noAutoStart) {
     throw new Error("Server not running and auto-start disabled (--no-auto-start).");
+  }
+
+  // B1: fast-fail before spawn-retry if a foreign process holds the port.
+  const ownership = await probePortOwnership(baseUrl);
+  if (ownership.kind === "foreign") {
+    const pidHint = ownership.pid ? ` (pid=${ownership.pid})` : "";
+    throw new Error(
+      `Port for ${baseUrl} is held by a foreign process${pidHint}, ` +
+      `not a managed unbrowse server. Run \`lsof -i :${new URL(baseUrl).port || "80"}\` ` +
+      "to identify the holder, then `pkill -9 -f 'unbrowse|kuri'; sleep 2` " +
+      "or stop the holder by hand. Refusing to spawn-retry into the same wall.",
+    );
   }
 
   // Spawn with supervisor retry

@@ -218,6 +218,40 @@
   structured `next_action` shape. CLI accepted all three already
   (`src/cli.ts:1145-1146`); MCP is now aligned.
 
+- **runtime: EADDRINUSE fast-fail before spawn-retry loop.** Observed across 42
+  `.claude` sessions per `.harness-out/session-bugs-20260513T122248Z.json`:
+  `ensureLocalServer` retried the spawn N times against a foreign process
+  holding port `:6969`, burying the real diagnostic under 30s × N waits.
+  `probePortOwnership(baseUrl)` is now called BEFORE the spawn-retry loop in
+  `src/runtime/local-server.ts`; on `kind:"foreign"` it throws a structured
+  Error with `lsof -i :PORT` and `pkill -9 -f 'unbrowse|kuri'` instructions
+  and refuses to spawn-retry into the same wall. Bug_id: `EADDRINUSE`. Pinned
+  by `tests/mcp-eaddrinuse-recovery.test.ts` (golden + foreign + 3 edges).
+
+- **executor: recipe_replay surfaces structured fail next_step on miss.**
+  Observed across 30 `.claude` sessions: `recipe_replay.*fail` left the agent
+  with bare `reason` and no recovery path. `decisionTrace.push` at
+  `src/execution/index.ts:2603` now carries
+  `next_step: deriveRecipeReplayNextStep(matchVerdict.reason, ...)` when the
+  match fails. The helper at `src/execution/recipe-replay-hints.ts` dispatches
+  on the real `matchResponseSignal` reason prefixes (`status_changed`,
+  `missing_top_keys`, `body_shrunk`, `body_grew`) and appends
+  `(endpoint=<id>, url=<url>)` to every branch so multi-replay traces stay
+  disambiguatable. Bug_id: `recipe_replay_fail`. Pinned by
+  `tests/mcp-recipe-replay-hint.test.ts` (4 golden reasons + 3 edges).
+
+- **executor: rate_limited honors Retry-After before treating route as stale.**
+  Observed across 13 `.claude` sessions: HTTP 429 + `Retry-After` was
+  collapsed into a generic stale-endpoint handoff that hid the retry window.
+  `serverFetch` now plumbs `response_headers` through the executor result;
+  the 429 branch at `src/execution/index.ts:3087` consults
+  `parseRetryAfter(result?.response_headers ?? {})` and emits decision_trace
+  `429_retry_after_honored {retry_after_ms}` on hit or `429_retry_after_absent`
+  with exponential-backoff prose on miss. `parseRetryAfter` handles RFC 7231
+  delta-seconds + HTTP-date + array-valued + case-insensitive lookup + past
+  dates clamped to zero. Bug_id: `rate_limited`. Pinned by
+  `tests/mcp-retry-after-honor.test.ts` (6 golden RFC shapes + 4 edges).
+
 ### feat
 
 - **Phase 2 — short-lived MCP server by default.** The MCP transport
