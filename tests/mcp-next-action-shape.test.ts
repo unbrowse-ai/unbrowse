@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   addCaptureNextStepHints,
   addExecuteNextStepHints,
+  addResolveHitGuidance,
   addResolveMissGuidance,
 } from "../src/mcp.js";
 
@@ -211,5 +212,136 @@ describe("adversarial: malformed inputs", () => {
     // The placeholder-leak check still passes: no "<…>" string, just an absent key.
     expect(args.skill).toBeUndefined();
     expect(args.endpoint).toBe("ep_y");
+  });
+});
+
+describe("addResolveHitGuidance — happy-path shortlist", () => {
+  test("shortlist with skill + endpoint_id emits next_action to call unbrowse_execute", () => {
+    const out = addResolveHitGuidance(
+      {
+        available_endpoints: [
+          { endpoint_id: "ep_top", description: "Top candidate description" },
+        ],
+        skill: { skill_id: "sk_one" },
+      },
+      { intent: "anything" },
+    ) as Record<string, unknown>;
+
+    const na = asNextAction(out.next_action);
+    expect(na.command).toBe("unbrowse_execute");
+    expect(na.command_args.skill).toBe("sk_one");
+    expect(na.command_args.endpoint).toBe("ep_top");
+  });
+
+  test("already-set next_action is preserved (miss-path wins, hit-path is a no-op)", () => {
+    const preexisting = {
+      title: "preexisting",
+      command: "unbrowse_go",
+      command_args: {},
+      why: "from miss",
+    };
+    const out = addResolveHitGuidance(
+      {
+        next_action: preexisting,
+        available_endpoints: [{ endpoint_id: "ep_top" }],
+        skill: { skill_id: "sk_one" },
+      },
+      {},
+    ) as Record<string, unknown>;
+    expect(out.next_action).toBe(preexisting);
+  });
+
+  test("empty shortlist is a no-op (no next_action added)", () => {
+    const out = addResolveHitGuidance(
+      {
+        available_endpoints: [],
+        skill: { skill_id: "sk_one" },
+      },
+      {},
+    ) as Record<string, unknown>;
+    expect(out.next_action).toBeUndefined();
+  });
+
+  test("missing endpoint_id on top candidate is a no-op", () => {
+    const out = addResolveHitGuidance(
+      {
+        available_endpoints: [{ description: "incomplete" }],
+        skill: { skill_id: "sk_one" },
+      },
+      {},
+    ) as Record<string, unknown>;
+    expect(out.next_action).toBeUndefined();
+  });
+
+  test("missing skill id is a no-op (we never invent a skill)", () => {
+    const out = addResolveHitGuidance(
+      {
+        available_endpoints: [{ endpoint_id: "ep_top" }],
+      },
+      {},
+    ) as Record<string, unknown>;
+    expect(out.next_action).toBeUndefined();
+  });
+});
+
+describe("addResolveHitGuidance — adversarial corners", () => {
+  test("description >120 chars is truncated with ellipsis", () => {
+    const longDesc = "x".repeat(500);
+    const out = addResolveHitGuidance(
+      {
+        available_endpoints: [{ endpoint_id: "ep_top", description: longDesc }],
+        skill: { skill_id: "sk_one" },
+      },
+      {},
+    ) as Record<string, unknown>;
+    const na = asNextAction(out.next_action);
+    expect(na.why.length).toBeLessThanOrEqual(120);
+    expect(na.why.endsWith("...")).toBe(true);
+  });
+
+  test("description with control characters passes through unmodified", () => {
+    const ctrlDesc = "Line 1\nLine 2[31mred[0m";
+    const out = addResolveHitGuidance(
+      {
+        available_endpoints: [{ endpoint_id: "ep_top", description: ctrlDesc }],
+        skill: { skill_id: "sk_one" },
+      },
+      {},
+    ) as Record<string, unknown>;
+    const na = asNextAction(out.next_action);
+    expect(typeof na.why).toBe("string");
+    expect(na.why).toBe(ctrlDesc);
+  });
+
+  test("doubly-nested available_endpoints is NOT recursed into", () => {
+    const input = {
+      result: {
+        result: { available_endpoints: [{ endpoint_id: "ep_deep" }], skill: { skill_id: "sk_deep" } },
+      },
+    };
+    const out = addResolveHitGuidance(input, {}) as Record<string, unknown>;
+    expect(out.next_action).toBeUndefined();
+  });
+
+  test("top candidate is null in shortlist is a no-op (index 0 only, no scan)", () => {
+    const out = addResolveHitGuidance(
+      {
+        available_endpoints: [null, { endpoint_id: "ep_two" }],
+        skill: { skill_id: "sk_one" },
+      },
+      {},
+    ) as Record<string, unknown>;
+    expect(out.next_action).toBeUndefined();
+  });
+
+  test("integer skill_id is rejected (resolveSkillId requires string)", () => {
+    const out = addResolveHitGuidance(
+      {
+        available_endpoints: [{ endpoint_id: "ep_top" }],
+        skill: { skill_id: 42 },
+      },
+      {},
+    ) as Record<string, unknown>;
+    expect(out.next_action).toBeUndefined();
   });
 });
