@@ -16,6 +16,7 @@ import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
+import { deriveRecipeReplayNextStep } from "./recipe-replay-hints.js";
 import { probeUrl, decideFromProbe } from "./probe.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
@@ -2602,7 +2603,16 @@ export async function executeEndpoint(
       method: endpoint.proven_recipe.method,
       status: recipeResult.status,
       match: matchVerdict.match,
-      ...(matchVerdict.match ? {} : { reason: matchVerdict.reason ?? "unknown" }),
+      ...(matchVerdict.match
+        ? {}
+        : {
+            reason: matchVerdict.reason ?? "unknown",
+            next_step: deriveRecipeReplayNextStep(matchVerdict.reason, {
+              url,
+              status: recipeResult.status,
+              endpointId: endpoint.endpoint_id ?? "unknown",
+            }),
+          }),
       ms: Date.now() - recipeStart,
     });
     if (matchVerdict.match) {
