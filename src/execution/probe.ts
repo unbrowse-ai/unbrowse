@@ -7,6 +7,7 @@ export interface ProbeResult {
   ms: number;                         // wall-clock time
   error?: string;                     // network error reason on status:0
   method_used: "HEAD" | "GET-1byte";  // which request type produced this result
+  retry_after?: string;               // raw Retry-After header (delta-seconds or HTTP-date); B3 follow-up so probe-fast-fail 429s carry the wait window
 }
 
 export interface ProbeOptions {
@@ -59,12 +60,14 @@ export async function probeUrl(url: string, opts: ProbeOptions = {}): Promise<Pr
       const ct = (res.headers.get("content-type") || "").toLowerCase();
       const lenHeader = res.headers.get("content-length");
       const byte_length = lenHeader && Number.isFinite(Number(lenHeader)) ? Number(lenHeader) : undefined;
+      const retryAfter = res.headers.get("retry-after") || undefined;
       return {
         status: res.status,
         content_type: ct || undefined,
         byte_length,
         ms: Date.now() - start,
         method_used: "HEAD",
+        ...(retryAfter ? { retry_after: retryAfter } : {}),
       };
     }
     log("probe", `HEAD ${url} returned ${res.status}; trying ranged GET`);
@@ -101,12 +104,14 @@ export async function probeUrl(url: string, opts: ProbeOptions = {}): Promise<Pr
     }
     // Drain the 1 byte body so the connection can be reused.
     try { await res.arrayBuffer(); } catch { /* ignore */ }
+    const retryAfter = res.headers.get("retry-after") || undefined;
     return {
       status: res.status === 206 ? 200 : res.status, // partial-content normalises to 200
       content_type: ct || undefined,
       byte_length,
       ms: Date.now() - start + (Date.now() - start2),
       method_used: "GET-1byte",
+      ...(retryAfter ? { retry_after: retryAfter } : {}),
     };
   } catch (err) {
     return {

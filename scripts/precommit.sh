@@ -39,8 +39,8 @@ if has_match '^(src/cli\.ts|SKILL\.md)$'; then
   bun run check:skill-md
 fi
 
-if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|packages/skill/README\.md|SKILL\.md|tests/client-registration\.test\.ts|tests/runtime-setup\.test\.ts)$'; then
-  run_tests tests/client-registration.test.ts tests/runtime-setup.test.ts
+if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|src/mcp\.ts|src/server\.ts|packages/skill/README\.md|SKILL\.md|tests/(client-registration|runtime-setup|p2-end-to-end-mcp-flow)\.test\.ts)$'; then
+  run_tests tests/client-registration.test.ts tests/runtime-setup.test.ts tests/p2-end-to-end-mcp-flow.test.ts
 fi
 
 if has_match '^(src/kuri/|src/runtime/paths\.ts|packages/skill/|tests/runtime-(paths|setup)\.test\.ts|scripts/check-packaged-kuri\.sh|packages/skill/scripts/)'; then

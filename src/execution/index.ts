@@ -15,7 +15,8 @@ import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
-import { withRetry, isRetryableStatus } from "./retry.js";
+import { withRetry, isRetryableStatus, parseRetryAfter } from "./retry.js";
+import { deriveRecipeReplayNextStep } from "./recipe-replay-hints.js";
 import { probeUrl, decideFromProbe } from "./probe.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
@@ -2417,7 +2418,7 @@ export async function executeEndpoint(
   const serverFetch = async (
     extraHeaders: Record<string, string> = {},
     bodyOverride: unknown = body,
-  ): Promise<{ data: unknown; status: number; trace_id: string }> => {
+  ): Promise<{ data: unknown; status: number; trace_id: string; response_headers: Record<string, string> }> => {
     const endpointHeaders = normalizeReplayHeaders(endpoint.headers_template);
     const sessionHeaders = normalizeReplayHeaders(authHeaders);
 
@@ -2473,7 +2474,7 @@ export async function executeEndpoint(
     }
 
     const replayUrls = [url];
-    let last: { data: unknown; status: number } = { data: null, status: 0 };
+    let last: { data: unknown; status: number; response_headers: Record<string, string> } = { data: null, status: 0, response_headers: {} };
 
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
@@ -2523,7 +2524,9 @@ export async function executeEndpoint(
         try { data = JSON.parse(text); } catch { data = text; }
         }
       }
-      last = { data, status: res.status };
+      const responseHeaders: Record<string, string> = {};
+      res.headers.forEach((v, k) => { responseHeaders[k] = v; });
+      last = { data, status: res.status, response_headers: responseHeaders };
 
       // Learn constraints from API validation errors
       if ((res.status === 400 || res.status === 422) && data && typeof data === "object") {
@@ -2547,11 +2550,11 @@ export async function executeEndpoint(
       }
 
       if (res.ok && !(typeof data === "string" && isHtml(data))) {
-        return { data, status: res.status, trace_id: nanoid() };
+        return { data, status: res.status, trace_id: nanoid(), response_headers: last.response_headers };
       }
     }
 
-    return { data: last.data, status: last.status, trace_id: nanoid() };
+    return { data: last.data, status: last.status, trace_id: nanoid(), response_headers: last.response_headers };
   };
 
   const browserCall = () => executeInBrowser(
@@ -2563,7 +2566,7 @@ export async function executeEndpoint(
     cookies
   );
 
-  let result: { data: unknown; status: number; trace_id: string };
+  let result: { data: unknown; status: number; trace_id: string; response_headers?: Record<string, string> };
   let workflowChosenStrategy = workflowRecipe?.steps[0]?.strategy;
 
   // ---------------------------------------------------------------------------
@@ -2602,7 +2605,16 @@ export async function executeEndpoint(
       method: endpoint.proven_recipe.method,
       status: recipeResult.status,
       match: matchVerdict.match,
-      ...(matchVerdict.match ? {} : { reason: matchVerdict.reason ?? "unknown" }),
+      ...(matchVerdict.match
+        ? {}
+        : {
+            reason: matchVerdict.reason ?? "unknown",
+            next_step: deriveRecipeReplayNextStep(matchVerdict.reason, {
+              url,
+              status: recipeResult.status,
+              endpointId: endpoint.endpoint_id ?? "unknown",
+            }),
+          }),
       ms: Date.now() - recipeStart,
     });
     if (matchVerdict.match) {
@@ -2698,6 +2710,7 @@ export async function executeEndpoint(
             ...(probe.content_type ? { content_type: probe.content_type } : {}),
           },
           trace_id: nanoid(),
+          response_headers: probe.retry_after ? { "retry-after": probe.retry_after } : {},
         };
         decisionTrace.push({ step: "return_error", status: probe.status });
         workflowChosenStrategy = workflowChosenStrategy ?? "server";
@@ -3069,8 +3082,35 @@ export async function executeEndpoint(
         decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_error", reason: err instanceof Error ? err.message : String(err) });
       }
     }
-    data = staleEndpointResult(status, skill, endpoint, options?.contextUrl);
-    trace.result = data;
+    // B3: honor Retry-After before treating 429 as stale.
+    if (status === 429) {
+      const retryAfterMs = parseRetryAfter(result?.response_headers ?? {});
+      if (retryAfterMs != null) {
+        const seconds = Math.ceil(retryAfterMs / 1000);
+        decisionTrace.push({ step: "429_retry_after_honored", retry_after_ms: retryAfterMs });
+        data = staleEndpointResult(
+          status,
+          skill,
+          endpoint,
+          options?.contextUrl,
+          `Endpoint ${endpoint.endpoint_id} returned HTTP 429 (rate_limited). Server says Retry-After ${seconds}s. Wait at least that long before re-executing the same endpoint; the route is not stale, the caller is over quota.`,
+        );
+        trace.result = data;
+      } else {
+        decisionTrace.push({ step: "429_retry_after_absent" });
+        data = staleEndpointResult(
+          status,
+          skill,
+          endpoint,
+          options?.contextUrl,
+          `Endpoint ${endpoint.endpoint_id} returned HTTP 429 (rate_limited) with no Retry-After header. Back off exponentially (try 30s, 60s, 120s) before re-executing; the route is not stale, the caller is over quota.`,
+        );
+        trace.result = data;
+      }
+    } else {
+      data = staleEndpointResult(status, skill, endpoint, options?.contextUrl);
+      trace.result = data;
+    }
   }
 
   // Schema drift detection on re-execution
