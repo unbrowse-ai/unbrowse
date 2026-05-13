@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.14.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.1...v6.14.0-preview.2) (2026-05-13)
+
+### Bug Fixes
+
+* **mcp,cli:** harden carousell-class failure mode end-to-end ([e23397c](https://github.com/unbrowse-ai/unbrowse-dev/commit/e23397c4af55c05af7501e23d969a124addf4a7f))
+* **mcp:** widen resolve miss-guidance to cover all 3 miss statuses ([ec5190c](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec5190c7f08d1c277b12a3bb008de3354c057b6b))
+
 ## [6.14.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.0...v6.14.0-preview.1) (2026-05-13)
 
 ## [6.14.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.14.0-preview.0) (2026-05-13)
