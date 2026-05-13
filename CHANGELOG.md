@@ -135,6 +135,18 @@
   See `docs/stateless-unbrowse-phase-1-1-acceptance-audit.md` for the
   per-criterion verification.
 
+- **mcp:** the MCP stdio server no longer dies mid-session when a
+  fire-and-forget async chain throws. `uncaughtException` and
+  `unhandledRejection` are now logged to stderr with `[mcp:uncaught]` /
+  `[mcp:unhandled]` prefixes and swallowed, so a single bad call can no
+  longer take all 33 tools down with `MCP error -32000: Connection
+  closed`. Tests can opt into fail-fast with `UNBROWSE_TEST_FAIL_FAST=1`.
+
+- **cli:** `unbrowse run --url <url> "task"` (flag URL + positional intent)
+  now parses correctly instead of falling through to the `die()` help
+  banner. The other three argv shapes (`run <url> "task"`,
+  `run "task" --url <url>`, intent-only) are unchanged.
+
 ### feat
 
 - **Phase 2 — short-lived MCP server by default.** The MCP transport
@@ -179,6 +191,16 @@
   Still owed in Phase 2.1: deletion of the "Always kill stale unbrowse
   server" CLAUDE.md note (needs a two-week production observation
   window) — tracked in `docs/stateless-unbrowse-phase-2-1-followups.md`.
+
+- **mcp:** `unbrowse_resolve` now carries a `next_action` on the
+  happy-path shortlist (mirror of the existing miss-path hint). When the
+  response has a non-empty `available_endpoints`, callers see
+  `next_action: { title, command: "unbrowse_execute", command_args: {
+  skill, endpoint }, why }` derived from the top candidate, so the
+  resolve -> execute hand-off is a single copy-paste instead of an
+  argument-construction exercise. Also drops four stale references to
+  the non-existent `unbrowse_fetch` tool from tool descriptions.
+
 
 ## [6.13.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.13.1-preview.0) (2026-05-12)
 

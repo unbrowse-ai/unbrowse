@@ -861,11 +861,36 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
 }
 
+export function parseCmdRunArgs(
+  args: string[],
+  flags: Record<string, string | boolean>,
+): { url: string; intent: string } | { error: string } {
+  const flagUrl = typeof flags.url === "string" ? flags.url : undefined;
+  const flagIntent = (typeof flags.intent === "string" ? flags.intent : undefined)
+    ?? (typeof flags.task === "string" ? flags.task : undefined)
+    ?? (typeof flags.query === "string" ? flags.query : undefined);
+
+  let url: string | undefined;
+  let positionalTask: string | undefined;
+  if (flagUrl !== undefined) {
+    // When --url is provided, ALL positionals are intent fragments.
+    url = flagUrl;
+    positionalTask = args.length > 0 ? args.join(" ") : undefined;
+  } else {
+    // Legacy: args[0] is url, remaining positionals join into intent.
+    url = args[0];
+    positionalTask = args.length > 1 ? args.slice(1).join(" ") : undefined;
+  }
+
+  const intent = flagIntent ?? positionalTask;
+  if (!url || !intent) return { error: 'usage: unbrowse run <url> "task"' };
+  return { url, intent };
+}
+
 async function cmdRun(args: string[], flags: Record<string, string | boolean>): Promise<void> {
-  const url = (flags.url as string | undefined) ?? args[0];
-  const positionalTask = args.length > 1 ? args.slice(1).join(" ") : undefined;
-  const intent = ((flags.intent ?? flags.task ?? flags.query) as string | undefined) ?? positionalTask;
-  if (!url || !intent) die('usage: unbrowse run <url> "task"');
+  const parsed = parseCmdRunArgs(args, flags);
+  if ("error" in parsed) die(parsed.error);
+  const { url, intent } = parsed;
 
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
