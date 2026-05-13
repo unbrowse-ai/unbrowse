@@ -34,6 +34,34 @@
 
 ## Unreleased
 
+### docs
+
+- **Third-mirror deferral.** `.agents/skills/unbrowse/src/mcp.ts` (vendored
+  snapshot at commit `9f124ba1`) is not synced by `scripts/sync-skill.sh`;
+  promote-or-delete decision deferred to a later loop. See CLAUDE.md "Known
+  Issues to Fix" → "Third `mcp.ts` mirror not covered by sync".
+
+### tests
+
+- **Regression: projection survives the wire-budget diet through real stdio
+  dispatch.** Added `tests/mcp-projection-stdio.test.ts` which spawns
+  `bun src/mcp.ts` against a stub backend and pins three projection-vs-diet
+  contracts end-to-end: (1) happy path — 20 items × ~2 KB → projected
+  Array(10) of `{name, area}` under 25 K wire budget; (2) many small items
+  overshooting budget — 500 × 50-char → `capOversizeArrays` caps to
+  `ARRAY_MAX_ELEMENTS+1` with its existing `{truncated:N, unit:"items"}`
+  sentinel as the tail; (3) few items each too large — 200 × 1000-char →
+  diet falls back to wrapper with non-empty `body_excerpt` (the empty-string
+  safety-net branch must never fire on projected envelopes). Mutation-proven
+  against both `drillPath`/`applyExtract`/`slice` and `capOversizeArrays`
+  cap+sentinel. Wired into `.release-it.json` `before:init` hook so the
+  contract is enforced on every preview/stable release, not just on
+  developer machines. Per-push CI gating will land separately under a
+  workflow-scoped credential (release commits must not touch
+  `.github/workflows/*` — that path requires `workflow` OAuth scope which
+  the local release pipeline doesn't carry). Closes the live
+  diagnostic gap where agents hit `payload_exceeded_wire_budget_after_diet`
+  against stale daemons.
 ### refactor
 
 - **Disk-backed background index queue** (Phase 1 of stateless unbrowse). The
