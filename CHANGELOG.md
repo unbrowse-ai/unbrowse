@@ -147,6 +147,14 @@
   banner. The other three argv shapes (`run <url> "task"`,
   `run "task" --url <url>`, intent-only) are unchanged.
 
+- **mcp:** `unbrowse_resolve` miss-path `next_action` now fires for every
+  miss status the orchestrator actually emits — `no_match`, `no_cached_match`,
+  and `not_found` — not just `no_cached_match`. The miss-path was previously
+  guarded on a single string variant the runtime rarely returned, so the
+  agent received only the legacy prose `next_step` hint instead of the
+  structured `next_action` shape. CLI accepted all three already
+  (`src/cli.ts:1145-1146`); MCP is now aligned.
+
 ### feat
 
 - **Phase 2 — short-lived MCP server by default.** The MCP transport

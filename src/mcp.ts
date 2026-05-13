@@ -1001,7 +1001,8 @@ export function addResolveMissGuidance(
   const nested = isPlainObject(result.result) ? result.result : undefined;
   const status = typeof nested?.status === "string" ? nested.status : undefined;
   const error = resolveNestedError(result);
-  if (status !== "no_cached_match" && error !== "no_cached_match") return result;
+  const missStatuses = new Set(["no_match", "no_cached_match", "not_found"]);
+  if (!(status && missStatuses.has(status)) && !(error && missStatuses.has(error))) return result;
 
   const url = typeof args.url === "string" ? args.url : (typeof nested?.url === "string" ? nested.url : undefined);
   const domain = typeof args.domain === "string" ? args.domain : (typeof nested?.domain === "string" ? nested.domain : undefined);
