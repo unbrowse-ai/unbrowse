@@ -25,7 +25,7 @@ import { getUnbrowseConfigPath } from "../settings.js";
 import { getEndpointDescriptionMetadata } from "../graph/index.js";
 import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
 import { getContributionConfig } from "../config/contribution.js";
-import { writeJob, listJobs, heartbeatAgeMs, tryAcquireWorkerSlot, type JobEnvelope } from "./queue-store.js";
+import { writeJob, listJobs, heartbeatAgeMs, tryAcquireWorkerSlot, sanitizeDomain, type JobEnvelope } from "./queue-store.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
@@ -557,8 +557,9 @@ export function isIndexingInFlight(domain: string): boolean {
   }
   // Disk mode: check pending envelopes + lock file for this domain.
   const queueDir = getQueueDir();
-  const sanitized = domain.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.\.+/g, "__");
-  const cap = sanitized.length > 200 ? sanitized.slice(0, 200) : sanitized;
+  // P1.1 Day-6 fix: use canonical sanitizeDomain (NFC + Windows-reserved aware).
+  // The previous inline regex copy diverged from worker.ts after Day-5 hardening.
+  const cap = sanitizeDomain(domain);
   try {
     if (existsSync(join(queueDir, `${cap}.lock`))) return true;
     if (!existsSync(queueDir)) return false;
@@ -573,7 +574,6 @@ export function isIndexingInFlight(domain: string): boolean {
   return false;
 }
 
-/** Await all in-flight background index jobs. Call before process exit. */
 /** Await all in-flight background index jobs. Call before process exit. */
 export async function drainPendingIndexJobs(): Promise<void> {
   if (shouldRunInline()) {

@@ -28,6 +28,67 @@
   See `docs/stateless-unbrowse-plan.md` and
   `docs/stateless-unbrowse-plan-acceptance-audit.md`.
 
+### fix
+
+- **Phase 1.1 hardening of the disk-backed background index queue.** Six audit
+  findings from the Phase 1 Day-8 cold-auditor review (`docs/stateless-unbrowse-phase-1-1-followups.md`) are now closed:
+
+  - **P1** — Detached drain workers are bounded to one per machine via a
+    global `~/.unbrowse/queue/worker.lock` acquired with the new
+    `tryAcquireWorkerSlot(queueDir)` primitive. Both parent spawn sites
+    (`queueBackgroundIndex` disk branch + cli `_spawnDrainWorker`) gate on
+    the slot before spawning; the child `__drain-queue` entrypoint
+    re-acquires on startup and holds the slot for the lifetime of
+    `drainUntilEmpty` (Model B). Two concurrent CLIs no longer leak two
+    workers.
+  - **P1** — Silent loss eliminated. `listJobsWithRejects(queueDir)`
+    classifies corrupt-JSON / wrong-version / missing-fields files; `drainOnce`
+    moves them to `~/.unbrowse/queue/quarantine/<reason>/` and reports
+    `rejected: N` in its return. Operators can now distinguish an empty
+    queue from a queue full of unreadable files.
+  - **P1** — Lock PID-reuse safety. `acquireLock` cross-checks
+    `heartbeatAgeMs(queueDir) > 30_000` when a held PID looks alive — a
+    long-uptime system that reassigned a stale PID no longer holds the
+    lock forever. A live-PID + fresh-heartbeat lock stays held; a
+    live-PID + stale-heartbeat lock is reclaimed. The `30_000ms`
+    threshold is pinned bidirectionally by edge tests (29s held vs 31s
+    reclaimed).
+  - **MEDIUM** — `sweepStaleTmp(queueDir, maxAgeMs?)` fires at the top of
+    every `drainOnce` and removes `*.tmp` orphans older than 60s. Years of
+    crashes no longer balloon `readdir` cost.
+  - **P2** — `backend/bunfig.toml` mirrors the root preload so `bun test`
+    from `backend/` cwd still sets `UNBROWSE_INLINE_INDEX=1`. Bun's
+    bunfig.toml preload silently rejects `..` upward traversal, so the
+    setup file is locally copied to `backend/tests/_setup.ts`.
+  - **LOW** — `sanitizeDomain` NFC-normalizes its input (NFC and NFD
+    forms collapse to the same filename + `envelope.domain`) and prefixes
+    Windows reserved names (`CON`/`PRN`/`AUX`/`NUL`/`COM[1-9]`/`LPT[1-9]`)
+    with `_` so cross-platform basename creation doesn't hang on a
+    device-name open.
+
+  Two additional in-loop bug discoveries from the Day-4 concurrency probe
+  (independent of the audit list):
+
+  - `acquireLock`'s heartbeat cross-check treated `Number.POSITIVE_INFINITY`
+    (no `.heartbeat` file yet) as stale, allowing concurrent cold-start
+    acquirers to reclaim a live holder's lock. Fixed with `Number.isFinite`
+    guard.
+  - The window between `fs.open(path, "wx")` and `handle.writeFile(pid)`
+    left the lock file empty; concurrent readers saw `parseInt("") = NaN`,
+    fell to "stale-or-corrupt → reclaim," and ended up co-holders. Fixed
+    with a `midWrite` state that returns `null` instead of reclaiming when
+    the lock file exists but is empty.
+
+  No public-API signature breaks. `drainOnce` return type gains an additive
+  `rejected: number` field. `acquireLock` gains an optional second
+  `queueDir` parameter (legacy callers unaffected). New exports in
+  `src/indexer/queue-store.ts`: `tryAcquireWorkerSlot`, `listJobsWithRejects`,
+  `sweepStaleTmp`, `RejectedFile`, `touchHeartbeat` (Phase 1), `heartbeatAgeMs`
+  (Phase 1).
+
+  See `docs/stateless-unbrowse-phase-1-1-acceptance-audit.md` for the
+  per-criterion verification.
+
 ## [6.13.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.13.1-preview.0) (2026-05-12)
 
 ### Bug Fixes

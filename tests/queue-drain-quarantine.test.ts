@@ -7,6 +7,7 @@ import { drainOnce, type DrainProcessor } from "../src/indexer/worker.js";
 import { writeJob, type JobEnvelope } from "../src/indexer/queue-store.js";
 import type { BackgroundIndexJob } from "../src/indexer/index.js";
 
+
 function makeJob(overrides: Partial<BackgroundIndexJob> = {}): BackgroundIndexJob {
   return {
     skill: { name: "x", version: "1.0", domain: "example.com", endpoints: [] } as any,
@@ -20,7 +21,6 @@ function makeJob(overrides: Partial<BackgroundIndexJob> = {}): BackgroundIndexJo
 function envelope(job: BackgroundIndexJob, queuedAt: number = Date.now()): JobEnvelope {
   return { version: 1, domain: job.domain, queuedAt, attempts: 0, job };
 }
-
 async function countJsonFiles(dir: string): Promise<number> {
   try {
     const entries = await readdir(dir);
