@@ -2,9 +2,9 @@
 import { describe, test, expect } from "bun:test";
 import { spawn } from "node:child_process";
 import { rm, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-const REPO_ROOT = "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse-jl-default";
+const REPO_ROOT = resolve(import.meta.dir, "..");
 
 describe("backend bunfig preload", () => {
   test("running bun test from backend/ cwd preloads tests/_setup.ts (sets UNBROWSE_INLINE_INDEX)", async () => {

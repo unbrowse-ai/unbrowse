@@ -3,11 +3,11 @@ import { describe, test, expect } from "bun:test";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile, readdir, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { writeJob, type JobEnvelope } from "../src/indexer/queue-store.js";
 import type { BackgroundIndexJob } from "../src/indexer/index.js";
 
-const REPO_ROOT = "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse-jl-default";
+const REPO_ROOT = resolve(import.meta.dir, "..");
 
 test("__drain-queue drains valid + quarantines 3 reject classes via real CLI spawn", async () => {
   const fakeHome = await mkdtemp(join(tmpdir(), "p11-e2e-"));

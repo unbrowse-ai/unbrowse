@@ -6,9 +6,9 @@ import { describe, test, expect } from "bun:test";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-const REPO_ROOT = "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse-jl-default";
+const REPO_ROOT = resolve(import.meta.dir, "..");
 
 describe("Phase 2 end-to-end MCP flow", () => {
   test("MCP -> auto-spawn daemon -> tool call -> stdin close -> daemon dies fast", async () => {

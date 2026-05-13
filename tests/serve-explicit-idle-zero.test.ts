@@ -5,9 +5,9 @@ import { describe, test, expect } from "bun:test";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-const REPO_ROOT = "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse-jl-default";
+const REPO_ROOT = resolve(import.meta.dir, "..");
 
 describe("unbrowse serve idle=0 regression", () => {
   test("foreground server stays alive past 17s with no requests (would reap at 15s if MCP-mode leaked)", async () => {
