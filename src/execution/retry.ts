@@ -44,3 +44,35 @@ export async function withRetry<T>(
 export function isRetryableStatus(status: number): boolean {
   return RETRYABLE_STATUSES.has(status);
 }
+
+// Parse HTTP Retry-After (RFC 7231 §7.1.3): delta-seconds or HTTP-date, returns ms or null.
+export function parseRetryAfter(
+  headers: Record<string, string | string[] | undefined>,
+): number | null {
+  if (!headers || typeof headers !== "object") return null;
+  let raw: string | undefined;
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === "retry-after") {
+      const v = headers[key];
+      raw = Array.isArray(v) ? v[0] : v;
+      break;
+    }
+  }
+  if (raw == null) return null;
+  const trimmed = String(raw).trim();
+  if (trimmed === "") return null;
+
+  // delta-seconds form (non-negative integer)
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = parseInt(trimmed, 10);
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+    return null;
+  }
+
+  // HTTP-date form
+  const parsed = Date.parse(trimmed);
+  if (!Number.isFinite(parsed)) return null;
+  const delta = parsed - Date.now();
+  // Past dates collapse to 0 (server says retry immediately).
+  return delta > 0 ? delta : 0;
+}
