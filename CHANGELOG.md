@@ -129,7 +129,7 @@
     Respects `--no-auto-start` — pre-existing daemons (not spawned
     by MCP) are never touched.
 
-  - MCP-mode tighter idle reaper (`src/server.ts:142`) — when
+  - MCP-mode tighter idle reaper (`src/server.ts:141`) — when
     `MCP_SERVER_MODE=1` is set, the idle window defaults to 15
     seconds instead of 60. This is the fallback when graceful
     stdin-EOF doesn't fire (SIGKILL, crash, OOM). Verified

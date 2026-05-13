@@ -45,3 +45,19 @@ Phase 2 Day 6 (this loop) established the first `.bench-local/` baseline. Withou
 - **Real triggers** (a metric or event will fire them): #1 (observation window), #2 (P95 latency), #4 (user conflict report).
 - **Maintenance commitments** (no trigger, just discipline): #5.
 - **Speculative** (only revisit if forced by #2): #3 — large refactor, do not chase pre-emptively.
+
+### 6. `MCP_SERVER_MODE` truthy/strict-eq inconsistency (P2)
+
+- **Why deferred:** Day-8 Auditor #11 found two readers of the same env var
+  disagree on its semantics:
+  - `src/server.ts:141` uses `=== "1"` strict equality (Phase 2 Day-5 default).
+  - `src/runtime/browser-host.ts:14` uses `if (process.env.MCP_SERVER_MODE)` truthy check.
+  The internal contract is `"1"`-only (mcp.ts always sets `"1"`), so under
+  normal operation both agree. But a docs reader who sets `MCP_SERVER_MODE=true`
+  would silently get split behavior: browser-host goes to MCP mode; server.ts
+  stays on the 60s idle.
+- **Trigger:** Any documentation that prescribes `MCP_SERVER_MODE` to users.
+- **Sketch:** Align both readers on `=== "1"` (strict, predictable, no
+  truthy-coercion surprises). One-line patch each side. OR loosen server.ts
+  to truthy and document that.
+

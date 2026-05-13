@@ -17,7 +17,13 @@ process.env.MCP_SERVER_MODE ??= "1";
 
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
 const CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `mcp-${process.pid}`;
-const NO_AUTO_START = process.argv.includes("--no-auto-start");
+// Phase 2 Day-8 audit #4: accept the argv flag OR the env-var equivalent. Many
+// IDE MCP launcher configs (Claude Code, Cursor) only let users set env vars,
+// not argv. `--no-auto-start=true` argv pattern (with `=`) also accepted.
+const NO_AUTO_START =
+  process.argv.includes("--no-auto-start") ||
+  process.argv.some((a) => a.startsWith("--no-auto-start=")) ||
+  process.env.UNBROWSE_NO_AUTO_START === "1";
 const LATEST_PROTOCOL_VERSION = "2025-11-25";
 const SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05"] as const;
 const PREVIEW_LIMIT = 12_000;

@@ -3,9 +3,9 @@
 // the contributor must re-add it or justify the removal in PR review.
 import { describe, test, expect } from "bun:test";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-const REPO_ROOT = "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse-jl-default";
+const REPO_ROOT = resolve(import.meta.dir, "..");
 
 describe("CLAUDE.md Phase-2 doc sentinel", () => {
   test("mentions --no-auto-start, unbrowse serve, MCP_SERVER_MODE, UNBROWSE_SERVE_IDLE_MS", async () => {
