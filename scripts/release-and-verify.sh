@@ -45,18 +45,28 @@ bun test tests/path-params.test.ts tests/utils.test.ts || die "unit tests failed
 git checkout -- src/build-info.generated.ts
 log "local tests passed"
 
-# ── Step 2: Cut release ──
+# ── Step 2: Cut preview release ──
+# Uses scripts/publish-preview-cli.mjs (= `bun run publish:cli:preview`), which
+# publishes from a temp repo copy with --tag preview AND bakes the staging
+# backend URL into the build. This avoids the prior release-it path that
+# bumped main's version and published without the --tag preview flag, leaving
+# `npm view unbrowse dist-tags` stuck on the previous preview.
 if [[ "$SKIP_RELEASE" != "1" ]]; then
   log "checking working tree..."
   if [[ -n "$(git status --porcelain)" ]]; then
     die "working tree not clean — commit or stash first"
   fi
 
-  log "cutting preview release..."
-  bun run release -- --preRelease=preview --ci
-  TAG="$(git describe --tags --match='v*' --abbrev=0)"
-  VERSION="${TAG#v}"
-  log "tagged $TAG"
+  BACKEND_URL="${UNBROWSE_PREVIEW_BACKEND_URL:-https://unbrowse-backend-staging.lewis-6d8.workers.dev}"
+  log "cutting preview release via publish:cli:preview (backend=$BACKEND_URL)..."
+  PUBLISH_LOG="$(mktemp -t release-preview.XXXXXX)"
+  UNBROWSE_PREVIEW_BACKEND_URL="$BACKEND_URL" \
+    bun run publish:cli:preview 2>&1 | tee "$PUBLISH_LOG"
+  VERSION="$(grep '^preview_version=' "$PUBLISH_LOG" | head -1 | cut -d= -f2)"
+  rm -f "$PUBLISH_LOG"
+  [[ -n "$VERSION" ]] || die "publish:cli:preview did not emit preview_version"
+  TAG="v$VERSION"
+  log "published $TAG (gh release; no local source tag)"
 else
   TAG="$(git describe --tags --match='v*' --abbrev=0)"
   VERSION="${TAG#v}"
