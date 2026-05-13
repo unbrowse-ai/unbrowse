@@ -110,6 +110,51 @@
   See `docs/stateless-unbrowse-phase-1-1-acceptance-audit.md` for the
   per-criterion verification.
 
+### feat
+
+- **Phase 2 — short-lived MCP server by default.** The MCP transport
+  (stdio JSON-RPC) was already stateless-per-call, but every MCP tool
+  handler auto-spawned a long-lived Fastify daemon at `localhost:6969`
+  that lingered for 60s after the MCP process exited (or forever if a
+  request had been in-flight). Phase 2 ends that:
+
+  - New `unbrowse serve` CLI verb — explicit foreground long-lived
+    server. Defaults `UNBROWSE_SERVE_IDLE_MS=0` (no auto-exit); kill
+    with SIGTERM/SIGINT for clean shutdown. The opt-in long-lived
+    mode for users who want it (CI, dev hot-reload).
+
+  - MCP stdin-EOF watcher (`src/mcp.ts`) — when stdin closes (parent
+    IDE disconnects), stops the auto-spawned daemon via
+    `stopManagedServer`. Idempotent across `end` + `close` events.
+    Respects `--no-auto-start` — pre-existing daemons (not spawned
+    by MCP) are never touched.
+
+  - MCP-mode tighter idle reaper (`src/server.ts:142`) — when
+    `MCP_SERVER_MODE=1` is set, the idle window defaults to 15
+    seconds instead of 60. This is the fallback when graceful
+    stdin-EOF doesn't fire (SIGKILL, crash, OOM). Verified
+    necessary by Day-5 cascade test: SIGKILL on MCP does NOT
+    propagate to the detached daemon (it lives in its own
+    process group per `child.unref()`), so without the tighter
+    idle, ungracefully-killed MCP would leak the daemon for the
+    full legacy 60s.
+
+  - CLAUDE.md updated to name `--no-auto-start`, `unbrowse serve`,
+    `MCP_SERVER_MODE`, and `UNBROWSE_SERVE_IDLE_MS` as the actual
+    mitigations. The "Always kill the running unbrowse server"
+    nuclear-option remains for SIGKILL-during-in-flight-request edges.
+
+  No public API breaks. New verb is additive. New env-var default is
+  conditional on `MCP_SERVER_MODE=1` which is set automatically by
+  the MCP entrypoint; explicit `unbrowse serve` users get
+  `UNBROWSE_SERVE_IDLE_MS=0` (no auto-exit) overriding it.
+
+  Source plan: `docs/stateless-unbrowse-plan.md` Phase 2 section.
+  Acceptance audit: `docs/stateless-unbrowse-phase-2-acceptance-audit.md`.
+  Still owed in Phase 2.1: deletion of the "Always kill stale unbrowse
+  server" CLAUDE.md note (needs a two-week production observation
+  window) — tracked in `docs/stateless-unbrowse-phase-2-1-followups.md`.
+
 ## [6.13.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.13.1-preview.0) (2026-05-12)
 
 ### Bug Fixes
