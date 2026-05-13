@@ -110,6 +110,25 @@ describe("addResolveMissGuidance — Phase 1 next_action shape", () => {
     // next_action is added by addExecuteNextStepHints downstream.
     expect(out.next_action).toBeUndefined();
   });
+
+  test("status no_match (orchestrator's real emission) also fires next_action", () => {
+    const out = addResolveMissGuidance(
+      { result: { status: "no_match", url: "https://news.ycombinator.com" } },
+      { intent: "get top stories", url: "https://news.ycombinator.com" },
+    ) as Record<string, unknown>;
+    const na = asNextAction(out.next_action);
+    expect(na.command).toBe("unbrowse_go");
+    expect(na.command_args.url).toBe("https://news.ycombinator.com");
+  });
+
+  test("status not_found also fires next_action", () => {
+    const out = addResolveMissGuidance(
+      { result: { status: "not_found", url: "https://example.com/x" } },
+      { intent: "anything", url: "https://example.com/x" },
+    ) as Record<string, unknown>;
+    const na = asNextAction(out.next_action);
+    expect(na.command).toBe("unbrowse_go");
+  });
 });
 
 // ─── Edges + adversarial (Step 5) ───────────────────────────────────────────
