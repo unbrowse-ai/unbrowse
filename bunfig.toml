@@ -1,2 +1,5 @@
+# Root bunfig. Mirrored in backend/bunfig.toml; if you change the preload
+# contract here, also update backend/tests/_setup.ts (Bun rejects `..` upward
+# traversal in preload paths, so backend keeps a local copy).
 [test]
 preload = ["./tests/_setup.ts"]

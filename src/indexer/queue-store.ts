@@ -171,8 +171,6 @@ export async function acquireLock(lockPath: string, queueDir?: string): Promise<
 
   // EEXIST: inspect holder. "Alive" → return null; otherwise (stale, ESRCH, or
   // corrupt PID content) fall through to unlink + retry.
-  // EEXIST: inspect holder. "Alive" → return null; otherwise (stale, ESRCH, or
-  // corrupt PID content) fall through to unlink + retry.
   let alive = false;
   let midWrite = false;
   try {
