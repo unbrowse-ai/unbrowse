@@ -12,6 +12,9 @@ import { fileURLToPath } from "node:url";
 // NOT a body_excerpt wrap. This test exists so a future regression
 // (silently re-introducing the body_excerpt wrap on a moderate-size
 // list) surfaces here, not in an agent transcript.
+//
+// See also: .harness-out/projection-bench.mjs (gitignored local dev tool)
+// for a 5-scenario swarm probe maintained by /unbrowse-local-verify-loop.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
