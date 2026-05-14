@@ -88,6 +88,15 @@ export interface Env {
    * echoed in error responses.
    */
   ADMIN_KEY?: string;
+  /**
+   * Faremeter Flex facilitator (v6.16.0+) — self-hosted Solana flex
+   * facilitator. Wires the four envs below into createFlexFacilitator on
+   * Day 5; until then the bindings exist but are unused.
+   */
+  FLEX_PLATFORM_FACILITATOR_KEY?: string;     // secret (set via wrangler secret put)
+  FLEX_PLATFORM_RECIPIENT_USDC_ATA?: string;  // public binding
+  FLEX_REFUND_TIMEOUT_SLOTS?: string;         // public binding, defaults to "150"
+  FLEX_DEADMAN_TIMEOUT_SLOTS?: string;        // public binding, defaults to "1000"
 }
 
 // --- Agent identity ---
@@ -111,6 +120,10 @@ export interface AgentProfile {
   activity_dates?: string[];
   // Install funnel attribution (signed token from landing page)
   landing_token?: string;
+  // Flex onboarding (v6.16.0+) — set by `unbrowse setup` / /account pairing
+  flex_escrow_address?: string;      // base58 PDA
+  flex_session_key_address?: string; // base58 ed25519 pubkey
+  flex_facilitator?: string;         // which facilitator URL this escrow points at; null = our default
 }
 
 // --- Shared types (mirrored from src/types/skill.ts) ---

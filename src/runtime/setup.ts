@@ -265,3 +265,36 @@ export async function runSetup(options?: {
     wallet,
   };
 }
+
+/**
+ * v6.16 onboarding context, minimal shape — Day-3 mustard seed. Day-4 will
+ * expand this to carry the user's wallet handle, the cluster RPC URL, and
+ * the facilitator address used during onboarding.
+ */
+export type SetupContext = {
+  cwd: string;
+  walletConfigured: boolean;
+};
+
+/**
+ * Prompt the user to fund a Flex escrow during onboarding. Day-3 stub.
+ * Day-4: dispatches to `packages/sdk/src/flex.ts::fundEscrow`, prints the
+ * resulting escrow PDA, and saves it to the local config.
+ */
+export async function promptFundEscrow(
+  _ctx: SetupContext,
+): Promise<{ escrowAddress?: string; skipped: boolean }> {
+  throw new Error("not yet implemented (Day 4) — Flex escrow funding step");
+}
+
+/**
+ * Prompt the user to register a session key against their funded escrow.
+ * Day-3 stub. Day-4: generates a session keypair, calls
+ * `packages/sdk/src/flex.ts::registerSessionKey`, persists the session-key
+ * secret to the keychain, and prints the registered address.
+ */
+export async function promptRegisterSessionKey(
+  _ctx: SetupContext,
+): Promise<{ sessionKeyAddress?: string; skipped: boolean }> {
+  throw new Error("not yet implemented (Day 4) — Flex session key registration step");
+}
