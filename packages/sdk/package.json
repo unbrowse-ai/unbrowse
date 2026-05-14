@@ -18,6 +18,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test:smoke": "bun test test/integration.smoke.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepack": "npm run build",
     "docs:validate": "node scripts/validate-docs.js",

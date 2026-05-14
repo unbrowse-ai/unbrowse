@@ -9,13 +9,14 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 - `src/` — shared skill engine (capture, reverse-engineer, execute)
 - `backend/` — Cloudflare Worker API (marketplace, stats)
 - `frontend/` — Next.js landing page
-- `packages/skill/` — isolated publishable skill package (src/ symlinks to root)
+- `packages/skill/` — publishable CLI package (directory name historical; published as `unbrowse` on npm; the Anthropic SKILL.md path retired in v6.15.0)
+- `packages/sdk/` — `@unbrowse/sdk`, MIT TypeScript client that auto-spawns the CLI
 
 ## Conventions
 
 - All notable changes must be written into `CHANGELOG.md`
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
-- Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
+- Skill sync retired in v6.15.0 — see CHANGELOG. The Anthropic skill repo path is no longer wired into the release flow.
 - Durable agent memory lives in this file (`AGENTS.md`). Read it before substantial work.
 - Keep `AGENTS.md` self-updating: when Lewis states a durable preference, recurring correction, decision, workflow, or project fact that will matter later, append a short bullet. Skip one-off noise.
 - If a new lesson would have prevented repeated prompting, write it into `AGENTS.md` before handoff. (The older `docs/agent-memory.md` is archived at `docs/archive/agent-memory.md`; do not write to it.)
@@ -33,10 +34,10 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 When asked to release, follow this flow:
 
 1. Read commits since last tag: `git log $(git describe --tags --match='v*' --abbrev=0)..HEAD --format="%s"`
-2. Read the diff of user-facing code (src/, packages/, SKILL.md, README.md)
+2. Read the diff of user-facing code (src/, packages/, README.md, packages/sdk/README.md)
 3. Write polished, user-facing release notes to `.release-notes.md` (see format below)
 4. Run `bun run release` — bumps version, updates CHANGELOG, tags, creates GitHub Release using the notes
-5. The tag push triggers CI which deploys backend + frontend and syncs + releases the skill repo
+5. The tag push triggers CI which deploys backend + frontend and publishes the `unbrowse` and `@unbrowse/sdk` packages to npm (skill-repo sync retired in v6.15.0)
 
 ### Release notes format (.release-notes.md)
 

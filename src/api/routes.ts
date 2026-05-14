@@ -591,6 +591,50 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.get("/v1/settings", async (_req, reply) => {
     const contributionCfg = getContributionConfig();
+
+    // Best-effort upstream fetch of the per-agent sponsor status. The local
+    // settings endpoint must stay responsive even when the backend is down,
+    // so failures fall through to a degraded-but-honest shape (enabled=false,
+    // zero spend, zero remaining) instead of bubbling a 502 to the MCP caller.
+    // The agent's API key is forwarded so the backend can scope the bucket to
+    // this caller — there is no cross-agent leakage path.
+    let sponsorStatus: {
+      enabled: boolean;
+      cap_daily_usd: number;
+      spent_today_usd: number;
+      remaining_today_usd: number;
+      global_cap_daily_usd: number;
+      global_spent_today_usd: number;
+    } = {
+      enabled: false,
+      cap_daily_usd: 0,
+      spent_today_usd: 0,
+      remaining_today_usd: 0,
+      global_cap_daily_usd: 0,
+      global_spent_today_usd: 0,
+    };
+    try {
+      const apiKey = getApiKey();
+      if (apiKey) {
+        const res = await fetch(`${BETA_API_URL}/v1/account/sponsor-status`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (res.ok) {
+          const parsed = await res.json() as Partial<typeof sponsorStatus>;
+          sponsorStatus = {
+            enabled: !!parsed.enabled,
+            cap_daily_usd: Number(parsed.cap_daily_usd ?? 0),
+            spent_today_usd: Number(parsed.spent_today_usd ?? 0),
+            remaining_today_usd: Number(parsed.remaining_today_usd ?? 0),
+            global_cap_daily_usd: Number(parsed.global_cap_daily_usd ?? 0),
+            global_spent_today_usd: Number(parsed.global_spent_today_usd ?? 0),
+          };
+        }
+      }
+    } catch {
+      // Degraded mode — see comment above; we return the zeroed shape.
+    }
+
     return reply.send({
       capture_pipeline: getCapturePipelineSettings(),
       contribution: {
@@ -599,6 +643,7 @@ export async function registerRoutes(app: FastifyInstance) {
         ...(contributionCfg.contribution.set_at ? { set_at: contributionCfg.contribution.set_at } : {}),
       },
       marketplace_visibility: contributionCfg.contribution.share_pointers ? "public" : "private",
+      sponsor_status: sponsorStatus,
     });
   });
 

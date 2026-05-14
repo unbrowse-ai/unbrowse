@@ -128,12 +128,63 @@ function hasNativeSibling(binDir: string): boolean {
 }
 
 /**
+ * In-flight spawn promises keyed by port. When two callers race to spawn on
+ * the same port, the second one awaits the first's promise instead of
+ * launching a competing child that would lose the bind and exit with code=1.
+ *
+ * Each caller gets its own `RuntimeHandle` view: the *winner* of the race
+ * keeps `owned=true` so its `.close()` actually kills the child; subsequent
+ * `Unbrowse.local()` callers that joined the in-flight wait get an adopted
+ * (`owned=false`) handle so they don't double-kill the shared child.
+ */
+const inFlightSpawns = new Map<number, Promise<RuntimeHandle>>();
+
+/**
  * Spawn (or adopt) a co-located `unbrowse` runtime and wait for it to
  * answer `/health`. Returns a `RuntimeHandle` whose `.kill()` tears the
  * child down. Throws `RuntimeUnavailableError` on failure modes.
+ *
+ * Concurrency: if two callers race on the same port, only one spawn is
+ * launched. The second caller awaits the first's promise and gets an
+ * adopted (`owned=false`) view of the same handle so it cannot
+ * double-kill the child.
  */
 export async function spawnUnbrowseRuntime(
   opts: SpawnRuntimeOptions = {},
+): Promise<RuntimeHandle> {
+  const port = opts.port ?? DEFAULT_PORT;
+
+  // If another caller is mid-spawn on this port, join their promise
+  // instead of competing for the bind. The joiner receives an adopted
+  // view (owned=false) so the winner's .close() / .kill() is the only
+  // one that actually tears the child down.
+  const existing = inFlightSpawns.get(port);
+  if (existing) {
+    const winner = await existing;
+    return {
+      baseUrl: winner.baseUrl,
+      pid: winner.pid,
+      kill: async () => {},
+      ready: Promise.resolve(),
+      owned: false,
+    };
+  }
+
+  const spawnPromise = spawnUnbrowseRuntimeInternal(opts);
+  inFlightSpawns.set(port, spawnPromise);
+  try {
+    return await spawnPromise;
+  } finally {
+    // Clear the slot once the spawn settles (success or failure) so a
+    // subsequent .close()-then-spawn cycle re-enters the spawn path.
+    if (inFlightSpawns.get(port) === spawnPromise) {
+      inFlightSpawns.delete(port);
+    }
+  }
+}
+
+async function spawnUnbrowseRuntimeInternal(
+  opts: SpawnRuntimeOptions,
 ): Promise<RuntimeHandle> {
   const port = opts.port ?? DEFAULT_PORT;
   const baseUrl = `http://127.0.0.1:${port}`;
