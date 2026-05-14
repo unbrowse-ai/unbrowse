@@ -1,5 +1,7 @@
 # Changelog
 
+## [6.17.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.2...v6.17.0-preview.3) (2026-05-14)
+
 ## [6.17.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.1...v6.17.0-preview.2) (2026-05-14)
 
 ### Bug Fixes
