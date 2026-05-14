@@ -1,215 +1,227 @@
-# The x402 payments flywheel
+# x402 flywheel on Faremeter Flex
 
-How Unbrowse pays the agents that captured a route, why we sponsor the first
-calls, and what loops back into the marketplace. Written for a builder reading
-the repo for the first time.
+How Unbrowse pays the agents that captured a route, why the platform takes 10%
+in the same signed message, and what loops back into the marketplace. Written
+for a builder reading the repo for the first time.
 
-## 1. Why x402 exists in Unbrowse
+Cascade and Corbits are gone as of v6.16.0. Settlement now rides on
+[Faremeter Flex](https://docs.faremeter.xyz/flex/overview) — same x402 wire
+format, native splits in the authorization, prepaid escrow + off-chain
+session-key signing + batched on-chain settlement.
 
-Unbrowse discovers internal site APIs as agents browse the web. Every replay
-of a captured route saves the next caller from doing the discovery work again
-— so the agent that captured it deserves to be paid each time someone else
-benefits from their indexing.
+## 1. What's an x402 settlement?
 
-The web's primitive for "pay per HTTP request" is the [x402 standard](
-https://www.x402.org/): each request carries a USDC payment, settled per
-execute, no subscriptions, no API keys to provision, no invoicing. Unbrowse
-adopts x402 directly. The contributor wallet on the skill manifest is the
-`payTo` address in the payment terms; the calling agent's wallet is the
-payer; the platform takes its share via the same on-chain split.
+x402 is the [HTTP 402 protocol](https://www.x402.org/) for pay-per-request
+APIs. A server replies `402 Payment Required` with payment terms; a client
+attaches an `X-PAYMENT` header on retry; the response carries the proof.
 
-This means a route captured by Agent A in Singapore can earn USDC from Agent
-B in Berlin twelve seconds later, with no marketplace contract negotiation,
-no Stripe account, no escrow. The receipt is the on-chain signature.
+Flex is the scheme that rides those headers. The wire flow is:
 
-## 2. The flywheel
+1. **Authorize.** The caller's agent signs an off-chain Ed25519 authorization
+   with a session key registered against its prepaid escrow. The signed
+   message carries `escrow / mint / maxAmount / authorizationId / expiresAtSlot
+   / splits`. Maximum 5 split recipients, basis points summing to exactly
+   10,000.
+2. **Verify + hold.** The Unbrowse backend hands the authorization to the
+   facilitator, which checks the signature, the escrow balance, the expiry,
+   and reserves `maxAmount` from the escrow as a pending hold.
+3. **Deliver.** The skill runs. If the route is metered (`createUptoHandler`),
+   the route observes real consumption and reports `usage_units` in the
+   response.
+4. **Settle actual.** The facilitator settles the *actual* amount used (which
+   may be less than `maxAmount`), releasing the rest of the hold back to the
+   escrow.
+5. **Flush.** The facilitator batches settlements on-chain in the background
+   (default flush cadence configurable via the facilitator handler).
+6. **Finalize.** Once the refund window elapses, `finalize` distributes the
+   USDC atomically per the splits array — every recipient is paid in one tx.
 
-```mermaid
-flowchart LR
-    Caller["Agent calls<br/>/v1/execute"]
-    Gate["x402 gate<br/>(backend)"]
-    Sponsor{"Sponsor<br/>budget left?"}
-    Terms402["HTTP 402 +<br/>payment terms"]
-    PayRetry["Agent pays<br/>+ retries with<br/>X-PAYMENT header"]
-    Settle["Facilitator verifies<br/>+ settles USDC"]
-    Creator(("Route<br/>creator<br/>earns USDC"))
-    Mining["More indexers see<br/>earnings, capture<br/>more routes"]
-    Discovery["Marketplace gets<br/>denser, resolve hits<br/>more often"]
+Off-chain signing + batched settlement is what makes Flex feasible for
+agent-driven, high-frequency, variable-cost workflows. Every paid execute
+used to block on a Corbits `/settle` round-trip; on Flex the hot path is
+pure compute and chain submission happens out of band.
 
-    Caller --> Gate
-    Gate --> Sponsor
-    Sponsor -->|yes, under cap| Settle
-    Sponsor -->|no| Terms402
-    Terms402 --> PayRetry
-    PayRetry --> Settle
-    Settle --> Creator
-    Creator --> Mining
-    Mining --> Discovery
-    Discovery --> Caller
-```
+## 2. Splits are native
 
-The loop has one direction. Every settled execute pays a real contributor in
-USDC. Visible earnings pull more indexers into mining, mining densifies the
-marketplace, denser marketplace serves more agents on the first call. The
-substrate prints money for whoever indexed first, and the platform charges
-nothing until value moves.
+Every authorization carries `splits: FlexSplit[]`. The platform takes
+**1000 bps (10%)**, contributors share the remaining **9000 bps** weighted by
+`cumulative_delta`, up to 5 entries total. Distribution happens atomically at
+`finalize` — there is no separate split protocol, no separate `execute_split`
+trigger, no claim step, and no protocol fee on top.
 
-## 3. Sponsor mode (v6.15.0+)
-
-A brand-new agent has no wallet, no credit, no reason to trust the network
-yet. Asking them to fund USDC before they've seen a single execute succeed
-is the cold-start tax that has killed every prior per-call billing scheme.
-
-Sponsor mode pays the first execute on a new agent's behalf so the agent can
-see the receipt before they need to commit funds.
-
-The decision lives in `backend/src/middleware/sponsor.ts::maybeSponsor`. Per
-the actual implementation:
-
-- **Per-agent daily cap**: `SPONSOR_CAP_DAILY_USD`, default `1.0` USD.
-- **Global daily cap**: `SPONSOR_GLOBAL_DAILY_USD`, default `50.0` USD.
-- **Opt-out header**: send `X-No-Sponsor: 1` to skip sponsor mode and go
-  straight to the 402 flow.
-- **Wallet env**: `PLATFORM_SPONSOR_WALLET_ADDRESS` (binding, public) and
-  `PLATFORM_SPONSOR_WALLET_KEY` (Wrangler secret). If either is missing,
-  `sponsorWalletReady()` returns false and every call short-circuits to
-  `{exhausted, no_wallet}` — the 402 flow continues unchanged, no breakage.
-- **Decision outcomes**: `sponsored` (we paid the creator, request proceeds),
-  `exhausted` (cap hit or wallet absent, fall through to 402), `opted_out`
-  (agent set the header).
-
-When caps are hit, the response is a normal 402 with the standard payment
-terms — the agent is asked to pair their own wallet to keep going.
-
-Sponsor settlement is a direct USDC SPL transfer from the platform sponsor
-wallet to the route creator (`backend/src/services/sponsor-pay.ts`). It does
-**not** go through the facilitator — the platform already has the funds and
-controls the signer, so it sends directly and writes a `sponsor` ledger row
-keyed on `agent_id`, `skill_id`, `amount_uc`, `creator_wallet`, `settled_tx`.
-
-## 4. Settlement architecture
-
-Two settlement paths, one chain.
-
-**User-paid path (`X-PAYMENT` header present)**
-
-```mermaid
-flowchart LR
-    Req["Agent: GET /skills/:id/execute<br/>+ X-PAYMENT header"]
-    Verify["x402-gate.ts::<br/>verifyAndSettlePaymentHeader"]
-    Facilitator["Corbits facilitator<br/>facilitator.corbits.dev"]
-    OK["200 + body<br/>+ X-Payment-Response header"]
-    Req --> Verify
-    Verify -->|POST /verify+/settle| Facilitator
-    Facilitator -->|tx signature| Verify
-    Verify --> OK
-```
-
-The verify/settle dance is implemented in `backend/src/middleware/x402-gate.ts`
-(`verifyAndSettlePaymentHeader`, line 262 onward). Default facilitator is
-`https://facilitator.corbits.dev`. The current chain is **Solana mainnet**
-(`X402_NETWORK_MODE = "mainnet"` in `backend/wrangler.toml`); Base is
-declared in `SUPPORTED_CHAINS` but isn't wired into the default `accepts[]`.
-Testnet flips on with `X402_NETWORK_MODE=testnet` (or the environment isn't
-`production`).
-
-**Sponsor path (no `X-PAYMENT`, sponsor budget available)**
-
-```mermaid
-flowchart LR
-    Req["Agent: GET /skills/:id/execute<br/>(no X-PAYMENT)"]
-    Maybe["sponsor.ts::maybeSponsor"]
-    Caps{"Caps OK?"}
-    Pay["sponsor-pay.ts::<br/>sendSponsorPayment<br/>(direct USDC SPL transfer)"]
-    Ledger["KV: sponsor:agent:<id>:<date><br/>+ sponsor:global:<date><br/>+ sponsor:ledger:<row>"]
-    OK["200 + body"]
-    Req --> Maybe
-    Maybe --> Caps
-    Caps -->|yes| Pay
-    Pay --> Ledger
-    Ledger --> OK
-    Caps -->|no| Fall["fall through to 402"]
-```
-
-Key files:
-
-| File | What it owns |
-|---|---|
-| `backend/src/middleware/x402-gate.ts` | 402 response shape, facilitator client, `buildSkillPaymentTerms`, verify-and-settle |
-| `backend/src/middleware/sponsor.ts` | Sponsor decision (caps, ledger row, KV rollups) |
-| `backend/src/services/sponsor-pay.ts` | Direct USDC SPL transfer via `@solana/kit` |
-| `backend/src/services/splits.ts` | Contributor share computation + Cascade split recipients |
-| `backend/wrangler.toml` | Env vars: `PAYMENTS_ENABLED`, `X402_SEARCH_ENABLED`, `X402_NETWORK_MODE`, sponsor caps |
-
-USDC mint on Solana mainnet is hardcoded to
-`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` in `sponsor-pay.ts` and as
-the `mainnetAsset` for the `solana` entry in `SUPPORTED_CHAINS`.
-
-## 5. The platform share
-
-The contributor payout policy lives in `backend/src/services/splits.ts`. The
-canonical split is:
+The split policy is one function:
 
 ```ts
-// backend/src/services/splits.ts:12
-const PLATFORM_SHARE = 10;                       // out of 100
-const CONTRIBUTOR_POOL = 100 - PLATFORM_SHARE;   // 90 to contributors
+// backend/src/services/flex.ts:49 — computeFlexSplits
+export const PLATFORM_BPS = 1000;             // 10%
+export const FLEX_MAX_SPLITS = 5;             // platform + up to 4 contributors
+
+// contributorPool = 10000 - PLATFORM_BPS    // 9000 bps for contributors
+// platformSplit  = { recipient: platformAta, bps: PLATFORM_BPS }
+// contributorSplits weighted by cumulative_delta, normalised to sum to 9000
 ```
 
-For skills that route through Cascade splits (multi-contributor payouts),
-`buildSplitRecipients` allocates 10 shares to the platform wallet
-(`PAYMENT_RECIPIENT` in `wrangler.toml`, currently the Solana address
-`6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn`) and distributes the
-remaining 90 shares across contributors weighted by their `cumulative_delta`
-score.
+Single-contributor skills produce a 2-entry array `[{ platform, 1000 }, {
+contributor, 9000 }]`. Multi-contributor skills cap at 4 contributor entries +
+1 platform entry. Distribution is atomic in one Solana transaction.
 
-For single-contributor skills (current default), x402 `payTo` resolves to
-the primary contributor's wallet via `resolveSkillPaymentRecipient`; the
-platform fee is collected through the Cascade split policy as multi-creator
-skills come online.
+The 1% on-chain protocol fee Cascade charged is gone.
 
-The sponsor wallet and the platform fee recipient can be the same address.
-When they are, sponsor mode is self-replenishing: the platform's 10% cut on
-non-sponsored executes pays for tomorrow's sponsored ones. This is the
-intended steady state.
+## 3. The flow end-to-end
 
-## 6. FAQs
+```mermaid
+flowchart LR
+    Caller["Agent calls<br/>/v1/skills/:id/execute"]
+    SDK["SDK signs Flex<br/>authorization<br/>with session key"]
+    Gate["x402 gate<br/>(backend)"]
+    Verify["Facilitator<br/>verify"]
+    Hold["Hold maxAmount<br/>against escrow"]
+    Deliver["Service<br/>delivers"]
+    Settle["Settle actual<br/>(maxAmount or less)"]
+    Flush["Batched flush<br/>on-chain"]
+    Finalize["Finalize:<br/>atomic distribution<br/>per splits"]
+    Contributors((Contributors))
+    Platform((Platform))
+    Mining["More indexers<br/>see earnings,<br/>capture more routes"]
 
-**What happens when I run out of sponsor credit?**
-The backend returns a standard HTTP 402 with payment terms. To keep going,
-pair a wallet (see [`docs/wallets.md`](./wallets.md)). You will not be
-charged for the same call that hit the cap; the request that exhausted you
-falls through cleanly to the 402 flow.
+    Caller --> SDK
+    SDK -->|X-PAYMENT header| Gate
+    Gate --> Verify
+    Verify --> Hold
+    Hold --> Deliver
+    Deliver --> Settle
+    Settle --> Flush
+    Flush --> Finalize
+    Finalize -->|9000 bps| Contributors
+    Finalize -->|1000 bps| Platform
+    Contributors --> Mining
+    Mining --> Caller
+```
 
-**Can I disable sponsor mode on my account?**
-Yes. Send `X-No-Sponsor: 1` on the request. `maybeSponsor` short-circuits to
-`{kind: "opted_out"}` and the standard 402 flow runs. Useful for testing,
-or for agents that already have a wallet and want every call to land in
-their own ledger for accounting clarity.
+Source-of-truth files for each box:
 
-**Is testnet supported?**
-Yes. Set `X402_NETWORK_MODE=testnet` on the backend, or run any non-
-production environment (the default for `ENVIRONMENT != "production"` is
-testnet). On Solana, the testnet USDC asset address is
-`4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` per `SUPPORTED_CHAINS.solana`
-in `x402-gate.ts`. Sponsor mode itself is chain-agnostic — it pays whatever
-`payTo` address the payment term carries.
+| Stage | File |
+|---|---|
+| SDK signs authorization | `packages/sdk/src/flex.ts:162 — buildFlexAuthorization`, `packages/sdk/src/flex.ts:200 — payAndRetryFlex` |
+| Backend builds payment terms | `backend/src/services/flex-payment-terms.ts:51 — buildFlexPaymentTerms` (consumes `computeFlexSplits` + `buildFlexAuthorization`) |
+| x402 envelope | `backend/src/middleware/x402-gate.ts:407 — buildSkillPaymentTerms` |
+| Facilitator verify + settle + flush | `backend/src/services/flex-facilitator.ts:133 — createFlexFacilitator` |
+| Splits arithmetic | `backend/src/services/flex.ts:49 — computeFlexSplits` |
+| Authorization assembly | `backend/src/services/flex.ts:98 — buildFlexAuthorization` |
 
-**What chain runs by default?**
-Solana mainnet. `wrangler.toml` ships `X402_NETWORK_MODE = "mainnet"` and
-the `PAYMENT_RECIPIENT` is a Solana address. The codebase carries a `base`
-chain config in `SUPPORTED_CHAINS` so the multi-chain path is ready when
-needed, but no production route currently emits Base payment terms.
+The loop has one direction. Every settled execute pays a real contributor
+(plus the platform's 10%) in USDC. Visible earnings pull more indexers into
+mining; mining densifies the marketplace; the denser marketplace serves more
+agents on first-call. The substrate prints money for whoever indexed first.
 
-**Where do sponsor receipts live?**
-Three KV keys per settled sponsor payment:
+## 4. Sponsor mode (v6.16)
+
+A brand-new agent has no escrow, no session key, no reason to fund USDC
+before they've seen a single execute succeed. Sponsor mode pays for the first
+calls on the agent's behalf so the agent sees a receipt before they commit
+funds.
+
+In v6.16 the sponsor mechanism gets a second rail: instead of a direct USDC
+SPL transfer from the platform sponsor wallet (v6.15 behaviour, still the
+default), the sponsor can sign **the same Flex authorization shape** the
+agent would have signed — but against a platform-owned **sponsor escrow**.
+
+Two consequences:
+
+- **Same primitive both ways.** No separate sponsor codepath in the
+  facilitator. The facilitator settles a sponsor authorization the same way
+  it settles an agent authorization.
+- **The 10% recoups in the same transaction.** Because the sponsor signs the
+  *agent's skill's splits* (platform 10% included), the platform pays
+  principal from the sponsor escrow but recoups its 10% to the platform
+  recipient in the same `finalize` — net cost is 90% to the creator.
+
+The Flex sponsor path is **gated off by default** behind
+`SPONSOR_USE_FLEX_SPLIT=1` and lives at:
+
+```ts
+// backend/src/services/sponsor-flex.ts:151 — sendSponsorFlexPayment
+// backend/src/services/sponsor-flex.ts:131 — sponsorUseFlex(env)
+// backend/src/services/sponsor-flex.ts:116 — sponsorEscrowReady(env)
+```
+
+v6.16-preview.0 ships with the gate **off** to keep the v6.15 "first $1/day
+on the house" narrative alive during cold start — direct-SPL via
+`sendSponsorPayment` remains the production path until the sponsor escrow is
+funded, a sponsor session key is rotated in, and the gate is flipped on per
+environment. Caps stay the same: per-agent `SPONSOR_CAP_DAILY_USD` (default
+$1.00), global `SPONSOR_GLOBAL_DAILY_USD` (default $50.00). Opt-out header
+remains `X-No-Sponsor: 1`.
+
+Sponsor ledger keys are unchanged:
 
 - `sponsor:agent:<agent_id>:<YYYY-MM-DD>` — per-agent USD-microcent rollup
 - `sponsor:global:<YYYY-MM-DD>` — org-wide rollup
 - `sponsor:ledger:<ledger_id>` — one JSON row per settled payment
-  (`agent_id`, `skill_id`, `amount_uc`, `creator_wallet`, `settled_tx`,
-  `settled_at`)
 
-Admin readout is exposed at `GET /v1/admin/sponsor-ledger` (gated by
-`ADMIN_KEY`); aggregate metrics surface on `/v1/analytics/payments` as
-`sponsor_settled_usd_24h`.
+Admin readout at `GET /v1/admin/sponsor-ledger` (`ADMIN_KEY`-gated); agent
+self-readout at `GET /v1/account/sponsor-status`.
+
+## 5. Network
+
+- **Chain:** Solana mainnet.
+- **USDC mint:** `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (hardcoded in
+  `backend/src/services/flex.ts:39 — USDC_MINT_MAINNET`).
+- **Mint decimals:** 6. All on-wire amounts are USDC micro-units, serialized
+  as base-10 bigint strings.
+- **EVM:** on Faremeter's roadmap. Unbrowse stays Solana-only for paid
+  execute until Flex ships EVM.
+
+## 6. FAQs
+
+**What changed between v6.15 and v6.16?**
+v6.15 used the x402 `exact` scheme against the hosted Corbits facilitator
+and provisioned multi-contributor splits through Cascade. v6.16 uses
+`@faremeter/flex` (scheme id `@faremeter/flex`) end-to-end. The splits move
+into the authorization itself; the on-chain protocol fee disappears; the
+facilitator is self-hosted by Unbrowse. Wire format is still x402 over
+HTTP — only the scheme and `accepts[0].extra` shape change. See
+[`docs/x402-flex-migration.md`](./x402-flex-migration.md).
+
+**Do I need to fund an escrow before my first call?**
+Yes, if you want to pay from your own wallet. New agents go through
+wallet → escrow → session-key registration as part of `unbrowse setup`
+before they can settle a paid call. Sponsor mode covers brand-new agents
+who haven't completed onboarding (subject to the daily cap).
+
+**What's a session key?**
+An Ed25519 keypair registered against your Flex escrow. It signs
+authorizations off-chain so your custodial wallet stays cold. Session keys
+have expiry; rotate them before they expire. See
+[`docs/wallets.md`](./wallets.md).
+
+**How fast does my creator share land?**
+Pending settlements clear into `finalize` after the refund window
+(`FLEX_REFUND_TIMEOUT_SLOTS`; ~150 slots ≈ 1 minute minimum). On `finalize`
+the USDC is atomically distributed to every split recipient in one tx.
+Functionally: earnings land within minutes, not days.
+
+**What happens when my escrow runs out?**
+The facilitator's `verify` step returns `402 Payment Required` with a
+fresh Flex requirement. The SDK throws `PaymentRequiredError`; you top up
+your escrow and retry. If sponsor mode is configured and you still have
+daily allowance left, the platform covers the call until your escrow is
+refunded.
+
+**Can I disable sponsor mode for my agent?**
+Yes. Send `X-No-Sponsor: 1` on the request. `maybeSponsor` short-circuits
+and the standard 402 flow runs.
+
+**Where do sponsor receipts live?**
+Three KV keys per settled sponsor payment (unchanged from v6.15) —
+`sponsor:agent:*`, `sponsor:global:*`, `sponsor:ledger:*` — exposed via
+`/v1/admin/sponsor-ledger` and `/v1/account/sponsor-status`.
+
+**What about the historical Cascade payouts?**
+A one-time migration script (`backend/scripts/cascade-final-distribute.ts`)
+flushed every Cascade split vault with non-zero balance before the
+dependency was removed. Pre-v6.16 settled payments are final and live on
+the Solana chain; the Cascade protocol itself is no longer in the
+codepath.
+
+_Audited Day 6 (Dominion): 2026-05-14. Sources cited inline._

@@ -1,160 +1,214 @@
-# Wallets
+# Wallets, escrows, and session keys
 
-A wallet in Unbrowse is a USDC-capable Solana signer that can produce the
-`X-PAYMENT` header an [x402](./x402-flywheel.md)-gated route asks for. The
-public address goes on your agent profile so other agents pay it when they
-replay your routes; the signing key stays on your machine. Unbrowse never
-sees your key — it only sees the address and the receipts.
+To pay for and earn from Unbrowse on Faremeter Flex (v6.16+), an agent needs
+three artifacts on Solana mainnet:
 
-You have three options: use lobster.cash (default, easiest), bring your own
-wallet, or run sponsored. They cover the typical agent lifecycle: try → pay
-your own way → earn.
+1. **A wallet** — a USDC-capable Solana signer the agent controls. Custodial
+   keys never touch Unbrowse; we only see the public address.
+2. **A Flex escrow** — a prepaid USDC balance held by a Solana PDA, scoped
+   to one client (your wallet) + one facilitator (Unbrowse's, by default).
+3. **A session key** — a separate Ed25519 keypair registered against your
+   escrow, used to sign off-chain authorizations on the hot path so the
+   custodial key stays cold.
 
-## lobster.cash (default)
+This page walks through getting all three in place via the CLI, the web app,
+or the SDK. Once you have them, you pay per-call by signing Flex
+authorizations; you earn by being a contributor on routes other agents
+replay.
 
-[lobster.cash](https://lobster.cash) is a wallet manager built for agent
-payments. Unbrowse delegates wallet signing and broadcast to it so we never
-hold keys.
+## 1. What you need
+
+| Artifact | Purpose | Lives where |
+|---|---|---|
+| Wallet | Owns funds, signs the create-escrow + register-session-key transactions | Your machine / KMS / hardware / [lobster.cash](https://lobster.cash) |
+| Flex escrow | Prepaid USDC reserve the facilitator holds against | On-chain Solana PDA, derived from `(wallet, facilitator)` |
+| Session key | Ed25519 signer for off-chain authorizations | Your machine, registered to the escrow |
+
+The wallet is the slow signer (one-time setup, multi-second tx); the session
+key is the fast signer (per-request, off-chain, no chain round-trip).
+
+lobster.cash is the recommended wallet manager because it ships a CLI that
+slots into the Unbrowse setup wizard cleanly; any Solana wallet that can
+sign transactions works.
+
+## 2. Setup via CLI
 
 ```bash
-# 1. install the lobster CLI (one-time per machine; binary name: lobstercash)
+# 1. install the lobster CLI (one-time per machine)
 npm install -g @crossmint/lobster-cli
 
 # 2. provision a wallet for this agent
 lobstercash setup
 
-# 3. pair it with unbrowse — auto-detects ~/.lobster/agents.json
+# 3. run the Unbrowse wizard — wallet → escrow → session key → API key
 unbrowse setup
 ```
 
-`unbrowse setup` reads the active agent record from `~/.lobster/agents.json`
-and records the Solana address as your `wallet_address` on your agent
-profile. The wallet-pickup logic is in `src/payments/wallet.ts`
-(`getLobsterWalletFromLocalConfig` reads
-`authorizedWallets.solana` of the active agent).
+`unbrowse setup` is gated: every step is required before an API key is
+minted. The wizard:
 
-When Unbrowse hits a 402, it shells out to the lobster binary —
-`lobstercash x402 fetch <url> --debug` — which signs, broadcasts the USDC
-transfer, and replays the request with the `X-PAYMENT` proof. See
-`src/payments/lobster-pay.ts::lobsterX402Fetch`. Unbrowse owns: detecting
-the 402, passing the URL, using the body. Lobster owns: signing, broadcast,
-proof construction.
+1. Reads your active wallet (env → `~/.lobster/agents.json`, in that
+   order — see `src/payments/wallet.ts::getWalletContext`).
+2. Builds + sends a `create-escrow` transaction against the platform
+   facilitator, funding it with the USDC amount you chose. Mainnet USDC
+   mint is `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
+3. Generates a session key (Ed25519) and registers it against your escrow
+   via a `register-session-key` instruction.
+4. Persists the escrow address + session-key fingerprint locally and on
+   your agent profile.
+5. Mints your API key.
 
-## Bring your own wallet
+Skipping any step exits non-zero with an actionable error. Existing v6.15-era
+agents who never went through this flow are soft-blocked on their next paid
+call — the route returns `402` with `X-Flex-Onboarding-Required: 1` and the
+missing steps in the body. Free routes (health, search-read-only) keep
+working.
 
-If you already have a signer your code controls (custom Solana key in a
-KMS, a hardware wallet, a multisig — anything that can produce a USDC SPL
-transfer), declare it with env vars:
+## 3. Setup via web
 
-```bash
-export AGENT_WALLET_ADDRESS="<your-solana-address>"
-export AGENT_WALLET_PROVIDER="custom"   # any non-empty string; identifier only
-```
+The `/account` UI on [unbrowse.ai/account](https://unbrowse.ai/account)
+gives you the same flow with three sequential CTAs:
 
-`getWalletContext()` in `src/payments/wallet.ts` checks these in order:
+- **Pair wallet** — `/account/wallet`
+- **Fund escrow** — `/account/escrow`
+- **Register session key** — `/account/session-key`
 
-1. `LOBSTER_WALLET_ADDRESS` env var (set by `unbrowse setup` when pairing
-   lobster)
-2. `AGENT_WALLET_ADDRESS` + `AGENT_WALLET_PROVIDER` env vars (this path)
-3. `~/.lobster/agents.json` if present (skipped when
-   `UNBROWSE_DISABLE_LOCAL_WALLET=1`)
+Each step shows status (`complete` / `pending` / `not started`) and surfaces
+the wallet address, escrow PDA, and session-key fingerprint when complete.
+The web flow is the right choice for non-CLI agents (e.g. SaaS hosts
+embedding Unbrowse).
 
-The address is what Unbrowse publishes to your agent profile. The signing
-half is yours to wire. The runtime binary's internal custom-signer boundary
-is the `lobsterX402Fetch` shape — a function that takes a 402-returning URL
-and returns the paid response body; drop your own implementation in
-`src/payments/` and dispatch on `wallet_provider` in `src/payments/index.ts`.
-The SDK-level contract is the first-class `WalletLike` interface (shipped in
-`@unbrowse/sdk` v6.15.0 — see
-[`packages/sdk/docs/payments/wallets.md`](../packages/sdk/docs/payments/wallets.md));
-for in-runtime custom signers, copy the lobster adapter shape:
+## 4. Setup via SDK
+
+For agents that want to handle onboarding programmatically:
 
 ```ts
-// pseudo-code — sketch your provider against this surface
-export interface AgentWalletAdapter {
-  isAvailable(): boolean;
-  x402Fetch(url: string, options?: {
-    jsonBody?: string;
-    headers?: Record<string, string>;
-    timeoutMs?: number;
-  }): Promise<{
-    success: boolean;
-    body: string;
-    statusCode?: number;
-    error?: string;
-  }>;
-}
+import {
+  Unbrowse,
+  buildEscrowCreationTx,
+  buildSessionKeyRegistrationTx,
+} from "@unbrowse/sdk";
+
+const unbrowse = await Unbrowse.local();
+
+// 1. fund a fresh escrow with 5 USDC (5_000_000 micro-units)
+const { escrowAddress, txSignature } = await unbrowse.fundEscrow({
+  amountUsdc: "5000000",
+  walletAddress: "<your-solana-pubkey>",
+  facilitatorAddress: "<unbrowse-facilitator-pubkey>",
+  signer: yourSolanaSigner,   // @solana/kit-compatible
+  rpc: yourSolanaRpc,         // @solana/kit Rpc instance
+});
+
+// 2. generate a session keypair locally (Ed25519). Keep the secret on disk.
+const sessionKeyAddress = "<your-fresh-ed25519-pubkey>";
+
+// 3. register it against the escrow
+const { txSignature: regTx } = await unbrowse.registerSessionKey({
+  sessionKeyAddress,
+  walletAddress: "<your-solana-pubkey>",
+  escrowAddress,
+  signer: yourSolanaSigner,
+  rpc: yourSolanaRpc,
+});
 ```
 
-## Sponsored (no wallet)
+Both methods are thin wrappers around standalone functions you can call
+directly:
 
-If you skip the setup steps entirely, your first calls run on the
-platform's tab. The sponsor budget covers your first **$1.00 USD per day
-per agent** (global ceiling **$50.00 USD/day** across all sponsored
-agents) — see [`docs/x402-flywheel.md#sponsor-mode-v6150`](
-./x402-flywheel.md#3-sponsor-mode-v6150) for the full decision rules and
-opt-out header.
+```ts
+// packages/sdk/src/flex.ts:411 — fundEscrow
+// packages/sdk/src/flex.ts:437 — registerSessionKey
+// packages/sdk/src/flex.ts:294 — buildEscrowCreationTx (pure tx assembly)
+// packages/sdk/src/flex.ts:363 — buildSessionKeyRegistrationTx (pure tx assembly)
+```
 
-Sponsor mode is the on-ramp, not the destination. When you hit the cap,
-you get a normal 402 and need to pair a wallet to keep going.
+The `build*Tx` helpers return the unsigned `BuiltFlexTx` if you want to
+hand the transaction to a custom signer (multisig, hardware, KMS, etc.).
 
-## Earnings
+v6.16-preview.0 note: tx-send wiring is **caller-supplied** — `signer` +
+`rpc` must be `@solana/kit`-compatible because the SDK does not yet ship its
+own kit pipeline. Without those, `fundEscrow` and `registerSessionKey` throw
+`requires_signer` and point at the builders.
 
-When another agent calls a route **you** captured, you earn USDC. The
-backend resolves the recipient via
-`backend/src/services/splits.ts::resolveSkillPaymentRecipient`, which
-picks the primary contributor's `wallet_address` (the address on your
-agent profile). The funds land directly in your wallet on settlement —
-no intermediate ledger to sweep, no claim step.
+## 5. Earnings
 
-Check earnings two ways:
+When another agent replays a route **you** captured, the platform takes
+**10%** and the remaining **90%** is distributed across contributors weighted
+by `cumulative_delta`. Distribution is atomic on-chain inside `finalize`:
 
-- `GET /v1/account` — programmatic, returns your wallet address and
-  rollup counters
-- [https://unbrowse.ai/account](https://unbrowse.ai/account) — dashboard
-  view of executions, earnings, and contributor share
+```ts
+// backend/src/services/flex.ts:49 — computeFlexSplits
+//   platform always present at PLATFORM_BPS = 1000
+//   contributors share 9000 bps, up to 4 entries (5 total)
+//   weighted by cumulative_delta, normalised so total = 10000 bps
+```
 
-The platform takes 10 shares of every 100 in the Cascade split (see
-`PLATFORM_SHARE = 10` in `splits.ts`). The remaining 90 are weighted by
-each contributor's `cumulative_delta` — the more uniquely valuable your
-captured route is (no good alternative in the marketplace), the larger
-your share. Inactive contributors decay 5% per execution they're not
-credited for, so earnings track current relevance, not historical first-
-mover claims.
+Inactive contributors decay over time, so earnings track current relevance,
+not historical first-mover claims.
 
-## Funding
+Funds land in the **USDC associated token account (ATA)** registered as your
+contributor recipient. Check earnings two ways:
 
-You need USDC on Solana mainnet to pay for executes once sponsor mode
-runs out. Common routes (Unbrowse doesn't endorse any specific provider —
-pick whatever you trust):
+- `GET /v1/account` — programmatic, returns your wallet address, escrow,
+  session-key fingerprint, and aggregate counters.
+- [`/account`](https://unbrowse.ai/account) — dashboard view of executions,
+  earnings, and per-skill contributor share.
+
+No intermediate ledger to sweep, no claim step. Pending settlements clear
+into `finalize` after the refund window (~1 minute on default settings), at
+which point your USDC is in your ATA.
+
+## 6. Bring your own facilitator (advanced)
+
+The default facilitator is the platform's self-hosted Flex facilitator (see
+`backend/src/services/flex-facilitator.ts:133 — createFlexFacilitator`).
+Some advanced agents — e.g. those building a private agent fleet against a
+trusted facilitator — want to point at a different one.
+
+To do this, set the `flex_facilitator` field on your `AgentProfile` to the
+public key of the alternate facilitator's signer. Your escrow PDA is derived
+from `(wallet, facilitator)`, so you'll need a separate escrow per
+facilitator. The Unbrowse backend uses the platform facilitator for skills
+hosted on Unbrowse; the `flex_facilitator` field is informational for now
+(future v6.17+ work will let the backend defer settlement to a non-platform
+facilitator for self-hosted skills).
+
+## Funding the wallet
+
+You need USDC on Solana mainnet to fund your escrow. Common routes (Unbrowse
+doesn't endorse any specific provider — pick whatever you trust):
 
 - **Bridge from Ethereum** — Wormhole, Mayan, Allbridge for USDC →
   USDC moves between chains
-- **On-ramp** — Crossmint embedded checkout, Coinbase Pay, MoonPay, or
-  any provider that lists Solana USDC
+- **On-ramp** — Crossmint embedded checkout, Coinbase Pay, MoonPay, or any
+  provider that lists Solana USDC
 - **Manual transfer** — withdraw USDC from any centralized exchange that
   supports Solana withdrawals (Coinbase, Kraken, Binance, OKX, Bybit)
 
-Send to the address shown in your agent profile or `GET /v1/account`. A
-single execute today costs sub-cent USDC, so a $1 top-up covers tens of
+A single execute today costs sub-cent USDC, so a $5 escrow covers tens of
 thousands of calls.
 
 ## Security
 
-- Wallet keys **never leave your machine**. The Unbrowse backend stores
+- Wallet keys **never leave your machine.** The Unbrowse backend stores
   only the public address.
-- `unbrowse setup` writes wallet pointers via lobster's storage — on
-  macOS that ends up in Keychain via the lobster CLI; on Linux/Windows
-  it follows lobster's local config. Unbrowse never reads or writes
-  the key material itself.
-- The address on your agent profile is public by design (it's the
-  `payTo` other agents use to pay you). Anyone with the address can
-  send you USDC; nobody can move funds out without the key.
-- If you set `AGENT_WALLET_ADDRESS` directly, that address is published
-  on your agent profile as soon as your next register/heartbeat call
-  reaches the backend. Don't paste in someone else's address by
-  accident — you'll be sending their address other agents' payouts.
-- For sponsor mode receipts, see the ledger keys documented in
-  [`docs/x402-flywheel.md`](./x402-flywheel.md#6-faqs).
+- Session keys are scoped to one escrow and have explicit expiry. Rotate
+  before expiry; revoke on machine loss.
+- The wallet address on your agent profile is public by design (it's the
+  recipient for your contributor share). Anyone with the address can send
+  you USDC; nobody can move funds out without the key.
+- The escrow PDA is owned by the Flex program; you can recover funds
+  unilaterally via the deadman switch if the facilitator becomes
+  unresponsive (see Flex's `FLEX_DEADMAN_TIMEOUT_SLOTS` window — default
+  configurable in `backend/wrangler.toml`).
 
-_Audited Day 6 (Dominion): 2026-05-14_
+## Migration from v6.15
+
+v6.15 used a simple wallet pairing — no escrow, no session key. Existing
+v6.15 agents are soft-blocked on the first priced call after upgrade. Run
+`unbrowse setup` to add the escrow + session key on top of your existing
+wallet pairing. Earnings already paid out in v6.15 are unaffected; only the
+forward-looking settlement path changes.
+
+_Audited Day 6 (Dominion): 2026-05-14. Sources cited inline._

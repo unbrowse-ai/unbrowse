@@ -23,6 +23,11 @@ export interface Env {
   X402_NETWORK_MODE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
+  // v6.16: CASCADE_PLATFORM_WALLET and CASCADE_SIGNER_SECRET_KEY are unused by
+  // the runtime — Flex carries the 10% platform cut natively in every signed
+  // authorization's splits. They remain in the Env shape for one release so
+  // existing wrangler secret configs don't fail validation; v6.17 removes them.
+  // CASCADE_RPC_URL / CASCADE_RPC_WS_URL stay (Solana RPC binding for Flex).
   CASCADE_PLATFORM_WALLET?: string;
   CASCADE_SIGNER_SECRET_KEY?: string;
   CASCADE_RPC_URL?: string;
@@ -97,8 +102,27 @@ export interface Env {
   FLEX_PLATFORM_RECIPIENT_USDC_ATA?: string;  // public binding
   FLEX_REFUND_TIMEOUT_SLOTS?: string;         // public binding, defaults to "150"
   FLEX_DEADMAN_TIMEOUT_SLOTS?: string;        // public binding, defaults to "1000"
+  /**
+   * Flex sponsor session key (v6.16 Phase 4) — Ed25519 keypair the platform
+   * uses to sign sponsor-tier Flex payment authorizations.
+   * SECRET: set via `wrangler secret put FLEX_SPONSOR_SESSION_KEY_SECRET`.
+   * Minimum recommended expiry window ~48h (432_000 slots @ 400ms/slot);
+   * hard cap ~96h. Tracked via the EXPIRES_AT_SLOT binding below — both
+   * must be rotated together.
+   */
+  FLEX_SPONSOR_SESSION_KEY_SECRET?: string;          // secret
+  /** Public binding: slot at which the current session key expires (uint64 as string). */
+  FLEX_SPONSOR_SESSION_KEY_EXPIRES_AT_SLOT?: string;
+  /**
+   * Sponsor-on-Flex (v6.16.0+) — when SPONSOR_USE_FLEX_SPLIT="1", the sponsor
+   * middleware mints a Flex authorization against FLEX_SPONSOR_ESCROW_ADDRESS
+   * signed by FLEX_SPONSOR_SESSION_KEY_SECRET (above). When unset/"0",
+   * sponsor mode falls back to direct-SPL via `sendSponsorPayment`
+   * (v6.15 behavior). Independent of Cascade — Phase 5 retires Cascade naming.
+   */
+  FLEX_SPONSOR_ESCROW_ADDRESS?: string;
+  SPONSOR_USE_FLEX_SPLIT?: string;
 }
-
 // --- Agent identity ---
 
 export interface AgentProfile {
@@ -358,7 +382,11 @@ export interface SkillManifest {
   domain_verified_at?: string;
   /** All agents who contributed endpoints to this skill, with their shares */
   contributors?: SkillContributor[];
-  /** Cascade Split address for this skill — x402 payments route here */
+  /**
+   * Skill-level recipient wallet for x402 payouts (legacy Cascade Split
+   * address pre-v6.16; on Flex this is simply the primary contributor's
+   * wallet, surfaced as `payTo` in the payment terms).
+   */
   split_config?: string;
   /**
    * Site-owner opt-in for revenue sharing.
@@ -444,7 +472,7 @@ export interface SkillContributor {
   endpoints_contributed: number;
   /** Cumulative attribution delta score */
   cumulative_delta: number;
-  /** Share out of 100 for Cascade Split (computed from relative contribution) */
+  /** Share out of 100 for payout splits (computed from relative contribution; legacy Cascade Split model pre-v6.16, Flex bps-share on Flex). */
   share: number;
   /** When this agent first contributed */
   first_contributed_at: string;

@@ -1,27 +1,20 @@
 /**
- * Flex route helpers (Day 5, v6.16.0 Phase 1).
+ * Flex route helpers — shared bits between the priced routes (skills, demos,
+ * search). All terms are emitted via `buildFlexPaymentTerms` and verified via
+ * `createFlexFacilitator(env)`. The legacy Corbits codepath was removed in
+ * v6.16 Phase 5 (Day-6, Genesis Dominion).
  *
- * Shared bits between the priced routes (skills, demos, search) for the Flex
- * payment-terms swap. The previous Corbits path used
- * `buildSkillPaymentTerms + x402Response` plus `verifyX402Proof` for settle;
- * the Flex path uses `buildFlexPaymentTerms` for terms emission and
- * `createFlexFacilitator(env)` for verify/settle/flush.
- *
- * Day-5 scope:
+ * Surface:
  *   - `respondWithFlexTerms` — load agent profile, fetch currentSlot, build
  *     and return the Flex 402 envelope. Defensive guards even though the
  *     P0.3 soft-block fires before this (no flex_escrow_address still gets a
  *     402 with `flex_escrow_required`).
- *   - `sponsorAcceptsForPriceUsd` — synthesise a Corbits-shaped accepts[] so
- *     the existing `maybeSponsor` middleware still wires to creator wallets
- *     (Phase 4 / Day-6 swaps sponsor onto Flex rails proper).
+ *   - `sponsorAcceptsForPriceUsd` — minimal accepts[] for the existing
+ *     `maybeSponsor` middleware (Phase 4 / Day-6+ swaps sponsor onto Flex
+ *     rails proper; the helper retires then).
  *   - `handleFlexPaymentAuthorized` — verify the signed FlexPaymentPayload,
  *     execute the skill (caller-supplied), settle the actual amount, and
  *     queue facilitator.flush() via waitUntil.
- *
- * Phase 4 (Day-6+) will refactor `maybeSponsor` itself to mint a sponsor-
- * escrow-signed authorization with platform recoup splits, at which point the
- * synthetic accepts[] here can go away.
  */
 
 import type { Context } from "hono";
@@ -96,9 +89,9 @@ export async function respondWithFlexTerms(
     terms.resource.description = opts.descriptionOverride;
   }
 
-  // PAYMENT-REQUIRED + X-Payment-Required: keep parity with Corbits emit shape
-  // so generic 402-aware clients still parse the envelope. Body is the Flex
-  // envelope directly per the v6.16 spec.
+  // PAYMENT-REQUIRED + X-Payment-Required: keep parity with the previous emit
+  // shape so generic 402-aware clients still parse the envelope. Body is the
+  // Flex envelope directly per the v6.16 spec.
   return c.json(terms, 402, {
     "PAYMENT-REQUIRED": encodeBase64Json(terms),
     "X-Payment-Required": JSON.stringify(terms),
@@ -106,11 +99,11 @@ export async function respondWithFlexTerms(
 }
 
 /**
- * Synthesise a Corbits-shaped accepts[] purely so the existing `maybeSponsor`
- * middleware can read `term.amount` and `term.payTo` without changes. The
- * sponsor middleware pays the creator wallet directly today; Phase 4 / Day-6
- * will rewrite it to mint a sponsor-escrow-signed Flex authorization with
- * platform recoup splits, and this helper retires.
+ * Minimal accepts[] entry purely so the existing `maybeSponsor` middleware can
+ * read `term.amount` and `term.payTo` without changes. The sponsor middleware
+ * pays the creator wallet directly today; Phase 4 / Day-6+ will rewrite it to
+ * mint a sponsor-escrow-signed Flex authorization with platform recoup splits,
+ * and this helper retires.
  */
 export function sponsorAcceptsForPriceUsd(
   priceUsd: number,

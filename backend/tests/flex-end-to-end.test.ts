@@ -41,7 +41,7 @@ mock.module("../src/services/sponsor-pay.js", () => ({
 import app from "../src/index.js";
 import { publicSkillRoutes } from "../src/routes/skills.js";
 import { _resetSponsorMiddlewareStateForTests } from "../src/middleware/sponsor.js";
-import { clearSupportedKindsCacheForTests, paymentsEnabled } from "../src/middleware/x402-gate.js";
+import { paymentsEnabled } from "../src/middleware/x402-gate.js";
 import {
   buildFlexPaymentTerms,
 } from "../src/services/flex-payment-terms.js";
@@ -184,20 +184,15 @@ describe("v6.16 Flex routing — end-to-end (Day 5 Creatures)", () => {
 
   beforeEach(async () => {
     _resetSponsorMiddlewareStateForTests();
-    clearSupportedKindsCacheForTests();
     clearKVCacheForTests();
     await seedSkill();
 
-    // Stub global fetch so any leaked HTTP call surfaces loudly.
+    // Stub global fetch so any leaked HTTP call surfaces loudly. The Flex
+    // path doesn't hit any facilitator from in-process tests (Phase-5
+    // removed the Corbits probes); anything attempting a network call here
+    // is a regression.
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      // Allow the Corbits "supported kinds" probe (cached, idempotent).
-      if (url === "https://facilitator.corbits.dev/supported") {
-        return new Response(JSON.stringify({ kinds: [], extensions: [], signers: {} }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
       throw new Error(`unexpected fetch: ${url}`);
     }) as typeof globalThis.fetch;
   });

@@ -4,7 +4,7 @@ import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../serv
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
-import { searchPaymentsEnabled, verifyX402Proof } from "../middleware/x402-gate.js";
+import { searchPaymentsEnabled } from "../middleware/x402-gate.js";
 import {
   respondWithFlexTerms,
   sponsorAcceptsForPriceUsd,
@@ -168,26 +168,14 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
     return null;
   }
 
-  // Legacy Corbits proof path. Kept working through Phase-5 deletion.
-  const proof = legacyPaymentHeader ?? legacyProofHeader!;
-  const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
-  if (!valid) return c.json({ error: "Payment proof invalid or rejected" }, 403);
-  if (degraded) {
-    console.warn(`[x402] facilitator down -- allowed degraded access for graph search ${routeLabel}`);
-  }
-  if (settlementHeader) c.header("PAYMENT-RESPONSE", settlementHeader);
-
-  // Record search payment to ledger (non-blocking)
-  const txId = transaction ?? `x402-search-${Date.now()}`;
-  schedule(c, recordTransaction(c.env, {
-    transaction_id: txId,
-    consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
-    skill_id: skillId,
-    price_usd: priceUsd,
-    payment_proof: proof,
-  }).catch((err) => console.warn(`[x402] search ledger write failed: ${(err as Error).message}`)));
-
-  return null;
+  // Caller sent only a legacy PAYMENT-SIGNATURE / X-Payment-Proof header.
+  // v6.16 Phase 5 removed Corbits verify+settle entirely; emit a fresh
+  // Flex 402 so the client re-pays under the new scheme.
+  const agentIdForLegacy = (c as unknown as { get: (k: string) => string | undefined }).get("agent_id");
+  return await respondWithFlexTerms(
+    c as unknown as Parameters<typeof respondWithFlexTerms>[0],
+    { skill: searchSkill, priceUsd, resource: c.req.url, agentId: agentIdForLegacy },
+  );
 }
 
 export const searchRoutes = new Hono<{ Bindings: Env }>();
