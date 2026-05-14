@@ -1,5 +1,18 @@
 # Changelog
 
+## [6.16.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.15.0...v6.16.0-preview.0) (2026-05-14)
+
+### Features
+
+* **v6.16-day3:** plant Flex seeds (SDK + backend), real splits arithmetic, honest stubs ([70666be](https://github.com/unbrowse-ai/unbrowse-dev/commit/70666bea9dac702d68cb5d5d30c087a42f2da918))
+* **v6.16-day4:** luminaries — real Flex wiring (SDK signer, backend authorization, onboarding gate live) ([a5eac37](https://github.com/unbrowse-ai/unbrowse-dev/commit/a5eac37c2ffec825e2d00c11e9d0abd611426edd))
+* **v6.16-day5:** creatures — facilitator live, routes on Flex, metered ready, onboarding UI, e2e smoke ([6079ebb](https://github.com/unbrowse-ai/unbrowse-dev/commit/6079ebbbdc1f5f66d1285c7459857c7a54f7b117)), closes [Unbrowse#executeMetered](https://github.com/unbrowse-ai/Unbrowse/issues/executeMetered)
+* **v6.16-day6:** dominion — sponsor on Flex, Corbits demolished, analytics + docs (Phase 5 partial) ([f7542ae](https://github.com/unbrowse-ai/unbrowse-dev/commit/f7542ae83153b5b9a97c5c2ba764d12296cb76ab))
+
+### Bug Fixes
+
+* **v6.16-day8:** judgement — chase 2 lost sheep before Emergence ([749a312](https://github.com/unbrowse-ai/unbrowse-dev/commit/749a3123751abb5f419988dd57525b1fda5f31ca)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [Unbrowse#execute](https://github.com/unbrowse-ai/Unbrowse/issues/execute)
+
 ## [Unreleased — v6.16.0]
 
 ### Added
