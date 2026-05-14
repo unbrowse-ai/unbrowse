@@ -1,6 +1,6 @@
 # Payments — Errors
 
-Four error classes ship in v6.15. All extend `UnbrowseApiError`, so a single `catch (err)` block can be narrowed with `instanceof`.
+Four error classes ship in v6.16. All extend `UnbrowseApiError`, so a single `catch (err)` block can be narrowed with `instanceof`.
 
 ## Error reference
 

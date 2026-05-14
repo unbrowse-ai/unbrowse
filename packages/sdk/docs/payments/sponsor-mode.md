@@ -2,7 +2,7 @@
 
 ## What sponsor mode is
 
-The Unbrowse platform pays creator wallets in USDC on behalf of agents that have not paired a wallet yet — up to **$1 per agent per day**, capped at **$50 across the whole platform per day**. The flywheel needs liquidity before users have a wallet; the platform fronts it.
+The Unbrowse platform pays creator wallets in USDC on behalf of agents that have not paired a wallet yet — a daily allowance per agent, plus a platform-wide ceiling that resets each day. The flywheel needs liquidity before users have a wallet; the platform fronts it.
 
 When sponsor mode covers your call, the response is a normal `200 OK` with the resource body. Two extra headers tell you what happened:
 
@@ -97,10 +97,9 @@ const result = await call();
 
 `reason` discriminates the three exhaustion paths:
 
-- `agent_cap` — this agent already spent $1 today; resets at midnight UTC.
-- `global_cap` — the platform-wide $50/day pool is drained; resets at midnight UTC.
+- `agent_cap` — this agent already spent its daily allowance; resets at midnight UTC.
+- `global_cap` — the platform-wide daily pool is drained; resets at midnight UTC.
 - `no_wallet` — the platform sponsor wallet is unconfigured/unfunded. Pair your own wallet.
-
 ## Opt out of sponsor mode
 
 For testing the unsponsored flow (or to keep sponsor credit unspent for later), send `X-No-Sponsor: 1`:

@@ -43,30 +43,13 @@ pure compute and chain submission happens out of band.
 
 ## 2. Splits are native
 
-Every authorization carries `splits: FlexSplit[]`. The platform takes
-**1000 bps (10%)**, contributors share the remaining **9000 bps** weighted by
-`cumulative_delta`, up to 5 entries total. Distribution happens atomically at
-`finalize` — there is no separate split protocol, no separate `execute_split`
-trigger, no claim step, and no protocol fee on top.
+Every authorization carries `splits: FlexSplit[]`. The platform holds **10%**; contributors share the remaining **90%**, up to 5 entries total. Distribution happens atomically at `finalize` — there is no separate split protocol, no separate `execute_split` trigger, no claim step, and no protocol fee on top.
 
-The split policy is one function:
+Single-contributor skills produce a 2-entry array `[{ platform, 1000 bps }, { contributor, 9000 bps }]`. Multi-contributor skills cap at 4 contributor entries + 1 platform entry. Distribution is atomic in one Solana transaction.
 
-```ts
-// backend/src/services/flex.ts:49 — computeFlexSplits
-export const PLATFORM_BPS = 1000;             // 10%
-export const FLEX_MAX_SPLITS = 5;             // platform + up to 4 contributors
-
-// contributorPool = 10000 - PLATFORM_BPS    // 9000 bps for contributors
-// platformSplit  = { recipient: platformAta, bps: PLATFORM_BPS }
-// contributorSplits weighted by cumulative_delta, normalised to sum to 9000
-```
-
-Single-contributor skills produce a 2-entry array `[{ platform, 1000 }, {
-contributor, 9000 }]`. Multi-contributor skills cap at 4 contributor entries +
-1 platform entry. Distribution is atomic in one Solana transaction.
+Splits weighting across multiple contributors is attribution-driven — the highest-quality contributors receive proportionally larger shares. The weighting formula isn't part of the public surface; verify against the live attribution endpoints for your wallet rather than assuming a fixed model.
 
 The 1% on-chain protocol fee Cascade charged is gone.
-
 ## 3. The flow end-to-end
 
 ```mermaid
@@ -98,17 +81,7 @@ flowchart LR
     Mining --> Caller
 ```
 
-Source-of-truth files for each box:
-
-| Stage | File |
-|---|---|
-| SDK signs authorization | `packages/sdk/src/flex.ts:162 — buildFlexAuthorization`, `packages/sdk/src/flex.ts:200 — payAndRetryFlex` |
-| Backend builds payment terms | `backend/src/services/flex-payment-terms.ts:51 — buildFlexPaymentTerms` (consumes `computeFlexSplits` + `buildFlexAuthorization`) |
-| x402 envelope | `backend/src/middleware/x402-gate.ts:407 — buildSkillPaymentTerms` |
-| Facilitator verify + settle + flush | `backend/src/services/flex-facilitator.ts:133 — createFlexFacilitator` |
-| Splits arithmetic | `backend/src/services/flex.ts:49 — computeFlexSplits` |
-| Authorization assembly | `backend/src/services/flex.ts:98 — buildFlexAuthorization` |
-
+SDK side: `buildFlexAuthorization` + `payAndRetryFlex` live in `@unbrowse/sdk` (see [`docs/x402-flex-migration.md`](./x402-flex-migration.md) for the call signatures). Backend side: the x402 gate, Flex payment-terms builder, splits arithmetic, and self-hosted facilitator are part of the closed runtime — agents talk to them over the standard x402 wire.
 The loop has one direction. Every settled execute pays a real contributor
 (plus the platform's 10%) in USDC. Visible earnings pull more indexers into
 mining; mining densifies the marketplace; the denser marketplace serves more
@@ -136,11 +109,7 @@ Two consequences:
   principal from the sponsor escrow but recoups its 10% to the platform
   recipient in the same `finalize` — net cost is 90% to the creator.
 
-The Flex sponsor path is **gated off by default** in v6.16-preview.0 and runs
-alongside the legacy direct-transfer sponsor implementation. The legacy path
-remains production while sponsor escrow funding + telemetry confirm parity;
-subsequent previews flip the default.
-remains `X-No-Sponsor: 1`.
+Both the Flex sponsor path and the legacy direct-transfer sponsor path run in v6.16. Agents see the same `X-Sponsored` headers and the same daily caps regardless of which rail covered the call. Per-request opt-out remains `X-No-Sponsor: 1`.
 
 Sponsor ledger keys are unchanged:
 
@@ -154,8 +123,7 @@ self-readout at `GET /v1/account/sponsor-status`.
 ## 5. Network
 
 - **Chain:** Solana mainnet.
-- **USDC mint:** `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (hardcoded in
-  `backend/src/services/flex.ts:39 — USDC_MINT_MAINNET`).
+- **USDC mint:** `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (mainnet USDC).
 - **Mint decimals:** 6. All on-wire amounts are USDC micro-units, serialized
   as base-10 bigint strings.
 - **EVM:** on Faremeter's roadmap. Unbrowse stays Solana-only for paid

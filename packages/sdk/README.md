@@ -4,7 +4,7 @@ TypeScript SDK for Unbrowse — the local agent browser that turns any website i
 
 The SDK auto-spawns the `unbrowse` binary if it isn't already running, so a single `await Unbrowse.local()` is all you need to go from `npm install` to your first resolve.
 
-Current version: **6.15.0-preview.0**.
+Current version: **6.16.0-preview.0**.
 
 > The SDK (this package) is MIT-licensed. The `unbrowse` runtime binary it talks to is distributed via npm. See [`OPEN-SOURCE-NOTICE.md`](../../docs/OPEN-SOURCE-NOTICE.md).
 
@@ -60,35 +60,45 @@ const quote = await u.execute("skill_123", { params: { symbol: "NVDA" } });
 
 ## Payments
 
-Unbrowse routes monetize on use via [x402](https://www.x402.org). Every paid execute (priced skills, `search`, `resolve` over a priced shortlist) is gated by a `402 Payment Required` flow. The SDK turns that into a typed error you can catch and retry:
+Unbrowse routes monetize on use via [x402](https://www.x402.org). Every paid execute (priced skills, `search`, `resolve` over a priced shortlist) is gated by a `402 Payment Required` flow. The SDK turns that into a typed error you can catch and retry. v6.16 settles on [Faremeter Flex](https://docs.faremeter.xyz/flex/overview) — your wallet signs an off-chain authorization with a session key, the facilitator settles on-chain in batches, and splits to contributors land atomically.
 
 ```ts
-import { Unbrowse, PaymentRequiredError, SponsorExhaustedError, payAndRetry } from "@unbrowse/sdk";
+import { Unbrowse, PaymentRequiredError, payAndRetryFlex } from "@unbrowse/sdk";
 
 try {
   await u.execute("skill_premium_123", { params: { ticker: "NVDA" } });
 } catch (err) {
   if (err instanceof PaymentRequiredError) {
-    await payAndRetry(err, wallet, (header) =>
+    await payAndRetryFlex(err, wallet, (header) =>
       u.execute(
         "skill_premium_123",
         { params: { ticker: "NVDA" } },
         { headers: { "X-PAYMENT": header } },
       ),
-    ); // pays in USDC on Solana, retries with proof
+    ); // signs the Flex authorization, retries with proof attached
   }
 }
 ```
 
-`PaymentRequiredError` is thrown at the HTTP-parser layer and carries `accepts[]` — the canonical x402 terms array. `payAndRetry(error, wallet, retry)` is a free function exported from `@unbrowse/sdk` (not a method on `Unbrowse`); it picks `accepts[0]`, has your wallet sign it, and calls your `retry(paymentHeader)` to replay the original request with `X-PAYMENT` attached.
+`PaymentRequiredError` is thrown at the HTTP-parser layer and carries `accepts[]` — the canonical x402 terms array. `payAndRetryFlex(error, wallet, retry)` is a free function exported from `@unbrowse/sdk`; it picks `accepts[0]`, has your session key sign it, and calls your `retry(paymentHeader)` to replay the original request with `X-PAYMENT` attached.
 
-### Sponsor mode — no wallet? you get $1/day on the house
+For metered routes there's a higher-level helper that handles the catch + retry for you:
 
-Every agent gets up to **$1/day** in platform-sponsored execute calls (capped at a global **$50/day** ceiling) — so creators start earning USDC the moment their captured routes are reused, without making you pair a wallet on day zero. Sponsored responses include `X-Sponsored: <ledger_id>` so you can see when the platform was paying.
+```ts
+const result = await u.executeMetered<{ data: string; usage_units: number }>(
+  "skill_id",
+  input,
+  { wallet, onUsage: (units) => console.log("consumed", units, "units") },
+);
+```
 
-When the daily allowance is exhausted you get `SponsorExhaustedError` — pair a wallet and switch to `payAndRetry`. Opt out per-request by passing `{ headers: { "X-No-Sponsor": "1" } }` if you'd rather pay yourself from the first call.
+### Sponsor mode — first calls covered by the platform
 
-Full payment docs and worked examples: [`docs/payments/`](./docs/payments/).
+Brand-new agents get a daily allowance of platform-sponsored execute calls before they need to fund a wallet, so creators start earning USDC the moment their captured routes are reused. Sponsored responses include `X-Sponsored: <ledger_id>`.
+
+When the daily allowance is exhausted you get `SponsorExhaustedError` — pair a wallet and switch to `payAndRetryFlex`. Opt out per-request by passing `{ headers: { "X-No-Sponsor": "1" } }` if you'd rather pay yourself from the first call.
+
+Full payment docs and worked examples: [`docs/payments/`](./docs/payments/). Wallet + escrow + session-key setup: [`../../docs/wallets.md`](../../docs/wallets.md). Upgrading from v6.15's `exact`-scheme integration: [`../../docs/x402-flex-migration.md`](../../docs/x402-flex-migration.md).
 
 ## Auth
 

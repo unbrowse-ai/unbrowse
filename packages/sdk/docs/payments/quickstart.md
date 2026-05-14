@@ -37,47 +37,48 @@ try {
 }
 ```
 
-The body the SDK parses looks like this (canonical x402 shape):
+The body the SDK parses looks like this (canonical x402 shape on v6.16+):
 
 ```json
 {
   "error": "payment_required",
   "accepts": [
     {
-      "scheme": "exact",
-      "network": "base",
-      "payTo": "0xCreatorWalletAddress",
+      "scheme": "@faremeter/flex",
+      "network": "solana-mainnet",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "payTo": "<agent-escrow-pda>",
       "maxAmountRequired": "1000",
       "resource": "https://beta-api.unbrowse.ai/v1/skills/skill_paid_demo/execute",
-      "mimeType": "application/json"
+      "mimeType": "application/json",
+      "extra": { "flexAuthorizationDraft": { /* ... */ }, "programId": "..." }
     }
   ]
 }
 ```
 
-`maxAmountRequired` is in atomic units of the asset on the named `network` (e.g. `"1000"` of USDC on Base = $0.001).
+`maxAmountRequired` is in atomic units of the asset on the named `network` (e.g. `"1000"` of USDC = $0.001 at 6 decimals).
 
 ## 2. Pair a wallet, settle, retry
 
-Pass any `WalletLike` to `payAndRetry`. The wallet picks the first acceptable requirement, signs it, and the SDK replays the original request with `X-PAYMENT` attached.
+`payAndRetryFlex` takes a Flex-shaped wallet (or a v6.15 `WalletLike` for legacy `exact`-scheme routes), picks the first acceptable requirement, signs it, and replays the original request with `X-PAYMENT` attached.
 
 ```ts
 import {
   Unbrowse,
   PaymentRequiredError,
-  payAndRetry,
-  type WalletLike,
+  payAndRetryFlex,
 } from "@unbrowse/sdk";
 
 const u = await Unbrowse.local();
-const wallet: WalletLike = await loadWallet(); // your wallet impl
+const wallet = await loadFlexWallet(); // your wallet impl — see wallets.md
 
 async function paidExecute() {
   try {
     return await u.execute("skill_paid_demo", { params: { ticker: "NVDA" } });
   } catch (err) {
     if (err instanceof PaymentRequiredError) {
-      return payAndRetry(err, wallet, (paymentHeader) =>
+      return payAndRetryFlex(err, wallet, (paymentHeader) =>
         u.execute(
           "skill_paid_demo",
           { params: { ticker: "NVDA" } },
@@ -93,11 +94,11 @@ const result = await paidExecute();
 console.log(result);
 ```
 
-See [`wallets.md`](./wallets.md) for the `WalletLike` contract and reference integrations (lobster.cash, Crossmint, custom).
+See [`wallets.md`](./wallets.md) for the wallet contract and reference integrations (lobster.cash, Crossmint, custom). Wallet + escrow + session-key setup is in [`../../../../docs/wallets.md`](../../../../docs/wallets.md).
 
-## 3. Sponsored mode — first $1/day free, no wallet needed
+## 3. Sponsored mode — no wallet needed for first calls
 
-By default the Unbrowse platform sponsors the first $1 of usage per agent per day (capped at $50/platform/day). Your code does not change: paid skills just succeed. The response carries two headers:
+By default the Unbrowse platform sponsors a daily allowance of execute calls per agent before you need to fund a wallet. Your code does not change: paid skills just succeed. The response carries two headers:
 
 - `X-Sponsored: <ledger_id>` — the settlement was paid by the platform.
 - `X-Sponsor-Remaining-Usd: <number>` — how much sponsor credit you have left today.
