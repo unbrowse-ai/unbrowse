@@ -2817,10 +2817,28 @@ export async function registerRoutes(app: FastifyInstance) {
           const info = JSON.parse(authProbe);
           if (info.hasLoginBtn || info.loginText) {
             authRequired = true;
-            authHint = `Page requires authentication. Use \`unbrowse snap --filter interactive\` to find the login button, then \`unbrowse click <ref>\` to start the login flow. Session cookies from ${session.domain} will be saved automatically on close.`;
+            authHint = `Page requires authentication. Visible Chrome opening for sign-in; cookies will save automatically. Retry unbrowse_go once you've logged in.`;
           }
         }
       } catch { /* non-fatal */ }
+
+      // Auto-route to visible Chrome when an auth wall is detected. Headless
+      // kuri can't show the user a login form, so swap modes fire-and-forget:
+      // the headless session here is abandoned; agent retries unbrowse_go
+      // after the user finishes signing in. Opt out with
+      // UNBROWSE_AUTO_AUTH=0 / "false".
+      const autoAuth = (process.env.UNBROWSE_AUTO_AUTH ?? "1").trim().toLowerCase();
+      const autoAuthEnabled = autoAuth !== "0" && autoAuth !== "false";
+      let loginWindowOpened = false;
+      if (authRequired && autoAuthEnabled) {
+        loginWindowOpened = true;
+        const loginUrl = session.url;
+        const loginDomain = session.domain;
+        setImmediate(() => {
+          loginWithBrowserFallback(loginUrl, { interactiveOnly: true })
+            .catch((err) => console.log(`[auth] auto-login failed for ${loginDomain}: ${(err as Error).message}`));
+        });
+      }
 
       // Fix B: kick off streaming background publish for this session
       startStreamingWatcher(session);
@@ -2833,6 +2851,7 @@ export async function registerRoutes(app: FastifyInstance) {
         auth_profile: session.domain,
         ...(result.cookiesInjected > 0 ? { cookies_injected: result.cookiesInjected } : {}),
         ...(authRequired ? { auth_required: true, auth_hint: authHint } : {}),
+        ...(loginWindowOpened ? { login_window_opened: true } : {}),
         // Autonomy signals — agents read these to judge whether the system is
         // capturing in the background as advertised. No separate "verify" verb;
         // every go response is self-describing.
