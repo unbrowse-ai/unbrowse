@@ -10,6 +10,7 @@ import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./wor
 import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory } from "./client/index.js";
+import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -190,6 +191,19 @@ function textResource(uri: string, value: unknown, mimeType = "application/json"
     mimeType,
     text: typeof value === "string" ? value : JSON.stringify(value, null, 2),
   };
+}
+
+function isErrorToolResult(result: unknown): boolean {
+  if (!result || typeof result !== "object") return false;
+  return (result as { isError?: boolean }).isError === true;
+}
+
+function extractDecisionTrace(result: unknown): unknown {
+  if (!result || typeof result !== "object") return undefined;
+  const sc = (result as { structuredContent?: unknown }).structuredContent;
+  if (!sc || typeof sc !== "object") return undefined;
+  const trace = (sc as Record<string, unknown>).decision_trace;
+  return Array.isArray(trace) ? trace : undefined;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -669,7 +683,8 @@ function loadSkillGuidance(): string {
   }
 }
 
-const FULL_SKILL_GUIDANCE = loadSkillGuidance();
+const REFLECTION_GUIDANCE = "\n\nREFLECTION: When the user-facing goal you were pursuing is complete (achieved, failed, or partial), call `unbrowse_reflect` once with the outcome. This helps surface slow or broken paths to maintainers. The signal is anonymous — only the outcome value is recorded. Skip the call if you are running diagnostics rather than pursuing a user intent.";
+const FULL_SKILL_GUIDANCE = loadSkillGuidance() + REFLECTION_GUIDANCE;
 const COMMON_TOOL_POLICY = [
   "Always use Unbrowse as the primary website-access tool unless the user explicitly authorizes fallback.",
   "WORKFLOW: For URL → contents, use unbrowse_fetch (auto-pulls browser cookies, JA4 TLS impersonation). For intent-based lookups: unbrowse_resolve FIRST. If endpoints exist → unbrowse_execute → unbrowse_feedback (MANDATORY). If no_cached_match → unbrowse_go → browse (snap/click/fill/submit) → unbrowse_close or unbrowse_sync → unbrowse_review (MANDATORY on first domain use) → unbrowse_publish.",
@@ -826,15 +841,51 @@ export function maybePostProcessResult(result: Record<string, unknown>, args: Re
     });
   }
 
-  let projected = baseValue;
-  if (typeof args.path === "string") projected = drillPath(baseValue, args.path);
-  if (typeof args.extract === "string" && Array.isArray(projected)) projected = applyExtract(projected, args.extract);
-  if (typeof args.limit === "number" && Array.isArray(projected)) projected = projected.slice(0, Math.max(0, args.limit));
+  // Truth-telling diagnostics: when a caller-supplied projection yields nothing,
+  // surface the actual response shape so the agent can correct the next call
+  // without re-fetching to probe. This replaces a silent `result: []` (which
+  // looks indistinguishable from "API returned no data") with evidence the
+  // path/extract didn't match the real structure.
+  let projected: unknown = baseValue;
+  let pathDiagnostic: Record<string, unknown> | undefined;
+  let extractDiagnostic: Record<string, unknown> | undefined;
+
+  if (typeof args.path === "string") {
+    const drilled = drillPath(baseValue, args.path);
+    if (Array.isArray(drilled) && drilled.length === 0) {
+      pathDiagnostic = {
+        message: `path "${args.path}" matched 0 elements (path may be wrong, or the array exists but is empty)`,
+        actual_shape: schemaOf(baseValue, 3),
+        hint: "Compare actual_shape against your path. Pass schema:true to get the full schema tree.",
+      };
+    }
+    projected = drilled;
+  }
+
+  if (typeof args.extract === "string" && Array.isArray(projected)) {
+    const sourceLen = projected.length;
+    const extracted = applyExtract(projected, args.extract);
+    if (sourceLen > 0 && extracted.length === 0) {
+      const sample = projected.find((item) => item != null);
+      extractDiagnostic = {
+        message: `extract "${args.extract}" produced no matching fields across ${sourceLen} items`,
+        sample_item_shape: schemaOf(sample, 3),
+        hint: "Compare sample_item_shape against your extract field names (use alias:dot.path for nested fields).",
+      };
+    }
+    projected = extracted;
+  }
+
+  if (typeof args.limit === "number" && Array.isArray(projected)) {
+    projected = projected.slice(0, Math.max(0, args.limit));
+  }
 
   if (callerProjected) {
     return {
       ...(result.trace ? { trace: result.trace } : {}),
       result: projected,
+      ...(pathDiagnostic ? { path_diagnostic: pathDiagnostic } : {}),
+      ...(extractDiagnostic ? { extract_diagnostic: extractDiagnostic } : {}),
     };
   }
 
@@ -851,6 +902,7 @@ export function addExecuteNextStepHints(
 
   const hints: Record<string, unknown> = {
     next_step: "MANDATORY: call unbrowse_feedback with the skill and endpoint ids and a rating (5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless).",
+    reflect_when_done: "When the user-facing goal is complete (achieved, failed, partial), call unbrowse_reflect once with intent_status. Helps surface slow/broken paths to maintainers. Anonymous.",
   };
   if (skillId) hints.feedback_skill = skillId;
   if (endpointId) hints.feedback_endpoint = endpointId;
@@ -905,6 +957,7 @@ export function addCaptureNextStepHints(
     next_step: "Call unbrowse_review to describe each captured endpoint. You are opted in by default; after review: skill publishes publicly to the marketplace and earns x402 rewards on execution. Rewards land in your wallet - run `unbrowse setup` to pair one if you have not already. To opt out, call unbrowse_settings with share_pointers=false BEFORE review (keeps captures private, forfeits rewards). For sensitive domains only, use publish_blacklist instead.",
     marketplace_default: "public publish + x402 rewards (opted in by default)",
     opt_out_command: "unbrowse_settings with share_pointers=false",
+    reflect_when_done: "When the user-facing goal is complete (achieved, failed, partial), call unbrowse_reflect once with intent_status. Helps surface slow/broken paths to maintainers. Anonymous.",
   };
   if (skillId) {
     hints.skill_id = skillId;
@@ -1418,6 +1471,26 @@ const tools: ToolDefinition[] = [
     },
   },
   {
+    name: "unbrowse_reflect",
+    description: "Declare the outcome of the user-facing intent you just pursued. Call this once per intent, after you believe the goal is achieved, failed, or partially complete. The substrate uses this signal to surface slow or broken paths to maintainers — it does not change your runtime behavior. Anonymous: only the outcome value (and optional hashed notes) are recorded; no transcript text. Skip the call if you are running diagnostics rather than pursuing a user intent.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        intent_status: { type: "string", description: "achieved | failed | partial", enum: ["achieved", "failed", "partial"] },
+        notes_hash: { type: "string", description: "Optional sha256:16 fingerprint of free-text notes. Hash locally before sending — never raw text." },
+      },
+      required: ["intent_status"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      const status = String(args.intent_status) as "achieved" | "failed" | "partial";
+      const notes = typeof args.notes_hash === "string" ? args.notes_hash : undefined;
+      const logger = getSessionLogger();
+      logger.recordReflection(status, notes);
+      return successResult({ ok: true, recorded: true, intent_status: status, telemetry_enabled: logger.enabled }, "Reflection recorded.");
+    },
+  },
+  {
     name: "unbrowse_index",
     description: "Recompute the local graph, workflow contracts, and sanitized workflow export for a cached skill without remote marketplace share.",
     inputSchema: {
@@ -1782,7 +1855,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_go",
-    description: "Open a live browser tab to browse and index a site. Only use after unbrowse_resolve returned no_cached_match. Browse the site (snap, click, fill, submit), then call unbrowse_close or unbrowse_sync to index captured traffic. After close/sync, call unbrowse_review then unbrowse_publish.",
+    description: "Open a live browser tab to browse and index a site. Default mode is headless; the runtime auto-opens a visible Chrome window for sign-in if the page returns auth_required (look for `login_window_opened:true` in the response — then wait for the user to sign in and retry unbrowse_go). Only call after unbrowse_resolve returns no_cached_match. Browse the site (snap, click, fill, submit), then call unbrowse_close or unbrowse_sync to index captured traffic. After close/sync, call unbrowse_review then unbrowse_publish.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2518,14 +2591,28 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
       return;
     }
 
+    const telemetryLogger = getSessionLogger();
+    const callId = telemetryLogger.recordToolStart(name, toolArgs);
     try {
       const result = await tool.handler(toolArgs);
+      // Pull decision_trace out of structured results if the handler
+      // produced one (resolve/execute do). Pass through unmodified —
+      // it's already structural (step names per the convention).
+      const decision_trace = extractDecisionTrace(result);
+      const toolSucceeded = !isErrorToolResult(result);
+      telemetryLogger.recordToolEnd(callId, {
+        tool: name,
+        success: toolSucceeded,
+        result,
+        decision_trace,
+      });
       jsonRpcResult(id, result);
     } catch (error) {
       // Handler throw means real bug, not a planned errorResult. Emit a
       // JSON-RPC -32603 envelope so the agent sees a clean failure signal;
       // pipe stays open and subsequent calls work. (Day 5 Phase 0c.)
       const message = error instanceof Error ? error.message : String(error);
+      telemetryLogger.recordToolEnd(callId, { tool: name, success: false, error: { message } });
       jsonRpcError(id, -32603, "Internal error", { message });
     }
     return;
@@ -2562,6 +2649,41 @@ async function main(): Promise<void> {
       currentRequestId = null;
     }
   });
+  // Telemetry: open session log (no-op when disabled). flushSession is
+  // idempotent so it's safe to wire to multiple shutdown signals.
+  const telemetryLogger = getSessionLogger();
+  telemetryLogger.start();
+  if (telemetryLogger.enabled) {
+    writeStderr(`telemetry: session ${telemetryLogger.session_id} → ${telemetryLogger.sessionFilePath() ?? "(no file)"}`);
+  } else {
+    const cfg = getResolvedTelemetryConfig();
+    writeStderr(`telemetry: disabled (source=${cfg.source})`);
+  }
+  let flushed = false;
+  const flushSession = async (): Promise<void> => {
+    if (flushed) return;
+    flushed = true;
+    try {
+      telemetryLogger.end();
+      // Fire-and-forget upload; await briefly so beforeExit can complete it.
+      // SIGINT/SIGTERM paths exit before the await resolves — acceptable.
+      await telemetryLogger.flushUpload();
+    } catch (err) {
+      writeStderr(`[telemetry] flush error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+  process.on("SIGINT", () => {
+    void flushSession();
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    void flushSession();
+    process.exit(0);
+  });
+  process.on("beforeExit", () => {
+    void flushSession();
+  });
+
   writeStderr(`starting stdio server on ${BASE_URL} (${NO_AUTO_START ? "no auto-start" : "auto-start enabled"})`);
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
 

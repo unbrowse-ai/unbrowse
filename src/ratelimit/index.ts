@@ -1,11 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import rateLimit from "@fastify/rate-limit";
 
-export async function registerRateLimiter(app: FastifyInstance): Promise<void> {
-  await app.register(rateLimit, {
-    max: 100,
-    timeWindow: "1 minute",
-  });
+export async function registerRateLimiter(_app: FastifyInstance): Promise<void> {
+  // Disabled: single-user local runtime, no rate limit needed.
 }
 
 /** Per-route rate limit configs. Apply via route options in Fastify. */

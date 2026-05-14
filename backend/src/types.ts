@@ -103,6 +103,15 @@ export interface Env {
   FLEX_REFUND_TIMEOUT_SLOTS?: string;         // public binding, defaults to "150"
   FLEX_DEADMAN_TIMEOUT_SLOTS?: string;        // public binding, defaults to "1000"
   /**
+   * PayAI facilitator integration (v6.16+) — Solana feePayer pubkey used
+   * when emitting the exact-scheme accept entry that delegates verify+settle
+   * to `https://facilitator.payai.network`. Defaults to PayAI's published
+   * Solana feePayer (`2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4` from
+   * facilitator.payai.network/supported). Override in env only if you
+   * operate a custom PayAI relationship.
+   */
+  PAYAI_FEEPAYER_PUBKEY?: string;             // public binding, optional
+  /**
    * Flex sponsor session key (v6.16 Phase 4) — Ed25519 keypair the platform
    * uses to sign sponsor-tier Flex payment authorizations.
    * SECRET: set via `wrangler secret put FLEX_SPONSOR_SESSION_KEY_SECRET`.

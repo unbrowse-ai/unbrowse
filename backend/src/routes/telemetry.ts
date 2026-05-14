@@ -140,3 +140,173 @@ telemetryRoutes.post("/telemetry/web", async (c) => {
   c.header("Access-Control-Allow-Origin", "*");
   return c.json({ ok: true, event_id: stored.event_id });
 });
+
+
+// ---------------------------------------------------------------------------
+// MCP session bug-report telemetry (Phase 3, docs/mcp-telemetry-plan.md)
+// ---------------------------------------------------------------------------
+//
+// POST /telemetry/session     — receive a session JSONL trace from a client
+// DELETE /telemetry/sessions  — purge by client_seed (opt-out / GDPR)
+//
+// Storage: Neon Postgres via DATABASE_URL (matches existing pattern in
+// backend/src/services/{neon,traction,stripe}.ts). Schema defined in
+// backend/schema/telemetry-sessions.sql.
+
+import { getNeonClient } from "../services/neon.js";
+
+const MAX_EVENTS_PER_SESSION = 2_000;
+const MAX_PAYLOAD_BYTES = 256_000;
+const MAX_FIELD_BYTES = 4_096;
+const RATE_LIMIT_PER_MIN = 60;
+
+type TelemetryEvent = Record<string, unknown> & { event?: string; ts?: string };
+
+function validateEvent(ev: unknown): { ok: true; ev: TelemetryEvent } | { ok: false; reason: string } {
+  if (!ev || typeof ev !== "object") return { ok: false, reason: "event_not_object" };
+  const obj = ev as TelemetryEvent;
+  if (typeof obj.event !== "string") return { ok: false, reason: "event_missing_event_field" };
+  if (typeof obj.ts !== "string") return { ok: false, reason: "event_missing_ts_field" };
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === "string" && v.length > MAX_FIELD_BYTES) {
+      return { ok: false, reason: `field_too_large:${k}` };
+    }
+  }
+  return { ok: true, ev: obj };
+}
+
+telemetryRoutes.post("/telemetry/session", async (c) => {
+  const raw = await c.req.text();
+  if (raw.length > MAX_PAYLOAD_BYTES) {
+    return c.json({ error: "payload_too_large", limit: MAX_PAYLOAD_BYTES, received: raw.length }, 413);
+  }
+  let body: { session_id?: string; events?: unknown[] };
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  if (!body.session_id || typeof body.session_id !== "string") {
+    return c.json({ error: "session_id_required" }, 400);
+  }
+  if (!Array.isArray(body.events) || body.events.length === 0) {
+    return c.json({ error: "events_required" }, 400);
+  }
+  if (body.events.length > MAX_EVENTS_PER_SESSION) {
+    return c.json({ error: "too_many_events", limit: MAX_EVENTS_PER_SESSION }, 413);
+  }
+  for (const ev of body.events) {
+    const v = validateEvent(ev);
+    if (!v.ok) return c.json({ error: "invalid_event", reason: v.reason }, 400);
+  }
+
+  const env = c.env;
+  if (!env.DATABASE_URL) {
+    return c.json({ error: "storage_not_configured" }, 503);
+  }
+
+  const fingerprint = c.req.header("x-agent-kind-fingerprint") ?? "unknown";
+
+  // Per-fingerprint rate limit via a transient row in app_kv. Falls open if
+  // the rate-limit query throws — we would rather lose a rate limit than
+  // drop telemetry. (Same posture as the rest of this route.)
+  try {
+    const sql = await getNeonClient(env.DATABASE_URL);
+    const minute = Math.floor(Date.now() / 60_000);
+    const rateKey = `telemetry-rate:${fingerprint}:${minute}`;
+    const rows = await sql`
+      SELECT value FROM app_kv WHERE namespace = ${"telemetry-rate"} AND key = ${rateKey}
+    ` as Array<{ value: string }>;
+    const current = parseInt(rows[0]?.value ?? "0", 10);
+    if (current >= RATE_LIMIT_PER_MIN) {
+      return c.json({ error: "rate_limited", limit: `${RATE_LIMIT_PER_MIN}/min` }, 429);
+    }
+    const next = String(current + 1);
+    const expires = new Date(Date.now() + 120_000).toISOString();
+    await sql`
+      INSERT INTO app_kv (namespace, key, value, expires_at, updated_at)
+      VALUES (${"telemetry-rate"}, ${rateKey}, ${next}, ${expires}, NOW())
+      ON CONFLICT (namespace, key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at, updated_at = NOW()
+    `;
+  } catch (err) {
+    console.warn("[telemetry/session] rate-limit check failed:", err instanceof Error ? err.message : String(err));
+  }
+
+  // Derive summary metadata for indexing/triage.
+  const start = body.events.find((e): e is TelemetryEvent => (e as TelemetryEvent)?.event === "session_start");
+  const end = body.events.find((e): e is TelemetryEvent => (e as TelemetryEvent)?.event === "session_end");
+  const refl = body.events.find((e): e is TelemetryEvent => (e as TelemetryEvent)?.event === "reflection");
+  const reflMissing = body.events.find((e): e is TelemetryEvent => (e as TelemetryEvent)?.event === "reflection_missing");
+
+  const reflection_status: string =
+    typeof refl?.intent_status === "string"
+      ? String(refl.intent_status)
+      : reflMissing
+        ? "missing"
+        : "unknown";
+
+  const duration_ms_total = typeof end?.duration_ms_total === "number" ? end.duration_ms_total : null;
+  const tool_calls_total = typeof end?.tool_calls_total === "number" ? end.tool_calls_total : null;
+  const errors_total = typeof end?.errors_total === "number" ? end.errors_total : null;
+  const mcp_version = typeof start?.mcp_version === "string" ? start.mcp_version : null;
+  const platform = typeof start?.platform === "string" ? start.platform : null;
+  const client_seed_fp = typeof start?.client_seed_fp === "string" ? start.client_seed_fp : null;
+
+  try {
+    const sql = await getNeonClient(env.DATABASE_URL);
+    await sql`
+      INSERT INTO telemetry_sessions
+        (session_id, received_at, duration_ms_total, tool_calls_total, errors_total,
+         reflection_status, events_json, agent_kind_fingerprint, mcp_version, platform, client_seed_fp)
+      VALUES (
+        ${body.session_id}, NOW(), ${duration_ms_total}, ${tool_calls_total}, ${errors_total},
+        ${reflection_status}, ${JSON.stringify(body.events)}, ${fingerprint}, ${mcp_version},
+        ${platform}, ${client_seed_fp}
+      )
+      ON CONFLICT (session_id) DO UPDATE SET
+        received_at = NOW(),
+        duration_ms_total = EXCLUDED.duration_ms_total,
+        tool_calls_total = EXCLUDED.tool_calls_total,
+        errors_total = EXCLUDED.errors_total,
+        reflection_status = EXCLUDED.reflection_status,
+        events_json = EXCLUDED.events_json,
+        agent_kind_fingerprint = EXCLUDED.agent_kind_fingerprint,
+        mcp_version = EXCLUDED.mcp_version,
+        platform = EXCLUDED.platform,
+        client_seed_fp = EXCLUDED.client_seed_fp
+    `;
+  } catch (err) {
+    console.error("[telemetry/session] Postgres insert failed:", err instanceof Error ? err.message : String(err));
+    return c.json({ error: "storage_failed" }, 500);
+  }
+
+  return c.json({ ok: true, session_id: body.session_id, events_stored: body.events.length });
+});
+
+telemetryRoutes.delete("/telemetry/sessions", async (c) => {
+  const seed = c.req.query("seed");
+  if (!seed) return c.json({ error: "seed_required" }, 400);
+  if (!c.env.DATABASE_URL) return c.json({ error: "storage_not_configured" }, 503);
+
+  // Hash on the server side. The client sent its raw seed; we apply sha256 ×
+  // 16-char-hex to match the client_seed_fp stored at session_start.
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(seed));
+  const seedFp = Array.from(new Uint8Array(bytes))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 16);
+
+  try {
+    const sql = await getNeonClient(c.env.DATABASE_URL);
+    const result = await sql`
+      DELETE FROM telemetry_sessions WHERE client_seed_fp = ${seedFp}
+    ` as { count?: number };
+    // postgres.js returns rows; neon serverless returns Array with .count.
+    // Fall back to length on the array shape.
+    const deleted = (result as { count?: number; length?: number }).count ?? (result as { length?: number }).length ?? 0;
+    return c.json({ ok: true, deleted });
+  } catch (err) {
+    console.error("[telemetry/sessions DELETE] failed:", err instanceof Error ? err.message : String(err));
+    return c.json({ error: "delete_failed" }, 500);
+  }
+});

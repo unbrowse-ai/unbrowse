@@ -29,23 +29,53 @@ import { platformRecipientUsdcAta } from "./flex-facilitator.js";
 
 const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
+export interface FlexAcceptEntry {
+  scheme: "@faremeter/flex";
+  network: "solana-mainnet";
+  amount: string;
+  asset: string;
+  payTo: string;
+  maxTimeoutSeconds: number;
+  extra: {
+    flexAuthorizationDraft: FlexAuthorizationDraft;
+    splits: FlexSplit[];
+    programId: string;
+  };
+}
+
+/**
+ * Exact-scheme accept entry that delegates verify+settle to PayAI's
+ * facilitator (`facilitator.payai.network`). Clients without Flex setup
+ * (no escrow, no session key) can settle through this path using
+ * `@faremeter/payment-solana/exact` or PayAI's `x402-solana`. The
+ * platform cut on this path is the full amount routed to
+ * `platformRecipientUsdcAta(env)` — Flex-style splits do not apply, so
+ * contributors are not paid through the exact path. Documented at
+ * docs/payai-exact-dual-accept.md.
+ *
+ * `feePayer` is PayAI's declared Solana feePayer pubkey, harvested from
+ * `https://facilitator.payai.network/supported` at the time this entry
+ * was wired (the value is stable across releases; PayAI documents it on
+ * their /supported endpoint).
+ */
+export interface ExactAcceptEntry {
+  scheme: "exact";
+  network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+  amount: string;
+  asset: string;
+  payTo: string;
+  maxTimeoutSeconds: number;
+  extra: {
+    feePayer: string;
+    facilitator: "https://facilitator.payai.network";
+  };
+}
+
 export interface FlexPaymentRequired {
   x402Version: 2;
   error: "Payment Required";
   resource: { url: string; description: string; mimeType: string };
-  accepts: Array<{
-    scheme: "@faremeter/flex";
-    network: "solana-mainnet";
-    amount: string;
-    asset: string;
-    payTo: string;
-    maxTimeoutSeconds: number;
-    extra: {
-      flexAuthorizationDraft: FlexAuthorizationDraft;
-      splits: FlexSplit[];
-      programId: string;
-    };
-  }>;
+  accepts: Array<FlexAcceptEntry | ExactAcceptEntry>;
 }
 
 export async function buildFlexPaymentTerms(
@@ -75,6 +105,12 @@ export async function buildFlexPaymentTerms(
   const flex = await import("@faremeter/flex-solana");
   const programId = String(flex.FLEX_PROGRAM_ADDRESS);
 
+  // PayAI's Solana feePayer pubkey from facilitator.payai.network/supported.
+  // If you operate your own PayAI relationship and need to swap this, set
+  // `PAYAI_FEEPAYER_PUBKEY` in env; we read it lazily here.
+  const payaiFeePayer = env.PAYAI_FEEPAYER_PUBKEY?.trim() ||
+    "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4";
+
   return {
     x402Version: 2,
     error: "Payment Required",
@@ -83,18 +119,32 @@ export async function buildFlexPaymentTerms(
       description: `Skill access: ${opts.skill.skill_id}`,
       mimeType: "application/json",
     },
-    accepts: [{
-      scheme: "@faremeter/flex",
-      network: "solana-mainnet",
-      amount: maxAmountUc.toString(10),
-      asset: USDC_MINT_MAINNET,
-      payTo: opts.agentEscrow,
-      maxTimeoutSeconds: 60,
-      extra: {
-        flexAuthorizationDraft: draft,
-        splits,
-        programId,
+    accepts: [
+      {
+        scheme: "@faremeter/flex",
+        network: "solana-mainnet",
+        amount: maxAmountUc.toString(10),
+        asset: USDC_MINT_MAINNET,
+        payTo: opts.agentEscrow,
+        maxTimeoutSeconds: 60,
+        extra: {
+          flexAuthorizationDraft: draft,
+          splits,
+          programId,
+        },
       },
-    }],
+      {
+        scheme: "exact",
+        network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        amount: maxAmountUc.toString(10),
+        asset: USDC_MINT_MAINNET,
+        payTo: platformAta,
+        maxTimeoutSeconds: 300,
+        extra: {
+          feePayer: payaiFeePayer,
+          facilitator: "https://facilitator.payai.network",
+        },
+      },
+    ],
   };
 }
