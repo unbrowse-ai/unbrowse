@@ -112,3 +112,47 @@ describe("contribution config — decrementNoticeCounter", () => {
     expect(onDisk.notice_shown_count).toBe(0);
   });
 });
+
+describe("contribution config — auto_review default + migration", () => {
+  it("auto_review defaults to true on a fresh install", async () => {
+    const { getContributionConfig } = await import("../src/config/contribution.js");
+    const cfg = getContributionConfig();
+    expect(cfg.contribution.auto_review).toBe(true);
+  });
+
+  it("auto_review defaults to true for existing users without the field in config.json", async () => {
+    // Old config had `contribution` block but no `auto_review` key.
+    writeFileSync(
+      cfgPath,
+      JSON.stringify({
+        contribution: { share_pointers: true, set_via: "setup-prompt" },
+        rev_share: { opted_in: false },
+      }),
+    );
+    const { getContributionConfig } = await import("../src/config/contribution.js");
+    const cfg = getContributionConfig();
+    // Missing field falls back to DEFAULT (true) — keeps the flywheel on for existing users too.
+    expect(cfg.contribution.auto_review).toBe(true);
+    expect(cfg.contribution.share_pointers).toBe(true);
+  });
+
+  it("setContributionConfig accepts a partial contribution update (auto_review only)", async () => {
+    const { getContributionConfig, setContributionConfig } = await import("../src/config/contribution.js");
+    // Flip auto_review without re-stating share_pointers
+    setContributionConfig({ contribution: { auto_review: false } });
+    const cfg = getContributionConfig();
+    expect(cfg.contribution.auto_review).toBe(false);
+    // share_pointers stays at its default (true)
+    expect(cfg.contribution.share_pointers).toBe(true);
+  });
+
+  it("explicit auto_review=false persists to disk and survives a re-read", async () => {
+    const { setContributionConfig, _clearContributionCacheForTests, getContributionConfig } = await import("../src/config/contribution.js");
+    setContributionConfig({ contribution: { auto_review: false, set_via: "mode-command" } });
+    _clearContributionCacheForTests();
+    const cfg = getContributionConfig();
+    expect(cfg.contribution.auto_review).toBe(false);
+    const onDisk = JSON.parse(readFileSync(cfgPath, "utf-8"));
+    expect(onDisk.contribution.auto_review).toBe(false);
+  });
+});

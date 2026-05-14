@@ -1212,11 +1212,12 @@ export async function getSkillChunk(
 export async function listSkills(): Promise<SkillManifest[]> {
   if (LOCAL_ONLY) {
     try {
-      if (!existsSync(SKILL_CACHE_DIR)) return [];
-      return readdirSync(SKILL_CACHE_DIR)
+      const cacheDir = getSkillCacheDir();
+      if (!existsSync(cacheDir)) return [];
+      return readdirSync(cacheDir)
         .filter((file) => file.endsWith(".json"))
         .map((file) => {
-          try { return JSON.parse(readFileSync(join(SKILL_CACHE_DIR, file), "utf-8")) as SkillManifest; }
+          try { return JSON.parse(readFileSync(join(cacheDir, file), "utf-8")) as SkillManifest; }
           catch { return null; }
         })
         .filter((skill): skill is SkillManifest => !!skill);

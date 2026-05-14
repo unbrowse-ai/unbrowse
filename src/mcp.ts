@@ -1567,8 +1567,86 @@ const tools: ToolDefinition[] = [
     },
   },
   {
+    name: "unbrowse_publish_suggestions",
+    description: "List local skills that have been USED N+ times locally but were never published (no `reviewed_at`). Use to retroactively publish working captures that fell through the review gate — typically existing-user backlog from before `auto_review` defaulted on, or skills captured while `share_pointers=false` was set. Returns evidence (execution_count, success_rate, last_used, most_used_endpoint) so the agent decides whether to apply. Call with `apply=true` and a `skill_ids` array to stamp reviewed_at + publish in one shot. New captures with `auto_review=true` publish automatically and never appear here.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        min_executions: {
+          type: "number",
+          description: "Minimum local execution count to include a skill (default 3). Lower the threshold to surface less-used skills; raise it for higher-confidence batches.",
+        },
+        min_success_rate: {
+          type: "number",
+          description: "Minimum local execution success rate (0..1, default 0.7). Skills with mostly-failing traces are excluded so the marketplace doesn't fill with broken endpoints.",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum suggestions to return (default 10).",
+        },
+        apply: {
+          type: "boolean",
+          description: "When true, the substrate stamps reviewed_at and publishes the named skill_ids. Combine with skill_ids[].",
+        },
+        skill_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Skill IDs to publish when apply=true. Use the skill_id values from a previous suggestions response.",
+        },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      await ensureServerReady();
+      if (args.apply === true) {
+        if (!Array.isArray(args.skill_ids) || args.skill_ids.length === 0) {
+          return successResult(
+            { ok: false, error: "skill_ids[] required when apply=true" },
+            "Provide skill_ids[] to apply publish suggestions.",
+          );
+        }
+        return successResult(
+          await api("POST", "/v1/skills/publish-suggestions/apply", { skill_ids: args.skill_ids }),
+          "Applied publish suggestions: reviewed_at stamped and publish attempted for each skill_id.",
+        );
+      }
+
+      const query: string[] = [];
+      if (typeof args.min_executions === "number") query.push(`min_executions=${args.min_executions}`);
+      if (typeof args.min_success_rate === "number") query.push(`min_success_rate=${args.min_success_rate}`);
+      if (typeof args.limit === "number") query.push(`limit=${args.limit}`);
+      const path = `/v1/skills/publish-suggestions${query.length ? "?" + query.join("&") : ""}`;
+      return successResult(
+        await api("GET", path),
+        "Local skills with proven usage but no `reviewed_at` stamp. Call again with apply=true and skill_ids[] to publish.",
+      );
+    },
+  },
+  {
+    name: "unbrowse_earnings",
+    description: "Show what the calling agent has earned from contributions to the Unbrowse marketplace, and which skills are paying. Aggregates creator payouts (when an agent executes a skill you published) and indexer attribution (delta-based credit for adding new endpoints to a domain). Returns `total_earned_usd`, ledger breakdown (creator vs indexer), recent transactions, and milestone progress (passed_usd, next_usd, progress_to_next_pct). Pass `verbose=true` to also get per-skill contributions sorted by local execution count, so you can see which captures are working hardest. Read-only — exposes data; the calling agent decides whether to surface it to the user.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        verbose: {
+          type: "boolean",
+          description: "When true, include per-skill contribution breakdown with execution counts (slower because it joins local manifests with trace store).",
+        },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      await ensureServerReady();
+      const path = args.verbose === true ? "/v1/account/earnings?verbose=true" : "/v1/account/earnings";
+      return successResult(
+        await api("GET", path),
+        "Earnings + contribution usage for the calling agent.",
+      );
+    },
+  },
+  {
     name: "unbrowse_settings",
-    description: "Show or update local marketplace/publish policy. The headline knob is `share_pointers` - true by default (you are opted in): reviewed skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Rewards land in your wallet - pair one via `unbrowse setup`. Set share_pointers=false to keep every capture local (no public publish, no rewards). Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs). Returns `sponsor_status` with daily-credit info and remaining sponsored amount: `cap_daily_usd` is the per-agent platform-sponsor cap, `spent_today_usd` is what the platform has already covered today on your behalf, and `remaining_today_usd` tells you how many more 402 calls will be sponsored before you fall through to your own x402 wallet.",
+    description: "Show or update local marketplace/publish policy. Two headline knobs: (1) `share_pointers` - true by default (you are opted in): skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Set false to keep every capture local. (2) `auto_review` - true by default: substrate auto-stamps `reviewed_at` on close/sync, so captures publish without an explicit `unbrowse_review` call. Set false to require the agent to review each skill (heuristic + LLM-augmented descriptions only ship when reviewed). Rewards land in your wallet - pair one via `unbrowse setup`. Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs). Returns `sponsor_status` with daily-credit info and remaining sponsored amount: `cap_daily_usd` is the per-agent platform-sponsor cap, `spent_today_usd` is what the platform has already covered today on your behalf, and `remaining_today_usd` tells you how many more 402 calls will be sponsored before you fall through to your own x402 wallet.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1576,14 +1654,18 @@ const tools: ToolDefinition[] = [
           type: "boolean",
           description: "Public marketplace participation. true (default) = reviewed skills publish publicly and earn x402 rewards; false = private mode, every capture stays local. Flipping false retroactively stops future publishes; already-published skills remain on the marketplace until explicitly retracted.",
         },
+        auto_review: {
+          type: "boolean",
+          description: "Auto-stamp `reviewed_at` on close/sync so captures publish without an explicit `unbrowse_review` call. true (default) = heuristic + LLM-augmented descriptions accepted as-is; false = the agent must call `unbrowse_review` before each skill publishes.",
+        },
         auto_publish: {
           type: "boolean",
-          description: "Whether reviewed skills auto-publish on close/sync (true) or wait for an explicit unbrowse_publish call (false). Independent of share_pointers - auto_publish=false + share_pointers=true means you publish manually, on your timing.",
+          description: "Whether ready-to-publish skills auto-publish on close/sync (true) or wait for an explicit unbrowse_publish call (false). Independent of share_pointers and auto_review - auto_publish=false + share_pointers=true means you publish manually, on your timing.",
         },
         publish_blacklist: {
           type: "array",
           items: { type: "string" },
-          description: "Domains that must never publish (e.g. bank.com, *.health.example). Even after review, captures matching these domains stay local. Sensitive-domain protection.",
+          description: "Domains that must never publish (e.g. bank.com, *.health.example). Even after review or under auto_review, captures matching these domains stay local. Sensitive-domain protection.",
         },
         publish_promptlist: {
           type: "array",
@@ -1600,6 +1682,8 @@ const tools: ToolDefinition[] = [
       await ensureServerReady();
       const hasMutation = args.auto_publish === true
         || args.auto_publish === false
+        || args.auto_review === true
+        || args.auto_review === false
         || args.share_pointers === true
         || args.share_pointers === false
         || Array.isArray(args.publish_blacklist)
@@ -1608,12 +1692,15 @@ const tools: ToolDefinition[] = [
         || args.clear_publish_promptlist === true;
 
       if (!hasMutation) {
-        return successResult(await api("GET", "/v1/settings"), "Local marketplace/publish settings. share_pointers=true is the default (you are opted in): reviewed skills publish publicly and earn rewards.");
+        return successResult(await api("GET", "/v1/settings"), "Local marketplace/publish settings. share_pointers=true + auto_review=true is the default (fully opted in): every capture auto-publishes to the marketplace and earns rewards.");
       }
 
       const body: Record<string, unknown> = {};
       if (args.auto_publish === true || args.auto_publish === false) {
         body.auto_publish_checkpoints = args.auto_publish;
+      }
+      if (args.auto_review === true || args.auto_review === false) {
+        body.auto_review = args.auto_review;
       }
       if (args.share_pointers === true || args.share_pointers === false) {
         body.share_pointers = args.share_pointers;
