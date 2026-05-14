@@ -196,9 +196,11 @@ async function main() {
   }
 
   const previewVersion = args.version || formatPreviewVersion(baseVersion);
-  const tag = `v${previewVersion}`;
+  // Tag prefix is `preview-`, not `v`, so .github/workflows/release.yml's
+  // `push.tags: ["v*"]` trigger doesn't fire on this preview tag. The prod
+  // release path keeps using `v*` tags; previews are owned end-to-end here.
+  const tag = `preview-${previewVersion}`;
   const tempRepo = makeTempRepoCopy(ROOT);
-
   try {
     writePreviewVersions(tempRepo, previewVersion);
 

@@ -25,9 +25,25 @@ import { getUnbrowseConfigPath } from "../settings.js";
 import { getEndpointDescriptionMetadata } from "../graph/index.js";
 import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
 import { getContributionConfig } from "../config/contribution.js";
+import { writeJob, listJobs, heartbeatAgeMs, tryAcquireWorkerSlot, sanitizeDomain, type JobEnvelope } from "./queue-store.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
+
+function getQueueDir(): string {
+  return join(process.env.HOME ?? "/tmp", ".unbrowse", "queue", "pending");
+}
+
+/** Heartbeat coalesce: if a drain worker touched the queue dir within the last
+ * ~2 seconds, assume it's still alive and skip spawning another. */
+async function isWorkerActive(queueDir: string): Promise<boolean> {
+  try {
+    const age = await heartbeatAgeMs(queueDir);
+    return age < 2000;
+  } catch {
+    return false;
+  }
+}
 
 /** Read agent_id from local config — used for contributor attribution on publish. */
 function getLocalAgentId(): string | undefined {
@@ -137,6 +153,11 @@ const pendingIndexJobs = new Map<string, BackgroundIndexJob>();
 type BackgroundIndexProcessor = (job: BackgroundIndexJob) => Promise<void>;
 let backgroundIndexProcessor: BackgroundIndexProcessor = processIndexJob;
 
+function shouldRunInline(): boolean {
+  if (process.env.UNBROWSE_INLINE_INDEX === "1") return true;
+  return backgroundIndexProcessor !== processIndexJob;
+}
+
 export interface BackgroundIndexJob {
   skill: SkillManifest;
   domain: string;
@@ -163,33 +184,77 @@ export interface IndexedSkillState {
  * job completes.
  */
 export function queueBackgroundIndex(job: BackgroundIndexJob): void {
-  const key = job.domain;
-  if (indexInFlight.has(key)) {
-    const pending = pendingIndexJobs.get(key);
-    pendingIndexJobs.set(key, pending ? mergeBackgroundIndexJobs(pending, job) : job);
-    console.error(`[capture-pipeline] coalesced pending job for ${key}: already in flight`);
+  if (shouldRunInline()) {
+    const key = job.domain;
+    if (indexInFlight.has(key)) {
+      const pending = pendingIndexJobs.get(key);
+      pendingIndexJobs.set(key, pending ? mergeBackgroundIndexJobs(pending, job) : job);
+      console.error(`[capture-pipeline] coalesced pending job for ${key}: already in flight`);
+      return;
+    }
+
+    const work = backgroundIndexProcessor(job)
+      .catch(err =>
+        console.error(`[capture-pipeline] failed for ${key}: ${(err as Error).message}`)
+      )
+      .finally(() => {
+        indexInFlight.delete(key);
+        const pending = pendingIndexJobs.get(key);
+        if (pending) {
+          pendingIndexJobs.delete(key);
+          console.error(`[capture-pipeline] replaying coalesced job for ${key}`);
+          queueBackgroundIndex(pending);
+        }
+      });
+
+    indexInFlight.set(key, work);
+    console.error(
+      `[capture-pipeline] queued for ${key}`
+        + (job.publishAfterIndex ? " (index+publish)" : " (index-only)"),
+    );
     return;
   }
 
-  const work = backgroundIndexProcessor(job)
-    .catch(err =>
-      console.error(`[capture-pipeline] failed for ${key}: ${(err as Error).message}`)
-    )
-    .finally(() => {
-      indexInFlight.delete(key);
-      const pending = pendingIndexJobs.get(key);
-      if (pending) {
-        pendingIndexJobs.delete(key);
-        console.error(`[capture-pipeline] replaying coalesced job for ${key}`);
-        queueBackgroundIndex(pending);
+  // Disk path (Day 6): write envelope, then spawn detached drain worker
+  // unless a heartbeat says one is already active (<2s old).
+  const queueDir = getQueueDir();
+  const envelope: JobEnvelope = {
+    version: 1,
+    domain: job.domain,
+    queuedAt: Date.now(),
+    attempts: 0,
+    job,
+  };
+  writeJob(queueDir, envelope)
+    .then(async () => {
+      if (await isWorkerActive(queueDir)) return;
+      // Phase 1.1 Day 5 (Model B): gate the spawn on the global worker slot.
+      // If another worker holds the slot, skip the spawn entirely. Otherwise
+      // parent holds the slot just long enough to spawn; the child re-acquires
+      // on its own startup and becomes the canonical holder for its lifetime.
+      const slot = await tryAcquireWorkerSlot(queueDir);
+      if (slot === null) return;
+      try {
+        const { spawn } = await import("node:child_process");
+        const entry = process.argv[1] ?? "";
+        if (!entry) {
+          console.error("[capture-pipeline] cannot spawn drain worker: missing argv[1]");
+          return;
+        }
+        const child = spawn(process.execPath, [entry, "__drain-queue"], {
+          detached: true,
+          stdio: "ignore",
+        });
+        child.unref();
+      } catch (err) {
+        console.error(`[capture-pipeline] drain worker spawn failed: ${(err as Error).message}`);
+      } finally {
+        await slot();
       }
-    });
-
-  indexInFlight.set(key, work);
-  console.error(
-    `[capture-pipeline] queued for ${key}`
-      + (job.publishAfterIndex ? " (index+publish)" : " (index-only)"),
-  );
+    })
+    .catch(err =>
+      console.error(`[capture-pipeline] queue write failed: ${(err as Error).message}`),
+    );
 }
 
 export function mergeBackgroundIndexJobs(
@@ -502,23 +567,77 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   }
 }
 
+export { processIndexJob as _processIndexJobForCli };
+
+/** Check if a domain has an indexing job running. */
 /** Check if a domain has an indexing job running. */
 export function isIndexingInFlight(domain: string): boolean {
-  return indexInFlight.has(domain);
+  if (shouldRunInline()) {
+    return indexInFlight.has(domain);
+  }
+  // Disk mode: check pending envelopes + lock file for this domain.
+  const queueDir = getQueueDir();
+  // P1.1 Day-6 fix: use canonical sanitizeDomain (NFC + Windows-reserved aware).
+  // The previous inline regex copy diverged from worker.ts after Day-5 hardening.
+  const cap = sanitizeDomain(domain);
+  try {
+    if (existsSync(join(queueDir, `${cap}.lock`))) return true;
+    if (!existsSync(queueDir)) return false;
+    for (const name of readdirSync(queueDir)) {
+      if (!name.endsWith(".json")) continue;
+      if (name.endsWith(".tmp")) continue;
+      if (name === `${cap}.json` || name.startsWith(`${cap}.`)) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
 }
 
 /** Await all in-flight background index jobs. Call before process exit. */
 export async function drainPendingIndexJobs(): Promise<void> {
-  let logged = false;
-  while (indexInFlight.size > 0) {
-    const pending = [...indexInFlight.values()];
-    if (!logged) {
-      console.error(`[capture-pipeline] draining ${pending.length} pending job(s)...`);
-      logged = true;
+  if (shouldRunInline()) {
+    let logged = false;
+    while (indexInFlight.size > 0) {
+      const pending = [...indexInFlight.values()];
+      if (!logged) {
+        console.error(`[capture-pipeline] draining ${pending.length} pending job(s)...`);
+        logged = true;
+      }
+      await Promise.allSettled(pending);
     }
-    await Promise.allSettled(pending);
+    console.error(`[capture-pipeline] all jobs drained`);
+    return;
   }
-  console.error(`[capture-pipeline] all jobs drained`);
+
+  // Disk mode: poll until pending is empty AND dead/ has been quiet for 500ms.
+  const queueDir = getQueueDir();
+  const deadDir = join(queueDir, "dead");
+  const timeoutAt = Date.now() + 30_000;
+  let lastDeadCount = -1;
+  let deadStableSince = Date.now();
+  while (true) {
+    const jobs = await listJobs(queueDir);
+    let deadCount = 0;
+    try {
+      if (existsSync(deadDir)) {
+        deadCount = readdirSync(deadDir).filter(n => n.endsWith(".json") && !n.endsWith(".tmp")).length;
+      }
+    } catch {
+      deadCount = lastDeadCount < 0 ? 0 : lastDeadCount;
+    }
+    if (deadCount !== lastDeadCount) {
+      lastDeadCount = deadCount;
+      deadStableSince = Date.now();
+    }
+    if (jobs.length === 0 && Date.now() - deadStableSince >= 500) {
+      return;
+    }
+    if (Date.now() >= timeoutAt) {
+      throw new Error(`drainPendingIndexJobs: queue not drained after 30s (pending=${jobs.length}, dead=${deadCount})`);
+    }
+    await new Promise(r => setTimeout(r, 50));
+  }
 }
 
 export function resetIndexQueueForTests(): void {

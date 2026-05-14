@@ -20,7 +20,13 @@ export function getReleaseAssetConfig(packageRoot) {
 }
 
 export function buildBinaryArchiveName(version, target) {
-  return `unbrowse-v${version}-${target}.tar.gz`;
+  // Preview tags carry a `preview-` prefix on the GitHub release; prod tags
+  // carry `v`. The archive name has to mirror whichever prefix was used at
+  // build/upload time (see scripts/build-binaries.sh L33 which uses
+  // UNBROWSE_RELEASE_TAG). Detect preview by the `-preview.` suffix in the
+  // semver itself, which is set by publish-preview-cli.mjs's formatPreviewVersion.
+  const prefix = version.includes("-preview.") ? "preview-" : "v";
+  return `unbrowse-${prefix}${version}-${target}.tar.gz`;
 }
 
 export function buildReleaseAssetUrl(baseUrl, tag, assetName) {

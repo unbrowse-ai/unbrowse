@@ -137,7 +137,10 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   // for UNBROWSE_SERVE_IDLE_MS. Stops the zombie-process accumulation where
   // every Ctrl-C'd Claude session leaves a detached daemon behind.
   // Set UNBROWSE_SERVE_IDLE_MS=0 to disable (long-running dev servers).
-  const idleMs = Number(process.env.UNBROWSE_SERVE_IDLE_MS ?? 60_000);
+  // When MCP spawned the daemon, the stdin-EOF watcher handles clean-up; this
+  // tighter default is the fallback when MCP exits ungracefully (SIGKILL, crash).
+  const DEFAULT_IDLE_MS = process.env.MCP_SERVER_MODE === "1" ? 15_000 : 60_000;
+  const idleMs = Number(process.env.UNBROWSE_SERVE_IDLE_MS ?? DEFAULT_IDLE_MS);
   const idleCheckMs = Number(process.env.UNBROWSE_SERVE_IDLE_CHECK_MS ?? 10_000);
   let reaperTimer: NodeJS.Timeout | undefined;
   if (idleMs > 0) {
