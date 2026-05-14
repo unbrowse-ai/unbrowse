@@ -5,6 +5,7 @@ import {
 } from "../publish-admission.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { publishSkill } from "../marketplace/index.js";
+import { decideCheckpointPublish } from "../settings.js";
 import type { SkillManifest } from "../types/index.js";
 import { readWorkflowArtifact } from "../workflow/artifact.js";
 import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
@@ -58,6 +59,14 @@ export function queuePassiveSkillPublish(
 
   const job = (async () => {
     if (skill.execution_type !== "http") return;
+
+    const publishDecision = decideCheckpointPublish(skill.domain);
+    if (!publishDecision.publishQueued) {
+      console.warn(
+        `[publish] passive publish skipped for ${skill.skill_id}: ${publishDecision.mode} (${publishDecision.reason})`,
+      );
+      return;
+    }
 
     const parityVerdict =
       typeof options.parity === "function"
