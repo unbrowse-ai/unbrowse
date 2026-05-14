@@ -229,8 +229,6 @@ export function deriveSuggestedCommands(failingChecks: string[], changedFiles: s
     if (check === "Backend Tests") add("bun test backend/tests/");
     if (check === "Typecheck Backend") add("cd backend && ./node_modules/.bin/tsc --noEmit");
     if (check === "Package CLI") {
-      add("bun scripts/sync-skill-md.ts --check");
-      add("bun run check:skill-docs");
       add("npm pack --dry-run --workspace packages/skill");
     }
     if (check === "CLI E2E") {

@@ -12,13 +12,12 @@
     "scripts/release-assets.mjs",
     "scripts/postinstall.mjs",
     "scripts/verify-release-assets.mjs",
-    "SKILL.md",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
-    "prepack": "bun ../../scripts/sync-skill-md.ts --check && node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs",
+    "prepack": "node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs",
     "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts"

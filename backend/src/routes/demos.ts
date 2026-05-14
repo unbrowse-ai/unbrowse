@@ -97,9 +97,10 @@ demoRoutes.post("/demos/generate", async (c) => {
     if (!admittedViaSub) {
     const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const legacyProofHeader = c.req.header("X-Payment-Proof");
+    let sponsoredAdmit = false;
 
     if (!paymentHeader && !legacyProofHeader) {
-      // No proof provided — return 402 with payment terms
+      // No proof provided — sponsor check first, then 402
       const recipient = c.env.PAYMENT_RECIPIENT ?? "";
       const terms = await buildSkillPaymentTerms(
         priceUsd,
@@ -110,9 +111,31 @@ demoRoutes.post("/demos/generate", async (c) => {
       );
       // Override the description to be demo-specific
       terms.resource.description = `Demo video generation (${tier} tier)`;
-      return x402Response(c, terms);
+
+      // Sponsor decision (only for authenticated, non-admin agents).
+      if (agentId && agentId !== "__admin__") {
+        const { maybeSponsor } = await import("../middleware/sponsor.js");
+        const decision = await maybeSponsor(c, terms.accepts, agentId);
+        if (decision.kind === "sponsored") {
+          c.header("X-Sponsored", decision.ledger_id);
+          c.header("X-Sponsor-Tx", decision.tx_hash);
+          c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
+          sponsoredAdmit = true;
+        } else if (decision.kind === "exhausted") {
+          c.header("X-Sponsor-Exhausted", "1");
+          c.header("X-Sponsor-Reason", decision.reason);
+          c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
+          return x402Response(c, terms);
+        } else {
+          c.header("X-Sponsor-Reason", "opted_out");
+          return x402Response(c, terms);
+        }
+      } else {
+        return x402Response(c, terms);
+      }
     }
 
+    if (!sponsoredAdmit) {
     // Proof provided — verify via Corbits facilitator
     const proof = paymentHeader ?? legacyProofHeader!;
     const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
@@ -136,6 +159,7 @@ demoRoutes.post("/demos/generate", async (c) => {
       price_usd: priceUsd,
       payment_proof: proof,
     }).catch((err) => console.warn(`[x402] ledger write failed: ${(err as Error).message}`)));
+    }
     }
   }
 

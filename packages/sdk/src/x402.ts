@@ -67,21 +67,22 @@ export interface WalletLike {
 }
 
 /**
- * Day-4 stub. Given a 402 error and a wallet, this will:
- *   1. Pick the cheapest acceptable requirement from `error.accepts`.
- *   2. Call `wallet.signX402Payload` to mint an `X-PAYMENT` header.
- *   3. Invoke `retry(paymentHeader)` and return its result.
+ * Settle a `PaymentRequiredError` with the given wallet and replay the
+ * request via `retry(paymentHeader)`. Picks the first acceptable
+ * requirement from `error.accepts`; the wallet decides whether to sign or
+ * reject. If `error.accepts` is empty, the original error propagates.
  *
- * Day-3 keeps the surface honest: callers compile against this signature
- * today, and Day-4 fills in the body without breaking imports.
+ * Dep-light by design: no signing libs, no fetch deps — the wallet does
+ * the cryptography. The retry's failure (including a second 402)
+ * propagates unchanged.
  */
 export async function payAndRetry<T>(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   error: PaymentRequiredError,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   wallet: WalletLike,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   retry: (paymentHeader: string) => Promise<T>,
 ): Promise<T> {
-  throw new Error("not yet implemented (Day 4)");
+  const requirement = error.accepts?.[0];
+  if (!requirement) throw error;
+  const paymentHeader = await wallet.signX402Payload(requirement);
+  return retry(paymentHeader);
 }

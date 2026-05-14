@@ -1,5 +1,22 @@
 export { Unbrowse } from "./client.js";
-export { UnbrowseApiError } from "./errors.js";
+export {
+  PaymentRequiredError,
+  RuntimeUnavailableError,
+  SponsorExhaustedError,
+  UnbrowseApiError,
+} from "./errors.js";
+export {
+  locateUnbrowseBinary,
+  probeUnbrowseRuntime,
+  spawnUnbrowseRuntime,
+} from "./runtime.js";
+export type { RuntimeHandle, SpawnRuntimeOptions } from "./runtime.js";
+export { payAndRetry } from "./x402.js";
+export type {
+  WalletLike,
+  X402PaymentPayload,
+  X402PaymentRequirement,
+} from "./x402.js";
 export type {
   AttributionLedger,
   AvailableEndpoint,

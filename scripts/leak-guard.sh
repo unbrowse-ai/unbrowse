@@ -5,7 +5,7 @@
 # agent-experience-test, primitive-registry, etc.) are operational
 # secret sauce. They must NOT appear in:
 #   - npm tarball (packages/skill/ publish)
-#   - public unbrowse-ai/unbrowse repo (synced via sync-skill.sh)
+#   - GitHub release tarballs uploaded to unbrowse-ai/unbrowse
 #   - any file committed to an explicitly public path
 #
 # This primitive checks every output path that can go public and
