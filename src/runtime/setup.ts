@@ -214,7 +214,7 @@ export async function runSetup(options?: {
         lobsterInstalled = true;
       } catch {
         console.warn("[unbrowse] Crossmint wallet setup failed — you can retry with: npx @crossmint/lobster-cli setup");
-        console.warn("[unbrowse] Continuing with free credits ($2.00). Set up a wallet later to earn from your routes.");
+        console.warn("[unbrowse] Continuing with the platform sponsor pool ($1/day per agent, $50/day across the platform). Pair a wallet via `lobstercash` to keep going past the daily cap and earn USDC when your routes are reused.");
       }
     } else {
       console.log("[unbrowse] Crossmint lobster.cash detected but wallet not configured — running wallet setup...");

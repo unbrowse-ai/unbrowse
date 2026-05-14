@@ -10,9 +10,9 @@
  * `created_at_ms` (unix ms) so downstream tooling never has to know about the
  * µ¢ accounting trick.
  *
- * TODO(v6.15.0): when `GET /v1/analytics/payments` is added, augment its
- * response with `sponsor_settled_usd_24h` computed from the same ledger
- * prefix used here (`sponsor:ledger:*`, filter rows where
+ * TODO(v6.16): wire sponsor_settled_usd_24h into /v1/analytics/payments when
+ * that route exists. Compute from the same ledger prefix used here
+ * (`sponsor:ledger:*`, filter rows where
  * `Date.parse(settled_at) > now - 86_400_000`). Tracked at D3 in the
  * Skill-Sunset / Sponsor-Tier plan.
  */

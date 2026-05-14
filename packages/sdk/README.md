@@ -63,18 +63,24 @@ const quote = await u.execute("skill_123", { params: { symbol: "NVDA" } });
 Unbrowse routes monetize on use via [x402](https://www.x402.org). Every paid execute (priced skills, `search`, `resolve` over a priced shortlist) is gated by a `402 Payment Required` flow. The SDK turns that into a typed error you can catch and retry:
 
 ```ts
-import { Unbrowse, PaymentRequiredError, SponsorExhaustedError } from "@unbrowse/sdk";
+import { Unbrowse, PaymentRequiredError, SponsorExhaustedError, payAndRetry } from "@unbrowse/sdk";
 
 try {
   await u.execute("skill_premium_123", { params: { ticker: "NVDA" } });
 } catch (err) {
   if (err instanceof PaymentRequiredError) {
-    await u.payAndRetry(err, wallet); // pays in USDC on Solana, retries with proof
+    await payAndRetry(err, wallet, (header) =>
+      u.execute(
+        "skill_premium_123",
+        { params: { ticker: "NVDA" } },
+        { headers: { "X-PAYMENT": header } },
+      ),
+    ); // pays in USDC on Solana, retries with proof
   }
 }
 ```
 
-`PaymentRequiredError` is thrown at the HTTP-parser layer and carries `accepts[]` — the canonical x402 terms array. `payAndRetry` handles the pay-and-replay round-trip.
+`PaymentRequiredError` is thrown at the HTTP-parser layer and carries `accepts[]` — the canonical x402 terms array. `payAndRetry(error, wallet, retry)` is a free function exported from `@unbrowse/sdk` (not a method on `Unbrowse`); it picks `accepts[0]`, has your wallet sign it, and calls your `retry(paymentHeader)` to replay the original request with `X-PAYMENT` attached.
 
 ### Sponsor mode — no wallet? you get $1/day on the house
 
@@ -136,3 +142,5 @@ try {
 - Use case recipes: [`docs/examples/`](./docs/examples/)
 - API reference: [`docs/api-reference/`](./docs/api-reference/)
 - Payment surface: [`docs/payments/`](./docs/payments/)
+
+_Audited Day 6 (Dominion): 2026-05-14_
