@@ -174,9 +174,10 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
     if (!admittedViaSub) {
     const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const legacyProofHeader = c.req.header("X-Payment-Proof");
+    let sponsoredAdmit = false;
 
     if (!paymentHeader && !legacyProofHeader) {
-      // No proof provided -- return 402 with payment terms
+      // No proof provided -- check sponsor tier first, then return 402
       const recipient = resolveSkillPaymentRecipient(skill, c.env);
       const terms = await buildSkillPaymentTerms(
         priceResult.price_usd,
@@ -185,9 +186,36 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
         c.req.url,
         { testnet: x402UseTestnet(c.env) },
       );
-      return x402Response(c, terms);
+
+      // Sponsor decision: if a valid agent key resolved (above), try to
+      // sponsor the first call from the platform wallet. Anonymous callers
+      // (no agent_id) skip sponsor and get standard 402.
+      const candidateAgentId = c.get("agent_id");
+      if (candidateAgentId && candidateAgentId !== "__admin__") {
+        const { maybeSponsor } = await import("../middleware/sponsor.js");
+        const decision = await maybeSponsor(c, terms.accepts, candidateAgentId);
+        if (decision.kind === "sponsored") {
+          c.header("X-Sponsored", decision.ledger_id);
+          c.header("X-Sponsor-Tx", decision.tx_hash);
+          c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
+          sponsoredAdmit = true;
+          // Fall through, skipping verify block, to serve the skill.
+        } else if (decision.kind === "exhausted") {
+          c.header("X-Sponsor-Exhausted", "1");
+          c.header("X-Sponsor-Reason", decision.reason);
+          c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
+          return x402Response(c, terms);
+        } else {
+          // opted_out — standard 402.
+          c.header("X-Sponsor-Reason", "opted_out");
+          return x402Response(c, terms);
+        }
+      } else {
+        return x402Response(c, terms);
+      }
     }
 
+    if (!sponsoredAdmit) {
     // Proof provided -- verify via Corbits facilitator
     const proof = paymentHeader ?? legacyProofHeader!;
     const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
@@ -211,6 +239,7 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       price_usd: priceResult.price_usd,
       payment_proof: proof,
     }).catch((err) => console.warn(`[x402] ledger write failed: ${(err as Error).message}`)));
+    }
     }
   }
 

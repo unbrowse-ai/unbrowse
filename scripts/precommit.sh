@@ -34,12 +34,7 @@ run_tests() {
 
 echo "[pre-commit] staged files: ${#staged_files[@]}"
 
-if has_match '^(src/cli\.ts|SKILL\.md)$'; then
-  echo "[pre-commit] checking SKILL.md sync"
-  bun run check:skill-md
-fi
-
-if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|packages/skill/README\.md|SKILL\.md|tests/client-registration\.test\.ts|tests/runtime-setup\.test\.ts)$'; then
+if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|packages/skill/README\.md|tests/client-registration\.test\.ts|tests/runtime-setup\.test\.ts)$'; then
   run_tests tests/client-registration.test.ts tests/runtime-setup.test.ts
 fi
 

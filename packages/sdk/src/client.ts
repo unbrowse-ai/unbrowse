@@ -22,7 +22,14 @@ import type {
   StealAuthResponse,
   UnbrowseClientOptions,
 } from "./contracts.js";
-import { UnbrowseApiError } from "./errors.js";
+import { PaymentRequiredError, UnbrowseApiError } from "./errors.js";
+import {
+  type RuntimeHandle,
+  type SpawnRuntimeOptions,
+  probeUnbrowseRuntime,
+  spawnUnbrowseRuntime,
+} from "./runtime.js";
+import type { X402PaymentRequirement } from "./x402.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -99,6 +106,7 @@ export class Unbrowse {
   private readonly defaultHeaders?: HeadersInit;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs?: number;
+  private _runtimeHandle: RuntimeHandle | null = null;
 
   constructor(options: UnbrowseClientOptions = {}) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
@@ -123,6 +131,61 @@ export class Unbrowse {
     return out;
   }
 
+  /**
+   * Point at an already-running Unbrowse runtime. No probe, no spawn.
+   * `.close()` is a no-op for the runtime (the caller owns it).
+   */
+  static async connect(
+    baseUrl: string,
+    opts: Omit<UnbrowseClientOptions, "baseUrl"> = {},
+  ): Promise<Unbrowse> {
+    return new Unbrowse({ ...opts, baseUrl });
+  }
+
+  /**
+   * Spawn a co-located Unbrowse runtime and return a client pointed at it.
+   * The client takes ownership of the child process: `.close()` will tear
+   * it down.
+   */
+  static async spawn(
+    opts: SpawnRuntimeOptions & Omit<UnbrowseClientOptions, "baseUrl"> = {},
+  ): Promise<Unbrowse> {
+    const { port, cwd, env, binaryPath, readyTimeoutMs, ...clientOpts } = opts;
+    const handle = await spawnUnbrowseRuntime({ port, cwd, env, binaryPath, readyTimeoutMs });
+    const client = new Unbrowse({ ...clientOpts, baseUrl: handle.baseUrl });
+    if (handle.owned) client._runtimeHandle = handle;
+    return client;
+  }
+
+  /**
+   * Probe 127.0.0.1 on the requested port (default 6969). Adopts a live
+   * runtime via `connect`; spawns a new one via `spawn` if dead. The
+   * resulting client only owns the runtime if it had to spawn.
+   */
+  static async local(
+    opts: SpawnRuntimeOptions & Omit<UnbrowseClientOptions, "baseUrl"> = {},
+  ): Promise<Unbrowse> {
+    const port = opts.port ?? 6969;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    if (await probeUnbrowseRuntime(baseUrl, 1_000)) {
+      const { port: _p, cwd: _c, env: _e, binaryPath: _b, readyTimeoutMs: _r, ...clientOpts } = opts;
+      return Unbrowse.connect(baseUrl, clientOpts);
+    }
+    return Unbrowse.spawn(opts);
+  }
+
+  /**
+   * Release any resources owned by this client. If the client spawned its
+   * own runtime, this kills the child process. Otherwise no-op.
+   */
+  async close(): Promise<void> {
+    if (this._runtimeHandle) {
+      const h = this._runtimeHandle;
+      this._runtimeHandle = null;
+      await h.kill();
+    }
+  }
+
   async request<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const headers = new Headers(this.defaultHeaders);
@@ -145,6 +208,31 @@ export class Unbrowse {
       });
       const data = await parseResponseBody(response);
       if (!response.ok) {
+        // 402 surfaces as PaymentRequiredError so callers can hand the
+        // typed error to `payAndRetry(error, wallet, retry)`. Accepts the
+        // standard x402 shape (`{ accepts: [...] }`) and the Unbrowse
+        // backend shape that nests it under `data.accepts`.
+        if (response.status === 402) {
+          const payload = (typeof data === "object" && data !== null) ? (data as JsonRecord) : {};
+          const acceptsRaw = (() => {
+            const top = payload["accepts"];
+            if (Array.isArray(top)) return top;
+            const nested = (payload["data"] as JsonRecord | undefined)?.["accepts"];
+            return Array.isArray(nested) ? nested : [];
+          })();
+          const accepts = acceptsRaw as X402PaymentRequirement[];
+          const skillIdFromBody = typeof payload["skillId"] === "string"
+            ? (payload["skillId"] as string)
+            : (typeof payload["skill_id"] === "string" ? (payload["skill_id"] as string) : undefined);
+          const skillIdFromPath = (() => {
+            const m = path.match(/\/v1\/skills\/([^/?#]+)/);
+            return m ? decodeURIComponent(m[1]) : undefined;
+          })();
+          const message = typeof payload["error"] === "string"
+            ? (payload["error"] as string)
+            : `${method} ${path} failed with 402`;
+          throw new PaymentRequiredError(message, accepts, url, skillIdFromBody ?? skillIdFromPath);
+        }
         const message =
           typeof data === "object" && data && "error" in data && typeof (data as JsonRecord).error === "string"
             ? String((data as JsonRecord).error)

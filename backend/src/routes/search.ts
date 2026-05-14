@@ -93,6 +93,28 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
       c.req.url,
       { testnet: x402UseTestnet(c.env) },
     );
+
+    // Sponsor decision: try platform-funded admission before emitting 402.
+    // Only for authenticated agents; anonymous callers fall straight to 402.
+    const agentIdRaw = (c as unknown as { get: (k: string) => string | undefined }).get("agent_id");
+    if (agentIdRaw && agentIdRaw !== "__admin__") {
+      const { maybeSponsor } = await import("../middleware/sponsor.js");
+      const decision = await maybeSponsor(c as unknown as Parameters<typeof maybeSponsor>[0], terms.accepts, agentIdRaw);
+      if (decision.kind === "sponsored") {
+        c.header("X-Sponsored", decision.ledger_id);
+        c.header("X-Sponsor-Tx", decision.tx_hash);
+        c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
+        return null; // Admit — caller proceeds with search.
+      }
+      if (decision.kind === "exhausted") {
+        c.header("X-Sponsor-Exhausted", "1");
+        c.header("X-Sponsor-Reason", decision.reason);
+        c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
+        return x402Response(c, terms);
+      }
+      // opted_out — standard 402.
+      c.header("X-Sponsor-Reason", "opted_out");
+    }
     return x402Response(c, terms);
   }
   const proof = paymentHeader ?? legacyProofHeader!;
