@@ -1,5 +1,33 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+## [Unreleased]
+
+### Features
+
+* **telemetry (Phase 1):** local MCP session log at `~/.unbrowse/sessions/<uuid>.jsonl` — captures tool_start/tool_end events with sanitized args, timing, decision_trace passthrough. Intent text hashed, URLs templated, headers redacted. New CLI: `unbrowse telemetry [on|off|status]`. Opt-in by default; `UNBROWSE_TELEMETRY=0` disables.
+* **telemetry (Phase 2):** new `unbrowse_reflect` tool — agent declares `intent_status` (achieved/failed/partial) at end of a user intent. Reflection nudge added to MCP `instructions` field and `_workflow_hints.reflect_when_done` on execute/capture responses. Auto-marker `reflection_missing` written on session_end when no reflection.
+* **telemetry (Phase 3):** `POST /v1/telemetry/session` Cloudflare worker route backed by Neon Postgres via `DATABASE_URL` (matches existing pattern). **Schema auto-bootstraps** on first cold start via `backend/src/services/neon.ts::initialize()` — no manual migration needed. (Standalone migration script at `backend/scripts/migrate-telemetry-schema.mjs` is available for fresh databases or explicit re-apply.) Hourly scheduled triage worker clusters sessions by `(host_template, tool_sequence_prefix, terminal_error_code, reflection_status)` and opens GitHub issues on `unbrowse-ai/unbrowse-dev` with label `triage-needed` (uses `GITHUB_TRIAGE_TOKEN` or falls back to `GITHUB_PR_BOT_TOKEN`). `DELETE /v1/telemetry/sessions?seed=` opt-out endpoint.
+* **telemetry (Phase 4, planned):** docs only — future versions will require a valid Unbrowse account API key for indexing/publishing/contributing to marketplace. See `docs/mcp-telemetry-plan.md`.
+
+### Non-features (deliberate)
+
+* No `SLOW_THRESHOLD_MS`, `BAD_PATTERN`, or `BUG_KEYWORD` constants client-side. Classification of "bad" lives in the triage worker LLM judge.
+* No format templates putting prose into the agent context. Reflection nudges live in tool descriptions and `_workflow_hints`, never in synthesized text.
+* No blocking enforcement of `unbrowse_reflect`. Agent declares outcome voluntarily; auto-reflection_missing is evidence, not a verdict.
+* No Linear staging — issues land directly on `unbrowse-dev` with `triage-needed` label.
+* **telemetry (Phase 3):** `POST /v1/telemetry/session` Cloudflare worker route + D1 schema (`backend/schema/telemetry-sessions.sql`). Hourly scheduled triage worker clusters sessions by `(host_template, tool_sequence_prefix, terminal_error_code, reflection_status)` and stages new failure clusters as Linear issues. `DELETE /v1/telemetry/sessions?seed=` opt-out endpoint.
+* **telemetry (Phase 4, planned):** docs only — future versions will require a valid Unbrowse account API key for indexing/publishing/contributing to marketplace. See `docs/mcp-telemetry-plan.md`.
+
+### Non-features (deliberate)
+
+* No `SLOW_THRESHOLD_MS`, `BAD_PATTERN`, or `BUG_KEYWORD` constants client-side. Classification of "bad" lives in the triage worker LLM judge.
+* No format templates putting prose into the agent context. Reflection nudges live in tool descriptions and `_workflow_hints`, never in synthesized text.
+* No blocking enforcement of `unbrowse_reflect`. Agent declares outcome voluntarily; auto-reflection_missing is evidence, not a verdict.
+
 ## [6.16.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.16.0-preview.0...v6.16.0) (2026-05-14)
 
 ### Features
