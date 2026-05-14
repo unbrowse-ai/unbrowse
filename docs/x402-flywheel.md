@@ -136,21 +136,10 @@ Two consequences:
   principal from the sponsor escrow but recoups its 10% to the platform
   recipient in the same `finalize` — net cost is 90% to the creator.
 
-The Flex sponsor path is **gated off by default** behind
-`SPONSOR_USE_FLEX_SPLIT=1` and lives at:
-
-```ts
-// backend/src/services/sponsor-flex.ts:151 — sendSponsorFlexPayment
-// backend/src/services/sponsor-flex.ts:131 — sponsorUseFlex(env)
-// backend/src/services/sponsor-flex.ts:116 — sponsorEscrowReady(env)
-```
-
-v6.16-preview.0 ships with the gate **off** to keep the v6.15 "first $1/day
-on the house" narrative alive during cold start — direct-SPL via
-`sendSponsorPayment` remains the production path until the sponsor escrow is
-funded, a sponsor session key is rotated in, and the gate is flipped on per
-environment. Caps stay the same: per-agent `SPONSOR_CAP_DAILY_USD` (default
-$1.00), global `SPONSOR_GLOBAL_DAILY_USD` (default $50.00). Opt-out header
+The Flex sponsor path is **gated off by default** in v6.16-preview.0 and runs
+alongside the legacy direct-transfer sponsor implementation. The legacy path
+remains production while sponsor escrow funding + telemetry confirm parity;
+subsequent previews flip the default.
 remains `X-No-Sponsor: 1`.
 
 Sponsor ledger keys are unchanged:

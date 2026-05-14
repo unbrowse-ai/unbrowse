@@ -20,7 +20,7 @@ the `extra` payload shape change.
 | Variable-cost endpoints | Not supported (`exact` requires up-front amount) | `createUptoHandler` — authorize a ceiling, settle the actual amount used |
 | Facilitator | `https://facilitator.corbits.dev` (hosted) | `backend/src/services/flex-facilitator.ts` (self-hosted by Unbrowse) |
 | Platform fee mechanism | Cascade split with 10% platform share | `PLATFORM_BPS = 1000` (10%) in the same authorization |
-| Sponsor mode payment | Direct USDC SPL transfer | Same Flex authorization shape, signed against a platform sponsor escrow (opt-in via `SPONSOR_USE_FLEX_SPLIT=1`) |
+| Sponsor mode payment | Direct USDC SPL transfer | Same Flex authorization shape, signed against a platform sponsor escrow (opt-in; runs alongside legacy path during v6.16-preview cycle) |
 
 ## If you call us via SDK
 
@@ -216,40 +216,31 @@ Kept (rebound):
   `SOLANA_RPC_WS_URL` is deferred to v6.17.
 
 Added:
-- `FLEX_PLATFORM_FACILITATOR_KEY` (secret) — the platform facilitator's
-  signer secret.
 - `FLEX_PLATFORM_RECIPIENT_USDC_ATA` — the platform's USDC associated token
-  account; this is where `PLATFORM_BPS = 1000` (10%) lands on every split.
+  account; this is where the platform share lands on every split.
 - `FLEX_REFUND_TIMEOUT_SLOTS` — how long an authorization is held before
   refund eligibility (≈150 = 1 minute by default).
 - `FLEX_DEADMAN_TIMEOUT_SLOTS` — Flex deadman switch for unilateral escrow
   recovery if the facilitator becomes unresponsive.
-- `FLEX_SPONSOR_ESCROW_ADDRESS` — the platform's sponsor escrow PDA (used
-  only when `SPONSOR_USE_FLEX_SPLIT=1`).
-- `FLEX_SPONSOR_SESSION_KEY_SECRET` (secret) — short-expiry Ed25519 session
-  key registered against the sponsor escrow.
-- `SPONSOR_USE_FLEX_SPLIT` — `0`/`1` gate. Defaults off in
-  v6.16-preview.0 to preserve the v6.15 sponsor narrative during cold start.
+
+Operator-only env vars (facilitator signer, sponsor wallet, sponsor session
+key) are documented in the deployment runbook.
 
 ## Where to look in source
 
 | What | File |
 |---|---|
-| Splits arithmetic | `backend/src/services/flex.ts:49 — computeFlexSplits` |
-| Authorization assembly | `backend/src/services/flex.ts:98 — buildFlexAuthorization` |
-| Facilitator handler | `backend/src/services/flex-facilitator.ts:133 — createFlexFacilitator` |
-| Payment-terms glue | `backend/src/services/flex-payment-terms.ts` |
-| Sponsor on Flex | `backend/src/services/sponsor-flex.ts:151 — sendSponsorFlexPayment` |
+| Splits arithmetic | `backend/src/services/flex.ts — computeFlexSplits` |
+| Authorization assembly | `backend/src/services/flex.ts — buildFlexAuthorization` |
+| Payment-terms envelope | `backend/src/services/flex-payment-terms.ts` |
 | Onboarding gate | `backend/src/middleware/flex-onboarding-required.ts`, `backend/src/middleware/flex-onboarding-soft-block.ts` |
-| SDK retry helper | `packages/sdk/src/flex.ts:200 — payAndRetryFlex` |
-| SDK build authorization | `packages/sdk/src/flex.ts:162 — buildFlexAuthorization` |
-| SDK escrow + session key | `packages/sdk/src/flex.ts:411 — fundEscrow`, `packages/sdk/src/flex.ts:437 — registerSessionKey` |
-| SDK metered execute | `packages/sdk/src/client.ts:447 — Unbrowse#executeMetered` |
+| SDK retry helper | `packages/sdk/src/flex.ts — payAndRetryFlex` |
+| SDK build authorization | `packages/sdk/src/flex.ts — buildFlexAuthorization` |
+| SDK escrow + session key | `packages/sdk/src/flex.ts — fundEscrow`, `packages/sdk/src/flex.ts — registerSessionKey` |
 
 ## FAQ
 
-**My v6.15 client sends `X-PAYMENT` with an `exact` payload. What
-happens?**
+**My v6.15 client sends `X-PAYMENT` with an `exact` payload. What happens?**
 The backend's facilitator rejects the verify step (scheme mismatch); the
 client sees a fresh `402` whose `accepts[0].scheme === "@faremeter/flex"`.
 Upgrade your retry path to use `payAndRetryFlex` or the SDK's
