@@ -28,6 +28,16 @@ on:
         default: "0"
   pull_request:
     types: [labeled, synchronize, opened, reopened]
+  push:
+    branches: [main]
+    paths:
+      # Only fire when capability-affecting paths changed (matches the
+      # paths bench-gate-prerelease.sh checks). Docs-only commits skip.
+      - "src/**"
+      - "packages/sdk/**"
+      - "harness/probes/corpus-gate.txt"
+      - "harness/probes/GATE_JUDGE.md"
+      - "harness/probes/bench-gate-baseline.json"
   workflow_run:
     workflows: ["Release"]
     types: [completed]
@@ -47,6 +57,7 @@ jobs:
     runs-on: self-hosted
     if: >
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-bench-gate')) ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     outputs:
@@ -133,4 +144,83 @@ jobs:
               await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  file-or-update-issue-on-main:
+    name: File/update tracking issue for main-branch judging
+    runs-on: self-hosted
+    needs: [collect]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          ARTIFACT_NAME: ${{ needs.collect.outputs.artifact_name }}
+          RUN_ID: ${{ needs.collect.outputs.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            // Strategy: ONE rolling "agent review required" issue per main HEAD.
+            // Find the existing open issue with the bench-gate-judging label and
+            // update it; create if none. The agent closes the issue when they
+            // commit the stamp for this commit_sha.
+            const { owner, repo } = context.repo;
+            const artifactName = process.env.ARTIFACT_NAME || "(no artifact uploaded)";
+            const runId = process.env.RUN_ID || "(unknown)";
+            const url = process.env.WORKFLOW_RUN_URL;
+            const commitSha = process.env.COMMIT_SHA;
+            const title = `[bench-gate] agent review required — main @ ${commitSha.slice(0, 8)}`;
+            const body = [
+              "Main branch changed in capability-affecting paths. The bench-gate harness ran and produced artifacts. Agent review is required before the next release can be cut.",
+              "",
+              `**Commit:** \`${commitSha}\``,
+              `**Run ID:** \`${runId}\``,
+              `**Artifact:** \`${artifactName}\` ([open workflow run](${url}))`,
+              "",
+              "## What an agent does (in a Claude Code conversation on this repo):",
+              "",
+              "```bash",
+              `# 1. Download the artifact from the workflow run above into .bench-gate/${runId}/`,
+              "#    or re-run the harness locally:",
+              "bun run bench:gate:full",
+              "",
+              "# 2. Agent reads .bench-gate/<run-id>/judge.bundle.md and writes verdict.json",
+              "#    (Read tool → Write tool, in-thread)",
+              "",
+              "# 3. Validate + compare + stamp on PASS",
+              "bun run bench:gate:validate -- --artifacts .bench-gate/<run-id>",
+              "bun run bench:gate:compare -- --artifacts .bench-gate/<run-id> --stamp",
+              "",
+              "# 4. Commit the stamp; open PR; close this issue when stamp PR merges.",
+              "git add .bench-gate/stamp.json",
+              "git commit -m 'chore: bench-gate stamp'",
+              "```",
+              "",
+              "Until this is done, `release-it`'s `before:init` hook will refuse to cut a release. To bypass deliberately (emergencies only), set `BENCH_GATE_BYPASS=1` and document in CHANGELOG.",
+            ].join("\n");
+
+            // Ensure labels exist
+            for (const [name, color, desc] of [
+              ["bench-gate-judging", "FBCA04", "Bench-gate run awaits agent judgment"],
+              ["automated", "FBCA04", "Filed by CI automation"],
+            ]) {
+              try { await github.rest.issues.createLabel({ owner, repo, name, color, description: desc }); }
+              catch (_) { /* already exists */ }
+            }
+
+            // Find an existing open issue
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: "open", labels: "bench-gate-judging", per_page: 50,
+            });
+            if (existing.length > 0) {
+              const issue = existing[0];
+              await github.rest.issues.update({ owner, repo, issue_number: issue.number, title, body });
+              console.log(`Updated existing bench-gate issue #${issue.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner, repo, title, body, labels: ["bench-gate-judging", "automated"],
+                assignees: ["lewistham9x"],
+              });
+              console.log(`Created bench-gate issue #${created.data.number}`);
             }
