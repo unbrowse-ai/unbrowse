@@ -67,6 +67,18 @@ export interface Env {
   STRIPE_PRICE_BASE?: string;
   /** Stripe price ID for metered overage (per-unit) above the quota. */
   STRIPE_PRICE_OVERAGE?: string;
+  /**
+   * Platform-sponsor wallet (v6.15.0+) — funds first-call subsidies so route
+   * creators see x402 earnings immediately. Both ADDRESS and KEY must be set
+   * for the sponsor middleware to enable; otherwise it refuses-to-enable and
+   * the standard 402 flow runs unchanged.
+   */
+  PLATFORM_SPONSOR_WALLET_ADDRESS?: string;
+  PLATFORM_SPONSOR_WALLET_KEY?: string;
+  /** Per-agent daily sponsor cap in USD (default 1.0). */
+  SPONSOR_CAP_DAILY_USD?: string;
+  /** Org-wide daily sponsor cap in USD (default 50.0). */
+  SPONSOR_GLOBAL_DAILY_USD?: string;
 }
 
 // --- Agent identity ---
