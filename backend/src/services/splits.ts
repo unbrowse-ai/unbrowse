@@ -8,7 +8,7 @@
 import type { AgentProfile, Env, SkillManifest, SkillContributor } from "../types.js";
 import { skillsKV, statsKV } from "./kv.js";
 
-// Platform share out of 100 (Cascade uses 100-share model, protocol takes 1%)
+// Platform share out of 100 (legacy 100-share split model; Flex uses 1000-of-10000 bps natively in flex.ts::computeFlexSplits)
 const PLATFORM_SHARE = 10;
 const CONTRIBUTOR_POOL = 100 - PLATFORM_SHARE; // 90 shares for contributors
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -96,7 +96,8 @@ export function resolveSkillPaymentRecipient(skill: SkillManifest, env: Pick<Env
 }
 
 /**
- * Build the Cascade Split recipients array for a skill.
+ * Build the split-recipients array for a skill (legacy Cascade-shape;
+ * Flex equivalent lives in flex.ts::computeFlexSplits and produces bps).
  * Returns recipients ready for ensureSplit().
  */
 export function buildSplitRecipients(

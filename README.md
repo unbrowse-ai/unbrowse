@@ -64,15 +64,15 @@ For OpenClaw / `agent-browser` users, the plugin form is also still around — `
 
 ## How payments work
 
-Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route, every `unbrowse_search`, and any priced shortlist returned by `unbrowse_resolve` runs through the canonical [x402](https://www.x402.org) payment flow: the server replies `402 Payment Required` with payment terms; the client pays in USDC on Solana; the response carries the proof.
+Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route, every `unbrowse_search`, and any priced shortlist returned by `unbrowse_resolve` runs through the canonical [x402](https://www.x402.org) payment flow on Solana mainnet, settled via [Faremeter Flex](https://docs.faremeter.xyz/flex/overview) (v6.16+). The server replies `402 Payment Required` with a Flex-shaped `accepts[]`; the client signs an off-chain Ed25519 authorization with their session key; the response carries the proof.
 
 You have three ways to pay:
 
-1. **Sponsored credit (default).** Every new agent gets up to **$1/day** of platform-sponsored execute calls, capped at a global **$50/day** ceiling. Creators start earning USDC the moment their captured routes are reused — you don't need to pair a wallet to try Unbrowse. Responses on sponsored calls include `X-Sponsored: <ledger_id>`. When you've burned through the daily allowance the server returns 402 with `X-Sponsor-Exhausted: 1` and a reason header; the SDK throws `SponsorExhaustedError`. Opt out per-request with `X-No-Sponsor: 1`.
-2. **Your wallet (x402).** Pair a Solana mainnet USDC wallet (e.g. via Crossmint `lobster.cash` during `unbrowse setup`) and the SDK catches `PaymentRequiredError`, calls `payAndRetry(error, wallet)`, and returns the data. Your wallet also becomes the contributor payout target for routes you publish.
+1. **Sponsored credit (default).** Every new agent gets up to **$1/day** of platform-sponsored execute calls, capped at a global **$50/day** ceiling. Creators start earning USDC the moment their captured routes are reused — you don't need a funded escrow on day zero. Sponsored responses include `X-Sponsored: <ledger_id>`. Once you've burned through the daily allowance the server returns 402 with `X-Sponsor-Exhausted: 1`; the SDK throws `SponsorExhaustedError`. Opt out per-request with `X-No-Sponsor: 1`.
+2. **Your wallet + Flex escrow (x402).** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs an `X-PAYMENT` header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Splits live natively in every signed authorization (90% to contributors, 10% to platform, 0% protocol fee, up to 5 recipients).
 3. **Stripe subscription + overage.** Same `/v1/account` surface, same `unbrowse_settings`, for teams that prefer a card on file.
 
-Walkthrough and diagrams: [`docs/x402-flywheel.md`](./docs/x402-flywheel.md). Wallet setup and recovery: [`docs/wallets.md`](./docs/wallets.md). SDK-level error handling: [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/).
+Walkthrough and diagrams: [`docs/x402-flywheel.md`](./docs/x402-flywheel.md). Wallet + escrow + session-key setup: [`docs/wallets.md`](./docs/wallets.md). Upgrading from v6.15's `exact`-scheme integration: [`docs/x402-flex-migration.md`](./docs/x402-flex-migration.md). SDK-level error handling: [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/).
 
 ## MCP server
 
@@ -158,8 +158,9 @@ Long-form docs live under [`docs/`](./docs/). Public repo entrypoints:
 - [`docs/guides/quickstart.md`](./docs/guides/quickstart.md) — canonical install, setup, and headless bootstrap path
 - [`docs/api.md`](./docs/api.md) — route-level behavior and API contracts
 - [`docs/deployment.md`](./docs/deployment.md) — deploy topology and release workflow behavior
-- [`docs/x402-flywheel.md`](./docs/x402-flywheel.md) — payment + sponsor flow
-- [`docs/wallets.md`](./docs/wallets.md) — wallet setup, payout, recovery
+- [`docs/x402-flywheel.md`](./docs/x402-flywheel.md) — payment + sponsor flow on Faremeter Flex
+- [`docs/wallets.md`](./docs/wallets.md) — wallet, escrow, session-key setup, payout
+- [`docs/x402-flex-migration.md`](./docs/x402-flex-migration.md) — v6.15 (`exact` + Corbits) → v6.16 (Flex) migration for integrators
 - [`docs/RELEASING.md`](./docs/RELEASING.md) — release checklist
 
 Whitepaper companion set:

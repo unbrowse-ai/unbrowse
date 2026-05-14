@@ -2,16 +2,17 @@
  * Day 4 (Genesis Luminaries) end-to-end x402 + sponsor integration test.
  *
  * Boots the public skill route surface (mirrors `tests/x402-skill-route.test.ts`)
- * and exercises all four paths:
- *   1. No payment, no sponsor headers, no API key       → 402, accepts[] valid
+ * and exercises the Flex + sponsor paths:
+ *   1. No payment, no sponsor headers, no API key       → 402, flex_escrow_required
  *   2. X-No-Sponsor:1 with valid api key                 → 402, X-Sponsor-Reason=opted_out
  *   3. API key + sponsor wallet env wired, mocked payFn  → 200, X-Sponsored set
- *   4. Valid X-PAYMENT (faked Corbits)                   → 200, normal settle path
  *
  * Uses `ENVIRONMENT="local-dev"` so `statsKV(env)` and `skillsKV(env)` return
  * the in-process LocalKV — we seed the same Maps the route reads from. The
- * facilitator + sponsor-pay are stubbed at the network and module level
- * respectively. No real Solana RPC, no real Corbits.
+ * sponsor-pay module is stubbed; no real Solana RPC, no real facilitator. The
+ * legacy Corbits PAYMENT-SIGNATURE settle path was removed in v6.16 Phase 5
+ * (Day-6, Genesis Dominion) — its prior coverage lives in `tests/flex-end-to-
+ * end.test.ts` against the Flex facilitator instead.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
@@ -41,7 +42,6 @@ import { publicSkillRoutes } from "../src/routes/skills.js";
 import {
   _resetSponsorMiddlewareStateForTests,
 } from "../src/middleware/sponsor.js";
-import { clearSupportedKindsCacheForTests } from "../src/middleware/x402-gate.js";
 import type { Env, SkillManifest } from "../src/types.js";
 
 const PAID_SKILL_ID = "skill-paid-e2e";
@@ -99,16 +99,6 @@ const paidSkill: SkillManifest = {
   updated_at: "2026-04-02T00:00:00.000Z",
 };
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
-
-function encodeBase64Json(value: unknown): string {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64");
-}
 
 /** Compute SHA-256 hex matching services/keys.ts::sha256Hex. */
 async function sha256Hex(data: Uint8Array): Promise<string> {
@@ -150,7 +140,6 @@ describe("x402 + sponsor end-to-end (Day 4 C2)", () => {
 
   beforeEach(async () => {
     _resetSponsorMiddlewareStateForTests();
-    clearSupportedKindsCacheForTests();
     clearKVCacheForTests();
     // Fresh seed before each test.
     await seedSkill();
@@ -158,38 +147,11 @@ describe("x402 + sponsor end-to-end (Day 4 C2)", () => {
     sponsorPayState.mode = "success";
     sponsorPayState.signature = "0xsig-e2e-default";
 
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    // No facilitator HTTP traffic should fire from these test paths
+    // (anonymous → flex_escrow_required, opted-out → 402, sponsor admit →
+    // 200 via mocked sponsor-pay). Any leaked fetch is a regression.
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-
-      // Corbits facilitator stubs.
-      if (url === "https://facilitator.corbits.dev/supported") {
-        return jsonResponse({
-          kinds: [
-            {
-              x402Version: 2,
-              scheme: "exact",
-              network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-              extra: { feePayer: "fee-payer-solana", features: { xSettlementAccountSupported: true } },
-            },
-            {
-              x402Version: 2,
-              scheme: "exact",
-              network: "eip155:8453",
-              extra: { features: { xSettlementAccountSupported: true } },
-            },
-          ],
-          extensions: [],
-          signers: {},
-        });
-      }
-      if (url === "https://facilitator.corbits.dev/verify") {
-        return jsonResponse({ isValid: true, invalidReason: null });
-      }
-      if (url === "https://facilitator.corbits.dev/settle") {
-        return jsonResponse({ success: true, transaction: "tx-e2e-123" });
-      }
-      // Any other emergentdb HTTP traffic would be a bug — fail loudly so the
-      // test surfaces the regression rather than silently passing.
       throw new Error(`unexpected fetch: ${url}`);
     }) as typeof globalThis.fetch;
   });
@@ -267,43 +229,5 @@ describe("x402 + sponsor end-to-end (Day 4 C2)", () => {
     // Body should be the skill (sponsor admit serves the resource).
     const body = await res.json() as SkillManifest;
     expect(body.skill_id).toBe(PAID_SKILL_ID);
-  });
-
-  it("test 4 — valid X-PAYMENT header (faked Corbits): 200, settle path runs", async () => {
-    const accepted = {
-      scheme: "exact",
-      network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-      amount: "1000",
-      asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-      payTo: CONTRIBUTOR_WALLET,
-      maxTimeoutSeconds: 300,
-      extra: { feePayer: "fee-payer-solana", features: { xSettlementAccountSupported: true } },
-    };
-
-    const res = await publicSkillRoutes.request(
-      `http://localhost/skills/${PAID_SKILL_ID}`,
-      {
-        headers: {
-          "PAYMENT-SIGNATURE": encodeBase64Json({
-            x402Version: 2,
-            accepted,
-            resource: {
-              url: `http://localhost/skills/${PAID_SKILL_ID}`,
-              description: `Skill access: ${PAID_SKILL_ID}`,
-              mimeType: "application/json",
-            },
-            payload: { proof: "proof-ok" },
-          }),
-        },
-      },
-      BASE_ENV,
-    );
-
-    expect(res.status).toBe(200);
-    const body = await res.json() as SkillManifest;
-    expect(body.skill_id).toBe(PAID_SKILL_ID);
-    expect(res.headers.get("PAYMENT-RESPONSE")).toBeTruthy();
-    // Payment-header path: sponsor not engaged, no sponsor headers.
-    expect(res.headers.get("X-Sponsored")).toBeNull();
   });
 });

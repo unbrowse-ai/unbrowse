@@ -9,7 +9,7 @@ import { addSkillDiscovered, getAgent, updateAgentWallet } from "../services/age
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { computeRoutePrice } from "../services/pricing.js";
 import { getStats } from "../services/scoring.js";
-import { verifyX402Proof, paymentsEnabled } from "../middleware/x402-gate.js";
+import { paymentsEnabled } from "../middleware/x402-gate.js";
 import {
   respondWithFlexTerms,
   sponsorAcceptsForPriceUsd,
@@ -202,8 +202,8 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       }
       if (candidateAgentId && candidateAgentId !== "__admin__") {
         const { maybeSponsor } = await import("../middleware/sponsor.js");
-        // sponsorAcceptsForPriceUsd synthesises a Corbits-shaped accepts[]
-        // for the existing sponsor middleware (Phase 4 / Day-6 rewrites this).
+        // sponsorAcceptsForPriceUsd builds a minimal accepts[] for the
+        // sponsor middleware's debit-side check (it never hits the wire).
         const sponsorAccepts = sponsorAcceptsForPriceUsd(priceResult.price_usd, recipient);
         const decision = await maybeSponsor(c, sponsorAccepts, candidateAgentId);
         if (decision.kind === "sponsored") {
@@ -267,31 +267,15 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       });
     }
 
-    // Legacy Corbits proof path (PAYMENT-SIGNATURE / X-Payment-Proof). Kept
-    // working through the Phase-5 deletion window so older clients still
-    // settle; new emissions are Flex-shaped.
-    const proof = legacyPaymentHeader ?? legacyProofHeader!;
-    const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
-    if (!valid) {
-      return c.json({ error: "Payment proof invalid or rejected" }, 403);
-    }
-    if (degraded) {
-      console.warn(`[x402] facilitator down -- allowed degraded access for skill ${skill.skill_id}`);
-    }
-    if (settlementHeader) {
-      c.header("PAYMENT-RESPONSE", settlementHeader);
-    }
-
-    // Record to ledger (non-blocking — don't fail the request if ledger write fails)
-    const txId = transaction ?? `x402-${Date.now()}-${skill.skill_id.slice(0, 8)}`;
-    schedule(c, recordTransaction(c.env, {
-      transaction_id: txId,
-      consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
-      creator_id: resolveSkillPaymentRecipient(skill, c.env),
-      skill_id: skill.skill_id,
-      price_usd: priceResult.price_usd,
-      payment_proof: proof,
-    }).catch((err) => console.warn(`[x402] ledger write failed: ${(err as Error).message}`)));
+    // Caller sent only a legacy PAYMENT-SIGNATURE / X-Payment-Proof header.
+    // v6.16 Phase 5 removed Corbits verify+settle entirely; emit a fresh
+    // Flex 402 so the client re-pays under the new scheme.
+    return await respondWithFlexTerms(c, {
+      skill,
+      priceUsd: priceResult.price_usd,
+      resource: c.req.url,
+      agentId: c.get("agent_id"),
+    });
     }
     }
   }

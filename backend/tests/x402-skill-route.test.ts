@@ -14,7 +14,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { publicSkillRoutes } from "../src/routes/skills.js";
-import { clearSupportedKindsCacheForTests, x402UseTestnet } from "../src/middleware/x402-gate.js";
+import { x402UseTestnet } from "../src/middleware/x402-gate.js";
 import { LocalKV, clearKVCacheForTests } from "../src/services/kv.js";
 import type { Env, SkillManifest, AgentProfile } from "../src/types.js";
 
@@ -125,12 +125,11 @@ describe("public skill x402 route — Flex envelope (v6.16)", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(async () => {
-    clearSupportedKindsCacheForTests();
     clearKVCacheForTests();
     await seedSkill();
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      // No external Corbits traffic expected on the Flex emit path.
+      // No external facilitator traffic expected on the Flex emit path.
       throw new Error(`unexpected fetch: ${url}`);
     }) as typeof globalThis.fetch;
   });
