@@ -29,7 +29,7 @@ set -euo pipefail
 
 DRY_RUN_JUDGE=0
 SOFT=0
-LIMIT=0
+LIMIT="${LIMIT:-0}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
