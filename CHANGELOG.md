@@ -13,6 +13,16 @@
 
 * **v6.16-day8:** judgement — chase 2 lost sheep before Emergence ([749a312](https://github.com/unbrowse-ai/unbrowse-dev/commit/749a3123751abb5f419988dd57525b1fda5f31ca)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [Unbrowse#execute](https://github.com/unbrowse-ai/Unbrowse/issues/execute)
 
+
+### Added — release-gate bench (agent-judged regression gate)
+
+* **`scripts/bench-gate-compare.ts` + `harness/probes/bench-gate-baseline.json`** — deterministic floor over agent-judged verdicts. Diffs the latest `verdict.json` against a frozen baseline + global thresholds (index_coverage_min, retrieve_coverage_min, anchor_must_pass, max_new_suspicious_hostile). Exits non-zero on regression; `--soft` for PR-comment mode; `--freeze` to refresh the baseline after a clean canonical run.
+* **`scripts/bench-gate-full.sh`** — orchestrator that runs `bench-gate.sh` (collect) → `bench-gate-judge.ts` (LLM verdicts) → `bench-gate-compare.ts` (compare) in one command.
+* **`.github/workflows/bench-gate.yml`** — runs on PR with `run-bench-gate` label (soft / comment-only), on manual dispatch, and on `workflow_run` after Release (strict; files an issue on regression).
+* **`scripts/release-and-verify.sh --bench-gate`** — opt-in pre-tag gate. `RUN_BENCH_GATE=1 bun run release:preview` runs the corpus before cutting the tag; default release flow is unchanged.
+* **`docs/release-gate-bench-plan.md`** — full design + how-to + threshold semantics.
+* **`bun run bench:gate{,:judge,:compare,:freeze,:full}`** npm scripts.
+
 ## [Unreleased — v6.16.0]
 
 ### Added — auto-review + publish-suggestions (MCP)

@@ -25,11 +25,13 @@ cd "$ROOT_DIR"
 REMOTE_HOST="${REMOTE_HOST:-lekt8@89.169.121.108}"
 SKIP_RELEASE="${SKIP_RELEASE:-0}"
 SKIP_REMOTE="${SKIP_REMOTE:-0}"
+RUN_BENCH_GATE="${RUN_BENCH_GATE:-0}"
 
 for arg in "$@"; do
   case "$arg" in
     --skip-release) SKIP_RELEASE=1 ;;
     --skip-remote) SKIP_REMOTE=1 ;;
+    --bench-gate) RUN_BENCH_GATE=1 ;;
   esac
 done
 
@@ -48,6 +50,20 @@ bun test tests/path-params.test.ts tests/utils.test.ts || die "unit tests failed
 # a clean worktree.
 git checkout -- src/build-info.generated.ts
 log "local tests passed"
+
+# ── Step 1.5: Agent-judged bench-gate (opt-in via --bench-gate / RUN_BENCH_GATE=1) ──
+# Uses the LOCAL `bun src/cli.ts` to run the corpus, judges per-probe via LLM,
+# and compares against harness/probes/bench-gate-baseline.json. Costs Anthropic
+# credits + ~5-15min wall time, so opt-in. CI runs the same via bench-gate.yml.
+if [[ "$RUN_BENCH_GATE" == "1" ]]; then
+  if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+    die "bench-gate requires ANTHROPIC_API_KEY"
+  fi
+  log "running agent-judged bench-gate (corpus=harness/probes/corpus-gate.txt)..."
+  UNBROWSE="bun src/cli.ts" bash scripts/bench-gate-full.sh \
+    || die "bench-gate regression detected — read .bench-gate/<latest>/gate.md before retrying"
+  log "bench-gate passed"
+fi
 
 # ── Step 2: Cut release ──
 if [[ "$SKIP_RELEASE" != "1" ]]; then
