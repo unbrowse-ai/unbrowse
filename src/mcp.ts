@@ -807,13 +807,16 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
   };
 }
 export function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
-  // TODO Day 5 (Creatures): when caller explicitly projected (path/extract/limit), the diet
-  // safety-net at L904 must NOT run. Insert an early return here once the projected branch
-  // is proven safe by tests/mcp-payload-projection.test.ts.
-  // Placeholder predicate (intentionally false so behavior is unchanged this commit):
-  if (false) {
-    // bypass diet because caller-supplied projection is authoritative
-  }
+  // Day 5 (Creatures): when the caller explicitly projects via path / extract /
+  // limit / schema, that projection is authoritative. The diet safety-net must
+  // NOT re-truncate the projected output. The diet still runs on un-projected
+  // results so oversize raw payloads never escape the 25KB wire budget.
+  const callerProjected = (
+    typeof args.path === "string" ||
+    typeof args.extract === "string" ||
+    typeof args.limit === "number" ||
+    args.schema === true
+  );
   const baseValue = result.result ?? result;
 
   if (args.schema === true) {
@@ -828,15 +831,11 @@ export function maybePostProcessResult(result: Record<string, unknown>, args: Re
   if (typeof args.extract === "string" && Array.isArray(projected)) projected = applyExtract(projected, args.extract);
   if (typeof args.limit === "number" && Array.isArray(projected)) projected = projected.slice(0, Math.max(0, args.limit));
 
-  if (
-    typeof args.path === "string" ||
-    typeof args.extract === "string" ||
-    typeof args.limit === "number"
-  ) {
-    return dietIfOversize({
+  if (callerProjected) {
+    return {
       ...(result.trace ? { trace: result.trace } : {}),
       result: projected,
-    });
+    };
   }
 
   return dietIfOversize(result);
