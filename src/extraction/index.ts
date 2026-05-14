@@ -2020,3 +2020,210 @@ function computeConfidence(structure: ExtractedStructure, relevanceScore: number
 
   return Math.min(confidence, 1);
 }
+
+// ---------------------------------------------------------------------------
+// buildStructuredDataHeader — surface schema.org JSON-LD as a markdown block
+// ---------------------------------------------------------------------------
+//
+// Use case: agents reading /v1/browse/text or /v1/browse/markdown get the
+// rendered DOM, which on SSR pages can include personalized widgets (e.g.
+// "dropped_in_price", "recommended for you") injected alongside canonical
+// listings. The publisher's own JSON-LD is authoritative for what the page
+// represents and is pre-render, so prepending it gives the agent a clean
+// reference before the noisy DOM text.
+//
+// Only emits a block when the JSON-LD contains an entity worth highlighting:
+// ItemList (search results, catalog pages), Product (product detail),
+// Article / NewsArticle / BlogPosting (article pages), Recipe, JobPosting,
+// Event. Skips bare WebSite/SearchAction/BreadcrumbList — they're metadata,
+// not content the agent asked for.
+
+const STRUCTURED_DATA_HIGHLIGHT_TYPES = new Set([
+  "ItemList",
+  "Product",
+  "Offer",
+  "AggregateOffer",
+  "Article",
+  "NewsArticle",
+  "BlogPosting",
+  "Recipe",
+  "JobPosting",
+  "Event",
+  "Movie",
+  "TVSeries",
+  "Book",
+  "MusicAlbum",
+  "Course",
+  "VideoObject",
+  "LocalBusiness",
+  "Organization",
+  "Restaurant",
+  "Person",
+]);
+
+function collectLdNodes(value: unknown, out: Array<Record<string, unknown>>) {
+  if (!value) return;
+  if (Array.isArray(value)) {
+    for (const v of value) collectLdNodes(v, out);
+    return;
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj["@type"] === "string" || Array.isArray(obj["@type"])) {
+      out.push(obj);
+    }
+    if (Array.isArray(obj["@graph"])) {
+      for (const node of obj["@graph"]) collectLdNodes(node, out);
+    }
+  }
+}
+
+function ldTypeOf(node: Record<string, unknown>): string {
+  const t = node["@type"];
+  if (typeof t === "string") return t;
+  if (Array.isArray(t)) {
+    for (const candidate of t) {
+      if (typeof candidate === "string") return candidate;
+    }
+  }
+  return "";
+}
+
+function pickHighlight(nodes: Array<Record<string, unknown>>): Record<string, unknown> | null {
+  for (const node of nodes) {
+    if (STRUCTURED_DATA_HIGHLIGHT_TYPES.has(ldTypeOf(node))) return node;
+  }
+  return null;
+}
+
+function formatOffer(offer: unknown): string {
+  if (!offer || typeof offer !== "object") return "";
+  const o = offer as Record<string, unknown>;
+  const price = o.price ?? o.lowPrice ?? "";
+  const currency = o.priceCurrency ?? "";
+  if (!price) return "";
+  return currency ? `${price} ${currency}` : String(price);
+}
+
+function formatItemListBlock(node: Record<string, unknown>): string {
+  const name = typeof node.name === "string" ? node.name : "";
+  const items = Array.isArray(node.itemListElement) ? node.itemListElement : [];
+  const number = typeof node.numberOfItems === "number"
+    ? node.numberOfItems
+    : (typeof node.numberOfItems === "string" ? Number(node.numberOfItems) : items.length);
+
+  const lines: string[] = [];
+  lines.push("## Structured data (JSON-LD: ItemList)");
+  lines.push("");
+  if (name) lines.push(`**${name}** — ${number || items.length} items`);
+  else lines.push(`${number || items.length} items`);
+  lines.push("");
+  let rowsEmitted = 0;
+  for (const entry of items) {
+    if (rowsEmitted >= 50) {
+      lines.push(`- … (${items.length - rowsEmitted} more)`);
+      break;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const inner = (e.item && typeof e.item === "object") ? e.item as Record<string, unknown> : e;
+    const itemName = typeof inner.name === "string" ? inner.name : (typeof e.name === "string" ? e.name : "");
+    if (!itemName) continue;
+    const pos = typeof e.position === "number" ? e.position : rowsEmitted + 1;
+    const offerStr = formatOffer(inner.offers);
+    const url = typeof inner.url === "string" ? inner.url : (typeof e.url === "string" ? e.url : "");
+    let row = `${pos}. ${itemName}`;
+    if (offerStr) row += ` — ${offerStr}`;
+    if (url) row += ` (${url})`;
+    lines.push(row);
+    rowsEmitted++;
+  }
+  return lines.join("\n");
+}
+
+function formatGenericBlock(node: Record<string, unknown>, type: string): string {
+  const lines: string[] = [];
+  lines.push(`## Structured data (JSON-LD: ${type})`);
+  lines.push("");
+  // Pick the agent-relevant top-level fields in a canonical order.
+  const fields: Array<[string, unknown]> = [];
+  const keysOfInterest = [
+    "name", "headline", "alternateName", "description",
+    "brand", "author", "creator", "publisher",
+    "datePublished", "dateModified", "uploadDate",
+    "duration", "genre", "category",
+    "address", "telephone", "email", "url",
+    "aggregateRating", "ratingValue", "reviewCount",
+    "offers", "lowPrice", "highPrice", "price", "priceCurrency",
+    "availability", "sku", "gtin", "mpn",
+    "datePosted", "validThrough", "hiringOrganization", "jobLocation", "employmentType", "baseSalary",
+    "startDate", "endDate", "location", "performer",
+  ];
+  for (const key of keysOfInterest) {
+    if (key in node && node[key] !== undefined && node[key] !== null && node[key] !== "") {
+      fields.push([key, node[key]]);
+    }
+  }
+  for (const [k, v] of fields) {
+    let rendered: string;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      rendered = String(v);
+    } else if (Array.isArray(v)) {
+      const parts = v.map((x) => {
+        if (x && typeof x === "object" && "name" in (x as Record<string, unknown>)) {
+          return String((x as Record<string, unknown>).name);
+        }
+        return typeof x === "string" || typeof x === "number" ? String(x) : "";
+      }).filter(Boolean);
+      rendered = parts.join(", ");
+    } else if (v && typeof v === "object") {
+      const o = v as Record<string, unknown>;
+      if (k === "offers" || k === "aggregateOffer") {
+        rendered = formatOffer(o);
+      } else if (typeof o.name === "string") {
+        rendered = o.name;
+      } else if (typeof o.value === "string" || typeof o.value === "number") {
+        rendered = String(o.value);
+      } else {
+        rendered = "";
+      }
+    } else {
+      rendered = "";
+    }
+    if (rendered) lines.push(`- **${k}**: ${rendered}`);
+  }
+  if (lines.length <= 2) return ""; // nothing useful
+  return lines.join("\n");
+}
+
+/**
+ * Return a markdown header block summarizing the page's JSON-LD structured
+ * data, or null if no agent-relevant entity is present. Pure function — no
+ * I/O, safe for tests and for prepending to browse text/markdown responses.
+ */
+export function buildStructuredDataHeader(html: string): string | null {
+  if (!html || typeof html !== "string") return null;
+  let structures: ExtractedStructure[];
+  try {
+    structures = parseStructured(html);
+  } catch {
+    return null;
+  }
+  const allNodes: Array<Record<string, unknown>> = [];
+  for (const s of structures) {
+    if (s.type !== "json-ld") continue;
+    collectLdNodes(s.data, allNodes);
+  }
+  if (allNodes.length === 0) return null;
+  const highlight = pickHighlight(allNodes);
+  if (!highlight) return null;
+  const type = ldTypeOf(highlight);
+  if (type === "ItemList") {
+    const items = Array.isArray(highlight.itemListElement) ? highlight.itemListElement : [];
+    if (items.length === 0) return null;
+    const block = formatItemListBlock(highlight);
+    return block || null;
+  }
+  const generic = formatGenericBlock(highlight, type);
+  return generic || null;
+}
