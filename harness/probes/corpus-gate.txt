@@ -1,7 +1,8 @@
 # Release-Gate Bench corpus (release-gate-bench-plan.md)
 # Format: lane | intent | contextUrl
-# Lanes: anchor (10) semantic-rank (8) graphql (6) ssr-list (8) auth-gated (8) hostile (10)
-# Total: 50
+# Lanes: anchor (11) semantic-rank (8) graphql (6) ssr-list (10) auth-gated (8) hostile (15)
+# Total: 58
+# Sources: original curated set (50) + v1 refresh from r/webscraping + HN (8 added 2026-05-14)
 # Coverage denominator excludes auth-gated + hostile that resolve as EXCLUDED_*.
 # Hostile-lane PASS is a yellow flag (anti-bot honey-trap), not celebrated.
 
@@ -9,6 +10,7 @@
 anchor | get top hacker news stories | https://news.ycombinator.com/
 anchor | get package info | https://www.npmjs.com/package/openai
 anchor | search rust crates | https://crates.io/search?q=tokio
+anchor | get lobsters top stories | https://lobste.rs/
 anchor | search github repos | https://github.com/search?q=anthropic&type=repositories
 anchor | get wikipedia article | https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)
 anchor | get mdn page | https://developer.mozilla.org/en-US/docs/Web/API/fetch
@@ -35,7 +37,7 @@ graphql | get linkedin feed posts | https://www.linkedin.com/feed/
 graphql | get threads timeline | https://www.threads.net/
 graphql | get instagram reels feed | https://www.instagram.com/reels/
 
-# ─── ssr-list (8) — data-rich SSR; page-artifact promotion ────────────────────
+# ─── ssr-list (10) — data-rich SSR; page-artifact promotion ───────────────────
 ssr-list | search amazon for usb-c cables | https://www.amazon.com/s?k=usb-c+cable
 ssr-list | search bing for ai agents | https://www.bing.com/search?q=AI+agents
 ssr-list | search jupiter swap SOL to USDC | https://jup.ag/swap/SOL-USDC
@@ -44,6 +46,8 @@ ssr-list | search pubmed papers | https://pubmed.ncbi.nlm.nih.gov/?term=machine+
 ssr-list | search hotels in Tokyo | https://www.priceline.com/relax/at/tokyo
 ssr-list | search ebay listings | https://www.ebay.com/sch/i.html?_nkw=keyboard
 ssr-list | search openlibrary books | https://openlibrary.org/search?q=dune
+ssr-list | get google finance quote for AAPL | https://www.google.com/finance/quote/AAPL:NASDAQ
+ssr-list | search statsmuse for player stats | https://www.statmuse.com/nba/ask/lebron-points-per-game-this-season
 
 # ─── auth-gated (8) — must hand off, not crash; excluded from denominator ─────
 auth-gated | get gmail inbox messages | https://mail.google.com/mail/u/0/#inbox
@@ -55,7 +59,7 @@ auth-gated | get figma file canvas | https://www.figma.com/files/recent
 auth-gated | get slack channel messages | https://app.slack.com/client/T0/C0
 auth-gated | get x home timeline cold | https://x.com/home
 
-# ─── hostile (10) — vendor-shielded; expected BROWSER_BLOCK; excluded ─────────
+# ─── hostile (15) — vendor-shielded; expected BROWSER_BLOCK; excluded ─────────
 hostile | search ticketmaster events | https://www.ticketmaster.com/search?q=concert
 hostile | search instacart products | https://www.instacart.com/store/s?k=milk
 hostile | search g2 reviews | https://www.g2.com/search?query=crm
@@ -66,3 +70,8 @@ hostile | search nike shoes | https://www.nike.com/w/mens-shoes-nik1zy7ok
 hostile | search target products | https://www.target.com/s?searchTerm=coffee
 hostile | search bestbuy laptops | https://www.bestbuy.com/site/searchpage.jsp?st=laptop
 hostile | search stockx sneakers | https://stockx.com/search?s=jordan
+hostile | get baseball-reference player stats | https://www.baseball-reference.com/players/r/ruthba01.shtml
+hostile | get espn nba scoreboard | https://www.espn.com/nba/scoreboard
+hostile | search google maps for coffee shops in sf | https://www.google.com/maps/search/coffee+shops+san+francisco
+hostile | search glassdoor for engineering salaries | https://www.glassdoor.com/Salaries/software-engineer-salary-SRCH_KO0,17.htm
+hostile | search vinted listings | https://www.vinted.com/catalog?search_text=jeans

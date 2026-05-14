@@ -1,0 +1,3 @@
+- Datadome Bug Bounty: up to 5000€ for scraping protected websites — https://yeswehack.com/programs/datadome-bot-bounty
+- Facebook was used as a proxy by web scraping bots — https://datadome.co/bot-detection/how-facebook-was-used-as-a-proxy-by-web-scraping-bots/
+- Ask HN: Would you be interested in a course/eBook about scraping and automation? — (self)
