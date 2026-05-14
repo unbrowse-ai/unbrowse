@@ -24,6 +24,8 @@ backend/.dev.vars
 
 # Project-specific
 .vault/
+# Alpha docs — never committed; see scripts/leak-guard.sh
+internal/
 skills/
 !skills/
 !skills/worktree-issue-fix/
