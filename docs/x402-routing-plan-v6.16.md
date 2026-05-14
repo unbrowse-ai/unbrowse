@@ -1,89 +1,91 @@
-# x402 Routing Plan — v6.16
+# x402 Routing Plan — v6.16 (Flex revision)
 
-**Status:** Draft 2026-05-14 (post-v6.15.0)
+**Status:** Draft 2026-05-14 (post-v6.15.0, Cascade dropped, Flex in)
 **Owner:** Lewis
-**Audience:** anyone touching `backend/src/middleware/x402-gate.ts`, `backend/src/services/{cascade,splits,sponsor-pay}.ts`, or routes that take payment.
+**Audience:** anyone touching `backend/src/middleware/x402-gate.ts`, `backend/src/middleware/sponsor.ts`, `backend/src/services/*`, or routes that take payment.
 
 ## Why this plan exists
 
 Three honest gaps surfaced in the v6.15.0 Day-6 audit:
 
-1. **Single-contributor skills bypass the 10% platform cut.** `selectPrimaryContributor` returns the contributor wallet directly; `ensureSkillCascadeSplit` bails out when `contributors.length <= 1`. Result: solo creators (the typical day-1 case) take 100% and platform earns 0% on their skills. The flywheel doc's "platform's 10% cut" is true for multi-contributor only.
-2. **Sponsor flow never recoups the platform cut.** `sendSponsorPayment` is a direct SPL transfer from the Cascade signer to the creator. The platform pays the principal AND the gas, gets 0% back. Worth keeping if the goal is pure subsidy, but worth costing if the goal is flywheel-priming.
-3. **Facilitator is hardcoded.** `CORBITS_FACILITATOR_URL = "https://facilitator.corbits.dev"` lives as a `const`. No env override, no fallback, no per-chain selection. If Corbits is degraded or rate-limits us, every paid execute fails.
+1. **Single-contributor skills bypass the 10% platform cut.** Current `payTo` is a single contributor wallet; the platform earns 0% on solo-creator skills.
+2. **Sponsor flow never recoups the platform cut.** Platform pays principal + gas, gets 0% back.
+3. **Facilitator is hardcoded** to `https://facilitator.corbits.dev`. No fallback, no Flex.
 
-This plan fixes all three with citations to the canonical specs.
+**This revision drops Cascade entirely and adopts Faremeter Flex (`@faremeter/flex`).** Why:
+
+- **Flex carries splits natively in every signed authorization.** A single authorization expresses recipient + bps allocations summing to 10,000 (up to 5 recipients per authorization, atomically distributed at on-chain `finalize`). The 10% platform cut moves into the authorization itself, no separate split provisioning, no separate `execute_split()` trigger, no extra protocol fee, no claim-based "funds stuck in vault" UX problem.
+- **Flex matches our actual usage.** Unbrowse is an agentic, high-frequency, variable-cost workflow. `exact` scheme requires the client to know the cost up front; Flex's hold-and-settle pattern (`createUptoHandler`) lets us authorize a ceiling, do the work, then settle the actual amount used. Token-count-priced AI inference, data-transfer-priced execute calls, and metered streaming all fit Flex's `maxAmount → actual settle` shape cleanly.
+- **Flex eliminates per-request on-chain latency.** Authorizations are signed off-chain; settlement is batched. Today every paid execute blocks on a Corbits `/settle` round-trip; with Flex the hot path is pure compute and the facilitator flushes to chain in the background.
+- **Flex has a built-in deadman switch.** If our facilitator becomes unresponsive, clients can unilaterally recover escrowed funds after a timeout. No custodial risk for users.
 
 ## Source-of-truth references
 
-| Source | What it says | Why it matters here |
-|---|---|---|
-| [coinbase/x402 spec](https://deepwiki.com/coinbase/x402) | `paymentRequirements.accepts[]` is single-`payTo` per requirement. Facilitator exposes `POST /verify` + `POST /settle`. Multi-recipient is NOT in the protocol — must be orchestrated via batch transfers (Permit2 on EVM) or via an on-chain split account on Solana | The 10% cut cannot live in the x402 payload — it has to live in what `payTo` POINTS at. That's a Cascade split. |
-| [faremeter/faremeter](https://deepwiki.com/faremeter/faremeter) | TypeScript x402 implementation with Hono-based facilitator. `@faremeter/middleware` + `@faremeter/facilitator` packages. Supports Solana (SOL + SPL/USDC) and EVM (Base Sepolia, etc.). Corbits IS a Faremeter facilitator. | If we want a self-hosted backup facilitator, Faremeter is the on-ramp. Drop-in adapter for `/verify` and `/settle`. |
-| [PayAINetwork/x402-solana](https://github.com/PayAINetwork/x402-solana) | npm `x402-solana`. SDK middleware + client. Facilitator URL is configurable (defaults to `https://facilitator.payai.network`). v2 spec. **Single `payTo` per request — no native multi-recipient splitting.** USDC mints for devnet (`4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`) and mainnet (`EPjFW…TDt1v`). | A second Solana facilitator we can adapt for redundancy + comparison. |
-| [cascade-protocol/splits](https://github.com/cascade-protocol/splits) | Non-custodial Solana payment-splitting protocol. PDA-owned ATA vault. **Distribution is NOT auto-on-receive — requires explicit `execute_split()`.** 1% protocol fee deducted on-chain. Recipients shape `{address, share}`, 1–20 recipients per split. SPL + Token-2022 supported. SDK at `@cascade-fyi/splits-sdk`. | The key fact: a split vault HOLDS funds until `execute_split()` is called. We must wire that call, or creators see earnings stuck in a vault. |
+| Source | Key fact that shapes this plan |
+|---|---|
+| [Flex Overview](https://docs.faremeter.xyz/flex/overview) | Scheme id `@faremeter/flex`. Prepaid escrow + off-chain session-key signing + batched settlement. **Native splits in every authorization.** Solana today, EVM planned. |
+| [Flex Concepts](https://docs.faremeter.xyz/flex/concepts) | Each escrow PDA holds a balance for ONE client + ONE facilitator. Splits are `(recipient_token_account, bps)`, must sum to 10,000, max 5 entries. Authorizations carry `escrow / mint / maxAmount / authorizationId / expiresAtSlot / splits` and are Ed25519-signed by a registered session key. `MAX_PENDING_SETTLEMENTS = 16` per escrow. |
+| [Flex Facilitator](https://docs.faremeter.xyz/flex/facilitator) | `createFacilitatorHandler` plug-in slots into Faremeter middleware. Implements x402 `verify` + `settle` lifecycle, runs a background flush (`flushIntervalMs`), exposes `flush()` + `getHoldManager()` + `stop()`. `PERMANENT_SUBMIT_ERRORS` (expired auth, invalid sig, etc.) drop the hold; transient errors retry. For variable-amount endpoints: `createUptoHandler` in `@faremeter/payment-solana/flex/hono` takes `authorize` + `handle` callbacks. |
+| [coinbase/x402 spec](https://github.com/coinbase/x402) | The wire protocol (HTTP 402 + `X-PAYMENT` / `PAYMENT-SIGNATURE` headers) is scheme-agnostic. Flex authorizations ride in the same headers — only the `scheme` and `extra` fields change. |
 
-The deepwiki summary for Coinbase's spec puts it bluntly: "The core protocol appears to use a single `payTo` field per payment requirement, suggesting native support for one-to-one transfers. Multi-recipient scenarios would require either orchestrating multiple sequential payments, implementing custom settlement logic via extensions, or batch transfers through mechanism-specific features."
-
-That maps cleanly to: **on Solana, set `payTo` = Cascade split vault, then trigger `execute_split()` after settle.**
+The single most important sentence in the Flex docs for our purposes: *"A single authorization can distribute funds across multiple recipients (platform fees, referral commissions, royalties) in one atomic settlement."* This is what kills Cascade for us — splits stop being an external protocol we provision and become a field we sign.
 
 ## GOAL (north star)
 
-Every paid execute on Unbrowse routes through a Cascade split that gives the platform its 10% cut, even when there's only one contributor. The facilitator selection is env-driven with chain-aware routing and a healthy-fallback chain. Sponsor mode optionally recoups 10% to the platform when configured.
+Every paid execute on Unbrowse rides on Faremeter Flex with the platform's 10% cut written directly into every signed authorization's `splits` array. Every new agent funds an escrow + registers a session key at signup before getting an API key. Sponsor mode is a top-up for paired-wallet agents, signed by a platform session key against an agent-owned escrow.
 
 ## ACCEPTANCE CRITERIA (30, ordered by phase)
 
-### Phase 0 — Signup gate: wallet + api key required, no trailing setup
+### Phase 0 — Signup gate: wallet + escrow + session key required, no trailing setup
 
-The most important phase. v6.15 lets agents register with just an email and immediately get an API key; wallet pairing is "encouraged" via `unbrowse setup`'s lobster.cash prompt but skippable. Result: half of registered agents have no wallet, lean on sponsor credit, and the platform pays for them indefinitely. v6.16 closes that door.
+The most important phase. v6.15 lets agents register with just an email and immediately get an API key; wallet pairing is "encouraged" via `unbrowse setup`'s lobster.cash prompt but skippable. Flex makes the gate richer: agents need not just a wallet but a funded escrow + registered session key before any execute can settle.
 
-- **P0.1** `unbrowse setup` (CLI bootstrap) cannot complete without a paired wallet address. The flow becomes: ToS accept → email → wallet pairing (lobster.cash via `npx @crossmint/lobster-cli setup`, OR manual `--wallet-address <addr>`) → API key minted. Skipping the wallet step exits non-zero with an actionable error pointing to either path.
-- **P0.2** Backend registration endpoint `POST /v1/agents/register` rejects requests where `wallet_address` is empty or missing. 400 with `{ error: "wallet_address_required", remediation: "Run unbrowse setup or pair via /account" }`. No exceptions — including the `__admin__` shortcut, which moves to a separate admin-only flow.
-- **P0.3** Existing v6.15-era agents who registered without a wallet get a soft block: the next request to any priced route returns 402 with a special `X-Wallet-Required: 1` header and a body explaining they need to pair a wallet via `/account` or `unbrowse setup --pair-wallet` before continuing. Free routes (health, search read-only) keep working so the user can still inspect their account.
-- **P0.4** `/account` UI in the frontend adds a "Pair wallet" CTA at the top of the page for users with `wallet_address === null`. The CTA links to `/account/wallet` which embeds the lobster.cash/Crossmint pairing flow. Wallet address shows the pairing status and last verified block.
-- **P0.5** Sponsor pool semantics tighten: sponsor credit is a **top-up**, not a free tier. Eligibility: agent must have a paired wallet AND have made at least one successful execute paid from their own wallet in the last 30 days. New agents get a one-time $0.50 sponsor allowance to bootstrap (pair-wallet → first-execute), capped lower than the $1/day daily allowance.
-- **P0.6** Tests: `backend/tests/signup-wallet-gate.test.ts` (5 cases — missing wallet rejected, valid wallet accepted, existing-no-wallet-agent gets 402 with `X-Wallet-Required`, admin shortcut still works on admin endpoint only, sponsor allowance reduced for new no-history agents).
+- **P0.1** `unbrowse setup` (CLI bootstrap) cannot complete without (a) a paired wallet, (b) a Flex escrow created against the platform facilitator, (c) at least one session key registered. The flow becomes: ToS accept → email → wallet pairing (lobster.cash via `npx @crossmint/lobster-cli setup` OR `--wallet-address <addr>`) → escrow creation via `@faremeter/flex-solana` client → session key registration → API key minted. Skipping any step exits non-zero with an actionable error.
+- **P0.2** Backend `POST /v1/agents/register` rejects requests without `wallet_address`, `flex_escrow_address`, and `flex_session_key_address`. 400 with `{ error: "flex_onboarding_incomplete", missing: [...], remediation: "Run unbrowse setup or pair via /account" }`. Even the `__admin__` shortcut moves to a separate admin-only flow.
+- **P0.3** Existing v6.15-era agents who registered without Flex onboarding get a soft block: the next request to any priced route returns 402 with a `X-Flex-Onboarding-Required: 1` header and a body explaining the missing steps (wallet, escrow, session key). Free routes (health, search-read-only) keep working.
+- **P0.4** `/account` UI gets three sequential CTAs at top: "Pair wallet", "Fund escrow", "Register session key". Each links to a guided flow; status badge shows "complete / pending / not started" per step. Wallet address, escrow PDA, and session key fingerprint all displayed once complete.
+- **P0.5** Sponsor pool semantics tighten: sponsor credit is a **top-up**, not a free tier. Eligibility: agent must have wallet + escrow + session key all set AND have made at least one successful execute paid from their own escrow in the last 30 days. New agents get a one-time $0.50 sponsor allowance to bootstrap (pair → fund → register → first paid execute), capped lower than the $1/day daily allowance.
+- **P0.6** Tests: `backend/tests/flex-onboarding-gate.test.ts` (6 cases — each missing field rejected with the right `missing` array; complete onboarding accepted; existing-no-flex agent gets 402 with `X-Flex-Onboarding-Required`; admin shortcut admin-only; sponsor allowance reduced for new agents).
 
-### Phase 1 — Always-Cascade routing (the 10% fix, continues)
+### Phase 1 — Replace `exact` with `@faremeter/flex` everywhere
 
-### Phase 1 — Always-Cascade routing (the 10% fix)
+- **P1.1** New package install: `@faremeter/flex-solana` and `@faremeter/payment-solana` in `backend/package.json`. Versions pinned.
+- **P1.2** New file `backend/src/services/flex.ts` exports:
+  - `buildFlexAuthorization(agent, skill, priceCeilingUsd, env): FlexAuthorizationDraft` — assembles the authorization shape with `escrow = agent.flex_escrow_address`, `mint = USDC_MINT`, `maxAmount`, `authorizationId = randomU64()`, `expiresAtSlot = currentSlot + escrow.refund_timeout_slots`, and `splits` containing the contributor recipients + platform recipient with bps summing to 10,000.
+  - `computeFlexSplits(skill, env): FlexSplit[]` — returns up to 5 `(recipient_token_account, bps)` entries. Platform always present at `PLATFORM_BPS = 1000` (10%). Contributors share the remaining 9,000 bps weighted by `cumulative_delta`.
+- **P1.3** `buildSkillPaymentTerms` in `backend/src/middleware/x402-gate.ts` switches scheme from `"exact"` to `"@faremeter/flex"`. The `accepts[]` entry's `extra` field carries the Flex-specific `{ escrow, splits, expiresAtSlot, refund_timeout_slots }` payload per Flex spec. Existing `exact` scheme support is removed (no parallel codepath — full migration).
+- **P1.4** The local SDK (`packages/sdk/src/x402.ts`) gains a `signFlexAuthorization(req, sessionKeySigner)` helper that produces the `PAYMENT-SIGNATURE` header value matching `@faremeter/flex-solana` payload shape.
+- **P1.5** Tests: `backend/tests/flex-splits-single-contributor.test.ts` proves the splits array for a solo skill has TWO entries (contributor 9000 bps + platform 1000 bps, sum 10000). `backend/tests/flex-splits-multi-contributor.test.ts` proves multi-contributor weighted shares.
 
-- **P1.1** `backend/src/services/splits.ts::syncSkillSplitConfig` no longer bails out when `contributors.length === 1`. For a single contributor, the split has TWO recipients: the contributor at share 90 + platform wallet at share 10 (Cascade's 1% protocol fee comes off the top → contributor receives ~89.1%, platform ~9.9%).
-- **P1.2** `backend/src/services/cascade.ts::ensureSkillCascadeSplit` removes the `if (contributors.length <= 1) return {}` guard at L77. New guard: only bail out if `payableContributors.length === 0` (no wallet at all → cannot split).
-- **P1.3** `backend/src/middleware/x402-gate.ts::buildSkillPaymentTerms`'s `recipient` arg is the **split vault address**, never the raw contributor wallet, for any skill that has at least one payable contributor.
-- **P1.4** A new helper `resolveSkillPayout(env, skill)` returns `{ payTo, isSplit, splitConfig? }` and is the only function any route uses to get the address.
-- **P1.5** Tests: `backend/tests/splits-single-contributor.test.ts` proves the two-recipient split (creator + platform) for solo skills.
+### Phase 2 — Run a Flex facilitator (or delegate)
 
-### Phase 2 — execute_split hook after settle
+- **P2.1** Decision point (Day-1 of execution): **(a)** stand up our own Flex facilitator inside the Cloudflare Worker backend using `createFacilitatorHandler` from `@faremeter/payment-solana/flex/facilitator`, OR **(b)** delegate to a hosted Flex facilitator (Faremeter Cloud, Corbits-when-they-add-Flex, or any third-party). The plan recommends **(a)** for control, observability, and to avoid bleed of agent data through a third-party.
+- **P2.2** If (a): new file `backend/src/services/flex-facilitator.ts` instantiates `createFacilitatorHandler("mainnet-beta", rpc, platformSigner, { supportedMints: [USDC_MINT], defaultSplits: [...], flushIntervalMs: 5000, ... })`. Wire the handler's `verify`, `settle`, and `flush` into the backend's `/v1/x402/{verify,settle}` proxy endpoints.
+- **P2.3** Background flush worker — Cloudflare Worker durable-object or scheduled trigger runs `flush()` every 30s OR on-demand after each settle. Settled holds become on-chain pending settlements; refund-window-closed pending settlements become finalized (which atomically distributes per the splits in the authorization).
+- **P2.4** **No `execute_split` worker needed.** Flex's `finalize` instruction handles distribution natively — this is the headline win over Cascade.
+- **P2.5** Tests: `backend/tests/flex-facilitator-lifecycle.test.ts` — end-to-end: agent funds escrow → middleware verifies authorization (hold) → middleware does work → middleware settles actual amount → flush submits → after refund window, finalize distributes USDC to creator + platform.
 
-- **P2.1** After Corbits/Faremeter/PayAI confirms settlement, the route handler triggers `execute_split()` on the affected vault via the Cascade SDK. Best-effort, non-blocking on the request response: fire-and-forget into `ctx.waitUntil(...)` so the user's request doesn't wait for the second tx.
-- **P2.2** A separate worker job (`backend/scripts/sweep-cascade-vaults.ts`) runs on a schedule and calls `execute_split()` on any vault with non-zero USDC balance. Catches missed hooks + the "unclaimed funds from missing ATA" case Cascade's claim-based model creates.
-- **P2.3** Test: `backend/tests/cascade-execute-after-settle.test.ts` proves the hook fires after a mock-settle and that a recipient with a pre-existing ATA receives USDC in the next block.
+### Phase 3 — Variable-amount endpoints via `createUptoHandler`
 
-### Phase 3 — Facilitator abstraction
+The Flex win that Cascade couldn't touch.
 
-- **P3.1** New file `backend/src/services/facilitator.ts` exports:
-  - `interface Facilitator { name; url; supports(chain): boolean; verify(payload); settle(payload); supported() }`
-  - `selectFacilitator(env, chain): Facilitator` — env-driven (`X402_FACILITATOR_SOLANA`, `X402_FACILITATOR_BASE`, fallbacks via `X402_FACILITATOR_FALLBACKS_CSV`)
-  - Built-in adapters: `corbitsFacilitator()`, `payaiFacilitator()`, `faremeterFacilitator(baseUrl)` (for a self-hosted instance)
-- **P3.2** `backend/src/middleware/x402-gate.ts` `CORBITS_FACILITATOR_URL` const DELETED. Every `fetch(\`${URL}/...\`)` call goes through `selectFacilitator(env, chain).{verify,settle,supported}()` instead.
-- **P3.3** Per-chain default: Solana → PayAI primary (their network, their stack, faster path); Base → Coinbase / Corbits; fallback chain: Corbits multi-chain. All env-overridable.
-- **P3.4** Health check: facilitator interface gains `health()` returning `{ ok, latency_ms }`. Selector skips unhealthy facilitators and falls through.
-- **P3.5** Test: `backend/tests/facilitator-selector.test.ts` — 6 cases (Solana default, Base default, Solana override, fallback when primary fails, all-facilitators-down → 502, unknown-chain).
-- **P3.6** Wrangler bindings: `X402_FACILITATOR_SOLANA="https://facilitator.payai.network"`, `X402_FACILITATOR_BASE="https://x402.org/facilitator"`, `X402_FACILITATOR_FALLBACKS="https://facilitator.corbits.dev"`. All overridable via env vars.
+- **P3.1** Refactor `/v1/skills/:id/execute` (and `/v1/execute` priced branch) to use `createUptoHandler` from `@faremeter/payment-solana/flex/hono` (or our backend's adapter if we're on Hono). `authorize` callback computes max amount from request body (e.g. for AI-inference skills: `maxTokens * 10 µ¢/token`); `handle` callback runs the skill, then calls `settle(actualCostUc)` with the real consumption.
+- **P3.2** Skill manifests gain a new optional `pricing` field: `{ mode: "fixed", price_usd } | { mode: "metered", unit, cost_per_unit_uc, max_units }`. Existing fixed-price skills migrate automatically (`{ mode: "fixed", price_usd: <existing> }`).
+- **P3.3** Metered skills can return both `data` and `usage_units` in their response; the route extracts `usage_units`, computes `actualCostUc = units * cost_per_unit_uc`, calls `settle(actualCostUc)`.
+- **P3.4** SDK gains `Unbrowse#executeMetered(skill, input, { onUsage })` so SDK callers can opt into metered pricing — the SDK signs an authorization for the ceiling, sends the request, parses the `usage_units` from the response, and the facilitator settles the actual cost.
+- **P3.5** Tests: `backend/tests/flex-metered-execute.test.ts` proves a metered skill that authorizes 100k units but consumes 10k pays for 10k.
 
-### Phase 4 — Sponsor mode optional recoup
+### Phase 4 — Sponsor mode on Flex rails
 
-- **P4.1** Add env flag `SPONSOR_USE_CASCADE_SPLIT="1"` (default off). When on, `sendSponsorPayment` sends to the skill's Cascade split vault (which auto-distributes 89.1/9.9/1 once `execute_split` is called), instead of direct-to-creator.
-- **P4.2** When `SPONSOR_USE_CASCADE_SPLIT=0` (default), behavior is unchanged: direct SPL transfer to creator, platform absorbs full cost. This preserves the v6.15.0 narrative ("first $1/day is on the house") for the cold-start month.
-- **P4.3** Test: `backend/tests/sponsor-cascade-route.test.ts` — both flags, both outcomes, ledger row carries `payment_method: "direct" | "cascade_split"` for audit.
+- **P4.1** Platform funds a "sponsor escrow" via the same Flex program but with the platform as both client AND a registered session-key owner. The sponsor session key has scoped expiry (e.g. 7 days) and is rotated.
+- **P4.2** When `maybeSponsor` returns `{ kind: "sponsored" }`, the route signs an authorization against the SPONSOR escrow (not the agent's escrow) with the agent's skill's splits — including the platform 10% recipient. Net effect: platform pays principal from sponsor escrow but recoups 10% via the splits back into a platform-owned wallet in the same authorization.
+- **P4.3** Sponsor authorization carries an `agent_id` tag in its `extra` field for ledger attribution. Existing `sponsor:ledger:<id>` KV writes continue to capture `agent_id`, `skill_id`, `amount_settled_usdc`, `tx_hash`.
+- **P4.4** Caps still enforced in `maybeSponsor` BEFORE signing the sponsor authorization (per-agent $1/day, global $50/day).
+- **P4.5** Tests: `backend/tests/sponsor-flex.test.ts` — sponsor settle path uses sponsor escrow, agent's `flex_escrow_address` is untouched, splits route 90% to creator + 10% to platform.
 
-### Phase 5 — Docs + analytics
+### Phase 5 — Docs, analytics, retire Corbits / direct-pay paths
 
-- **P5.1** `docs/x402-flywheel.md` updated: section 5 ("10% platform cut") drops the "Cascade-split-only" caveat; section 3 ("sponsor mode") notes the optional recoup toggle.
-- **P5.2** `docs/x402-routing-plan-v6.16.md` (this file) becomes `docs/x402-routing.md` after v6.16 ships — the live operational doc.
-- **P5.3** `GET /v1/admin/sponsor-ledger` response includes `payment_method` field per row.
-- **P5.4** Implement `/v1/analytics/payments` (deferred from v6.15.0's D3 TODO). Returns:
+- **P5.1** Implement `/v1/analytics/payments` (closes v6.15.0 D3 TODO). Returns:
   ```json
   {
     "platform_cut_usd_24h": "12.34",
@@ -91,74 +93,88 @@ The most important phase. v6.15 lets agents register with just an email and imme
     "sponsor_settled_usd_24h": "0.50",
     "sponsor_recouped_usd_24h": "0.05",
     "creator_payouts_usd_24h": "111.00",
-    "facilitator_breakdown": { "corbits": 80, "payai": 18, "faremeter": 2 }
+    "flex_escrows_active": 142,
+    "flex_pending_settlements": 18,
+    "flex_holds_in_memory": 27
   }
   ```
-  The deferred TODO in `backend/src/routes/admin.ts:13-17` is finally closed.
+- **P5.2** `docs/x402-flywheel.md` rewritten — drop Cascade entirely, replace with Flex narrative (mermaid diagram updated: escrow funded → session key signs auth → facilitator holds → service delivers → settle actual → flush → finalize distributes per splits).
+- **P5.3** `docs/wallets.md` rewritten to document the wallet → escrow → session key sequence.
+- **P5.4** `docs/x402-flex-migration.md` (NEW) — explains for builders/integrators the move from `exact` scheme to `@faremeter/flex`, with code samples.
+- **P5.5** **Retire Corbits codepath.** `CORBITS_FACILITATOR_URL` const + `verifyAndSettlePaymentHeader` deleted. **Retire `sendSponsorPayment` direct-transfer codepath.** All settlement flows through the Flex facilitator. No parallel rails.
+- **P5.6** Retire Cascade dependency: remove `@cascade-fyi/splits-sdk` from `backend/package.json`, delete `backend/src/services/cascade.ts` and `backend/src/services/splits.ts`. The 10% cut lives in `flex.ts::computeFlexSplits`.
 
 ## NON-GOALS
 
-- **Multi-token settlement.** USDC stays the only asset. Adding USDT or chain-native tokens is its own loop.
-- **EVM-side splits.** Cascade is Solana-only. EVM equivalent (0xSplits, Splits.org) is a future loop. For now, EVM `payTo` stays a single contributor wallet.
-- **Per-skill custom share ratios.** Platform is always 10. Contributors split the remaining 90. Custom ratios (e.g. founder skill = 0% platform fee) is a v6.17+ feature.
-- **Migrating the existing single-contributor skills' historical earnings.** Pre-v6.16 settled payments stay where they are; the platform cut starts on v6.16-and-later executes only.
+- **EVM support.** Flex is Solana-only today; EVM is on Faremeter's roadmap. v6.16 stays Solana-only for paid execute. EVM agents can still use the SDK against free routes.
+- **Custom per-skill platform-share ratios.** Platform is always 1000 bps. Custom ratios are a v6.17+ feature.
+- **Migrating historical earnings.** Pre-v6.16 settled payments stay where they are.
+- **Multi-mint settlement.** USDC only. SOL / SPL-other / Token-2022 may follow.
+- **Replacing the canonical x402 wire format.** We still speak x402 over HTTP; only the scheme + `extra` shape change.
 
 ## RISKS
 
-- **R1: Cascade split provisioning latency on cold execute.** First paid call against a never-split skill blocks while we call `ensureSplit`. Mitigation: provision the split lazily AT PUBLISH-TIME, not at first execute; for skills already published, run a one-time backfill worker (`scripts/backfill-cascade-splits.ts`).
-- **R2: `execute_split()` gas cost > 10% cut for small payments.** A $0.01 paid execute pays $0.01 × 0.099 = ~$0.001 to platform; if `execute_split()` costs $0.005 in fees, we lose money. Mitigation: batch `execute_split()` across multiple settled payments via the periodic sweep worker (P2.2). Only trigger on-settle for payments above a threshold (env: `CASCADE_EXECUTE_SPLIT_MIN_USD="0.10"`).
-- **R3: Facilitator interface drift.** Corbits and PayAI both follow the x402 spec, but their `extra` field shapes may differ. Mitigation: each adapter normalises its `extra` to a canonical shape we own; integration tests pin the contract per facilitator.
-- **R4: PayAI as primary Solana facilitator means we depend on `https://facilitator.payai.network` uptime.** Mitigation: P3.4 health check + automatic fallback to Corbits. Status: structural, no fix needed beyond the fallback chain.
-- **R5: Cascade's 1% protocol fee is unavoidable.** Means platform cut is 9.9% effective, not flat 10%. Mitigation: document this in docs/x402-flywheel.md and `/v1/analytics/payments` returns the post-fee number. Don't pretend.
-- **R6: Existing single-contributor skills with `split_config` already set.** A prior incorrect single-recipient split might be cached. Mitigation: backfill worker invalidates and re-creates splits where contributor count is 1 but split has only one recipient.
+- **R1: Flex onboarding adds three steps to signup.** Wallet pairing is already friction; adding escrow funding + session-key registration triples the new-user effort. Mitigation: the `/account` flow + `unbrowse setup` CLI must collapse all three into a single guided wizard. The Flex Quickstart docs at https://docs.faremeter.xyz/flex/quickstart are the reference for what a "good" client-side onboarding looks like.
+- **R2: Self-hosted facilitator is operational ownership we don't have today.** Running `createFacilitatorHandler` in a Cloudflare Worker means managing the facilitator key, flush cadence, refund window, deadman activity-keep-alive. Mitigation: if (a) is too much for week-1, fall back to (b) — hosted Faremeter facilitator — and revisit. Decision documented as P2.1.
+- **R3: `MAX_PENDING_SETTLEMENTS = 16` per escrow is a real ceiling.** A busy agent could saturate. Mitigation: facilitator flushes aggressively; if a verify call comes in and the escrow is at cap, return 402 with `X-Flex-Escrow-Saturated: 1` and a retry hint.
+- **R4: Refund window holds the merchant's money for at least a minute (150 slots min).** Creators see "earnings in 1–6 days" instead of "earnings instantly." Mitigation: pick the minimum refund window (~150 slots ≈ 1 minute) by default — short enough that creators feel paid immediately, long enough for legitimate dispute. Document the trade-off.
+- **R5: Cascade dependency removal might break legacy multi-contributor skills with provisioned splits.** Mitigation: P5.6 includes a one-time migration script that emits a final Cascade `execute_split` on any vault with non-zero balance before the dependency is removed.
+- **R6: Sponsor escrow is a hot target — if the platform sponsor session key is compromised, attacker drains the sponsor escrow up to global caps.** Mitigation: short session-key expiry (24–48h), automated rotation, hard-cap the sponsor escrow funding to a few days' worth at any time.
+- **R7: SDK clients need to handle authorization signing + escrow management.** Net new surface in `@unbrowse/sdk`. Mitigation: ship a high-level `Unbrowse#fundEscrow()` and `Unbrowse#registerSessionKey()` plus a `WalletLike` extension that can sign Ed25519 auth messages.
 
 ## OUT-OF-SCOPE (own future loops)
 
-- Per-chain facilitator A/B testing harness with conversion-rate measurement
-- EVM-side splits (0xSplits / Splits.org integration)
-- Multi-token pay rails (USDT, native SOL, native ETH)
-- Wallet-side reconciliation UI on `/account` showing per-skill earnings split history
-- Anti-Sybil checks on the platform share (preventing creators from listing themselves twice as "two contributors" to dodge the platform cut)
+- EVM Flex when Faremeter ships it
+- Multi-token (USDT, SOL, Token-2022) settlement
+- Per-skill custom platform-share ratios
+- Anti-Sybil checks on contributor splits
+- Reconciliation UI on `/account` showing per-skill earnings breakdown over time
+- Hosted facilitator failover policies (multi-facilitator escrow strategies)
 
-## Files touched (estimate)
+## Files touched
 
 | Path | Change | Phase |
 |---|---|---|
-| `src/cli-setup.ts`, `src/runtime/setup.ts` | EDIT — wallet pairing becomes a required step of `unbrowse setup`; non-zero exit if skipped | P0 |
-| `backend/src/routes/agents.ts` (register endpoint) | EDIT — reject empty `wallet_address` with 400 + remediation hint | P0 |
-| `backend/src/middleware/wallet-required.ts` | CREATE — middleware emits 402 `X-Wallet-Required: 1` for existing no-wallet agents on priced routes | P0 |
-| `frontend/src/app/account/page.tsx` + `frontend/src/app/account/wallet/page.tsx` | EDIT/CREATE — "Pair wallet" CTA + pairing flow | P0 |
-| `backend/src/middleware/sponsor.ts` | EDIT (P0) — tighten eligibility: paired wallet + first-paid-execute history; $0.50 bootstrap allowance | P0 |
-| `backend/tests/signup-wallet-gate.test.ts` | CREATE — 5-case matrix | P0 |
-| `backend/src/services/splits.ts` | EDIT — drop `payable.length <= 1` shortcut; always include platform recipient | P1 |
-| `backend/src/services/cascade.ts` | EDIT — relax single-contributor guard | P1 |
-| `backend/src/middleware/x402-gate.ts` | EDIT — replace `CORBITS_FACILITATOR_URL` const with selector | P2, P3 |
-| `backend/src/services/facilitator.ts` | CREATE — Facilitator interface + 3 adapters + selector | P3 |
-| `backend/src/services/sponsor-pay.ts` | EDIT — optional Cascade route | P4 |
-| `backend/src/routes/skills.ts`, `demos.ts`, `search.ts` | EDIT — call `resolveSkillPayout` + post-settle `execute_split` hook | P1, P2 |
-| `backend/src/routes/admin.ts` | EDIT — wire `/v1/analytics/payments` | P5 |
-| `backend/scripts/sweep-cascade-vaults.ts` | CREATE — periodic execute_split worker | P2 |
-| `backend/scripts/backfill-cascade-splits.ts` | CREATE — one-time backfill for existing skills | R1 |
-| `backend/wrangler.toml` | EDIT — facilitator URLs + threshold env vars | P3 |
-| `backend/.env.example` | EDIT — document new env vars | P3, P4 |
-| `backend/tests/splits-single-contributor.test.ts` | CREATE | P1 |
-| `backend/tests/cascade-execute-after-settle.test.ts` | CREATE | P2 |
-| `backend/tests/facilitator-selector.test.ts` | CREATE | P3 |
-| `backend/tests/sponsor-cascade-route.test.ts` | CREATE | P4 |
-| `docs/x402-flywheel.md` | EDIT — drop multi-contributor-only caveat; document Cascade fee | P5 |
-| `docs/x402-routing.md` | RENAME from this draft | P5 |
+| `src/cli-setup.ts`, `src/runtime/setup.ts` | EDIT — wallet + escrow + session-key wizard becomes required `unbrowse setup` steps | P0 |
+| `src/runtime/flex-onboarding.ts` (or extend existing) | CREATE — single-call helpers to fund escrow + register session key | P0 |
+| `backend/src/routes/agents.ts` (register endpoint) | EDIT — reject if any of wallet/escrow/session-key missing | P0 |
+| `backend/src/middleware/flex-onboarding-required.ts` | CREATE — emits 402 `X-Flex-Onboarding-Required: 1` for legacy agents on priced routes | P0 |
+| `frontend/src/app/account/page.tsx` + `account/{wallet,escrow,session-key}/page.tsx` | EDIT/CREATE — three guided CTAs + flow pages | P0 |
+| `backend/src/middleware/sponsor.ts` | EDIT (P0+P4) — eligibility tightened; signs sponsor authorization against sponsor escrow | P0, P4 |
+| `backend/tests/flex-onboarding-gate.test.ts` | CREATE — 6-case matrix | P0 |
+| `backend/package.json` | EDIT — add `@faremeter/flex-solana`, `@faremeter/payment-solana`; remove `@cascade-fyi/splits-sdk` | P1, P5 |
+| `backend/src/services/flex.ts` | CREATE — `buildFlexAuthorization`, `computeFlexSplits` | P1 |
+| `backend/src/middleware/x402-gate.ts` | EDIT — scheme `"exact"` → `"@faremeter/flex"`; `extra` carries Flex payload; delete `CORBITS_FACILITATOR_URL` + `verifyAndSettlePaymentHeader` | P1, P5 |
+| `packages/sdk/src/x402.ts` | EDIT — add `signFlexAuthorization`, `WalletLike` extension for Ed25519 session-key signing | P1 |
+| `backend/src/services/flex-facilitator.ts` | CREATE — instantiates `createFacilitatorHandler`; wires verify/settle/flush | P2 |
+| `backend/src/routes/x402-facilitator.ts` (or extend) | EDIT — `/v1/x402/verify` + `/v1/x402/settle` proxy through Flex handler | P2 |
+| Cloudflare Worker scheduled trigger / Durable Object | CREATE — periodic `flush()` driver for the Flex facilitator | P2 |
+| `backend/src/routes/skills.ts`, `demos.ts`, `search.ts` | EDIT — switch to `createUptoHandler`-style hold/settle | P3 |
+| `backend/src/types.ts` (SkillManifest) | EDIT — add `pricing` discriminated union (`fixed` | `metered`) | P3 |
+| `packages/sdk/src/client.ts` | EDIT — add `executeMetered`, `fundEscrow`, `registerSessionKey` | P3, P0 |
+| `backend/src/routes/admin.ts` | EDIT — implement `/v1/analytics/payments` | P5 |
+| `backend/src/services/cascade.ts`, `backend/src/services/splits.ts`, `backend/src/services/sponsor-pay.ts` | DELETE | P5 |
+| `backend/scripts/cascade-final-distribute.ts` | CREATE — one-time migration: `execute_split` on every vault with balance, then deprecate | R5 |
+| `backend/wrangler.toml` | EDIT — replace Cascade env vars with `FLEX_PLATFORM_FACILITATOR_KEY` (secret), `FLEX_PLATFORM_RECIPIENT_USDC_ATA`, `FLEX_REFUND_TIMEOUT_SLOTS`, `FLEX_DEADMAN_TIMEOUT_SLOTS` | P2 |
+| `backend/.env.example` | EDIT — document Flex env vars | P2 |
+| `backend/tests/flex-splits-{single,multi}-contributor.test.ts` | CREATE | P1 |
+| `backend/tests/flex-facilitator-lifecycle.test.ts` | CREATE | P2 |
+| `backend/tests/flex-metered-execute.test.ts` | CREATE | P3 |
+| `backend/tests/sponsor-flex.test.ts` | CREATE | P4 |
+| `docs/x402-flywheel.md` | REWRITE — Flex narrative + new mermaid diagram | P5 |
+| `docs/wallets.md` | REWRITE — wallet → escrow → session key sequence | P5 |
+| `docs/x402-flex-migration.md` | CREATE — exact→flex migration guide for integrators | P5 |
+| `docs/x402-routing.md` | RENAME from this draft after v6.16 ships | P5 |
 
 ## Rollout
 
-1. **Phase 0 ships v6.16.0-preview.0 ALONE.** Wallet/api-key signup gate first — every other phase assumes it. Existing no-wallet agents get one grace cycle via `X-Wallet-Required: 1` 402 responses pointing at the pairing flow. Days 1–7 of v6.16: hard-block new signups without wallet; existing agents get nag headers + frontend CTA. **No more trailing setup.**
-2. Phase 1 + 5.1 (docs caveat lift) ship together as v6.16.0-preview.1. Solo skills start earning the platform a cut.
-3. Phase 2 ships preview.2 (the execute_split hook + sweep worker). Safe to defer one preview if the periodic-sweep approach is enough for week 1.
-4. Phase 3 (facilitator abstraction) ships preview.3. Keep Corbits as the default until tests confirm PayAI parity.
-5. Phase 4 (sponsor recoup) ships preview.4. **Off by default** — flip when sponsor-mode actuals show it's worth recouping (probably month 2).
-6. Phase 5 (analytics endpoint) ships preview.5. Closes the deferred D3 from v6.15.0.
-
-Stable v6.16.0 after preview.5 stabilises.
+1. **v6.16.0-preview.0 — Phase 0 + Phase 1 ALONE.** Onboarding gate + Flex scheme adoption. Existing agents get one grace cycle via `X-Flex-Onboarding-Required: 1`. New agents must complete wallet+escrow+session-key. **No more trailing setup.**
+2. **v6.16.0-preview.1 — Phase 2.** Run the Flex facilitator (decision: self-host vs hosted). Background flush cadence dialed in.
+3. **v6.16.0-preview.2 — Phase 3.** Variable-amount endpoints (`createUptoHandler`). Metered pricing manifest field.
+4. **v6.16.0-preview.3 — Phase 4.** Sponsor on Flex rails (10% recoup via splits).
+5. **v6.16.0-preview.4 — Phase 5.** Analytics endpoint + Cascade/Corbits/sponsor-direct-pay deletion + docs rewrite.
+6. **v6.16.0 stable** after preview.4 stabilises.
 
 ## North star (one sentence)
 
-Ship v6.16.0: **every new agent must pair a wallet at signup — no more trailing setup, no more anonymous sponsor leeching**; every paid execute routes through a Cascade split that earns the platform its 10% cut; the facilitator is env-driven and falls back gracefully; sponsor mode is a top-up for paired wallets, not a free tier, and can optionally recoup the cut when caps make sense.
+Ship v6.16.0: **every new agent funds a Flex escrow and registers a session key at signup — no trailing setup, no anonymous sponsor leeching**; every paid execute rides on `@faremeter/flex` with the platform's 10% cut written natively into every signed authorization's splits; sponsor mode is a top-up for onboarded agents that recoups via the same splits primitive.
