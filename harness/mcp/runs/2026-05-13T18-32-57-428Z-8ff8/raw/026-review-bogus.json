@@ -1,0 +1,56 @@
+{
+  "probe": {
+    "id": "review-bogus",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_review",
+      "arguments": {
+        "skill": "bogus-skill-12345",
+        "endpoints": [
+          {
+            "endpoint_id": "bogus-endpoint",
+            "description": "test"
+          }
+        ]
+      }
+    },
+    "why": "POST /v1/skills/{id}/review with bogus ids. Review is the gate before public publish; whether it validates skill existence determines if buggy agents can review skills that don't exist."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 26,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_review",
+      "arguments": {
+        "skill": "bogus-skill-12345",
+        "endpoints": [
+          {
+            "endpoint_id": "bogus-endpoint",
+            "description": "test"
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 26,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Skill not found\n\n{\n  \"error\": \"Skill not found\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "error": "Skill not found"
+      },
+      "isError": true
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":26,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Skill not found\\n\\n{\\n  \\\"error\\\": \\\"Skill not found\\\"\\n}\"}],\"structuredContent\":{\"error\":\"Skill not found\"},\"isError\":true}}",
+  "parse_error": null,
+  "duration_ms": 249,
+  "timed_out": false
+}

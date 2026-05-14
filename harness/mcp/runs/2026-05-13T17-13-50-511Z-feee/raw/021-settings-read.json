@@ -1,0 +1,49 @@
+{
+  "probe": {
+    "id": "settings-read",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_settings",
+      "arguments": {}
+    },
+    "why": "settings read with no mutation; returns local marketplace/publish settings (share_pointers, auto_publish, publish_blacklist, publish_promptlist). Validates the config surface that gates publish behavior. Untested before."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 21,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_settings",
+      "arguments": {}
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 21,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Local marketplace/publish settings. share_pointers=true is the default (you are opted in): reviewed skills publish publicly and earn rewards.\n\n{\n  \"capture_pipeline\": {\n    \"auto_publish_checkpoints\": true,\n    \"publish_domain_blacklist\": [],\n    \"publish_domain_promptlist\": []\n  },\n  \"contribution\": {\n    \"share_pointers\": true,\n    \"set_via\": \"mode-command\",\n    \"set_at\": \"2026-05-05T15:30:00Z\"\n  },\n  \"marketplace_visibility\": \"public\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "capture_pipeline": {
+          "auto_publish_checkpoints": true,
+          "publish_domain_blacklist": [],
+          "publish_domain_promptlist": []
+        },
+        "contribution": {
+          "share_pointers": true,
+          "set_via": "mode-command",
+          "set_at": "2026-05-05T15:30:00Z"
+        },
+        "marketplace_visibility": "public"
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":21,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Local marketplace/publish settings. share_pointers=true is the default (you are opted in): reviewed skills publish publicly and earn rewards.\\n\\n{\\n  \\\"capture_pipeline\\\": {\\n    \\\"auto_publish_checkpoints\\\": true,\\n    \\\"publish_domain_blacklist\\\": [],\\n    \\\"publish_domain_promptlist\\\": []\\n  },\\n  \\\"contribution\\\": {\\n    \\\"share_pointers\\\": true,\\n    \\\"set_via\\\": \\\"mode-command\\\",\\n    \\\"set_at\\\": \\\"2026-05-05T15:30:00Z\\\"\\n  },\\n  \\\"marketplace_visibility\\\": \\\"public\\\"\\n}\"}],\"structuredContent\":{\"capture_pipeline\":{\"auto_publish_checkpoints\":true,\"publish_domain_blacklist\":[],\"publish_domain_promptlist\":[]},\"contribution\":{\"share_pointers\":true,\"set_via\":\"mode-command\",\"set_at\":\"2026-05-05T15:30:00Z\"},\"marketplace_visibility\":\"public\"}}}",
+  "parse_error": null,
+  "duration_ms": 2,
+  "timed_out": false
+}

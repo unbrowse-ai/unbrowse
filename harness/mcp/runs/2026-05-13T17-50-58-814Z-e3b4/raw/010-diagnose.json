@@ -1,0 +1,51 @@
+{
+  "probe": {
+    "id": "diagnose",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_diagnose",
+      "arguments": {}
+    },
+    "why": "diagnose surface; pre-fix this hung at /v1/browse/screenshot for >20s when no browse session was open, blocking every subsequent stdio request (MCP is single-threaded). Post-fix returns in <500ms with screenshot_error populated",
+    "fix_tag": "diagnose-no-session-hang"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 10,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_diagnose",
+      "arguments": {}
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 10,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Diagnosis capture complete. Screenshot + context returned.\n\n{\n  \"screenshot\": null,\n  \"screenshot_error\": \"no_active_session: call unbrowse_go first if you want a page screenshot\",\n  \"tab_id\": null,\n  \"diagnosis_context\": null,\n  \"status\": {\n    \"status\": \"ok\",\n    \"package_version\": \"6.13.0\",\n    \"trace_version\": \"5d9ebf619c61@f68a95539aeb\",\n    \"code_hash\": \"5d9ebf619c61\",\n    \"git_sha\": \"f68a95539aeb\",\n    \"pid\": 84482\n  }\n}"
+        }
+      ],
+      "structuredContent": {
+        "screenshot": null,
+        "screenshot_error": "no_active_session: call unbrowse_go first if you want a page screenshot",
+        "tab_id": null,
+        "diagnosis_context": null,
+        "status": {
+          "status": "ok",
+          "package_version": "6.13.0",
+          "trace_version": "5d9ebf619c61@f68a95539aeb",
+          "code_hash": "5d9ebf619c61",
+          "git_sha": "f68a95539aeb",
+          "pid": 84482
+        }
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":10,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Diagnosis capture complete. Screenshot + context returned.\\n\\n{\\n  \\\"screenshot\\\": null,\\n  \\\"screenshot_error\\\": \\\"no_active_session: call unbrowse_go first if you want a page screenshot\\\",\\n  \\\"tab_id\\\": null,\\n  \\\"diagnosis_context\\\": null,\\n  \\\"status\\\": {\\n    \\\"status\\\": \\\"ok\\\",\\n    \\\"package_version\\\": \\\"6.13.0\\\",\\n    \\\"trace_version\\\": \\\"5d9ebf619c61@f68a95539aeb\\\",\\n    \\\"code_hash\\\": \\\"5d9ebf619c61\\\",\\n    \\\"git_sha\\\": \\\"f68a95539aeb\\\",\\n    \\\"pid\\\": 84482\\n  }\\n}\"}],\"structuredContent\":{\"screenshot\":null,\"screenshot_error\":\"no_active_session: call unbrowse_go first if you want a page screenshot\",\"tab_id\":null,\"diagnosis_context\":null,\"status\":{\"status\":\"ok\",\"package_version\":\"6.13.0\",\"trace_version\":\"5d9ebf619c61@f68a95539aeb\",\"code_hash\":\"5d9ebf619c61\",\"git_sha\":\"f68a95539aeb\",\"pid\":84482}}}}",
+  "parse_error": null,
+  "duration_ms": 1,
+  "timed_out": false
+}

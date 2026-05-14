@@ -1,0 +1,47 @@
+{
+  "probe": {
+    "id": "resolve-empty-intent",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_resolve",
+      "arguments": {
+        "intent": "",
+        "url": "https://example.com"
+      }
+    },
+    "why": "resolve with intent as an EMPTY STRING. validateProperty (src/mcp.ts:296) checks typeof === 'string' but has no minLength check; empty intent passes validation. Iter 58 maps what the orchestrator does downstream: silent no_match, special empty-intent handling, or backend error. Hypothesis: same no_match shape as resolve-cold-* probes since example.com has no cached endpoints regardless of intent semantics."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 37,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_resolve",
+      "arguments": {
+        "intent": "",
+        "url": "https://example.com"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 37,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "intent required\n\n{\n  \"error\": \"intent required\",\n  \"mcp_wall_ms\": 1\n}"
+        }
+      ],
+      "structuredContent": {
+        "error": "intent required",
+        "mcp_wall_ms": 1
+      },
+      "isError": true
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":37,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"intent required\\n\\n{\\n  \\\"error\\\": \\\"intent required\\\",\\n  \\\"mcp_wall_ms\\\": 1\\n}\"}],\"structuredContent\":{\"error\":\"intent required\",\"mcp_wall_ms\":1},\"isError\":true}}",
+  "parse_error": null,
+  "duration_ms": 1,
+  "timed_out": false
+}

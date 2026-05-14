@@ -1,0 +1,42 @@
+{
+  "probe": {
+    "id": "close-no-session",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_close",
+      "arguments": {}
+    },
+    "why": "session-scoped close called without an open session; same gate as snap-no-session",
+    "fix_tag": "session-tool-visibility"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 7,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_close",
+      "arguments": {}
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 7,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "no_active_session\n\n{\n  \"next_step\": \"Call unbrowse_go with a url to open a browse session first, then retry this tool.\",\n  \"suggested_command\": \"unbrowse_go\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "next_step": "Call unbrowse_go with a url to open a browse session first, then retry this tool.",
+        "suggested_command": "unbrowse_go"
+      },
+      "isError": true
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":7,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"no_active_session\\n\\n{\\n  \\\"next_step\\\": \\\"Call unbrowse_go with a url to open a browse session first, then retry this tool.\\\",\\n  \\\"suggested_command\\\": \\\"unbrowse_go\\\"\\n}\"}],\"structuredContent\":{\"next_step\":\"Call unbrowse_go with a url to open a browse session first, then retry this tool.\",\"suggested_command\":\"unbrowse_go\"},\"isError\":true}}",
+  "parse_error": null,
+  "duration_ms": 1,
+  "timed_out": false
+}
