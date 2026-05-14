@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+* **browse/text + browse/markdown:** prepend a schema.org JSON-LD summary block (ItemList, Product, Article, Recipe, JobPosting, Event, etc.) when present on the page. Surfaces the publisher's authoritative entity description above the rendered DOM text, which on SSR pages can include personalized widgets (rec feeds, "dropped in price", "for you") injected alongside canonical listings. Response now also returns a separate `structured_data` field. Fixes the carousell.sg `/search/shoes/` skew where `unbrowse_markdown` returned a kids-shoe-heavy mix of canonical listings + rec-widget cards.
 ## [6.17.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.2...v6.17.0-preview.3) (2026-05-14)
 
 ## [6.17.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.1...v6.17.0-preview.2) (2026-05-14)

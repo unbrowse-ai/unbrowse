@@ -37,6 +37,7 @@ import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { writeDomainNote, readDomainNote } from "../extraction/domain-notes.js";
+import { buildStructuredDataHeader } from "../extraction/index.js";
 import {
   BrowseSessionError,
   createRegisteredBrowseSession,
@@ -3119,32 +3120,77 @@ export async function registerRoutes(app: FastifyInstance) {
   });
 
   // GET /v1/browse/text — page text
+  // If the page emits schema.org JSON-LD (ItemList/Product/Article/etc),
+  // prepend a structured-data summary so the agent sees the publisher's
+  // authoritative entity description before the rendered text. On SSR pages
+  // the rendered DOM can include personalized widgets injected alongside
+  // canonical content; the JSON-LD is pre-render and authoritative.
   app.get("/v1/browse/text", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: text } = await withSerializedStrictBrowseSession(
+      const { session, result } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
         requestedSessionId(req),
-        async (session) => brokerForSession(session).getText(session.tabId),
+        async (session) => {
+          const broker = brokerForSession(session);
+          const text = await broker.getText(session.tabId);
+          let structured: string | null = null;
+          try {
+            const html = await broker.getPageHtml(session.tabId);
+            if (typeof html === "string" && html.startsWith("<")) {
+              structured = buildStructuredDataHeader(html);
+            }
+          } catch { /* getPageHtml best-effort */ }
+          return { text, structured };
+        },
       );
-      return reply.send({ text, session_id: session.sessionId, tab_id: session.tabId });
+      const augmented = result.structured
+        ? `${result.structured}\n\n---\n\n${result.text ?? ""}`
+        : result.text;
+      return reply.send({
+        text: augmented,
+        structured_data: result.structured ?? null,
+        session_id: session.sessionId,
+        tab_id: session.tabId,
+      });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
     }
   });
 
   // GET /v1/browse/markdown — page as markdown
+  // Same prepend rule as /v1/browse/text — surface JSON-LD entities before
+  // the rendered markdown.
   app.get("/v1/browse/markdown", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: markdown } = await withSerializedStrictBrowseSession(
+      const { session, result } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
         requestedSessionId(req),
-        async (session) => brokerForSession(session).getMarkdown(session.tabId),
+        async (session) => {
+          const broker = brokerForSession(session);
+          const markdown = await broker.getMarkdown(session.tabId);
+          let structured: string | null = null;
+          try {
+            const html = await broker.getPageHtml(session.tabId);
+            if (typeof html === "string" && html.startsWith("<")) {
+              structured = buildStructuredDataHeader(html);
+            }
+          } catch { /* best-effort */ }
+          return { markdown, structured };
+        },
       );
-      return reply.send({ markdown, session_id: session.sessionId, tab_id: session.tabId });
+      const augmented = result.structured
+        ? `${result.structured}\n\n---\n\n${result.markdown ?? ""}`
+        : result.markdown;
+      return reply.send({
+        markdown: augmented,
+        structured_data: result.structured ?? null,
+        session_id: session.sessionId,
+        tab_id: session.tabId,
+      });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
     }
