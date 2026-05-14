@@ -62,6 +62,7 @@
     "agent-xp:rank": "bash harness/probes/rank-evidence.sh",
     "bench:gate": "bash scripts/bench-gate.sh",
     "bench:gate:judge": "bun scripts/bench-gate-judge.ts",
+    "bench:gate:validate": "bun scripts/bench-gate-judge.ts --validate",
     "bench:gate:compare": "bun scripts/bench-gate-compare.ts",
     "bench:gate:freeze": "bun scripts/bench-gate-compare.ts --freeze",
     "bench:gate:full": "bash scripts/bench-gate-full.sh"
