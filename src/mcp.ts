@@ -1818,7 +1818,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_go",
-    description: "Open a live browser tab to browse and index a site. Only use after unbrowse_resolve returned no_cached_match. Browse the site (snap, click, fill, submit), then call unbrowse_close or unbrowse_sync to index captured traffic. After close/sync, call unbrowse_review then unbrowse_publish.",
+    description: "Open a live browser tab to browse and index a site. Default mode is headless; the runtime auto-opens a visible Chrome window for sign-in if the page returns auth_required (look for `login_window_opened:true` in the response — then wait for the user to sign in and retry unbrowse_go). Only call after unbrowse_resolve returns no_cached_match. Browse the site (snap, click, fill, submit), then call unbrowse_close or unbrowse_sync to index captured traffic. After close/sync, call unbrowse_review then unbrowse_publish.",
     inputSchema: {
       type: "object",
       properties: {
