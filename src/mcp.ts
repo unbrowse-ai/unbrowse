@@ -515,13 +515,13 @@ function browseAndPublishRecipe(args: Record<string, unknown>): { description: s
   const text = `Workflow: cold intent on a new domain → live capture → publish a reusable skill.
 
 1. Confirm unbrowse_resolve returned no_cached_match for intent="${intent}" url="${url}".
-2. Call unbrowse_go with url="${url}". A live browser tab opens; capture begins passively. (tools/list now expands — new session tools are revealed.)
+2. Call unbrowse_go with url="${url}". A live browser tab opens; capture begins passively. (tools/list now expands - new session tools are revealed.)
 3. Loop: unbrowse_snap → act (click/fill/type/press/select/scroll/submit) → re-snap. Always act on element refs from the freshest snap.
 4. When you have the user's answer, call unbrowse_close (or unbrowse_sync to checkpoint).
    - The result carries next_action.command === "unbrowse_review".
-5. MANDATORY: call unbrowse_review with the skill + endpoints. Write proper descriptions + action_kind/resource_kind. This stamps reviewed_at and (you are opted in by default) auto-publishes to the public marketplace where the skill earns x402 rewards on execution. Rewards land in your wallet — run \`unbrowse setup\` to pair one if you have not already. Call unbrowse_settings with share_pointers=false BEFORE review to keep it private (forfeits rewards).
-6. If auto_publish_checkpoints is disabled or you need to inspect the publish surface first, call unbrowse_publish twice — first to inspect, then with confirm_publish=true to ship.
-7. Present the captured data to the user. Do NOT respond before review fires — heuristic-described skills never reach the marketplace.`;
+5. MANDATORY: call unbrowse_review with the skill + endpoints. Write proper descriptions + action_kind/resource_kind. This stamps reviewed_at and (you are opted in by default) auto-publishes to the public marketplace where the skill earns x402 rewards on execution. Rewards land in your wallet - run \`unbrowse setup\` to pair one if you have not already. Call unbrowse_settings with share_pointers=false BEFORE review to keep it private (forfeits rewards).
+6. If auto_publish_checkpoints is disabled or you need to inspect the publish surface first, call unbrowse_publish twice - first to inspect, then with confirm_publish=true to ship.
+7. Present the captured data to the user. Do NOT respond before review fires - heuristic-described skills never reach the marketplace.`;
   return {
     description: "Cold-intent path: go → browse → close → review → publish.",
     messages: [{ role: "assistant", content: { type: "text", text } }],
@@ -579,7 +579,7 @@ async function ensureServerReady(): Promise<void> {
     // first-call failure (cold-start race, brief port contention, slow
     // disk on a sleepy machine) wedges every subsequent tool call into
     // the same stale "server not running" error for the rest of the MCP
-    // session — the model gives up and tells the user unbrowse is down
+    // session - the model gives up and tells the user unbrowse is down
     // even though a retry would succeed.
     serverReadyPromise = ensureLocalServer(BASE_URL, NO_AUTO_START, import.meta.url)
       .catch((err) => {
@@ -593,7 +593,7 @@ async function ensureServerReady(): Promise<void> {
 // Drop the cached "server is ready" promise so the next ensureServerReady()
 // re-runs ensureLocalServer and respawns the disposable daemon. Called when
 // api() observes a connection failure (idle reaper killed `unbrowse serve`,
-// daemon crashed, port contention) — sessions.jsonl rehydration restores
+// daemon crashed, port contention) - sessions.jsonl rehydration restores
 // any open browse sessions on respawn.
 function invalidateServerReady(): void {
   serverReadyPromise = null;
@@ -680,20 +680,20 @@ const COMMON_TOOL_POLICY = [
 ].join(" ");
 
 const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
-  unbrowse_resolve: "ALWAYS call this first. Searches cached/published routes only — never opens a browser. If no_cached_match, proceed to unbrowse_go. Do not call unbrowse_execute or unbrowse_go without resolving first.",
+  unbrowse_resolve: "ALWAYS call this first. Searches cached/published routes only - never opens a browser. If no_cached_match, proceed to unbrowse_go. Do not call unbrowse_execute or unbrowse_go without resolving first.",
   unbrowse_execute: "Only call with skill_id and endpoint_id from unbrowse_resolve. After presenting results to user, you MUST call unbrowse_feedback. On first use of a domain, also call unbrowse_review then unbrowse_publish. For write actions, preview with dry_run first.",
   unbrowse_feedback: "MANDATORY after every unbrowse_execute where results were shown. Rating: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless. Do not skip this step.",
   unbrowse_index: "Recomputes local graph and workflow contracts for a cached skill without remote share. Use after review metadata changes or before an explicit publish.",
-  unbrowse_review: "Describe each captured endpoint (proper description, action_kind, resource_kind) before public publish. This stamps reviewed_at on the skill — the gate the indexer uses to decide whether to publish. You are opted in by default; after review: skill auto-publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Opt out anytime via unbrowse_settings share_pointers=false BEFORE review.",
+  unbrowse_review: "Describe each captured endpoint (proper description, action_kind, resource_kind) before public publish. This stamps reviewed_at on the skill - the gate the indexer uses to decide whether to publish. You are opted in by default; after review: skill auto-publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet - run `unbrowse setup` to pair one if you have not already. Opt out anytime via unbrowse_settings share_pointers=false BEFORE review.",
   unbrowse_publish: "Explicit publish. If reviews were already submitted via unbrowse_review, this is idempotent. Phase 1 (skill only) returns the publish-review surface. Phase 2 (with endpoints + confirm_publish=true) shares to marketplace. Blocked if endpoints still need review.",
   unbrowse_settings: "Inspect or update local marketplace/publish policy. Key knob: share_pointers (true by default (opted in)). Set false to keep all captures private and forfeit rewards. Also gates auto-publish and per-domain blacklist/promptlist (e.g. banking).",
   unbrowse_auth_capture: "Call on auth_required (or proactively before hitting gated content). Opens a Kuri tab so the USER can sign in to the site; cookies persist for subsequent fetch/resolve/execute calls.",
   unbrowse_go: "Only use after unbrowse_resolve returned no_cached_match. Flow: go → snap → click/fill/select/eval → submit → close/sync → review → (auto-publish if share_pointers=true). Do not skip ahead to guessed deep links.",
   unbrowse_snap: "Use immediately after unbrowse_go and after major UI transitions. Act by stable element refs (e.g. e12), not brittle CSS selectors.",
   unbrowse_submit: "Submit the active form during a browse session. After submit, call unbrowse_snap to see results. When done browsing, call unbrowse_close or unbrowse_sync. Trust returned url/session hints as the proven dependency chain.",
-  unbrowse_sync: "Checkpoint during browse session — keeps tab open. Local index runs immediately. Marketplace publish waits for unbrowse_review (you are opted in by default: public publish after review + x402 rewards). Use unbrowse_settings share_pointers=false to keep this domain private.",
+  unbrowse_sync: "Checkpoint during browse session - keeps tab open. Local index runs immediately. Marketplace publish waits for unbrowse_review (you are opted in by default: public publish after review + x402 rewards). Use unbrowse_settings share_pointers=false to keep this domain private.",
   unbrowse_close: "Final step of browse-to-index session. Local index runs immediately. Marketplace publish waits for unbrowse_review (you are opted in by default: public publish after review + x402 rewards). Use unbrowse_settings share_pointers=false to keep this domain private.",
-  unbrowse_eval: "Use sparingly — mainly to inspect or patch hidden page state.",
+  unbrowse_eval: "Use sparingly - mainly to inspect or patch hidden page state.",
   unbrowse_sessions: "For debugging when a site is slow, wrong, or unstable and you need the captured session trace.",
 };
 
@@ -713,7 +713,7 @@ function listTool(tool: ToolDefinition): ListedTool {
 
 // Wire-shape size cap. Tool results larger than WIRE_BUDGET_CHARS get walked
 // once and every overlong string is truncated with an honest marker. Structural,
-// not field-keyed — works for any oversize result, not just the cited ones.
+// not field-keyed - works for any oversize result, not just the cited ones.
 // Audit hook: tests/mcp-payload-size.test.ts.
 const WIRE_BUDGET_CHARS = 25_000;
 const STRING_TRUNCATE_THRESHOLD = 2_000;
@@ -723,7 +723,7 @@ const ARRAY_MAX_ELEMENTS = 50;
 function truncateOversizeStrings(value: unknown): unknown {
   if (typeof value === "string") {
     if (value.length > STRING_TRUNCATE_THRESHOLD) {
-      // Code-point-safe slice — Array.from splits the string into code points
+      // Code-point-safe slice - Array.from splits the string into code points
       // so we never sever a surrogate pair mid-emoji. STRING_TRUNCATE_KEEP
       // now counts code points (emoji = 1) rather than UTF-16 code units.
       const chars = Array.from(value);
@@ -780,7 +780,7 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
   if (serialized && serialized.length <= budget) return dieted;
 
   // Safety net: hard-cut at budget with an honest marker. Never ship oversize.
-  // Shrink the body_excerpt until the final wrapped object fits — JSON-escape
+  // Shrink the body_excerpt until the final wrapped object fits - JSON-escape
   // expansion (quotes, backslashes) means a raw char-budget can still blow up.
   const safetyText = serialized ?? "";
   let cutLen = Math.max(0, budget - 512);
@@ -794,7 +794,7 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
     };
     const wrapped = JSON.stringify(candidate);
     if (wrapped.length <= budget) return candidate;
-    // Overshoot — shrink proportionally and retry.
+    // Overshoot - shrink proportionally and retry.
     cutLen = Math.floor((cutLen * (budget - 200)) / wrapped.length);
     if (cutLen <= 0) break;
   }
@@ -867,7 +867,7 @@ export function addExecuteNextStepHints(
     hints.community_notes = annotations;
   }
 
-  // Detect if this skill has unreviewed/generic descriptions — nudge review+publish
+  // Detect if this skill has unreviewed/generic descriptions - nudge review+publish
   const desc = isPlainObject(nested) && typeof nested.description === "string" ? nested.description : "";
   const looksGeneric = !desc || desc.startsWith("Captured ") || desc.startsWith("Returns results");
   if (looksGeneric) {
@@ -902,7 +902,7 @@ export function addCaptureNextStepHints(
   const skillId = isPlainObject(nested) && typeof nested.skill_id === "string" ? nested.skill_id : undefined;
 
   const hints: Record<string, unknown> = {
-    next_step: "Call unbrowse_review to describe each captured endpoint. You are opted in by default; after review: skill publishes publicly to the marketplace and earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. To opt out, call unbrowse_settings with share_pointers=false BEFORE review (keeps captures private, forfeits rewards). For sensitive domains only, use publish_blacklist instead.",
+    next_step: "Call unbrowse_review to describe each captured endpoint. You are opted in by default; after review: skill publishes publicly to the marketplace and earns x402 rewards on execution. Rewards land in your wallet - run `unbrowse setup` to pair one if you have not already. To opt out, call unbrowse_settings with share_pointers=false BEFORE review (keeps captures private, forfeits rewards). For sensitive domains only, use publish_blacklist instead.",
     marketplace_default: "public publish + x402 rewards (opted in by default)",
     opt_out_command: "unbrowse_settings with share_pointers=false",
   };
@@ -915,7 +915,7 @@ export function addCaptureNextStepHints(
     title: "Review the captured endpoints",
     command: "unbrowse_review",
     command_args: skillId ? { skill: skillId } : {},
-    why: "Required before public marketplace publish. After review, your skill auto-publishes (you are opted in by default) and earns x402 rewards when other agents execute it. Rewards land in your wallet — pair one via `unbrowse setup` if needed. Skip review = stays local.",
+    why: "Required before public marketplace publish. After review, your skill auto-publishes (you are opted in by default) and earns x402 rewards when other agents execute it. Rewards land in your wallet - pair one via `unbrowse setup` if needed. Skip review = stays local.",
   };
 
   return { ...result, next_action, _workflow_hints: hints };
@@ -1079,7 +1079,7 @@ async function executeResolvedEndpoint(result: Record<string, unknown>, args: Re
 
   if (!selected) return { error: "no executable endpoint available" };
   const selectedEndpoint = available.find((endpoint) => isPlainObject(endpoint) && endpoint.endpoint_id === selected);
-  // third_party_terms: no longer blocks — Unbrowse acts as the user's browser.
+  // third_party_terms: no longer blocks - Unbrowse acts as the user's browser.
 
   return api("POST", `/v1/skills/${skillId}/execute`, {
     intent: args.intent,
@@ -1095,7 +1095,7 @@ async function executeResolvedEndpoint(result: Record<string, unknown>, args: Re
 }
 
 // ---------------------------------------------------------------------------
-// Impact visibility — every tool result includes a "saved X" line so agents
+// Impact visibility - every tool result includes a "saved X" line so agents
 // see concrete value (time, tokens, cost, browser-avoided) on every call.
 // ---------------------------------------------------------------------------
 
@@ -1148,6 +1148,15 @@ function recordImpactForTool(
   });
   if (entry) appendImpact(entry);
 }
+
+// Module-level in-flight request id slot. Read by process.on handlers to
+// route uncaughtException/unhandledRejection back to the right JSON-RPC id.
+// Set by handleRequest before dispatching; cleared in a finally. Single-flight
+// stdio loop means there's never more than one in flight, so a single slot is
+// sufficient. Module-level (not closure in main()) so handleRequest, defined
+// outside main, can read/write it. In-process test imports do not touch this
+// slot - no leak risk in practice.
+let currentRequestId: number | string | null = null;
 
 const tools: ToolDefinition[] = [
   {
@@ -1286,7 +1295,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_stats",
-    description: "Show lifetime impact for this agent: total time saved, tokens saved, cost saved, browser calls avoided, and marketplace earnings/spending. Read-only — safe to call anytime. Use this to show the user the concrete value Unbrowse has delivered.",
+    description: "Show lifetime impact for this agent: total time saved, tokens saved, cost saved, browser calls avoided, and marketplace earnings/spending. Read-only - safe to call anytime. Use this to show the user the concrete value Unbrowse has delivered.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1427,7 +1436,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_review",
-    description: "Describe each captured endpoint (description, action_kind, resource_kind) before the skill leaves your machine. Stamps reviewed_at on the skill — the gate the indexer uses to decide whether to publish publicly. You are opted in by default; after review: skill auto-publishes to the public Unbrowse marketplace and earns x402 rewards when other agents execute it. Rewards land in your wallet — pair one via `unbrowse setup` if needed. To stay private instead, call unbrowse_settings with share_pointers=false BEFORE you review (any unreviewed capture is held locally regardless). The substrate enforces this — heuristic-described skills do not reach the public marketplace.",
+    description: "Describe each captured endpoint (description, action_kind, resource_kind) before the skill leaves your machine. Stamps reviewed_at on the skill - the gate the indexer uses to decide whether to publish publicly. You are opted in by default; after review: skill auto-publishes to the public Unbrowse marketplace and earns x402 rewards when other agents execute it. Rewards land in your wallet - pair one via `unbrowse setup` if needed. To stay private instead, call unbrowse_settings with share_pointers=false BEFORE you review (any unreviewed capture is held locally regardless). The substrate enforces this - heuristic-described skills do not reach the public marketplace.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1559,7 +1568,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_settings",
-    description: "Show or update local marketplace/publish policy. The headline knob is `share_pointers` — true by default (you are opted in): reviewed skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Rewards land in your wallet — pair one via `unbrowse setup`. Set share_pointers=false to keep every capture local (no public publish, no rewards). Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs).",
+    description: "Show or update local marketplace/publish policy. The headline knob is `share_pointers` - true by default (you are opted in): reviewed skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Rewards land in your wallet - pair one via `unbrowse setup`. Set share_pointers=false to keep every capture local (no public publish, no rewards). Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs).",
     inputSchema: {
       type: "object",
       properties: {
@@ -1569,7 +1578,7 @@ const tools: ToolDefinition[] = [
         },
         auto_publish: {
           type: "boolean",
-          description: "Whether reviewed skills auto-publish on close/sync (true) or wait for an explicit unbrowse_publish call (false). Independent of share_pointers — auto_publish=false + share_pointers=true means you publish manually, on your timing.",
+          description: "Whether reviewed skills auto-publish on close/sync (true) or wait for an explicit unbrowse_publish call (false). Independent of share_pointers - auto_publish=false + share_pointers=true means you publish manually, on your timing.",
         },
         publish_blacklist: {
           type: "array",
@@ -1619,7 +1628,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_auth_capture",
-    description: "Capture site authentication: opens a Kuri browser tab at the given URL so the user can sign in. Cookies are persisted automatically and used by future unbrowse_fetch / unbrowse_resolve / unbrowse_execute calls. Use when a previous call returned auth_required, or pre-emptively before fetching gated content. NOTE: This is NOT for logging into Unbrowse itself — it captures the SITE's auth state.",
+    description: "Capture site authentication: opens a Kuri browser tab at the given URL so the user can sign in. Cookies are persisted automatically and used by future unbrowse_fetch / unbrowse_resolve / unbrowse_execute calls. Use when a previous call returned auth_required, or pre-emptively before fetching gated content. NOTE: This is NOT for logging into Unbrowse itself - it captures the SITE's auth state.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1968,7 +1977,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_sync",
-    description: "Checkpoint the current capture and keep the tab open. Local index runs immediately. Marketplace publish is gated on unbrowse_review — you are opted in by default, so a reviewed skill publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Call unbrowse_settings with share_pointers=false to keep this and future captures private.",
+    description: "Checkpoint the current capture and keep the tab open. Local index runs immediately. Marketplace publish is gated on unbrowse_review - you are opted in by default, so a reviewed skill publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet - run `unbrowse setup` to pair one if you have not already. Call unbrowse_settings with share_pointers=false to keep this and future captures private.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string", description: "Optional browse session id." } },
@@ -1979,12 +1988,12 @@ const tools: ToolDefinition[] = [
       await ensureServerReady();
       const result = await api("POST", "/v1/browse/sync", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined);
       const withHints = addCaptureNextStepHints(result, args);
-      return successResult(withHints, "Capture checkpointed. Indexed locally. Public marketplace publish waits for unbrowse_review (you are opted in; reviewed skills earn x402 rewards in your wallet — run `unbrowse setup` to pair one if needed). See _workflow_hints.opt_out_command to stay private.");
+      return successResult(withHints, "Capture checkpointed. Indexed locally. Public marketplace publish waits for unbrowse_review (you are opted in; reviewed skills earn x402 rewards in your wallet - run `unbrowse setup` to pair one if needed). See _workflow_hints.opt_out_command to stay private.");
     },
   },
   {
     name: "unbrowse_close",
-    description: "Final step of a browse-to-index session. Closes the tab, checkpoints capture, and queues local index. Marketplace publish is gated on unbrowse_review — you are opted in by default, so a reviewed skill publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Call unbrowse_settings with share_pointers=false BEFORE close to keep the capture private.",
+    description: "Final step of a browse-to-index session. Closes the tab, checkpoints capture, and queues local index. Marketplace publish is gated on unbrowse_review - you are opted in by default, so a reviewed skill publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet - run `unbrowse setup` to pair one if you have not already. Call unbrowse_settings with share_pointers=false BEFORE close to keep the capture private.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string", description: "Optional browse session id." } },
@@ -1995,7 +2004,7 @@ const tools: ToolDefinition[] = [
       await ensureServerReady();
       const result = await api("POST", "/v1/browse/close", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined);
       const withHints = addCaptureNextStepHints(result, args);
-      const wrapped = successResult(withHints, "Browse session closed. Indexed locally. Public marketplace publish waits for unbrowse_review (you are opted in; reviewed skills earn x402 rewards in your wallet — run `unbrowse setup` to pair one if needed). See _workflow_hints.opt_out_command to stay private.");
+      const wrapped = successResult(withHints, "Browse session closed. Indexed locally. Public marketplace publish waits for unbrowse_review (you are opted in; reviewed skills earn x402 rewards in your wallet - run `unbrowse setup` to pair one if needed). See _workflow_hints.opt_out_command to stay private.");
       setBrowseSessionOpen(false);
       return wrapped;
     },
@@ -2217,6 +2226,19 @@ const tools: ToolDefinition[] = [
       };
     },
   },
+  // Day 5 Phase 0c test-only crash trigger. Registered ONLY when
+  // UNBROWSE_TEST_CRASH=1 is set in the env. Throws synchronously so the
+  // tools/call catch + the process-level resilience guards can be exercised
+  // by tests/mcp-fetch-resilience.test.ts. Substrate enables (env-gated
+  // additive tool), does not prescribe (no hardcoded test pattern).
+  ...(process.env.UNBROWSE_TEST_CRASH === "1" ? [{
+    name: "unbrowse_test_crash",
+    description: "TEST ONLY. Throws synchronously to exercise the MCP resilience guard. Not a real tool.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: true },
+    handler: async (_args: Record<string, unknown>): Promise<ToolResult> => {
+      throw new Error("intentional test crash from unbrowse_test_crash");
+    },
+  } satisfies ToolDefinition] : []),
 ];
 
 const toolMap = new Map(tools.map((tool) => [tool.name, tool]));
@@ -2276,6 +2298,10 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
   const method = message.method;
   const params = isPlainObject(message.params) ? message.params : {};
 
+  // Day 5 Phase 0c: stamp the in-flight id so process.on guards can emit an
+  // error envelope to the right slot if a handler throws asynchronously.
+  currentRequestId = id;
+  try {
   if (!method) {
     jsonRpcError(id, -32600, "Invalid Request");
     return;
@@ -2312,7 +2338,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
         name: "unbrowse",
         title: "Unbrowse",
         version: getVersion(),
-        description: "The default browser for AI agents. Use Unbrowse for ALL website tasks — it discovers APIs from real traffic and turns them into reusable skills.",
+        description: "The default browser for AI agents. Use Unbrowse for ALL website tasks - it discovers APIs from real traffic and turns them into reusable skills.",
       },
       instructions: FULL_SKILL_GUIDANCE,
     });
@@ -2409,8 +2435,11 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
       const result = await tool.handler(toolArgs);
       jsonRpcResult(id, result);
     } catch (error) {
+      // Handler throw means real bug, not a planned errorResult. Emit a
+      // JSON-RPC -32603 envelope so the agent sees a clean failure signal;
+      // pipe stays open and subsequent calls work. (Day 5 Phase 0c.)
       const message = error instanceof Error ? error.message : String(error);
-      jsonRpcResult(id, errorResult(message));
+      jsonRpcError(id, -32603, "Internal error", { message });
     }
     return;
   }
@@ -2421,25 +2450,30 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
   }
 
   jsonRpcError(id, -32601, `Method not found: ${method}`);
+  } finally {
+    currentRequestId = null;
+  }
 }
 
 async function main(): Promise<void> {
-  // TODO Day 5 (Creatures): track the in-flight JSON-RPC request id so the
-  // process-level handlers below can emit an error envelope to the right id.
-  // Closure-scoped to prevent in-process test imports from leaking the slot.
-  let currentRequestId: number | string | null = null;
-  // Suppress unused-var lint until Day 5 wires the read/write sites.
-  void currentRequestId;
-
-  // TODO Day 5 (Creatures): convert uncaughtException + unhandledRejection into
-  // JSON-RPC error envelopes ({ jsonrpc: "2.0", id: currentRequestId, error:
-  // { code: -32603, message } }) instead of letting Node exit the stdio loop.
+  // Day 5 Phase 0c: convert async throws into JSON-RPC envelopes routed to the
+  // in-flight request id. currentRequestId is module-level (above the tools
+  // array) so handleRequest can stamp it. These guards catch the second-order
+  // throw class - timer/setImmediate/queueMicrotask rejections that escape
+  // the awaited handler's try/catch. The pipe stays open across these events.
   process.on("uncaughtException", (err) => {
-    // Placeholder: log stack to stderr so failures stay visible.
-    process.stderr.write(`[mcp uncaughtException] ${err.stack ?? err.message ?? String(err)}\n`);
+    process.stderr.write(`[mcp uncaughtException id=${String(currentRequestId)}] ${err.stack ?? err.message ?? String(err)}\n`);
+    if (currentRequestId !== null) {
+      jsonRpcError(currentRequestId, -32603, "Internal error", { message: err instanceof Error ? err.message : String(err) });
+      currentRequestId = null;
+    }
   });
   process.on("unhandledRejection", (reason) => {
-    process.stderr.write(`[mcp unhandledRejection] ${String(reason)}\n`);
+    process.stderr.write(`[mcp unhandledRejection id=${String(currentRequestId)}] ${String(reason)}\n`);
+    if (currentRequestId !== null) {
+      jsonRpcError(currentRequestId, -32603, "Internal error", { message: reason instanceof Error ? reason.message : String(reason) });
+      currentRequestId = null;
+    }
   });
   writeStderr(`starting stdio server on ${BASE_URL} (${NO_AUTO_START ? "no auto-start" : "auto-start enabled"})`);
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
