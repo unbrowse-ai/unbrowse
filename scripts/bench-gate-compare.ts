@@ -285,7 +285,6 @@ function main(): void {
     freeze(verdictFile.verdicts, manifest, baseline, baselinePath);
     return;
   }
-
   const result = evaluate(verdictFile.verdicts, manifest, baseline);
   const md = renderMarkdown(result, manifest, baseline);
   fs.writeFileSync(path.join(artifacts, "gate.md"), md);
@@ -301,8 +300,41 @@ function main(): void {
   }, null, 2));
   console.error(md);
 
+  // --stamp: on PASS, write a release-it prerelease stamp pinning this run
+  // to the current git HEAD. The bench-gate-prerelease.sh hook checks for
+  // this stamp before allowing a release. Stamp is NEVER written on FAIL.
+  if (flags.stamp && result.passed) {
+    const stampPath = path.join(process.cwd(), ".bench-gate", "stamp.json");
+    const stampDir = path.dirname(stampPath);
+    if (!fs.existsSync(stampDir)) fs.mkdirSync(stampDir, { recursive: true });
+    let commitSha = "";
+    try {
+      const { execSync } = require("node:child_process");
+      commitSha = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+    } catch (e) {
+      console.error(`[stamp] warning: git rev-parse failed — stamp will lack commit_sha (${e})`);
+    }
+    const stamp = {
+      schema_version: 1,
+      commit_sha: commitSha,
+      run_id: manifest.run_id,
+      cli_version: manifest.cli_version,
+      baseline_run: baseline.baseline_run,
+      gate_passed: true,
+      stamped_at: new Date().toISOString(),
+      index_coverage: result.coverage.index_coverage,
+      retrieve_coverage: result.coverage.retrieve_coverage,
+      artifact_dir: path.relative(process.cwd(), artifacts),
+    };
+    fs.writeFileSync(stampPath, JSON.stringify(stamp, null, 2) + "\n");
+    console.error(`[stamp] wrote release-it prerelease stamp → ${stampPath}`);
+    console.error(`[stamp] commit this stamp file (\`git add ${stampPath}\`) to unblock release-it`);
+  }
+
   if (flags.soft) { process.exit(0); }
   process.exit(result.passed ? 0 : 2);
 }
+
+main();
 
 main();

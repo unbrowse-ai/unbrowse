@@ -64,6 +64,8 @@
     "bench:gate:judge": "bun scripts/bench-gate-judge.ts",
     "bench:gate:validate": "bun scripts/bench-gate-judge.ts --validate",
     "bench:gate:compare": "bun scripts/bench-gate-compare.ts",
+    "bench:gate:stamp": "bun scripts/bench-gate-compare.ts --stamp",
+    "bench:gate:prerelease": "bash scripts/bench-gate-prerelease.sh",
     "bench:gate:freeze": "bun scripts/bench-gate-compare.ts --freeze",
     "bench:gate:full": "bash scripts/bench-gate-full.sh"
   },
