@@ -413,3 +413,110 @@ describe("#233 passive skill publish", () => {
     expect(cachedSkill!.auth_profile_ref).toBe("vault://myprofile");
   });
 });
+
+describe("passive publish honors capture-pipeline settings", () => {
+  const originalConfigDir = process.env.UNBROWSE_CONFIG_DIR;
+  const tempDirs: string[] = [];
+
+  function freshConfigDir(prefix: string): string {
+    const dir = require("node:fs").mkdtempSync(
+      require("node:path").join(require("node:os").tmpdir(), prefix),
+    );
+    tempDirs.push(dir);
+    process.env.UNBROWSE_CONFIG_DIR = dir;
+    return dir;
+  }
+
+  function restoreConfigDir(): void {
+    if (originalConfigDir == null) delete process.env.UNBROWSE_CONFIG_DIR;
+    else process.env.UNBROWSE_CONFIG_DIR = originalConfigDir;
+  }
+
+  test("global kill switch (auto_publish_checkpoints=false) blocks per-execute publish", async () => {
+    freshConfigDir("unbrowse-passive-killswitch-");
+    const { updateCapturePipelineSettings } = await import("../src/settings.js");
+    updateCapturePipelineSettings({ auto_publish_checkpoints: false });
+
+    resetPassivePublishQueueForTests();
+    const published: SkillManifest[] = [];
+    const deps = {
+      publishSkill: async (draft: any) => {
+        const result = { ...draft, skill_id: draft.skill_id, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), version: "1.0.0" } as SkillManifest;
+        published.push(result);
+        return result;
+      },
+      cachePublishedSkill: (_s: SkillManifest) => {},
+      validateManifest: async (_m: any) => ({ valid: true, hardErrors: [] as string[], softWarnings: [] as string[] }),
+    };
+
+    await queuePassiveSkillPublish(makeSkill(), { deps });
+
+    expect(published.length).toBe(0);
+    restoreConfigDir();
+  });
+
+  test("domain blacklist blocks per-execute publish for matching domain", async () => {
+    freshConfigDir("unbrowse-passive-blacklist-");
+    const { updateCapturePipelineSettings } = await import("../src/settings.js");
+    updateCapturePipelineSettings({ publish_domain_blacklist: ["example.com"] });
+
+    resetPassivePublishQueueForTests();
+    const published: SkillManifest[] = [];
+    const deps = {
+      publishSkill: async (draft: any) => {
+        published.push(draft as SkillManifest);
+        return { ...draft, skill_id: draft.skill_id, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), version: "1.0.0" } as SkillManifest;
+      },
+      cachePublishedSkill: (_s: SkillManifest) => {},
+      validateManifest: async (_m: any) => ({ valid: true, hardErrors: [] as string[], softWarnings: [] as string[] }),
+    };
+
+    await queuePassiveSkillPublish(makeSkill({ domain: "example.com" }), { deps });
+
+    expect(published.length).toBe(0);
+    restoreConfigDir();
+  });
+
+  test("prompt-list blocks per-execute publish (treated as pause, not allow)", async () => {
+    freshConfigDir("unbrowse-passive-promptlist-");
+    const { updateCapturePipelineSettings } = await import("../src/settings.js");
+    updateCapturePipelineSettings({ publish_domain_promptlist: ["example.com"] });
+
+    resetPassivePublishQueueForTests();
+    const published: SkillManifest[] = [];
+    const deps = {
+      publishSkill: async (draft: any) => {
+        published.push(draft as SkillManifest);
+        return { ...draft, skill_id: draft.skill_id, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), version: "1.0.0" } as SkillManifest;
+      },
+      cachePublishedSkill: (_s: SkillManifest) => {},
+      validateManifest: async (_m: any) => ({ valid: true, hardErrors: [] as string[], softWarnings: [] as string[] }),
+    };
+
+    await queuePassiveSkillPublish(makeSkill({ domain: "api.example.com" }), { deps });
+
+    expect(published.length).toBe(0);
+    restoreConfigDir();
+  });
+
+  test("default settings (auto-publish on, no rules) still publishes", async () => {
+    freshConfigDir("unbrowse-passive-default-");
+
+    resetPassivePublishQueueForTests();
+    const published: SkillManifest[] = [];
+    const deps = {
+      publishSkill: async (draft: any) => {
+        const result = { ...draft, skill_id: draft.skill_id, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), version: "1.0.0" } as SkillManifest;
+        published.push(result);
+        return result;
+      },
+      cachePublishedSkill: (_s: SkillManifest) => {},
+      validateManifest: async (_m: any) => ({ valid: true, hardErrors: [] as string[], softWarnings: [] as string[] }),
+    };
+
+    await queuePassiveSkillPublish(makeSkill(), { deps });
+
+    expect(published.length).toBe(1);
+    restoreConfigDir();
+  });
+});

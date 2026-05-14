@@ -1,37 +1,50 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
-import { createRequire } from "node:module";
-import { existsSync } from "node:fs";
-import path from "node:path";
+// Fallback stub. The real runtime is the native binary at bin/unbrowse,
+// downloaded by scripts/postinstall.mjs from the GitHub release. This file
+// only runs if the wrapper could not find that binary, which means either:
+//   1. The postinstall download was skipped (CI / UNBROWSE_SKIP_BINARY_DOWNLOAD).
+//   2. The download failed (network issue, GH release unavailable).
+//   3. The platform is not in SUPPORTED_TARGETS (rare).
+//
+// In all three cases, the npm tarball intentionally does NOT ship the JS
+// runtime, so there is nothing to fall back to. Print a clear repair message
+// and exit; users should re-run install or build from source.
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const distEntrypoint = path.join(packageRoot, "dist", "cli.js");
-const cliEntrypoint = existsSync(distEntrypoint)
-  ? distEntrypoint
-  : path.join(packageRoot, "src", "cli.ts");
-const cliArgs = cliEntrypoint.endsWith(".js")
-  ? [cliEntrypoint, ...process.argv.slice(2)]
-  : (() => {
-      const req = createRequire(import.meta.url);
-      const tsxPkg = req.resolve("tsx/package.json");
-      const tsxLoader = path.join(path.dirname(tsxPkg), "dist", "loader.mjs");
-      return ["--import", tsxLoader, cliEntrypoint, ...process.argv.slice(2)];
-    })();
-const child = spawn(process.execPath, cliArgs, {
-  stdio: "inherit",
-  cwd: process.cwd(),
-  env: {
-    ...process.env,
-    UNBROWSE_PACKAGE_ROOT: packageRoot,
-  },
-});
+const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
-child.on("exit", (code, signal) => {
-  if (signal) {
-    process.kill(process.pid, signal);
-    return;
+function readVersion() {
+  try {
+    const pkg = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
+    return typeof pkg.version === "string" ? pkg.version : "unknown";
+  } catch {
+    return "unknown";
   }
-  process.exit(code ?? 1);
-});
+}
+
+const version = readVersion();
+const target = `${process.platform}-${process.arch}`;
+
+process.stderr.write(
+  [
+    "[unbrowse] native binary not installed",
+    `[unbrowse] package version: ${version}`,
+    `[unbrowse] platform: ${target}`,
+    "",
+    "[unbrowse] The npm package ships only the native binary downloaded on",
+    "[unbrowse] postinstall. Possible causes:",
+    "[unbrowse]   - postinstall was skipped (CI / UNBROWSE_SKIP_BINARY_DOWNLOAD)",
+    "[unbrowse]   - download failed (check stderr from `npm install`)",
+    "[unbrowse]   - platform is not in the prebuilt set",
+    "",
+    "[unbrowse] Repair:",
+    "[unbrowse]   node packages/skill/scripts/postinstall.mjs   # retry download",
+    "[unbrowse]   npm uninstall -g unbrowse && npm install -g unbrowse@latest",
+    "[unbrowse]   build from source: https://github.com/unbrowse-ai/unbrowse",
+  ].join("\n") + "\n",
+);
+process.exit(1);

@@ -1,0 +1,48 @@
+{
+  "probe": {
+    "id": "prompts-get-plan-workflow",
+    "method": "prompts/get",
+    "params": {
+      "name": "plan_workflow_execution",
+      "arguments": {
+        "skill_id": "skill-checkout",
+        "endpoint_id": "checkout-submit",
+        "intent": "complete checkout"
+      }
+    },
+    "why": "plan_workflow_execution prompt with a known-test-fixture skill+endpoint; renders the planning prose for explicit-replay vs browser-traversal. Stale-status gate runs against this content; also catches phantom-tool refs in planning prose."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 15,
+    "method": "prompts/get",
+    "params": {
+      "name": "plan_workflow_execution",
+      "arguments": {
+        "skill_id": "skill-checkout",
+        "endpoint_id": "checkout-submit",
+        "intent": "complete checkout"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 15,
+    "result": {
+      "description": "Plan workflow execution from an indexed or published contract.",
+      "messages": [
+        {
+          "role": "user",
+          "content": {
+            "type": "text",
+            "text": "No workflow artifact found for skill-checkout. Use resolve/skill inspection first, or capture and index/publish the workflow before planning replay."
+          }
+        }
+      ]
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":15,\"result\":{\"description\":\"Plan workflow execution from an indexed or published contract.\",\"messages\":[{\"role\":\"user\",\"content\":{\"type\":\"text\",\"text\":\"No workflow artifact found for skill-checkout. Use resolve/skill inspection first, or capture and index/publish the workflow before planning replay.\"}}]}}",
+  "parse_error": null,
+  "duration_ms": 1,
+  "timed_out": false
+}

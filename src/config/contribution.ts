@@ -37,6 +37,14 @@ function configPath(): string {
 export interface ContributionConfig {
   contribution: {
     share_pointers: boolean;
+    /**
+     * When true, the substrate stamps `reviewed_at` automatically on
+     * close/sync, allowing publish without an explicit `unbrowse_review`
+     * call. Heuristic + LLM-augmented endpoint descriptions are accepted
+     * as-is. Default true: optimizes for marketplace flywheel volume.
+     * Flip false to force the agent to review each skill before publish.
+     */
+    auto_review: boolean;
     set_at?: string;
     set_via?: "setup-prompt" | "mode-command" | "default";
   };
@@ -48,13 +56,13 @@ export interface ContributionConfig {
 }
 
 const DEFAULT: ContributionConfig = {
-  // You are opted in by default: skills publish publicly to the marketplace AFTER the
-  // calling agent runs `unbrowse_review` to describe the endpoints. The
-  // review-gate is the privacy safety: unreviewed captures (which is every
-  // capture until the agent acts) never reach the public marketplace. To
+  // You are opted in by default: skills publish publicly to the marketplace.
+  // auto_review=true means captures auto-stamp reviewed_at and publish on
+  // close/sync without an explicit `unbrowse_review` call. To require the
+  // agent to review each skill before publish, set auto_review=false. To
   // disable publish entirely (keep all captures local), call
   // `unbrowse_settings share_pointers=false` or run `unbrowse mode private`.
-  contribution: { share_pointers: true, set_via: "default" },
+  contribution: { share_pointers: true, auto_review: true, set_via: "default" },
   rev_share: { opted_in: false },
   notice_shown_count: 0,
 };
@@ -106,6 +114,10 @@ export function getContributionConfig(): ContributionConfig {
   cached = {
     contribution: {
       share_pointers: !!(contributionRaw?.share_pointers ?? DEFAULT.contribution.share_pointers),
+      auto_review:
+        contributionRaw?.auto_review === undefined
+          ? DEFAULT.contribution.auto_review
+          : !!contributionRaw.auto_review,
       set_via: (contributionRaw?.set_via as ContributionConfig["contribution"]["set_via"]) ?? DEFAULT.contribution.set_via,
       ...(contributionRaw?.set_at ? { set_at: String(contributionRaw.set_at) } : {}),
     },
@@ -137,8 +149,18 @@ export function getContributionConfig(): ContributionConfig {
 /**
  * Update the contribution config (merge-style). Stamps `set_at` to now. Bumps
  * the cache so subsequent reads see the new value without disk re-read.
+ *
+ * Both nested objects accept partials — callers may pass
+ * `{ contribution: { share_pointers: false } }` without naming every other
+ * field. Missing fields fall back to the current (or default) value.
  */
-export function setContributionConfig(updates: Partial<ContributionConfig>): void {
+export interface ContributionConfigUpdate {
+  contribution?: Partial<ContributionConfig["contribution"]>;
+  rev_share?: Partial<ContributionConfig["rev_share"]>;
+  notice_shown_count?: number;
+}
+
+export function setContributionConfig(updates: ContributionConfigUpdate): void {
   const current = getContributionConfig();
   const next: ContributionConfig = {
     contribution: {

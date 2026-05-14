@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "_note": "Per CLAUDE.md 'harness collects, agent judges': thresholds are deterministic floors over agent-judged verdicts. Per-probe baselines encode 'this probe was PASS in the canonical run; if it FAILs now, the release is held'. Update by running `bun run bench:gate:freeze` after a clean canonical run.",
+  "thresholds": {
+    "index_coverage_min": 0.80,
+    "retrieve_coverage_min": 0.65,
+    "anchor_must_pass": true,
+    "max_new_suspicious_hostile": 0
+  },
+  "baseline_run": null,
+  "baseline_cli_version": null,
+  "baseline_frozen_at": null,
+  "per_probe_baseline": {}
+}

@@ -34,13 +34,8 @@ run_tests() {
 
 echo "[pre-commit] staged files: ${#staged_files[@]}"
 
-if has_match '^(src/cli\.ts|SKILL\.md)$'; then
-  echo "[pre-commit] checking SKILL.md sync"
-  bun run check:skill-md
-fi
-
-if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|src/mcp\.ts|src/server\.ts|packages/skill/README\.md|SKILL\.md|tests/(client-registration|runtime-setup|p2-end-to-end-mcp-flow)\.test\.ts)$'; then
-  run_tests tests/client-registration.test.ts tests/runtime-setup.test.ts tests/p2-end-to-end-mcp-flow.test.ts
+if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|packages/skill/README\.md|tests/client-registration\.test\.ts|tests/runtime-setup\.test\.ts)$'; then
+  run_tests tests/client-registration.test.ts tests/runtime-setup.test.ts
 fi
 
 if has_match '^(src/kuri/|src/runtime/paths\.ts|packages/skill/|tests/runtime-(paths|setup)\.test\.ts|scripts/check-packaged-kuri\.sh|packages/skill/scripts/)'; then
@@ -56,5 +51,15 @@ if has_match '^(src/execution/|src/orchestrator/|src/capture/|src/intent-match\.
     tests/graph-filters.test.ts
 fi
 
+
+if has_match '^(packages/skill/package\.json|packages/skill/scripts/|scripts/publish-preview-cli\.mjs|\.release-it\.json)$'; then
+  echo "[pre-commit] asserting opaque npm tarball"
+  bun run check:opaque-tarball
+fi
+
+if has_match '^(docs/|README\.md|packages/skill/README\.md|packages/skill/SKILL\.md|scripts/leak-guard\.sh)$'; then
+  echo "[pre-commit] leak-guard: scanning public-reachable paths for alpha"
+  bash scripts/leak-guard.sh
+fi
 
 echo "[pre-commit] fast checks passed"

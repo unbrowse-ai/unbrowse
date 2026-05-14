@@ -1,0 +1,32 @@
+{
+  "probe": {
+    "id": "resolve-cold-carousell",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_resolve",
+      "arguments": {
+        "intent": "find shoes on carousell",
+        "url": "https://www.carousell.sg/search/shoes"
+      }
+    },
+    "why": "cold-domain resolve; marketplace racer must settle quickly with not_found (1a1b8747 regression guard). Pre-fix this took 8000ms deadline; post-fix should be under 4s and tried[marketplace].status should be 'lost' with reason 'not_found' or 'invalid_result', NEVER 'deadline'",
+    "fix_tag": "listSkills-fallback"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_resolve",
+      "arguments": {
+        "intent": "find shoes on carousell",
+        "url": "https://www.carousell.sg/search/shoes"
+      }
+    }
+  },
+  "response": null,
+  "response_raw": "",
+  "parse_error": "stream_closed",
+  "duration_ms": 0,
+  "timed_out": false
+}

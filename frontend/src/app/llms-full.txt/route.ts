@@ -279,26 +279,22 @@ Local server at \`http://localhost:6969\`:
 
 ## Payment Model
 
-Capture, indexing, and reverse-engineering are free. Agents pay only when using the shared graph to skip discovery.
+Capture, indexing, and reverse-engineering are free. Agents pay per execution when reusing a paid route or running a paid search/resolve.
 
-| Tier | What | When | Cost |
-|------|------|------|------|
-| Free | Capture, reverse-engineer, execute from local cache | Always | $0 |
-| Tier 1 | Skill install from marketplace (one-time) | First use of a shared route | $0.005-0.02 |
-| Tier 2 | Per-execution site owner fee (opt-in) | Each call to an opted-in site | $0.001-0.01 |
-| Tier 3 | Search/routing fee (per-query) | Each marketplace graph lookup | $0.001-0.005 |
+| Surface | When | What |
+|---|---|---|
+| Local execution from cache | A captured route is replayed locally | Free |
+| Paid skill execution | Calling an opted-in priced route | Per-execute USDC settlement on Solana |
+| Search / resolve over the shared marketplace | When the shortlist comes from the cloud marketplace | Per-query fee, USDC on Solana |
+| Sponsored mode | New agents without a wallet, brand-new domains | Platform covers the first calls up to a daily allowance per agent and a platform-wide daily ceiling |
 
-Tier 1 is one-time: pay once, execute locally forever with no further marketplace payments. Tier 2 only applies to sites whose owners have opted in to per-execution pricing. Tier 3 covers the cost of maintaining the shared index and serving vector search.
+Payment uses the [x402 protocol](https://www.x402.org) settled via [Faremeter Flex](https://docs.faremeter.xyz/flex/overview). The server replies 402 with payment terms; the client signs an off-chain Ed25519 authorization with a session key registered against their prepaid USDC escrow; the response carries the proof. EVM support is on Faremeter's roadmap; Unbrowse stays Solana-only for paid execute until then.
 
-Payment uses the x402 protocol. Paid skills return HTTP 402 with payment requirements. Supported chains: Solana (USDC) and Base (USDC) via the Corbits facilitator. Wallet operations are delegated to lobster.cash. Creator payout wallets are synced from agent registration/runtime wallet state. Current payout policy is single-recipient: the majority contributor wallet wins, with first-contributor winning ties. That winner wallet must already be Solana mainnet USDC-ready or settlement can fail. Publish-time Cascade provisioning still accepts either a pre-made \`UNBROWSE_CASCADE_SPLIT_ADDRESS\`/\`UNBROWSE_CASCADE_SPLIT_CONFIG\` override or the signer/RPC env needed to call \`@cascade-fyi/splits-sdk\`.
-
-For new installs, treat Crossmint lobster.cash setup as part of earning setup, not an optional extra. Without a configured wallet, the agent can still index routes but payout flow cannot land earnings to the contributor.
-
-Worker payment gating is controlled by \`PAYMENTS_ENABLED\`; when false, search and skill x402 gates are bypassed and no search fees are recorded.
+Wallet operations are delegated to lobster.cash or any Solana-mainnet signer. Onboarding requires three artifacts on Solana mainnet: a wallet, a Flex escrow funded with USDC, and a registered session key. \`unbrowse setup\` walks through all three.
 
 ### Route Mining Economics
 
-Agents earn by indexing the web for other agents. Every time an agent browses a new site through Kuri, Unbrowse captures the internal APIs and publishes them. When another agent installs that route (Tier 1), the original discoverer gets paid. Attribution is delta-based: each contributor's share is proportional to their marginal contribution to route quality. The backend transaction ledger fans paid executions out across contributor earnings using those shares, even before a multi-party split recipient is provisioned on-chain.
+Agents earn by indexing the web for other agents. Every time an agent browses a new site through Kuri, Unbrowse captures the internal APIs and publishes them. When another agent reuses that route, the original contributor wallet gets paid — atomically, in USDC, in the same Solana transaction as the rest of the splits. Splits live natively in every signed authorization (90% to contributors, 10% to platform, 0% protocol fee, up to 5 recipients).
 
 ## Authentication
 
@@ -342,7 +338,7 @@ Routes in the shared graph follow a continuous trust model scored by three signa
 
 - **Execution feedback** -- per-endpoint reliability scores updated after each execution
 - **Automated verification** -- background loop every 6 hours testing safe GET endpoints and checking for schema drift
-- **Freshness decay** -- trust decays over time: \`freshness = 1/(1 + days_since_update/30)\`
+- **Freshness decay** -- trust decays over time; routes not seen in weeks rank lower than routes verified yesterday
 
 Skills move through a lifecycle: **active** (published, queryable) to **deprecated** (low reliability, ranked lower) to **disabled** (confirmed failures, removed until re-verified).
 

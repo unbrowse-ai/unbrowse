@@ -23,6 +23,7 @@ import { creditRoutes } from "./routes/credits.js";
 import { billingRoutes } from "./routes/billing.js";
 import { authRoutes } from "./routes/auth.js";
 import { accountRoutes } from "./routes/account.js";
+import { adminRoutes } from "./routes/admin.js";
 import { syntheticRoutes } from "./routes/synthetic.js";
 import { flushQueuedGithubNotifications } from "./services/github-webhooks.js";
 
@@ -49,6 +50,10 @@ app.use("*", cors({
 
 // Route registration. Some routers keep public reads and protected writes inline.
 app.route("/", healthRoutes);
+// Admin routes mount FIRST so adminRoutes-owned paths (e.g. /v1/analytics/payments)
+// win Hono's first-match dispatch over analyticsRoutes' wildcard /analytics/*
+// bearerAuth middleware. Admin endpoints use ADMIN_KEY, not API_KEY.
+app.route("/v1", adminRoutes);
 app.route("/v1", publicStatsRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", publicSkillRoutes);

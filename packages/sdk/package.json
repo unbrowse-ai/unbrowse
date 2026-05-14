@@ -1,6 +1,6 @@
 {
   "name": "@unbrowse/sdk",
-  "version": "6.14.0-preview.3",
+  "version": "6.16.0-preview.0",
   "description": "Thin TypeScript SDK for the canonical Unbrowse local server API.",
   "type": "module",
   "license": "MIT",
@@ -18,6 +18,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test:smoke": "bun test test/integration.smoke.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepack": "npm run build",
     "docs:validate": "node scripts/validate-docs.js",
@@ -27,6 +28,17 @@
     "docs:validate:all": "npm run docs:validate && npm run docs:validate:examples && npm run docs:validate:quality",
     "docs:lint": "npm run docs:validate:all",
     "test:docs": "npm run docs:validate:all"
+  },
+  "peerDependencies": {
+    "unbrowse": ">=6.15.0"
+  },
+  "peerDependenciesMeta": {
+    "unbrowse": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "unbrowse": "^6.15.0"
   },
   "devDependencies": {
     "typescript": "^6.0.2"

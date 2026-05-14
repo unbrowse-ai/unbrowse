@@ -1,0 +1,231 @@
+{
+  "run_id": "2026-05-13T16-52-58-139Z-0f8a",
+  "mode": "source",
+  "cmd": "bun /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/cli.ts mcp",
+  "corpus": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/mcp/corpus.jsonl",
+  "probe_count": 14,
+  "timeout_ms": 20000,
+  "started_at": "2026-05-13T16:53:04.791Z",
+  "initialize": {
+    "duration_ms": 104,
+    "timed_out": false,
+    "server_info": {
+      "name": "unbrowse",
+      "title": "Unbrowse",
+      "version": "6.13.0",
+      "description": "The default browser for AI agents. Use Unbrowse for ALL website tasks — it discovers APIs from real traffic and turns them into reusable skills."
+    },
+    "capabilities": {
+      "tools": {
+        "listChanged": true
+      },
+      "resources": {
+        "listChanged": false
+      },
+      "prompts": {
+        "listChanged": true
+      }
+    }
+  },
+  "probes": [
+    {
+      "id": "tools-list",
+      "method": "tools/list",
+      "params_summary": "{}",
+      "why": "advertise the full tool surface; session-scoped tools must be present even when no browse session is open (cbacd9c6 regression guard)",
+      "fix_tag": "session-tool-visibility",
+      "duration_ms": 1,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 27673
+    },
+    {
+      "id": "health",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_health\",\"arguments\":{}}",
+      "why": "baseline; version + git_sha should match package.json + HEAD",
+      "fix_tag": null,
+      "duration_ms": 1,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 482
+    },
+    {
+      "id": "stats",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_stats\",\"arguments\":{}}",
+      "why": "stateless baseline; marketplace hit rate + agent activity",
+      "fix_tag": null,
+      "duration_ms": 1277,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 2655
+    },
+    {
+      "id": "resolve-cold-carousell",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_resolve\",\"arguments\":{\"intent\":\"find shoes on carousell\",\"url\":\"https://www.carousell.sg/search/shoes\"",
+      "why": "cold-domain resolve; marketplace racer must settle quickly with not_found (1a1b8747 regression guard). Pre-fix this took 8000ms deadline; post-fix should be under 4s and tried[marketplace].status should be 'lost' with reason 'not_found' or 'invalid_result', NEVER 'deadline'",
+      "fix_tag": "listSkills-fallback",
+      "duration_ms": 2007,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 7620
+    },
+    {
+      "id": "resolve-cold-hn",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_resolve\",\"arguments\":{\"intent\":\"top stories on hacker news\",\"url\":\"https://news.ycombinator.com\"}}",
+      "why": "second cold-domain resolve; cross-check that the listSkills-fallback fix isn't carousell-specific",
+      "fix_tag": "listSkills-fallback",
+      "duration_ms": 1809,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 7590
+    },
+    {
+      "id": "snap-no-session",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_snap\",\"arguments\":{}}",
+      "why": "session-scoped tool called without an open session; pre-fix this would have been dropped from tools/list and the harness call would error; post-fix the call returns errorResult containing 'no_active_session' and a 'unbrowse_go' recovery hint (cbacd9c6 regression guard)",
+      "fix_tag": "session-tool-visibility",
+      "duration_ms": 0,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": true,
+      "payload_error_field": null,
+      "response_size_bytes": 412
+    },
+    {
+      "id": "close-no-session",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_close\",\"arguments\":{}}",
+      "why": "session-scoped close called without an open session; same gate as snap-no-session",
+      "fix_tag": "session-tool-visibility",
+      "duration_ms": 0,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": true,
+      "payload_error_field": null,
+      "response_size_bytes": 412
+    },
+    {
+      "id": "skills-list",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_skills\",\"arguments\":{}}",
+      "why": "list cached skills surface; if this hits the 20MB backend listSkills endpoint, the call will be > 10s (1a1b8747 regression guard via timing)",
+      "fix_tag": "listSkills-fallback",
+      "duration_ms": 254,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": true,
+      "payload_error_field": "Invalid API key",
+      "response_size_bytes": 361
+    },
+    {
+      "id": "sessions-list",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_sessions\",\"arguments\":{}}",
+      "why": "open browse session inventory; baseline",
+      "fix_tag": null,
+      "duration_ms": 0,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": true,
+      "payload_error_field": null,
+      "response_size_bytes": 239
+    },
+    {
+      "id": "diagnose",
+      "method": "tools/call",
+      "params_summary": "{\"name\":\"unbrowse_diagnose\",\"arguments\":{}}",
+      "why": "diagnose surface; pre-fix this hung at /v1/browse/screenshot for >20s when no browse session was open, blocking every subsequent stdio request (MCP is single-threaded). Post-fix returns in <500ms with screenshot_error populated",
+      "fix_tag": "diagnose-no-session-hang",
+      "duration_ms": 14,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 583
+    },
+    {
+      "id": "resources-list",
+      "method": "resources/list",
+      "params_summary": "{}",
+      "why": "MCP capability advertised in initialize (resources.listChanged=false). Exercises the resources surface that the agent can browse for workflow guides, schemas, etc. Validates the server responds with a structured resources[] array.",
+      "fix_tag": null,
+      "duration_ms": 156,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 93781
+    },
+    {
+      "id": "prompts-list",
+      "method": "prompts/list",
+      "params_summary": "{}",
+      "why": "MCP capability advertised in initialize (prompts.listChanged=true). Slash-command-style prompts the agent can invoke. Validates the server responds with a structured prompts[] array.",
+      "fix_tag": null,
+      "duration_ms": 1,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 1379
+    },
+    {
+      "id": "prompts-get-resolve-execute",
+      "method": "prompts/get",
+      "params_summary": "{\"name\":\"workflow:resolve-execute-feedback\",\"arguments\":{\"intent\":\"find shoes on carousell\",\"url\":\"https://www.carousell",
+      "why": "exercise prompts/get; the resolve-execute-feedback prompt should render a templated message naming the real MCP tool sequence. Catches phantom-tool refs leaking into prompt text (parallel to gate 7 for descriptions).",
+      "fix_tag": null,
+      "duration_ms": 1,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 1013
+    },
+    {
+      "id": "tools-list-post",
+      "method": "tools/list",
+      "params_summary": "{}",
+      "why": "second tools/list after several tool calls; the count and names must be byte-identical to the first tools-list probe (no session-state mutation of the tool surface; cbacd9c6 regression guard)",
+      "fix_tag": "session-tool-visibility",
+      "duration_ms": 0,
+      "timed_out": false,
+      "has_response": true,
+      "jsonrpc_error": false,
+      "tool_is_error": false,
+      "payload_error_field": null,
+      "response_size_bytes": 27674
+    }
+  ],
+  "stderr_tail": [
+    "[unbrowse:mcp] starting stdio server on http://127.0.0.1:6969 (auto-start enabled)"
+  ]
+}

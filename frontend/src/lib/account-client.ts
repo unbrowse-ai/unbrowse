@@ -7,6 +7,14 @@ export interface AccountMe {
   verified_at: string | null;
   keys_count: number;
   skills_count: number;
+  // Flex onboarding (v6.16+). All optional/null for back-compat with older
+  // backends that don't return these fields yet. Frontend treats null/missing
+  // as "not yet completed" for that onboarding step.
+  wallet_address?: string | null;
+  wallet_provider?: string | null;
+  flex_escrow_address?: string | null;
+  flex_session_key_address?: string | null;
+  flex_facilitator?: string | null;
 }
 
 export interface AccountKey {

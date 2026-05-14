@@ -69,7 +69,7 @@ export async function GET() {
 - 18 domains completed in sub-100ms from cached skill routes
 - Kuri browser engine: 464KB Zig binary, ~3ms cold start, full CDP surface
 - Three execution paths: skill cache (<200ms), shared route graph (sub-second), Kuri browser fallback (20-80s)
-- x402 micropayments via Solana and Base USDC -- capture and indexing are free, agents pay only for shared graph lookups
+- x402 micropayments in USDC on Solana mainnet, settled via Faremeter Flex -- capture and indexing are free, agents pay only when reusing a paid route or paid marketplace lookup
 - Seven-layer cache resolution: in-memory, route cache, domain skill cache, local snapshots, marketplace search, first-pass browser, live capture
 - Drop-in Playwright replacement: \`import { Browser } from "unbrowse"\` -- \`page.goto()\` resolves from skill cache first
 - Agents earn by mining routes: browse sites, Unbrowse learns APIs, set up Crossmint lobster.cash, earn when other agents install discovered routes

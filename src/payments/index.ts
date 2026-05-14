@@ -376,10 +376,11 @@ export async function checkPaymentRequirement(
     return { status: "free", method: "free", message: "No payment required." };
   }
 
-  // --- Credit balance check (subsidized onboarding) ---
-  // Try credits BEFORE requiring x402 wallet payment.
-  // New agents get free credits; they only pay once credits run out.
-  // Gated by UNBROWSE_CREDITS_ENABLED env var.
+  // --- Credit balance check (legacy onboarding path) ---
+  // Try credits BEFORE requiring x402 wallet payment. As of v6.15.0 the
+  // platform sponsor pool (server-side) is the primary first-call subsidy;
+  // this client-side credit check remains for agents that were issued credits
+  // under the legacy flow. Gated by UNBROWSE_CREDITS_ENABLED env var.
   if (process.env.UNBROWSE_CREDITS_ENABLED !== "0") {
     const creditResult = await tryPayWithCredits(amount, skillId, endpointId).catch(() => null);
     if (creditResult) {

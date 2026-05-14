@@ -1,0 +1,25 @@
+{
+  "probe": {
+    "id": "health",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_health",
+      "arguments": {}
+    },
+    "why": "baseline; version + git_sha should match package.json + HEAD"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_health",
+      "arguments": {}
+    }
+  },
+  "response": null,
+  "response_raw": "",
+  "parse_error": "stream_closed",
+  "duration_ms": 0,
+  "timed_out": false
+}

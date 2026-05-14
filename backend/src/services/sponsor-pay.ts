@@ -1,10 +1,14 @@
 /**
- * Sponsor USDC payment — direct transfer from Lewis's wallet to route creators.
+ * Sponsor USDC payment — direct transfer from the sponsor wallet to route creators.
  *
- * No Cascade splits, no intermediaries. Just: signer → USDC SPL transfer → recipient.
- * Uses @solana/kit (v2, CF Worker compatible).
+ * v6.15 path. v6.16 replaces this with the Flex sponsor authorization in
+ * `services/sponsor-flex.ts`; this file is slated for deletion under Phase 5
+ * (P5.5) of the x402 v6.16 routing plan. Until the Flex rail is the only
+ * codepath, the middleware still calls `sendSponsorPayment` as the default.
  *
- * All amounts in micro-cents internally, converted to USDC (6 decimals) for on-chain.
+ * Just: signer → USDC SPL transfer → recipient. Uses @solana/kit (v2, CF
+ * Worker compatible). All amounts in micro-cents internally, converted to
+ * USDC (6 decimals) for on-chain.
  */
 
 import type { Env } from "../types.js";
@@ -21,7 +25,10 @@ interface TransferResult {
 
 /**
  * Send USDC from the sponsor wallet to a recipient.
- * @param env - Worker env with CASCADE_SIGNER_SECRET_KEY and CASCADE_RPC_URL
+ * @param env - Worker env with the platform signer secret and Solana RPC URL
+ *              (currently named CASCADE_SIGNER_SECRET_KEY + CASCADE_RPC_URL +
+ *              CASCADE_RPC_WS_URL for v6.16 deploy safety; rename deferred to
+ *              v6.17 per CHANGELOG.md).
  * @param recipientAddress - Solana wallet address of the route creator
  * @param amountUc - Amount in micro-cents (1,000,000 µ¢ = $1 = 1 USDC)
  */

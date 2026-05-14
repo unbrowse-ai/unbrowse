@@ -5,7 +5,7 @@
 # agent-experience-test, primitive-registry, etc.) are operational
 # secret sauce. They must NOT appear in:
 #   - npm tarball (packages/skill/ publish)
-#   - public unbrowse-ai/unbrowse repo (synced via sync-skill.sh)
+#   - GitHub release tarballs uploaded to unbrowse-ai/unbrowse
 #   - any file committed to an explicitly public path
 #
 # This primitive checks every output path that can go public and
@@ -39,6 +39,27 @@ SENSITIVE_NAMES=(
   "npm-dist-tag-sync"
   "npm-install-integrity"
   "leak-guard"
+)
+
+# v6.16 alpha — economic primitives, anti-Sybil mechanics, back-doors,
+# operator surfaces. These must NEVER appear in docs/, README.md, or the
+# npm tarball. Internal-only via gitignored internal/.
+SENSITIVE_KEYWORDS_V6_16=(
+  "DELTA_DECAY_RATE"
+  "MIN_DELTA_THRESHOLD"
+  "BASE_FEE_UC"
+  "DELTA_BONUS_UC"
+  "fee_allocated_uc = BASE_FEE_UC"
+  "__admin__"
+  "API_KEY=local-test"
+  "API_KEY=\"local-test\""
+  "FLEX_SPONSOR_ESCROW_ADDRESS"
+  "FLEX_SPONSOR_SESSION_KEY_SECRET"
+  "FLEX_SPONSOR_SESSION_KEY_EXPIRES_AT_SLOT"
+  "SPONSOR_USE_FLEX_SPLIT"
+  "FLEX_PLATFORM_FACILITATOR_KEY"
+  "sponsorWalletReady"
+  "sendSponsorFlexPayment"
 )
 
 # Sensitive principle keywords from CLAUDE.md that shouldn't appear
@@ -110,6 +131,24 @@ for f in $TAR_FILES; do
   fi
 done
 
+# 2b. v6.16 alpha keyword scan — ALWAYS enforced (not strict-only).
+# Economic primitives, anti-Sybil mechanics, back-doors, operator surfaces.
+echo ""
+echo "[leak-guard] scanning v6.16 alpha keywords in public paths..."
+for path in "${PUBLIC_PATHS[@]}"; do
+  if [ -e "$path" ]; then
+    for kw in "${SENSITIVE_KEYWORDS_V6_16[@]}"; do
+      matches=$(grep -rIl --exclude-dir=internal "$kw" "$path" 2>/dev/null | head -3 || true)
+      if [ -n "$matches" ]; then
+        while IFS= read -r f; do
+          [ -z "$f" ] && continue
+          echo "  ✗ ALPHA LEAK: '$kw' in $f (move to internal/ or strip)" >&2
+          LEAK_COUNT=$((LEAK_COUNT + 1))
+        done <<< "$matches"
+      fi
+    done
+  fi
+done
 # 3. Strict mode: also check for principle keywords in public docs
 if [ "$STRICT" = "true" ]; then
   echo ""

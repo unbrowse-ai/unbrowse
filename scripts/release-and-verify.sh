@@ -25,16 +25,22 @@ cd "$ROOT_DIR"
 REMOTE_HOST="${REMOTE_HOST:-lekt8@89.169.121.108}"
 SKIP_RELEASE="${SKIP_RELEASE:-0}"
 SKIP_REMOTE="${SKIP_REMOTE:-0}"
+RUN_BENCH_GATE="${RUN_BENCH_GATE:-0}"
 
 for arg in "$@"; do
   case "$arg" in
     --skip-release) SKIP_RELEASE=1 ;;
     --skip-remote) SKIP_REMOTE=1 ;;
+    --bench-gate) RUN_BENCH_GATE=1 ;;
   esac
 done
 
 log() { echo "[release-verify] $(date +%H:%M:%S) $*"; }
 die() { echo "[release-verify] FATAL: $*" >&2; exit 1; }
+
+# ── Step 0: Strict gate; refuse to release if the npm tarball is not opaque ──
+log "asserting opaque npm tarball..."
+node packages/skill/scripts/assert-opaque-tarball.mjs || die "opaque-tarball gate failed; fix files[] or override with UNBROWSE_ALLOW_BUNDLED_TARBALL=1 (do not commit)"
 
 # ── Step 1: Local tests ──
 log "running local tests..."
@@ -45,28 +51,31 @@ bun test tests/path-params.test.ts tests/utils.test.ts || die "unit tests failed
 git checkout -- src/build-info.generated.ts
 log "local tests passed"
 
-# ── Step 2: Cut preview release ──
-# Uses scripts/publish-preview-cli.mjs (= `bun run publish:cli:preview`), which
-# publishes from a temp repo copy with --tag preview AND bakes the staging
-# backend URL into the build. This avoids the prior release-it path that
-# bumped main's version and published without the --tag preview flag, leaving
-# `npm view unbrowse dist-tags` stuck on the previous preview.
+# ── Step 1.5: Agent-judged bench-gate (opt-in via --bench-gate / RUN_BENCH_GATE=1) ──
+# Runs the harness against the LOCAL `bun src/cli.ts`, then PREPS a judge
+# bundle. The agent running this script reads the bundle, writes verdict.json,
+# then re-runs --bench-gate-compare. We never auto-judge — see CLAUDE.md
+# "harness makes visible, agent judges".
+if [[ "$RUN_BENCH_GATE" == "1" ]]; then
+  log "running bench-gate harness + judge prep (corpus=harness/probes/corpus-gate.txt)..."
+  UNBROWSE="bun src/cli.ts" bash scripts/bench-gate-full.sh
+  log "bench-gate harness collected + judge bundle ready"
+  log "AGENT: read .bench-gate/<latest>/judge.bundle.md, write verdict.json, then re-run with RUN_BENCH_GATE=0 plus a manual bench:gate:compare before retrying release"
+  die "bench-gate prep complete — agent judge step required before continuing release"
+fi
+
+# ── Step 2: Cut release ──
 if [[ "$SKIP_RELEASE" != "1" ]]; then
   log "checking working tree..."
   if [[ -n "$(git status --porcelain)" ]]; then
     die "working tree not clean — commit or stash first"
   fi
 
-  BACKEND_URL="${UNBROWSE_PREVIEW_BACKEND_URL:-https://unbrowse-backend-staging.lewis-6d8.workers.dev}"
-  log "cutting preview release via publish:cli:preview (backend=$BACKEND_URL)..."
-  PUBLISH_LOG="$(mktemp -t release-preview.XXXXXX)"
-  UNBROWSE_PREVIEW_BACKEND_URL="$BACKEND_URL" \
-    bun run publish:cli:preview 2>&1 | tee "$PUBLISH_LOG"
-  VERSION="$(grep '^preview_version=' "$PUBLISH_LOG" | head -1 | cut -d= -f2)"
-  rm -f "$PUBLISH_LOG"
-  [[ -n "$VERSION" ]] || die "publish:cli:preview did not emit preview_version"
-  TAG="v$VERSION"
-  log "published $TAG (gh release; no local source tag)"
+  log "cutting preview release..."
+  bun run release -- --preRelease=preview --ci
+  TAG="$(git describe --tags --match='v*' --abbrev=0)"
+  VERSION="${TAG#v}"
+  log "tagged $TAG"
 else
   TAG="$(git describe --tags --match='v*' --abbrev=0)"
   VERSION="${TAG#v}"

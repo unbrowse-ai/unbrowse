@@ -1,149 +1,296 @@
-// Phase 2 Day-3: MCP process-level resilience guards.
-//
-// Background: docs/carousell-shoes-mcp-fix-plan.md documented an
-// MCP-server-death where a bad handler took the whole process down via
-// `MCP error -32000: Connection closed`, killing all 33 tools. The
-// dispatcher try/catch at src/mcp.ts handleRequest and the stdio loop's
-// catch around handleRequest cover sync throws and JSON.parse failures —
-// but async throws from fire-and-forget .then chains (post-spawn in
-// ensureServerReady) or emitter callbacks bypass both and crash the
-// process via the default Bun/node fail-fast.
-//
-// The fix installs process.on("uncaughtException") and
-// process.on("unhandledRejection") inside main() before createInterface.
-// This test pins that behavior — both that the source has the handlers
-// (structural) and that a spawned MCP process starts cleanly and lists
-// tools (smoke).
-//
-// Honest scope: we don't manufacture a way to trigger an unhandled
-// rejection from inside a tool call here. That belongs to the
-// agent-experience harness (X5+) per CLAUDE.md harness-collects rule.
-// No mocks. Real spawn, real source.
-
-import { describe, test, expect } from "bun:test";
-import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { afterAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import path from "node:path";
+import { join } from "node:path";
+import net from "node:net";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { createInterface, type Interface } from "node:readline";
 
-const REPO_ROOT = path.resolve(import.meta.dir, "..");
-const MCP_ENTRY = path.join(REPO_ROOT, "src", "mcp.ts");
+// Day 4 (Luminaries) Worker C — Phase 0c failing lights.
+//
+// Contract (Phase 0c):
+//   When a tool handler throws (synchronously or via uncaughtException), the
+//   MCP stdio server emits a JSON-RPC error envelope with code -32603 and
+//   the inbound request id, then stays alive. Subsequent `tools/list` and
+//   `unbrowse_health` calls succeed on the same stdio session. No call ever
+//   takes down the broker.
+//
+// These tests will FAIL today because:
+//   (a) The env-var-gated `unbrowse_test_crash` tool does not exist yet —
+//       Day 5 will register it under `UNBROWSE_TEST_CRASH=1` with a handler
+//       that throws synchronously.
+//   (b) The resilience seed at src/mcp.ts:2419 only logs to stderr; it does
+//       not yet emit a JSON-RPC error envelope.
 
-function pickPort(): number {
-  return 17970 + Math.floor(Math.random() * 1000);
+const ROOT = join(import.meta.dir, "..");
+const runDirs: string[] = [];
+
+async function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close();
+        reject(new Error("failed to allocate free port"));
+        return;
+      }
+      const { port } = address;
+      server.close((err) => err ? reject(err) : resolve(port));
+    });
+    server.on("error", reject);
+  });
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-describe("mcp process-level resilience guards", () => {
-  test("source installs uncaughtException + unhandledRejection handlers in main()", () => {
-    const src = readFileSync(MCP_ENTRY, "utf-8");
-
-    // Both names must appear at least once.
-    const uncaught = src.match(/uncaughtException/g) ?? [];
-    const unhandled = src.match(/unhandledRejection/g) ?? [];
-    expect(uncaught.length).toBeGreaterThanOrEqual(1);
-    expect(unhandled.length).toBeGreaterThanOrEqual(1);
-
-    // The handlers must NOT call process.exit — the entire point is to
-    // keep the process alive. Locate the guard block and assert it does
-    // not contain process.exit. We scope to the function body of main().
-    const mainIdx = src.indexOf("async function main(");
-    expect(mainIdx).toBeGreaterThan(-1);
-    // Crude but adequate: the guards live in the first ~3KB of main()
-    // (we install them right after the banner, before createInterface).
-    const mainHead = src.slice(mainIdx, mainIdx + 3000);
-    expect(mainHead).toContain("uncaughtException");
-    expect(mainHead).toContain("unhandledRejection");
-    expect(mainHead).toContain("UNBROWSE_TEST_FAIL_FAST");
-
-    // Carve out the guard region between the banner and createInterface.
-    const banner = mainHead.indexOf("starting stdio server");
-    const ci = mainHead.indexOf("createInterface");
-    expect(banner).toBeGreaterThan(-1);
-    expect(ci).toBeGreaterThan(banner);
-    const guardRegion = mainHead.slice(banner, ci);
-    // No process.exit in the guard region. Default fail-fast off-switch
-    // must not be re-implemented as a hard kill.
-    expect(guardRegion).not.toContain("process.exit");
+async function runProcess(args: string[], env: Record<string, string>): Promise<{ code: number; stdout: string; stderr: string }> {
+  const child = spawn(process.execPath, args, {
+    cwd: ROOT,
+    env: { ...process.env, ...env },
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
-  test(
-    "spawned MCP returns tools/list and remains alive (smoke)",
-    async () => {
-      const runDir = mkdtempSync(path.join(tmpdir(), "unbrowse-resilience-"));
-      const port = pickPort();
-      const baseUrl = `http://127.0.0.1:${port}`;
-      const env = {
-        ...process.env,
-        UNBROWSE_URL: baseUrl,
-        UNBROWSE_RUN_DIR: runDir,
-        UNBROWSE_NON_INTERACTIVE: "1",
-        UNBROWSE_TOS_ACCEPTED: "1",
-        MCP_SERVER_MODE: "1",
-        // Leave UNBROWSE_TEST_FAIL_FAST UNSET so the handlers are installed.
-      };
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
 
-      const proc = spawn("bun", [MCP_ENTRY], {
-        cwd: REPO_ROOT,
-        env,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      let stderr = "";
-      proc.stderr.on("data", (b) => { stderr += b.toString(); });
-      let stdout = "";
-      proc.stdout.on("data", (b) => { stdout += b.toString(); });
-
-      try {
-        // initialize, then tools/list.
-        proc.stdin.write(JSON.stringify({
-          jsonrpc: "2.0", id: 1, method: "initialize",
-          params: { protocolVersion: "2025-11-25", clientInfo: { name: "test", version: "0" }, capabilities: {} },
-        }) + "\n");
-        proc.stdin.write(JSON.stringify({
-          jsonrpc: "2.0", id: 2, method: "tools/list",
-        }) + "\n");
-
-        // Wait up to 15s for both responses to land.
-        const deadline = Date.now() + 15_000;
-        let listResponse: any = null;
-        while (Date.now() < deadline && !listResponse) {
-          await sleep(100);
-          for (const line of stdout.split("\n")) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              const msg = JSON.parse(trimmed);
-              if (msg && msg.id === 2 && msg.result) {
-                listResponse = msg;
-                break;
-              }
-            } catch {
-              // partial line, keep waiting
-            }
-          }
-        }
-
-        expect(
-          listResponse,
-          `tools/list never returned within 15s. stderr=${stderr.slice(-2000)} stdout=${stdout.slice(-2000)}`,
-        ).not.toBeNull();
-        expect(Array.isArray(listResponse.result?.tools)).toBe(true);
-        expect(listResponse.result.tools.length).toBeGreaterThan(0);
-
-        // Process must still be alive (we have not killed or EOF'd it).
-        expect(proc.exitCode).toBeNull();
-        expect(proc.killed).toBe(false);
-      } finally {
-        try { proc.stdin.end(); } catch {}
-        try { proc.kill("SIGKILL"); } catch {}
-        try { rmSync(runDir, { recursive: true, force: true }); } catch {}
+  const code = await new Promise<number>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (exitCode, signal) => {
+      if (signal) {
+        reject(new Error(`process exited via signal ${signal}\nstderr:\n${stderr}`));
+        return;
       }
+      resolve(exitCode ?? 1);
+    });
+  });
+
+  return { code, stdout, stderr };
+}
+
+async function startLocalServer(env: Record<string, string>): Promise<void> {
+  const result = await runProcess(["src/cli.ts", "health"], env);
+  if (result.code !== 0) {
+    throw new Error(`health failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  }
+  const body = JSON.parse(result.stdout.trim() || "{}") as { status?: string };
+  expect(body.status).toBe("ok");
+}
+
+async function stopLocalServer(env: Record<string, string>): Promise<void> {
+  await runProcess(["src/cli.ts", "stop"], env);
+}
+
+function spawnMcp(env: Record<string, string>): { child: ChildProcessWithoutNullStreams; rl: Interface } {
+  const child = spawn(process.execPath, ["src/cli.ts", "mcp", "--no-auto-start"], {
+    cwd: ROOT,
+    env: { ...process.env, ...env },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  return { child, rl };
+}
+
+async function nextMessageMatching(
+  rl: Interface,
+  child: ChildProcessWithoutNullStreams,
+  predicate: (msg: any) => boolean,
+  timeoutMs: number,
+): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const onLine = (line: string) => {
+      let parsed: any;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        return;
+      }
+      if (!predicate(parsed)) return;
+      cleanup();
+      resolve(parsed);
+    };
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      cleanup();
+      reject(new Error(`mcp exited early code=${code} signal=${signal}`));
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`timed out after ${timeoutMs}ms waiting for matching mcp response`));
+    }, timeoutMs);
+    const cleanup = () => {
+      clearTimeout(timer);
+      rl.off("line", onLine);
+      child.off("exit", onExit);
+    };
+    rl.on("line", onLine);
+    child.once("exit", onExit);
+  });
+}
+
+async function initialize(child: ChildProcessWithoutNullStreams, rl: Interface): Promise<void> {
+  child.stdin.write(`${JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: { name: "bun-test", version: "1.0.0" },
     },
-    25_000,
-  );
+  })}\n`);
+  await nextMessageMatching(rl, child, (m) => m.id === 1, 10_000);
+  child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
+}
+
+function buildEnv(port: number, runDir: string): Record<string, string> {
+  return {
+    UNBROWSE_URL: `http://127.0.0.1:${port}`,
+    UNBROWSE_RUN_DIR: runDir,
+    UNBROWSE_DISABLE_AUTO_UPDATE: "1",
+    UNBROWSE_NON_INTERACTIVE: "1",
+    UNBROWSE_TOS_ACCEPTED: "1",
+    UNBROWSE_TEST_CRASH: "1",
+  };
+}
+
+afterAll(() => {
+  for (const dir of runDirs) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+describe("MCP stdio resilience (Phase 0c)", () => {
+  it("triggering uncaughtException in a handler emits JSON-RPC error envelope code -32603", async () => {
+    const port = await getFreePort();
+    const runDir = mkdtempSync(join(tmpdir(), "unbrowse-mcp-resil-"));
+    runDirs.push(runDir);
+    const env = buildEnv(port, runDir);
+    await startLocalServer(env);
+    const { child, rl } = spawnMcp(env);
+
+    try {
+      await initialize(child, rl);
+      child.stdin.write(`${JSON.stringify({
+        jsonrpc: "2.0",
+        id: 7,
+        method: "tools/call",
+        params: { name: "unbrowse_test_crash", arguments: {} },
+      })}\n`);
+      const response = await nextMessageMatching(rl, child, (m) => m.id === 7, 10_000);
+      expect(response.jsonrpc).toBe("2.0");
+      expect(response.error).toBeDefined();
+      expect(response.error.code).toBe(-32603);
+      expect(typeof response.error.message).toBe("string");
+    } finally {
+      rl.close();
+      child.stdin.end();
+      child.kill("SIGTERM");
+      await stopLocalServer(env);
+    }
+  }, 30_000);
+
+  it("error envelope id matches request id of crashing call, not null", async () => {
+    const port = await getFreePort();
+    const runDir = mkdtempSync(join(tmpdir(), "unbrowse-mcp-resil-"));
+    runDirs.push(runDir);
+    const env = buildEnv(port, runDir);
+    await startLocalServer(env);
+    const { child, rl } = spawnMcp(env);
+
+    try {
+      await initialize(child, rl);
+      child.stdin.write(`${JSON.stringify({
+        jsonrpc: "2.0",
+        id: "abc-123",
+        method: "tools/call",
+        params: { name: "unbrowse_test_crash", arguments: {} },
+      })}\n`);
+      const response = await nextMessageMatching(rl, child, (m) => m.id === "abc-123", 10_000);
+      expect(response.id).toBe("abc-123");
+      expect(response.error).toBeDefined();
+      expect(response.error.code).toBe(-32603);
+    } finally {
+      rl.close();
+      child.stdin.end();
+      child.kill("SIGTERM");
+      await stopLocalServer(env);
+    }
+  }, 30_000);
+
+  it("subsequent tools/list succeeds after crash (pipe survives)", async () => {
+    const port = await getFreePort();
+    const runDir = mkdtempSync(join(tmpdir(), "unbrowse-mcp-resil-"));
+    runDirs.push(runDir);
+    const env = buildEnv(port, runDir);
+    await startLocalServer(env);
+    const { child, rl } = spawnMcp(env);
+
+    try {
+      await initialize(child, rl);
+      child.stdin.write(`${JSON.stringify({
+        jsonrpc: "2.0",
+        id: 7,
+        method: "tools/call",
+        params: { name: "unbrowse_test_crash", arguments: {} },
+      })}\n`);
+      await nextMessageMatching(rl, child, (m) => m.id === 7, 10_000);
+
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 8, method: "tools/list", params: {} })}\n`);
+      const listed = await nextMessageMatching(rl, child, (m) => m.id === 8, 10_000);
+      expect(listed.id).toBe(8);
+      expect(listed.error).toBeUndefined();
+      expect(Array.isArray(listed.result.tools)).toBe(true);
+      expect(listed.result.tools.length).toBeGreaterThan(20);
+    } finally {
+      rl.close();
+      child.stdin.end();
+      child.kill("SIGTERM");
+      await stopLocalServer(env);
+    }
+  }, 30_000);
+
+  it("subsequent unbrowse_health call returns status:\"ok\" after crash", async () => {
+    const port = await getFreePort();
+    const runDir = mkdtempSync(join(tmpdir(), "unbrowse-mcp-resil-"));
+    runDirs.push(runDir);
+    const env = buildEnv(port, runDir);
+    await startLocalServer(env);
+    const { child, rl } = spawnMcp(env);
+
+    try {
+      await initialize(child, rl);
+      child.stdin.write(`${JSON.stringify({
+        jsonrpc: "2.0",
+        id: 7,
+        method: "tools/call",
+        params: { name: "unbrowse_test_crash", arguments: {} },
+      })}\n`);
+      await nextMessageMatching(rl, child, (m) => m.id === 7, 10_000);
+
+      child.stdin.write(`${JSON.stringify({
+        jsonrpc: "2.0",
+        id: 9,
+        method: "tools/call",
+        params: { name: "unbrowse_health", arguments: {} },
+      })}\n`);
+      const health = await nextMessageMatching(rl, child, (m) => m.id === 9, 10_000);
+      expect(health.id).toBe(9);
+      expect(health.error).toBeUndefined();
+      const status = health.result?.structuredContent?.status
+        ?? health.result?.status
+        ?? (() => {
+          const text = health.result?.content?.[0]?.text;
+          if (typeof text === "string") {
+            try { return JSON.parse(text).status; } catch { return undefined; }
+          }
+          return undefined;
+        })();
+      expect(status).toBe("ok");
+    } finally {
+      rl.close();
+      child.stdin.end();
+      child.kill("SIGTERM");
+      await stopLocalServer(env);
+    }
+  }, 30_000);
 });

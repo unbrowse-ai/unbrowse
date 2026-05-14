@@ -1,0 +1,25 @@
+{
+  "probe": {
+    "id": "stats",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_stats",
+      "arguments": {}
+    },
+    "why": "stateless baseline; marketplace hit rate + agent activity"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_stats",
+      "arguments": {}
+    }
+  },
+  "response": null,
+  "response_raw": "",
+  "parse_error": "stream_closed",
+  "duration_ms": 0,
+  "timed_out": false
+}

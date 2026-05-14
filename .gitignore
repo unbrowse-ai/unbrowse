@@ -24,6 +24,8 @@ backend/.dev.vars
 
 # Project-specific
 .vault/
+# Alpha docs — never committed; see scripts/leak-guard.sh
+internal/
 skills/
 !skills/
 !skills/worktree-issue-fix/
@@ -124,3 +126,8 @@ scripts/__pycache__/
 
 # Bundle-attribution viewer scratch output
 packages/skill/dist-sm/
+
+# Bench-gate per-run artifacts (per-probe captures + judge bundles + verdicts).
+# `.bench-gate/stamp.json` IS committed — it's the release-it gate marker.
+.bench-gate/*/
+!.bench-gate/stamp.json

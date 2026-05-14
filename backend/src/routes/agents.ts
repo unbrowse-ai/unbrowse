@@ -5,6 +5,7 @@ import { bearerAuthNoTos } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
+import { checkFlexOnboarding } from "../middleware/flex-onboarding-required.js";
 
 // Public agent routes — no auth required
 export const publicAgentRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
@@ -22,13 +23,28 @@ publicAgentRoutes.get("/tos/current", (c) => {
   });
 });
 
-// POST /v1/agents/register — self-register and get an API key (requires ToS acceptance)
+// POST /v1/agents/register — self-register and get an API key.
+// v6.16.0 (P0.2): requires complete Flex onboarding (wallet + escrow + session key)
+// in addition to ToS acceptance. Local-admin dev mode (API_KEY === "local-test")
+// short-circuits before the Flex check because the admin profile is synthetic.
 publicAgentRoutes.post("/agents/register", async (c) => {
-  const { name, tos_version, wallet_address, wallet_provider, landing_token } = await c.req.json<{
+  const {
+    name,
+    tos_version,
+    wallet_address,
+    wallet_provider,
+    flex_escrow_address,
+    flex_session_key_address,
+    flex_facilitator,
+    landing_token,
+  } = await c.req.json<{
     name: string;
     tos_version?: string;
     wallet_address?: string;
     wallet_provider?: string;
+    flex_escrow_address?: string;
+    flex_session_key_address?: string;
+    flex_facilitator?: string;
     landing_token?: string;
   }>();
   if (!name?.trim()) {
@@ -50,8 +66,44 @@ publicAgentRoutes.post("/agents/register", async (c) => {
       current_tos_version: CURRENT_TOS_VERSION,
     }, 400);
   }
+
+  // Local-admin dev shortcut: when API_KEY=local-test, registerAgent returns
+  // the synthetic __admin__ profile. This is dev-only and bypasses Flex
+  // onboarding because __admin__ has no real wallet/escrow/session-key.
+  const isLocalAdmin = c.env.API_KEY === "local-test";
+
+  // P0.2: Flex onboarding gate. All three fields (wallet + escrow + session
+  // key) must be present for the AgentProfile to be considered ready. The
+  // admin dev shortcut is the only bypass.
+  if (!isLocalAdmin) {
+    const flexStatus = checkFlexOnboarding({
+      wallet_address,
+      flex_escrow_address,
+      flex_session_key_address,
+    });
+    if (!flexStatus.ready) {
+      return c.json({
+        error: "flex_onboarding_incomplete",
+        missing: flexStatus.missing,
+        remediation: "Run `unbrowse setup` or pair via /account",
+      }, 400);
+    }
+  }
+
   try {
-    const result = await registerAgent(c.env, name, tos_version, { wallet_address, wallet_provider }, { landing_token });
+    const result = await registerAgent(
+      c.env,
+      name,
+      tos_version,
+      {
+        wallet_address,
+        wallet_provider,
+        flex_escrow_address,
+        flex_session_key_address,
+        flex_facilitator,
+      },
+      { landing_token },
+    );
     return c.json(result, 201);
   } catch (err) {
     const msg = (err as Error).message;

@@ -1,0 +1,26 @@
+{
+  "probe": {
+    "id": "snap-no-session",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_snap",
+      "arguments": {}
+    },
+    "why": "session-scoped tool called without an open session; pre-fix this would have been dropped from tools/list and the harness call would error; post-fix the call returns errorResult containing 'no_active_session' and a 'unbrowse_go' recovery hint (cbacd9c6 regression guard)",
+    "fix_tag": "session-tool-visibility"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 6,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_snap",
+      "arguments": {}
+    }
+  },
+  "response": null,
+  "response_raw": "",
+  "parse_error": "stream_closed",
+  "duration_ms": 0,
+  "timed_out": false
+}

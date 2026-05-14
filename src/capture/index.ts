@@ -2,7 +2,7 @@ import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
-import { extractAuthHeaders, extractGraphQLOperationName } from "../reverse-engineer/index.js";
+import { extractAuthHeaders, extractGraphQLOperationName, isReplayCriticalHeader, isSensitiveHeader } from "../reverse-engineer/index.js";
 import { storeCredential } from "../vault/index.js";
 import type { BrowserAccessConfig } from "../runtime/browser-access.js";
 import { DEFAULT_BROWSER_ACCESS } from "../runtime/browser-access.js";
@@ -117,9 +117,15 @@ export async function enableNetworkHeaderCapture(tabId: string): Promise<void> {
         if (msg.method === "Network.requestWillBeSent") {
           const req = msg.params?.request;
           if (req?.url && req?.headers) {
-            // Only capture headers for API-like URLs
-            if (/\/(api|graphql|v\d+)\b/i.test(req.url) || /ads-api|voyager/i.test(req.url)) {
-              headers.set(req.url, req.headers);
+            // Generic capture policy: if any header on the request is replay-critical
+            // (Authorization, x-csrf-*, etc.) or sensitive (per-vendor auth signal),
+            // record the request. No URL-pattern hardcoding — the policy lives in
+            // reverse-engineer's header classifiers and works for any domain.
+            for (const [hk, hv] of Object.entries(req.headers)) {
+              if (isReplayCriticalHeader(hk, String(hv ?? "")) || isSensitiveHeader(hk)) {
+                headers.set(req.url, req.headers);
+                break;
+              }
             }
           }
         }
@@ -139,6 +145,33 @@ export async function enableNetworkHeaderCapture(tabId: string): Promise<void> {
  */
 export function getCapturedNetworkHeaders(tabId: string): Map<string, Record<string, string>> {
   return cdpCapturedHeaders.get(tabId) ?? new Map();
+}
+
+/**
+ * Drain CDP-captured request headers for a tab into synthetic RawRequest entries
+ * suitable for feeding into extractAuthHeaders. These are NOT real network captures
+ * (no response status/body/method beyond the request line) — they exist purely so
+ * the existing auth-header extraction pipeline can pick up Authorization / x-csrf-*
+ * tokens from XHRs the JS interceptor and HAR missed. Generic by construction —
+ * the capture-side filter (isReplayCriticalHeader / isSensitiveHeader) already
+ * decided which requests are worth recording; this function just reshapes them.
+ */
+export function getCapturedNetworkHeadersAsRequests(tabId: string): RawRequest[] {
+  const headerMap = cdpCapturedHeaders.get(tabId);
+  if (!headerMap || headerMap.size === 0) return [];
+  const now = new Date().toISOString();
+  const out: RawRequest[] = [];
+  for (const [url, hdrs] of headerMap.entries()) {
+    out.push({
+      url,
+      method: "GET",
+      request_headers: hdrs,
+      response_status: 0,
+      response_headers: {},
+      timestamp: now,
+    });
+  }
+  return out;
 }
 // Hard timeout per capture: 90s prevents stuck tabs from holding slots forever.
 const CAPTURE_TIMEOUT_MS = 90_000;

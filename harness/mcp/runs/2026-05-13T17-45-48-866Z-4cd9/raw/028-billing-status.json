@@ -1,0 +1,42 @@
+{
+  "probe": {
+    "id": "billing-status",
+    "method": "tools/call",
+    "params": {
+      "name": "billing_status",
+      "arguments": {}
+    },
+    "why": "auth-gated billing surface; hits /v1/billing/me with the agent's API key. With an anonymous/invalid key (current state), backend returns 401-shaped error. Tests the iter-7 successResult promotion on a fresh non-/v1/skills path."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 28,
+    "method": "tools/call",
+    "params": {
+      "name": "billing_status",
+      "arguments": {}
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 28,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Invalid API key\n\n{\n  \"error\": \"Invalid API key\",\n  \"code\": \"INVALID_KEY\",\n  \"message\": \"Sign up at unbrowse.ai to get an API key.\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "error": "Invalid API key",
+        "code": "INVALID_KEY",
+        "message": "Sign up at unbrowse.ai to get an API key."
+      },
+      "isError": true
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":28,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Invalid API key\\n\\n{\\n  \\\"error\\\": \\\"Invalid API key\\\",\\n  \\\"code\\\": \\\"INVALID_KEY\\\",\\n  \\\"message\\\": \\\"Sign up at unbrowse.ai to get an API key.\\\"\\n}\"}],\"structuredContent\":{\"error\":\"Invalid API key\",\"code\":\"INVALID_KEY\",\"message\":\"Sign up at unbrowse.ai to get an API key.\"},\"isError\":true}}",
+  "parse_error": null,
+  "duration_ms": 251,
+  "timed_out": false
+}

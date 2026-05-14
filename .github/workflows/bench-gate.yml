@@ -1,0 +1,136 @@
+name: Bench Gate
+
+# Agent-judged release-gate over indexing + retrieval + execution accuracy.
+#
+# This workflow ONLY collects artifacts. It does NOT auto-judge.
+#
+# Why: the judge is the agent running the harness (Claude Code in a
+# conversation), per CLAUDE.md "harness makes visible, agent judges" and
+# memory feedback_harness_makes_visible_agent_judges.md. CI has no agent
+# sitting in-thread, so it cannot render verdicts. CI's job is to surface
+# the artifacts so an agent (locally) can judge them and push a verdict.
+#
+# Harness: scripts/bench-gate.sh (collects per-probe artifacts; zero verdicts)
+# Prep:    scripts/bench-gate-judge.ts (writes judge.bundle.md for agent)
+# Gate:    scripts/bench-gate-compare.ts (only runs against an agent-written verdict.json)
+#
+# Triggers:
+#   - workflow_dispatch — manual collect
+#   - pull_request, label `run-bench-gate` — collect + comment review pointer
+#   - workflow_run after Release — collect + comment review pointer; no auto-issue
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "probe limit (0 = full corpus of 50)"
+        type: string
+        default: "0"
+  pull_request:
+    types: [labeled, synchronize, opened, reopened]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: bench-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    name: Collect + prep judge bundle
+    runs-on: self-hosted
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-bench-gate')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    outputs:
+      run_id: ${{ steps.run.outputs.run_id }}
+      artifact_name: ${{ steps.run.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "1.3.1" }
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      - name: Run harness + prep judge bundle
+        id: run
+        env:
+          UNBROWSE: "bun src/cli.ts"
+          LIMIT: ${{ github.event.inputs.limit || '0' }}
+        run: |
+          set -euo pipefail
+          # Harness collects only. Prep writes judge.bundle.md. No verdict.json
+          # is produced by CI — that's the agent's job.
+          RUN_DIR="$(bash scripts/bench-gate.sh | tail -1)"
+          bun scripts/bench-gate-judge.ts --artifacts "$RUN_DIR"
+
+          RUN_ID="$(basename "$RUN_DIR")"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=bench-gate-$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts (judge bundle + raw evidence)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-gate-${{ steps.run.outputs.run_id }}
+          path: |
+            .bench-gate/${{ steps.run.outputs.run_id }}/manifest.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/judge.bundle.md
+            .bench-gate/${{ steps.run.outputs.run_id }}/verdict.template.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/capture.meta.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/capture.html.excerpt
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/resolve.shortlist.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/resolve.pick.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/execute.response.raw
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/execute.meta.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/timings.json
+          retention-days: 30
+
+  comment-pr:
+    name: Comment PR with review pointer
+    runs-on: self-hosted
+    needs: [collect]
+    if: github.event_name == 'pull_request' && always()
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          MARKER: "<!-- bench-gate -->"
+          ARTIFACT_NAME: ${{ needs.collect.outputs.artifact_name }}
+          RUN_ID: ${{ needs.collect.outputs.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = process.env.MARKER;
+            const artifactName = process.env.ARTIFACT_NAME || "(no artifact uploaded)";
+            const runId = process.env.RUN_ID || "(unknown)";
+            const url = process.env.WORKFLOW_RUN_URL;
+            const body = [
+              marker,
+              "## Bench-Gate — agent review required",
+              "",
+              `**Run ID:** \`${runId}\``,
+              `**Artifact:** \`${artifactName}\` ([open run](${url}))`,
+              "",
+              "CI does not auto-judge. Pull the artifact and have an agent in a Claude Code session read `judge.bundle.md`, write `verdict.json`, run `bun scripts/bench-gate-judge.ts --validate`, then `bun scripts/bench-gate-compare.ts`. Commit the resulting `gate.md` summary back to this PR.",
+            ].join("\n");
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
