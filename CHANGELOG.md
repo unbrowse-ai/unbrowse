@@ -1,5 +1,15 @@
 # Changelog
 
+## [6.17.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.0...v6.17.0-preview.1) (2026-05-14)
+
+### Features
+
+* **flex:** dual-accept 402 (Flex + exact-via-PayAI) for Solana ([67c55dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/67c55dd0d68613775d755be874cb186b33e9b685))
+
+### Bug Fixes
+
+* **backend:** add @logtape/logtape as direct dep so wrangler resolves it ([8205100](https://github.com/unbrowse-ai/unbrowse-dev/commit/82051003f2839f68f26e99394b7a37dc2d231600))
+
 ## [6.17.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.16.0...v6.17.0-preview.0) (2026-05-14)
 
 ### Features
