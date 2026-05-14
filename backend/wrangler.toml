@@ -37,16 +37,20 @@ SPONSOR_GLOBAL_DAILY_USD = "50.0"
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
 # Secrets: wrangler secret put EMERGENTDB_API_KEY --env staging (etc.)
-# Uses isolated vector/KV namespaces (unbrowse-staging--, staging-skills, staging-stats)
+# Uses dedicated staging KV namespace ids (provisioned 2026-05-12). Until then
+# this block reused the prod STATS_KV id and silently routed staging analytics
+# writes into prod KV.
 [env.staging]
 name = "unbrowse-backend-staging"
 workers_dev = true
 routes = []
 
+# Dedicated staging STATS_KV — provisioned 2026-05-12 via
+# `wrangler kv namespace create STATS_KV --env staging` (+ --preview).
 [[env.staging.kv_namespaces]]
 binding = "STATS_KV"
-id = "1d315d7cda1742b785cf5d23c892c5d7"
-preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
+id = "195ca099811f4f6fbdae268d72ce2034"
+preview_id = "f4fe69f30a3c47008a627113a505f38b"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
