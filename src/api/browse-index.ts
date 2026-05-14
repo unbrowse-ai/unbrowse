@@ -163,8 +163,15 @@ export async function cacheBrowseRequests(params: {
   getPageHtml?: () => Promise<string>;
   jsBundles?: Map<string, string>;
   intent?: string;
+  /**
+   * Optional synthetic RawRequests that are NOT real captured network traffic
+   * (e.g. CDP Network.requestWillBeSent header snapshots). They participate
+   * ONLY in auth-header extraction — not endpoint extraction — so we capture
+   * Authorization / x-csrf-* / etc. without inventing fake endpoints.
+   */
+  extraAuthHeaderRequests?: RawRequest[];
 }): Promise<BrowseIndexResult> {
-  const { sessionUrl, sessionDomain, requests, getPageHtml, jsBundles } = params;
+  const { sessionUrl, sessionDomain, requests, getPageHtml, jsBundles, extraAuthHeaderRequests } = params;
   let domain: string;
   try { domain = new URL(sessionUrl).hostname; } catch { domain = sessionDomain; }
   const intent = params.intent ?? `browse ${domain}`;
@@ -173,8 +180,13 @@ export async function cacheBrowseRequests(params: {
 
   // Extract and persist auth headers (authorization, csrf, bearer tokens)
   // so serverFetch can replay them. Use registrable domain for vault key
-  // so ads.x.com and ads-api.x.com share the same session.
-  const capturedAuthHeaders = extractAuthHeaders(requests);
+  // so ads.x.com and ads-api.x.com share the same session. CDP-only synthetic
+  // requests participate here so headers from XHRs HAR/interceptor missed are
+  // still captured for replay.
+  const requestsForAuth = extraAuthHeaderRequests && extraAuthHeaderRequests.length > 0
+    ? [...requests, ...extraAuthHeaderRequests]
+    : requests;
+  const capturedAuthHeaders = extractAuthHeaders(requestsForAuth);
   // Filter out [REDACTED] placeholders from cookie-inferred auth headers
   for (const [k, v] of Object.entries(capturedAuthHeaders)) {
     if (v === "[REDACTED]") delete capturedAuthHeaders[k];
