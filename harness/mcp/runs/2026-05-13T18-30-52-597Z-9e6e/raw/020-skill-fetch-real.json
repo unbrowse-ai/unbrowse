@@ -1,0 +1,44 @@
+{
+  "probe": {
+    "id": "skill-fetch-real",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_skill",
+      "arguments": {
+        "id": "6oAQ8lT8922eAxKg3-Xe-"
+      }
+    },
+    "why": "fetch one skill manifest by the same id that resources-read-publish read successfully. Iter-26 found that unbrowse_validate returns 'Skill not found' for this id; this probe maps whether unbrowse_skill has the same backend-only scope or whether it sees the local artifact. Cross-surface scope map."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 20,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_skill",
+      "arguments": {
+        "id": "6oAQ8lT8922eAxKg3-Xe-"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 20,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Skill not found\n\n{\n  \"error\": \"Skill not found\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "error": "Skill not found"
+      },
+      "isError": true
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":20,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Skill not found\\n\\n{\\n  \\\"error\\\": \\\"Skill not found\\\"\\n}\"}],\"structuredContent\":{\"error\":\"Skill not found\"},\"isError\":true}}",
+  "parse_error": null,
+  "duration_ms": 247,
+  "timed_out": false
+}

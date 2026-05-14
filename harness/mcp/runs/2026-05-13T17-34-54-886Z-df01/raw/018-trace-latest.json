@@ -1,0 +1,59 @@
+{
+  "probe": {
+    "id": "trace-latest",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_trace",
+      "arguments": {}
+    },
+    "why": "unbrowse_trace with default trace_id=latest; exercises the trace-fetch surface that agents call to inspect decision-trace + scores after a resolve/execute. Never previously probed — likely surfaces shape drift or stale field names."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 18,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_trace",
+      "arguments": {}
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 18,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Execution trace with diagnostic context.\n\n{\n  \"trace_id\": \"5cfv2XZOT3X75_MqXGuUD\",\n  \"session_scope\": \"mcp-72054\",\n  \"goal\": \"top stories on hacker news\",\n  \"domain\": \"news.ycombinator.com\",\n  \"started_at\": \"2026-05-13T17:34:58.795Z\",\n  \"completed_at\": \"2026-05-13T17:35:00.333Z\",\n  \"latency_ms\": 1538,\n  \"endpoint_id\": \"\",\n  \"source\": \"live-capture\",\n  \"response_bytes\": 776,\n  \"response_hash\": \"38518c19f50c7036f48c0c8334570333\",\n  \"schema_match\": false,\n  \"candidates_considered\": 0,\n  \"bindings_before\": [\n    \"url\"\n  ],\n  \"bindings_resolved\": [],\n  \"bindings_missing\": [],\n  \"outcome\": \"failure\",\n  \"failure_reason\": \"unknown\",\n  \"trace_version\": \"5d9ebf619c61@f68a95539aeb\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "trace_id": "5cfv2XZOT3X75_MqXGuUD",
+        "session_scope": "mcp-72054",
+        "goal": "top stories on hacker news",
+        "domain": "news.ycombinator.com",
+        "started_at": "2026-05-13T17:34:58.795Z",
+        "completed_at": "2026-05-13T17:35:00.333Z",
+        "latency_ms": 1538,
+        "endpoint_id": "",
+        "source": "live-capture",
+        "response_bytes": 776,
+        "response_hash": "38518c19f50c7036f48c0c8334570333",
+        "schema_match": false,
+        "candidates_considered": 0,
+        "bindings_before": [
+          "url"
+        ],
+        "bindings_resolved": [],
+        "bindings_missing": [],
+        "outcome": "failure",
+        "failure_reason": "unknown",
+        "trace_version": "5d9ebf619c61@f68a95539aeb"
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":18,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Execution trace with diagnostic context.\\n\\n{\\n  \\\"trace_id\\\": \\\"5cfv2XZOT3X75_MqXGuUD\\\",\\n  \\\"session_scope\\\": \\\"mcp-72054\\\",\\n  \\\"goal\\\": \\\"top stories on hacker news\\\",\\n  \\\"domain\\\": \\\"news.ycombinator.com\\\",\\n  \\\"started_at\\\": \\\"2026-05-13T17:34:58.795Z\\\",\\n  \\\"completed_at\\\": \\\"2026-05-13T17:35:00.333Z\\\",\\n  \\\"latency_ms\\\": 1538,\\n  \\\"endpoint_id\\\": \\\"\\\",\\n  \\\"source\\\": \\\"live-capture\\\",\\n  \\\"response_bytes\\\": 776,\\n  \\\"response_hash\\\": \\\"38518c19f50c7036f48c0c8334570333\\\",\\n  \\\"schema_match\\\": false,\\n  \\\"candidates_considered\\\": 0,\\n  \\\"bindings_before\\\": [\\n    \\\"url\\\"\\n  ],\\n  \\\"bindings_resolved\\\": [],\\n  \\\"bindings_missing\\\": [],\\n  \\\"outcome\\\": \\\"failure\\\",\\n  \\\"failure_reason\\\": \\\"unknown\\\",\\n  \\\"trace_version\\\": \\\"5d9ebf619c61@f68a95539aeb\\\"\\n}\"}],\"structuredContent\":{\"trace_id\":\"5cfv2XZOT3X75_MqXGuUD\",\"session_scope\":\"mcp-72054\",\"goal\":\"top stories on hacker news\",\"domain\":\"news.ycombinator.com\",\"started_at\":\"2026-05-13T17:34:58.795Z\",\"completed_at\":\"2026-05-13T17:35:00.333Z\",\"latency_ms\":1538,\"endpoint_id\":\"\",\"source\":\"live-capture\",\"response_bytes\":776,\"response_hash\":\"38518c19f50c7036f48c0c8334570333\",\"schema_match\":false,\"candidates_considered\":0,\"bindings_before\":[\"url\"],\"bindings_resolved\":[],\"bindings_missing\":[],\"outcome\":\"failure\",\"failure_reason\":\"unknown\",\"trace_version\":\"5d9ebf619c61@f68a95539aeb\"}}}",
+  "parse_error": null,
+  "duration_ms": 2,
+  "timed_out": false
+}

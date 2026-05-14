@@ -1,0 +1,33 @@
+{
+  "probe": {
+    "id": "000",
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "mcp-harness",
+        "version": "1.0"
+      }
+    },
+    "why": "handshake"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 0,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "mcp-harness",
+        "version": "1.0"
+      }
+    }
+  },
+  "response": null,
+  "response_raw": "",
+  "parse_error": "stream_closed",
+  "duration_ms": 59,
+  "timed_out": false
+}

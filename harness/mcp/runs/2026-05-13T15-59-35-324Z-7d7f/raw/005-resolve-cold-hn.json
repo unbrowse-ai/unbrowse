@@ -1,0 +1,130 @@
+{
+  "probe": {
+    "id": "resolve-cold-hn",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_resolve",
+      "arguments": {
+        "intent": "top stories on hacker news",
+        "url": "https://news.ycombinator.com"
+      }
+    },
+    "why": "second cold-domain resolve; cross-check that the listSkills-fallback fix isn't carousell-specific",
+    "fix_tag": "listSkills-fallback"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_resolve",
+      "arguments": {
+        "intent": "top stories on hacker news",
+        "url": "https://news.ycombinator.com"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 5,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Resolve result.\n\n{\n  \"result\": {\n    \"status\": \"no_match\",\n    \"tried\": [\n      \"marketplace\",\n      \"probe\"\n    ],\n    \"ms\": 1092,\n    \"probe_evidence\": {\n      \"status\": 200,\n      \"content_type\": \"text/html; charset=utf-8\"\n    },\n    \"next_step\": {\n      \"command\": \"unbrowse capture --url \\\"https://news.ycombinator.com\\\" --intent \\\"top stories on hacker news\\\"\",\n      \"est_ms\": 8000,\n      \"creates_skill\": true\n    },\n    \"decision_trace\": {\n      \"intent\": \"top stories on hacker news\",\n      \"params\": {\n        \"url\": \"https://news.ycombinator.com\"\n      },\n      \"context\": {\n        \"url\": \"https://news.ycombinator.com\"\n      },\n      \"search_candidates\": [],\n      \"autoexec_attempts\": [],\n      \"budget_race\": {\n        \"budget_ms\": 8000,\n        \"total_ms\": 1092,\n        \"tried\": [\n          {\n            \"name\": \"marketplace\",\n            \"status\": \"lost\",\n            \"ms\": 992,\n            \"reason\": \"not_found\"\n          },\n          {\n            \"name\": \"probe\",\n            \"status\": \"won\",\n            \"ms\": 1092\n          }\n        ],\n        \"winner\": \"probe\"\n      }\n    }\n  },\n  \"trace\": {\n    \"trace_id\": \"WFR4bmTr86m95bjGuG3pi\",\n    \"skill_id\": \"\",\n    \"endpoint_id\": \"\",\n    \"started_at\": \"2026-05-13T15:59:40.745Z\",\n    \"completed_at\": \"2026-05-13T15:59:42.391Z\",\n    \"success\": false,\n    \"tokens_used\": 171,\n    \"tokens_saved\": 0,\n    \"tokens_saved_pct\": 0\n  },\n  \"source\": \"live-capture\",\n  \"timing\": {\n    \"search_ms\": 0,\n    \"get_skill_ms\": 0,\n    \"execute_ms\": 0,\n    \"total_ms\": 1646,\n    \"source\": \"live-capture\",\n    \"cache_hit\": false,\n    \"candidates_found\": 0,\n    \"candidates_tried\": 0,\n    \"tokens_saved\": 0,\n    \"response_bytes\": 681,\n    \"time_saved_pct\": 0,\n    \"tokens_saved_pct\": 0,\n    \"actual_total_ms\": 1646,\n    \"trace_version\": \"5d9ebf619c61@f68a95539aeb\",\n    \"actual_cost_uc\": 513\n  },\n  \"impact\": {\n    \"source\": \"live-capture\",\n    \"cache_hit\": false,\n    \"browser_avoided\": false,\n    \"actual_total_ms\": 1646,\n    \"time_saved_pct\": 0,\n    \"tokens_saved\": 0,\n    \"tokens_saved_pct\": 0,\n    \"actual_cost_uc\": 513\n  }\n}"
+        }
+      ],
+      "structuredContent": {
+        "result": {
+          "status": "no_match",
+          "tried": [
+            "marketplace",
+            "probe"
+          ],
+          "ms": 1092,
+          "probe_evidence": {
+            "status": 200,
+            "content_type": "text/html; charset=utf-8"
+          },
+          "next_step": {
+            "command": "unbrowse capture --url \"https://news.ycombinator.com\" --intent \"top stories on hacker news\"",
+            "est_ms": 8000,
+            "creates_skill": true
+          },
+          "decision_trace": {
+            "intent": "top stories on hacker news",
+            "params": {
+              "url": "https://news.ycombinator.com"
+            },
+            "context": {
+              "url": "https://news.ycombinator.com"
+            },
+            "search_candidates": [],
+            "autoexec_attempts": [],
+            "budget_race": {
+              "budget_ms": 8000,
+              "total_ms": 1092,
+              "tried": [
+                {
+                  "name": "marketplace",
+                  "status": "lost",
+                  "ms": 992,
+                  "reason": "not_found"
+                },
+                {
+                  "name": "probe",
+                  "status": "won",
+                  "ms": 1092
+                }
+              ],
+              "winner": "probe"
+            }
+          }
+        },
+        "trace": {
+          "trace_id": "WFR4bmTr86m95bjGuG3pi",
+          "skill_id": "",
+          "endpoint_id": "",
+          "started_at": "2026-05-13T15:59:40.745Z",
+          "completed_at": "2026-05-13T15:59:42.391Z",
+          "success": false,
+          "tokens_used": 171,
+          "tokens_saved": 0,
+          "tokens_saved_pct": 0
+        },
+        "source": "live-capture",
+        "timing": {
+          "search_ms": 0,
+          "get_skill_ms": 0,
+          "execute_ms": 0,
+          "total_ms": 1646,
+          "source": "live-capture",
+          "cache_hit": false,
+          "candidates_found": 0,
+          "candidates_tried": 0,
+          "tokens_saved": 0,
+          "response_bytes": 681,
+          "time_saved_pct": 0,
+          "tokens_saved_pct": 0,
+          "actual_total_ms": 1646,
+          "trace_version": "5d9ebf619c61@f68a95539aeb",
+          "actual_cost_uc": 513
+        },
+        "impact": {
+          "source": "live-capture",
+          "cache_hit": false,
+          "browser_avoided": false,
+          "actual_total_ms": 1646,
+          "time_saved_pct": 0,
+          "tokens_saved": 0,
+          "tokens_saved_pct": 0,
+          "actual_cost_uc": 513
+        }
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":5,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Resolve result.\\n\\n{\\n  \\\"result\\\": {\\n    \\\"status\\\": \\\"no_match\\\",\\n    \\\"tried\\\": [\\n      \\\"marketplace\\\",\\n      \\\"probe\\\"\\n    ],\\n    \\\"ms\\\": 1092,\\n    \\\"probe_evidence\\\": {\\n      \\\"status\\\": 200,\\n      \\\"content_type\\\": \\\"text/html; charset=utf-8\\\"\\n    },\\n    \\\"next_step\\\": {\\n      \\\"command\\\": \\\"unbrowse capture --url \\\\\\\"https://news.ycombinator.com\\\\\\\" --intent \\\\\\\"top stories on hacker news\\\\\\\"\\\",\\n      \\\"est_ms\\\": 8000,\\n      \\\"creates_skill\\\": true\\n    },\\n    \\\"decision_trace\\\": {\\n      \\\"intent\\\": \\\"top stories on hacker news\\\",\\n      \\\"params\\\": {\\n        \\\"url\\\": \\\"https://news.ycombinator.com\\\"\\n      },\\n      \\\"context\\\": {\\n        \\\"url\\\": \\\"https://news.ycombinator.com\\\"\\n      },\\n      \\\"search_candidates\\\": [],\\n      \\\"autoexec_attempts\\\": [],\\n      \\\"budget_race\\\": {\\n        \\\"budget_ms\\\": 8000,\\n        \\\"total_ms\\\": 1092,\\n        \\\"tried\\\": [\\n          {\\n            \\\"name\\\": \\\"marketplace\\\",\\n            \\\"status\\\": \\\"lost\\\",\\n            \\\"ms\\\": 992,\\n            \\\"reason\\\": \\\"not_found\\\"\\n          },\\n          {\\n            \\\"name\\\": \\\"probe\\\",\\n            \\\"status\\\": \\\"won\\\",\\n            \\\"ms\\\": 1092\\n          }\\n        ],\\n        \\\"winner\\\": \\\"probe\\\"\\n      }\\n    }\\n  },\\n  \\\"trace\\\": {\\n    \\\"trace_id\\\": \\\"WFR4bmTr86m95bjGuG3pi\\\",\\n    \\\"skill_id\\\": \\\"\\\",\\n    \\\"endpoint_id\\\": \\\"\\\",\\n    \\\"started_at\\\": \\\"2026-05-13T15:59:40.745Z\\\",\\n    \\\"completed_at\\\": \\\"2026-05-13T15:59:42.391Z\\\",\\n    \\\"success\\\": false,\\n    \\\"tokens_used\\\": 171,\\n    \\\"tokens_saved\\\": 0,\\n    \\\"tokens_saved_pct\\\": 0\\n  },\\n  \\\"source\\\": \\\"live-capture\\\",\\n  \\\"timing\\\": {\\n    \\\"search_ms\\\": 0,\\n    \\\"get_skill_ms\\\": 0,\\n    \\\"execute_ms\\\": 0,\\n    \\\"total_ms\\\": 1646,\\n    \\\"source\\\": \\\"live-capture\\\",\\n    \\\"cache_hit\\\": false,\\n    \\\"candidates_found\\\": 0,\\n    \\\"candidates_tried\\\": 0,\\n    \\\"tokens_saved\\\": 0,\\n    \\\"response_bytes\\\": 681,\\n    \\\"time_saved_pct\\\": 0,\\n    \\\"tokens_saved_pct\\\": 0,\\n    \\\"actual_total_ms\\\": 1646,\\n    \\\"trace_version\\\": \\\"5d9ebf619c61@f68a95539aeb\\\",\\n    \\\"actual_cost_uc\\\": 513\\n  },\\n  \\\"impact\\\": {\\n    \\\"source\\\": \\\"live-capture\\\",\\n    \\\"cache_hit\\\": false,\\n    \\\"browser_avoided\\\": false,\\n    \\\"actual_total_ms\\\": 1646,\\n    \\\"time_saved_pct\\\": 0,\\n    \\\"tokens_saved\\\": 0,\\n    \\\"tokens_saved_pct\\\": 0,\\n    \\\"actual_cost_uc\\\": 513\\n  }\\n}\"}],\"structuredContent\":{\"result\":{\"status\":\"no_match\",\"tried\":[\"marketplace\",\"probe\"],\"ms\":1092,\"probe_evidence\":{\"status\":200,\"content_type\":\"text/html; charset=utf-8\"},\"next_step\":{\"command\":\"unbrowse capture --url \\\"https://news.ycombinator.com\\\" --intent \\\"top stories on hacker news\\\"\",\"est_ms\":8000,\"creates_skill\":true},\"decision_trace\":{\"intent\":\"top stories on hacker news\",\"params\":{\"url\":\"https://news.ycombinator.com\"},\"context\":{\"url\":\"https://news.ycombinator.com\"},\"search_candidates\":[],\"autoexec_attempts\":[],\"budget_race\":{\"budget_ms\":8000,\"total_ms\":1092,\"tried\":[{\"name\":\"marketplace\",\"status\":\"lost\",\"ms\":992,\"reason\":\"not_found\"},{\"name\":\"probe\",\"status\":\"won\",\"ms\":1092}],\"winner\":\"probe\"}}},\"trace\":{\"trace_id\":\"WFR4bmTr86m95bjGuG3pi\",\"skill_id\":\"\",\"endpoint_id\":\"\",\"started_at\":\"2026-05-13T15:59:40.745Z\",\"completed_at\":\"2026-05-13T15:59:42.391Z\",\"success\":false,\"tokens_used\":171,\"tokens_saved\":0,\"tokens_saved_pct\":0},\"source\":\"live-capture\",\"timing\":{\"search_ms\":0,\"get_skill_ms\":0,\"execute_ms\":0,\"total_ms\":1646,\"source\":\"live-capture\",\"cache_hit\":false,\"candidates_found\":0,\"candidates_tried\":0,\"tokens_saved\":0,\"response_bytes\":681,\"time_saved_pct\":0,\"tokens_saved_pct\":0,\"actual_total_ms\":1646,\"trace_version\":\"5d9ebf619c61@f68a95539aeb\",\"actual_cost_uc\":513},\"impact\":{\"source\":\"live-capture\",\"cache_hit\":false,\"browser_avoided\":false,\"actual_total_ms\":1646,\"time_saved_pct\":0,\"tokens_saved\":0,\"tokens_saved_pct\":0,\"actual_cost_uc\":513}}}}",
+  "parse_error": null,
+  "duration_ms": 1923,
+  "timed_out": false
+}
