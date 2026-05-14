@@ -1,0 +1,48 @@
+{
+  "probe": {
+    "id": "feedback-bogus",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_feedback",
+      "arguments": {
+        "skill": "bogus-skill-12345",
+        "endpoint": "bogus-endpoint",
+        "rating": 3
+      }
+    },
+    "why": "MANDATORY post-execute feedback call. Use bogus ids to test the error path: backend should 404, handler should surface clean error. Validates the feedback write-path doesn't crash on missing skill."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 23,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_feedback",
+      "arguments": {
+        "skill": "bogus-skill-12345",
+        "endpoint": "bogus-endpoint",
+        "rating": 3
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 23,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Feedback submitted.\n\n{\n  \"ok\": true,\n  \"avg_rating\": 3\n}"
+        }
+      ],
+      "structuredContent": {
+        "ok": true,
+        "avg_rating": 3
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":23,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Feedback submitted.\\n\\n{\\n  \\\"ok\\\": true,\\n  \\\"avg_rating\\\": 3\\n}\"}],\"structuredContent\":{\"ok\":true,\"avg_rating\":3}}}",
+  "parse_error": null,
+  "duration_ms": 969,
+  "timed_out": false
+}

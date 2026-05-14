@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from "fs";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
-import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests } from "../capture/index.js";
+import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, enableNetworkHeaderCapture, getCapturedNetworkHeadersAsRequests, type RawRequest } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -17,8 +17,10 @@ import { getRegistrableDomain } from "../domain.js";
 import { generateLocalDescription, writeSkillSnapshot, readSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
-import { getContributionConfig, setContributionConfig } from "../config/contribution.js";
+import { getContributionConfig, setContributionConfig, type ContributionConfig } from "../config/contribution.js";
 import { getSkill } from "../marketplace/index.js";
+import { getPopularUnreviewedSkills, getMyContributions, computeMilestoneState } from "../marketplace/popular-unreviewed.js";
+import { getRecentTraces } from "../graph/trace-store.js";
 import { executeSkill } from "../execution/index.js";
 import { rankEndpoints } from "../ranking/index.js";
 import {
@@ -28,7 +30,7 @@ import {
   loadAuthProfileBestEffort,
   saveAuthProfileBestEffort,
 } from "../auth/index.js";
-import { consumeDashboardPairingToken, recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
+import { consumeDashboardPairingToken, recordFeedback, recordDiagnostics, recordExecution, getApiKey, getAgentId, getRecentLocalSkill, recordAnalyticsSession, listSkills, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
 import { attachAgentOutcomeHints } from "../agent-outcome.js";
@@ -591,14 +593,197 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.get("/v1/settings", async (_req, reply) => {
     const contributionCfg = getContributionConfig();
+
+    // Best-effort upstream fetch of the per-agent sponsor status. The local
+    // settings endpoint must stay responsive even when the backend is down,
+    // so failures fall through to a degraded-but-honest shape (enabled=false,
+    // zero spend, zero remaining) instead of bubbling a 502 to the MCP caller.
+    // The agent's API key is forwarded so the backend can scope the bucket to
+    // this caller — there is no cross-agent leakage path.
+    let sponsorStatus: {
+      enabled: boolean;
+      cap_daily_usd: number;
+      spent_today_usd: number;
+      remaining_today_usd: number;
+      global_cap_daily_usd: number;
+      global_spent_today_usd: number;
+    } = {
+      enabled: false,
+      cap_daily_usd: 0,
+      spent_today_usd: 0,
+      remaining_today_usd: 0,
+      global_cap_daily_usd: 0,
+      global_spent_today_usd: 0,
+    };
+    try {
+      const apiKey = getApiKey();
+      if (apiKey) {
+        const res = await fetch(`${BETA_API_URL}/v1/account/sponsor-status`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (res.ok) {
+          const parsed = await res.json() as Partial<typeof sponsorStatus>;
+          sponsorStatus = {
+            enabled: !!parsed.enabled,
+            cap_daily_usd: Number(parsed.cap_daily_usd ?? 0),
+            spent_today_usd: Number(parsed.spent_today_usd ?? 0),
+            remaining_today_usd: Number(parsed.remaining_today_usd ?? 0),
+            global_cap_daily_usd: Number(parsed.global_cap_daily_usd ?? 0),
+            global_spent_today_usd: Number(parsed.global_spent_today_usd ?? 0),
+          };
+        }
+      }
+    } catch {
+      // Degraded mode — see comment above; we return the zeroed shape.
+    }
+
+    // Best-effort earnings summary, parallel to sponsor status. Same
+    // degraded-shape pattern: backend down → zeros, not 502. Kept compact
+    // (totals + milestones only) so the GET response stays small; the
+    // dedicated `/v1/account/earnings` route returns the full breakdown.
+    let earningsSummary: {
+      total_earned_usd: number;
+      creator_earned_usd: number;
+      indexer_credited_usd: number;
+      transaction_count: number;
+      next_milestone_usd: number | null;
+      progress_to_next_pct: number;
+    } = {
+      total_earned_usd: 0,
+      creator_earned_usd: 0,
+      indexer_credited_usd: 0,
+      transaction_count: 0,
+      next_milestone_usd: 1,
+      progress_to_next_pct: 0,
+    };
+    try {
+      const apiKey = getApiKey();
+      const agentId = getAgentId();
+      if (apiKey && agentId) {
+        const headers = { Authorization: `Bearer ${apiKey}` };
+        const [creatorRes, indexerRes] = await Promise.all([
+          fetch(`${BETA_API_URL}/v1/transactions/creator/${encodeURIComponent(agentId)}`, { headers }).catch(() => null),
+          fetch(`${BETA_API_URL}/v1/attribution/indexer/${encodeURIComponent(agentId)}`, { headers }).catch(() => null),
+        ]);
+        const creatorJson = creatorRes?.ok ? await creatorRes.json().catch(() => null) as Record<string, unknown> | null : null;
+        const indexerJson = indexerRes?.ok ? await indexerRes.json().catch(() => null) as Record<string, unknown> | null : null;
+        const creatorLedger = (creatorJson?.ledger && typeof creatorJson.ledger === "object") ? creatorJson.ledger as Record<string, unknown> : null;
+        const creatorEarned = Number(creatorLedger?.total_earned_usd ?? 0);
+        const indexerCredited = Number(indexerJson?.total_credited_usd ?? 0);
+        const total = creatorEarned + indexerCredited;
+        const milestoneRungs = [1, 10, 100, 1000];
+        const nextMilestone = milestoneRungs.find((m) => total < m) ?? null;
+        earningsSummary = {
+          total_earned_usd: Number(total.toFixed(6)),
+          creator_earned_usd: creatorEarned,
+          indexer_credited_usd: indexerCredited,
+          transaction_count: Number(creatorLedger?.transaction_count ?? 0),
+          next_milestone_usd: nextMilestone,
+          progress_to_next_pct: nextMilestone ? Math.min(100, Math.round((total / nextMilestone) * 100)) : 100,
+        };
+      }
+    } catch {
+      // Degraded shape — earningsSummary already initialized to zeros.
+    }
+
     return reply.send({
       capture_pipeline: getCapturePipelineSettings(),
       contribution: {
         share_pointers: contributionCfg.contribution.share_pointers,
+        auto_review: contributionCfg.contribution.auto_review,
         set_via: contributionCfg.contribution.set_via,
         ...(contributionCfg.contribution.set_at ? { set_at: contributionCfg.contribution.set_at } : {}),
       },
       marketplace_visibility: contributionCfg.contribution.share_pointers ? "public" : "private",
+      sponsor_status: sponsorStatus,
+      earnings_summary: earningsSummary,
+    });
+  });
+
+
+  // GET /v1/account/earnings — aggregate user-side earnings (creator payouts +
+  // indexer attribution). Proxies upstream ledgers so the agent has a single
+  // surface. When `verbose=true`, also lists per-skill contributions with
+  // execution counts so the agent can see WHICH skills are paying.
+  app.get("/v1/account/earnings", async (req, reply) => {
+    const q = req.query as { verbose?: string | boolean };
+    const verbose = q.verbose === true || q.verbose === "true" || q.verbose === "1";
+    const apiKey = getApiKey();
+    const agentId = getAgentId();
+
+    if (!agentId) {
+      return reply.send({
+        ok: false,
+        registered: false,
+        total_earned_usd: 0,
+        next_step: "Not paired yet. Run `unbrowse setup` to register an agent. Earnings start accruing once you publish a skill that other agents execute.",
+      });
+    }
+
+    const fetchJson = async (path: string): Promise<unknown | null> => {
+      try {
+        const headers: Record<string, string> = {};
+        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+        const res = await fetch(`${BETA_API_URL}${path}`, { headers });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    };
+
+    const [creatorRaw, indexerRaw] = await Promise.all([
+      fetchJson(`/v1/transactions/creator/${encodeURIComponent(agentId)}`),
+      fetchJson(`/v1/attribution/indexer/${encodeURIComponent(agentId)}`),
+    ]);
+
+    const creator = (creatorRaw && typeof creatorRaw === "object") ? (creatorRaw as Record<string, unknown>) : null;
+    const indexer = (indexerRaw && typeof indexerRaw === "object") ? (indexerRaw as Record<string, unknown>) : null;
+    const creatorLedger = (creator?.ledger && typeof creator.ledger === "object") ? (creator.ledger as Record<string, unknown>) : null;
+    const recentTxs = Array.isArray(creator?.transactions) ? (creator.transactions as unknown[]).slice(0, 10) : [];
+
+    const creatorEarnedUsd = Number(creatorLedger?.total_earned_usd ?? 0);
+    const indexerEarnedUsd = Number(indexer?.total_credited_usd ?? 0);
+    const totalEarnedUsd = creatorEarnedUsd + indexerEarnedUsd;
+
+    const milestones = computeMilestoneState(totalEarnedUsd);
+
+    // Per-skill breakdown (verbose only). Joins local manifests with the
+    // trace store to surface WHICH captures are being executed.
+    const contributions = verbose ? await getMyContributions(agentId) : [];
+
+    let next_step: string;
+    if (totalEarnedUsd === 0) {
+      next_step = "No earnings yet. Publish skills (auto_review=true makes captures publish on close) and earn x402 rewards when other agents execute them. Run `unbrowse setup` to pair a wallet so rewards land somewhere claimable.";
+    } else if (milestones.next_usd) {
+      next_step = `$${totalEarnedUsd.toFixed(2)} earned across ${contributions.length || creatorLedger?.transaction_count || 0} contribution(s). ${milestones.progress_to_next_pct}% to the next $${milestones.next_usd} milestone. Pair a wallet via \`unbrowse setup\` if you have not already.`;
+    } else {
+      next_step = `$${totalEarnedUsd.toFixed(2)} earned. You have passed every standard milestone — pair a wallet via \`unbrowse setup\` to claim.`;
+    }
+
+    return reply.send({
+      ok: true,
+      registered: true,
+      agent_id: agentId,
+      total_earned_usd: Number(totalEarnedUsd.toFixed(6)),
+      creator: creatorLedger ? {
+        total_earned_usd: Number(creatorLedger.total_earned_usd ?? 0),
+        transaction_count: Number(creatorLedger.transaction_count ?? 0),
+        first_transaction_at: creatorLedger.first_transaction_at ?? null,
+        last_transaction_at: creatorLedger.last_transaction_at ?? null,
+      } : null,
+      indexer: indexer ? {
+        total_credited_usd: Number(indexer.total_credited_usd ?? 0),
+        execution_count: Number(indexer.execution_count ?? 0),
+        avg_delta: Number(indexer.avg_delta ?? 0),
+        cumulative_delta: Number(indexer.cumulative_delta ?? 0),
+        first_attributed_at: indexer.first_attributed_at ?? null,
+        last_attributed_at: indexer.last_attributed_at ?? null,
+      } : null,
+      recent_transactions: recentTxs,
+      ...(verbose ? { contributions } : { contributions_summary: { count: contributions.length } }),
+      milestones,
+      next_step,
     });
   });
 
@@ -635,6 +820,7 @@ export async function registerRoutes(app: FastifyInstance) {
       clear_publish_domain_blacklist?: boolean;
       clear_publish_domain_promptlist?: boolean;
       share_pointers?: boolean;
+      auto_review?: boolean;
     };
 
     const settings = updateCapturePipelineSettings({
@@ -651,22 +837,32 @@ export async function registerRoutes(app: FastifyInstance) {
       clear_publish_domain_promptlist: body.clear_publish_domain_promptlist === true,
     });
 
+    const contributionUpdate: { contribution: Partial<ContributionConfig["contribution"]> } = { contribution: {} };
     if (typeof body.share_pointers === "boolean") {
-      setContributionConfig({
-        contribution: { share_pointers: body.share_pointers, set_via: "mode-command" },
-      });
+      contributionUpdate.contribution.share_pointers = body.share_pointers;
+      contributionUpdate.contribution.set_via = "mode-command";
+    }
+    if (typeof body.auto_review === "boolean") {
+      contributionUpdate.contribution.auto_review = body.auto_review;
+      contributionUpdate.contribution.set_via = "mode-command";
+    }
+    if (Object.keys(contributionUpdate.contribution).length > 0) {
+      setContributionConfig(contributionUpdate);
     }
 
     const contributionCfg = getContributionConfig();
     const sharePointers = contributionCfg.contribution.share_pointers;
+    const autoReview = contributionCfg.contribution.auto_review;
 
     let next_step: string;
     if (!sharePointers) {
       next_step = "share_pointers=false (private). Captures stay local; nothing publishes to the public marketplace and no x402 rewards accrue. Flip back with share_pointers=true.";
     } else if (!settings.auto_publish_checkpoints) {
       next_step = "share_pointers=true but auto_publish_checkpoints=false: reviewed skills will not auto-publish on close/sync. Use unbrowse_publish explicitly, or re-enable auto_publish.";
+    } else if (autoReview) {
+      next_step = "share_pointers=true + auto_review=true (you are fully opted in). Every capture auto-stamps reviewed_at on close/sync and publishes publicly with heuristic + LLM-augmented descriptions. Flip auto_review=false to require explicit unbrowse_review before publish.";
     } else {
-      next_step = "share_pointers=true (you are opted in by default). Reviewed skills publish publicly to the marketplace and earn x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Unreviewed captures stay local. Domain blacklist/promptlist still gates per-domain.";
+      next_step = "share_pointers=true, auto_review=false: only skills the agent reviews via unbrowse_review publish to the marketplace. Unreviewed captures stay local. Set auto_review=true to skip the review step.";
     }
 
     return reply.send({
@@ -674,6 +870,7 @@ export async function registerRoutes(app: FastifyInstance) {
       capture_pipeline: settings,
       contribution: {
         share_pointers: sharePointers,
+        auto_review: autoReview,
         set_via: contributionCfg.contribution.set_via,
         ...(contributionCfg.contribution.set_at ? { set_at: contributionCfg.contribution.set_at } : {}),
       },
@@ -1186,6 +1383,108 @@ export async function registerRoutes(app: FastifyInstance) {
       publish_status: publishStatus,
       ...(publishMessage ? { publish_message: publishMessage } : {}),
       endpoint_count: indexed.skill.endpoints.length,
+    });
+  });
+
+
+  // GET /v1/skills/publish-suggestions — local skills that are unreviewed
+  // but have proven local usage. Substrate surfaces what exists; the agent
+  // decides whether to apply. Filters can be tuned via query params.
+  app.get("/v1/skills/publish-suggestions", async (req, reply) => {
+    const q = req.query as {
+      min_executions?: string | number;
+      min_success_rate?: string | number;
+      limit?: string | number;
+    };
+    const opts: Parameters<typeof getPopularUnreviewedSkills>[0] = {};
+    if (q.min_executions !== undefined) opts.min_executions = Number(q.min_executions);
+    if (q.min_success_rate !== undefined) opts.min_success_rate = Number(q.min_success_rate);
+    if (q.limit !== undefined) opts.limit = Number(q.limit);
+
+    const suggestions = await getPopularUnreviewedSkills(opts);
+    const { contribution } = getContributionConfig();
+    return reply.send({
+      ok: true,
+      count: suggestions.length,
+      suggestions,
+      auto_review_enabled: contribution.auto_review,
+      share_pointers: contribution.share_pointers,
+      next_step: suggestions.length === 0
+        ? "No popular unreviewed skills found locally."
+        : `Found ${suggestions.length} popular skill(s) used locally but never published. POST /v1/skills/publish-suggestions/apply with skill_ids[] to stamp reviewed_at and publish, or set auto_review=true for future captures.`,
+    });
+  });
+
+  // POST /v1/skills/publish-suggestions/apply — accept the suggestion: stamp
+  // reviewed_at on each named skill, re-index, and publish. Equivalent to
+  // calling /review with no endpoint edits — heuristic + LLM-augmented
+  // descriptions are accepted as-is.
+  app.post("/v1/skills/publish-suggestions/apply", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const body = (req.body ?? {}) as { skill_ids?: string[] };
+    if (!Array.isArray(body.skill_ids) || body.skill_ids.length === 0) {
+      return reply.code(400).send({ error: "skill_ids[] required" });
+    }
+
+    const { contribution } = getContributionConfig();
+    const results: Array<{
+      skill_id: string;
+      ok: boolean;
+      publish_status?: string;
+      publish_message?: string;
+      error?: string;
+    }> = [];
+
+    for (const skill_id of body.skill_ids) {
+      try {
+        const skill = await loadSkillForMutation(skill_id, clientScope);
+        if (!skill) {
+          results.push({ skill_id, ok: false, error: "not_found" });
+          continue;
+        }
+        const reviewedAt = new Date().toISOString();
+        skill.reviewed_at = reviewedAt;
+        skill.updated_at = reviewedAt;
+
+        const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
+        const checkpointDecision = decideCheckpointPublish(indexed.domain);
+
+        if (!contribution.share_pointers) {
+          results.push({
+            skill_id,
+            ok: false,
+            publish_status: "awaiting_share_optin",
+            publish_message: "share_pointers=false — flip via unbrowse_settings share_pointers=true to publish.",
+          });
+          continue;
+        }
+        if (!checkpointDecision.publishQueued) {
+          results.push({
+            skill_id,
+            ok: false,
+            publish_status: "blocked_by_domain_rule",
+            publish_message: checkpointDecision.reason,
+          });
+          continue;
+        }
+
+        const publishResult = await publishIndexedSkill(indexed);
+        results.push({
+          skill_id,
+          ok: publishResult.publishStatus === "published",
+          publish_status: publishResult.publishStatus,
+        });
+      } catch (err) {
+        results.push({ skill_id, ok: false, error: (err as Error).message });
+      }
+    }
+
+    const published = results.filter((r) => r.publish_status === "published").length;
+    return reply.send({
+      ok: true,
+      total: results.length,
+      published,
+      results,
     });
   });
 
@@ -2041,6 +2340,11 @@ export async function registerRoutes(app: FastifyInstance) {
       try { await broker.health(); ready = true; } catch {}
     }
     await broker.networkEnable(session.tabId).catch(() => {});
+    // Hook the CDP Network.requestWillBeSent stream so request headers (Authorization,
+    // x-csrf-*, etc.) from XHRs the JS interceptor or HAR miss are captured for replay.
+    // Generic — no per-domain logic. Headers are persisted as a domain-session credential
+    // at close time so executeEndpoint can replay them.
+    await enableNetworkHeaderCapture(session.tabId).catch(() => {});
     await broker.harStart(session.tabId).catch(() => {});
     // Register interceptor as init script so it runs before page JS on every navigation
     // This catches SSR hydration API calls (Reddit GraphQL, etc.) that fire before evaluate()
@@ -2101,6 +2405,7 @@ export async function registerRoutes(app: FastifyInstance) {
       getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
       jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
       intent: `browse ${session.domain || profileName(session.url)}`,
+      extraAuthHeaderRequests: getCapturedNetworkHeadersAsRequests(session.tabId),
     });
 
     // Write domain skill cache so the orchestrator's domain-cache check finds it
@@ -2267,6 +2572,10 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       }
     } catch { /* best-effort */ }
+    // Drain CDP Network.requestWillBeSent header snapshots into synthetic RawRequests
+    // for auth-header extraction only. These capture Authorization / x-csrf-* / etc. from
+    // XHRs the JS interceptor and HAR missed. Generic — works for any domain.
+    const cdpExtraAuthRequests = getCapturedNetworkHeadersAsRequests(session.tabId);
     const syncResult = await cacheBrowseRequests({
       sessionUrl: session.url,
       sessionDomain: session.domain,
@@ -2274,6 +2583,7 @@ export async function registerRoutes(app: FastifyInstance) {
       getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
       jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
       intent: `browse ${session.domain || profileName(session.url)}`,
+      extraAuthHeaderRequests: cdpExtraAuthRequests,
     });
 
     // Persist domain-skill-cache SYNCHRONOUSLY so resolve can find this skill

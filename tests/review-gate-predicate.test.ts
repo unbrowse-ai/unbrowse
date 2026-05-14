@@ -48,4 +48,41 @@ describe("shouldPublishAfterIndex — review-gate + opt-out", () => {
     expect(decision.publish).toBe(false);
     expect(decision.gate).toBe("awaiting_review");
   });
+
+  it("auto_review=true bypasses the review gate (publish allowed without reviewed_at)", () => {
+    const decision = shouldPublishAfterIndex(
+      { skill_id: "skill-auto" },
+      { share_pointers: true, auto_review: true },
+    );
+    expect(decision.publish).toBe(true);
+    expect(decision.gate).toBe("auto_review");
+    expect(decision.reason).toContain("auto_review=true");
+  });
+
+  it("auto_review=true does NOT override share_pointers=false (private wins)", () => {
+    const decision = shouldPublishAfterIndex(
+      { skill_id: "skill-auto-private" },
+      { share_pointers: false, auto_review: true },
+    );
+    expect(decision.publish).toBe(false);
+    expect(decision.gate).toBe("share_pointers_off");
+  });
+
+  it("auto_review=false matches legacy behavior (review gate still closed)", () => {
+    const decision = shouldPublishAfterIndex(
+      { skill_id: "skill-legacy" },
+      { share_pointers: true, auto_review: false },
+    );
+    expect(decision.publish).toBe(false);
+    expect(decision.gate).toBe("awaiting_review");
+  });
+
+  it("reviewed_at takes precedence over auto_review (legitimate review path still emits gate=ok)", () => {
+    const decision = shouldPublishAfterIndex(
+      { skill_id: "skill-reviewed", reviewed_at: "2026-05-14T00:00:00Z" },
+      { share_pointers: true, auto_review: true },
+    );
+    expect(decision.publish).toBe(true);
+    expect(decision.gate).toBe("ok");
+  });
 });

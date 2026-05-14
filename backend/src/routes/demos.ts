@@ -9,13 +9,12 @@ import {
   type DemoRequest,
   type DemoJob,
 } from "../services/demo-pipeline.js";
+import { paymentsEnabled } from "../middleware/x402-gate.js";
 import {
-  x402Response,
-  verifyX402Proof,
-  buildSkillPaymentTerms,
-  paymentsEnabled,
-  x402UseTestnet,
-} from "../middleware/x402-gate.js";
+  respondWithFlexTerms,
+  sponsorAcceptsForPriceUsd,
+  handleFlexPaymentAuthorized,
+} from "../services/flex-route-helpers.js";
 import { recordTransaction } from "../services/transactions.js";
 
 type DemoEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
@@ -95,47 +94,120 @@ demoRoutes.post("/demos/generate", async (c) => {
     }
 
     if (!admittedViaSub) {
-    const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
+    const flexPaymentHeader = c.req.header("X-PAYMENT");
+    const legacyPaymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const legacyProofHeader = c.req.header("X-Payment-Proof");
+    let sponsoredAdmit = false;
 
-    if (!paymentHeader && !legacyProofHeader) {
-      // No proof provided — return 402 with payment terms
-      const recipient = c.env.PAYMENT_RECIPIENT ?? "";
-      const terms = await buildSkillPaymentTerms(
+    // Synthetic skill descriptor for the Flex envelope. Demos aren't backed
+    // by a SkillManifest; the platform itself is the sole contributor so the
+    // split arithmetic collapses to platform 1000 + platform-wallet 9000.
+    const demoSkillId = `demo-video-${tier}`;
+    const demoRecipient = c.env.PAYMENT_RECIPIENT ?? "";
+    const demoSkill = {
+      skill_id: demoSkillId,
+      contributors: demoRecipient
+        ? [{
+          agent_id: "platform",
+          wallet_address: demoRecipient,
+          cumulative_delta: 1,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any]
+        : [],
+    };
+
+    if (!flexPaymentHeader && !legacyPaymentHeader && !legacyProofHeader) {
+      // P0.3 soft-block: existing v6.15-era agents without complete Flex
+      // onboarding get a 402 + X-Flex-Onboarding-Required BEFORE any sponsor
+      // or payment terms get processed.
+      if (agentId && agentId !== "__admin__") {
+        const { checkFlexOnboardingOrBlock } = await import("../middleware/flex-onboarding-soft-block.js");
+        const blockResp = await checkFlexOnboardingOrBlock(c);
+        if (blockResp) return blockResp;
+      }
+
+      // Sponsor decision (only for authenticated, non-admin agents).
+      if (agentId && agentId !== "__admin__") {
+        const { maybeSponsor } = await import("../middleware/sponsor.js");
+        const sponsorAccepts = sponsorAcceptsForPriceUsd(priceUsd, demoRecipient);
+        const decision = await maybeSponsor(c, sponsorAccepts, agentId);
+        if (decision.kind === "sponsored") {
+          c.header("X-Sponsored", decision.ledger_id);
+          c.header("X-Sponsor-Tx", decision.tx_hash);
+          c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
+          sponsoredAdmit = true;
+        } else if (decision.kind === "exhausted") {
+          c.header("X-Sponsor-Exhausted", "1");
+          c.header("X-Sponsor-Reason", decision.reason);
+          c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
+          return await respondWithFlexTerms(c, {
+            skill: demoSkill,
+            priceUsd,
+            resource: c.req.url,
+            agentId,
+            descriptionOverride: `Demo video generation (${tier} tier)`,
+          });
+        } else {
+          c.header("X-Sponsor-Reason", "opted_out");
+          return await respondWithFlexTerms(c, {
+            skill: demoSkill,
+            priceUsd,
+            resource: c.req.url,
+            agentId,
+            descriptionOverride: `Demo video generation (${tier} tier)`,
+          });
+        }
+      } else {
+        return await respondWithFlexTerms(c, {
+          skill: demoSkill,
+          priceUsd,
+          resource: c.req.url,
+          agentId,
+          descriptionOverride: `Demo video generation (${tier} tier)`,
+        });
+      }
+    }
+
+    if (!sponsoredAdmit) {
+    if (flexPaymentHeader) {
+      // Flex authorization — verify via the Flex facilitator and let the
+      // route's job-create code run inside executeFn.
+      // The job-create code runs OUTSIDE this block (after the auth gate),
+      // so we just verify here and fall through. To keep the helper's
+      // executeFn contract we wrap with a noop executor and rely on the
+      // outer flow to continue serving the job-create response.
+      const verifyResp = await handleFlexPaymentAuthorized(c, flexPaymentHeader, {
+        executeFn: async () => new Response(null, { status: 204 }),
+      });
+      // 204 marker means verify+settle succeeded. Any other status means
+      // we should propagate the helper's response (402 / 503) directly.
+      if (verifyResp.status !== 204) return verifyResp;
+      // Copy the PAYMENT-RESPONSE header if settle returned one.
+      const settleHeader = verifyResp.headers.get("PAYMENT-RESPONSE");
+      if (settleHeader) c.header("PAYMENT-RESPONSE", settleHeader);
+
+      // Record to ledger (non-blocking) and fall through to job creation.
+      schedule(c, recordTransaction(c.env, {
+        transaction_id: `flex-${Date.now()}-demo-${tier}`,
+        consumer_id: agentId ?? "anonymous",
+        creator_id: c.env.PAYMENT_RECIPIENT,
+        skill_id: demoSkillId,
+        price_usd: priceUsd,
+        payment_proof: flexPaymentHeader,
+      }).catch((err) => console.warn(`[flex] demo ledger write failed: ${(err as Error).message}`)));
+    } else {
+      // Caller sent only a legacy PAYMENT-SIGNATURE / X-Payment-Proof header.
+      // v6.16 Phase 5 removed Corbits verify+settle entirely; emit a fresh
+      // Flex 402 so the client re-pays under the new scheme.
+      return await respondWithFlexTerms(c, {
+        skill: demoSkill,
         priceUsd,
-        `demo-video-${tier}`,
-        recipient,
-        c.req.url,
-        { testnet: x402UseTestnet(c.env) },
-      );
-      // Override the description to be demo-specific
-      terms.resource.description = `Demo video generation (${tier} tier)`;
-      return x402Response(c, terms);
+        resource: c.req.url,
+        agentId,
+        descriptionOverride: `Demo video generation (${tier} tier)`,
+      });
     }
-
-    // Proof provided — verify via Corbits facilitator
-    const proof = paymentHeader ?? legacyProofHeader!;
-    const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
-    if (!valid) {
-      return c.json({ error: "Payment proof invalid or rejected" }, 403);
     }
-    if (degraded) {
-      console.warn(`[x402] facilitator down — allowed degraded access for demo ${tier}`);
-    }
-    if (settlementHeader) {
-      c.header("PAYMENT-RESPONSE", settlementHeader);
-    }
-
-    // Record to ledger (non-blocking)
-    const txId = transaction ?? `x402-${Date.now()}-demo-${tier}`;
-    schedule(c, recordTransaction(c.env, {
-      transaction_id: txId,
-      consumer_id: agentId ?? "anonymous",
-      creator_id: c.env.PAYMENT_RECIPIENT,
-      skill_id: `demo-video-${tier}`,
-      price_usd: priceUsd,
-      payment_proof: proof,
-    }).catch((err) => console.warn(`[x402] ledger write failed: ${(err as Error).message}`)));
     }
   }
 

@@ -1,0 +1,49 @@
+{
+  "probe": {
+    "id": "resolve-bad-type-intent",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_resolve",
+      "arguments": {
+        "intent": 123,
+        "url": "https://example.com"
+      }
+    },
+    "why": "resolve with intent as a NUMBER instead of string. validateArguments at src/mcp.ts:321 routes through validateProperty (L296) which emits `intent must be a string`. Iter 55 maps the type-mismatch error shape: expected `{error: \"Invalid arguments for unbrowse_resolve\", errors: [\"intent must be a string\"]}` per iter 45's errorResult primitive. Untested before."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 36,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_resolve",
+      "arguments": {
+        "intent": 123,
+        "url": "https://example.com"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 36,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Invalid arguments for unbrowse_resolve\n\n{\n  \"errors\": [\n    \"intent must be a string\"\n  ]\n}"
+        }
+      ],
+      "structuredContent": {
+        "error": "Invalid arguments for unbrowse_resolve",
+        "errors": [
+          "intent must be a string"
+        ]
+      },
+      "isError": true
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":36,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Invalid arguments for unbrowse_resolve\\n\\n{\\n  \\\"errors\\\": [\\n    \\\"intent must be a string\\\"\\n  ]\\n}\"}],\"structuredContent\":{\"error\":\"Invalid arguments for unbrowse_resolve\",\"errors\":[\"intent must be a string\"]},\"isError\":true}}",
+  "parse_error": null,
+  "duration_ms": 0,
+  "timed_out": false
+}

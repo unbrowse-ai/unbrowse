@@ -1,0 +1,80 @@
+{
+  "probe": {
+    "id": "stats",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_stats",
+      "arguments": {}
+    },
+    "why": "stateless baseline; marketplace hit rate + agent activity"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_stats",
+      "arguments": {}
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Lifetime impact (530 runs): 1.7h saved • 14,091,582 tokens saved • $42.27 saved • 530 browser calls avoided • partial: remote_errors[profile,earnings,spending] profile=Invalid API key; earnings=No transactions found for this creator; spending=No transactions found for this consumer\n\n{\n  \"agent_id\": \"5054196274c0f197b71f11de\",\n  \"profile\": null,\n  \"impact\": {\n    \"total_runs\": 530,\n    \"successful_runs\": 530,\n    \"browser_avoided_runs\": 530,\n    \"total_time_saved_ms\": 5985461,\n    \"total_time_saved_human\": \"1.7h\",\n    \"total_tokens_saved\": 14091582,\n    \"total_cost_saved_usd\": 42.274746,\n    \"avg_time_saved_pct\": 83,\n    \"avg_tokens_saved_pct\": 89,\n    \"by_source\": {\n      \"direct-fetch\": 28,\n      \"marketplace\": 451,\n      \"dom-fallback\": 2,\n      \"deferral\": 43,\n      \"runtime_recompute\": 1,\n      \"browse-session\": 5\n    },\n    \"first_entry_at\": \"2026-04-18T11:47:22.114Z\",\n    \"last_entry_at\": \"2026-05-13T09:18:31.971Z\",\n    \"log_path\": \"/Users/lekt9/.unbrowse/profiles/staging/impact-log.jsonl\"\n  },\n  \"earnings\": {\n    \"total_earned_usd\": 0,\n    \"total_earned_uc\": 0,\n    \"transaction_count\": 0,\n    \"last_transaction_at\": null\n  },\n  \"spending\": {\n    \"total_spent_usd\": 0,\n    \"total_spent_uc\": 0,\n    \"transaction_count\": 0,\n    \"last_transaction_at\": null\n  },\n  \"net_usd\": 0,\n  \"remote_errors\": {\n    \"profile\": \"Invalid API key\",\n    \"earnings\": \"No transactions found for this creator\",\n    \"spending\": \"No transactions found for this consumer\"\n  }\n}"
+        }
+      ],
+      "structuredContent": {
+        "agent_id": "5054196274c0f197b71f11de",
+        "profile": null,
+        "impact": {
+          "total_runs": 530,
+          "successful_runs": 530,
+          "browser_avoided_runs": 530,
+          "total_time_saved_ms": 5985461,
+          "total_time_saved_human": "1.7h",
+          "total_tokens_saved": 14091582,
+          "total_cost_saved_usd": 42.274746,
+          "avg_time_saved_pct": 83,
+          "avg_tokens_saved_pct": 89,
+          "by_source": {
+            "direct-fetch": 28,
+            "marketplace": 451,
+            "dom-fallback": 2,
+            "deferral": 43,
+            "runtime_recompute": 1,
+            "browse-session": 5
+          },
+          "first_entry_at": "2026-04-18T11:47:22.114Z",
+          "last_entry_at": "2026-05-13T09:18:31.971Z",
+          "log_path": "/Users/lekt9/.unbrowse/profiles/staging/impact-log.jsonl"
+        },
+        "earnings": {
+          "total_earned_usd": 0,
+          "total_earned_uc": 0,
+          "transaction_count": 0,
+          "last_transaction_at": null
+        },
+        "spending": {
+          "total_spent_usd": 0,
+          "total_spent_uc": 0,
+          "transaction_count": 0,
+          "last_transaction_at": null
+        },
+        "net_usd": 0,
+        "remote_errors": {
+          "profile": "Invalid API key",
+          "earnings": "No transactions found for this creator",
+          "spending": "No transactions found for this consumer"
+        }
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Lifetime impact (530 runs): 1.7h saved • 14,091,582 tokens saved • $42.27 saved • 530 browser calls avoided • partial: remote_errors[profile,earnings,spending] profile=Invalid API key; earnings=No transactions found for this creator; spending=No transactions found for this consumer\\n\\n{\\n  \\\"agent_id\\\": \\\"5054196274c0f197b71f11de\\\",\\n  \\\"profile\\\": null,\\n  \\\"impact\\\": {\\n    \\\"total_runs\\\": 530,\\n    \\\"successful_runs\\\": 530,\\n    \\\"browser_avoided_runs\\\": 530,\\n    \\\"total_time_saved_ms\\\": 5985461,\\n    \\\"total_time_saved_human\\\": \\\"1.7h\\\",\\n    \\\"total_tokens_saved\\\": 14091582,\\n    \\\"total_cost_saved_usd\\\": 42.274746,\\n    \\\"avg_time_saved_pct\\\": 83,\\n    \\\"avg_tokens_saved_pct\\\": 89,\\n    \\\"by_source\\\": {\\n      \\\"direct-fetch\\\": 28,\\n      \\\"marketplace\\\": 451,\\n      \\\"dom-fallback\\\": 2,\\n      \\\"deferral\\\": 43,\\n      \\\"runtime_recompute\\\": 1,\\n      \\\"browse-session\\\": 5\\n    },\\n    \\\"first_entry_at\\\": \\\"2026-04-18T11:47:22.114Z\\\",\\n    \\\"last_entry_at\\\": \\\"2026-05-13T09:18:31.971Z\\\",\\n    \\\"log_path\\\": \\\"/Users/lekt9/.unbrowse/profiles/staging/impact-log.jsonl\\\"\\n  },\\n  \\\"earnings\\\": {\\n    \\\"total_earned_usd\\\": 0,\\n    \\\"total_earned_uc\\\": 0,\\n    \\\"transaction_count\\\": 0,\\n    \\\"last_transaction_at\\\": null\\n  },\\n  \\\"spending\\\": {\\n    \\\"total_spent_usd\\\": 0,\\n    \\\"total_spent_uc\\\": 0,\\n    \\\"transaction_count\\\": 0,\\n    \\\"last_transaction_at\\\": null\\n  },\\n  \\\"net_usd\\\": 0,\\n  \\\"remote_errors\\\": {\\n    \\\"profile\\\": \\\"Invalid API key\\\",\\n    \\\"earnings\\\": \\\"No transactions found for this creator\\\",\\n    \\\"spending\\\": \\\"No transactions found for this consumer\\\"\\n  }\\n}\"}],\"structuredContent\":{\"agent_id\":\"5054196274c0f197b71f11de\",\"profile\":null,\"impact\":{\"total_runs\":530,\"successful_runs\":530,\"browser_avoided_runs\":530,\"total_time_saved_ms\":5985461,\"total_time_saved_human\":\"1.7h\",\"total_tokens_saved\":14091582,\"total_cost_saved_usd\":42.274746,\"avg_time_saved_pct\":83,\"avg_tokens_saved_pct\":89,\"by_source\":{\"direct-fetch\":28,\"marketplace\":451,\"dom-fallback\":2,\"deferral\":43,\"runtime_recompute\":1,\"browse-session\":5},\"first_entry_at\":\"2026-04-18T11:47:22.114Z\",\"last_entry_at\":\"2026-05-13T09:18:31.971Z\",\"log_path\":\"/Users/lekt9/.unbrowse/profiles/staging/impact-log.jsonl\"},\"earnings\":{\"total_earned_usd\":0,\"total_earned_uc\":0,\"transaction_count\":0,\"last_transaction_at\":null},\"spending\":{\"total_spent_usd\":0,\"total_spent_uc\":0,\"transaction_count\":0,\"last_transaction_at\":null},\"net_usd\":0,\"remote_errors\":{\"profile\":\"Invalid API key\",\"earnings\":\"No transactions found for this creator\",\"spending\":\"No transactions found for this consumer\"}}}}",
+  "parse_error": null,
+  "duration_ms": 1220,
+  "timed_out": false
+}

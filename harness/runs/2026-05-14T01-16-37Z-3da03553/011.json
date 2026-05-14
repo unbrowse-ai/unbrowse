@@ -1,0 +1,22 @@
+{
+  "intent": "get jupiter swap quote SOL to USDC",
+  "url": "https://jup.ag/",
+  "exit_code": 0,
+  "duration_ms": 10363,
+  "timed_out": false,
+  "kuri_pids_alive_after_run": [
+    "98611"
+  ],
+  "visible_chrome_present": true,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-05-14T01-16-37Z-3da03553/011.log",
+  "source": null,
+  "browser_avoided": null,
+  "top_reasoning": null,
+  "confidence": null,
+  "endpoint_count_in_skill": null,
+  "error": null,
+  "available_operations": [],
+  "available_endpoints": [],
+  "suggested_next_operation_id": null,
+  "diagnostic": null
+}

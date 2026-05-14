@@ -1,317 +1,112 @@
 # Changelog
 
-## [6.14.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.2...v6.14.0-preview.3) (2026-05-13)
-
-## [6.14.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.1...v6.14.0-preview.2) (2026-05-13)
-
-### Bug Fixes
-
-* **mcp,cli:** harden carousell-class failure mode end-to-end ([e23397c](https://github.com/unbrowse-ai/unbrowse-dev/commit/e23397c4af55c05af7501e23d969a124addf4a7f))
-* **mcp:** widen resolve miss-guidance to cover all 3 miss statuses ([ec5190c](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec5190c7f08d1c277b12a3bb008de3354c057b6b))
-
-## [6.14.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.0...v6.14.0-preview.1) (2026-05-13)
-
-## [6.14.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.14.0-preview.0) (2026-05-13)
+## [6.16.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.15.0...v6.16.0-preview.0) (2026-05-14)
 
 ### Features
 
-* **cli,mcp:** Phase 2 seeds — unbrowse serve + stdin-EOF daemon stop (Day 3) ([6e21ef9](https://github.com/unbrowse-ai/unbrowse-dev/commit/6e21ef90b1f2696a9fe7696f6b52a0abaad661f2))
-* **indexer:** add queue-store seed + round-trip test (Phase 1 disk-backed index queue) ([16e5512](https://github.com/unbrowse-ai/unbrowse-dev/commit/16e55129c4056f99c3cb0ed63e3a5c6ddfb7530f))
-* **indexer:** disk-queue motion — lock, worker, dispatcher (Day 5 creatures) ([f9b531b](https://github.com/unbrowse-ai/unbrowse-dev/commit/f9b531b6fac8fb383bada143641869aa0ea19a33))
-* **indexer:** dominion — CLI __drain-queue, sweep, detached spawn, heartbeat (Day 6) ([d8c73e6](https://github.com/unbrowse-ai/unbrowse-dev/commit/d8c73e6051a498bf276f2e9940b5332bbe2c1140)), closes [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4)
-* **indexer:** Phase 1.1 creatures — close 4 remaining audit findings (Day 5) ([1bb31e8](https://github.com/unbrowse-ai/unbrowse-dev/commit/1bb31e8a03dab509d7854217d71d982f92fbee47)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4) [#5](https://github.com/unbrowse-ai/unbrowse-dev/issues/5) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7) [#8](https://github.com/unbrowse-ai/unbrowse-dev/issues/8) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)
-* **indexer:** Phase 1.1 seeds — tryAcquireWorkerSlot + sweepStaleTmp (Day 3) ([7282cfc](https://github.com/unbrowse-ai/unbrowse-dev/commit/7282cfc6aa7010199d306868d343f4421033bdf9))
-* **server,docs:** Phase 2 creatures — MCP-mode idle + CLAUDE.md update (Day 5) ([fbcb878](https://github.com/unbrowse-ai/unbrowse-dev/commit/fbcb87833b6fae56f01c7a3ea2f88ae6e2de8e9e))
+* **v6.16-day3:** plant Flex seeds (SDK + backend), real splits arithmetic, honest stubs ([70666be](https://github.com/unbrowse-ai/unbrowse-dev/commit/70666bea9dac702d68cb5d5d30c087a42f2da918))
+* **v6.16-day4:** luminaries — real Flex wiring (SDK signer, backend authorization, onboarding gate live) ([a5eac37](https://github.com/unbrowse-ai/unbrowse-dev/commit/a5eac37c2ffec825e2d00c11e9d0abd611426edd))
+* **v6.16-day5:** creatures — facilitator live, routes on Flex, metered ready, onboarding UI, e2e smoke ([6079ebb](https://github.com/unbrowse-ai/unbrowse-dev/commit/6079ebbbdc1f5f66d1285c7459857c7a54f7b117)), closes [Unbrowse#executeMetered](https://github.com/unbrowse-ai/Unbrowse/issues/executeMetered)
+* **v6.16-day6:** dominion — sponsor on Flex, Corbits demolished, analytics + docs (Phase 5 partial) ([f7542ae](https://github.com/unbrowse-ai/unbrowse-dev/commit/f7542ae83153b5b9a97c5c2ba764d12296cb76ab))
 
 ### Bug Fixes
 
-* **audit:** correct LinkedIn root cause, delete painted xfail (Luke 15:4) ([36df793](https://github.com/unbrowse-ai/unbrowse-dev/commit/36df7937a46ba58693801d7921ea94298a9e6b92))
-* **backend:** dedicated staging STATS_KV + verifiable health route ([01a309d](https://github.com/unbrowse-ai/unbrowse-dev/commit/01a309d499f2d1a2459a8395a74f4f2b3632438b))
-* **indexer:** judgement — close 2 P1 audit findings (Day 8) ([ea66416](https://github.com/unbrowse-ai/unbrowse-dev/commit/ea664169e575c30d7d0ec61bd5c49e892a269169)), closes [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)
-* **indexer:** judgement — cold-start mkdir + CHANGELOG omissions (P1.1 Day 8) ([414beb1](https://github.com/unbrowse-ai/unbrowse-dev/commit/414beb1795dcf79fa4417423e334c7e4ee448bde)), closes [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9) [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#5](https://github.com/unbrowse-ai/unbrowse-dev/issues/5) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7) [#8](https://github.com/unbrowse-ai/unbrowse-dev/issues/8) [#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10)
-* **indexer:** luminaries — close acquireLock concurrency race (P1.1 Day 4) ([726c781](https://github.com/unbrowse-ai/unbrowse-dev/commit/726c7815e28e1e069c2434249f17229b555d741b)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
-* **judgement:** purge three Day-8 auditor-named defects (Rev 20:12) ([3963a44](https://github.com/unbrowse-ai/unbrowse-dev/commit/3963a4416d84271c3367e999fcefd95abf65cdac))
-* **mcp,tests,docs:** judgement — close 5 Phase-2 audit findings (Day 8) ([b918711](https://github.com/unbrowse-ai/unbrowse-dev/commit/b9187116917a9c4541680c0edaeabb9ac5bbd7d7)), closes [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4) [#5](https://github.com/unbrowse-ai/unbrowse-dev/issues/5) [#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7) [#13](https://github.com/unbrowse-ai/unbrowse-dev/issues/13) [#11](https://github.com/unbrowse-ai/unbrowse-dev/issues/11) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9) [#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10) [#12](https://github.com/unbrowse-ai/unbrowse-dev/issues/12)
-* **mcp+orchestrator:** MCP audit follow-through ([#437](https://github.com/unbrowse-ai/unbrowse-dev/issues/437)) ([421c538](https://github.com/unbrowse-ai/unbrowse-dev/commit/421c538734c48a277f489869393cd852610e87d0))
+* **v6.16-day8:** judgement — chase 2 lost sheep before Emergence ([749a312](https://github.com/unbrowse-ai/unbrowse-dev/commit/749a3123751abb5f419988dd57525b1fda5f31ca)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [Unbrowse#execute](https://github.com/unbrowse-ai/Unbrowse/issues/execute)
 
 
-### fix
+### Added — release-gate bench (agent-judged regression gate)
 
-- **mcp: surface actionable recovery hints on projection diet-fallback.**
-  When `unbrowse_execute` is called with `path`/`extract`/`limit` and the
-  projected result still exceeds the 25 K wire budget after pass-1 string
-  truncate + pass-2 array cap, `dietIfOversize` now augments the
-  `{truncated, reason, body_excerpt}` wrapper with `suggested_limit`
-  (positive integer derived from `budget / original_chars × caller_limit`)
-  and `next_step` (human-readable "call again with limit=N"). Caller's
-  intent is treated as authoritative — when projection is supplied, the
-  agent gets a path back to clean data; when it is not, the wrapper
-  shape is unchanged (back-compat with `mcp-projection-stdio.test.ts`).
-  Edit footprint: `src/mcp.ts` `dietIfOversize` (added `DietHints`
-  interface + projection-aware hints lambda + `buildWrapper` closure) and
-  `maybePostProcessResult` (pass `has_projection`/`caller_limit` from the
-  projection branch). Three other call sites of `dietIfOversize` — the
-  `successResult` wrapper, the `schema=true` branch, and the no-projection
-  fallthrough in `maybePostProcessResult` — take default arguments and
-  are unchanged.
-  Pinned by `tests/mcp-truncation-next-step.test.ts` (6 tests covering
-  happy path, two edges, two adversarial, one negative) and
-  `tests/mcp-eatigo-shape.test.ts` (doc reproducer from
-  `docs/mcp-issues-2026-05-13.md`). Bench artifact at
-  `.harness-out/projection-bench.mjs` runs 5 scenarios end-to-end via
-  live stdio MCP. Closes AC3 from `docs/mcp-issues-2026-05-13.md`.
-## Unreleased
+* **Judge is the agent running the harness** (in-thread, not a subprocess) — `scripts/bench-gate-judge.ts` is now a PREP helper. It writes `judge.bundle.md` (rubric + every probe's artifacts + the verdict JSON schema inlined) and `verdict.template.json`. The agent running the harness reads the bundle and writes `verdict.json` directly via the editor's Read/Write tools, then runs `--validate` (schema + manifest-coverage check) and `bench:gate:compare`. No LLM subprocess, no `claude -p`, no Anthropic SDK, no OAuth token. CI workflow collects + uploads + comments "agent review required" rather than pretending to judge automatically.
 
-### docs
+* **Bench-gate is now a release-it `before:init` hook** — `.release-it.json` runs `scripts/bench-gate-prerelease.sh` before every release. The hook checks `.bench-gate/stamp.json` (written by `bench:gate:compare --stamp` on PASS only) against `git rev-parse HEAD`. Stamp matching HEAD PASSes. Stamp older with no gate-affecting changes in `src/`, `packages/sdk/`, the corpus, the rubric, or the baseline PASSes (docs-only commits don't invalidate). Uncommitted changes to those paths or a stale stamp FAIL the release. Bypass deliberately with `BENCH_GATE_BYPASS=1` (loud stderr warning, document in CHANGELOG).
 
-- **Third-mirror deferral.** `.agents/skills/unbrowse/src/mcp.ts` (vendored
-  snapshot at commit `9f124ba1`) is not synced by `scripts/sync-skill.sh`;
-  promote-or-delete decision deferred to a later loop. See CLAUDE.md "Known
-  Issues to Fix" → "Third `mcp.ts` mirror not covered by sync".
+* **`scripts/bench-gate-compare.ts` + `harness/probes/bench-gate-baseline.json`** — deterministic floor over agent-judged verdicts. Diffs the latest `verdict.json` against a frozen baseline + global thresholds (index_coverage_min, retrieve_coverage_min, anchor_must_pass, max_new_suspicious_hostile). Exits non-zero on regression; `--soft` for PR-comment mode; `--freeze` to refresh the baseline after a clean canonical run.
+* **`scripts/bench-gate-full.sh`** — orchestrator that runs `bench-gate.sh` (collect) → `bench-gate-judge.ts` (LLM verdicts) → `bench-gate-compare.ts` (compare) in one command.
+* **`.github/workflows/bench-gate.yml`** — runs on PR with `run-bench-gate` label (soft / comment-only), on manual dispatch, and on `workflow_run` after Release (strict; files an issue on regression).
+* **`scripts/release-and-verify.sh --bench-gate`** — opt-in pre-tag gate. `RUN_BENCH_GATE=1 bun run release:preview` runs the corpus before cutting the tag; default release flow is unchanged.
+* **`docs/release-gate-bench-plan.md`** — full design + how-to + threshold semantics.
+* **`bun run bench:gate{,:judge,:compare,:freeze,:full}`** npm scripts.
 
-### tests
+## [Unreleased — v6.16.0]
 
-- **Regression: projection survives the wire-budget diet through real stdio
-  dispatch.** Added `tests/mcp-projection-stdio.test.ts` which spawns
-  `bun src/mcp.ts` against a stub backend and pins three projection-vs-diet
-  contracts end-to-end: (1) happy path — 20 items × ~2 KB → projected
-  Array(10) of `{name, area}` under 25 K wire budget; (2) many small items
-  overshooting budget — 500 × 50-char → `capOversizeArrays` caps to
-  `ARRAY_MAX_ELEMENTS+1` with its existing `{truncated:N, unit:"items"}`
-  sentinel as the tail; (3) few items each too large — 200 × 1000-char →
-  diet falls back to wrapper with non-empty `body_excerpt` (the empty-string
-  safety-net branch must never fire on projected envelopes). Mutation-proven
-  against both `drillPath`/`applyExtract`/`slice` and `capOversizeArrays`
-  cap+sentinel. Wired into `.release-it.json` `before:init` hook so the
-  contract is enforced on every preview/stable release, not just on
-  developer machines. Per-push CI gating will land separately under a
-  workflow-scoped credential (release commits must not touch
-  `.github/workflows/*` — that path requires `workflow` OAuth scope which
-  the local release pipeline doesn't carry). Closes the live
-  diagnostic gap where agents hit `payload_exceeded_wire_budget_after_diet`
-  against stale daemons.
-### refactor
+### Added — auto-review + publish-suggestions (MCP)
 
-- **Disk-backed background index queue** (Phase 1 of stateless unbrowse). The
-  background index queue now persists to `~/.unbrowse/queue/pending/` on disk
-  instead of in-memory `Map`s. A short-lived `unbrowse <verb>` invocation writes
-  the job and exits; a detached worker drains under a per-domain lock and
-  touches `~/.unbrowse/queue/.heartbeat` each iteration for liveness. Failed
-  jobs retry up to 3 times via atomic in-place envelope rewrite (no
-  duplicate-job race on crash) then move to `~/.unbrowse/queue/dead/`. Public
-  API signatures (`queueBackgroundIndex` / `drainPendingIndexJobs` /
-  `isIndexingInFlight`) unchanged; disk mode is the production default, and
-  `drainPendingIndexJobs` gains a 30-second polling timeout when running in
-  that mode. Every `unbrowse <verb>` invocation does an opportunistic sweep
-  of the queue if the heartbeat is stale (>10s).
+* **`auto_review` contribution knob (default `true`)** — the substrate now auto-stamps `reviewed_at` on close/sync so captures publish to the marketplace without an explicit `unbrowse_review` call. Heuristic + LLM-augmented endpoint descriptions are accepted as-is. Flip `false` via `unbrowse_settings auto_review=false` to require explicit review (legacy behavior). `share_pointers=false` still wins as the privacy opt-out.
+* **`unbrowse_publish_suggestions` MCP tool** — lists local skills with proven local usage (execution_count ≥ N, success_rate ≥ 0.7) that were never published. `apply=true` + `skill_ids[]` batch-stamps `reviewed_at` and publishes in one call. Targets retroactive cleanup for existing-user backlogs.
+* **`GET /v1/skills/publish-suggestions`** and **`POST /v1/skills/publish-suggestions/apply`** — backend routes powering the above; opts: `min_executions`, `min_success_rate`, `limit`.
+* **`shouldPublishAfterIndex` gains a fourth gate**: `auto_review` — publish allowed without `reviewed_at` when the contribution knob is on.
+* **Fixed: `client.listSkills` LOCAL_ONLY path** referenced an undefined `SKILL_CACHE_DIR` constant; now correctly calls `getSkillCacheDir()`.
 
-  Existing tests pass byte-for-byte: the new `tests/_setup.ts` (preloaded by
-  `bunfig.toml`) sets `UNBROWSE_INLINE_INDEX=1` and `UNBROWSE_NO_SWEEP=1` for
-  `bun test`, routing through the in-memory inline path. Tests that need the
-  disk path explicitly clear the env vars.
+### Added — contributor earnings + usage visibility (MCP)
 
-  New env vars: `UNBROWSE_INLINE_INDEX=1` forces inline (test default);
-  `UNBROWSE_NO_SWEEP=1` disables the opportunistic startup sweep. Hidden CLI
-  verb `__drain-queue` runs `drainUntilEmpty(processIndexJob)` and exits.
-  See `docs/stateless-unbrowse-plan.md` and
-  `docs/stateless-unbrowse-plan-acceptance-audit.md`.
-
-### fix
-
-- **Phase 1.1 hardening of the disk-backed background index queue.** Six audit
-  findings from the Phase 1 Day-8 cold-auditor review (`docs/stateless-unbrowse-phase-1-1-followups.md`) are now closed:
-
-  - **P1** — Detached drain workers are bounded to one per machine via a
-    global `~/.unbrowse/queue/worker.lock` acquired with the new
-    `tryAcquireWorkerSlot(queueDir)` primitive. Both parent spawn sites
-    (`queueBackgroundIndex` disk branch + cli `_spawnDrainWorker`) gate on
-    the slot before spawning; the child `__drain-queue` entrypoint
-    re-acquires on startup and holds the slot for the lifetime of
-    `drainUntilEmpty` (Model B). Two concurrent CLIs no longer leak two
-    workers.
-  - **P1** — Silent loss eliminated. `listJobsWithRejects(queueDir)`
-    classifies corrupt-JSON / wrong-version / missing-fields files; `drainOnce`
-    moves them to `~/.unbrowse/queue/quarantine/<reason>/` and reports
-    `rejected: N` in its return. Operators can now distinguish an empty
-    queue from a queue full of unreadable files.
-  - **P1** — Lock PID-reuse safety. `acquireLock` cross-checks
-    `heartbeatAgeMs(queueDir) > 30_000` when a held PID looks alive — a
-    long-uptime system that reassigned a stale PID no longer holds the
-    lock forever. A live-PID + fresh-heartbeat lock stays held; a
-    live-PID + stale-heartbeat lock is reclaimed. The `30_000ms`
-    threshold is pinned bidirectionally by edge tests (29s held vs 31s
-    reclaimed).
-  - **MEDIUM** — `sweepStaleTmp(queueDir, maxAgeMs?)` fires at the top of
-    every `drainOnce` and removes `*.tmp` orphans older than 60s. Years of
-    crashes no longer balloon `readdir` cost.
-  - **P2** — `backend/bunfig.toml` mirrors the root preload so `bun test`
-    from `backend/` cwd still sets `UNBROWSE_INLINE_INDEX=1`. Bun's
-    bunfig.toml preload silently rejects `..` upward traversal, so the
-    setup file is locally copied to `backend/tests/_setup.ts`.
-  - **LOW** — `sanitizeDomain` NFC-normalizes its input (NFC and NFD
-    forms collapse to the same filename + `envelope.domain`) and prefixes
-    Windows reserved names (`CON`/`PRN`/`AUX`/`NUL`/`COM[1-9]`/`LPT[1-9]`)
-    with `_` so cross-platform basename creation doesn't hang on a
-    device-name open.
-
-  Two additional in-loop bug discoveries from the Day-4 concurrency probe
-  (independent of the audit list):
-
-  - `acquireLock`'s heartbeat cross-check treated `Number.POSITIVE_INFINITY`
-    (no `.heartbeat` file yet) as stale, allowing concurrent cold-start
-    acquirers to reclaim a live holder's lock. Fixed with `Number.isFinite`
-    guard.
-  - The window between `fs.open(path, "wx")` and `handle.writeFile(pid)`
-    left the lock file empty; concurrent readers saw `parseInt("") = NaN`,
-    fell to "stale-or-corrupt → reclaim," and ended up co-holders. Fixed
-    with a `midWrite` state that returns `null` instead of reclaiming when
-    the lock file exists but is empty.
-
-  No public-API signature breaks. `drainOnce` return type gains an additive
-  `rejected: number` field. `acquireLock` gains an optional second
-  `queueDir` parameter (legacy callers unaffected). New exports in
-  `src/indexer/queue-store.ts`: `tryAcquireWorkerSlot`, `listJobsWithRejects`,
-  `sweepStaleTmp`, `RejectedFile`, `touchHeartbeat` (Phase 1), `heartbeatAgeMs`
-  (Phase 1).
-
-  Two correctness improvements surfaced by the Day-6 pruning audit + the
-  Day-8 cold-auditor review (independent of the original 6-item audit list):
-
-  - `isIndexingInFlight` (disk-mode) had its own inline domain-sanitize regex
-    that diverged from the canonical `sanitizeDomain` after the Day-5 NFC and
-    Windows-reserved hardening. A non-ASCII NFD-encoded domain would derive
-    a different lock path on the in-flight check vs. on the worker's
-    actual lock acquisition. Both call sites now share `sanitizeDomain`.
-
-  - `tryAcquireWorkerSlot` did not `mkdir -p` the queueDir before
-    `acquireLock`'s `open(wx)`. A first-time user invoking
-    `unbrowse __drain-queue` cold (no prior `writeJob` had ever run, so no
-    queue dir existed) would crash with ENOENT. Now matches the pattern in
-    `writeJob` and `touchHeartbeat` and ensures the dir exists.
-
-  Known limitation (deferred to Phase 1.1.1): if `mkdir <queueDir>/quarantine/
-  <reason>/` fails (e.g. EACCES), the rejected file remains in `pending/` and
-  is re-listed every `drainOnce` tick — log spam, no data loss, but no
-  forward progress. Drain still idle-exits eventually. Proper fix requires
-  per-file failure tracking; the current behaviour is safe but noisy.
-
-  See `docs/stateless-unbrowse-phase-1-1-acceptance-audit.md` for the
-  per-criterion verification.
-
-- **mcp:** the MCP stdio server no longer dies mid-session when a
-  fire-and-forget async chain throws. `uncaughtException` and
-  `unhandledRejection` are now logged to stderr with `[mcp:uncaught]` /
-  `[mcp:unhandled]` prefixes and swallowed, so a single bad call can no
-  longer take all 33 tools down with `MCP error -32000: Connection
-  closed`. Tests can opt into fail-fast with `UNBROWSE_TEST_FAIL_FAST=1`.
-
-- **cli:** `unbrowse run --url <url> "task"` (flag URL + positional intent)
-  now parses correctly instead of falling through to the `die()` help
-  banner. The other three argv shapes (`run <url> "task"`,
-  `run "task" --url <url>`, intent-only) are unchanged.
-
-- **mcp:** `unbrowse_resolve` miss-path `next_action` now fires for every
-  miss status the orchestrator actually emits — `no_match`, `no_cached_match`,
-  and `not_found` — not just `no_cached_match`. The miss-path was previously
-  guarded on a single string variant the runtime rarely returned, so the
-  agent received only the legacy prose `next_step` hint instead of the
-  structured `next_action` shape. CLI accepted all three already
-  (`src/cli.ts:1145-1146`); MCP is now aligned.
-
-- **runtime: EADDRINUSE fast-fail before spawn-retry loop.** Observed across 42
-  `.claude` sessions per `.harness-out/session-bugs-20260513T122248Z.json`:
-  `ensureLocalServer` retried the spawn N times against a foreign process
-  holding port `:6969`, burying the real diagnostic under 30s × N waits.
-  `probePortOwnership(baseUrl)` is now called BEFORE the spawn-retry loop in
-  `src/runtime/local-server.ts`; on `kind:"foreign"` it throws a structured
-  Error with `lsof -i :PORT` and `pkill -9 -f 'unbrowse|kuri'` instructions
-  and refuses to spawn-retry into the same wall. Bug_id: `EADDRINUSE`. Pinned
-  by `tests/mcp-eaddrinuse-recovery.test.ts` (golden + foreign + 3 edges).
-
-- **executor: recipe_replay surfaces structured fail next_step on miss.**
-  Observed across 30 `.claude` sessions: `recipe_replay.*fail` left the agent
-  with bare `reason` and no recovery path. `decisionTrace.push` at
-  `src/execution/index.ts:2603` now carries
-  `next_step: deriveRecipeReplayNextStep(matchVerdict.reason, ...)` when the
-  match fails. The helper at `src/execution/recipe-replay-hints.ts` dispatches
-  on the real `matchResponseSignal` reason prefixes (`status_changed`,
-  `missing_top_keys`, `body_shrunk`, `body_grew`) and appends
-  `(endpoint=<id>, url=<url>)` to every branch so multi-replay traces stay
-  disambiguatable. Bug_id: `recipe_replay_fail`. Pinned by
-  `tests/mcp-recipe-replay-hint.test.ts` (4 golden reasons + 3 edges).
-
-- **executor: rate_limited honors Retry-After before treating route as stale.**
-  Observed across 13 `.claude` sessions: HTTP 429 + `Retry-After` was
-  collapsed into a generic stale-endpoint handoff that hid the retry window.
-  `serverFetch` now plumbs `response_headers` through the executor result;
-  the 429 branch at `src/execution/index.ts:3087` consults
-  `parseRetryAfter(result?.response_headers ?? {})` and emits decision_trace
-  `429_retry_after_honored {retry_after_ms}` on hit or `429_retry_after_absent`
-  with exponential-backoff prose on miss. `parseRetryAfter` handles RFC 7231
-  delta-seconds + HTTP-date + array-valued + case-insensitive lookup + past
-  dates clamped to zero. Bug_id: `rate_limited`. Pinned by
-  `tests/mcp-retry-after-honor.test.ts` (6 golden RFC shapes + 4 edges).
-
-### feat
-
-- **Phase 2 — short-lived MCP server by default.** The MCP transport
-  (stdio JSON-RPC) was already stateless-per-call, but every MCP tool
-  handler auto-spawned a long-lived Fastify daemon at `localhost:6969`
-  that lingered for 60s after the MCP process exited (or forever if a
-  request had been in-flight). Phase 2 ends that:
-
-  - New `unbrowse serve` CLI verb — explicit foreground long-lived
-    server. Defaults `UNBROWSE_SERVE_IDLE_MS=0` (no auto-exit); kill
-    with SIGTERM/SIGINT for clean shutdown. The opt-in long-lived
-    mode for users who want it (CI, dev hot-reload).
-
-  - MCP stdin-EOF watcher (`src/mcp.ts`) — when stdin closes (parent
-    IDE disconnects), stops the auto-spawned daemon via
-    `stopManagedServer`. Idempotent across `end` + `close` events.
-    Respects `--no-auto-start` — pre-existing daemons (not spawned
-    by MCP) are never touched.
-
-  - MCP-mode tighter idle reaper (`src/server.ts:141`) — when
-    `MCP_SERVER_MODE=1` is set, the idle window defaults to 15
-    seconds instead of 60. This is the fallback when graceful
-    stdin-EOF doesn't fire (SIGKILL, crash, OOM). Verified
-    necessary by Day-5 cascade test: SIGKILL on MCP does NOT
-    propagate to the detached daemon (it lives in its own
-    process group per `child.unref()`), so without the tighter
-    idle, ungracefully-killed MCP would leak the daemon for the
-    full legacy 60s.
-
-  - CLAUDE.md updated to name `--no-auto-start`, `unbrowse serve`,
-    `MCP_SERVER_MODE`, and `UNBROWSE_SERVE_IDLE_MS` as the actual
-    mitigations. The "Always kill the running unbrowse server"
-    nuclear-option remains for SIGKILL-during-in-flight-request edges.
-
-  No public API breaks. New verb is additive. New env-var default is
-  conditional on `MCP_SERVER_MODE=1` which is set automatically by
-  the MCP entrypoint; explicit `unbrowse serve` users get
-  `UNBROWSE_SERVE_IDLE_MS=0` (no auto-exit) overriding it.
-
-  Source plan: `docs/stateless-unbrowse-plan.md` Phase 2 section.
-  Acceptance audit: `docs/stateless-unbrowse-phase-2-acceptance-audit.md`.
-  Still owed in Phase 2.1: deletion of the "Always kill stale unbrowse
-  server" CLAUDE.md note (needs a two-week production observation
-  window) — tracked in `docs/stateless-unbrowse-phase-2-1-followups.md`.
-
-- **mcp:** `unbrowse_resolve` now carries a `next_action` on the
-  happy-path shortlist (mirror of the existing miss-path hint). When the
-  response has a non-empty `available_endpoints`, callers see
-  `next_action: { title, command: "unbrowse_execute", command_args: {
-  skill, endpoint }, why }` derived from the top candidate, so the
-  resolve -> execute hand-off is a single copy-paste instead of an
-  argument-construction exercise. Also drops four stale references to
-  the non-existent `unbrowse_fetch` tool from tool descriptions.
+* **`unbrowse_earnings` MCP tool** — shows what the calling agent has earned from contributions to the marketplace. Aggregates creator payouts (when other agents execute your published skills) and indexer attribution (delta-based credit for new endpoints). Returns `total_earned_usd`, ledger breakdown (creator vs indexer), recent transactions, and milestone progress (`passed_usd`, `next_usd`, `progress_to_next_pct`). Pass `verbose=true` for per-skill execution counts so users see which captures are paying.
+* **`GET /v1/account/earnings`** (with `verbose=true` for per-skill breakdown) — proxies `/v1/transactions/creator/:id` + `/v1/attribution/indexer/:id` from the upstream marketplace into one local response. Handles degraded mode (backend down → zeros, not 502).
+* **`/v1/settings` GET now includes `earnings_summary`** — totals + milestone progress inline alongside `sponsor_status`, so any settings inspection surfaces user-side rewards too. Best-effort same as sponsor status.
+* **New helpers `getMyContributions` + `computeMilestoneState`** in `src/marketplace/popular-unreviewed.ts` — pure milestone math and a real-filesystem join of local skill manifests × execution traces, filtered to skills the named agent indexed or contributed to.
 
 
-## [6.13.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.13.1-preview.0) (2026-05-12)
+### Added
+
+* **Faremeter Flex (`@faremeter/flex` scheme) as the new settlement layer.** Every paid execute now signs an authorization with native splits (10% platform recoup baked in, up to 5 recipients per authorization summing to 10000 bps).
+* **Phase 0 onboarding gate.** New agents must pair a wallet, fund a Flex escrow, and register a session key before getting an API key. Existing v6.15-era agents get a soft-block 402 with `X-Flex-Onboarding-Required: 1` on priced routes.
+* **`/v1/analytics/payments` endpoint** (closes v6.15.0 D3 TODO). Returns sponsor_settled + sponsor_recouped instrumented today; platform_cut + facilitator state are placeholders pending v6.17 settlement-ledger.
+* **Sponsor-on-Flex rail** (runs alongside legacy direct-transfer sponsor path in v6.16-preview cycle; both rails feed the same `X-Sponsored` header and the same daily caps).
+* **`@faremeter/flex-solana@^0.2.1`** + `@faremeter/payment-solana@^0.21.0` as runtime deps.
+
+### Cleanup pending in subsequent v6.16 previews
+
+* Removal of the v6.15 settlement shims is staged: the new Flex rail runs alongside the legacy code in v6.16-preview.0, and the legacy code is removed once parity holds.
+* Operator-side migration script for any residual pre-Flex split vaults is documented in the deployment runbook.
+
+### Environment changes
+
+* New: `FLEX_PLATFORM_RECIPIENT_USDC_ATA`, `FLEX_REFUND_TIMEOUT_SLOTS`, `FLEX_DEADMAN_TIMEOUT_SLOTS`. Additional operator-only env vars (facilitator signer, sponsor wallet, sponsor session key) are documented in the deployment runbook.
+* Kept (rename deferred to v6.17 for deploy safety): `CASCADE_RPC_URL`, `CASCADE_RPC_WS_URL` (rebound as the Solana RPC binding for Flex).
+* No longer read: `CASCADE_PLATFORM_WALLET`, `CASCADE_SIGNER_SECRET_KEY` (but not yet removed from wrangler config — operators can leave or remove).
+## [6.15.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0...v6.15.0) (2026-05-14)
+
+### Features
+
+* **v6.15-day3:** plant SDK + sponsor seeds (compilable stubs, honest failing tests) ([d904501](https://github.com/unbrowse-ai/unbrowse-dev/commit/d904501bc7c25c5d712f84251a989c2021cde9eb))
+* **v6.15-day4:** luminaries — SDK runtime live, sponsor decisioned, skill demolished ([8fb577b](https://github.com/unbrowse-ai/unbrowse-dev/commit/8fb577b628792c29e6002656b358f873f9d90ffa))
+* **v6.15-day5:** creatures — docs + MCP sponsor_status + admin ledger + integration smoke ([8103e80](https://github.com/unbrowse-ai/unbrowse-dev/commit/8103e8099917f34f7ed30ae5089f105621a3df02))
+* **v6.15-day6:** dominion — integration audit + 4 lost sheep chased ([3bd28e8](https://github.com/unbrowse-ai/unbrowse-dev/commit/3bd28e88e088193d51ea29d470fc096475651780))
+
+## [6.14.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.5...v6.14.0) (2026-05-14)
+
+### Features
+
+* **deprecation:** hard-deprecate SKILL.md path in favor of MCP server ([facd123](https://github.com/unbrowse-ai/unbrowse-dev/commit/facd1237573d625639661a4383258c427c2a584e))
+
+## [6.14.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.4...v6.14.0-preview.5) (2026-05-14)
+
+### Features
+
+* **capture:** generic CDP auth-header capture for XHR replay ([a003b92](https://github.com/unbrowse-ai/unbrowse-dev/commit/a003b928d253a83ac906f4b8c50217b9042cda13))
+
+## [6.14.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.14.0-preview.4) (2026-05-14)
+
+### Features
+
+* **backend:** mirror-prod-to-staging.ts seed — one-way EmergentDB mirror ([2ffedf3](https://github.com/unbrowse-ai/unbrowse-dev/commit/2ffedf354557da743c29d228dd3f9e2089dcb56d))
+* **bench:** draft release-gate harness + judge (jl/default — incomplete) ([957f1c5](https://github.com/unbrowse-ai/unbrowse-dev/commit/957f1c52e732153cb9ce4bae5ff7ae797c3dc7f8))
+* **release:** strict opaque-tarball gate at precommit, publish, and preview ([6940a62](https://github.com/unbrowse-ai/unbrowse-dev/commit/6940a6215c21da59d6f4efbe412e0985a8fef4e9))
 
 ### Bug Fixes
 
-* **mcp+orchestrator:** MCP audit follow-through ([#437](https://github.com/unbrowse-ai/unbrowse-dev/issues/437)) ([421c538](https://github.com/unbrowse-ai/unbrowse-dev/commit/421c538734c48a277f489869393cd852610e87d0))
+* **mcp:** apply dietIfOversize in successResult so all handlers inherit wire cap ([0129d7a](https://github.com/unbrowse-ai/unbrowse-dev/commit/0129d7aa09f83c338b638c41eed1f0ab236307b5))
+* **mcp:** cap tool-result wire body at 25KB ([5213389](https://github.com/unbrowse-ai/unbrowse-dev/commit/5213389ec6a018bf64621ecb1c1fbdc1250de2ba))
+* **mcp:** extend diet to cap oversize arrays + UTF-safe string truncation ([8e8eb5a](https://github.com/unbrowse-ai/unbrowse-dev/commit/8e8eb5a1fc275718a2e8a8d21c351db695aa226c))
+* **mcp:** phase 0 audit-fix - tighten unbrowse_fetch deprecation prose ([3c2f1c2](https://github.com/unbrowse-ai/unbrowse-dev/commit/3c2f1c22922d270604d8e1764467cf30e6781cd9))
+* **mcp:** phase 0a alias dispatcher for unbrowse_run / unbrowse_fetch ([49c9770](https://github.com/unbrowse-ai/unbrowse-dev/commit/49c9770e2823eab564729aba37dc97426081f1d7))
+* **mcp:** phase 0b honor caller projection in wire-budget diet ([86967db](https://github.com/unbrowse-ai/unbrowse-dev/commit/86967db8e2d6cb9fc01c343afcb628c8d441522a))
+* **mcp:** phase 0c process resilience + crash trigger + em-dash sweep ([88d35d3](https://github.com/unbrowse-ai/unbrowse-dev/commit/88d35d3288f68327d4cd4d28add62a9c0e6e9849)), closes [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4)
+* **mcp:** remove domain field from unbrowse_resolve schema (substrate-lie) ([163e08a](https://github.com/unbrowse-ai/unbrowse-dev/commit/163e08af630f2b24181e2cd504de417d69fa25ac))
+* **mcp:** reserve envelope headroom in successResult diet cap ([b8e339e](https://github.com/unbrowse-ai/unbrowse-dev/commit/b8e339e27c705186f0e4f9446022a4bfdf1f45ab))
+* **orchestrator:** add marketplace_by_host racer for cold-domain resolves ([cbfc253](https://github.com/unbrowse-ai/unbrowse-dev/commit/cbfc2537402805e9a77ffe96cdb9e593cd8f43d8))
+* **publish:** per-execute passive publish honors capture-pipeline settings ([5ab2c74](https://github.com/unbrowse-ai/unbrowse-dev/commit/5ab2c74bfa1ebd266a528ba51b3359da23b3090a))
+* **tests:** close the third MCP test ticket fully (44 pass / 0 fail) ([130059e](https://github.com/unbrowse-ai/unbrowse-dev/commit/130059e5b4937224c6f9a86facedeb6982c2e661))
+* **tests:** close two MCP test drift tickets; partial on third ([a29c20f](https://github.com/unbrowse-ai/unbrowse-dev/commit/a29c20f06fa4339d70f175aab17a611db71f8cda))
 
 ## [6.13.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.5...v6.13.0) (2026-05-12)
 
@@ -329,7 +124,7 @@
 
 ### Bug Fixes
 
-* **billing:** remove __admin__ escape hatch from subscriptionAdmits ([f68a955](https://github.com/unbrowse-ai/unbrowse-dev/commit/f68a95539aebb06c85bbe4978d2f52808a923ab5))
+* **billing:** remove internal admin escape hatch from subscriptionAdmits ([f68a955](https://github.com/unbrowse-ai/unbrowse-dev/commit/f68a95539aebb06c85bbe4978d2f52808a923ab5))
 
 ## [6.13.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.2...v6.13.0-preview.3) (2026-05-12)
 

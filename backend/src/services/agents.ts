@@ -90,7 +90,13 @@ export async function registerAgent(
   env: Env,
   name: string,
   tosVersion: string,
-  wallet?: { wallet_address?: string; wallet_provider?: string },
+  wallet?: {
+    wallet_address?: string;
+    wallet_provider?: string;
+    flex_escrow_address?: string;
+    flex_session_key_address?: string;
+    flex_facilitator?: string;
+  },
   attribution?: { landing_token?: string },
 ): Promise<{ agent_id: string; api_key: string }> {
   const trimmed = name.trim();
@@ -118,6 +124,9 @@ export async function registerAgent(
     created_at: new Date().toISOString(),
     wallet_address: normalizedWallet || undefined,
     wallet_provider: wallet?.wallet_provider?.trim() || undefined,
+    flex_escrow_address: wallet?.flex_escrow_address?.trim() || undefined,
+    flex_session_key_address: wallet?.flex_session_key_address?.trim() || undefined,
+    flex_facilitator: wallet?.flex_facilitator?.trim() || undefined,
     profile_origin: "registered",
     skills_discovered: [],
     total_executions: 0,

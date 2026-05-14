@@ -15,14 +15,24 @@ crons = ["17 */6 * * *"]
 #   EMERGENTDB_API_KEY, NEBIUS_API_KEY, API_KEY, FAL_KEY, TURBOBOX_URL,
 #   RESEND_API_KEY, CASCADE_SIGNER_SECRET_KEY, CLOUDFLARE_API_TOKEN
 #   EXA_API_KEY  — Exa web search, optional; resolve still works without it
+#   ADMIN_KEY  — gates /v1/admin/* read surfaces (sponsor-ledger).
+#                NEVER put the value in this file or any committed env file —
+#                always `wrangler secret put ADMIN_KEY` (per env if needed).
+#   PLATFORM_SPONSOR_WALLET_KEY  — signer for the sponsor wallet binding
+#                                  set in [vars] below. Both must be set
+#                                  for sponsor mode to enable.
 
 [vars]
 ENVIRONMENT = "production"
 PAYMENTS_ENABLED = "true"
 CREDITS_ENABLED = "1"
-X402_SEARCH_ENABLED = "false"
+X402_SEARCH_ENABLED = "true"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
+# v6.15.0 — sponsor wallet bindings; key is a secret (wrangler secret put PLATFORM_SPONSOR_WALLET_KEY).
+PLATFORM_SPONSOR_WALLET_ADDRESS = ""
+SPONSOR_CAP_DAILY_USD = "1.0"
+SPONSOR_GLOBAL_DAILY_USD = "50.0"
 
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
@@ -46,9 +56,13 @@ preview_id = "f4fe69f30a3c47008a627113a505f38b"
 ENVIRONMENT = "staging"
 PAYMENTS_ENABLED = "true"
 CREDITS_ENABLED = "1"
-X402_SEARCH_ENABLED = "false"
+X402_SEARCH_ENABLED = "true"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
+# v6.15.0 — sponsor wallet bindings; key is a secret (wrangler secret put PLATFORM_SPONSOR_WALLET_KEY --env staging).
+PLATFORM_SPONSOR_WALLET_ADDRESS = ""
+SPONSOR_CAP_DAILY_USD = "1.0"
+SPONSOR_GLOBAL_DAILY_USD = "50.0"
 
 # --- Lewis experiments environment ---
 # Deploy: wrangler deploy --env experiments

@@ -1,0 +1,44 @@
+{
+  "probe": {
+    "id": "diagnose",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_diagnose",
+      "arguments": {}
+    },
+    "why": "self-test surface; reports installed components (kuri, browser, vendor binaries)"
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 10,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_diagnose",
+      "arguments": {}
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 10,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Diagnosis capture complete. Screenshot + context returned.\n\n{\n  \"screenshot\": \"\",\n  \"tab_id\": \"353072608E72FA4AE10D9C3FD77C7CD9\",\n  \"diagnosis_context\": null,\n  \"status\": {\n    \"error\": \"404 Not Found\"\n  }\n}"
+        }
+      ],
+      "structuredContent": {
+        "screenshot": "",
+        "tab_id": "353072608E72FA4AE10D9C3FD77C7CD9",
+        "diagnosis_context": null,
+        "status": {
+          "error": "404 Not Found"
+        }
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":10,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Diagnosis capture complete. Screenshot + context returned.\\n\\n{\\n  \\\"screenshot\\\": \\\"\\\",\\n  \\\"tab_id\\\": \\\"353072608E72FA4AE10D9C3FD77C7CD9\\\",\\n  \\\"diagnosis_context\\\": null,\\n  \\\"status\\\": {\\n    \\\"error\\\": \\\"404 Not Found\\\"\\n  }\\n}\"}],\"structuredContent\":{\"screenshot\":\"\",\"tab_id\":\"353072608E72FA4AE10D9C3FD77C7CD9\",\"diagnosis_context\":null,\"status\":{\"error\":\"404 Not Found\"}}}}",
+  "parse_error": null,
+  "duration_ms": 6354,
+  "timed_out": false
+}

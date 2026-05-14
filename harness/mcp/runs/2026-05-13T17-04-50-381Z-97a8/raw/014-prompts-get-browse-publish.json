@@ -1,0 +1,46 @@
+{
+  "probe": {
+    "id": "prompts-get-browse-publish",
+    "method": "prompts/get",
+    "params": {
+      "name": "workflow:browse-and-publish",
+      "arguments": {
+        "intent": "find shoes on carousell",
+        "url": "https://www.carousell.sg/search/shoes"
+      }
+    },
+    "why": "browse-and-publish workflow prompt; surfaces the prose for the cold-domain capture flow (unbrowse_go -> snap -> close -> review -> publish). Iter-23 stale-status gate runs against this content."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 14,
+    "method": "prompts/get",
+    "params": {
+      "name": "workflow:browse-and-publish",
+      "arguments": {
+        "intent": "find shoes on carousell",
+        "url": "https://www.carousell.sg/search/shoes"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 14,
+    "result": {
+      "description": "Cold-intent path: go → browse → close → review → publish.",
+      "messages": [
+        {
+          "role": "assistant",
+          "content": {
+            "type": "text",
+            "text": "Workflow: cold intent on a new domain → live capture → publish a reusable skill.\n\n1. Confirm unbrowse_resolve returned no_match for intent=\"find shoes on carousell\" url=\"https://www.carousell.sg/search/shoes\".\n2. Call unbrowse_go with url=\"https://www.carousell.sg/search/shoes\". A live browser tab opens; capture begins passively. (tools/list now expands — new session tools are revealed.)\n3. Loop: unbrowse_snap → act (click/fill/type/press/select/scroll/submit) → re-snap. Always act on element refs from the freshest snap.\n4. When you have the user's answer, call unbrowse_close (or unbrowse_sync to checkpoint).\n   - The result carries next_action.command === \"unbrowse_review\".\n5. MANDATORY: call unbrowse_review with the skill + endpoints. Write proper descriptions + action_kind/resource_kind. This stamps reviewed_at and (you are opted in by default) auto-publishes to the public marketplace where the skill earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Call unbrowse_settings with share_pointers=false BEFORE review to keep it private (forfeits rewards).\n6. If auto_publish_checkpoints is disabled or you need to inspect the publish surface first, call unbrowse_publish twice — first to inspect, then with confirm_publish=true to ship.\n7. Present the captured data to the user. Do NOT respond before review fires — heuristic-described skills never reach the marketplace."
+          }
+        }
+      ]
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":14,\"result\":{\"description\":\"Cold-intent path: go → browse → close → review → publish.\",\"messages\":[{\"role\":\"assistant\",\"content\":{\"type\":\"text\",\"text\":\"Workflow: cold intent on a new domain → live capture → publish a reusable skill.\\n\\n1. Confirm unbrowse_resolve returned no_match for intent=\\\"find shoes on carousell\\\" url=\\\"https://www.carousell.sg/search/shoes\\\".\\n2. Call unbrowse_go with url=\\\"https://www.carousell.sg/search/shoes\\\". A live browser tab opens; capture begins passively. (tools/list now expands — new session tools are revealed.)\\n3. Loop: unbrowse_snap → act (click/fill/type/press/select/scroll/submit) → re-snap. Always act on element refs from the freshest snap.\\n4. When you have the user's answer, call unbrowse_close (or unbrowse_sync to checkpoint).\\n   - The result carries next_action.command === \\\"unbrowse_review\\\".\\n5. MANDATORY: call unbrowse_review with the skill + endpoints. Write proper descriptions + action_kind/resource_kind. This stamps reviewed_at and (you are opted in by default) auto-publishes to the public marketplace where the skill earns x402 rewards on execution. Rewards land in your wallet — run `unbrowse setup` to pair one if you have not already. Call unbrowse_settings with share_pointers=false BEFORE review to keep it private (forfeits rewards).\\n6. If auto_publish_checkpoints is disabled or you need to inspect the publish surface first, call unbrowse_publish twice — first to inspect, then with confirm_publish=true to ship.\\n7. Present the captured data to the user. Do NOT respond before review fires — heuristic-described skills never reach the marketplace.\"}}]}}",
+  "parse_error": null,
+  "duration_ms": 0,
+  "timed_out": false
+}

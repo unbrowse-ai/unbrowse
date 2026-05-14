@@ -1,0 +1,54 @@
+{
+  "probe": {
+    "id": "diagnose-with-context",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_diagnose",
+      "arguments": {
+        "context": "iter 39 test: resolve returned no_match for a fictional intent"
+      }
+    },
+    "why": "diagnose with context= populated exercises a code path the bare {} baseline doesn't: the args.context ?? null field-passthrough at src/mcp.ts:2173. Also tests session_id absent + browseSessionOpen=false branch (no_active_session sentinel) plus the /v1/stats/health diagnostic fetch. First multi-field probe of the diagnose surface."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 33,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_diagnose",
+      "arguments": {
+        "context": "iter 39 test: resolve returned no_match for a fictional intent"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 33,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Diagnosis capture complete. Screenshot + context returned.\n\n{\n  \"screenshot\": null,\n  \"screenshot_error\": \"no_active_session: call unbrowse_go first if you want a page screenshot\",\n  \"tab_id\": null,\n  \"diagnosis_context\": \"iter 39 test: resolve returned no_match for a fictional intent\",\n  \"status\": {\n    \"status\": \"ok\",\n    \"package_version\": \"6.13.0\",\n    \"trace_version\": \"5d9ebf619c61@f68a95539aeb\",\n    \"code_hash\": \"5d9ebf619c61\",\n    \"git_sha\": \"f68a95539aeb\",\n    \"pid\": 99777\n  }\n}"
+        }
+      ],
+      "structuredContent": {
+        "screenshot": null,
+        "screenshot_error": "no_active_session: call unbrowse_go first if you want a page screenshot",
+        "tab_id": null,
+        "diagnosis_context": "iter 39 test: resolve returned no_match for a fictional intent",
+        "status": {
+          "status": "ok",
+          "package_version": "6.13.0",
+          "trace_version": "5d9ebf619c61@f68a95539aeb",
+          "code_hash": "5d9ebf619c61",
+          "git_sha": "f68a95539aeb",
+          "pid": 99777
+        }
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":33,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Diagnosis capture complete. Screenshot + context returned.\\n\\n{\\n  \\\"screenshot\\\": null,\\n  \\\"screenshot_error\\\": \\\"no_active_session: call unbrowse_go first if you want a page screenshot\\\",\\n  \\\"tab_id\\\": null,\\n  \\\"diagnosis_context\\\": \\\"iter 39 test: resolve returned no_match for a fictional intent\\\",\\n  \\\"status\\\": {\\n    \\\"status\\\": \\\"ok\\\",\\n    \\\"package_version\\\": \\\"6.13.0\\\",\\n    \\\"trace_version\\\": \\\"5d9ebf619c61@f68a95539aeb\\\",\\n    \\\"code_hash\\\": \\\"5d9ebf619c61\\\",\\n    \\\"git_sha\\\": \\\"f68a95539aeb\\\",\\n    \\\"pid\\\": 99777\\n  }\\n}\"}],\"structuredContent\":{\"screenshot\":null,\"screenshot_error\":\"no_active_session: call unbrowse_go first if you want a page screenshot\",\"tab_id\":null,\"diagnosis_context\":\"iter 39 test: resolve returned no_match for a fictional intent\",\"status\":{\"status\":\"ok\",\"package_version\":\"6.13.0\",\"trace_version\":\"5d9ebf619c61@f68a95539aeb\",\"code_hash\":\"5d9ebf619c61\",\"git_sha\":\"f68a95539aeb\",\"pid\":99777}}}}",
+  "parse_error": null,
+  "duration_ms": 2,
+  "timed_out": false
+}

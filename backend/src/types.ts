@@ -23,6 +23,11 @@ export interface Env {
   X402_NETWORK_MODE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
+  // v6.16: CASCADE_PLATFORM_WALLET and CASCADE_SIGNER_SECRET_KEY are unused by
+  // the runtime — Flex carries the 10% platform cut natively in every signed
+  // authorization's splits. They remain in the Env shape for one release so
+  // existing wrangler secret configs don't fail validation; v6.17 removes them.
+  // CASCADE_RPC_URL / CASCADE_RPC_WS_URL stay (Solana RPC binding for Flex).
   CASCADE_PLATFORM_WALLET?: string;
   CASCADE_SIGNER_SECRET_KEY?: string;
   CASCADE_RPC_URL?: string;
@@ -67,8 +72,57 @@ export interface Env {
   STRIPE_PRICE_BASE?: string;
   /** Stripe price ID for metered overage (per-unit) above the quota. */
   STRIPE_PRICE_OVERAGE?: string;
+  /**
+   * Platform-sponsor wallet (v6.15.0+) — funds first-call subsidies so route
+   * creators see x402 earnings immediately. Both ADDRESS and KEY must be set
+   * for the sponsor middleware to enable; otherwise it refuses-to-enable and
+   * the standard 402 flow runs unchanged.
+   */
+  PLATFORM_SPONSOR_WALLET_ADDRESS?: string;
+  PLATFORM_SPONSOR_WALLET_KEY?: string;
+  /** Per-agent daily sponsor cap in USD (default 1.0). */
+  SPONSOR_CAP_DAILY_USD?: string;
+  /** Org-wide daily sponsor cap in USD (default 50.0). */
+  SPONSOR_GLOBAL_DAILY_USD?: string;
+  /**
+   * Admin-only operations key (v6.15.0+) — gates `/v1/admin/*` read surfaces
+   * like sponsor-ledger. Separate from API_KEY (which doubles as a legacy
+   * admin token for CLI back-compat) so the admin surface can rotate
+   * independently. Set via `wrangler secret put ADMIN_KEY`. Routes return
+   * 401 on missing OR mismatched header; the configured value is never
+   * echoed in error responses.
+   */
+  ADMIN_KEY?: string;
+  /**
+   * Faremeter Flex facilitator (v6.16.0+) — self-hosted Solana flex
+   * facilitator. Wires the four envs below into createFlexFacilitator on
+   * Day 5; until then the bindings exist but are unused.
+   */
+  FLEX_PLATFORM_FACILITATOR_KEY?: string;     // secret (set via wrangler secret put)
+  FLEX_PLATFORM_RECIPIENT_USDC_ATA?: string;  // public binding
+  FLEX_REFUND_TIMEOUT_SLOTS?: string;         // public binding, defaults to "150"
+  FLEX_DEADMAN_TIMEOUT_SLOTS?: string;        // public binding, defaults to "1000"
+  /**
+   * Flex sponsor session key (v6.16 Phase 4) — Ed25519 keypair the platform
+   * uses to sign sponsor-tier Flex payment authorizations.
+   * SECRET: set via `wrangler secret put FLEX_SPONSOR_SESSION_KEY_SECRET`.
+   * Minimum recommended expiry window ~48h (432_000 slots @ 400ms/slot);
+   * hard cap ~96h. Tracked via the EXPIRES_AT_SLOT binding below — both
+   * must be rotated together.
+   */
+  FLEX_SPONSOR_SESSION_KEY_SECRET?: string;          // secret
+  /** Public binding: slot at which the current session key expires (uint64 as string). */
+  FLEX_SPONSOR_SESSION_KEY_EXPIRES_AT_SLOT?: string;
+  /**
+   * Sponsor-on-Flex (v6.16.0+) — when SPONSOR_USE_FLEX_SPLIT="1", the sponsor
+   * middleware mints a Flex authorization against FLEX_SPONSOR_ESCROW_ADDRESS
+   * signed by FLEX_SPONSOR_SESSION_KEY_SECRET (above). When unset/"0",
+   * sponsor mode falls back to direct-SPL via `sendSponsorPayment`
+   * (v6.15 behavior). Independent of Cascade — Phase 5 retires Cascade naming.
+   */
+  FLEX_SPONSOR_ESCROW_ADDRESS?: string;
+  SPONSOR_USE_FLEX_SPLIT?: string;
 }
-
 // --- Agent identity ---
 
 export interface AgentProfile {
@@ -90,6 +144,10 @@ export interface AgentProfile {
   activity_dates?: string[];
   // Install funnel attribution (signed token from landing page)
   landing_token?: string;
+  // Flex onboarding (v6.16.0+) — set by `unbrowse setup` / /account pairing
+  flex_escrow_address?: string;      // base58 PDA
+  flex_session_key_address?: string; // base58 ed25519 pubkey
+  flex_facilitator?: string;         // which facilitator URL this escrow points at; null = our default
 }
 
 // --- Shared types (mirrored from src/types/skill.ts) ---
@@ -324,7 +382,11 @@ export interface SkillManifest {
   domain_verified_at?: string;
   /** All agents who contributed endpoints to this skill, with their shares */
   contributors?: SkillContributor[];
-  /** Cascade Split address for this skill — x402 payments route here */
+  /**
+   * Skill-level recipient wallet for x402 payouts (legacy Cascade Split
+   * address pre-v6.16; on Flex this is simply the primary contributor's
+   * wallet, surfaced as `payTo` in the payment terms).
+   */
   split_config?: string;
   /**
    * Site-owner opt-in for revenue sharing.
@@ -349,7 +411,32 @@ export interface SkillManifest {
    * with heuristic descriptions and rank below reviewed peers in resolve.
    */
   reviewed_at?: string;
+  /**
+   * Pricing mode for this skill — additive over the legacy
+   * `base_price_usd` field. When present, the route reads from this
+   * discriminated union; when absent, the route falls back to
+   * `base_price_usd` as `{ mode: "fixed", price_usd }`.
+   *
+   * - `fixed`: caller is billed a flat `price_usd` per execution.
+   * - `metered`: caller authorizes a ceiling
+   *   (`max_units * cost_per_unit_uc` µ¢) and is settled for the
+   *   actual units consumed.
+   */
+  pricing?: SkillPricing;
 }
+
+/**
+ * Discriminated union for skill pricing. Phase 3 of x402-routing-v6.16.
+ *
+ * `unit` on metered is a free-form label (e.g. "input_token",
+ * "output_token", "page_view") — purely descriptive metadata for
+ * accounting + agent UI. The economics use `cost_per_unit_uc` (micro-
+ * cents per unit) and `max_units` (the ceiling the caller authorizes
+ * at verify time).
+ */
+export type SkillPricing =
+  | { mode: "fixed"; price_usd: number }
+  | { mode: "metered"; unit: string; cost_per_unit_uc: number; max_units: number };
 
 export interface SkillListEndpointPreview {
   endpoint_id: string;
@@ -385,7 +472,7 @@ export interface SkillContributor {
   endpoints_contributed: number;
   /** Cumulative attribution delta score */
   cumulative_delta: number;
-  /** Share out of 100 for Cascade Split (computed from relative contribution) */
+  /** Share out of 100 for payout splits (computed from relative contribution; legacy Cascade Split model pre-v6.16, Flex bps-share on Flex). */
   share: number;
   /** When this agent first contributed */
   first_contributed_at: string;

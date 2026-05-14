@@ -1,0 +1,44 @@
+{
+  "probe": {
+    "id": "trace-bogus",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_trace",
+      "arguments": {
+        "trace_id": "bogus-trace-12345"
+      }
+    },
+    "why": "extends iter 30/31 validation-map to a READ-side endpoint. GET /v1/trace/{id} with a non-existent id. Whether the daemon returns 404 (clean error_field) vs empty payload vs silent success indicates whether trace's read path has the same validation discipline as the /v1/skills/* write surface."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 30,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_trace",
+      "arguments": {
+        "trace_id": "bogus-trace-12345"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 30,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Trace bogus-trace-12345 not found\n\n{\n  \"error\": \"Trace bogus-trace-12345 not found\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "error": "Trace bogus-trace-12345 not found"
+      },
+      "isError": true
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":30,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Trace bogus-trace-12345 not found\\n\\n{\\n  \\\"error\\\": \\\"Trace bogus-trace-12345 not found\\\"\\n}\"}],\"structuredContent\":{\"error\":\"Trace bogus-trace-12345 not found\"},\"isError\":true}}",
+  "parse_error": null,
+  "duration_ms": 2,
+  "timed_out": false
+}

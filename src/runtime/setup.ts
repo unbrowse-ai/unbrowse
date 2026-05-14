@@ -214,7 +214,7 @@ export async function runSetup(options?: {
         lobsterInstalled = true;
       } catch {
         console.warn("[unbrowse] Crossmint wallet setup failed — you can retry with: npx @crossmint/lobster-cli setup");
-        console.warn("[unbrowse] Continuing with free credits ($2.00). Set up a wallet later to earn from your routes.");
+        console.warn("[unbrowse] Continuing with the platform sponsor pool ($1/day per agent, $50/day across the platform). Pair a wallet via `lobstercash` to keep going past the daily cap and earn USDC when your routes are reused.");
       }
     } else {
       console.log("[unbrowse] Crossmint lobster.cash detected but wallet not configured — running wallet setup...");
@@ -251,6 +251,31 @@ export async function runSetup(options?: {
         : "npx @crossmint/lobster-cli setup",
   };
 
+  // P0.2 / Day-4 Flex onboarding chain: fund escrow + register session key.
+  // For v6.16.0-preview.0, these prompts are HONEST-SKIP: they print clear
+  // next-steps (run @unbrowse/sdk fund-escrow or visit unbrowse.ai/account/...)
+  // and report a `skipped` result with a `reason`. They never throw, so no
+  // try/catch silent-swallow path. Enforcement lives in the backend's
+  // `flex-onboarding-required` middleware — priced calls return 402 with
+  // `X-Flex-Onboarding-Required: 1` until escrow + session key exist.
+  const setupCtx: SetupContext = {
+    cwd,
+    walletConfigured: finalWalletCheck.configured,
+  };
+  const flexEscrow = await promptFundEscrow(setupCtx);
+  const flexSessionKey = await promptRegisterSessionKey(setupCtx);
+  // flexEscrow / flexSessionKey results are not yet plumbed into SetupReport;
+  // preview.1+ will add `flex_escrow` and `flex_session_key` fields.
+  void flexEscrow;
+  void flexSessionKey;
+
+  if (flexEscrow.skipped || flexSessionKey.skipped) {
+    console.log("");
+    console.log("[unbrowse setup] Onboarding partial — see above for next steps.");
+    console.log("  Priced calls will receive 402 with X-Flex-Onboarding-Required: 1");
+    console.log("  until escrow + session-key are completed via SDK or web flow.");
+  }
+
   return {
     os: {
       platform: process.platform,
@@ -264,4 +289,60 @@ export async function runSetup(options?: {
     update_hints: configureUpdateHintHooks(import.meta.url, installSource),
     wallet,
   };
+}
+
+/**
+ * v6.16 onboarding context, minimal shape — Day-3 mustard seed. Day-4 will
+ * expand this to carry the user's wallet handle, the cluster RPC URL, and
+ * the facilitator address used during onboarding.
+ */
+export type SetupContext = {
+  cwd: string;
+  walletConfigured: boolean;
+};
+
+/**
+ * Prompt the user to fund a Flex escrow during onboarding. Day-3 stub.
+ * Day-4: dispatches to `packages/sdk/src/flex.ts::fundEscrow`, prints the
+ * resulting escrow PDA, and saves it to the local config.
+ */
+export async function promptFundEscrow(
+  ctx: SetupContext,
+): Promise<{ escrowAddress?: string; skipped: boolean; reason?: string }> {
+  if (!ctx.walletConfigured) {
+    console.log("[unbrowse setup] Flex escrow funding: skipped (wallet not paired)");
+    return { skipped: true, reason: "wallet_not_paired" };
+  }
+  console.log("");
+  console.log("[unbrowse setup] Flex escrow funding (required for paid calls)");
+  console.log("  Pre-deposit USDC into a Flex escrow PDA so the platform can");
+  console.log("  settle creator payments off-chain in batches.");
+  console.log("  Run one of:");
+  console.log("    npx @unbrowse/sdk fund-escrow --amount 5.00     # via SDK");
+  console.log("    open https://unbrowse.ai/account/escrow         # via web");
+  console.log("  Server-side priced calls will return 402 with");
+  console.log("  X-Flex-Onboarding-Required: 1 until this step is done.");
+  return { skipped: true, reason: "deferred_to_sdk_or_web" };
+}
+
+/**
+ * Prompt the user to register a session key against their funded escrow.
+ * Day-3 stub. Day-4: generates a session keypair, calls
+ * `packages/sdk/src/flex.ts::registerSessionKey`, persists the session-key
+ * secret to the keychain, and prints the registered address.
+ */
+export async function promptRegisterSessionKey(
+  ctx: SetupContext,
+): Promise<{ sessionKeyAddress?: string; skipped: boolean; reason?: string }> {
+  if (!ctx.walletConfigured) {
+    return { skipped: true, reason: "wallet_not_paired" };
+  }
+  console.log("");
+  console.log("[unbrowse setup] Flex session key registration");
+  console.log("  Register an Ed25519 session key against your escrow so the");
+  console.log("  SDK can sign payment authorizations off-chain.");
+  console.log("  Run one of:");
+  console.log("    npx @unbrowse/sdk register-session-key           # via SDK");
+  console.log("    open https://unbrowse.ai/account/session-key     # via web");
+  return { skipped: true, reason: "deferred_to_sdk_or_web" };
 }

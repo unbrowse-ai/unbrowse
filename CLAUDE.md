@@ -27,7 +27,7 @@ Every code change is judged against the calling agent's experience. The four inv
 - When live capture is unavoidable, return an actionable `next_step` (`open_browse_session` / `abandon_or_authenticate`) with concrete `suggested_commands`. Never a one-word error.
 - Same-host empty-resolve must hard-handoff (resolve_hard_handoff) instead of letting the agent loop re-resolving.
 
-**Stickiness strategy:** Make Unbrowse the default browser for every agent via plugin + MCP. If Unbrowse is the MCP server agents call for ANY web task, it becomes infrastructure — not a tool you choose, but the layer everything routes through. Priority: OpenClaw plugin (exists v0.7.13), Claude MCP server (exists), LangChain/CrewAI integrations (code written).
+**Stickiness strategy:** Make Unbrowse the default browser for every agent via MCP + SDK. If Unbrowse is the MCP server agents call for ANY web task, it becomes infrastructure — not a tool you choose, but the layer everything routes through. Priority: Claude MCP server (exists), `@unbrowse/sdk` (v6.15.0 — spawns the local binary itself, so `npm i @unbrowse/sdk` is enough; no global install required), OpenClaw plugin (exists v0.7.13), LangChain/CrewAI integrations (code written).
 ## Architecture
 
 - **Kuri is the primary browser** (Zig-native CDP broker, 464KB, ~3ms cold start). Unbrowse is the intelligence layer on top.
@@ -37,7 +37,8 @@ Every code change is judged against the calling agent's experience. The four inv
 - **Full enrichment pipeline** (same for passive and explicit capture): `extractEndpoints` → `extractAuthHeaders` → `storeCredential` → `mergeEndpoints` (with existing domain skill) → `generateLocalDescription` → `augmentEndpointsWithAgent` (LLM semantic metadata) → `buildSkillOperationGraph` → `cachePublishedSkill` → `queueBackgroundIndex` (marketplace publish).
 - **Resolve pipeline**: route cache → marketplace → first-pass browser (8s) → browse session handoff (agent drives) → live capture fallback.
 - **Browse session handoff**: on resolve miss, if first-pass has a tab, Unbrowse opens a browser session with auth/interceptor and returns `{ status: "browse_session_open", next_step: "unbrowse snap" }`. The calling agent drives the browser; Unbrowse indexes passively.
-- **Sync to public repo**: `bash scripts/sync-skill.sh` or manual rsync to `~/Projects/unbrowse-skill` + push to `unbrowse-ai/unbrowse` stable branch.
+- **Skill path retired in v6.15.0** — SDK is the integration surface, MCP is the agent protocol, `unbrowse setup` bootstraps both. No more `SKILL.md` or `unbrowse-ai/unbrowse` skill-repo sync.
+- **x402 sponsor tier (v6.15.0)** — `backend/src/middleware/sponsor.ts` gates every paid execute through a per-agent + per-platform daily USD cap. Lewis's wallet sponsors first $1/day/agent and $50/day/platform; agents fall through to their own x402 wallet once caps trip. State lives in KV: `sponsor:agent:<id>:<UTC-date>`, `sponsor:global:<UTC-date>`, `sponsor:ledger:<id>`. Exposed via `GET /v1/account/sponsor-status` and admin ledger at `GET /v1/admin/sponsor-ledger` (ADMIN_KEY-gated).
 
 ## Known Issues to Fix
 
@@ -50,16 +51,18 @@ Every code change is judged against the calling agent's experience. The four inv
 - **Fourth `mcp.ts` mirror not covered by sync** — `.agents/skills/unbrowse/src/mcp.ts` is a vendored snapshot at commit `9f124ba1` that `scripts/sync-skill.sh` does not touch, so it sits outside the three-file `EndpointDescriptor` invariant declared above. Decision deferred: promote it into the sync flow or delete the snapshot in a later loop. Surfaced by `/jesus-loop` Day 1 light pass 2026-05-13. Falsifier: `bash scripts/verify-third-mirror-drift.sh` (compares whitespace-stripped `maybePostProcessResult` hashes against `scripts/.third-mirror-baseline`).
 ## Structure
 
-- `src/` — shared skill engine (capture, reverse-engineer, execute)
-- `backend/` — Cloudflare Worker API (marketplace, stats)
+- `src/` — local server (resolve, execute, capture, MCP) — what the CLI/MCP run against
+- `backend/` — Cloudflare Worker API (marketplace, stats, sponsor middleware)
 - `frontend/` — Next.js landing page
-- `packages/skill/` — isolated publishable skill package (src/ symlinks to root)
+- `packages/sdk/` — `@unbrowse/sdk` — thin TS client; `spawn()` factory auto-starts the local binary
+- `packages/skill/` — npm package that publishes the CLI binary (`unbrowse`); not a Claude skill
+
 
 ## Conventions
 
 - All notable changes must be written into `CHANGELOG.md`
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
-- Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
+- Skill path retired in v6.15.0 — integration surface is `@unbrowse/sdk` + MCP; no skill-repo sync.
 - Kuri must work as a bundled runtime from the package/monorepo vendor path. Do not require end users to install Zig or a separate `kuri` binary.
 - When touching Kuri discovery, packaging, runtime paths, or `packages/skill`, run `node packages/skill/scripts/assert-kuri-vendor.mjs`.
 - **Pre-commit hook fails on merge commits when `submodules/kuri/` is empty.** `prepare-pack.mjs` throws "Broken Kuri source checkout". For merge commits where the submodule isn't relevant, use `git commit --no-verify`. For non-merge commits, run `bash scripts/ensure-submodules.sh` first.
@@ -272,10 +275,10 @@ Anything new is a new debt. Either rewrite to a generic primitive or delete.
 When asked to release, follow this flow:
 
 1. Read commits since last tag: `git log $(git describe --tags --match='v*' --abbrev=0)..HEAD --format="%s"`
-2. Read the diff of user-facing code (src/, packages/, SKILL.md, README.md)
+2. Read the diff of user-facing code (src/, packages/, README.md)
 3. Write polished, user-facing release notes to `.release-notes.md` (see format below)
 4. Run `bun run release:preview` — tests, bumps version, tags, pushes, waits for npm, runs remote agent-xp
-5. The tag push triggers CI which deploys backend + frontend and syncs + releases the skill repo
+5. The tag push triggers CI which publishes the CLI to npm and deploys backend + frontend.
 
 ### Post-release agent experience review (MANDATORY)
 

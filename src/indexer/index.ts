@@ -491,17 +491,21 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
  *   1. `share_pointers` (opt-out flag): false → user has removed themselves
  *      from the public marketplace; nothing publishes.
  *   2. `reviewed_at` (review-gate): missing → skill carries heuristic
- *      descriptions; never goes to the marketplace. The review handler
- *      stamps `reviewed_at` and re-runs this predicate.
+ *      descriptions; held back unless `auto_review` is true. The review
+ *      handler stamps `reviewed_at` and re-runs this predicate.
+ *
+ * `auto_review=true` short-circuits door 2: heuristic-described skills are
+ * accepted as-is. The caller is expected to stamp `reviewed_at` before
+ * persisting so the marketplace receives a normal manifest.
  *
  * Returns the decision plus a human-readable reason that callers can log
- * or surface to the agent. Exported so unit tests can exercise both
- * doors without invoking the network-bound publishIndexedSkill path.
+ * or surface to the agent. Exported so unit tests can exercise all doors
+ * without invoking the network-bound publishIndexedSkill path.
  */
 export function shouldPublishAfterIndex(
   skill: { reviewed_at?: string; skill_id?: string },
-  contribution: { share_pointers: boolean },
-): { publish: boolean; gate: "ok" | "share_pointers_off" | "awaiting_review"; reason: string } {
+  contribution: { share_pointers: boolean; auto_review?: boolean },
+): { publish: boolean; gate: "ok" | "share_pointers_off" | "awaiting_review" | "auto_review"; reason: string } {
   if (!contribution.share_pointers) {
     return {
       publish: false,
@@ -510,10 +514,17 @@ export function shouldPublishAfterIndex(
     };
   }
   if (!skill.reviewed_at) {
+    if (contribution.auto_review) {
+      return {
+        publish: true,
+        gate: "auto_review",
+        reason: "auto_review=true: heuristic + LLM-augmented descriptions accepted as-is.",
+      };
+    }
     return {
       publish: false,
       gate: "awaiting_review",
-      reason: "awaiting review — call unbrowse_review to describe endpoints and publish (default opt-out), or unbrowse_settings share_pointers=false to stay private.",
+      reason: "awaiting review — call unbrowse_review to describe endpoints and publish, set auto_review=true via unbrowse_settings to skip review, or set share_pointers=false to stay private.",
     };
   }
   return {
@@ -524,6 +535,13 @@ export function shouldPublishAfterIndex(
 }
 
 async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
+  // auto_review: stamp reviewed_at BEFORE indexing so persistence captures it.
+  // The publish gate below then sees reviewed_at set and returns ok.
+  const { contribution } = getContributionConfig();
+  if (job.publishAfterIndex && contribution.auto_review && !job.skill.reviewed_at) {
+    job.skill.reviewed_at = new Date().toISOString();
+  }
+
   const indexed = await indexSkillLocally(job);
   console.error(`[capture-pipeline] local index completed for ${indexed.domain} -> ${indexed.skill.skill_id}`);
 
@@ -532,13 +550,15 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     return;
   }
 
-  const { contribution } = getContributionConfig();
   const decision = shouldPublishAfterIndex(indexed.skill, contribution);
   if (!decision.publish) {
     console.error(
       `[capture-pipeline] ${decision.gate} — skipping marketplace publish for skill ${indexed.skill.skill_id} (${indexed.domain}): ${decision.reason}`,
     );
     return;
+  }
+  if (decision.gate === "auto_review") {
+    console.error(`[capture-pipeline] auto_review — publishing ${indexed.skill.skill_id} (${indexed.domain}) without explicit review`);
   }
 
   const publishResult = await publishIndexedSkill(indexed);

@@ -1,0 +1,44 @@
+{
+  "probe": {
+    "id": "sessions-bogus-domain",
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_sessions",
+      "arguments": {
+        "domain": "bogus-domain-12345.invalid"
+      }
+    },
+    "why": "GET /v1/sessions/{domain} with a never-captured domain. Compares to sessions-list (iter <baseline>) which returns `{errors: [\"domain is required\"]}` (plural array, schema-validation shape) vs the singular `{error: \"...\"}` shape every other tool uses. If bogus-domain returns `{error}`, the plural shape is specific to schema validation (missing required field). If it also returns `{errors}`, the daemon uses a different error shape across the board for /v1/sessions."
+  },
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 32,
+    "method": "tools/call",
+    "params": {
+      "name": "unbrowse_sessions",
+      "arguments": {
+        "domain": "bogus-domain-12345.invalid"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 32,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Session logs.\n\n{\n  \"domain\": \"bogus-domain-12345.invalid\",\n  \"sessions\": []\n}"
+        }
+      ],
+      "structuredContent": {
+        "domain": "bogus-domain-12345.invalid",
+        "sessions": []
+      }
+    }
+  },
+  "response_raw": "{\"jsonrpc\":\"2.0\",\"id\":32,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Session logs.\\n\\n{\\n  \\\"domain\\\": \\\"bogus-domain-12345.invalid\\\",\\n  \\\"sessions\\\": []\\n}\"}],\"structuredContent\":{\"domain\":\"bogus-domain-12345.invalid\",\"sessions\":[]}}}",
+  "parse_error": null,
+  "duration_ms": 235,
+  "timed_out": false
+}
