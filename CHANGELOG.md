@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.14.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.4...v6.14.0-preview.5) (2026-05-14)
+
+### Features
+
+* **capture:** generic CDP auth-header capture for XHR replay ([a003b92](https://github.com/unbrowse-ai/unbrowse-dev/commit/a003b928d253a83ac906f4b8c50217b9042cda13))
+
 ## [6.14.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.14.0-preview.4) (2026-05-14)
 
 ### Features
