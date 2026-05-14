@@ -47,6 +47,11 @@ rsync -a --delete "$DOCS_DIR/" "$TARGET_REPO/docs/"
 echo "=== Syncing $SKILL_MD -> $TARGET_REPO/SKILL.md ==="
 cp "$SKILL_MD" "$TARGET_REPO/SKILL.md"
 
+if [ -f "$SKILL_PKG/README.md" ]; then
+  echo "=== Syncing $SKILL_PKG/README.md -> $TARGET_REPO/README.md ==="
+  cp "$SKILL_PKG/README.md" "$TARGET_REPO/README.md"
+fi
+
 # --------------------------------------------------------------------------
 # 2b. Enforce binary-only: delete anything in target that isn't on the allowlist.
 # The public mirror MUST NOT carry build inputs. Source ships via npm dist/*.js

@@ -8,7 +8,7 @@ One agent learns a site once. Every later agent gets the fast path.
 
 Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
-> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint pipeline (`sync`, `close`, or manual `publish`). See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint pipeline (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server (see below). The Anthropic skill path (`SKILL.md`) is **deprecated as of v6.14.0** — see [SKILL.md](./SKILL.md) for the migration block.
 
 ## MCP server
 
