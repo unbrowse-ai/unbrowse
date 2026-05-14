@@ -16,36 +16,9 @@ env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
 jobs:
-  build-darwin-kuri:
-    name: Build Kuri for darwin (native macOS runner)
-    runs-on: macos-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash scripts/ensure-submodules.sh submodules/kuri
-      - uses: mlugg/setup-zig@v2
-        with:
-          version: "0.16.0"
-      - name: Build kuri darwin-arm64 (native)
-        working-directory: submodules/kuri
-        run: |
-          zig build -Doptimize=ReleaseFast
-          file zig-out/bin/kuri
-      - name: Stage darwin-arm64 artifact
-        run: |
-          mkdir -p artifacts/darwin-arm64
-          cp submodules/kuri/zig-out/bin/kuri artifacts/darwin-arm64/kuri
-      - uses: actions/upload-artifact@v4
-        with:
-          name: kuri-darwin-arm64
-          path: artifacts/darwin-arm64/kuri
-          retention-days: 1
-
   upload-release-assets:
     name: Upload CLI Release Assets
     runs-on: self-hosted
-    needs: build-darwin-kuri
     permissions:
       contents: write
     steps:
@@ -87,13 +60,10 @@ jobs:
           echo "GH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "UNBROWSE_RELEASE_REPO=$TARGET_REPO" >> "$GITHUB_ENV"
       - run: bun install --frozen-lockfile
-      - name: Download darwin-arm64 kuri artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: kuri-darwin-arm64
-          path: packages/skill/vendor/kuri/darwin-arm64
-      - name: Make downloaded kuri binary executable
-        run: chmod +x packages/skill/vendor/kuri/darwin-arm64/kuri
+      # darwin-arm64 kuri binary is downloaded by build-kuri-binaries.mjs from
+      # github.com/lekt9/kuri releases (prebuiltAssets URL) — no macos-latest
+      # runner needed. Linux/Windows targets cross-compile via zig from this
+      # self-hosted runner.
       - run: bash scripts/build-binaries.sh --all
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
@@ -140,7 +110,7 @@ jobs:
   publish-cli:
     name: Publish CLI (npm)
     runs-on: self-hosted
-    needs: [verify-release-assets, build-darwin-kuri]
+    needs: [verify-release-assets]
     outputs:
       package_name: ${{ steps.pkg.outputs.name }}
       package_version: ${{ steps.pkg.outputs.version }}
