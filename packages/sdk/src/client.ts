@@ -377,20 +377,58 @@ export class Unbrowse {
   }
 
   /**
-   * Fund a Flex escrow on the caller's behalf. Day-3 stub: rejects honestly.
-   * Day-4 wires this to `fundEscrow` in `./flex.ts`.
+   * Fund a Flex escrow on the caller's behalf. Thin wrapper around
+   * `fundEscrow` in `./flex.ts` — requires the caller to pass
+   * `signer` + `rpc` for v6.16-preview.0 (until SDK ships its own
+   * @solana/kit pipeline). For pure tx construction without sending,
+   * import `buildEscrowCreationTx` from the package root.
    */
-  async fundEscrow(_params: { amountUsdc: string }): Promise<{ escrowAddress: string }> {
-    throw new Error("not yet implemented (Day 4) — see packages/sdk/src/flex.ts::fundEscrow");
+  async fundEscrow(params: {
+    amountUsdc: string;
+    walletAddress?: string;
+    facilitatorAddress?: string;
+    mint?: string;
+    refundTimeoutSlots?: number;
+    deadmanTimeoutSlots?: number;
+    signer?: unknown;
+    rpc?: unknown;
+  }): Promise<{ escrowAddress: string; txSignature: string }> {
+    const { fundEscrow } = await import("./flex.js");
+    return fundEscrow({
+      amountUsdc: params.amountUsdc,
+      walletAddress: params.walletAddress ?? "",
+      facilitatorAddress: params.facilitatorAddress ?? "",
+      mint: params.mint,
+      refundTimeoutSlots: params.refundTimeoutSlots,
+      deadmanTimeoutSlots: params.deadmanTimeoutSlots,
+      signer: params.signer,
+      rpc: params.rpc,
+    });
   }
 
   /**
    * Register a session key against the caller's existing Flex escrow.
-   * Day-3 stub: rejects honestly. Day-4 wires this to `registerSessionKey`
-   * in `./flex.ts`.
+   * Thin wrapper around `registerSessionKey` in `./flex.ts`.
    */
-  async registerSessionKey(_params: { sessionKeyAddress: string }): Promise<{ txSignature: string }> {
-    throw new Error("not yet implemented (Day 4) — see packages/sdk/src/flex.ts::registerSessionKey");
+  async registerSessionKey(params: {
+    sessionKeyAddress: string;
+    walletAddress?: string;
+    escrowAddress?: string;
+    expiresAtSlot?: string;
+    revocationGracePeriodSlots?: number;
+    signer?: unknown;
+    rpc?: unknown;
+  }): Promise<{ txSignature: string }> {
+    const { registerSessionKey } = await import("./flex.js");
+    return registerSessionKey({
+      walletAddress: params.walletAddress ?? "",
+      escrowAddress: params.escrowAddress ?? "",
+      sessionKeyAddress: params.sessionKeyAddress,
+      expiresAtSlot: params.expiresAtSlot,
+      revocationGracePeriodSlots: params.revocationGracePeriodSlots,
+      signer: params.signer,
+      rpc: params.rpc,
+    });
   }
 
   /**
