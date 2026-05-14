@@ -432,16 +432,52 @@ export class Unbrowse {
   }
 
   /**
-   * Execute a skill against a Flex-metered route, streaming per-unit usage
-   * to `onUsage` as the backend acks each settlement chunk. Day-3 stub:
-   * rejects honestly. Day-4 wires this to the metered execute endpoint.
+   * Execute a skill against a Flex-metered route. If the backend
+   * responds 402 with a Flex-shaped `accepts[]` and the caller supplied
+   * `opts.wallet`, this lazy-imports `./flex.js::payAndRetryFlex` to
+   * sign the authorization, build the X-PAYMENT header, and retry the
+   * execute. On success, if the response body carries a numeric
+   * `usage_units`, `opts.onUsage` fires with the consumed unit count
+   * so callers can stream billing telemetry.
+   *
+   * Lazy-imports `./flex.js` inside the retry branch only — `payAndRetry`
+   * wallets are dead weight for callers who never hit a paid skill, and
+   * keeping the import deferred preserves the SDK's tree-shake story.
    */
   async executeMetered<T = unknown>(
-    _skillOrId: string | { skill_id: string },
-    _input: unknown,
-    _opts: { onUsage?: (units: number) => void },
+    skillOrId: string | { skill_id: string },
+    input: unknown,
+    opts?: {
+      onUsage?: (units: number) => void;
+      wallet?: import("./flex.js").FlexWalletLike;
+    },
+    options?: RequestOptions,
   ): Promise<T> {
-    throw new Error("not yet implemented (Day 4)");
+    const skillId = typeof skillOrId === "string" ? skillOrId : skillOrId.skill_id;
+    const path = `/v1/skills/${encodeURIComponent(skillId)}/execute`;
+    const fireUsage = (result: unknown): void => {
+      if (!opts?.onUsage) return;
+      const units = (result as { usage_units?: unknown } | null)?.usage_units;
+      if (typeof units === "number" && Number.isFinite(units)) opts.onUsage(units);
+    };
+    try {
+      const result = await this.request<T>("POST", path, input, options);
+      fireUsage(result);
+      return result;
+    } catch (e) {
+      if (e instanceof PaymentRequiredError && opts?.wallet) {
+        const { payAndRetryFlex } = await import("./flex.js");
+        const result = await payAndRetryFlex<T>(e, opts.wallet, async (paymentHeader) => {
+          return await this.request<T>("POST", path, input, {
+            ...options,
+            headers: { ...(options?.headers ?? {}), "X-PAYMENT": paymentHeader },
+          });
+        });
+        fireUsage(result);
+        return result;
+      }
+      throw e;
+    }
   }
 
   /**

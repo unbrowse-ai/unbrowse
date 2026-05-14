@@ -9,7 +9,12 @@ import { addSkillDiscovered, getAgent, updateAgentWallet } from "../services/age
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { computeRoutePrice } from "../services/pricing.js";
 import { getStats } from "../services/scoring.js";
-import { x402Response, verifyX402Proof, buildSkillPaymentTerms, paymentsEnabled, x402UseTestnet } from "../middleware/x402-gate.js";
+import { verifyX402Proof, paymentsEnabled } from "../middleware/x402-gate.js";
+import {
+  respondWithFlexTerms,
+  sponsorAcceptsForPriceUsd,
+  handleFlexPaymentAuthorized,
+} from "../services/flex-route-helpers.js";
 import { skillsKV } from "../services/kv.js";
 import { getAgentWallet, mergeContributor, resolveSkillPaymentRecipient, syncSkillSplitConfig } from "../services/splits.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
@@ -172,20 +177,16 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
     }
 
     if (!admittedViaSub) {
-    const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
+    const flexPaymentHeader = c.req.header("X-PAYMENT");
+    const legacyPaymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const legacyProofHeader = c.req.header("X-Payment-Proof");
     let sponsoredAdmit = false;
 
-    if (!paymentHeader && !legacyProofHeader) {
-      // No proof provided -- check sponsor tier first, then return 402
+    if (!flexPaymentHeader && !legacyPaymentHeader && !legacyProofHeader) {
+      // No proof provided -- check sponsor tier first, then return 402 with
+      // the Flex envelope (v6.16 Phase 1 swap; Corbits envelope was the
+      // pre-v6.16 shape and is no longer emitted).
       const recipient = resolveSkillPaymentRecipient(skill, c.env);
-      const terms = await buildSkillPaymentTerms(
-        priceResult.price_usd,
-        skill.skill_id,
-        recipient,
-        c.req.url,
-        { testnet: x402UseTestnet(c.env) },
-      );
 
       // Sponsor decision: if a valid agent key resolved (above), try to
       // sponsor the first call from the platform wallet. Anonymous callers
@@ -193,7 +194,7 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       const candidateAgentId = c.get("agent_id");
       // P0.3 soft-block: existing v6.15-era agents without complete Flex
       // onboarding get a 402 + X-Flex-Onboarding-Required BEFORE any sponsor
-      // or x402 payment terms get processed.
+      // or Flex payment terms get processed.
       if (candidateAgentId && candidateAgentId !== "__admin__") {
         const { checkFlexOnboardingOrBlock } = await import("../middleware/flex-onboarding-soft-block.js");
         const blockResp = await checkFlexOnboardingOrBlock(c);
@@ -201,7 +202,10 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       }
       if (candidateAgentId && candidateAgentId !== "__admin__") {
         const { maybeSponsor } = await import("../middleware/sponsor.js");
-        const decision = await maybeSponsor(c, terms.accepts, candidateAgentId);
+        // sponsorAcceptsForPriceUsd synthesises a Corbits-shaped accepts[]
+        // for the existing sponsor middleware (Phase 4 / Day-6 rewrites this).
+        const sponsorAccepts = sponsorAcceptsForPriceUsd(priceResult.price_usd, recipient);
+        const decision = await maybeSponsor(c, sponsorAccepts, candidateAgentId);
         if (decision.kind === "sponsored") {
           c.header("X-Sponsored", decision.ledger_id);
           c.header("X-Sponsor-Tx", decision.tx_hash);
@@ -212,20 +216,61 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
           c.header("X-Sponsor-Exhausted", "1");
           c.header("X-Sponsor-Reason", decision.reason);
           c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
-          return x402Response(c, terms);
+          return await respondWithFlexTerms(c, {
+            skill,
+            priceUsd: priceResult.price_usd,
+            resource: c.req.url,
+            agentId: candidateAgentId,
+          });
         } else {
-          // opted_out — standard 402.
+          // opted_out — standard 402 with Flex envelope.
           c.header("X-Sponsor-Reason", "opted_out");
-          return x402Response(c, terms);
+          return await respondWithFlexTerms(c, {
+            skill,
+            priceUsd: priceResult.price_usd,
+            resource: c.req.url,
+            agentId: candidateAgentId,
+          });
         }
       } else {
-        return x402Response(c, terms);
+        return await respondWithFlexTerms(c, {
+          skill,
+          priceUsd: priceResult.price_usd,
+          resource: c.req.url,
+          agentId: candidateAgentId,
+        });
       }
     }
 
     if (!sponsoredAdmit) {
-    // Proof provided -- verify via Corbits facilitator
-    const proof = paymentHeader ?? legacyProofHeader!;
+    if (flexPaymentHeader) {
+      // Flex authorization carries a signed FlexPaymentPayload — verify
+      // via the Flex facilitator, then return the skill body.
+      return await handleFlexPaymentAuthorized(c, flexPaymentHeader, {
+        executeFn: async () => {
+          // Ledger write (best-effort, non-blocking).
+          schedule(c, recordTransaction(c.env, {
+            transaction_id: `flex-${Date.now()}-${skill.skill_id.slice(0, 8)}`,
+            consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
+            creator_id: resolveSkillPaymentRecipient(skill, c.env),
+            skill_id: skill.skill_id,
+            price_usd: priceResult.price_usd,
+            payment_proof: flexPaymentHeader,
+          }).catch((err) => console.warn(`[flex] ledger write failed: ${(err as Error).message}`)));
+          // Backfill proof_summary on legacy skills.
+          if (!skill.proof_summary) skill.proof_summary = summarizeSkillProofs(skill.endpoints);
+          return new Response(JSON.stringify(skill), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+    }
+
+    // Legacy Corbits proof path (PAYMENT-SIGNATURE / X-Payment-Proof). Kept
+    // working through the Phase-5 deletion window so older clients still
+    // settle; new emissions are Flex-shaped.
+    const proof = legacyPaymentHeader ?? legacyProofHeader!;
     const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
     if (!valid) {
       return c.json({ error: "Payment proof invalid or rejected" }, 403);
