@@ -1,0 +1,24 @@
+- Show HN: Rental Property Deal Analyzer – 20 metrics, deal scoring, AI analysis — https://rental-property-deal-analyzer.onrender.com
+- Show HN: I tracked 3,519 stock picks from 23 Substacks – who makes money? — (self)
+- Show HN: Mobile IPs for AI agents that keep getting blocked — (self)
+- Show HN: Crawlee for Python – a web scraping and browser automation library — https://crawlee.dev/python/
+- Show HN: Hyperbrowser – Scalable Browser Infrastructure for AI Apps — https://www.hyperbrowser.ai/
+- Launch HN: Simplex (YC S24) – Browser automation platform for developers — https://www.simplex.sh/
+- Show HN: xhr.dev – Bot Detection Avoidance via Forward Proxy — https://xhr.dev
+- Managed OpenClaw hosting, 60-second provisioning — (self)
+- Show HN: Open-source browser for AI agents — https://github.com/theredsix/agent-browser-protocol
+- Show HN: SnapAPI – Screenshot/PDF/Extract API Built with Fastify and Playwright — https://snapapi.pics/
+- Scraping 241 UK council planning portals – 2.6M decisions so far — (self)
+- Show HN: Crawlee – Web scraping and browser automation library for Node.js — https://crawlee.dev/
+- Show HN: Crul – Query Any Webpage or API — https://www.crul.com/
+- Show HN: Finic – Open source platform for building browser automations — https://github.com/finic-ai/finic
+- Tell HN: Claude 4.7 is ignoring stop hooks — (self)
+- Show HN: Generate E2E tests for your applications from its URL — (self)
+- Show HN: Allscreenshots – a developer focused screenshot as a service API — https://allscreenshots.com
+- Show HN: AsdPrompt – Vimium-style keyboard navigation for AI chat responses — https://asdprompt.com/
+- Show HN: AsdPrompt – Vimium-style keyboard navigation for AI chat responses — https://asdprompt.com/
+- Show HN: Thoth – Obsidian AI Research Assistant — https://github.com/acertainKnight/project-thoth
+- Show HN: A lightweight, E2E encrypted pastebin built with Svelte 5 and Hono — https://github.com/yashau/yPad
+- Show HN: ChronoGuard–Zero-trust proxy for browser automation with temporal ctrls — https://github.com/j-raghavan/ChronoGuard
+- Show HN: A 3-line wrapper that enforces deterministic security for AI agents — (self)
+- Show HN: Browser Harness – Gives LLM freedom to complete any browser task — https://github.com/browser-use/browser-harness

@@ -8,13 +8,14 @@ const JUDGE = join(ROOT, "harness/probes/GATE_JUDGE.md");
 
 const LANES = ["anchor", "semantic-rank", "graphql", "ssr-list", "auth-gated", "hostile"] as const;
 const LANE_COUNTS: Record<(typeof LANES)[number], number> = {
-  anchor: 10,
+  anchor: 11,
   "semantic-rank": 8,
   graphql: 6,
-  "ssr-list": 8,
+  "ssr-list": 10,
   "auth-gated": 8,
-  hostile: 10,
+  hostile: 15,
 };
+const TOTAL_PROBES = 58;
 
 const INDEX_VERDICTS = [
   "INDEX_PASS",
@@ -51,8 +52,8 @@ describe("corpus-gate.txt — release-gate bench corpus contract", () => {
     expect(existsSync(CORPUS)).toBe(true);
   });
 
-  it("parses to exactly 50 probes", () => {
-    expect(parseCorpus()).toHaveLength(50);
+  it(`parses to exactly ${TOTAL_PROBES} probes`, () => {
+    expect(parseCorpus()).toHaveLength(TOTAL_PROBES);
   });
 
   it("only uses the six declared lanes", () => {
