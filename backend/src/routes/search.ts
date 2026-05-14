@@ -4,7 +4,12 @@ import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../serv
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
-import { buildSkillPaymentTerms, searchPaymentsEnabled, verifyX402Proof, x402Response, x402UseTestnet } from "../middleware/x402-gate.js";
+import { searchPaymentsEnabled, verifyX402Proof } from "../middleware/x402-gate.js";
+import {
+  respondWithFlexTerms,
+  sponsorAcceptsForPriceUsd,
+  handleFlexPaymentAuthorized,
+} from "../services/flex-route-helpers.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
@@ -81,19 +86,28 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
     return null;
   }
 
-  const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
+  const flexPaymentHeader = c.req.header("X-PAYMENT");
+  const legacyPaymentHeader = c.req.header("PAYMENT-SIGNATURE");
   const legacyProofHeader = c.req.header("X-Payment-Proof");
-  if (!paymentHeader && !legacyProofHeader) {
-    const recipient = c.env.PAYMENT_RECIPIENT ?? "0x0000000000000000000000000000000000000000";
-    const priceUsd = GRAPH_OPERATION_COST_UC.search / 1_000_000;
-    const terms = await buildSkillPaymentTerms(
-      priceUsd,
-      `graph-search:${routeLabel}`,
-      recipient,
-      c.req.url,
-      { testnet: x402UseTestnet(c.env) },
-    );
 
+  // Synthetic skill descriptor for the Flex envelope. Search isn't backed by
+  // a SkillManifest; recipient is the platform wallet.
+  const priceUsd = GRAPH_OPERATION_COST_UC.search / 1_000_000;
+  const skillId = `graph-search:${routeLabel}`;
+  const searchRecipient = c.env.PAYMENT_RECIPIENT ?? "0x0000000000000000000000000000000000000000";
+  const searchSkill = {
+    skill_id: skillId,
+    contributors: c.env.PAYMENT_RECIPIENT
+      ? [{
+        agent_id: "platform",
+        wallet_address: c.env.PAYMENT_RECIPIENT,
+        cumulative_delta: 1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any]
+      : [],
+  };
+
+  if (!flexPaymentHeader && !legacyPaymentHeader && !legacyProofHeader) {
     // Sponsor decision: try platform-funded admission before emitting 402.
     // Only for authenticated agents; anonymous callers fall straight to 402.
     const agentIdRaw = (c as unknown as { get: (k: string) => string | undefined }).get("agent_id");
@@ -106,7 +120,8 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
     }
     if (agentIdRaw && agentIdRaw !== "__admin__") {
       const { maybeSponsor } = await import("../middleware/sponsor.js");
-      const decision = await maybeSponsor(c as unknown as Parameters<typeof maybeSponsor>[0], terms.accepts, agentIdRaw);
+      const sponsorAccepts = sponsorAcceptsForPriceUsd(priceUsd, searchRecipient);
+      const decision = await maybeSponsor(c as unknown as Parameters<typeof maybeSponsor>[0], sponsorAccepts, agentIdRaw);
       if (decision.kind === "sponsored") {
         c.header("X-Sponsored", decision.ledger_id);
         c.header("X-Sponsor-Tx", decision.tx_hash);
@@ -117,14 +132,44 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
         c.header("X-Sponsor-Exhausted", "1");
         c.header("X-Sponsor-Reason", decision.reason);
         c.header("X-Sponsor-Remaining-Usd", decision.remaining_credit_usd.toFixed(6));
-        return x402Response(c, terms);
+        return await respondWithFlexTerms(
+          c as unknown as Parameters<typeof respondWithFlexTerms>[0],
+          { skill: searchSkill, priceUsd, resource: c.req.url, agentId: agentIdRaw },
+        );
       }
       // opted_out — standard 402.
       c.header("X-Sponsor-Reason", "opted_out");
     }
-    return x402Response(c, terms);
+    return await respondWithFlexTerms(
+      c as unknown as Parameters<typeof respondWithFlexTerms>[0],
+      { skill: searchSkill, priceUsd, resource: c.req.url, agentId: agentIdRaw },
+    );
   }
-  const proof = paymentHeader ?? legacyProofHeader!;
+  if (flexPaymentHeader) {
+    // Flex authorization — verify + settle via the Flex facilitator. We
+    // return Response.status=204 from executeFn as the "verified" marker,
+    // then unwind into the caller letting the search run.
+    const verifyResp = await handleFlexPaymentAuthorized(
+      c as unknown as Parameters<typeof handleFlexPaymentAuthorized>[0],
+      flexPaymentHeader,
+      { executeFn: async () => new Response(null, { status: 204 }) },
+    );
+    if (verifyResp.status !== 204) return verifyResp;
+    const settleHeader = verifyResp.headers.get("PAYMENT-RESPONSE");
+    if (settleHeader) c.header("PAYMENT-RESPONSE", settleHeader);
+
+    schedule(c, recordTransaction(c.env, {
+      transaction_id: `flex-search-${Date.now()}`,
+      consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
+      skill_id: skillId,
+      price_usd: priceUsd,
+      payment_proof: flexPaymentHeader,
+    }).catch((err) => console.warn(`[flex] search ledger write failed: ${(err as Error).message}`)));
+    return null;
+  }
+
+  // Legacy Corbits proof path. Kept working through Phase-5 deletion.
+  const proof = legacyPaymentHeader ?? legacyProofHeader!;
   const { valid, degraded, transaction, settlementHeader } = await verifyX402Proof(proof);
   if (!valid) return c.json({ error: "Payment proof invalid or rejected" }, 403);
   if (degraded) {
@@ -134,11 +179,10 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
 
   // Record search payment to ledger (non-blocking)
   const txId = transaction ?? `x402-search-${Date.now()}`;
-  const priceUsd = GRAPH_OPERATION_COST_UC.search / 1_000_000;
   schedule(c, recordTransaction(c.env, {
     transaction_id: txId,
     consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
-    skill_id: `graph-search:${routeLabel}`,
+    skill_id: skillId,
     price_usd: priceUsd,
     payment_proof: proof,
   }).catch((err) => console.warn(`[x402] search ledger write failed: ${(err as Error).message}`)));

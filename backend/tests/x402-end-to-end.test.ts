@@ -198,7 +198,10 @@ describe("x402 + sponsor end-to-end (Day 4 C2)", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("test 1 — no payment, no sponsor headers, anonymous: 402 with accepts[]", async () => {
+  it("test 1 — no payment, no sponsor headers, anonymous: 402 with flex_escrow_required", async () => {
+    // v6.16 swap: anonymous callers (no agent identity) can't author a Flex
+    // authorization, so the defensive guard in respondWithFlexTerms returns
+    // 402 with `flex_escrow_required` instead of the legacy Corbits accepts[].
     const res = await publicSkillRoutes.request(
       `http://localhost/skills/${PAID_SKILL_ID}`,
       {},
@@ -206,15 +209,9 @@ describe("x402 + sponsor end-to-end (Day 4 C2)", () => {
     );
 
     expect(res.status).toBe(402);
-    const header = res.headers.get("PAYMENT-REQUIRED");
-    expect(header).toBeTruthy();
-    const terms = JSON.parse(Buffer.from(header!, "base64").toString("utf8")) as {
-      x402Version: number;
-      accepts: Array<Record<string, unknown>>;
-    };
-    expect(terms.x402Version).toBe(2);
-    expect(terms.accepts.length).toBeGreaterThan(0);
-    expect(terms.accepts.every((a) => a.payTo === CONTRIBUTOR_WALLET)).toBe(true);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe("flex_escrow_required");
+    expect(res.headers.get("X-Flex-Onboarding-Required")).toBe("1");
     // Anonymous path — no sponsor headers should appear.
     expect(res.headers.get("X-Sponsored")).toBeNull();
     expect(res.headers.get("X-Sponsor-Exhausted")).toBeNull();

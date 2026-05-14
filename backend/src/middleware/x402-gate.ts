@@ -218,6 +218,10 @@ interface FacilitatorAttemptResult {
   definitive?: boolean;
 }
 
+/**
+ * @deprecated v6.16 — Corbits legacy settle path. Slated for deletion in
+ *   Phase 5 (Day-6). New routes verify via the Flex facilitator.
+ */
 async function settlePaymentPayloadLegacy(
   paymentPayload: X402PaymentPayloadV2,
 ): Promise<FacilitatorAttemptResult> {
@@ -259,6 +263,11 @@ async function settlePaymentPayloadLegacy(
   }
 }
 
+/**
+ * @deprecated v6.16 — Corbits facilitator verify+settle for header flow.
+ *   Slated for deletion in Phase 5 (Day-6). New routes use the Flex
+ *   facilitator's `handleVerify`/`handleSettle` via `handleFlexPaymentAuthorized`.
+ */
 async function verifyAndSettlePaymentHeader(
   _paymentHeader: string,
   paymentPayload: X402PaymentPayloadV2,
@@ -323,6 +332,11 @@ async function verifyAndSettlePaymentHeader(
 /**
  * Verify a lobster-compatible PAYMENT-SIGNATURE header, or fall back to the
  * old X-Payment-Proof verification path.
+ *
+ * @deprecated v6.16 — superseded by `handleFlexPaymentAuthorized` in
+ *   `services/flex-route-helpers.ts`. Slated for deletion in Phase 5 (Day-6).
+ *   Still wired into the routes' legacy fallback so older clients can settle
+ *   while in-flight on the previous Corbits envelope.
  */
 export async function verifyX402Proof(
   proof: string,
@@ -379,6 +393,11 @@ export async function verifyX402Proof(
 
 /**
  * Build x402 payment terms for a skill access request.
+ *
+ * @deprecated v6.16 — superseded by `buildFlexPaymentTerms` (Flex scheme with
+ *   native splits). Slated for deletion in Phase 5 (Day-6). Do NOT call from
+ *   new code paths; the priced routes (skills, demos, search) have already
+ *   migrated to `respondWithFlexTerms` in `services/flex-route-helpers.ts`.
  *
  * Docs-aligned defaults:
  * - Corbits facilitator

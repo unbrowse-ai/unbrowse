@@ -3,6 +3,7 @@ import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { getUserById, listKeysForUser, getAccountPreferences, setAccountPreferences } from "../services/accounts.js";
 import { listSkills } from "../services/marketplace.js";
+import { getAgent } from "../services/agents.js";
 
 type AccountEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -29,6 +30,13 @@ accountRoutes.get("/account/me", async (c) => {
   // TODO(slice-2): owner_user_id on skills — until then count is 0
   const skillsCount = (await listSkills(c.env)).filter((s) => (s as { owner_user_id?: string }).owner_user_id === userId).length;
 
+  // Flex onboarding state lives on the AgentProfile keyed by agent_id (the
+  // SHA-256 hash of the calling API key). Surface it here so the frontend
+  // `/account` page can render the three onboarding CTAs (wallet, escrow,
+  // session key) without a second round-trip.
+  const agentId = c.get("agent_id");
+  const agent = agentId ? await getAgent(c.env, agentId) : null;
+
   return c.json({
     user_id: user.user_id,
     email: user.email,
@@ -36,6 +44,11 @@ accountRoutes.get("/account/me", async (c) => {
     verified_at: user.verified_at ?? null,
     keys_count: keys.length,
     skills_count: skillsCount,
+    wallet_address: agent?.wallet_address ?? null,
+    wallet_provider: agent?.wallet_provider ?? null,
+    flex_escrow_address: agent?.flex_escrow_address ?? null,
+    flex_session_key_address: agent?.flex_session_key_address ?? null,
+    flex_facilitator: agent?.flex_facilitator ?? null,
   });
 });
 

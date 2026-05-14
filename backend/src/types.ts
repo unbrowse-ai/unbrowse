@@ -383,7 +383,32 @@ export interface SkillManifest {
    * with heuristic descriptions and rank below reviewed peers in resolve.
    */
   reviewed_at?: string;
+  /**
+   * Pricing mode for this skill — additive over the legacy
+   * `base_price_usd` field. When present, the route reads from this
+   * discriminated union; when absent, the route falls back to
+   * `base_price_usd` as `{ mode: "fixed", price_usd }`.
+   *
+   * - `fixed`: caller is billed a flat `price_usd` per execution.
+   * - `metered`: caller authorizes a ceiling
+   *   (`max_units * cost_per_unit_uc` µ¢) and is settled for the
+   *   actual units consumed.
+   */
+  pricing?: SkillPricing;
 }
+
+/**
+ * Discriminated union for skill pricing. Phase 3 of x402-routing-v6.16.
+ *
+ * `unit` on metered is a free-form label (e.g. "input_token",
+ * "output_token", "page_view") — purely descriptive metadata for
+ * accounting + agent UI. The economics use `cost_per_unit_uc` (micro-
+ * cents per unit) and `max_units` (the ceiling the caller authorizes
+ * at verify time).
+ */
+export type SkillPricing =
+  | { mode: "fixed"; price_usd: number }
+  | { mode: "metered"; unit: string; cost_per_unit_uc: number; max_units: number };
 
 export interface SkillListEndpointPreview {
   endpoint_id: string;

@@ -485,6 +485,150 @@ function BillingSummary({
     </SectionCard>
   );
 }
+
+function FlexOnboardingSection({
+  apiKey,
+  onAuthError,
+}: {
+  apiKey: string;
+  onAuthError: (err: unknown) => void;
+}) {
+  const [me, setMe] = useState<
+    | (Pick<
+        import("@/lib/account-client").AccountMe,
+        | "wallet_address"
+        | "flex_escrow_address"
+        | "flex_session_key_address"
+        | "flex_facilitator"
+      > & { loaded: true })
+    | null
+  >(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMe(apiKey)
+      .then((result) => {
+        if (cancelled) return;
+        setMe({
+          wallet_address: result.wallet_address ?? null,
+          flex_escrow_address: result.flex_escrow_address ?? null,
+          flex_session_key_address: result.flex_session_key_address ?? null,
+          flex_facilitator: result.flex_facilitator ?? null,
+          loaded: true,
+        });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        onAuthError(err);
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiKey, onAuthError]);
+
+  if (error) {
+    return (
+      <SectionCard title="Flex onboarding">
+        <ErrorChip message={error} />
+      </SectionCard>
+    );
+  }
+
+  if (!me) {
+    return (
+      <SectionCard title="Flex onboarding">
+        <div className="text-sm text-text-muted">Loading...</div>
+      </SectionCard>
+    );
+  }
+
+  const steps: Array<{
+    label: string;
+    value: string | null | undefined;
+    href: string;
+    ctaLabel: string;
+  }> = [
+    {
+      label: "Wallet paired",
+      value: me.wallet_address,
+      href: "/account/wallet",
+      ctaLabel: "Pair wallet",
+    },
+    {
+      label: "Escrow funded",
+      value: me.flex_escrow_address,
+      href: "/account/escrow",
+      ctaLabel: "Fund escrow",
+    },
+    {
+      label: "Session key registered",
+      value: me.flex_session_key_address,
+      href: "/account/session-key",
+      ctaLabel: "Register session key",
+    },
+  ];
+
+  const allComplete = steps.every((s) => s.value && s.value.length > 0);
+
+  return (
+    <SectionCard title="Flex onboarding">
+      <p className="text-xs text-text-muted">
+        Required to settle paid endpoints. Run{" "}
+        <code className="font-mono text-text-primary">unbrowse setup</code> to
+        complete all three steps in one pass, or follow each link below.
+      </p>
+      <ul className="divide-y divide-border">
+        {steps.map((s) => {
+          const done = Boolean(s.value && s.value.length > 0);
+          return (
+            <li
+              key={s.label}
+              className="flex items-center justify-between gap-4 py-3"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span
+                  aria-hidden="true"
+                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    done
+                      ? "bg-text-primary text-surface"
+                      : "border border-border bg-surface text-text-muted"
+                  }`}
+                >
+                  {done ? "✓" : ""}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-sm text-text-primary">{s.label}</div>
+                  {done ? (
+                    <div className="text-text-muted font-mono text-xs truncate">
+                      {s.value}
+                    </div>
+                  ) : (
+                    <div className="text-text-muted text-xs">Not yet</div>
+                  )}
+                </div>
+              </div>
+              <Link
+                href={s.href}
+                className="shrink-0 px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
+              >
+                {done ? "Manage" : s.ctaLabel}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      {allComplete && (
+        <p className="text-xs text-text-muted">
+          Flex onboarding complete. Paid executes will settle against your
+          escrow.
+        </p>
+      )}
+    </SectionCard>
+  );
+}
+
 function QuickLinks() {
   const links: Array<{ href: string; label: string; external?: boolean }> = [
     { href: "/dashboard", label: "Dashboard / earnings + activity" },
@@ -586,6 +730,7 @@ export default function AccountPage() {
       {registerRequired && <RegisterRequiredBanner />}
 
       <ProfileSection registerRequired={registerRequired} />
+      <FlexOnboardingSection apiKey={apiKey} onAuthError={handleAuthError} />
       <ApiKeysSection apiKey={apiKey} onAuthError={handleAuthError} />
       <SkillsSection apiKey={apiKey} onAuthError={handleAuthError} />
       <PreferencesSection apiKey={apiKey} onAuthError={handleAuthError} />
