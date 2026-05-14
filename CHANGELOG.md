@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.17.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.1...v6.17.0-preview.2) (2026-05-14)
+
+### Bug Fixes
+
+* **release:** buildBinaryArchiveName always uses v prefix ([cb3cedf](https://github.com/unbrowse-ai/unbrowse-dev/commit/cb3cedfd7366f268b9dc02e14efad4b96bf4d431))
+
 ## [6.17.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.0...v6.17.0-preview.1) (2026-05-14)
 
 ### Features
