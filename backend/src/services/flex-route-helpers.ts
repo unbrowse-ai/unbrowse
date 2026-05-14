@@ -156,6 +156,18 @@ export async function handleFlexPaymentAuthorized(
     return c.json({ error: "flex_verify_failed", reason: "malformed_payload" }, 402);
   }
 
+  // Scheme dispatch: a Flex 402 envelope now offers two accepts entries
+  // (Flex + exact-via-PayAI; see `flex-payment-terms.ts::buildFlexPaymentTerms`).
+  // Clients echo their chosen scheme in the X-PAYMENT payload's top-level
+  // `scheme` field per x402v2. If exact-on-Solana, we delegate verify+settle
+  // to PayAI's facilitator over HTTP rather than the self-hosted Flex
+  // facilitator. Splits do not apply on this path — the full amount went to
+  // platformRecipientUsdcAta via the exact-scheme `payTo`.
+  const declaredScheme = (payload as { scheme?: unknown }).scheme;
+  if (declaredScheme === "exact") {
+    return handleExactPaymentViaPayAI(c, payload as Record<string, unknown>, opts);
+  }
+
   let facilitator;
   try {
     facilitator = await createFlexFacilitator(c.env);
@@ -213,6 +225,114 @@ export async function handleFlexPaymentAuthorized(
     );
   } catch {
     // No executionCtx in tests — flush will be drained on next call.
+  }
+
+  return response;
+}
+
+/**
+ * Exact-scheme payment handler: delegates verify + settle to PayAI's
+ * facilitator over HTTP. Called from `handleFlexPaymentAuthorized` when
+ * the client's X-PAYMENT picks the exact-on-Solana accept entry from
+ * the dual-accept 402 envelope.
+ *
+ * PayAI's facilitator is at `https://facilitator.payai.network` and
+ * implements the standard x402 facilitator HTTP interface:
+ *   POST /verify  { x402Version, paymentPayload, paymentRequirements }
+ *   POST /settle  { x402Version, paymentPayload, paymentRequirements }
+ *
+ * Both return `{ isValid, transaction?, network?, payer? }`-shaped JSON
+ * per x402v2 facilitator spec.
+ *
+ * The merchant's existing splits cut does NOT apply on the exact path:
+ * the 402 envelope's exact entry sets `payTo` to
+ * `platformRecipientUsdcAta(env)` directly, so 100% of the payment is
+ * already routed to Lewis's treasury USDC ATA. Contributors are not
+ * paid through this path — clients who want contributor distribution
+ * must pick the Flex accept entry.
+ */
+async function handleExactPaymentViaPayAI(
+  c: AnyContext,
+  payload: Record<string, unknown>,
+  opts: { executeFn: () => Promise<Response> },
+): Promise<Response> {
+  const facilitatorUrl = (
+    (payload?.extra as Record<string, unknown> | undefined)?.facilitator as string | undefined
+  )?.trim() || "https://facilitator.payai.network";
+
+  // Find the matching exact accept entry from the original 402 envelope.
+  // The client echoes which entry it picked via `paymentRequirements`,
+  // but for simplicity we reconstruct: scheme=exact, network=solana.
+  const paymentRequirements = (payload.accepted ?? payload.paymentRequirements ?? {}) as Record<
+    string,
+    unknown
+  >;
+
+  const verifyRes = await fetch(`${facilitatorUrl}/verify`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      x402Version: 2,
+      paymentPayload: payload,
+      paymentRequirements,
+    }),
+  }).catch((err: unknown) => {
+    console.warn(`[payai] verify HTTP failed: ${(err as Error).message}`);
+    return null;
+  });
+
+  if (!verifyRes || !verifyRes.ok) {
+    return c.json(
+      {
+        error: "payai_verify_failed",
+        reason: verifyRes ? `http_${verifyRes.status}` : "network_error",
+      },
+      402,
+    );
+  }
+  const verifyBody = (await verifyRes.json().catch(() => null)) as
+    | { isValid?: boolean; invalidReason?: string }
+    | null;
+  if (!verifyBody || verifyBody.isValid !== true) {
+    return c.json(
+      {
+        error: "payai_verify_failed",
+        reason: verifyBody?.invalidReason ?? "verify_returned_invalid",
+      },
+      402,
+    );
+  }
+
+  const response = await opts.executeFn();
+
+  const settleRes = await fetch(`${facilitatorUrl}/settle`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      x402Version: 2,
+      paymentPayload: payload,
+      paymentRequirements,
+    }),
+  }).catch((err: unknown) => {
+    console.warn(`[payai] settle HTTP failed: ${(err as Error).message}`);
+    return null;
+  });
+
+  if (settleRes?.ok) {
+    const settleBody = (await settleRes.json().catch(() => null)) as
+      | { success?: boolean; transaction?: string; network?: string }
+      | null;
+    if (settleBody?.success && settleBody.transaction) {
+      response.headers.set(
+        "PAYMENT-RESPONSE",
+        encodeBase64Json({
+          transaction: settleBody.transaction,
+          network: settleBody.network ?? "solana-mainnet-beta",
+        }),
+      );
+    }
+  } else if (settleRes) {
+    console.warn(`[payai] settle returned ${settleRes.status}`);
   }
 
   return response;
