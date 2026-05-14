@@ -57,4 +57,9 @@ if has_match '^(src/execution/|src/orchestrator/|src/capture/|src/intent-match\.
 fi
 
 
+if has_match '^(packages/skill/package\.json|packages/skill/scripts/|scripts/publish-preview-cli\.mjs|\.release-it\.json)$'; then
+  echo "[pre-commit] asserting opaque npm tarball"
+  bun run check:opaque-tarball
+fi
+
 echo "[pre-commit] fast checks passed"

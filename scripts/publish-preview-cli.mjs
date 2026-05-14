@@ -182,6 +182,10 @@ async function main() {
   requireCommand("gh");
   requireCommand("git");
 
+  // Strict gate: refuse to cut a preview if the npm tarball would leak
+  // bundled JS or TypeScript source. Fails fast before any binary build.
+  run("node", ["packages/skill/scripts/assert-opaque-tarball.mjs"]);
+
   const rootPkg = readJson(path.join(ROOT, "package.json"));
   const skillPkg = readJson(path.join(ROOT, "packages", "skill", "package.json"));
   const versionJson = readJson(path.join(ROOT, "version.json"));
