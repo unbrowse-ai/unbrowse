@@ -2203,7 +2203,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_fetch",
-    description: "DEPRECATED alias removed. Use unbrowse_resolve { intent, url, raw: true } or unbrowse_go { url } then unbrowse_markdown.",
+    description: "Removed. Call unbrowse_resolve instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2216,12 +2216,12 @@ const tools: ToolDefinition[] = [
       return {
         content: [{
           type: "text",
-          text: "unbrowse_fetch was removed. Use unbrowse_resolve { intent, url, raw: true } or unbrowse_go { url } then unbrowse_markdown.",
+          text: "unbrowse_fetch was removed. Call unbrowse_resolve.",
         }],
         structuredContent: {
           deprecated: true,
           renamed_to: "unbrowse_resolve",
-          error: "unbrowse_fetch was removed. Call unbrowse_resolve with raw:true, or unbrowse_go then unbrowse_markdown.",
+          error: "unbrowse_fetch was removed. Call unbrowse_resolve.",
         },
       };
     },
