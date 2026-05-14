@@ -1267,7 +1267,7 @@ function extractQueryParams(rawUrl: string): Record<string, string> {
 }
 
 /** Returns true if a header name is sensitive and should be stripped from skill manifests. */
-function isSensitiveHeader(name: string): boolean {
+export function isSensitiveHeader(name: string): boolean {
   const lower = name.toLowerCase();
   if (lower === "cookie" || lower === "content-length" || lower === "host") return false; // handled separately
   if (STRIP_HEADERS.has(lower)) return true;
@@ -1278,7 +1278,7 @@ function isSensitiveHeader(name: string): boolean {
   return false;
 }
 
-function isReplayCriticalHeader(name: string, value: string): boolean {
+export function isReplayCriticalHeader(name: string, value: string): boolean {
   const lower = name.toLowerCase();
   if (REPLAY_HEADER_EXACT.has(lower)) {
     if (lower !== "accept") return true;

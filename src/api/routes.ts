@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from "fs";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
-import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests } from "../capture/index.js";
+import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, enableNetworkHeaderCapture, getCapturedNetworkHeadersAsRequests, type RawRequest } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -2041,6 +2041,11 @@ export async function registerRoutes(app: FastifyInstance) {
       try { await broker.health(); ready = true; } catch {}
     }
     await broker.networkEnable(session.tabId).catch(() => {});
+    // Hook the CDP Network.requestWillBeSent stream so request headers (Authorization,
+    // x-csrf-*, etc.) from XHRs the JS interceptor or HAR miss are captured for replay.
+    // Generic — no per-domain logic. Headers are persisted as a domain-session credential
+    // at close time so executeEndpoint can replay them.
+    await enableNetworkHeaderCapture(session.tabId).catch(() => {});
     await broker.harStart(session.tabId).catch(() => {});
     // Register interceptor as init script so it runs before page JS on every navigation
     // This catches SSR hydration API calls (Reddit GraphQL, etc.) that fire before evaluate()
@@ -2101,6 +2106,7 @@ export async function registerRoutes(app: FastifyInstance) {
       getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
       jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
       intent: `browse ${session.domain || profileName(session.url)}`,
+      extraAuthHeaderRequests: getCapturedNetworkHeadersAsRequests(session.tabId),
     });
 
     // Write domain skill cache so the orchestrator's domain-cache check finds it
@@ -2267,6 +2273,10 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       }
     } catch { /* best-effort */ }
+    // Drain CDP Network.requestWillBeSent header snapshots into synthetic RawRequests
+    // for auth-header extraction only. These capture Authorization / x-csrf-* / etc. from
+    // XHRs the JS interceptor and HAR missed. Generic — works for any domain.
+    const cdpExtraAuthRequests = getCapturedNetworkHeadersAsRequests(session.tabId);
     const syncResult = await cacheBrowseRequests({
       sessionUrl: session.url,
       sessionDomain: session.domain,
@@ -2274,6 +2284,7 @@ export async function registerRoutes(app: FastifyInstance) {
       getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
       jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
       intent: `browse ${session.domain || profileName(session.url)}`,
+      extraAuthHeaderRequests: cdpExtraAuthRequests,
     });
 
     // Persist domain-skill-cache SYNCHRONOUSLY so resolve can find this skill
