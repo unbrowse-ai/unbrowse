@@ -97,6 +97,13 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
     // Sponsor decision: try platform-funded admission before emitting 402.
     // Only for authenticated agents; anonymous callers fall straight to 402.
     const agentIdRaw = (c as unknown as { get: (k: string) => string | undefined }).get("agent_id");
+    // P0.3 soft-block: existing v6.15-era agents without complete Flex onboarding
+    // get a 402 + X-Flex-Onboarding-Required BEFORE any sponsor or payment terms.
+    if (agentIdRaw && agentIdRaw !== "__admin__") {
+      const { checkFlexOnboardingOrBlock } = await import("../middleware/flex-onboarding-soft-block.js");
+      const blockResp = await checkFlexOnboardingOrBlock(c as unknown as Parameters<typeof checkFlexOnboardingOrBlock>[0]);
+      if (blockResp) return blockResp;
+    }
     if (agentIdRaw && agentIdRaw !== "__admin__") {
       const { maybeSponsor } = await import("../middleware/sponsor.js");
       const decision = await maybeSponsor(c as unknown as Parameters<typeof maybeSponsor>[0], terms.accepts, agentIdRaw);

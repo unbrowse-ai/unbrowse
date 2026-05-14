@@ -1,15 +1,20 @@
 /**
- * Flex split arithmetic + authorization assembly (Day 3 seed, v6.16.0).
+ * Flex split arithmetic + authorization assembly (Day 4, v6.16.0).
  *
- * `computeFlexSplits` is REAL today — pure arithmetic over a SkillManifest's
- * contributor list. Locks the splits contract so Day-4 regressions trip the
- * test. `buildFlexAuthorization` is a STUB; Day 4 wires it against
- * @faremeter/flex-solana (cross-referenced: SplitEntry from
- * /tmp/flex-probe/.../generated/types/splitEntry.d.ts — { recipient: Address;
- * bps: number }).
+ * `computeFlexSplits` — pure arithmetic over a SkillManifest's contributor list.
+ * `buildFlexAuthorization` — pure assembly + validation, NO Solana RPC. Day 5
+ * wires the facilitator's submit path that consumes this draft.
+ *
+ * Cross-references in the probe dir confirm the shape:
+ *   /tmp/flex-probe/.../flex-solana/dist/src/authorization.d.ts ::
+ *     SerializePaymentAuthorizationArgs { programId, escrow, mint, maxAmount,
+ *       authorizationId, expiresAtSlot, splits: SplitInput[] }
+ *   /tmp/flex-probe/.../flex-solana/dist/src/types.d.ts ::
+ *     FlexSplitEntry { recipient: string; bps: number }
  */
 
-import type { SkillManifest } from "../types.js";
+import type { Env, SkillManifest } from "../types.js";
+import { flexRefundTimeoutSlots } from "./flex-facilitator.js";
 
 export interface FlexSplit {
   recipient: string;  // SPL token account (USDC ATA) of recipient
@@ -19,9 +24,9 @@ export interface FlexSplit {
 export interface FlexAuthorizationDraft {
   escrow: string;
   mint: string;
-  maxAmount: string;
-  authorizationId: string;
-  expiresAtSlot: string;
+  maxAmount: string;       // µ¢ (USDC has 6 decimals) — string-serialized bigint
+  authorizationId: string; // u64 — string-serialized bigint
+  expiresAtSlot: string;   // string-serialized bigint
   splits: FlexSplit[];
 }
 
@@ -29,8 +34,12 @@ export interface FlexAuthorizationDraft {
 export const PLATFORM_BPS = 1000;
 export const FLEX_MAX_SPLITS = 5;
 
+// Mainnet USDC. Devnet/test override happens via the facilitator service in
+// Day-5, not here — this module is pure assembly.
+const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
 /**
- * Real implementation today: pure arithmetic.
+ * Real implementation: pure arithmetic.
  * Computes recipient splits summing to 10000 bps.
  * - Platform always included at PLATFORM_BPS (1000).
  * - Contributors share the remaining 9000 bps weighted by cumulative_delta.
@@ -54,7 +63,7 @@ export function computeFlexSplits(
   const contributorSplits: FlexSplit[] = eligible.map((c) => {
     const weight = Math.max(c.cumulative_delta, 0.01) / totalDelta;
     return {
-      recipient: c.wallet_address!.trim(),  // TODO Day-4: this should be the USDC ATA, not the wallet address
+      recipient: c.wallet_address!.trim(),  // TODO Day-5: this should be the USDC ATA, not the wallet address
       bps: Math.max(1, Math.round(weight * contributorPool)),
     };
   });
@@ -73,17 +82,64 @@ export function computeFlexSplits(
 }
 
 /**
- * Stub on Day 3 — Day 4 wires escrow PDA derivation + authorizationId generation.
+ * Assemble + validate a Flex authorization draft.
+ *
+ * Pure assembly. NO Solana RPC, NO signing. The caller is responsible for
+ * fetching `currentSlot` from RPC. Day-5 (facilitator path) consumes the draft
+ * and feeds it to `serializePaymentAuthorization` + `signPaymentAuthorization`
+ * from `@faremeter/flex-solana`.
+ *
+ * Validation:
+ *  - splits non-empty
+ *  - splits sum to exactly 10000 bps
+ *  - splits count ≤ FLEX_MAX_SPLITS (5)
+ *  - maxAmountUc must be ≥ 1
  */
 export async function buildFlexAuthorization(
-  _opts: {
+  env: Env,
+  opts: {
     agentEscrow: string;
-    mint: string;
     maxAmountUc: bigint;
     splits: FlexSplit[];
     currentSlot: bigint;
-    refundTimeoutSlots: bigint;
   },
 ): Promise<FlexAuthorizationDraft> {
-  throw new Error("not yet implemented (Day 4) — needs @faremeter/flex-solana wiring");
+  if (opts.splits.length === 0) {
+    throw new Error("buildFlexAuthorization: empty splits");
+  }
+  if (opts.splits.length > FLEX_MAX_SPLITS) {
+    throw new Error(
+      `buildFlexAuthorization: more than ${FLEX_MAX_SPLITS} splits (got ${opts.splits.length})`,
+    );
+  }
+  const totalBps = opts.splits.reduce((s, e) => s + e.bps, 0);
+  if (totalBps !== 10000) {
+    throw new Error(`buildFlexAuthorization: splits bps sum ${totalBps} != 10000`);
+  }
+  if (opts.maxAmountUc < 1n) {
+    throw new Error(`buildFlexAuthorization: maxAmountUc must be >= 1 (got ${opts.maxAmountUc})`);
+  }
+  if (!opts.agentEscrow.trim()) {
+    throw new Error("buildFlexAuthorization: agentEscrow required");
+  }
+
+  // Generate authorizationId — random u64 as base10 string. crypto.getRandomValues
+  // is available in Workers + Bun. We pack 8 bytes big-endian into a bigint.
+  const idBytes = new Uint8Array(8);
+  crypto.getRandomValues(idBytes);
+  let id = 0n;
+  for (let i = 0; i < 8; i++) id = (id << 8n) | BigInt(idBytes[i]!);
+  const authorizationId = id.toString(10);
+
+  const refundTimeout = flexRefundTimeoutSlots(env);
+  const expiresAtSlot = (opts.currentSlot + refundTimeout).toString(10);
+
+  return {
+    escrow: opts.agentEscrow,
+    mint: USDC_MINT_MAINNET,
+    maxAmount: opts.maxAmountUc.toString(10),
+    authorizationId,
+    expiresAtSlot,
+    splits: opts.splits,
+  };
 }

@@ -191,6 +191,14 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       // sponsor the first call from the platform wallet. Anonymous callers
       // (no agent_id) skip sponsor and get standard 402.
       const candidateAgentId = c.get("agent_id");
+      // P0.3 soft-block: existing v6.15-era agents without complete Flex
+      // onboarding get a 402 + X-Flex-Onboarding-Required BEFORE any sponsor
+      // or x402 payment terms get processed.
+      if (candidateAgentId && candidateAgentId !== "__admin__") {
+        const { checkFlexOnboardingOrBlock } = await import("../middleware/flex-onboarding-soft-block.js");
+        const blockResp = await checkFlexOnboardingOrBlock(c);
+        if (blockResp) return blockResp;
+      }
       if (candidateAgentId && candidateAgentId !== "__admin__") {
         const { maybeSponsor } = await import("../middleware/sponsor.js");
         const decision = await maybeSponsor(c, terms.accepts, candidateAgentId);

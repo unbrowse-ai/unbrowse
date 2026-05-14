@@ -18,16 +18,22 @@ export type {
   X402PaymentRequirement,
 } from "./x402.js";
 export {
+  buildEscrowCreationTx,
   buildFlexAuthorization,
+  buildSessionKeyRegistrationTx,
   fundEscrow,
   payAndRetryFlex,
   registerSessionKey,
+  USDC_MINT_DEVNET,
+  USDC_MINT_MAINNET,
 } from "./flex.js";
 export type {
+  BuiltFlexTx,
   FlexAuthorization,
   FlexFundEscrowParams,
   FlexRegisterSessionKeyParams,
   FlexWalletLike,
+  TransactionSignerOpaque,
 } from "./flex.js";
 export type {
   AttributionLedger,

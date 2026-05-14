@@ -112,6 +112,15 @@ demoRoutes.post("/demos/generate", async (c) => {
       // Override the description to be demo-specific
       terms.resource.description = `Demo video generation (${tier} tier)`;
 
+      // P0.3 soft-block: existing v6.15-era agents without complete Flex
+      // onboarding get a 402 + X-Flex-Onboarding-Required BEFORE any sponsor
+      // or x402 payment terms get processed.
+      if (agentId && agentId !== "__admin__") {
+        const { checkFlexOnboardingOrBlock } = await import("../middleware/flex-onboarding-soft-block.js");
+        const blockResp = await checkFlexOnboardingOrBlock(c);
+        if (blockResp) return blockResp;
+      }
+
       // Sponsor decision (only for authenticated, non-admin agents).
       if (agentId && agentId !== "__admin__") {
         const { maybeSponsor } = await import("../middleware/sponsor.js");

@@ -251,6 +251,47 @@ export async function runSetup(options?: {
         : "npx @crossmint/lobster-cli setup",
   };
 
+  // P0.2 / Day-4 Flex onboarding chain: fund escrow + register session key.
+  // The stubs currently throw "not yet implemented (Day 4)" — Worker 1 is
+  // wiring the real SDK calls (`Unbrowse.local().fundEscrow(...)` and
+  // `Unbrowse.local().registerSessionKey(...)`) in parallel. Wrap in try/catch
+  // so an unimplemented stub doesn't break the rest of setup; the soft-block
+  // middleware on the backend handles agents who didn't finish onboarding.
+  //
+  // TODO(Day-5): when packages/sdk exports `fundEscrow` + `registerSessionKey`,
+  // replace the stub bodies in promptFundEscrow / promptRegisterSessionKey with:
+  //   const ub = await Unbrowse.local();
+  //   const { escrowAddress } = await ub.fundEscrow({ amountUsdc, cluster });
+  //   ...
+  //   const { sessionKeyAddress } = await ub.registerSessionKey({ escrow });
+  // and remove this try/catch — once the SDK is real, failure should be loud.
+  const setupCtx: SetupContext = {
+    cwd,
+    walletConfigured: finalWalletCheck.configured,
+  };
+  let flexEscrow: { escrowAddress?: string; skipped: boolean } = { skipped: true };
+  let flexSessionKey: { sessionKeyAddress?: string; skipped: boolean } = { skipped: true };
+  try {
+    flexEscrow = await promptFundEscrow(setupCtx);
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (!msg.includes("not yet implemented")) {
+      console.warn(`[unbrowse] Flex escrow setup failed: ${msg}`);
+    }
+  }
+  try {
+    flexSessionKey = await promptRegisterSessionKey(setupCtx);
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (!msg.includes("not yet implemented")) {
+      console.warn(`[unbrowse] Flex session key registration failed: ${msg}`);
+    }
+  }
+  // flexEscrow / flexSessionKey results are not yet plumbed into SetupReport;
+  // Day-5 will add `flex_escrow` and `flex_session_key` fields.
+  void flexEscrow;
+  void flexSessionKey;
+
   return {
     os: {
       platform: process.platform,
