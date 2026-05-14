@@ -1,0 +1,50 @@
+- 🚨 Scrapling v0.4.8 is out with a new insane update🕷️ (v.redd.it) — https://v.redd.it/11zypnnw2f0h1
+- Reverse-Engineering Google Finance (i.redd.it) — https://i.redd.it/sgr6c7src5xg1.png
+- I built a reverse-engineering agent for the web (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1swj555/i_built_a_reverseengineering_agent_for_the_web/
+- Free Google search MCPs are broken, so I built an Anti-Bot Search MCP (i.redd.it) — https://i.redd.it/8gkbn8drqgyg1.gif
+- The Complete Web Scraping &amp; Anti-Bot Bypass Guide 2026 (asadfix.github.io) — https://asadfix.github.io/scraping-guide/
+- Tiny CLI tool to scope website protections before building scrapers (pypi.org) — https://pypi.org/project/scraperecon/
+- Google maps scraper, but using requests. (github.com) — https://github.com/jinef-john/google-maps-scraper
+- WhiskeySour: 10x faster than BeautifulSoup (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1std53x/whiskeysour_10x_faster_than_beautifulsoup/
+- Self-healing Playwright scraper (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t8xqqa/selfhealing_playwright_scraper/
+- Handling CAPTCHA in Playwright (Python) (i.redd.it) — https://i.redd.it/xvya41cwh3zg1.jpeg
+- An app for forwarding mobile otp for verification when scraping (i.redd.it) — https://i.redd.it/0swmyn7yjr0h1.jpeg
+- What are some of the hardest sites you have ever scraped? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1spz6uz/what_are_some_of_the_hardest_sites_you_have_ever/
+- Cloudflare detection bypass (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t6g5b4/cloudflare_detection_bypass/
+- Built a site intelligence layer for scrapers (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t4a9b8/built_a_site_intelligence_layer_for_scrapers/
+- Goscrapy - revamped, more powerful than ever with batteries included. (github.com) — https://github.com/tech-engine/goscrapy
+- How to scrape Reddit now (Closed API)? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t080rn/how_to_scrape_reddit_now_closed_api/
+- Reverse Engineering latest DataDome's JS VM (github.com) — https://github.com/manjustice/datadome-vm-internals
+- impers: the nodejs version of curl_cffi (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t6e7vu/impers_the_nodejs_version_of_curl_cffi/
+- GMaps scraping - Do I need residential IP rotation for ~600 runs ? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1sskqn0/gmaps_scraping_do_i_need_residential_ip_rotation/
+- Best OCR python package (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1st1awf/best_ocr_python_package/
+- trying to scrape google trends, without proxies (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t1sap8/trying_to_scrape_google_trends_without_proxies/
+- node-wreq: exposing wreq’s low-level TLS/JA3/JA4 control to Node.js (github.com) — https://github.com/StopMakingThatBigFace/node-wreq
+- [HIRING] Part-time webscraper, remote, 20h/week (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1swxrpl/hiring_parttime_webscraper_remote_20hweek/
+- Fastest open-source VAHAN scraper (India vehicle data) (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1stbj5s/fastest_opensource_vahan_scraper_india_vehicle/
+- Flight APIs vs scraping — what actually works in real projects? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1szuosd/flight_apis_vs_scraping_what_actually_works_in/
+- cannot bypass cloudflare in baseball-reference (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1taiatx/cannot_bypass_cloudflare_in_baseballreference/
+- Weekly Webscrapers - Hiring, FAQs, etc (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1srmz1n/weekly_webscrapers_hiring_faqs_etc/
+- Akamai BMP (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1syscge/akamai_bmp/
+- When Exchanges Lie: Outlier Detection Across 150+ Crypto Data Sources (iampavel.dev) — https://iampavel.dev/blog/when-exchanges-lie
+- is cloak browser good? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t9g0kr/is_cloak_browser_good/
+- A roadmap to web scraping Interview (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t9631d/a_roadmap_to_web_scraping_interview/
+- Trafilatura is now available for Node (npmjs.com) — https://www.npmjs.com/package/trafilatura
+- Need Scrapped Data for FYP (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1sz12q4/need_scrapped_data_for_fyp/
+- Has anyone scraped SSRN, got any advice? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1svyes6/has_anyone_scraped_ssrn_got_any_advice/
+- Weekly Webscrapers - Hiring, FAQs, etc (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t4es34/weekly_webscrapers_hiring_faqs_etc/
+- Weird headless browser marketing for scraping/rpa (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t3tyih/weird_headless_browser_marketing_for_scrapingrpa/
+- Open source: bouncy, a Rust web scraper with built-in MCP support (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t0pg0y/open_source_bouncy_a_rust_web_scraper_with/
+- Monthly Self-Promotion - May 2026 (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t0h9bp/monthly_selfpromotion_may_2026/
+- [Hiring – $1000 budget] Mobile app scraper needed for Keeta | (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1sxdi8e/hiring_1000_budget_mobile_app_scraper_needed_for/
+- optimised chrome? for multi threading (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1smb3dm/optimised_chrome_for_multi_threading/
+- Data pipeline and storage after scraping (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1tbyg1y/data_pipeline_and_storage_after_scraping/
+- Has anyone tried scraping Keeta? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t4b77l/has_anyone_tried_scraping_keeta/
+- What type of device is best suited for scraping? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t25trc/what_type_of_device_is_best_suited_for_scraping/
+- New to scraping and need some pointers (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t1d9uf/new_to_scraping_and_need_some_pointers/
+- How to bypass YouTube's firewall blocking my Supabase IP. (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1t0pvbw/how_to_bypass_youtubes_firewall_blocking_my/
+- Genius Lyrics Scraper with Python - Selenium (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1sym3i6/genius_lyrics_scraper_with_python_selenium/
+- API ignores 'offset'/'page'. (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1sybok2/api_ignores_offsetpage/
+- how to bypass colab stopping extracting DASH streams to GDrive. (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1sv4cj4/how_to_bypass_colab_stopping_extracting_dash/
+- How do you deal with dom selectors? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1so6nrh/how_do_you_deal_with_dom_selectors/
+- any method to bypass OTP verification...? (self.webscraping) — https://www.reddit.com/r/webscraping/comments/1smxftl/any_method_to_bypass_otp_verification/
