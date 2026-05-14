@@ -1,0 +1,171 @@
+name: Bench Gate
+
+# Agent-judged release-gate over indexing + retrieval + execution accuracy.
+# Harness: scripts/bench-gate.sh (collects per-probe artifacts; zero verdicts)
+# Judge:   scripts/bench-gate-judge.ts (LLM renders per-probe verdicts)
+# Gate:    scripts/bench-gate-compare.ts (diffs vs harness/probes/bench-gate-baseline.json)
+#
+# Triggers:
+#   - workflow_dispatch — manual, choose --soft or strict
+#   - pull_request, label `run-bench-gate` — soft (comment-only, never blocks)
+#   - workflow_run after Release — strict, files an issue + alerts on regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "strict | soft"
+        type: choice
+        options: [strict, soft]
+        default: strict
+      limit:
+        description: "probe limit (0 = full corpus of 50)"
+        type: string
+        default: "0"
+  pull_request:
+    types: [labeled, synchronize, opened, reopened]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: bench-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench-gate:
+    name: Run + judge + compare
+    runs-on: self-hosted
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-bench-gate')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    outputs:
+      passed: ${{ steps.gate.outputs.passed }}
+      summary: ${{ steps.gate.outputs.summary }}
+      run_dir: ${{ steps.gate.outputs.run_dir }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "1.3.1" }
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      - name: Run bench-gate (harness + judge + compare)
+        id: gate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          UNBROWSE: "bun src/cli.ts"
+          LIMIT: ${{ github.event.inputs.limit || '0' }}
+        run: |
+          set -uo pipefail
+          MODE="${{ github.event.inputs.mode || 'soft' }}"
+          # PR runs are always --soft (comment-only); release post-run is strict.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then MODE=soft; fi
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then MODE=strict; fi
+
+          FLAGS=()
+          if [ "$MODE" = "soft" ]; then FLAGS+=(--soft); fi
+
+          set +e
+          bash scripts/bench-gate-full.sh "${FLAGS[@]}"
+          RC=$?
+          set -e
+
+          RUN_DIR="$(ls -dt .bench-gate/*/ 2>/dev/null | head -1 | sed 's:/*$::')"
+          echo "run_dir=$RUN_DIR" >> "$GITHUB_OUTPUT"
+          if [ -f "$RUN_DIR/gate.md" ]; then
+            {
+              echo 'summary<<GATE_DELIM'
+              cat "$RUN_DIR/gate.md"
+              echo
+              echo 'GATE_DELIM'
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$RC" -eq 0 ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+          # In soft mode we always exit 0; in strict mode propagate.
+          if [ "$MODE" = "soft" ]; then exit 0; fi
+          exit "$RC"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-gate-${{ github.run_id }}
+          path: |
+            .bench-gate/**/manifest.json
+            .bench-gate/**/verdict.json
+            .bench-gate/**/verdict.md
+            .bench-gate/**/gate.json
+            .bench-gate/**/gate.md
+            .bench-gate/**/timings.json
+          retention-days: 30
+
+  comment-on-pr:
+    name: Upsert PR comment
+    runs-on: self-hosted
+    needs: [bench-gate]
+    if: github.event_name == 'pull_request' && always()
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          MARKER: "<!-- bench-gate -->"
+          SUMMARY: ${{ needs.bench-gate.outputs.summary }}
+          PASSED: ${{ needs.bench-gate.outputs.passed }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = process.env.MARKER;
+            const summary = process.env.SUMMARY || "_(no gate output — bench-gate may have failed early)_";
+            const passed = process.env.PASSED === "true" ? "✅ PASS" : "❌ FAIL";
+            const body = `${marker}\n## Bench-Gate ${passed}\n\n${summary}`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  file-issue-on-release-regression:
+    name: Auto-file issue on post-release regression
+    runs-on: self-hosted
+    needs: [bench-gate]
+    if: github.event_name == 'workflow_run' && needs.bench-gate.outputs.passed != 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create regression issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUMMARY: ${{ needs.bench-gate.outputs.summary }}
+        run: |
+          gh label create "bench-gate-regression" --color "B60205" --description "Agent-judged bench-gate regression" --force 2>/dev/null || true
+          TITLE="[bench-gate] regression after release $(git describe --tags --abbrev=0 2>/dev/null || echo 'unknown')"
+          BODY_FILE=$(mktemp)
+          {
+            echo "## Bench-Gate regression detected after release"
+            echo
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "$SUMMARY"
+            echo
+            echo "---"
+            echo "*Filed automatically by .github/workflows/bench-gate.yml on workflow_run.*"
+          } > "$BODY_FILE"
+          gh issue create --title "$TITLE" --body-file "$BODY_FILE" --label "bench-gate-regression,automated" --assignee "lewistham9x"

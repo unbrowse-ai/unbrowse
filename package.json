@@ -59,7 +59,12 @@
     "test:agent-xp:remote": "bash scripts/agent-experience-test.sh --remote lekt8@89.169.121.108",
     "agent-xp": "bash harness/probes/agent-experience.sh",
     "agent-xp:judge": "bash harness/probes/run-and-judge.sh",
-    "agent-xp:rank": "bash harness/probes/rank-evidence.sh"
+    "agent-xp:rank": "bash harness/probes/rank-evidence.sh",
+    "bench:gate": "bash scripts/bench-gate.sh",
+    "bench:gate:judge": "bun scripts/bench-gate-judge.ts",
+    "bench:gate:compare": "bun scripts/bench-gate-compare.ts",
+    "bench:gate:freeze": "bun scripts/bench-gate-compare.ts --freeze",
+    "bench:gate:full": "bash scripts/bench-gate-full.sh"
   },
   "dependencies": {
     "@cascade-fyi/splits-sdk": "^0.11.1",
