@@ -1,0 +1,23 @@
+{
+  "intent": "tweets from elonmusk",
+  "url": "https://x.com/elonmusk",
+  "exit_code": 0,
+  "duration_ms": 10789,
+  "timed_out": false,
+  "kuri_pids_alive_after_run": [
+    "96812",
+    "96813"
+  ],
+  "visible_chrome_present": true,
+  "log_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/harness/runs/2026-05-14T01-15-49Z-6aa1796d/010.log",
+  "source": null,
+  "browser_avoided": null,
+  "top_reasoning": null,
+  "confidence": null,
+  "endpoint_count_in_skill": null,
+  "error": null,
+  "available_operations": [],
+  "available_endpoints": [],
+  "suggested_next_operation_id": null,
+  "diagnostic": null
+}
