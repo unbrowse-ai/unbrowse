@@ -2177,10 +2177,20 @@ const tools: ToolDefinition[] = [
       required: ["intent"],
       additionalProperties: true,
     },
-    handler: async (_args) => {
-      // TODO Day 5 (Creatures): delegate to toolMap.get("unbrowse_resolve").handler(_args)
-      // and merge { deprecated: true, renamed_to: "unbrowse_resolve" } into the result.
-      return errorResult("unbrowse_run alias seeded but not yet wired. Call unbrowse_resolve directly.");
+    handler: async (args) => {
+      const resolveTool = toolMap.get("unbrowse_resolve");
+      if (!resolveTool) {
+        return errorResult("unbrowse_resolve handler not found (registry not yet loaded).");
+      }
+      const inner = await resolveTool.handler(args);
+      const innerRec = inner as Record<string, unknown>;
+      const sc = (innerRec.structuredContent as Record<string, unknown> | undefined) ?? {};
+      const { isError: _isError, ...rest } = innerRec;
+      void _isError;
+      return {
+        ...rest,
+        structuredContent: { ...sc, deprecated: true, renamed_to: "unbrowse_resolve" },
+      } as typeof inner;
     },
   },
   {
@@ -2195,8 +2205,17 @@ const tools: ToolDefinition[] = [
       additionalProperties: true,
     },
     handler: async (_args) => {
-      // TODO Day 5 (Creatures): return a clean errorResult that never crashes the stdio loop.
-      return errorResult("unbrowse_fetch was removed. Call unbrowse_resolve { intent, url, raw: true } or unbrowse_go then unbrowse_markdown.");
+      return {
+        content: [{
+          type: "text",
+          text: "unbrowse_fetch was removed. Use unbrowse_resolve { intent, url, raw: true } or unbrowse_go { url } then unbrowse_markdown.",
+        }],
+        structuredContent: {
+          deprecated: true,
+          renamed_to: "unbrowse_resolve",
+          error: "unbrowse_fetch was removed. Call unbrowse_resolve with raw:true, or unbrowse_go then unbrowse_markdown.",
+        },
+      };
     },
   },
 ];
