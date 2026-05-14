@@ -196,8 +196,8 @@ X-Flex-Onboarding-Required: 1
 ```
 
 Free routes (health, public search) keep working. Sponsor mode keeps
-covering brand-new agents who haven't completed onboarding, subject to the
-$1/day per-agent and $50/day global caps.
+covering brand-new agents who haven't completed onboarding, subject to
+the standard daily caps.
 
 See [`docs/wallets.md`](./wallets.md) for the wallet + escrow + session-key
 setup walkthrough.
@@ -226,18 +226,17 @@ Added:
 Operator-only env vars (facilitator signer, sponsor wallet, sponsor session
 key) are documented in the deployment runbook.
 
-## Where to look in source
+## SDK reference
 
-| What | File |
+| What | Import |
 |---|---|
-| Splits arithmetic | `backend/src/services/flex.ts — computeFlexSplits` |
-| Authorization assembly | `backend/src/services/flex.ts — buildFlexAuthorization` |
-| Payment-terms envelope | `backend/src/services/flex-payment-terms.ts` |
-| Onboarding gate | `backend/src/middleware/flex-onboarding-required.ts`, `backend/src/middleware/flex-onboarding-soft-block.ts` |
-| SDK retry helper | `packages/sdk/src/flex.ts — payAndRetryFlex` |
-| SDK build authorization | `packages/sdk/src/flex.ts — buildFlexAuthorization` |
-| SDK escrow + session key | `packages/sdk/src/flex.ts — fundEscrow`, `packages/sdk/src/flex.ts — registerSessionKey` |
+| Retry on 402 | `payAndRetryFlex` from `@unbrowse/sdk` |
+| Build authorization (without dispatching) | `buildFlexAuthorization` from `@unbrowse/sdk` |
+| Fund a Flex escrow | `fundEscrow` from `@unbrowse/sdk` |
+| Register a session key | `registerSessionKey` from `@unbrowse/sdk` |
+| Metered execute (signs + retries on 402) | `Unbrowse#executeMetered` |
 
+Server-side primitives (splits arithmetic, payment-terms envelope, onboarding gate, facilitator) are part of the closed-source runtime — agents talk to them through the x402 wire and the SDK helpers above.
 ## FAQ
 
 **My v6.15 client sends `X-PAYMENT` with an `exact` payload. What happens?**

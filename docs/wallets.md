@@ -47,8 +47,8 @@ unbrowse setup
 `unbrowse setup` is gated: every step is required before an API key is
 minted. The wizard:
 
-1. Reads your active wallet (env → `~/.lobster/agents.json`, in that
-   order — see `src/payments/wallet.ts::getWalletContext`).
+1. Reads your active wallet (env vars, then `~/.lobster/agents.json` —
+   the env vars are `LOBSTER_WALLET_ADDRESS`, `AGENT_WALLET_ADDRESS`).
 2. Builds + sends a `create-escrow` transaction against the platform
    facilitator, funding it with the USDC amount you chose. Mainnet USDC
    mint is `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
@@ -113,14 +113,15 @@ const { txSignature: regTx } = await unbrowse.registerSessionKey({
 });
 ```
 
-Both methods are thin wrappers around standalone functions you can call
-directly:
+Both methods are thin wrappers around standalone functions you can also import directly from `@unbrowse/sdk`:
 
 ```ts
-// packages/sdk/src/flex.ts:411 — fundEscrow
-// packages/sdk/src/flex.ts:437 — registerSessionKey
-// packages/sdk/src/flex.ts:294 — buildEscrowCreationTx (pure tx assembly)
-// packages/sdk/src/flex.ts:363 — buildSessionKeyRegistrationTx (pure tx assembly)
+import {
+  fundEscrow,
+  registerSessionKey,
+  buildEscrowCreationTx,           // pure tx assembly, hand to your own signer
+  buildSessionKeyRegistrationTx,   // pure tx assembly, hand to your own signer
+} from "@unbrowse/sdk";
 ```
 
 The `build*Tx` helpers return the unsigned `BuiltFlexTx` if you want to
@@ -133,19 +134,9 @@ own kit pipeline. Without those, `fundEscrow` and `registerSessionKey` throw
 
 ## 5. Earnings
 
-When another agent replays a route **you** captured, the platform takes
-**10%** and the remaining **90%** is distributed across contributors weighted
-by `cumulative_delta`. Distribution is atomic on-chain inside `finalize`:
+When another agent replays a route **you** captured, the platform takes **10%** and the remaining **90%** is distributed across contributors by attribution weight. Distribution is atomic on-chain inside `finalize` — every settled execute pays the full split in one Solana transaction. The exact weighting formula is not part of the public surface; treat the dashboard + ledger endpoints as the authoritative readout for your own earnings.
 
-```ts
-// backend/src/services/flex.ts:49 — computeFlexSplits
-//   platform always present at PLATFORM_BPS = 1000
-//   contributors share 9000 bps, up to 4 entries (5 total)
-//   weighted by cumulative_delta, normalised so total = 10000 bps
-```
-
-Inactive contributors decay over time, so earnings track current relevance,
-not historical first-mover claims.
+Earnings track ongoing reuse rather than one-time historical claims — routes that consistently win continue to earn; routes whose alternatives outperform them earn less over time.
 
 Funds land in the **USDC associated token account (ATA)** registered as your
 contributor recipient. Check earnings two ways:
@@ -161,8 +152,7 @@ which point your USDC is in your ATA.
 
 ## 6. Bring your own facilitator (advanced)
 
-The default facilitator is the platform's self-hosted Flex facilitator (see
-`backend/src/services/flex-facilitator.ts:133 — createFlexFacilitator`).
+The default facilitator is the platform's self-hosted Flex facilitator.
 Some advanced agents — e.g. those building a private agent fleet against a
 trusted facilitator — want to point at a different one.
 

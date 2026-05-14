@@ -68,7 +68,7 @@ Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route
 
 You have three ways to pay:
 
-1. **Sponsored credit (default).** Every new agent gets up to **$1/day** of platform-sponsored execute calls, capped at a global **$50/day** ceiling. Creators start earning USDC the moment their captured routes are reused — you don't need a funded escrow on day zero. Sponsored responses include `X-Sponsored: <ledger_id>`. Once you've burned through the daily allowance the server returns 402 with `X-Sponsor-Exhausted: 1`; the SDK throws `SponsorExhaustedError`. Opt out per-request with `X-No-Sponsor: 1`.
+1. **Sponsored credit (default).** Brand-new agents get a daily allowance of platform-sponsored execute calls before they need to fund a wallet — so creators start earning USDC the moment their captured routes are reused. Sponsored responses include `X-Sponsored: <ledger_id>`. Once you've burned through the daily allowance the server returns 402 with `X-Sponsor-Exhausted: 1`; the SDK throws `SponsorExhaustedError`. Opt out per-request with `X-No-Sponsor: 1`.
 2. **Your wallet + Flex escrow (x402).** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs an `X-PAYMENT` header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Splits live natively in every signed authorization (90% to contributors, 10% to platform, 0% protocol fee, up to 5 recipients).
 3. **Stripe subscription + overage.** Same `/v1/account` surface, same `unbrowse_settings`, for teams that prefer a card on file.
 
@@ -192,7 +192,7 @@ Six-layer pipeline:
 3. **Cache-first resolution** — In-memory cache → route cache (24h) → domain skill cache (7d) → local skill snapshots → marketplace semantic search → first-pass browser (8s) → live capture (last resort). Second visits resolve in <200 ms with no browser launch.
 4. **Browser replacement API** — `Browser.launch()` + `page.goto()` from the `unbrowse` import resolves from the skill cache first; cache miss falls through to kuri.
 5. **Endpoint graph** — Typed edges (list→detail, pagination, auth) prefetched in the same round-trip. `available_endpoints` in the resolve response reflects graph reachability given the agent's current bindings.
-6. **Marketplace + payments** — New unverified submissions land in a shadow state until corroborated. Brand-new endpoints on an existing public skill also stay shadow until independently verified. Skill creators set a price per execution; sponsored calls cover the first $1/day per agent so creators earn from day zero. See `docs/x402-flywheel.md`.
+6. **Marketplace + payments** — New unverified submissions land in a shadow state until corroborated. Brand-new endpoints on an existing public skill also stay shadow until independently verified. Skill creators set a price per execution; sponsored calls cover brand-new agents' first calls so creators earn from day zero. See `docs/x402-flywheel.md`.
 
 ## Authentication
 

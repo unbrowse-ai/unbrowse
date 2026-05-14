@@ -1,6 +1,6 @@
 # Unbrowse
 
-> ## ⚠️ The Anthropic skill path is deprecated as of v6.14.0
+> ## ⚠️ The Anthropic skill path retired in v6.15.0
 >
 > Agents should connect via the **MCP server**. The CLI (`unbrowse ...`) and SDK are unaffected. Add this to your MCP host config (Claude Desktop, Cursor, Codex, or any MCP-compatible client):
 >
@@ -15,7 +15,7 @@
 > }
 > ```
 >
-> Then run `npx unbrowse setup` once. See [SKILL.md](./SKILL.md) for the migration note. This repo will receive critical fixes for one more minor cycle, then sunset.
+> Then run `npx unbrowse setup` once. The `SKILL.md` file from this package was retired in v6.15.0; the MCP block above replaces it.
 
 This package installs the `unbrowse` CLI.
 
@@ -25,7 +25,7 @@ One agent learns a site once. Every later agent gets the fast path.
 
 Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
-> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the deprecation notice and MCP migration block.
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture.
 ## MCP server
 
 Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the MCP server entrypoint.
@@ -263,7 +263,7 @@ GET endpoints auto-execute. Mutations never fire without opt-in.
 
 ## API reference
 
-See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, search, feedback, auth, and issue reporting.
+See the public API reference below for endpoints, search, feedback, auth, and issue reporting.
 
 | Method | Endpoint                 | Description                                    |
 | ------ | ------------------------ | ---------------------------------------------- |

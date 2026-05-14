@@ -88,7 +88,7 @@ There is no standalone wallet subcommand on the CLI.
 
 ## Reading the splits
 
-From `backend/src/services/splits.ts`:
+Settlement on v6.16 uses Faremeter Flex splits, carried inside every signed authorization:
 
 - **90% to the contributor pool** (publishers, indexers, attributed roles)
 - **10% platform fee**

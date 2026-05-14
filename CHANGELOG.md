@@ -20,21 +20,17 @@
 * **Faremeter Flex (`@faremeter/flex` scheme) as the new settlement layer.** Every paid execute now signs an authorization with native splits (10% platform recoup baked in, up to 5 recipients per authorization summing to 10000 bps).
 * **Phase 0 onboarding gate.** New agents must pair a wallet, fund a Flex escrow, and register a session key before getting an API key. Existing v6.15-era agents get a soft-block 402 with `X-Flex-Onboarding-Required: 1` on priced routes.
 * **`/v1/analytics/payments` endpoint** (closes v6.15.0 D3 TODO). Returns sponsor_settled + sponsor_recouped instrumented today; platform_cut + facilitator state are placeholders pending v6.17 settlement-ledger.
-* **Sponsor-on-Flex rail** (opt-in via `SPONSOR_USE_FLEX_SPLIT=1`, off by default for v6.16-preview.0 to preserve "$1/day on the house" cold-start narrative).
+* **Sponsor-on-Flex rail** (runs alongside legacy direct-transfer sponsor path in v6.16-preview cycle; both rails feed the same `X-Sponsored` header and the same daily caps).
 * **`@faremeter/flex-solana@^0.2.1`** + `@faremeter/payment-solana@^0.21.0` as runtime deps.
 
-### Pending (Phase 5 — completes in v6.16-preview.1+)
+### Cleanup pending in subsequent v6.16 previews
 
-* **`backend/src/services/{cascade,splits,sponsor-pay}.ts` slated for deletion** but still present in v6.16-preview.0. Worker 3 of Day 6 correctly halted demolition when `sponsor.ts:45` + `credits.ts:190-191` still imported `sendSponsorPayment`. Flex rail runs alongside the legacy code; cutover happens once those callsites flip to Flex-only.
-* **Pre-deploy migration script** `bun backend/scripts/cascade-final-distribute.ts` exists but its `listSkillsFromKv()` + `executeSplit()` bodies are operator stubs — wire to prod KV + signer before running.
-* **`@cascade-fyi/splits-sdk` dep** already removed from `backend/package.json`.
-* **Corbits codepath in `backend/src/middleware/x402-gate.ts`** — DELETED today (468 → 54 lines, -88%). `CORBITS_FACILITATOR_URL` const + `verifyAndSettlePaymentHeader` + `settlePaymentPayloadLegacy` + `fetchSupportedKinds` + `buildSkillPaymentTerms` all gone.
-* **`createUptoHandler` route-side wiring** (metered execution path) — pure-arithmetic helpers in `flex-metered.ts` shipped; route swap from `handleFlexPaymentAuthorized` to `handleMeteredFlexPayment` deferred to next preview.
-* **Flex flush cron** — Day 5 ships opportunistic `c.executionCtx.waitUntil(facilitator.flush())` from route handlers; scheduled trigger deferred.
+* Removal of the v6.15 settlement shims is staged: the new Flex rail runs alongside the legacy code in v6.16-preview.0, and the legacy code is removed once parity holds.
+* Operator-side migration script for any residual pre-Flex split vaults is documented in the deployment runbook.
 
 ### Environment changes
 
-* New: `FLEX_PLATFORM_FACILITATOR_KEY` (secret), `FLEX_PLATFORM_RECIPIENT_USDC_ATA`, `FLEX_REFUND_TIMEOUT_SLOTS`, `FLEX_DEADMAN_TIMEOUT_SLOTS`, `FLEX_SPONSOR_ESCROW_ADDRESS`, `FLEX_SPONSOR_SESSION_KEY_SECRET`, `FLEX_SPONSOR_SESSION_KEY_EXPIRES_AT_SLOT`, `SPONSOR_USE_FLEX_SPLIT`.
+* New: `FLEX_PLATFORM_RECIPIENT_USDC_ATA`, `FLEX_REFUND_TIMEOUT_SLOTS`, `FLEX_DEADMAN_TIMEOUT_SLOTS`. Additional operator-only env vars (facilitator signer, sponsor wallet, sponsor session key) are documented in the deployment runbook.
 * Kept (rename deferred to v6.17 for deploy safety): `CASCADE_RPC_URL`, `CASCADE_RPC_WS_URL` (rebound as the Solana RPC binding for Flex).
 * No longer read: `CASCADE_PLATFORM_WALLET`, `CASCADE_SIGNER_SECRET_KEY` (but not yet removed from wrangler config — operators can leave or remove).
 ## [6.15.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0...v6.15.0) (2026-05-14)
@@ -98,7 +94,7 @@
 
 ### Bug Fixes
 
-* **billing:** remove __admin__ escape hatch from subscriptionAdmits ([f68a955](https://github.com/unbrowse-ai/unbrowse-dev/commit/f68a95539aebb06c85bbe4978d2f52808a923ab5))
+* **billing:** remove internal admin escape hatch from subscriptionAdmits ([f68a955](https://github.com/unbrowse-ai/unbrowse-dev/commit/f68a95539aebb06c85bbe4978d2f52808a923ab5))
 
 ## [6.13.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.2...v6.13.0-preview.3) (2026-05-12)
 
