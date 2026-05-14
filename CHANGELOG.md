@@ -1,5 +1,29 @@
 # Changelog
 
+## [6.14.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0...v6.14.0-preview.4) (2026-05-14)
+
+### Features
+
+* **backend:** mirror-prod-to-staging.ts seed — one-way EmergentDB mirror ([2ffedf3](https://github.com/unbrowse-ai/unbrowse-dev/commit/2ffedf354557da743c29d228dd3f9e2089dcb56d))
+* **bench:** draft release-gate harness + judge (jl/default — incomplete) ([957f1c5](https://github.com/unbrowse-ai/unbrowse-dev/commit/957f1c52e732153cb9ce4bae5ff7ae797c3dc7f8))
+* **release:** strict opaque-tarball gate at precommit, publish, and preview ([6940a62](https://github.com/unbrowse-ai/unbrowse-dev/commit/6940a6215c21da59d6f4efbe412e0985a8fef4e9))
+
+### Bug Fixes
+
+* **mcp:** apply dietIfOversize in successResult so all handlers inherit wire cap ([0129d7a](https://github.com/unbrowse-ai/unbrowse-dev/commit/0129d7aa09f83c338b638c41eed1f0ab236307b5))
+* **mcp:** cap tool-result wire body at 25KB ([5213389](https://github.com/unbrowse-ai/unbrowse-dev/commit/5213389ec6a018bf64621ecb1c1fbdc1250de2ba))
+* **mcp:** extend diet to cap oversize arrays + UTF-safe string truncation ([8e8eb5a](https://github.com/unbrowse-ai/unbrowse-dev/commit/8e8eb5a1fc275718a2e8a8d21c351db695aa226c))
+* **mcp:** phase 0 audit-fix - tighten unbrowse_fetch deprecation prose ([3c2f1c2](https://github.com/unbrowse-ai/unbrowse-dev/commit/3c2f1c22922d270604d8e1764467cf30e6781cd9))
+* **mcp:** phase 0a alias dispatcher for unbrowse_run / unbrowse_fetch ([49c9770](https://github.com/unbrowse-ai/unbrowse-dev/commit/49c9770e2823eab564729aba37dc97426081f1d7))
+* **mcp:** phase 0b honor caller projection in wire-budget diet ([86967db](https://github.com/unbrowse-ai/unbrowse-dev/commit/86967db8e2d6cb9fc01c343afcb628c8d441522a))
+* **mcp:** phase 0c process resilience + crash trigger + em-dash sweep ([88d35d3](https://github.com/unbrowse-ai/unbrowse-dev/commit/88d35d3288f68327d4cd4d28add62a9c0e6e9849)), closes [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4)
+* **mcp:** remove domain field from unbrowse_resolve schema (substrate-lie) ([163e08a](https://github.com/unbrowse-ai/unbrowse-dev/commit/163e08af630f2b24181e2cd504de417d69fa25ac))
+* **mcp:** reserve envelope headroom in successResult diet cap ([b8e339e](https://github.com/unbrowse-ai/unbrowse-dev/commit/b8e339e27c705186f0e4f9446022a4bfdf1f45ab))
+* **orchestrator:** add marketplace_by_host racer for cold-domain resolves ([cbfc253](https://github.com/unbrowse-ai/unbrowse-dev/commit/cbfc2537402805e9a77ffe96cdb9e593cd8f43d8))
+* **publish:** per-execute passive publish honors capture-pipeline settings ([5ab2c74](https://github.com/unbrowse-ai/unbrowse-dev/commit/5ab2c74bfa1ebd266a528ba51b3359da23b3090a))
+* **tests:** close the third MCP test ticket fully (44 pass / 0 fail) ([130059e](https://github.com/unbrowse-ai/unbrowse-dev/commit/130059e5b4937224c6f9a86facedeb6982c2e661))
+* **tests:** close two MCP test drift tickets; partial on third ([a29c20f](https://github.com/unbrowse-ai/unbrowse-dev/commit/a29c20f06fa4339d70f175aab17a611db71f8cda))
+
 ## [6.13.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.13.0-preview.5...v6.13.0) (2026-05-12)
 
 ### Bug Fixes
