@@ -880,7 +880,7 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
     });
 
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
-    console.log(`\nYou have $2.00 in free credits — start resolving to use them.`);
+    console.log(`\nYou're on the platform sponsor pool ($1/day per agent, $50/day across the platform) — start resolving to use it.`);
     console.log(`As you browse, you earn credits when other agents use your indexed routes.`);
     console.log(`Run \`unbrowse earnings\` anytime to check your balance.`);
   } catch (err) {

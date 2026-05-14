@@ -7,10 +7,27 @@
  * caller decides whether to short-circuit the 402 or fall through.
  *
  * Wallet env contract:
- *   PLATFORM_SPONSOR_WALLET_ADDRESS — public address (binding, .env)
- *   PLATFORM_SPONSOR_WALLET_KEY    — signer key (secret only)
+ *   PLATFORM_SPONSOR_WALLET_ADDRESS — public address (binding, .env). Advertised
+ *                                     to creators in response headers and ledger
+ *                                     rows; this is the payer-of-record.
+ *   PLATFORM_SPONSOR_WALLET_KEY    — gate-only as of v6.15.0. Must be set for
+ *                                     sponsor mode to enable, but the value is
+ *                                     NOT used for signing. Actual USDC settlement
+ *                                     runs through `sendSponsorPayment`, which
+ *                                     signs with the Cascade signer
+ *                                     (CASCADE_SIGNER_SECRET_KEY +
+ *                                     CASCADE_RPC_URL + CASCADE_RPC_WS_URL —
+ *                                     same env contract as the marketplace's
+ *                                     existing 10% cut payout). In prod, set ALL
+ *                                     of these together; the "ready" gate
+ *                                     followed by a payment failure (e.g.
+ *                                     missing Cascade signer) degrades to
+ *                                     {exhausted, no_wallet} cleanly via try/catch.
  *   SPONSOR_CAP_DAILY_USD          — per-agent cap, default 1.0
  *   SPONSOR_GLOBAL_DAILY_USD       — org-wide cap, default 50.0
+ *
+ * TODO(v6.16): tighten sponsorWalletReady to also probe the Cascade signer
+ * config so "ready" implies "can actually pay".
  *
  * Storage:
  *   sponsor:agent:<agent_id>:<YYYY-MM-DD> — running USD-cents spend for one agent

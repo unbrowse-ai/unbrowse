@@ -29,7 +29,7 @@ npm install -g @crossmint/lobster-cli
 unbrowse setup        # pair lobster.cash to your agent profile
 ```
 
-`unbrowse setup` writes the pairing to `~/.unbrowse/wallet.json`. The SDK picks it up automatically when you call `Unbrowse.local()` because the runtime binary owns the wallet handle and signs server-side. From your code's perspective, paid calls just succeed — no `WalletLike` to pass.
+`unbrowse setup` invokes `npx @crossmint/lobster-cli setup`, which writes the active agent record to `~/.lobster/agents.json`. The SDK picks it up automatically when you call `Unbrowse.local()` because the runtime binary owns the wallet handle and signs server-side. From your code's perspective, paid calls just succeed — no `WalletLike` to pass.
 
 If you want to opt out of the runtime-managed wallet and sign in-process, construct a `WalletLike` against lobster's programmatic API and pass it to `payAndRetry`.
 
@@ -98,7 +98,7 @@ try {
 
 ## Funding the wallet
 
-The backend defaults to **USDC on Base**. The exact accepted asset and chain are declared on every 402 response — read `accepts[].network` and `accepts[].extra` for the token contract address. Any USDC bridge or fiat on-ramp that delivers to the chains in your `accepts[]` list will work.
+The backend defaults to **USDC on Solana mainnet** (`X402_NETWORK_MODE = "mainnet"` in `backend/wrangler.toml`; the `solana` chain config in `backend/src/middleware/x402-gate.ts::SUPPORTED_CHAINS` uses USDC mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`). The exact accepted asset and chain are declared on every 402 response — read `accepts[].network` and `accepts[].extra` for the token contract/mint address. Any USDC bridge or fiat on-ramp that delivers to the chains in your `accepts[]` list will work.
 
 A few practical notes:
 
@@ -113,3 +113,5 @@ A few practical notes:
 - **No multi-route negotiation.** `payAndRetry` picks `accepts[0]`. If you want to negotiate (cheapest network, preferred token), implement your own loop over `error.accepts` before calling `wallet.signX402Payload`.
 
 See [`errors.md`](./errors.md) for the full error taxonomy and [`sponsor-mode.md`](./sponsor-mode.md) for when you can skip the wallet entirely.
+
+_Audited Day 6 (Dominion): 2026-05-14_

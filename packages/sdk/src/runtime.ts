@@ -11,6 +11,15 @@
  */
 
 import { RuntimeUnavailableError } from "./errors.js";
+import { createRequire } from "node:module";
+
+// Under Node ESM (`"type": "module"` + tsc `module: ESNext`), bare `require`
+// is undefined and the lazy `require("node:fs")` / `require("node:path")`
+// calls below would throw `ReferenceError`, get swallowed by their try/catch,
+// and silently return false/null. Bind a CommonJS-style require to this
+// module's URL so all the lazy `require(...)` sites in this file resolve.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const require = createRequire(import.meta.url);
 
 /**
  * Handle returned by a successful spawn. `owned` distinguishes processes the
@@ -104,12 +113,16 @@ export function locateUnbrowseBinary(): string | null {
     // peer dep not installed — fall through
   }
 
-  // 3. Bun.which / PATH lookup.
+  // 3. Bun.which / PATH lookup. Bun gives us a one-liner; under raw Node
+  //    we do the PATH walk ourselves so `npx node smoke.mjs` against a
+  //    globally-installed `unbrowse` works the same as `bun smoke.ts`.
   const bunWhich = (globalThis as { Bun?: { which?: (name: string) => string | null } }).Bun?.which;
   if (typeof bunWhich === "function") {
     const onPath = bunWhich("unbrowse");
     if (onPath && fileExists(onPath)) return onPath;
   }
+  const fromPath = findOnPath("unbrowse");
+  if (fromPath) return fromPath;
 
   return null;
 }
@@ -321,6 +334,35 @@ function fileExists(p: string): boolean {
     return fs.existsSync(p);
   } catch {
     return false;
+  }
+}
+
+/**
+ * PATH walk for raw Node (no Bun.which). Walks `process.env.PATH`, joins each
+ * entry with `name` (+ `.exe` on Windows), and returns the first hit. Honors
+ * `PATHEXT` on Windows so `unbrowse.cmd` / `unbrowse.bat` resolve too.
+ */
+function findOnPath(name: string): string | null {
+  try {
+    const proc = (globalThis as { process?: { env?: Record<string, string | undefined>; platform?: string } }).process;
+    const pathEnv = proc?.env?.PATH ?? proc?.env?.Path;
+    if (!pathEnv) return null;
+    const path = require("node:path") as typeof import("node:path");
+    const isWin = proc?.platform === "win32";
+    const sep = isWin ? ";" : ":";
+    const exts = isWin
+      ? (proc?.env?.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").map((e) => e.toLowerCase())
+      : [""];
+    for (const dir of pathEnv.split(sep)) {
+      if (!dir) continue;
+      for (const ext of exts) {
+        const candidate = path.join(dir, name + ext);
+        if (fileExists(candidate)) return candidate;
+      }
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 

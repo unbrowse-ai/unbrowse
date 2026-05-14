@@ -17,8 +17,8 @@ payments. Unbrowse delegates wallet signing and broadcast to it so we never
 hold keys.
 
 ```bash
-# 1. install the lobster CLI (one-time per machine)
-npm install -g lobstercash
+# 1. install the lobster CLI (one-time per machine; binary name: lobstercash)
+npm install -g @crossmint/lobster-cli
 
 # 2. provision a wallet for this agent
 lobstercash setup
@@ -60,13 +60,14 @@ export AGENT_WALLET_PROVIDER="custom"   # any non-empty string; identifier only
    `UNBROWSE_DISABLE_LOCAL_WALLET=1`)
 
 The address is what Unbrowse publishes to your agent profile. The signing
-half is yours to wire. The current SDK boundary for custom signers is the
-`lobsterX402Fetch` shape — a function that takes a 402-returning URL and
-returns the paid response body. The cleanest path today is to drop your
-own implementation of that surface in `src/payments/` and dispatch on
-`wallet_provider` in `src/payments/index.ts`. A first-class `WalletLike`
-SDK contract is on the v6.16 roadmap; until it lands, copy the lobster
-adapter shape:
+half is yours to wire. The runtime binary's internal custom-signer boundary
+is the `lobsterX402Fetch` shape — a function that takes a 402-returning URL
+and returns the paid response body; drop your own implementation in
+`src/payments/` and dispatch on `wallet_provider` in `src/payments/index.ts`.
+The SDK-level contract is the first-class `WalletLike` interface (shipped in
+`@unbrowse/sdk` v6.15.0 — see
+[`packages/sdk/docs/payments/wallets.md`](../packages/sdk/docs/payments/wallets.md));
+for in-runtime custom signers, copy the lobster adapter shape:
 
 ```ts
 // pseudo-code — sketch your provider against this surface
@@ -155,3 +156,5 @@ thousands of calls.
   accident — you'll be sending their address other agents' payouts.
 - For sponsor mode receipts, see the ledger keys documented in
   [`docs/x402-flywheel.md`](./x402-flywheel.md#6-faqs).
+
+_Audited Day 6 (Dominion): 2026-05-14_
