@@ -594,7 +594,20 @@ export function isIndexingInFlight(domain: string): boolean {
   return false;
 }
 
-/** Await all in-flight background index jobs. Call before process exit. */
+/** Await all in-flight background index jobs. Call before process exit.
+ *
+ * Inline mode (test/dev): block until every in-flight job settles.
+ *
+ * Disk mode (prod): the queue is drained by a detached worker, not this
+ * process. We wait briefly for the queue to empty, but if a worker heartbeat
+ * is fresh and progress is being made (pending count strictly decreasing),
+ * we return success — the detached worker will finish the rest after we
+ * exit. The capture's correctness does not depend on indexing finishing
+ * within the capture process's lifetime; indexing is intentionally async.
+ *
+ * Throws only when no worker appears to be running and jobs remain after the
+ * timeout — that's a real stuck state.
+ */
 export async function drainPendingIndexJobs(): Promise<void> {
   if (shouldRunInline()) {
     let logged = false;
@@ -610,12 +623,15 @@ export async function drainPendingIndexJobs(): Promise<void> {
     return;
   }
 
-  // Disk mode: poll until pending is empty AND dead/ has been quiet for 500ms.
+  // Disk mode: detached worker drains the queue. Wait briefly for it to
+  // finish, but yield once we see proof of life (fresh heartbeat or
+  // strictly-decreasing pending count). The worker keeps going after we exit.
   const queueDir = getQueueDir();
   const deadDir = join(queueDir, "dead");
   const timeoutAt = Date.now() + 30_000;
   let lastDeadCount = -1;
   let deadStableSince = Date.now();
+  let initialJobCount = -1;
   while (true) {
     const jobs = await listJobs(queueDir);
     let deadCount = 0;
@@ -633,7 +649,24 @@ export async function drainPendingIndexJobs(): Promise<void> {
     if (jobs.length === 0 && Date.now() - deadStableSince >= 500) {
       return;
     }
+    if (initialJobCount < 0) initialJobCount = jobs.length;
     if (Date.now() >= timeoutAt) {
+      // A fresh worker heartbeat (<2s) or strictly-decreasing pending count
+      // both prove a detached worker is making progress. Return success and
+      // let the worker finish in the background — capture correctness does
+      // not depend on indexing finishing within this process's lifetime.
+      let workerAlive = false;
+      try {
+        const hbAge = await heartbeatAgeMs(queueDir);
+        if (Number.isFinite(hbAge) && hbAge < 2000) workerAlive = true;
+      } catch { /* heartbeat missing — assume no worker */ }
+      const makingProgress = initialJobCount > jobs.length;
+      if (workerAlive || makingProgress) {
+        console.error(
+          `[capture-pipeline] drain budget exhausted but worker is active (pending=${jobs.length}, started=${initialJobCount}, dead=${deadCount}); returning to caller — worker continues in background`,
+        );
+        return;
+      }
       throw new Error(`drainPendingIndexJobs: queue not drained after 30s (pending=${jobs.length}, dead=${deadCount})`);
     }
     await new Promise(r => setTimeout(r, 50));
