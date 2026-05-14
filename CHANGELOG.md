@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Features
+* **indexer:** `drainPendingIndexJobs` no longer throws after 30s when a detached worker is still actively draining the queue. Under burst capture load (e.g. 58-probe bench-gate), the parent capture's drain budget isn't enough to wait for all jobs to flush — but the worker keeps processing them in the background after the parent exits. The function now returns success at timeout if the heartbeat is fresh (<2s) or pending count is strictly decreasing, throwing only when no worker appears to be running and jobs remain. Capture correctness doesn't depend on indexing finishing within the capture process's lifetime — indexing is intentionally async.
 
 * **browse/text + browse/markdown:** prepend a schema.org JSON-LD summary block (ItemList, Product, Article, Recipe, JobPosting, Event, etc.) when present on the page. Surfaces the publisher's authoritative entity description above the rendered DOM text, which on SSR pages can include personalized widgets (rec feeds, "dropped in price", "for you") injected alongside canonical listings. Response now also returns a separate `structured_data` field. Fixes the carousell.sg `/search/shoes/` skew where `unbrowse_markdown` returned a kids-shoe-heavy mix of canonical listings + rec-widget cards.
 ## [6.17.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.2...v6.17.0-preview.3) (2026-05-14)
