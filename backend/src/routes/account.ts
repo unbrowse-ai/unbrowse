@@ -90,3 +90,63 @@ accountRoutes.patch("/account/preferences", async (c) => {
   const prefs = await setAccountPreferences(c.env, userId, patch);
   return c.json(prefs);
 });
+
+/**
+ * GET /v1/account/sponsor-status
+ *
+ * Authenticated agent-level snapshot of how much of the platform sponsor
+ * credit the agent has left today, plus the org-wide rollup. Same bearer
+ * auth as `/v1/account/*` — the calling agent_id is read from the verified
+ * key, so an agent cannot peek at another agent's bucket by querying this
+ * endpoint.
+ *
+ * USD math: the middleware tracks running spend in µ¢ (1_000_000 µ¢ = $1)
+ * and caps in USD. Conversions live here so the MCP / settings client gets a
+ * single ready-to-render snapshot — no client-side arithmetic on micro-cents.
+ *
+ * Powers the `unbrowse_settings` MCP tool's `sponsor_status` field and the
+ * local server's `/v1/settings` surface.
+ */
+accountRoutes.get("/account/sponsor-status", async (c) => {
+  const { sponsorWalletReady, sponsorCapDailyUsd, sponsorGlobalCapDailyUsd } =
+    await import("../middleware/sponsor.js");
+  const { statsKV } = await import("../services/kv.js");
+
+  const agentId = c.get("agent_id");
+  const enabled = sponsorWalletReady(c.env);
+  const capDailyUsd = sponsorCapDailyUsd(c.env);
+  const globalCapDailyUsd = sponsorGlobalCapDailyUsd(c.env);
+
+  // Same date bucket the middleware uses (UTC YYYY-MM-DD).
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const agentKey = `sponsor:agent:${agentId}:${dateStr}`;
+  const globalKey = `sponsor:global:${dateStr}`;
+
+  let agentSpentUc = 0;
+  let globalSpentUc = 0;
+  try {
+    const kv = statsKV(c.env);
+    const [agentRaw, globalRaw] = await Promise.all([
+      kv.get(agentKey) as Promise<string | null>,
+      kv.get(globalKey) as Promise<string | null>,
+    ]);
+    const ap = agentRaw ? Number.parseInt(agentRaw, 10) : 0;
+    const gp = globalRaw ? Number.parseInt(globalRaw, 10) : 0;
+    if (Number.isFinite(ap) && ap >= 0) agentSpentUc = ap;
+    if (Number.isFinite(gp) && gp >= 0) globalSpentUc = gp;
+  } catch {
+    // Best-effort: missing KV (test env without seeded data) reads as zero.
+  }
+
+  const spentTodayUsd = agentSpentUc / 1_000_000;
+  const remainingTodayUsd = Math.max(0, capDailyUsd - spentTodayUsd);
+
+  return c.json({
+    enabled,
+    cap_daily_usd: capDailyUsd,
+    spent_today_usd: spentTodayUsd,
+    remaining_today_usd: remainingTodayUsd,
+    global_cap_daily_usd: globalCapDailyUsd,
+    global_spent_today_usd: globalSpentUc / 1_000_000,
+  });
+});

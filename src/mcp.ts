@@ -1568,7 +1568,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_settings",
-    description: "Show or update local marketplace/publish policy. The headline knob is `share_pointers` - true by default (you are opted in): reviewed skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Rewards land in your wallet - pair one via `unbrowse setup`. Set share_pointers=false to keep every capture local (no public publish, no rewards). Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs).",
+    description: "Show or update local marketplace/publish policy. The headline knob is `share_pointers` - true by default (you are opted in): reviewed skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Rewards land in your wallet - pair one via `unbrowse setup`. Set share_pointers=false to keep every capture local (no public publish, no rewards). Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs). Returns `sponsor_status` with daily-credit info and remaining sponsored amount: `cap_daily_usd` is the per-agent platform-sponsor cap, `spent_today_usd` is what the platform has already covered today on your behalf, and `remaining_today_usd` tells you how many more 402 calls will be sponsored before you fall through to your own x402 wallet.",
     inputSchema: {
       type: "object",
       properties: {

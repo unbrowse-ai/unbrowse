@@ -15,6 +15,12 @@ crons = ["17 */6 * * *"]
 #   EMERGENTDB_API_KEY, NEBIUS_API_KEY, API_KEY, FAL_KEY, TURBOBOX_URL,
 #   RESEND_API_KEY, CASCADE_SIGNER_SECRET_KEY, CLOUDFLARE_API_TOKEN
 #   EXA_API_KEY  — Exa web search, optional; resolve still works without it
+#   ADMIN_KEY  — gates /v1/admin/* read surfaces (sponsor-ledger).
+#                NEVER put the value in this file or any committed env file —
+#                always `wrangler secret put ADMIN_KEY` (per env if needed).
+#   PLATFORM_SPONSOR_WALLET_KEY  — signer for the sponsor wallet binding
+#                                  set in [vars] below. Both must be set
+#                                  for sponsor mode to enable.
 
 [vars]
 ENVIRONMENT = "production"

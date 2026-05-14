@@ -79,6 +79,15 @@ export interface Env {
   SPONSOR_CAP_DAILY_USD?: string;
   /** Org-wide daily sponsor cap in USD (default 50.0). */
   SPONSOR_GLOBAL_DAILY_USD?: string;
+  /**
+   * Admin-only operations key (v6.15.0+) — gates `/v1/admin/*` read surfaces
+   * like sponsor-ledger. Separate from API_KEY (which doubles as a legacy
+   * admin token for CLI back-compat) so the admin surface can rotate
+   * independently. Set via `wrangler secret put ADMIN_KEY`. Routes return
+   * 401 on missing OR mismatched header; the configured value is never
+   * echoed in error responses.
+   */
+  ADMIN_KEY?: string;
 }
 
 // --- Agent identity ---
