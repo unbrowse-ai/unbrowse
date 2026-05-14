@@ -1,5 +1,22 @@
 # Unbrowse
 
+> ## ⚠️ The Anthropic skill path is deprecated as of v6.14.0
+>
+> Agents should connect via the **MCP server**. The CLI (`unbrowse ...`) and SDK are unaffected. Add this to your MCP host config (Claude Desktop, Cursor, Codex, or any MCP-compatible client):
+>
+> ```json
+> {
+>   "mcpServers": {
+>     "unbrowse": {
+>       "command": "npx",
+>       "args": ["-y", "unbrowse", "mcp"]
+>     }
+>   }
+> }
+> ```
+>
+> Then run `npx unbrowse setup` once. See [SKILL.md](./SKILL.md) for the migration note. This repo will receive critical fixes for one more minor cycle, then sunset.
+
 This package installs the `unbrowse` CLI.
 
 Unbrowse is a local Model Context Protocol (MCP) server and CLI that turns any website into a reusable API interface for agents. It captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
@@ -8,8 +25,7 @@ One agent learns a site once. Every later agent gets the fast path.
 
 Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
-> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
-
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the deprecation notice and MCP migration block.
 ## MCP server
 
 Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the MCP server entrypoint.
