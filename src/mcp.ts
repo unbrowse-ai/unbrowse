@@ -807,6 +807,13 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
   };
 }
 export function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
+  // TODO Day 5 (Creatures): when caller explicitly projected (path/extract/limit), the diet
+  // safety-net at L904 must NOT run. Insert an early return here once the projected branch
+  // is proven safe by tests/mcp-payload-projection.test.ts.
+  // Placeholder predicate (intentionally false so behavior is unchanged this commit):
+  if (false) {
+    // bypass diet because caller-supplied projection is authoritative
+  }
   const baseValue = result.result ?? result;
 
   if (args.schema === true) {
@@ -2158,6 +2165,40 @@ const tools: ToolDefinition[] = [
       return successResult(body, "Stripe customer portal URL.");
     },
   },
+  {
+    name: "unbrowse_run",
+    description: "DEPRECATED alias for unbrowse_resolve. Call unbrowse_resolve directly. Will be removed in a future release.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        intent: { type: "string", description: "Natural-language task." },
+        url: { type: "string", description: "Optional target URL." },
+      },
+      required: ["intent"],
+      additionalProperties: true,
+    },
+    handler: async (_args) => {
+      // TODO Day 5 (Creatures): delegate to toolMap.get("unbrowse_resolve").handler(_args)
+      // and merge { deprecated: true, renamed_to: "unbrowse_resolve" } into the result.
+      return errorResult("unbrowse_run alias seeded but not yet wired. Call unbrowse_resolve directly.");
+    },
+  },
+  {
+    name: "unbrowse_fetch",
+    description: "DEPRECATED alias removed. Use unbrowse_resolve { intent, url, raw: true } or unbrowse_go { url } then unbrowse_markdown.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "Target URL." },
+      },
+      required: ["url"],
+      additionalProperties: true,
+    },
+    handler: async (_args) => {
+      // TODO Day 5 (Creatures): return a clean errorResult that never crashes the stdio loop.
+      return errorResult("unbrowse_fetch was removed. Call unbrowse_resolve { intent, url, raw: true } or unbrowse_go then unbrowse_markdown.");
+    },
+  },
 ];
 
 const toolMap = new Map(tools.map((tool) => [tool.name, tool]));
@@ -2365,6 +2406,23 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // TODO Day 5 (Creatures): track the in-flight JSON-RPC request id so the
+  // process-level handlers below can emit an error envelope to the right id.
+  // Closure-scoped to prevent in-process test imports from leaking the slot.
+  let currentRequestId: number | string | null = null;
+  // Suppress unused-var lint until Day 5 wires the read/write sites.
+  void currentRequestId;
+
+  // TODO Day 5 (Creatures): convert uncaughtException + unhandledRejection into
+  // JSON-RPC error envelopes ({ jsonrpc: "2.0", id: currentRequestId, error:
+  // { code: -32603, message } }) instead of letting Node exit the stdio loop.
+  process.on("uncaughtException", (err) => {
+    // Placeholder: log stack to stderr so failures stay visible.
+    process.stderr.write(`[mcp uncaughtException] ${err.stack ?? err.message ?? String(err)}\n`);
+  });
+  process.on("unhandledRejection", (reason) => {
+    process.stderr.write(`[mcp unhandledRejection] ${String(reason)}\n`);
+  });
   writeStderr(`starting stdio server on ${BASE_URL} (${NO_AUTO_START ? "no auto-start" : "auto-start enabled"})`);
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
 
