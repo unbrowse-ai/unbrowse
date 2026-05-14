@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.15.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0...v6.15.0) (2026-05-14)
+
+### Features
+
+* **v6.15-day3:** plant SDK + sponsor seeds (compilable stubs, honest failing tests) ([d904501](https://github.com/unbrowse-ai/unbrowse-dev/commit/d904501bc7c25c5d712f84251a989c2021cde9eb))
+* **v6.15-day4:** luminaries — SDK runtime live, sponsor decisioned, skill demolished ([8fb577b](https://github.com/unbrowse-ai/unbrowse-dev/commit/8fb577b628792c29e6002656b358f873f9d90ffa))
+* **v6.15-day5:** creatures — docs + MCP sponsor_status + admin ledger + integration smoke ([8103e80](https://github.com/unbrowse-ai/unbrowse-dev/commit/8103e8099917f34f7ed30ae5089f105621a3df02))
+* **v6.15-day6:** dominion — integration audit + 4 lost sheep chased ([3bd28e8](https://github.com/unbrowse-ai/unbrowse-dev/commit/3bd28e88e088193d51ea29d470fc096475651780))
+
 ## [6.14.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.5...v6.14.0) (2026-05-14)
 
 ### Features
