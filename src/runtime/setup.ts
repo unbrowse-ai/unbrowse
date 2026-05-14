@@ -252,45 +252,29 @@ export async function runSetup(options?: {
   };
 
   // P0.2 / Day-4 Flex onboarding chain: fund escrow + register session key.
-  // The stubs currently throw "not yet implemented (Day 4)" — Worker 1 is
-  // wiring the real SDK calls (`Unbrowse.local().fundEscrow(...)` and
-  // `Unbrowse.local().registerSessionKey(...)`) in parallel. Wrap in try/catch
-  // so an unimplemented stub doesn't break the rest of setup; the soft-block
-  // middleware on the backend handles agents who didn't finish onboarding.
-  //
-  // TODO(Day-5): when packages/sdk exports `fundEscrow` + `registerSessionKey`,
-  // replace the stub bodies in promptFundEscrow / promptRegisterSessionKey with:
-  //   const ub = await Unbrowse.local();
-  //   const { escrowAddress } = await ub.fundEscrow({ amountUsdc, cluster });
-  //   ...
-  //   const { sessionKeyAddress } = await ub.registerSessionKey({ escrow });
-  // and remove this try/catch — once the SDK is real, failure should be loud.
+  // For v6.16.0-preview.0, these prompts are HONEST-SKIP: they print clear
+  // next-steps (run @unbrowse/sdk fund-escrow or visit unbrowse.ai/account/...)
+  // and report a `skipped` result with a `reason`. They never throw, so no
+  // try/catch silent-swallow path. Enforcement lives in the backend's
+  // `flex-onboarding-required` middleware — priced calls return 402 with
+  // `X-Flex-Onboarding-Required: 1` until escrow + session key exist.
   const setupCtx: SetupContext = {
     cwd,
     walletConfigured: finalWalletCheck.configured,
   };
-  let flexEscrow: { escrowAddress?: string; skipped: boolean } = { skipped: true };
-  let flexSessionKey: { sessionKeyAddress?: string; skipped: boolean } = { skipped: true };
-  try {
-    flexEscrow = await promptFundEscrow(setupCtx);
-  } catch (err) {
-    const msg = (err as Error).message;
-    if (!msg.includes("not yet implemented")) {
-      console.warn(`[unbrowse] Flex escrow setup failed: ${msg}`);
-    }
-  }
-  try {
-    flexSessionKey = await promptRegisterSessionKey(setupCtx);
-  } catch (err) {
-    const msg = (err as Error).message;
-    if (!msg.includes("not yet implemented")) {
-      console.warn(`[unbrowse] Flex session key registration failed: ${msg}`);
-    }
-  }
+  const flexEscrow = await promptFundEscrow(setupCtx);
+  const flexSessionKey = await promptRegisterSessionKey(setupCtx);
   // flexEscrow / flexSessionKey results are not yet plumbed into SetupReport;
-  // Day-5 will add `flex_escrow` and `flex_session_key` fields.
+  // preview.1+ will add `flex_escrow` and `flex_session_key` fields.
   void flexEscrow;
   void flexSessionKey;
+
+  if (flexEscrow.skipped || flexSessionKey.skipped) {
+    console.log("");
+    console.log("[unbrowse setup] Onboarding partial — see above for next steps.");
+    console.log("  Priced calls will receive 402 with X-Flex-Onboarding-Required: 1");
+    console.log("  until escrow + session-key are completed via SDK or web flow.");
+  }
 
   return {
     os: {
@@ -323,9 +307,22 @@ export type SetupContext = {
  * resulting escrow PDA, and saves it to the local config.
  */
 export async function promptFundEscrow(
-  _ctx: SetupContext,
-): Promise<{ escrowAddress?: string; skipped: boolean }> {
-  throw new Error("not yet implemented (Day 4) — Flex escrow funding step");
+  ctx: SetupContext,
+): Promise<{ escrowAddress?: string; skipped: boolean; reason?: string }> {
+  if (!ctx.walletConfigured) {
+    console.log("[unbrowse setup] Flex escrow funding: skipped (wallet not paired)");
+    return { skipped: true, reason: "wallet_not_paired" };
+  }
+  console.log("");
+  console.log("[unbrowse setup] Flex escrow funding (required for paid calls)");
+  console.log("  Pre-deposit USDC into a Flex escrow PDA so the platform can");
+  console.log("  settle creator payments off-chain in batches.");
+  console.log("  Run one of:");
+  console.log("    npx @unbrowse/sdk fund-escrow --amount 5.00     # via SDK");
+  console.log("    open https://unbrowse.ai/account/escrow         # via web");
+  console.log("  Server-side priced calls will return 402 with");
+  console.log("  X-Flex-Onboarding-Required: 1 until this step is done.");
+  return { skipped: true, reason: "deferred_to_sdk_or_web" };
 }
 
 /**
@@ -335,7 +332,17 @@ export async function promptFundEscrow(
  * secret to the keychain, and prints the registered address.
  */
 export async function promptRegisterSessionKey(
-  _ctx: SetupContext,
-): Promise<{ sessionKeyAddress?: string; skipped: boolean }> {
-  throw new Error("not yet implemented (Day 4) — Flex session key registration step");
+  ctx: SetupContext,
+): Promise<{ sessionKeyAddress?: string; skipped: boolean; reason?: string }> {
+  if (!ctx.walletConfigured) {
+    return { skipped: true, reason: "wallet_not_paired" };
+  }
+  console.log("");
+  console.log("[unbrowse setup] Flex session key registration");
+  console.log("  Register an Ed25519 session key against your escrow so the");
+  console.log("  SDK can sign payment authorizations off-chain.");
+  console.log("  Run one of:");
+  console.log("    npx @unbrowse/sdk register-session-key           # via SDK");
+  console.log("    open https://unbrowse.ai/account/session-key     # via web");
+  return { skipped: true, reason: "deferred_to_sdk_or_web" };
 }

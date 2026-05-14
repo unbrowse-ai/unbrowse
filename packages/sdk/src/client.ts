@@ -432,52 +432,26 @@ export class Unbrowse {
   }
 
   /**
-   * Execute a skill against a Flex-metered route. If the backend
-   * responds 402 with a Flex-shaped `accepts[]` and the caller supplied
-   * `opts.wallet`, this lazy-imports `./flex.js::payAndRetryFlex` to
-   * sign the authorization, build the X-PAYMENT header, and retry the
-   * execute. On success, if the response body carries a numeric
-   * `usage_units`, `opts.onUsage` fires with the consumed unit count
-   * so callers can stream billing telemetry.
-   *
-   * Lazy-imports `./flex.js` inside the retry branch only — `payAndRetry`
-   * wallets are dead weight for callers who never hit a paid skill, and
-   * keeping the import deferred preserves the SDK's tree-shake story.
+   * Execute a skill against a Flex-metered route. preview.0/preview.1 stub:
+   * the backend metered-execute route (`POST /v1/skills/:id/execute` with
+   * Flex-shaped 402 + usage_units settlement) ships in v6.16.0-preview.2.
+   * Callers must use `Unbrowse#execute` against fixed-price skills until
+   * then. The method signature stays for forward compat; the body refuses
+   * with a precise version-targeted error.
    */
   async executeMetered<T = unknown>(
-    skillOrId: string | { skill_id: string },
-    input: unknown,
-    opts?: {
+    _skillOrId: string | { skill_id: string },
+    _input: unknown,
+    _opts?: {
       onUsage?: (units: number) => void;
       wallet?: import("./flex.js").FlexWalletLike;
     },
-    options?: RequestOptions,
+    _options?: RequestOptions,
   ): Promise<T> {
-    const skillId = typeof skillOrId === "string" ? skillOrId : skillOrId.skill_id;
-    const path = `/v1/skills/${encodeURIComponent(skillId)}/execute`;
-    const fireUsage = (result: unknown): void => {
-      if (!opts?.onUsage) return;
-      const units = (result as { usage_units?: unknown } | null)?.usage_units;
-      if (typeof units === "number" && Number.isFinite(units)) opts.onUsage(units);
-    };
-    try {
-      const result = await this.request<T>("POST", path, input, options);
-      fireUsage(result);
-      return result;
-    } catch (e) {
-      if (e instanceof PaymentRequiredError && opts?.wallet) {
-        const { payAndRetryFlex } = await import("./flex.js");
-        const result = await payAndRetryFlex<T>(e, opts.wallet, async (paymentHeader) => {
-          return await this.request<T>("POST", path, input, {
-            ...options,
-            headers: { ...(options?.headers ?? {}), "X-PAYMENT": paymentHeader },
-          });
-        });
-        fireUsage(result);
-        return result;
-      }
-      throw e;
-    }
+    throw new Error(
+      "Unbrowse#executeMetered requires the backend metered-execute route which ships in v6.16.0-preview.2. " +
+      "For preview.0/preview.1, use Unbrowse#execute against fixed-price skills.",
+    );
   }
 
   /**
