@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.14.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.5...v6.14.0) (2026-05-14)
+
+### Features
+
+* **deprecation:** hard-deprecate SKILL.md path in favor of MCP server ([facd123](https://github.com/unbrowse-ai/unbrowse-dev/commit/facd1237573d625639661a4383258c427c2a584e))
+
 ## [6.14.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.14.0-preview.4...v6.14.0-preview.5) (2026-05-14)
 
 ### Features
