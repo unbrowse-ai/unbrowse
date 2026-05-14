@@ -157,16 +157,75 @@ An agent picks up the artifact locally, judges in-thread, runs validate
 
 The decision to ship/hold a release is the agent's, not CI's.
 
-## Release flow
+## Release flow — bench-gate is a release-it hook
 
-`bash scripts/release-and-verify.sh --bench-gate` (or `RUN_BENCH_GATE=1
-bun run release:preview`) runs phases 1 + 2 then STOPS with a non-zero
-exit. The agent judges in-thread, writes `verdict.json`, runs
-`bun run bench:gate:compare`, and if green, retries `release:preview`
-without `--bench-gate` (or with `RUN_BENCH_GATE=0`).
+The bench-gate is wired as a **`release-it` `before:init` hook**:
+`.release-it.json` runs `scripts/bench-gate-prerelease.sh` before any
+version bump or tag is created. The hook does NOT run the gate itself
+(the agent must, since the agent is the judge); it verifies a fresh
+**stamp** exists for the current code state and refuses to start the
+release if not.
 
-Default `bun run release:preview` does NOT run the bench-gate. Opt in
-deliberately when you've changed something that could regress agent UX.
+### Stamp protocol
+
+After a successful agent-judged gate run, the agent commits
+`.bench-gate/stamp.json`:
+
+```json
+{
+  "schema_version": 1,
+  "commit_sha": "<git rev-parse HEAD at the time the gate passed>",
+  "run_id": "<bench-gate run id>",
+  "gate_passed": true,
+  "stamped_at": "<ISO timestamp>",
+  "index_coverage": 0.92,
+  "retrieve_coverage": 0.75,
+  "artifact_dir": ".bench-gate/<run-id>"
+}
+```
+
+The stamp is emitted by `bun run bench:gate:compare -- --stamp`. The
+flag only writes the stamp on PASS; FAIL never produces a stamp.
+
+### What the prerelease hook checks
+
+The hook PASSes only when ALL of the following hold:
+
+1. `.bench-gate/stamp.json` exists with `gate_passed: true`
+2. No uncommitted changes to gate-affecting paths: `src/`,
+   `packages/sdk/`, `harness/probes/corpus-gate.txt`,
+   `harness/probes/GATE_JUDGE.md`,
+   `harness/probes/bench-gate-baseline.json`
+3. EITHER stamp.commit_sha == HEAD, OR no gate-affecting paths changed
+   between stamp.commit_sha and HEAD. Docs-only changes since the stamp
+   are allowed — they cannot regress capability.
+
+### Full release flow
+
+```bash
+# 1. Agent runs the bench harness + judges + compares + stamps
+bun run bench:gate:full
+# (agent reads judge.bundle.md, writes verdict.json in-thread)
+bun run bench:gate:validate -- --artifacts .bench-gate/<run-id>
+bun run bench:gate:compare -- --artifacts .bench-gate/<run-id> --stamp
+
+# 2. Commit the stamp
+git add .bench-gate/stamp.json
+git commit -m "chore: bench-gate stamp"
+
+# 3. release-it now sees the stamp and runs
+bun run release:preview
+```
+
+### Bypass (deliberate, audited)
+
+`BENCH_GATE_BYPASS=1 bun run release` skips the prerelease check with a
+loud stderr warning. Use only for emergencies; never in CI; document in
+CHANGELOG why the release wasn't gated.
+
+`bash scripts/release-and-verify.sh --bench-gate` is the legacy opt-in
+helper that runs `bench:gate:full` then exits, expecting the agent to
+judge + stamp + retry. The release-it hook is the canonical gate now.
 
 ## Why no global lockstep
 
