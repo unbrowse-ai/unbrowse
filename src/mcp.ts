@@ -826,15 +826,51 @@ export function maybePostProcessResult(result: Record<string, unknown>, args: Re
     });
   }
 
-  let projected = baseValue;
-  if (typeof args.path === "string") projected = drillPath(baseValue, args.path);
-  if (typeof args.extract === "string" && Array.isArray(projected)) projected = applyExtract(projected, args.extract);
-  if (typeof args.limit === "number" && Array.isArray(projected)) projected = projected.slice(0, Math.max(0, args.limit));
+  // Truth-telling diagnostics: when a caller-supplied projection yields nothing,
+  // surface the actual response shape so the agent can correct the next call
+  // without re-fetching to probe. This replaces a silent `result: []` (which
+  // looks indistinguishable from "API returned no data") with evidence the
+  // path/extract didn't match the real structure.
+  let projected: unknown = baseValue;
+  let pathDiagnostic: Record<string, unknown> | undefined;
+  let extractDiagnostic: Record<string, unknown> | undefined;
+
+  if (typeof args.path === "string") {
+    const drilled = drillPath(baseValue, args.path);
+    if (Array.isArray(drilled) && drilled.length === 0) {
+      pathDiagnostic = {
+        message: `path "${args.path}" matched 0 elements (path may be wrong, or the array exists but is empty)`,
+        actual_shape: schemaOf(baseValue, 3),
+        hint: "Compare actual_shape against your path. Pass schema:true to get the full schema tree.",
+      };
+    }
+    projected = drilled;
+  }
+
+  if (typeof args.extract === "string" && Array.isArray(projected)) {
+    const sourceLen = projected.length;
+    const extracted = applyExtract(projected, args.extract);
+    if (sourceLen > 0 && extracted.length === 0) {
+      const sample = projected.find((item) => item != null);
+      extractDiagnostic = {
+        message: `extract "${args.extract}" produced no matching fields across ${sourceLen} items`,
+        sample_item_shape: schemaOf(sample, 3),
+        hint: "Compare sample_item_shape against your extract field names (use alias:dot.path for nested fields).",
+      };
+    }
+    projected = extracted;
+  }
+
+  if (typeof args.limit === "number" && Array.isArray(projected)) {
+    projected = projected.slice(0, Math.max(0, args.limit));
+  }
 
   if (callerProjected) {
     return {
       ...(result.trace ? { trace: result.trace } : {}),
       result: projected,
+      ...(pathDiagnostic ? { path_diagnostic: pathDiagnostic } : {}),
+      ...(extractDiagnostic ? { extract_diagnostic: extractDiagnostic } : {}),
     };
   }
 
