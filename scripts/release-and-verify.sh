@@ -52,12 +52,13 @@ git checkout -- src/build-info.generated.ts
 log "local tests passed"
 
 # ── Step 1.5: Agent-judged bench-gate (opt-in via --bench-gate / RUN_BENCH_GATE=1) ──
-# Uses the LOCAL `bun src/cli.ts` to run the corpus, judges per-probe via LLM,
-# and compares against harness/probes/bench-gate-baseline.json. Costs Anthropic
-# credits + ~5-15min wall time, so opt-in. CI runs the same via bench-gate.yml.
+# Uses the LOCAL `bun src/cli.ts` to run the corpus. The judge is the Claude
+# Code agent itself (`claude -p --bare`), so no Anthropic API key required.
+# Compares against harness/probes/bench-gate-baseline.json. CI runs the same
+# via bench-gate.yml. Costs ~5-15min wall time, so opt-in.
 if [[ "$RUN_BENCH_GATE" == "1" ]]; then
-  if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-    die "bench-gate requires ANTHROPIC_API_KEY"
+  if ! command -v claude >/dev/null 2>&1; then
+    die "bench-gate requires the 'claude' CLI on PATH (Claude Code agent judge)"
   fi
   log "running agent-judged bench-gate (corpus=harness/probes/corpus-gate.txt)..."
   UNBROWSE="bun src/cli.ts" bash scripts/bench-gate-full.sh \

@@ -16,6 +16,8 @@
 
 ### Added — release-gate bench (agent-judged regression gate)
 
+* **Judge is the Claude Code agent itself** — `scripts/bench-gate-judge.ts` shells out to `claude -p --bare --system-prompt <GATE_JUDGE.md> --json-schema <verdict>` per probe. No Anthropic SDK dependency, no `ANTHROPIC_API_KEY` ceremony; the `claude` CLI brings its own auth. Override the model with `--model opus` or the binary path with `--claude-bin /path`.
+
 * **`scripts/bench-gate-compare.ts` + `harness/probes/bench-gate-baseline.json`** — deterministic floor over agent-judged verdicts. Diffs the latest `verdict.json` against a frozen baseline + global thresholds (index_coverage_min, retrieve_coverage_min, anchor_must_pass, max_new_suspicious_hostile). Exits non-zero on regression; `--soft` for PR-comment mode; `--freeze` to refresh the baseline after a clean canonical run.
 * **`scripts/bench-gate-full.sh`** — orchestrator that runs `bench-gate.sh` (collect) → `bench-gate-judge.ts` (LLM verdicts) → `bench-gate-compare.ts` (compare) in one command.
 * **`.github/workflows/bench-gate.yml`** — runs on PR with `run-bench-gate` label (soft / comment-only), on manual dispatch, and on `workflow_run` after Release (strict; files an issue on regression).

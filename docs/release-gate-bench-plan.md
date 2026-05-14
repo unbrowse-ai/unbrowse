@@ -17,7 +17,7 @@ verdicts; the gate is a deterministic floor *over* agent judgment.
 | `harness/probes/GATE_JUDGE.md` | Rubric the judge LLM follows; INDEX_* + RETRIEVE_* verdict enum |
 | `harness/probes/bench-gate-baseline.json` | Frozen baseline + thresholds |
 | `scripts/bench-gate.sh` | Phase 1: collect per-probe capture / resolve / execute artifacts |
-| `scripts/bench-gate-judge.ts` | Phase 2: LLM judges each probe against `GATE_JUDGE.md` |
+| `scripts/bench-gate-judge.ts` | Phase 2: shells out to `claude -p --bare` (the Claude Code agent itself) for per-probe verdicts |
 | `scripts/bench-gate-compare.ts` | Phase 3: deterministic gate over judged verdicts |
 | `scripts/bench-gate-full.sh` | Orchestrator: runs phases 1-3 |
 | `.github/workflows/bench-gate.yml` | CI runs on PR label `run-bench-gate`, manual, and post-release |
@@ -90,9 +90,11 @@ the gate, even if global coverage holds.
 
 ## How to run
 
+The judge is the **Claude Code agent itself** (`claude -p --bare ...`), not a
+raw Anthropic API call. The `claude` CLI must be on PATH and authed.
+
 ```bash
-# Local: full pipeline, costs Anthropic credits (~$0.50-1.50 per run @ 50 probes)
-export ANTHROPIC_API_KEY=...
+# Local: full pipeline (claude CLI handles its own auth — no env var)
 bun run bench:gate:full
 
 # Local: harness only (no judge, no compare) — useful for iterating on the corpus
@@ -110,8 +112,14 @@ bun run bench:gate:compare --artifacts .bench-gate/<run-id> --soft
 # Local: freeze current run as the new baseline
 bun run bench:gate:freeze --artifacts .bench-gate/<run-id>
 
-# Local: dry-run judge (stub verdicts, no LLM call) — for harness↔compare contract testing
+# Local: dry-run judge (stub verdicts, no agent call) — for harness↔compare contract testing
 bash scripts/bench-gate-full.sh --dry-run-judge --soft
+
+# Override the judge model (default: sonnet)
+bun run bench:gate:judge --artifacts .bench-gate/<run-id> --model opus
+
+# Override the claude binary path
+bun run bench:gate:judge --artifacts .bench-gate/<run-id> --claude-bin /usr/local/bin/claude
 ```
 
 ## CI wiring
@@ -155,7 +163,7 @@ symmetric behavior; only PASS→FAIL is a regression.
 ## Operational notes
 
 - The 50-probe corpus runs in ~10-15 min on a warm machine with `bun src/cli.ts`.
-- Judge model is `claude-opus-4-7` at `temperature: 0` with tool-forced output.
+- Judge invocation: `claude -p --bare --system-prompt <GATE_JUDGE.md> --json-schema <verdict> --output-format json --model sonnet`. Default model is `sonnet`; override with `--model opus` if needed.
 - Artifacts retain `verdict.md` (judge tally) + `gate.md` (gate decision)
   so a human reading post-mortem can see both layers independently.
 - Hostile-lane PASS is flagged `suspicious: true` and surfaced in
