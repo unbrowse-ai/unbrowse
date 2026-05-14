@@ -1,24 +1,27 @@
 name: Bench Gate
 
 # Agent-judged release-gate over indexing + retrieval + execution accuracy.
+#
+# This workflow ONLY collects artifacts. It does NOT auto-judge.
+#
+# Why: the judge is the agent running the harness (Claude Code in a
+# conversation), per CLAUDE.md "harness makes visible, agent judges" and
+# memory feedback_harness_makes_visible_agent_judges.md. CI has no agent
+# sitting in-thread, so it cannot render verdicts. CI's job is to surface
+# the artifacts so an agent (locally) can judge them and push a verdict.
+#
 # Harness: scripts/bench-gate.sh (collects per-probe artifacts; zero verdicts)
-# Judge:   scripts/bench-gate-judge.ts → shells out to `claude -p --bare`
-#          (the Claude Code agent itself; no Anthropic SDK / API key)
-# Gate:    scripts/bench-gate-compare.ts (diffs vs harness/probes/bench-gate-baseline.json)
+# Prep:    scripts/bench-gate-judge.ts (writes judge.bundle.md for agent)
+# Gate:    scripts/bench-gate-compare.ts (only runs against an agent-written verdict.json)
 #
 # Triggers:
-#   - workflow_dispatch — manual, choose --soft or strict
-#   - pull_request, label `run-bench-gate` — soft (comment-only, never blocks)
-#   - workflow_run after Release — strict, files an issue + alerts on regression
+#   - workflow_dispatch — manual collect
+#   - pull_request, label `run-bench-gate` — collect + comment review pointer
+#   - workflow_run after Release — collect + comment review pointer; no auto-issue
 
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: "strict | soft"
-        type: choice
-        options: [strict, soft]
-        default: strict
       limit:
         description: "probe limit (0 = full corpus of 50)"
         type: string
@@ -39,17 +42,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  bench-gate:
-    name: Run + judge + compare
+  collect:
+    name: Collect + prep judge bundle
     runs-on: self-hosted
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-bench-gate')) ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     outputs:
-      passed: ${{ steps.gate.outputs.passed }}
-      summary: ${{ steps.gate.outputs.summary }}
-      run_dir: ${{ steps.gate.outputs.run_dir }}
+      run_id: ${{ steps.run.outputs.run_id }}
+      artifact_name: ${{ steps.run.outputs.artifact_name }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -60,90 +62,68 @@ jobs:
       - name: Install deps
         run: bun install --frozen-lockfile
 
-      - name: Install Claude Code CLI (agent judge)
-        run: |
-          if command -v claude >/dev/null 2>&1; then
-            echo "claude already on PATH: $(claude --version 2>/dev/null || echo unknown)"
-          else
-            npm install -g @anthropic-ai/claude-code
-          fi
-          claude --version || true
-
-      - name: Run bench-gate (harness + agent judge + compare)
-        id: gate
+      - name: Run harness + prep judge bundle
+        id: run
         env:
-          # Auth for `claude -p --bare`. On self-hosted runners claude is usually
-          # already authed via the user's keychain; this env var is the CI fallback.
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           UNBROWSE: "bun src/cli.ts"
           LIMIT: ${{ github.event.inputs.limit || '0' }}
         run: |
-          set -uo pipefail
-          MODE="${{ github.event.inputs.mode || 'soft' }}"
-          # PR runs are always --soft (comment-only); release post-run is strict.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then MODE=soft; fi
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then MODE=strict; fi
+          set -euo pipefail
+          # Harness collects only. Prep writes judge.bundle.md. No verdict.json
+          # is produced by CI — that's the agent's job.
+          RUN_DIR="$(bash scripts/bench-gate.sh | tail -1)"
+          bun scripts/bench-gate-judge.ts --artifacts "$RUN_DIR"
 
-          FLAGS=()
-          if [ "$MODE" = "soft" ]; then FLAGS+=(--soft); fi
+          RUN_ID="$(basename "$RUN_DIR")"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=bench-gate-$RUN_ID" >> "$GITHUB_OUTPUT"
 
-          set +e
-          bash scripts/bench-gate-full.sh "${FLAGS[@]}"
-          RC=$?
-          set -e
-
-          RUN_DIR="$(ls -dt .bench-gate/*/ 2>/dev/null | head -1 | sed 's:/*$::')"
-          echo "run_dir=$RUN_DIR" >> "$GITHUB_OUTPUT"
-          if [ -f "$RUN_DIR/gate.md" ]; then
-            {
-              echo 'summary<<GATE_DELIM'
-              cat "$RUN_DIR/gate.md"
-              echo
-              echo 'GATE_DELIM'
-            } >> "$GITHUB_OUTPUT"
-          fi
-
-          if [ "$RC" -eq 0 ]; then
-            echo "passed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "passed=false" >> "$GITHUB_OUTPUT"
-          fi
-          # In soft mode we always exit 0; in strict mode propagate.
-          if [ "$MODE" = "soft" ]; then exit 0; fi
-          exit "$RC"
-
-      - name: Upload artifacts
+      - name: Upload artifacts (judge bundle + raw evidence)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bench-gate-${{ github.run_id }}
+          name: bench-gate-${{ steps.run.outputs.run_id }}
           path: |
-            .bench-gate/**/manifest.json
-            .bench-gate/**/verdict.json
-            .bench-gate/**/verdict.md
-            .bench-gate/**/gate.json
-            .bench-gate/**/gate.md
-            .bench-gate/**/timings.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/manifest.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/judge.bundle.md
+            .bench-gate/${{ steps.run.outputs.run_id }}/verdict.template.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/capture.meta.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/capture.html.excerpt
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/resolve.shortlist.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/resolve.pick.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/execute.response.raw
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/execute.meta.json
+            .bench-gate/${{ steps.run.outputs.run_id }}/**/timings.json
           retention-days: 30
 
-  comment-on-pr:
-    name: Upsert PR comment
+  comment-pr:
+    name: Comment PR with review pointer
     runs-on: self-hosted
-    needs: [bench-gate]
+    needs: [collect]
     if: github.event_name == 'pull_request' && always()
     steps:
       - uses: actions/github-script@v7
         env:
           MARKER: "<!-- bench-gate -->"
-          SUMMARY: ${{ needs.bench-gate.outputs.summary }}
-          PASSED: ${{ needs.bench-gate.outputs.passed }}
+          ARTIFACT_NAME: ${{ needs.collect.outputs.artifact_name }}
+          RUN_ID: ${{ needs.collect.outputs.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           github-token: ${{ github.token }}
           script: |
             const marker = process.env.MARKER;
-            const summary = process.env.SUMMARY || "_(no gate output — bench-gate may have failed early)_";
-            const passed = process.env.PASSED === "true" ? "✅ PASS" : "❌ FAIL";
-            const body = `${marker}\n## Bench-Gate ${passed}\n\n${summary}`;
+            const artifactName = process.env.ARTIFACT_NAME || "(no artifact uploaded)";
+            const runId = process.env.RUN_ID || "(unknown)";
+            const url = process.env.WORKFLOW_RUN_URL;
+            const body = [
+              marker,
+              "## Bench-Gate — agent review required",
+              "",
+              `**Run ID:** \`${runId}\``,
+              `**Artifact:** \`${artifactName}\` ([open run](${url}))`,
+              "",
+              "CI does not auto-judge. Pull the artifact and have an agent in a Claude Code session read `judge.bundle.md`, write `verdict.json`, run `bun scripts/bench-gate-judge.ts --validate`, then `bun scripts/bench-gate-compare.ts`. Commit the resulting `gate.md` summary back to this PR.",
+            ].join("\n");
 
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
@@ -154,30 +134,3 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
-
-  file-issue-on-release-regression:
-    name: Auto-file issue on post-release regression
-    runs-on: self-hosted
-    needs: [bench-gate]
-    if: github.event_name == 'workflow_run' && needs.bench-gate.outputs.passed != 'true'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create regression issue
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SUMMARY: ${{ needs.bench-gate.outputs.summary }}
-        run: |
-          gh label create "bench-gate-regression" --color "B60205" --description "Agent-judged bench-gate regression" --force 2>/dev/null || true
-          TITLE="[bench-gate] regression after release $(git describe --tags --abbrev=0 2>/dev/null || echo 'unknown')"
-          BODY_FILE=$(mktemp)
-          {
-            echo "## Bench-Gate regression detected after release"
-            echo
-            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            echo
-            echo "$SUMMARY"
-            echo
-            echo "---"
-            echo "*Filed automatically by .github/workflows/bench-gate.yml on workflow_run.*"
-          } > "$BODY_FILE"
-          gh issue create --title "$TITLE" --body-file "$BODY_FILE" --label "bench-gate-regression,automated" --assignee "lewistham9x"

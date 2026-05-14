@@ -2,25 +2,27 @@
 
 The release-gate bench prevents agent-experience regressions in indexing,
 retrieval, and execution accuracy. It is **agent-judged**: the harness
-collects raw artifacts, an LLM judge renders per-probe verdicts, and a
-deterministic compare step diffs those verdicts against a frozen baseline
-to render a single PASS/FAIL.
+collects raw artifacts and prints a consolidated bundle; the agent
+running the harness (Claude Code in-thread) reads the bundle and renders
+per-probe verdicts; a deterministic compare step diffs those verdicts
+against a frozen baseline.
 
-This follows CLAUDE.md "harness collects, agent judges" — no regex/grep
-verdicts; the gate is a deterministic floor *over* agent judgment.
+This follows CLAUDE.md "harness collects, agent judges" and memory
+`feedback_harness_makes_visible_agent_judges.md` — no LLM subprocess,
+no API call, no token. The agent that ran the harness is the judge.
 
 ## Pieces
 
 | File | Role |
 |------|------|
 | `harness/probes/corpus-gate.txt` | 50-probe corpus, 6 lanes (anchor, semantic-rank, graphql, ssr-list, auth-gated, hostile) |
-| `harness/probes/GATE_JUDGE.md` | Rubric the judge LLM follows; INDEX_* + RETRIEVE_* verdict enum |
+| `harness/probes/GATE_JUDGE.md` | Rubric the agent applies; INDEX_* + RETRIEVE_* verdict enum |
 | `harness/probes/bench-gate-baseline.json` | Frozen baseline + thresholds |
 | `scripts/bench-gate.sh` | Phase 1: collect per-probe capture / resolve / execute artifacts |
-| `scripts/bench-gate-judge.ts` | Phase 2: shells out to `claude -p --bare` (the Claude Code agent itself) for per-probe verdicts |
-| `scripts/bench-gate-compare.ts` | Phase 3: deterministic gate over judged verdicts |
-| `scripts/bench-gate-full.sh` | Orchestrator: runs phases 1-3 |
-| `.github/workflows/bench-gate.yml` | CI runs on PR label `run-bench-gate`, manual, and post-release |
+| `scripts/bench-gate-judge.ts` | Phase 2/4: prep `judge.bundle.md` + `verdict.template.json` for the agent; validate the agent-written `verdict.json` |
+| `scripts/bench-gate-compare.ts` | Phase 5: deterministic gate over agent-judged verdicts |
+| `scripts/bench-gate-full.sh` | Orchestrator: runs phases 1+2, stops, prints what the agent must do |
+| `.github/workflows/bench-gate.yml` | CI runs phases 1+2 only; uploads artifacts; comments review-required pointer |
 
 ## Phases
 
@@ -31,16 +33,41 @@ corpus-gate.txt
 [bench-gate.sh] ── per-probe artifacts (capture.out, resolve.shortlist.json, execute.response.raw, ...)
      │             NO verdicts. Zero heuristics.
      ▼
-[bench-gate-judge.ts] ── verdict.json (per-probe INDEX_* + RETRIEVE_*)
-     │                   LLM reads artifacts, renders verdict per GATE_JUDGE.md
+[bench-gate-judge.ts] ── judge.bundle.md + verdict.template.json
+     │                   Prep only. No LLM call. The script writes a
+     │                   consolidated markdown the agent reads.
+     ▼
+[ agent in-thread ] ── reads judge.bundle.md, writes verdict.json per the rubric
+     │
+     ▼
+[bench-gate-judge.ts --validate] ── schema check on the agent's verdict.json
+     │
      ▼
 [bench-gate-compare.ts] ── gate.json + gate.md (PASS/FAIL + delta vs baseline)
                           Deterministic threshold + per-probe regression check
 ```
 
+## Why no LLM subprocess
+
+Earlier iterations of this gate called `claude -p` or `@anthropic-ai/sdk`
+under the hood. That was wrong:
+
+1. It made CI pretend to render verdicts without an agent present, which
+   defeats the "harness makes visible, agent judges" principle.
+2. It added an auth-token dependency (OAuth / API key) the harness should
+   not have.
+3. It hid the rubric application inside a black-box subprocess instead of
+   producing inspectable, agent-written verdict reasoning.
+
+Now: the agent who runs `bun run bench:gate:full` reads `judge.bundle.md`
+in the same conversation and writes `verdict.json` directly. The bundle
+includes the rubric inline, every probe's artifacts inline, and the
+verdict JSON schema inline. The agent's reasoning is preserved in
+`verdict.json` (`index_reasoning`, `retrieve_reasoning`, `evidence_quote`).
+
 ## Verdicts
 
-The judge emits one of:
+The agent emits one of:
 
 **Indexing:**
 - `INDEX_PASS` — captured at least one endpoint whose URL + sample shape match the intent
@@ -83,63 +110,63 @@ Adjust thresholds + freeze per-probe baselines after a clean canonical run:
 bun run bench:gate:freeze --artifacts .bench-gate/<latest-run-id>
 ```
 
-This stamps `baseline_run`, `baseline_cli_version`, `baseline_frozen_at`,
-and `per_probe_baseline` from the latest verdict. The per-probe map is the
-PASS→FAIL regression check: any baselined PASS that flips to FAIL fails
-the gate, even if global coverage holds.
-
-## How to run
-
-The judge is the **Claude Code agent itself** (`claude -p --bare ...`), not a
-raw Anthropic API call. The `claude` CLI must be on PATH and authed.
+## How to run (agent, in a Claude Code conversation)
 
 ```bash
-# Local: full pipeline (claude CLI handles its own auth — no env var)
+# 1. Collect artifacts + prep the judge bundle. Stops at "agent judge required".
 bun run bench:gate:full
 
-# Local: harness only (no judge, no compare) — useful for iterating on the corpus
-bun run bench:gate
+# 2. Read the bundle (in this Claude Code conversation, via Read tool):
+#       .bench-gate/<run-id>/judge.bundle.md
+#    Apply the rubric verbatim from GATE_JUDGE.md.
 
-# Local: judge an existing run dir
-bun run bench:gate:judge --artifacts .bench-gate/<run-id>
+# 3. Write the agent verdict (Write tool):
+#       .bench-gate/<run-id>/verdict.json
+#    Schema:
+#       { "run_id": "<run-id>", "verdicts": [{ probe_id, index_verdict, index_reasoning,
+#         retrieve_verdict, retrieve_reasoning, evidence_quote, suspicious }, ...] }
 
-# Local: compare an existing run dir vs baseline
-bun run bench:gate:compare --artifacts .bench-gate/<run-id>
+# 4. Validate the schema before comparing.
+bun run bench:gate:judge -- --artifacts .bench-gate/<run-id> --validate
 
-# Local: compare in soft mode (no non-zero exit)
-bun run bench:gate:compare --artifacts .bench-gate/<run-id> --soft
+# 5. Compare vs baseline; non-zero exit on regression.
+bun run bench:gate:compare -- --artifacts .bench-gate/<run-id>
 
-# Local: freeze current run as the new baseline
-bun run bench:gate:freeze --artifacts .bench-gate/<run-id>
+# Optional: --soft never exits non-zero
+bun run bench:gate:compare -- --artifacts .bench-gate/<run-id> --soft
 
-# Local: dry-run judge (stub verdicts, no agent call) — for harness↔compare contract testing
+# Optional: freeze this verdict as the new baseline
+bun run bench:gate:freeze -- --artifacts .bench-gate/<run-id>
+
+# Optional: dry-run (stub verdicts, no agent step) — for harness↔compare contract tests
 bash scripts/bench-gate-full.sh --dry-run-judge --soft
-
-# Override the judge model (default: sonnet)
-bun run bench:gate:judge --artifacts .bench-gate/<run-id> --model opus
-
-# Override the claude binary path
-bun run bench:gate:judge --artifacts .bench-gate/<run-id> --claude-bin /usr/local/bin/claude
 ```
 
 ## CI wiring
 
-- **PRs** — add the `run-bench-gate` label to trigger; runs in **soft** mode
-  (comment-only, never blocks merge). Marker `<!-- bench-gate -->`.
-- **Manual** — `gh workflow run bench-gate.yml -f mode=strict -f limit=0`.
-- **Post-release** — `workflow_run` after `Release` completes. Runs **strict**;
-  files a `bench-gate-regression` issue on FAIL.
+CI **does not auto-judge**. It collects artifacts, preps the bundle,
+uploads everything, and comments a review-required pointer on the PR.
+An agent picks up the artifact locally, judges in-thread, runs validate
++ compare, then commits the resulting `gate.md` back to the PR.
+
+- **PRs** — add the `run-bench-gate` label to trigger collection.
+  Marker `<!-- bench-gate -->`.
+- **Manual** — `gh workflow run bench-gate.yml -f limit=0`.
+- **Post-release** — `workflow_run` after `Release` completes; same
+  collect-and-comment behavior on whatever ref the release ran on.
+
+The decision to ship/hold a release is the agent's, not CI's.
 
 ## Release flow
 
 `bash scripts/release-and-verify.sh --bench-gate` (or `RUN_BENCH_GATE=1
-bun run release:preview`) runs the gate locally before cutting the tag.
-The CI workflow runs it again post-release on the published npm CLI as a
-backstop; if both you and CI skipped it, the worst case is a regression
-ships and the post-release workflow files an issue against the new version.
+bun run release:preview`) runs phases 1 + 2 then STOPS with a non-zero
+exit. The agent judges in-thread, writes `verdict.json`, runs
+`bun run bench:gate:compare`, and if green, retries `release:preview`
+without `--bench-gate` (or with `RUN_BENCH_GATE=0`).
 
-Default `bun run release:preview` does NOT run the bench-gate, since it
-costs credits + ~10 minutes wall-clock. Opt in deliberately.
+Default `bun run release:preview` does NOT run the bench-gate. Opt in
+deliberately when you've changed something that could regress agent UX.
 
 ## Why no global lockstep
 
@@ -151,11 +178,14 @@ symmetric behavior; only PASS→FAIL is a regression.
 ## Anti-patterns this avoids
 
 - **Status-code verdicts** — `status_code == 200` doesn't mean the agent
-  got useful data. Captcha pages return 200. Judge reads the body.
+  got useful data. Captcha pages return 200. The agent reads the body.
 - **Per-host registries** — no `if (host === "amazon.com")` arms in the
-  rubric. The judge reads response shape against intent.
+  rubric. The agent reads response shape against intent.
 - **Heuristic classifiers** — no regex / grep / awk PASS/FAIL on
-  unstructured artifacts. The judge is an LLM with structured tool output.
+  unstructured artifacts. The verdict is the agent's written reasoning.
+- **LLM-subprocess "automation"** — a hidden `claude -p` invocation
+  pretends an agent judged when no agent was present. Removed in favor
+  of explicit in-thread judging.
 - **Test-author tautology** — the corpus + judge prompt + baseline are
   in one place; the compare script reads them. Never asserts hardcoded
   expected strings against production output.
@@ -163,8 +193,9 @@ symmetric behavior; only PASS→FAIL is a regression.
 ## Operational notes
 
 - The 50-probe corpus runs in ~10-15 min on a warm machine with `bun src/cli.ts`.
-- Judge invocation: `claude -p --bare --system-prompt <GATE_JUDGE.md> --json-schema <verdict> --output-format json --model sonnet`. Default model is `sonnet`; override with `--model opus` if needed.
-- Artifacts retain `verdict.md` (judge tally) + `gate.md` (gate decision)
-  so a human reading post-mortem can see both layers independently.
+- Artifacts retained: `judge.bundle.md` (what the agent read), `verdict.json`
+  (what the agent wrote, including reasoning + evidence quotes),
+  `gate.md` (the deterministic comparison output). Together these are a
+  full audit trail of one release-gate decision.
 - Hostile-lane PASS is flagged `suspicious: true` and surfaced in
   `gate.md`'s "New hostile-lane PASS" section; review before celebrating.
