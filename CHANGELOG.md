@@ -15,6 +15,22 @@
 
 ## [Unreleased — v6.16.0]
 
+### Added — auto-review + publish-suggestions (MCP)
+
+* **`auto_review` contribution knob (default `true`)** — the substrate now auto-stamps `reviewed_at` on close/sync so captures publish to the marketplace without an explicit `unbrowse_review` call. Heuristic + LLM-augmented endpoint descriptions are accepted as-is. Flip `false` via `unbrowse_settings auto_review=false` to require explicit review (legacy behavior). `share_pointers=false` still wins as the privacy opt-out.
+* **`unbrowse_publish_suggestions` MCP tool** — lists local skills with proven local usage (execution_count ≥ N, success_rate ≥ 0.7) that were never published. `apply=true` + `skill_ids[]` batch-stamps `reviewed_at` and publishes in one call. Targets retroactive cleanup for existing-user backlogs.
+* **`GET /v1/skills/publish-suggestions`** and **`POST /v1/skills/publish-suggestions/apply`** — backend routes powering the above; opts: `min_executions`, `min_success_rate`, `limit`.
+* **`shouldPublishAfterIndex` gains a fourth gate**: `auto_review` — publish allowed without `reviewed_at` when the contribution knob is on.
+* **Fixed: `client.listSkills` LOCAL_ONLY path** referenced an undefined `SKILL_CACHE_DIR` constant; now correctly calls `getSkillCacheDir()`.
+
+### Added — contributor earnings + usage visibility (MCP)
+
+* **`unbrowse_earnings` MCP tool** — shows what the calling agent has earned from contributions to the marketplace. Aggregates creator payouts (when other agents execute your published skills) and indexer attribution (delta-based credit for new endpoints). Returns `total_earned_usd`, ledger breakdown (creator vs indexer), recent transactions, and milestone progress (`passed_usd`, `next_usd`, `progress_to_next_pct`). Pass `verbose=true` for per-skill execution counts so users see which captures are paying.
+* **`GET /v1/account/earnings`** (with `verbose=true` for per-skill breakdown) — proxies `/v1/transactions/creator/:id` + `/v1/attribution/indexer/:id` from the upstream marketplace into one local response. Handles degraded mode (backend down → zeros, not 502).
+* **`/v1/settings` GET now includes `earnings_summary`** — totals + milestone progress inline alongside `sponsor_status`, so any settings inspection surfaces user-side rewards too. Best-effort same as sponsor status.
+* **New helpers `getMyContributions` + `computeMilestoneState`** in `src/marketplace/popular-unreviewed.ts` — pure milestone math and a real-filesystem join of local skill manifests × execution traces, filtered to skills the named agent indexed or contributed to.
+
+
 ### Added
 
 * **Faremeter Flex (`@faremeter/flex` scheme) as the new settlement layer.** Every paid execute now signs an authorization with native splits (10% platform recoup baked in, up to 5 recipients per authorization summing to 10000 bps).
