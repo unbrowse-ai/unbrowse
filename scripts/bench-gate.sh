@@ -26,6 +26,11 @@ set -uo pipefail
 CORPUS="${CORPUS:-harness/probes/corpus-gate.txt}"
 OUT_DIR="${OUT_DIR:-.bench-gate}"
 CLI_CMD="${UNBROWSE:-unbrowse}"
+# Split multi-word UNBROWSE (e.g. "bun src/cli.ts") into an array so the
+# `timeout` callsites pass each token as a separate argv slot. Quoting the
+# whole string makes `timeout` look for an executable literally named
+# "bun src/cli.ts", which silently fails on every probe.
+read -r -a CLI_ARGS <<< "$CLI_CMD"
 TIMEOUT="${TIMEOUT:-90}"
 LIMIT="${LIMIT:-0}"   # 0 = no limit; otherwise stop after N probes
 
@@ -61,7 +66,7 @@ while IFS='|' read -r lane intent url; do
 
   # ── Phase 1: capture ──────────────────────────────────────────────────
   t0=$(now_ms)
-  timeout "$TIMEOUT" "$CLI_CMD" capture --url "$url" --intent "$intent" \
+  timeout "$TIMEOUT" "${CLI_ARGS[@]}" capture --url "$url" --intent "$intent" \
     </dev/null > "$pdir/capture.out" 2> "$pdir/capture.stderr.log" || true
   t1=$(now_ms)
   # Derive signals from capture.out. If it's not JSON we still keep the raw
@@ -90,7 +95,7 @@ while IFS='|' read -r lane intent url; do
 
   # ── Phase 2a: resolve (no auto-execute; harness controls execute) ─────
   t2=$(now_ms)
-  timeout "$TIMEOUT" "$CLI_CMD" resolve --intent "$intent" --url "$url" --no-execute \
+  timeout "$TIMEOUT" "${CLI_ARGS[@]}" resolve --intent "$intent" --url "$url" --no-execute \
     </dev/null > "$pdir/resolve.shortlist.json" 2> "$pdir/resolve.stderr.log" || true
   t3=$(now_ms)
 
@@ -114,7 +119,7 @@ while IFS='|' read -r lane intent url; do
   endpoint_id="$(jq -r '.endpoint_id // empty' < "$pdir/resolve.pick.json" 2>/dev/null || true)"
   t4=$(now_ms); t5="$t4"
   if [ -n "$skill_id" ] && [ -n "$endpoint_id" ]; then
-    timeout "$TIMEOUT" "$CLI_CMD" execute --skill "$skill_id" --endpoint "$endpoint_id" --raw \
+    timeout "$TIMEOUT" "${CLI_ARGS[@]}" execute --skill "$skill_id" --endpoint "$endpoint_id" --raw \
       </dev/null > "$pdir/execute.out" 2> "$pdir/execute.stderr.log" || true
     t5=$(now_ms)
     jq -c '{
@@ -141,7 +146,7 @@ done < "$CORPUS"
 probes_json="$probes_json]"
 
 # ── manifest.json (NO verdict field anywhere) ───────────────────────────
-cli_version="$($CLI_CMD --version 2>/dev/null || echo unknown)"
+cli_version="$("${CLI_ARGS[@]}" --version 2>/dev/null || echo unknown)"
 node_version="$(node --version 2>/dev/null || echo unknown)"
 jq -nc \
   --arg run_id "$RUN_ID" --arg corpus "$CORPUS" \
