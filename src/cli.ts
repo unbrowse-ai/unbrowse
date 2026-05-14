@@ -1703,6 +1703,50 @@ async function cmdConfig(args: string[], flags: Record<string, string | boolean>
   die("usage: unbrowse config get telemetry | unbrowse config set telemetry false");
 }
 
+async function cmdTelemetry(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  // Distinct from `unbrowse config set telemetry false` — that one toggles
+  // marketplace share_pointers / auto-publish-checkpoints (a contribution
+  // concept). This subcommand controls the MCP session bug-report trace
+  // documented in docs/mcp-telemetry-plan.md.
+  const { getTelemetryConfig, writeTelemetryConfig } = await import("./telemetry/index.js");
+  const sub = (args[0] ?? "status").toLowerCase();
+  if (sub === "on" || sub === "enable") {
+    const cfg = writeTelemetryConfig({ enabled: true });
+    output({
+      ok: true,
+      telemetry: { enabled: cfg.enabled, source: cfg.source, sessions_dir: cfg.sessions_dir, upload_endpoint: cfg.upload_endpoint },
+      message: "Session bug-report telemetry enabled. Set UNBROWSE_TELEMETRY=0 to suppress per-process.",
+    }, !!flags.pretty);
+    return;
+  }
+  if (sub === "off" || sub === "disable") {
+    const cfg = writeTelemetryConfig({ enabled: false });
+    output({
+      ok: true,
+      telemetry: { enabled: cfg.enabled, source: cfg.source },
+      message: "Session bug-report telemetry disabled. Existing local session logs remain on disk; remove ~/.unbrowse/sessions/ to clear.",
+    }, !!flags.pretty);
+    return;
+  }
+  if (sub === "status" || sub === "show") {
+    const cfg = getTelemetryConfig();
+    output({
+      telemetry: {
+        enabled: cfg.enabled,
+        source: cfg.source,
+        sessions_dir: cfg.sessions_dir,
+        upload_endpoint: cfg.upload_endpoint,
+        link_account: cfg.link_account,
+        config_path: cfg.config_path,
+      },
+      note: "Distinct from `unbrowse config get telemetry` (marketplace share_pointers). This is the per-MCP-session bug-report trace. See docs/mcp-telemetry-plan.md.",
+    }, !!flags.pretty);
+    return;
+  }
+  die("usage: unbrowse telemetry [on|off|status]");
+}
+
+
 async function cmdLogin(flags: Record<string, string | boolean>, args: string[] = []): Promise<void> {
   const url = (flags.url as string | undefined) ?? args[0];
   if (!url) die("usage: unbrowse auth <url>");
@@ -3980,6 +4024,7 @@ async function main(): Promise<void> {
   if (command === "flywheel") { info("[deprecated] `flywheel` is now `stats --flywheel`"); return cmdFlywheel(flags); }
   if (command === "earnings") { info("[deprecated] `earnings` is now `stats --earnings`"); return cmdEarnings(flags); }
   if (command === "billing") return cmdBilling(args, flags);
+  if (command === "telemetry") return cmdTelemetry(args, flags);
   if (command === "sessions-scan") return cmdSessionsScan(flags);
   if (command === "register") { info("[deprecated] `register` is now `account --register`"); return cmdRegister(flags); }
   if (command === "account") {
@@ -3996,7 +4041,7 @@ async function main(): Promise<void> {
     "status", "inspect", "stop", "restart", "serve", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
-    "connect-chrome", "stats", "flywheel", "earnings", "billing", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
+    "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {

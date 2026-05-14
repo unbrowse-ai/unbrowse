@@ -97,5 +97,13 @@ export default {
   fetch: app.fetch,
   scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
     ctx.waitUntil(flushQueuedGithubNotifications(env));
+    ctx.waitUntil(
+      import("./jobs/triage-telemetry.js").then(({ runTelemetryTriage }) =>
+        runTelemetryTriage(env).then(
+          (r) => console.log("[triage-telemetry]", JSON.stringify(r)),
+          (e) => console.error("[triage-telemetry] failed:", e instanceof Error ? e.message : String(e)),
+        ),
+      ),
+    );
   },
 };

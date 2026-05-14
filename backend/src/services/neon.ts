@@ -35,6 +35,39 @@ async function initialize(databaseUrl: string): Promise<void> {
     CREATE INDEX IF NOT EXISTS app_kv_expires_at_idx
     ON app_kv (expires_at)
   `;
+  // Telemetry tables — Phase 3 of docs/mcp-telemetry-plan.md. Co-located
+  // here so cold starts bootstrap the schema without a separate migration
+  // step. Re-running CREATE TABLE/INDEX IF NOT EXISTS is a no-op once
+  // applied.
+  await sql`
+    CREATE TABLE IF NOT EXISTS telemetry_sessions (
+      session_id              TEXT PRIMARY KEY,
+      received_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      duration_ms_total       BIGINT,
+      tool_calls_total        INTEGER,
+      errors_total            INTEGER,
+      reflection_status       TEXT,
+      events_json             JSONB NOT NULL,
+      agent_kind_fingerprint  TEXT,
+      mcp_version             TEXT,
+      platform                TEXT,
+      client_seed_fp          TEXT
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_telemetry_sessions_received ON telemetry_sessions(received_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_telemetry_sessions_reflection ON telemetry_sessions(reflection_status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_telemetry_sessions_client_seed ON telemetry_sessions(client_seed_fp)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS telemetry_clusters (
+      cluster_key             TEXT PRIMARY KEY,
+      first_seen_at           TIMESTAMPTZ NOT NULL,
+      last_seen_at            TIMESTAMPTZ NOT NULL,
+      session_count           INTEGER NOT NULL DEFAULT 1,
+      github_issue_url        TEXT,
+      representative_sessions JSONB
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_telemetry_clusters_last_seen ON telemetry_clusters(last_seen_at DESC)`;
 }
 
 export async function getNeonClient(databaseUrl: string): Promise<any> {
