@@ -2,7 +2,8 @@ name: Bench Gate
 
 # Agent-judged release-gate over indexing + retrieval + execution accuracy.
 # Harness: scripts/bench-gate.sh (collects per-probe artifacts; zero verdicts)
-# Judge:   scripts/bench-gate-judge.ts (LLM renders per-probe verdicts)
+# Judge:   scripts/bench-gate-judge.ts → shells out to `claude -p --bare`
+#          (the Claude Code agent itself; no Anthropic SDK / API key)
 # Gate:    scripts/bench-gate-compare.ts (diffs vs harness/probes/bench-gate-baseline.json)
 #
 # Triggers:
@@ -59,10 +60,21 @@ jobs:
       - name: Install deps
         run: bun install --frozen-lockfile
 
-      - name: Run bench-gate (harness + judge + compare)
+      - name: Install Claude Code CLI (agent judge)
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            echo "claude already on PATH: $(claude --version 2>/dev/null || echo unknown)"
+          else
+            npm install -g @anthropic-ai/claude-code
+          fi
+          claude --version || true
+
+      - name: Run bench-gate (harness + agent judge + compare)
         id: gate
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Auth for `claude -p --bare`. On self-hosted runners claude is usually
+          # already authed via the user's keychain; this env var is the CI fallback.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           UNBROWSE: "bun src/cli.ts"
           LIMIT: ${{ github.event.inputs.limit || '0' }}
         run: |

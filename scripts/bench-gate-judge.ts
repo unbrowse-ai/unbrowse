@@ -2,17 +2,26 @@
 // bench-gate-judge.ts — release-gate judge. Reads harness artifacts. Renders verdicts.
 // See docs/release-gate-bench-plan.md + harness/probes/GATE_JUDGE.md
 //
-// Invariants (Step 2 firmament):
+// Judge model: the Claude Code agent itself, invoked headlessly as
+//   `claude -p --bare --system-prompt <rubric> --json-schema <schema>
+//          --output-format json --model sonnet`
+//
+// Why subprocess instead of Anthropic SDK directly:
+//   - reuses the agent's existing auth (no ANTHROPIC_API_KEY ceremony)
+//   - "harness collects, agent judges" — the agent is literally the judge
+//   - no SDK dependency to track in package.json
+//
+// Invariants (CLAUDE.md):
 //   - never shells out to `unbrowse`
 //   - reads only from .bench-gate/<run-id>/
 //   - writes only verdict.{json,md}
 //
-// Mustard-seed scope: one probe at a time, no batching, no retry chain.
-// Dry-run mode emits stub verdicts without calling Anthropic (for harness↔judge
-// contract testing without burning credits).
+// Dry-run mode emits stub verdicts without calling claude (for harness↔judge
+// contract testing in CI without burning agent credits).
 
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 interface ProbeRef { probe_id: string; lane: string; intent: string; url: string; }
 interface Manifest { run_id: string; corpus: string; cli_version: string; node_version: string; started_at: string; probes: ProbeRef[]; }
@@ -29,6 +38,21 @@ interface Verdict {
   evidence_quote: string;
   suspicious: boolean;
 }
+
+const VERDICT_SCHEMA = {
+  type: "object",
+  properties: {
+    probe_id: { type: "string" },
+    index_verdict: { type: "string", enum: [...INDEX_VERDICTS] },
+    index_reasoning: { type: "string" },
+    retrieve_verdict: { type: "string", enum: [...RETRIEVE_VERDICTS] },
+    retrieve_reasoning: { type: "string" },
+    evidence_quote: { type: "string" },
+    suspicious: { type: "boolean" },
+  },
+  required: ["probe_id","index_verdict","index_reasoning","retrieve_verdict","retrieve_reasoning","evidence_quote","suspicious"],
+  additionalProperties: false,
+} as const;
 
 function parseFlags(argv: string[]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -63,29 +87,28 @@ function loadProbeBundle(runDir: string, probe: ProbeRef) {
 
 function stubVerdict(probe: ProbeRef): Verdict {
   // Used by --dry-run. Drawn from the artifact only via lane shape; this is
-  // NOT a real verdict. Real verdicts come from the LLM judge.
+  // NOT a real verdict. Real verdicts come from the agent judge.
   const blocked = probe.lane === "hostile";
   const auth = probe.lane === "auth-gated";
   return {
     probe_id: probe.probe_id,
     index_verdict: blocked ? "INDEX_EXCLUDED_BLOCKED" : auth ? "INDEX_EXCLUDED_AUTH" : "INDEX_FAIL_NO_ENDPOINTS",
-    index_reasoning: "[dry-run stub] no LLM call made; verdict assigned by lane shape only.",
+    index_reasoning: "[dry-run stub] no agent call made; verdict assigned by lane shape only.",
     retrieve_verdict: blocked ? "RETRIEVE_EXCLUDED_BLOCKED" : auth ? "RETRIEVE_EXCLUDED_AUTH" : "RETRIEVE_FAIL_ERROR_BODY",
-    retrieve_reasoning: "[dry-run stub] no LLM call made; verdict assigned by lane shape only.",
+    retrieve_reasoning: "[dry-run stub] no agent call made; verdict assigned by lane shape only.",
     evidence_quote: "[dry-run]",
     suspicious: false,
   };
 }
 
-async function judgeWithAnthropic(probe: ProbeRef, bundle: ReturnType<typeof loadProbeBundle>, judgePrompt: string): Promise<Verdict> {
-  // Lazy-import so --dry-run works without the SDK installed.
-  const Anthropic = (await import("@anthropic-ai/sdk")).default;
-  const client = new Anthropic();
-  const user = [
+function buildUserMessage(probe: ProbeRef, bundle: ReturnType<typeof loadProbeBundle>): string {
+  return [
     `Probe: ${probe.probe_id}`,
     `Lane: ${probe.lane}`,
     `Intent: ${probe.intent}`,
     `ContextURL: ${probe.url}`,
+    "",
+    "Emit a single JSON object that conforms to the schema. No prose around it.",
     "",
     "=== capture.meta.json ===", bundle.capture_meta || "(empty)",
     "=== capture.html.excerpt ===", bundle.capture_html_excerpt || "(empty)",
@@ -95,38 +118,71 @@ async function judgeWithAnthropic(probe: ProbeRef, bundle: ReturnType<typeof loa
     "=== execute.meta.json ===", bundle.execute_meta || "(empty)",
     "=== timings.json ===", bundle.timings || "(empty)",
   ].join("\n");
+}
 
-  const tool = {
-    name: "emit_verdict",
-    description: "Emit the judge verdict for one probe.",
-    input_schema: {
-      type: "object",
-      properties: {
-        probe_id: { type: "string" },
-        index_verdict: { type: "string", enum: [...INDEX_VERDICTS] },
-        index_reasoning: { type: "string" },
-        retrieve_verdict: { type: "string", enum: [...RETRIEVE_VERDICTS] },
-        retrieve_reasoning: { type: "string" },
-        evidence_quote: { type: "string" },
-        suspicious: { type: "boolean" },
-      },
-      required: ["probe_id","index_verdict","index_reasoning","retrieve_verdict","retrieve_reasoning","evidence_quote","suspicious"],
-    },
-  } as const;
+function extractJson(text: string): unknown {
+  // `claude -p --output-format json` returns an envelope like
+  //   { "type":"result", "subtype":"success", "result":"<assistant text>", ... }
+  // We try the envelope's `result` first, then fall back to greedy JSON parse
+  // over the full stdout (some harness builds bypass the envelope).
+  try {
+    const env = JSON.parse(text);
+    if (env && typeof env === "object" && "result" in env) {
+      const inner = (env as { result: unknown }).result;
+      if (typeof inner === "string") {
+        const trimmed = inner.trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
+        return JSON.parse(trimmed);
+      }
+      return inner;
+    }
+    return env;
+  } catch {
+    // greedy: find first { ... } that parses
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] !== "{") continue;
+      for (let j = text.length; j > i; j--) {
+        try { return JSON.parse(text.slice(i, j)); } catch { /* keep narrowing */ }
+      }
+    }
+    throw new Error(`could not extract JSON from claude output (first 200 chars): ${text.slice(0, 200)}`);
+  }
+}
 
-  const resp = await client.messages.create({
-    model: "claude-opus-4-7",
-    max_tokens: 2048,
-    temperature: 0,
-    system: [{ type: "text", text: judgePrompt, cache_control: { type: "ephemeral" } }],
-    tools: [tool as any],
-    tool_choice: { type: "tool", name: "emit_verdict" },
-    messages: [{ role: "user", content: user }],
+interface ClaudeJudgeOptions {
+  rubric: string;
+  model: string;
+  bin: string;
+  timeoutSec: number;
+}
+
+function judgeWithClaude(probe: ProbeRef, bundle: ReturnType<typeof loadProbeBundle>, opts: ClaudeJudgeOptions): Verdict {
+  const user = buildUserMessage(probe, bundle);
+  const args = [
+    "-p",
+    "--bare",
+    "--system-prompt", opts.rubric,
+    "--json-schema", JSON.stringify(VERDICT_SCHEMA),
+    "--output-format", "json",
+    "--model", opts.model,
+  ];
+  const r = spawnSync(opts.bin, args, {
+    input: user,
+    encoding: "utf8",
+    timeout: opts.timeoutSec * 1000,
+    maxBuffer: 32 * 1024 * 1024,
   });
-
-  const block = resp.content.find((b: any) => b.type === "tool_use");
-  if (!block) throw new Error(`probe ${probe.probe_id}: no tool_use block in response`);
-  return (block as any).input as Verdict;
+  if (r.status !== 0) {
+    throw new Error(`probe ${probe.probe_id}: claude exited ${r.status}\nstderr: ${r.stderr?.slice(0, 1000)}`);
+  }
+  const parsed = extractJson(r.stdout ?? "");
+  const v = parsed as Verdict;
+  if (!v || typeof v !== "object" || !v.probe_id) {
+    throw new Error(`probe ${probe.probe_id}: agent response did not match verdict schema; got ${JSON.stringify(parsed).slice(0, 400)}`);
+  }
+  // Force the probe_id to match what we asked about — the agent occasionally
+  // mirrors back a different id from the bundle text.
+  v.probe_id = probe.probe_id;
+  return v;
 }
 
 function summarize(verdicts: Verdict[], manifest: Manifest): string {
@@ -157,11 +213,11 @@ function summarize(verdicts: Verdict[], manifest: Manifest): string {
   return lines.join("\n");
 }
 
-async function main() {
+function main(): void {
   const flags = parseFlags(process.argv.slice(2));
   const artifacts = flags.artifacts;
   if (!artifacts) {
-    console.error("usage: bun scripts/bench-gate-judge.ts --artifacts .bench-gate/<run-id> [--dry-run] [--judge-prompt path] [--limit N]");
+    console.error("usage: bun scripts/bench-gate-judge.ts --artifacts .bench-gate/<run-id> [--dry-run] [--judge-prompt path] [--limit N] [--model sonnet] [--claude-bin path]");
     process.exit(1);
   }
   const manifestPath = path.join(artifacts, "manifest.json");
@@ -174,12 +230,16 @@ async function main() {
   try { manifest = JSON.parse(readFile(manifestPath)); }
   catch (e) { console.error(`manifest is not valid JSON: ${manifestPath}\n${e}`); process.exit(2); }
   const judgePromptPath = flags["judge-prompt"] ?? "harness/probes/GATE_JUDGE.md";
-  const judgePrompt = readFile(judgePromptPath);
-  if (!flags["dry-run"] && !judgePrompt) {
+  const rubric = readFile(judgePromptPath);
+  if (!flags["dry-run"] && !rubric) {
     console.error(`judge prompt missing: ${judgePromptPath}`);
     process.exit(2);
   }
   const limit = flags.limit ? parseInt(flags.limit, 10) : manifest.probes.length;
+  const model = flags.model ?? "sonnet";
+  const bin = flags["claude-bin"] ?? "claude";
+  const timeoutSec = flags.timeout ? parseInt(flags.timeout, 10) : 180;
+
   const verdicts: Verdict[] = [];
   for (const probe of manifest.probes.slice(0, limit)) {
     const bundle = loadProbeBundle(artifacts, probe);
@@ -187,7 +247,7 @@ async function main() {
     if (flags["dry-run"]) {
       v = stubVerdict(probe);
     } else {
-      v = await judgeWithAnthropic(probe, bundle, judgePrompt);
+      v = judgeWithClaude(probe, bundle, { rubric, model, bin, timeoutSec });
     }
     if (probe.lane === "hostile" && (v.index_verdict === "INDEX_PASS" || v.retrieve_verdict === "RETRIEVE_PASS")) {
       v.suspicious = true;
@@ -200,4 +260,4 @@ async function main() {
   console.error(`[judge] wrote ${path.join(artifacts, "verdict.json")} + verdict.md`);
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main();
