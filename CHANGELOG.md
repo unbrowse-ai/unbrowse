@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.17.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.16.0...v6.17.0-preview.0) (2026-05-14)
+
+### Features
+
+* **bench-gate:** expand corpus to 58 — v1 refresh from r/webscraping + HN ([875bb2d](https://github.com/unbrowse-ai/unbrowse-dev/commit/875bb2d500ba7fc05ae79499840765dc24515e66))
+* **mcp:** surface path/extract misses with actual_shape diagnostic ([913209c](https://github.com/unbrowse-ai/unbrowse-dev/commit/913209cf23bc53198a29f8f1d1b615ecda7a31f3))
+* **runtime:** remove local rate limit; auto-open visible Chrome on auth_required ([6ec4b9b](https://github.com/unbrowse-ai/unbrowse-dev/commit/6ec4b9b92a599e9ff885063bf3dd3447ab98cbc4))
+* **telemetry:** MCP session bug-report telemetry (Phases 1–3) ([5cee3c0](https://github.com/unbrowse-ai/unbrowse-dev/commit/5cee3c0623092342696c51c5e0e32c6e78f27b12))
+
 ## [Unreleased]
 
 ### Features
