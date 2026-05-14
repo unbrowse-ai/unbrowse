@@ -1,5 +1,66 @@
 # Changelog
 
+## [6.16.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.16.0-preview.0...v6.16.0) (2026-05-14)
+
+### Features
+
+* **bench-gate:** trigger workflow on push to main + auto-file judging issue ([9f6fd3e](https://github.com/unbrowse-ai/unbrowse-dev/commit/9f6fd3e8c63acff08c9e21c0a395e029471b966c))
+* **bench:** agent-judged release-gate regression check ([6842924](https://github.com/unbrowse-ai/unbrowse-dev/commit/68429240fa711c9aa3c7a466679695040352f230))
+* **mcp:** auto-review, publish-suggestions, earnings + contribution visibility ([f3ecc23](https://github.com/unbrowse-ai/unbrowse-dev/commit/f3ecc231fcd5362d7ef5c93785a5c9847e945525))
+* **release-gate:** wire bench-gate as release-it before:init hook ([1eb5f98](https://github.com/unbrowse-ai/unbrowse-dev/commit/1eb5f9835d0ba4f0335f3428ffc6cda6257b5fa8))
+* **v6.16:** faremeter flex settlement + auto-review + earnings/publish visibility (MCP) ([e148301](https://github.com/unbrowse-ai/unbrowse-dev/commit/e148301570bf5623c876cfd04d252fd490c689b9)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [3/#4](https://github.com/3/unbrowse-dev/issues/4) [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4) [Unbrowse#executeMetered](https://github.com/unbrowse-ai/Unbrowse/issues/executeMetered)
+
+### Bug Fixes
+
+* **bench-gate:** split UNBROWSE into argv array + honor env LIMIT ([c025acf](https://github.com/unbrowse-ai/unbrowse-dev/commit/c025acf7915fe992272b88feeb32389f84f098e4))
+* **bench:** re-add bench:gate:validate npm script ([13c4970](https://github.com/unbrowse-ai/unbrowse-dev/commit/13c497067311fe02b9aa25990b8f6095ca80ff33))
+* **execution:** probe-fast-fail 429 carries Retry-After via response_headers ([4884056](https://github.com/unbrowse-ai/unbrowse-dev/commit/4884056f75cde7f48d7bc48791bdea0c3ed0171d))
+* **execution:** rate_limited honors Retry-After header from response_headers ([06ddc6b](https://github.com/unbrowse-ai/unbrowse-dev/commit/06ddc6b91a954b94180bd7d5c9cae317d45e429a))
+* **execution:** recipe_replay surfaces structured fail next_step on miss ([2956e1f](https://github.com/unbrowse-ai/unbrowse-dev/commit/2956e1f2646e65d2387a3a9bd248d1fee988b605))
+* **mcp:** surface suggested_limit + next_step on projection diet-fallback ([e821a41](https://github.com/unbrowse-ai/unbrowse-dev/commit/e821a41502b779252beaf5dc72e9eed96f859fbb))
+* **runtime:** EADDRINUSE fast-fail via probePortOwnership before spawn-retry ([a0e3869](https://github.com/unbrowse-ai/unbrowse-dev/commit/a0e386967bbc04653aa37c6337570df813a59856))
+
+### Refactoring
+
+* **bench:** in-thread agent judge — no subprocess, no token ([023981a](https://github.com/unbrowse-ai/unbrowse-dev/commit/023981a42f09646d688f8af63e39d3ca4056cf5e))
+* **bench:** judge via claude -p instead of Anthropic SDK ([efcb7ab](https://github.com/unbrowse-ai/unbrowse-dev/commit/efcb7ab5da9078984e0f9e864937d75cfbf93ad9))
+
+## [6.14.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.16.0-preview.0...v6.16.0) (2026-05-13)
+
+## [6.14.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.16.0-preview.0...v6.16.0) (2026-05-13)
+
+### Bug Fixes
+
+* **mcp,cli:** harden carousell-class failure mode end-to-end ([e23397c](https://github.com/unbrowse-ai/unbrowse-dev/commit/e23397c4af55c05af7501e23d969a124addf4a7f))
+* **mcp:** widen resolve miss-guidance to cover all 3 miss statuses ([ec5190c](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec5190c7f08d1c277b12a3bb008de3354c057b6b))
+
+## [6.14.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.16.0-preview.0...v6.16.0) (2026-05-13)
+
+## [6.14.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.16.0-preview.0...v6.16.0) (2026-05-13)
+
+### Features
+
+* **cli,mcp:** Phase 2 seeds — unbrowse serve + stdin-EOF daemon stop (Day 3) ([6e21ef9](https://github.com/unbrowse-ai/unbrowse-dev/commit/6e21ef90b1f2696a9fe7696f6b52a0abaad661f2))
+* **indexer:** add queue-store seed + round-trip test (Phase 1 disk-backed index queue) ([16e5512](https://github.com/unbrowse-ai/unbrowse-dev/commit/16e55129c4056f99c3cb0ed63e3a5c6ddfb7530f))
+* **indexer:** disk-queue motion — lock, worker, dispatcher (Day 5 creatures) ([f9b531b](https://github.com/unbrowse-ai/unbrowse-dev/commit/f9b531b6fac8fb383bada143641869aa0ea19a33))
+* **indexer:** dominion — CLI __drain-queue, sweep, detached spawn, heartbeat (Day 6) ([d8c73e6](https://github.com/unbrowse-ai/unbrowse-dev/commit/d8c73e6051a498bf276f2e9940b5332bbe2c1140)), closes [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4)
+* **indexer:** Phase 1.1 creatures — close 4 remaining audit findings (Day 5) ([1bb31e8](https://github.com/unbrowse-ai/unbrowse-dev/commit/1bb31e8a03dab509d7854217d71d982f92fbee47)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4) [#5](https://github.com/unbrowse-ai/unbrowse-dev/issues/5) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7) [#8](https://github.com/unbrowse-ai/unbrowse-dev/issues/8) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)
+* **indexer:** Phase 1.1 seeds — tryAcquireWorkerSlot + sweepStaleTmp (Day 3) ([7282cfc](https://github.com/unbrowse-ai/unbrowse-dev/commit/7282cfc6aa7010199d306868d343f4421033bdf9))
+* **server,docs:** Phase 2 creatures — MCP-mode idle + CLAUDE.md update (Day 5) ([fbcb878](https://github.com/unbrowse-ai/unbrowse-dev/commit/fbcb87833b6fae56f01c7a3ea2f88ae6e2de8e9e))
+
+### Bug Fixes
+
+* **audit:** correct LinkedIn root cause, delete painted xfail (Luke 15:4) ([36df793](https://github.com/unbrowse-ai/unbrowse-dev/commit/36df7937a46ba58693801d7921ea94298a9e6b92))
+* **backend:** dedicated staging STATS_KV + verifiable health route ([01a309d](https://github.com/unbrowse-ai/unbrowse-dev/commit/01a309d499f2d1a2459a8395a74f4f2b3632438b))
+* **indexer:** judgement — close 2 P1 audit findings (Day 8) ([ea66416](https://github.com/unbrowse-ai/unbrowse-dev/commit/ea664169e575c30d7d0ec61bd5c49e892a269169)), closes [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)
+* **indexer:** judgement — cold-start mkdir + CHANGELOG omissions (P1.1 Day 8) ([414beb1](https://github.com/unbrowse-ai/unbrowse-dev/commit/414beb1795dcf79fa4417423e334c7e4ee448bde)), closes [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9) [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#5](https://github.com/unbrowse-ai/unbrowse-dev/issues/5) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7) [#8](https://github.com/unbrowse-ai/unbrowse-dev/issues/8) [#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10)
+* **indexer:** luminaries — close acquireLock concurrency race (P1.1 Day 4) ([726c781](https://github.com/unbrowse-ai/unbrowse-dev/commit/726c7815e28e1e069c2434249f17229b555d741b)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+* **judgement:** purge three Day-8 auditor-named defects (Rev 20:12) ([3963a44](https://github.com/unbrowse-ai/unbrowse-dev/commit/3963a4416d84271c3367e999fcefd95abf65cdac))
+* **mcp,tests,docs:** judgement — close 5 Phase-2 audit findings (Day 8) ([b918711](https://github.com/unbrowse-ai/unbrowse-dev/commit/b9187116917a9c4541680c0edaeabb9ac5bbd7d7)), closes [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4) [#5](https://github.com/unbrowse-ai/unbrowse-dev/issues/5) [#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7) [#13](https://github.com/unbrowse-ai/unbrowse-dev/issues/13) [#11](https://github.com/unbrowse-ai/unbrowse-dev/issues/11) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1) [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9) [#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10) [#12](https://github.com/unbrowse-ai/unbrowse-dev/issues/12)
+* **mcp+orchestrator:** MCP audit follow-through ([#437](https://github.com/unbrowse-ai/unbrowse-dev/issues/437)) ([421c538](https://github.com/unbrowse-ai/unbrowse-dev/commit/421c538734c48a277f489869393cd852610e87d0))
+* **release:** align buildBinaryArchiveName with preview- tag prefix ([#443](https://github.com/unbrowse-ai/unbrowse-dev/issues/443)) ([8d0e543](https://github.com/unbrowse-ai/unbrowse-dev/commit/8d0e543f7dcd26018402b822d2988ad7dee40664)), closes [#442](https://github.com/unbrowse-ai/unbrowse-dev/issues/442)
+* **release:** wire release:preview to publish:cli:preview with non-`v*` tag prefix ([#442](https://github.com/unbrowse-ai/unbrowse-dev/issues/442)) ([069f76a](https://github.com/unbrowse-ai/unbrowse-dev/commit/069f76ad82b254c29e730e17cc9fc36b00810747))
+
 ## [6.16.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.15.0...v6.16.0-preview.0) (2026-05-14)
 
 ### Features
