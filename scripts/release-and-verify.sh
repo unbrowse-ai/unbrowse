@@ -52,18 +52,16 @@ git checkout -- src/build-info.generated.ts
 log "local tests passed"
 
 # ── Step 1.5: Agent-judged bench-gate (opt-in via --bench-gate / RUN_BENCH_GATE=1) ──
-# Uses the LOCAL `bun src/cli.ts` to run the corpus. The judge is the Claude
-# Code agent itself (`claude -p --bare`), so no Anthropic API key required.
-# Compares against harness/probes/bench-gate-baseline.json. CI runs the same
-# via bench-gate.yml. Costs ~5-15min wall time, so opt-in.
+# Runs the harness against the LOCAL `bun src/cli.ts`, then PREPS a judge
+# bundle. The agent running this script reads the bundle, writes verdict.json,
+# then re-runs --bench-gate-compare. We never auto-judge — see CLAUDE.md
+# "harness makes visible, agent judges".
 if [[ "$RUN_BENCH_GATE" == "1" ]]; then
-  if ! command -v claude >/dev/null 2>&1; then
-    die "bench-gate requires the 'claude' CLI on PATH (Claude Code agent judge)"
-  fi
-  log "running agent-judged bench-gate (corpus=harness/probes/corpus-gate.txt)..."
-  UNBROWSE="bun src/cli.ts" bash scripts/bench-gate-full.sh \
-    || die "bench-gate regression detected — read .bench-gate/<latest>/gate.md before retrying"
-  log "bench-gate passed"
+  log "running bench-gate harness + judge prep (corpus=harness/probes/corpus-gate.txt)..."
+  UNBROWSE="bun src/cli.ts" bash scripts/bench-gate-full.sh
+  log "bench-gate harness collected + judge bundle ready"
+  log "AGENT: read .bench-gate/<latest>/judge.bundle.md, write verdict.json, then re-run with RUN_BENCH_GATE=0 plus a manual bench:gate:compare before retrying release"
+  die "bench-gate prep complete — agent judge step required before continuing release"
 fi
 
 # ── Step 2: Cut release ──
