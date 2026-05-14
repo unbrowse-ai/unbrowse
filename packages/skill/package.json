@@ -8,7 +8,6 @@
   },
   "files": [
     "bin",
-    "dist",
     "vendor/kuri",
     "scripts/release-assets.mjs",
     "scripts/postinstall.mjs",
