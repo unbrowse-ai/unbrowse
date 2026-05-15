@@ -10,6 +10,9 @@
 
 ## [Unreleased]
 
+### Chores
+* **bench:** remove the codex-driven `bench-mcp` harness (`scripts/bench-mcp.sh`, `scripts/bench-mcp-judge.ts`, `scripts/bench-mcp-telemetry.ts`) and its orphan `harness/probes/corpus-smoke.txt`. Spawning a second LLM agent to drive unbrowse MCP via stdio was the wrong substrate for regression-testing the index/retrieve flywheel; the calling agent should drive `unbrowse_*` tools itself and judge outcomes in-thread.
+
 ### Features
 * **release:** prerelease hooks now run the issue-regression suite before the bench-gate stamp check, so preview cuts are blocked by regression failures before version bump/tagging.
 
