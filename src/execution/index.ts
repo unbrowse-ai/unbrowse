@@ -40,6 +40,7 @@ import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { isStructuredSearchForm, detectSearchForms, type SearchFormSpec } from "./search-forms.js";
 import { attributeLifecycle, type LifecycleEvent, type LifecyclePhase } from "../runtime/lifecycle.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
+import { readActiveSessions } from "../api/session-store.js";
 import {
   writeSkillSnapshot,
   domainSkillCache,
@@ -101,6 +102,95 @@ function staleEndpointResult(
     next_step: `Use browser fallback: unbrowse go "${target}", inspect with snap/text, then close to checkpoint and publish a fresh route.`,
     commands: buildBrowserFallbackCommands(target, skill),
   };
+}
+/**
+ * Live-session fallback for 4xx after server_fetch fails.
+ *
+ * When an agent has an open browse session for the endpoint's domain, the real
+ * Chrome tab already has: real cookies (including HttpOnly), real UA, real IP,
+ * any anti-bot challenge clearance, and any JS-set state. Issuing the fetch
+ * inside that tab's JS context via Runtime.evaluate bypasses libcurl-class bot
+ * detection that the server-side recovery chain can't unwind.
+ *
+ * Returns the live-session result (success or final failure status) or null
+ * when no usable session exists. Decision-trace steps follow the convention
+ * documented in CLAUDE.md (`4xx_live_session_fallback_<sub_state>`).
+ */
+async function tryLiveSessionFallback(
+  domain: string,
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body: unknown,
+  decisionTrace: Array<Record<string, unknown>>,
+): Promise<{ status: number; data: unknown } | null> {
+  let sessions: ReturnType<typeof readActiveSessions>;
+  try {
+    sessions = readActiveSessions();
+  } catch (err) {
+    decisionTrace.push({
+      step: "4xx_live_session_fallback_error",
+      reason: "read_active_sessions_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+  if (sessions.length === 0) {
+    decisionTrace.push({ step: "4xx_live_session_fallback_no_session", reason: "no_active_sessions" });
+    return null;
+  }
+  // Match by registrable domain (so reddit.com session matches www.reddit.com endpoint).
+  const targetReg = getRegistrableDomain(domain) || domain;
+  const match = sessions.find((s) => {
+    const sReg = getRegistrableDomain(s.domain) || s.domain;
+    return sReg === targetReg;
+  });
+  if (!match) {
+    decisionTrace.push({
+      step: "4xx_live_session_fallback_no_session",
+      reason: "no_session_for_domain",
+      target_domain: domain,
+      active_domains: sessions.map((s) => s.domain).slice(0, 8),
+    });
+    return null;
+  }
+  decisionTrace.push({
+    step: "4xx_live_session_fallback",
+    session_id: match.sessionId,
+    tab_id: match.tabId,
+    target_url: url,
+  });
+  try {
+    const tabResult = await kuri.executeInPageFetch(match.tabId, url, method, headers, body);
+    if (tabResult.status === 0) {
+      decisionTrace.push({
+        step: "4xx_live_session_fallback_kuri_unavailable",
+        session_id: match.sessionId,
+      });
+      return null;
+    }
+    if (tabResult.status >= 200 && tabResult.status < 300) {
+      decisionTrace.push({
+        step: "4xx_live_session_fallback_success",
+        status: tabResult.status,
+        session_id: match.sessionId,
+      });
+    } else {
+      decisionTrace.push({
+        step: "4xx_live_session_fallback_still_blocked",
+        status: tabResult.status,
+        session_id: match.sessionId,
+      });
+    }
+    return tabResult;
+  } catch (err) {
+    decisionTrace.push({
+      step: "4xx_live_session_fallback_error",
+      reason: "kuri_fetch_threw",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }
 
 const DEFAULT_BROWSER_UA =
@@ -3301,6 +3391,40 @@ export async function executeEndpoint(
   // Chain: authRuntime.refreshSession (lightweight) → refreshAuthFromBrowser (re-extract)
   //        → authRuntime.loginIfNeeded (full interactive login)
   if (status === 401 || status === 403) {
+    // First-line recovery: if the agent has an open browse session for this
+    // domain, retry the fetch via the live tab's JS context. The real Chrome
+    // tab has cookies + UA + IP + any anti-bot clearance that libcurl-class
+    // server_fetch can't reproduce. This bypasses both the auth-recovery chain
+    // and the vendor-specific challenge solvers when a session already exists.
+    {
+      const liveFetchHeaders: Record<string, string> = {};
+      for (const [k, v] of Object.entries(authHeaders ?? {})) {
+        if (typeof v === "string") liveFetchHeaders[k.toLowerCase()] = v;
+      }
+      if (cookies.length > 0) {
+        liveFetchHeaders["cookie"] = cookies.map((c) => {
+          const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+          return `${c.name}=${v}`;
+        }).join("; ");
+      }
+      const liveResult = await tryLiveSessionFallback(
+        epDomain,
+        url,
+        endpoint.method,
+        liveFetchHeaders,
+        body,
+        decisionTrace,
+      );
+      if (liveResult && liveResult.status >= 200 && liveResult.status < 300) {
+        status = liveResult.status;
+        data = liveResult.data;
+        trace.success = true;
+        trace.status_code = status;
+        trace.error = undefined;
+        trace.result = data;
+        return { trace, result: data, decision_trace: decisionTrace };
+      }
+    }
     let authRecovered = false;
     try {
       // 1. Lightweight session refresh via authRuntime

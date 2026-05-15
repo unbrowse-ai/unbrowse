@@ -150,7 +150,7 @@ Reach for these by name when the trigger phrase matches what the user asked for.
 | Skill | Use when |
 |---|---|
 | `/unbrowse-bench-corpus-builder` | Add harder Unbrowse release-gate bench probes as typed corpus rows. |
-| `/unbrowse-bench-improvement-loop` | Run a self-improving Unbrowse bench loop. |
+| `/unbrowse-bench-improvement-loop` | Run ONE iteration of the agentic Unbrowse MCP bench against the STAGING marketplace, distill a per-probe judge bundle, render an agent-judged verdict in-thread (never via heuristics), append the run to a history ledger, and emit a one-line next-cluster recommendation. |
 | `/unbrowse-bench-history-tracker` | Append every agent-judged bench-gate run to a per-run history ledger and surface deltas in release notes. |
 | `/web-app-harness` | scaffold a harness for this web app; set up the test loop; wire build test deploy debug fix |
 <!-- /skills:pinned -->
