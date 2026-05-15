@@ -1,0 +1,38 @@
+product_id: unbrowse-mcp-evolve
+repo_path: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+description: |
+  Self-improving unbrowse MCP that reverse-engineers websites down to the JS dependency
+  chain, retrieves and executes captured operations under minimal runtime (headless first,
+  headful fallback only when learning), replays for different query types, and ships
+  improvements through a dev-time hot-swap proxy workbench installed in .claude/mcps so
+  Claude Code can reload it without restarting the session.
+
+  The workbench itself is HARNESS, not product: a proxy MCP that sits between Claude Code
+  and the unbrowse daemon, A/B-tests candidate-vs-baseline MCP builds against the bench
+  corpus, and signals which build is shipping today's improvement. The product is the
+  unbrowse MCP's evolving capability surface.
+
+improvement_loop: unbrowse-improvement-loop
+improvement_fleet: unbrowse-improvement-fleet
+subreddits:
+  - MCP
+  - webscraping
+  - reverseengineering
+  - learnjavascript
+  - devops
+queries:
+  - mcp browser automation pain
+  - reverse engineer site api javascript
+  - headless browser too slow
+  - hot reload mcp server
+  - replay captured network request
+  - dependency chain xhr fetch
+  - puppeteer playwright minimum runtime
+  - mcp server development workflow
+out_of_scope_lanes:
+  - anti-bot bypass (Cloudflare, DataDome, PerimeterX) -- ADVERSARIAL HELD
+  - novel DOM extractor families -- separate workload per CLAUDE.md substrate principle
+  - ranking-confidence calibration -- separate workload
+  - browser-engine forking (Kuri-side changes) -- never edit src/kuri/client.ts
+session: lewis-2026-05-15
+wave: 1
