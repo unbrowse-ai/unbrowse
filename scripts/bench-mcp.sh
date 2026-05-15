@@ -79,8 +79,9 @@ Single-trajectory procedure (capture → publish → resolve → execute → quo
 3. Call unbrowse_close. This triggers the full enrichment pipeline (extractEndpoints, augment, buildSkillOperationGraph, cachePublishedSkill, queueBackgroundIndex). It publishes a skill to STAGING marketplace. Note the skill_id / endpoint count in the response.
 4. Call unbrowse_resolve with the same intent and contextUrl. The just-published skill should now appear in the shortlist (marketplace winner instead of probe). If the shortlist is still empty, this is the bug we want to surface — say "INTENT_NOT_SATISFIED: publish_did_not_index" and stop. Do not retry.
 5. Pick the endpoint from the shortlist that best matches the intent for THIS contextUrl. Call unbrowse_execute on it. If it returns an error_body, you may try one other endpoint from the shortlist; do not try more than two total.
-6. After a successful execute, call unbrowse_feedback (5=right+fast, 3=incomplete, 2=wrong endpoint, 1=useless). Then call unbrowse_reflect with intent_status (achieved/partial/failed).
-7. End your turn with a single line: the most relevant concrete data field from the execute response that answers the intent (e.g. one product title for "search amazon", one ticker price for "AAPL quote", one post title for "top hacker news stories"). If you cannot satisfy the intent, end with exactly: "INTENT_NOT_SATISFIED: <reason>"
+5a. If unbrowse_execute returns "stale_endpoint" or any structured error with a "commands" / "next_step" array, you may follow it ONCE. The browse session from step 1 is still open — prefer unbrowse_text or unbrowse_markdown over reopening (skip the redundant unbrowse_go). Quote concrete data from the rendered DOM in step 7 instead of repeating the intent_not_satisfied loop.
+6. After a successful execute OR a successful text/markdown read, call unbrowse_feedback (5=right+fast, 3=incomplete, 2=wrong endpoint, 1=useless). Then call unbrowse_reflect with intent_status (achieved/partial/failed).
+7. End your turn with a single line: the most relevant concrete data field from the execute response (or text/markdown fallback) that answers the intent (e.g. one product title for "search amazon", one ticker price for "AAPL quote", one post title for "top hacker news stories"). If you cannot satisfy the intent, end with exactly: "INTENT_NOT_SATISFIED: <reason>"
 
 Auth: if unbrowse_close or unbrowse_execute returns auth_required, call unbrowse_reflect intent_status=failed and end with "INTENT_NOT_SATISFIED: auth_required". Do NOT call unbrowse_auth_capture (would pop a window).
 Vendor block: if you see captcha / datadome / perimeterx / cloudflare-challenge in any tool result, end with "INTENT_NOT_SATISFIED: blocked".
@@ -100,6 +101,10 @@ EOF
   # UNBROWSE_BENCH_API_URL env to point at a different staging if needed.
   local bench_api_url="${UNBROWSE_BENCH_API_URL:-https://unbrowse-backend-staging.lewis-6d8.workers.dev}"
 
+  # Redirect codex stdin to /dev/null so it cannot consume rows from the
+  # while-read queue (BSD/macOS bash leaves stdin inherited even for foreground
+  # children inside `while read; done <FILE`). The same issue bit the parallel
+  # path via background-job stdin inheritance; belt-and-suspenders here.
   timeout "$TIMEOUT" codex exec \
     --json \
     --skip-git-repo-check \
@@ -113,6 +118,7 @@ EOF
     -c "mcp_servers.unbrowse.env.UNBROWSE_API_URL=\"$bench_api_url\"" \
     ${model_flag[@]+"${model_flag[@]}"} \
     "$prompt" \
+    </dev/null \
     > "$pdir/events.jsonl" 2> "$pdir/codex.stderr.log" || true
 
   t1=$(date +%s)
