@@ -966,7 +966,7 @@ function endpointHasSearchBindings(
     body_params: endpoint.body_params ?? {},
     semantic: endpoint.semantic ?? {},
   }).toLowerCase();
-  return /(basicsearchkey|basic_search_key|query|keyword|search|lookup|find|term)/.test(haystack);
+  return /(?:^|[^a-z])(q|s|text|basicsearchkey|basic_search_key|query|keyword|search|lookup|find|term)(?:[^a-z]|$)/.test(haystack);
 }
 
 function isSearchBindingLikeKey(key: string): boolean {
