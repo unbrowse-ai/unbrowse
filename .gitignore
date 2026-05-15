@@ -3,6 +3,7 @@ node_modules/
 .pnp
 .pnp.js
 .claude/
+!.claude/mcps/
 .claudeold/
 
 # Build outputs

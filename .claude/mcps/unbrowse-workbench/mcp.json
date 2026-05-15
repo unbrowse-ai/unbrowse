@@ -1,0 +1,19 @@
+{
+  "//": "unbrowse-workbench MCP server. Day-3 mustard-seed proxy.",
+  "//env": "UNBROWSE_BIN_CANDIDATE: full shell command for the candidate (default: bun run /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/mcp.ts).",
+  "//env2": "UNBROWSE_BIN_BASELINE: full shell command for the baseline (default: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.workbench-baseline/<prev-tag>/unbrowse). Worker B's scripts/workbench-fetch-baseline.sh populates this.",
+  "//install": "Copy mcpServers block into ~/.claude.json or .mcp.json.",
+  "mcpServers": {
+    "unbrowse-workbench": {
+      "command": "bun",
+      "args": [
+        "run",
+        "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.claude/mcps/unbrowse-workbench/bin/proxy.ts"
+      ],
+      "env": {
+        "UNBROWSE_BIN_CANDIDATE": "bun run /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/mcp.ts",
+        "UNBROWSE_BIN_BASELINE": ""
+      }
+    }
+  }
+}
