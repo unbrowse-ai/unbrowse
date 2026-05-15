@@ -1,5 +1,52 @@
 # Changelog
 
+## [6.17.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.4...v6.17.0-preview.5) (2026-05-15)
+
+### Features
+
+* agentic MCP bench harness with telemetry-aware fix loop ([90cf510](https://github.com/unbrowse-ai/unbrowse-dev/commit/90cf510f59dbc03e8f541a0a58e729ed191125c4))
+* bench-mcp-telemetry pulls server-side triage clusters too ([e0d4da0](https://github.com/unbrowse-ai/unbrowse-dev/commit/e0d4da012431f2d86d09f4e644296cc4ce8ab502))
+* **dag-feedback:** pure freshness helpers + binding-staleness tests ([80bf7c6](https://github.com/unbrowse-ai/unbrowse-dev/commit/80bf7c64c412407991a08585e3e3508f1bece15d))
+* **execution:** 4xx live-session fallback before declaring stale_endpoint ([f40dcd4](https://github.com/unbrowse-ai/unbrowse-dev/commit/f40dcd4c3251d3d68c2a2d5de7e0d6c1c144393b))
+* **execution:** AC3 drift-recapture signal (lane-04 headful-as-learning) ([9a6c2d8](https://github.com/unbrowse-ai/unbrowse-dev/commit/9a6c2d81fc2bd46662e847f5937f1adf003d001f))
+* **execution:** executeEndpointWithChain wrapper (AC5 skeleton) ([5809c26](https://github.com/unbrowse-ai/unbrowse-dev/commit/5809c26ad6f7f6cdf3b48386907eee877e62927a))
+* **harness:** AC6 CSRF refetch probe (synthetic local server) ([b936ae4](https://github.com/unbrowse-ai/unbrowse-dev/commit/b936ae46e52aed68abe5a95bd78c93b3c2516da9)), closes [#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7)
+* **mcp:** improvement_suggestion on failed-intent execute/reflect responses ([e445f6b](https://github.com/unbrowse-ai/unbrowse-dev/commit/e445f6b83dd97ef54c6cfcb67974c24c2ea25776))
+* **mcp:** unbrowse_snap detail_level minimal/summary/full (AC4) ([28661bb](https://github.com/unbrowse-ai/unbrowse-dev/commit/28661bb669e35089660e5a0e85dda8f08240694f))
+* **reverse-engineer:** AC2 capture-side population of binding freshness ([b4557c9](https://github.com/unbrowse-ai/unbrowse-dev/commit/b4557c923e143eaa7da63669fc610fc5930c3225))
+* **types:** ChainWalkContext + DecisionTraceStep interfaces ([a3739dc](https://github.com/unbrowse-ai/unbrowse-dev/commit/a3739dc2ad1b125205645729b7e12dc3f042ce09))
+* **types:** OperationBinding gains optional freshness metadata ([34779c2](https://github.com/unbrowse-ai/unbrowse-dev/commit/34779c227132bac3719df2f0fa663d62a6759748))
+* **workbench:** Day-3 Land: proxy skeleton + ops scripts + evidence-build ([59ba653](https://github.com/unbrowse-ai/unbrowse-dev/commit/59ba6531675f707122d62ca92096ea9045633ba5))
+* **workbench:** Day-5 Creatures: real structural_diff_summary ([987241f](https://github.com/unbrowse-ai/unbrowse-dev/commit/987241f130ad478c378342fae51892f41f3eaa88)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+
+### Bug Fixes
+
+* bench coverage iteration - DOM fallback + detail-intent rank ([847f688](https://github.com/unbrowse-ai/unbrowse-dev/commit/847f6886a490fc928471f60e079feb75db08263e))
+* **bench:** codex stdin leak + stale_endpoint recovery in prompt ([a18eb1d](https://github.com/unbrowse-ai/unbrowse-dev/commit/a18eb1dec680573357198e84e973bbab3f467a75))
+* **bench:** harness reliability + retarget at staging marketplace ([11f5094](https://github.com/unbrowse-ai/unbrowse-dev/commit/11f50940f2df87232e67ab3711411d920dcc8446))
+* **browse:** SSR-only sites no longer return endpoint_count:0 from close ([8ca1bb7](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ca1bb75b442cf869973a3b05cc82fff13c3f48e))
+* **browse:** tighten auth-wall detection to actual gating signals only ([157d267](https://github.com/unbrowse-ai/unbrowse-dev/commit/157d2675e82c916f459ef0be516665f0775306fc))
+* **browse:** unbrowse_snap surfaces current_url + landed_domain_mismatch ([b68d50b](https://github.com/unbrowse-ai/unbrowse-dev/commit/b68d50b21f7bd89e458af02cc7fa86b06722a579))
+* **browse:** unbrowse_snap surfaces diagnostic + next_step on empty snapshot ([34c0458](https://github.com/unbrowse-ai/unbrowse-dev/commit/34c0458a7e0e82c6c3ec978188bc180132e0f6d1))
+* **changelog:** restore historical Unreleased entries dropped during Day-5 cherry-pick chain ([f333ddb](https://github.com/unbrowse-ai/unbrowse-dev/commit/f333ddb1b7e656c42d5a2140f0339d34e5885d72))
+* **client:** getSkill skips listSkills fallback for hostname-shaped inputs ([c638619](https://github.com/unbrowse-ai/unbrowse-dev/commit/c63861997fb5f9672c279c6a19ea42aad7ef467a))
+* **execution:** close three pinned wrapper bugs from Day 5 ([26d59a9](https://github.com/unbrowse-ai/unbrowse-dev/commit/26d59a98ec985dba12686ebd05feccff58a954d0))
+* **execution:** keep captured url_template when it carries intent signal ([ebfd70d](https://github.com/unbrowse-ai/unbrowse-dev/commit/ebfd70dd1d94d10b2919b461345742ac79fb1acb))
+* HTML metadata fallback when DOM extraction empty ([1e1996e](https://github.com/unbrowse-ai/unbrowse-dev/commit/1e1996e30762399cf87d77df1526adb5d99ade52))
+* improve public bench API coverage ([02fe793](https://github.com/unbrowse-ai/unbrowse-dev/commit/02fe793a4d342f3b69a38f54987634c74edad854))
+* isolate bench domain caches ([5e1267f](https://github.com/unbrowse-ai/unbrowse-dev/commit/5e1267f7f869e5305789a9635289373d17ec8070))
+* **mcp:** addResolveMissGuidance handles orchestrator no_match status ([33878a6](https://github.com/unbrowse-ai/unbrowse-dev/commit/33878a6ae56458c2d229d860b3e04c9a31f889ea))
+* **mcp:** diet safety-net surfaces top_level_keys for accumulation case ([0a2e9af](https://github.com/unbrowse-ai/unbrowse-dev/commit/0a2e9af5f567ef39689dc969d319ad8ef5685b1b))
+* **mcp:** safety-net wrapper carries suggested_limit + next_step ([4281d2b](https://github.com/unbrowse-ai/unbrowse-dev/commit/4281d2b220d8a1e48010e16324f3d252269bd630))
+* **mcp:** safety-net wrapper carries suggested_limit + next_step ([01a0686](https://github.com/unbrowse-ai/unbrowse-dev/commit/01a068678a0de8d9e926bc9831f98801a86ee5eb))
+* **orchestrator:** budget_race tried[].status distinguishes cancelled from deadline ([9260619](https://github.com/unbrowse-ai/unbrowse-dev/commit/92606192144e34789d71c53a576254c49adba3f9))
+* **probe:** request accept-encoding identity so Content-Length is decoded bytes ([0dcb7e6](https://github.com/unbrowse-ai/unbrowse-dev/commit/0dcb7e6ddb984586040acac1b46ef09db28d1690))
+* **ranking:** demote scalar-only response schemas for LIST_INTENT ([edf014f](https://github.com/unbrowse-ai/unbrowse-dev/commit/edf014f2c6a54d83808cdf7386a17b24093e13cb))
+* **resolve:** available_operations matches available_endpoints membership ([5923c47](https://github.com/unbrowse-ai/unbrowse-dev/commit/5923c476fa7c99c4e7f40321a1a3c7144d0eeea2))
+* **resolve:** no_match next_step leads with unbrowse fetch when probe is fetchable ([a7a5b9e](https://github.com/unbrowse-ai/unbrowse-dev/commit/a7a5b9e318edf97daf02bca41f7602af21f43070))
+* **resolve:** propagate probe.method_used through RaceWinnerProbe to probe_evidence ([2f57c87](https://github.com/unbrowse-ai/unbrowse-dev/commit/2f57c87889afc3b9d11f087196ac2ffc13261524))
+* **workbench:** fetch-baseline.sh now actually builds the baseline binary ([4bf4c8a](https://github.com/unbrowse-ai/unbrowse-dev/commit/4bf4c8a6cc907d7b7013ce9fcbf330adca82feb0))
+
 ## [6.17.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.3...v6.17.0-preview.4) (2026-05-15)
 
 ### Bug Fixes
