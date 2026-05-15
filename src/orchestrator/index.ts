@@ -3637,7 +3637,7 @@ export async function resolveAndExecute(
                 }
               : { exa_answer: false }),
             exa_candidates: candidates,
-            probe_evidence: { status: w.status, content_type: w.content_type, byte_length: w.byte_length },
+            probe_evidence: { status: w.status, content_type: w.content_type, byte_length: w.byte_length, ...(w.method_used ? { method_used: w.method_used } : {}) },
             next_step: {
               hint: "Pick a URL from exa_candidates, then `unbrowse go` to capture+index, or `unbrowse fetch` for the raw contents. Capturing publishes a skill so the next caller hits a real endpoint.",
               capture_current: `unbrowse capture --url ${JSON.stringify(raceContextUrl)} --intent ${JSON.stringify(intent)}`,
@@ -3659,7 +3659,7 @@ export async function resolveAndExecute(
         completed_at: new Date().toISOString(),
         success: false,
       };
-      const probeEvidence = { status: w.status, content_type: w.content_type, byte_length: w.byte_length };
+      const probeEvidence = { status: w.status, content_type: w.content_type, byte_length: w.byte_length, ...(w.method_used ? { method_used: w.method_used } : {}) };
       const probeNextStep = buildNoMatchNextStep({
         contextUrl: raceContextUrl,
         intent,
