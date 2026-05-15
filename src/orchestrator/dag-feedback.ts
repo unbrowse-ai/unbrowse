@@ -14,7 +14,7 @@ import { nanoid } from "nanoid";
 import { cachePublishedSkill, getApiKey } from "../client/index.js";
 import { recordSession, recordNegative } from "../client/graph-client.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
-import type { SkillManifest, SkillOperationEdge, SkillOperationNode } from "../types/index.js";
+import type { OperationBinding, SkillManifest, SkillOperationEdge, SkillOperationNode } from "../types/index.js";
 import { DEFAULT_BACKEND_URL } from "../version.js";
 
 /** Stable session ID — one per process lifetime. */
@@ -122,6 +122,130 @@ function adjustEdgeConfidences(
 function operationIdForEndpoint(skill: SkillManifest, endpointId: string): string | undefined {
   return skill.operation_graph?.operations.find((op) => op.endpoint_id === endpointId)
     ?.operation_id;
+}
+
+// ---------------------------------------------------------------------------
+// Binding freshness — Layer B (pure, deterministic, no clock, no I/O)
+// ---------------------------------------------------------------------------
+// See `.claude/jesus-loop.default.architecture.md` and AC4 of the plan.
+// All four exports below are pure functions used by Layer C (capture
+// population) and Layer D (execute refetch chain walker). They take an
+// explicit `now: number` instead of reading the clock so the chain walker
+// can freeze time at walk entry and so tests can pass synthetic values.
+
+/**
+ * Returns true when the binding's cached value should be considered
+ * stale and refetched before reuse. Pure: no clock, no I/O — caller
+ * supplies `now`.
+ *
+ * Stale when EITHER:
+ *  - `single_use === true && usage?.consumed === true`, OR
+ *  - `ttl_ms !== undefined && observed_at !== undefined &&
+ *     Date.parse(observed_at) + ttl_ms < now`.
+ *
+ * Otherwise fresh. Missing freshness metadata = fresh forever
+ * (preserves pre-feature behaviour).
+ *
+ * Unparseable `observed_at` is treated as fresh (no throw). The capture
+ * layer is responsible for emitting valid ISO timestamps; surfacing the
+ * gap as "stale" here would cause spurious refetches on bindings whose
+ * producer endpoint is no longer reachable.
+ */
+export function isBindingStale(
+  binding: OperationBinding,
+  now: number,
+  usage?: { consumed?: boolean },
+): boolean {
+  // Single-use consumed → stale regardless of ttl.
+  if (binding.single_use === true && usage?.consumed === true) return true;
+
+  // TTL-based staleness requires both `ttl_ms` AND `observed_at`.
+  if (typeof binding.ttl_ms === "number" && typeof binding.observed_at === "string") {
+    const observedMs = Date.parse(binding.observed_at);
+    if (!Number.isNaN(observedMs)) {
+      // Strictly less-than per spec — boundary equality is fresh.
+      if (observedMs + binding.ttl_ms < now) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Parse `Set-Cookie`-style header value for Max-Age=N or Expires=...
+ * and return ttl in ms, or undefined when neither is present or both
+ * are unparseable. Treat `Max-Age=0` as expired (ttl_ms=0). When BOTH
+ * are present, Max-Age wins per RFC 6265.
+ *
+ * @param now epoch ms — used only to convert Expires into a relative
+ *   ttl; never read from Date.now() inside the function.
+ */
+export function parseMaxAge(setCookieValue: string, now: number): number | undefined {
+  if (typeof setCookieValue !== "string" || setCookieValue.length === 0) return undefined;
+
+  // RFC 6265: attributes are case-insensitive; ; separated. We don't need a
+  // full cookie parser — just scan for the two attributes.
+  const maxAgeMatch = setCookieValue.match(/(?:^|;)\s*max-age\s*=\s*(-?\d+)\s*(?:;|$)/i);
+  if (maxAgeMatch) {
+    const seconds = Number(maxAgeMatch[1]);
+    if (Number.isFinite(seconds)) {
+      return Math.max(0, seconds * 1000);
+    }
+    // Matched the attribute but value wasn't a number — fall through to Expires.
+  } else {
+    // Detect `Max-Age=NaN`-style values (non-numeric). If the attribute is
+    // present but unparseable as an integer, treat the whole header as
+    // unparseable rather than silently falling back to Expires — the spec
+    // test "Max-Age=NaN returns undefined" demands this.
+    const malformedMaxAge = setCookieValue.match(/(?:^|;)\s*max-age\s*=\s*([^;]*)/i);
+    if (malformedMaxAge) {
+      const raw = (malformedMaxAge[1] ?? "").trim();
+      if (raw.length > 0 && !/^-?\d+$/.test(raw)) {
+        return undefined;
+      }
+    }
+  }
+
+  const expiresMatch = setCookieValue.match(/(?:^|;)\s*expires\s*=\s*([^;]+)/i);
+  if (expiresMatch) {
+    const expiresMs = Date.parse((expiresMatch[1] ?? "").trim());
+    if (!Number.isNaN(expiresMs)) {
+      return Math.max(0, expiresMs - now);
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Parse OAuth-style `expires_in` field from a response body shape
+ * (looks for top-level `expires_in: number` in seconds). Returns ms.
+ * Returns undefined when not present, not a number, or negative.
+ *
+ * Note: spec accepts `0` as a valid value (returns 0). The gate is
+ * "non-negative finite number", not "positive".
+ */
+export function parseExpiresIn(body: unknown): number | undefined {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return undefined;
+  const value = (body as Record<string, unknown>).expires_in;
+  if (typeof value !== "number") return undefined;
+  if (!Number.isFinite(value)) return undefined;
+  if (value < 0) return undefined;
+  return value * 1000;
+}
+
+/**
+ * Heuristic: does the binding key NAME suggest a csrf-shaped token
+ * that should default to ttl_ms = 600_000 (10 min) when no observed
+ * signal exists? Matches /csrf|xsrf/i OR (/token/i AND NOT
+ * /auth|access|refresh/i). Conservative — only the name shape, never
+ * the domain.
+ */
+export function isCsrfShapedKey(key: string): boolean {
+  if (typeof key !== "string" || key.length === 0) return false;
+  if (/csrf|xsrf/i.test(key)) return true;
+  if (/token/i.test(key) && !/auth|access|refresh/i.test(key)) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------
