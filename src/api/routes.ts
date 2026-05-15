@@ -2400,9 +2400,13 @@ export async function registerRoutes(app: FastifyInstance) {
       intent: `browse ${session.domain || profileName(session.url)}`,
     });
 
-    if (allRequests.length === 0) {
-      return { skill_id: null, domain: session.domain, request_count: 0, endpoint_count: 0 };
-    }
+    // Removed the `allRequests.length === 0` early-return so SSR-only pages
+    // (no captured XHRs) reach `cacheBrowseRequests`'s DOM-extraction
+    // fallback at src/api/browse-index.ts:274-364. Previously every
+    // fully-server-rendered site (news.ycombinator.com, MDN, Wikipedia,
+    // static blogs) returned endpoint_count:0 and indexed:false from the
+    // close pipeline, even though the page HTML was data-rich. The DOM
+    // fallback already exists; it was just unreachable from this caller.
 
     // Collect JS bundles for token source scanning (same as full flush)
     const jsBundles = new Map<string, string>();
