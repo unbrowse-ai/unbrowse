@@ -17,7 +17,8 @@ import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEnd
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import { probeUrl, decideFromProbe } from "./probe.js";
-import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SkillManifest } from "../types/index.js";
+import type { ChainWalkContext, DecisionTraceStep, EndpointDescriptor, ExecutionOptions, ExecutionTrace, OperationBinding, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SessionYield, SessionYieldCache, SkillManifest } from "../types/index.js";
+import { isBindingStale } from "../orchestrator/dag-feedback.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
 import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../ranking/signals/bm25.js";
@@ -3232,6 +3233,338 @@ export async function executeEndpoint(
   return {
     trace, result: resultData, decision_trace: decisionTrace,
   };
+}
+
+// ---------------------------------------------------------------------------
+// executeEndpointWithChain — Layer D of the TTL-aware refetch chain.
+//
+// HOF wrapper over `executeEndpoint`. Walks `endpoint.semantic.requires[]`
+// before issuing the leaf call. For each required binding that has a cached
+// prior value in `options.session_yields`, the wrapper asks `isBindingStale`
+// (Layer B) whether the cached value is still fresh under the frozen `ctx.now`.
+// Stale bindings trigger a recursive call against the producer endpoint found
+// via `ctx.producerIndex`; the fresh value is then written back into the
+// session-yield cache for the leaf call (and any siblings still to walk).
+//
+// Contract:
+//   - `Date.now()` is read at MOST once per top-level walk (see entry guard
+//     below). Recursive calls inherit `ctx.now` unchanged.
+//   - `isBindingStale` is the single authority for freshness. No inline
+//     `observed_at + ttl_ms < now` lives in this function.
+//   - All chain_walk_* trace steps are appended to `ctx.trace` AND merged
+//     into the returned `ExecutionResult.decision_trace`.
+//   - When `options.session_yields` is undefined, the wrapper has nothing
+//     to evaluate and delegates straight to `executeEndpoint`.
+//
+// See `.claude/jesus-loop.default.architecture.md` Layer D and
+// `~/.claude/projects/.../memory/project_dag_recompute_north_star.md`.
+// ---------------------------------------------------------------------------
+// (imports moved to top of file)
+
+/** Build the producer index from a skill manifest exactly once per walk.
+ *  Maps each provided binding key → the endpoint_id that provides it. When
+ *  multiple endpoints provide the same key, the LAST one wins (deterministic
+ *  for a given manifest order; bench probes that depend on ordering should
+ *  not rely on this corner since it represents a malformed graph). */
+function buildProducerIndex(skill: SkillManifest): Map<string, string> {
+  const index = new Map<string, string>();
+  const endpoints = skill.endpoints ?? [];
+  for (const ep of endpoints) {
+    const provides = ep.semantic?.provides ?? [];
+    for (const binding of provides) {
+      if (typeof binding.key === "string" && binding.key.length > 0) {
+        index.set(binding.key, ep.endpoint_id);
+      }
+    }
+  }
+  return index;
+}
+
+/** Conservative extraction of a binding value from a leaf ExecutionResult.
+ *  Tries top-level body field, then a `headers` map, then a `cookies` map.
+ *  Returns `undefined` when no extraction pattern matches — caller treats
+ *  that as `chain_walk_refetched_failure`.
+ *
+ *  Over-engineering here is leaven; capture-side population (Layer C) is
+ *  responsible for emitting structured response bodies that surface the
+ *  binding key directly. If a specific producer needs richer extraction,
+ *  the right move is to fix capture, not pile heuristics here. */
+function extractBindingFromResult(
+  result: ExecutionResult,
+  key: string,
+): unknown | undefined {
+  if (!key) return undefined;
+  const data = result.result;
+  if (data === null || data === undefined) return undefined;
+
+  if (typeof data === "object" && !Array.isArray(data)) {
+    const rec = data as Record<string, unknown>;
+    if (key in rec && rec[key] !== undefined && rec[key] !== null) {
+      return rec[key];
+    }
+    // Common nested shapes: { headers: {...} }, { cookies: {...} }
+    const headers = rec.headers;
+    if (headers && typeof headers === "object" && !Array.isArray(headers)) {
+      const h = headers as Record<string, unknown>;
+      if (key in h && h[key] !== undefined) return h[key];
+    }
+    const cookies = rec.cookies;
+    if (cookies && typeof cookies === "object" && !Array.isArray(cookies)) {
+      const c = cookies as Record<string, unknown>;
+      if (key in c && c[key] !== undefined) return c[key];
+    }
+  }
+  return undefined;
+}
+
+/** Push a chain_walk_* step onto both the context trace and the buffer that
+ *  will be merged into the returned result.decision_trace. */
+function emitChainStep(
+  ctx: ChainWalkContext,
+  buffer: DecisionTraceStep[],
+  step: DecisionTraceStep,
+): void {
+  ctx.trace.push(step);
+  buffer.push(step);
+}
+
+/**
+ * Execute an endpoint with chain-walk refetch of stale `requires[]` bindings.
+ *
+ * - When `options.session_yields` is undefined, behaves identically to
+ *   `executeEndpoint` (no chain walk possible without a cache).
+ * - When provided, every required binding key with a cached yield is judged
+ *   by `isBindingStale`. Fresh bindings emit `chain_walk_fresh_reused`. Stale
+ *   bindings trigger a recursive call against the producer endpoint.
+ *
+ * See architecture file for the canonical step-name table.
+ */
+export async function executeEndpointWithChain(
+  skill: SkillManifest,
+  endpoint: EndpointDescriptor,
+  params: Record<string, unknown>,
+  projection: ProjectionOptions | undefined,
+  options: ExecutionOptions | undefined,
+  ctx: ChainWalkContext,
+): Promise<ExecutionResult> {
+  // --- Frozen-clock guard. `now` is set exactly once per top-level walk. ---
+  // Recursive invocations always pass a populated ctx.now down unchanged.
+  if (typeof ctx.now !== "number" || !Number.isFinite(ctx.now)) {
+    ctx.now = Date.now();
+  }
+
+  // --- Producer index: build once, cached on ctx for recursive frames. ---
+  if (!ctx.producerIndex) {
+    ctx.producerIndex = buildProducerIndex(skill);
+  }
+
+  // Local buffer of chain_walk_* steps to merge into result.decision_trace.
+  const chainSteps: DecisionTraceStep[] = [];
+
+  const yieldCache: SessionYieldCache | undefined = options?.session_yields;
+  const requires = endpoint.semantic?.requires ?? [];
+
+  // --- Walk requires[] BEFORE the leaf call. ---
+  // We track keys we will mark `consumed` after the leaf call returns.
+  const singleUseToConsume: string[] = [];
+
+  for (const req of requires) {
+    const key = req?.key;
+    if (typeof key !== "string" || key.length === 0) continue;
+    if (!yieldCache) continue; // No cache → nothing to evaluate, no signal.
+
+    const cached: SessionYield | undefined = yieldCache.get(key);
+    if (!cached) continue; // No prior value cached — first call for this key.
+
+    // Build a synthetic binding from the cached yield's metadata. We pass it
+    // to isBindingStale rather than reading ttl_ms/observed_at inline — the
+    // predicate is the single authority for freshness.
+    const syntheticBinding: OperationBinding = {
+      key,
+      observed_at: cached.observed_at,
+      ttl_ms: cached.ttl_ms,
+      single_use: cached.single_use,
+    };
+    const consumed = ctx.consumed.get(key) === true;
+    const stale = isBindingStale(syntheticBinding, ctx.now, { consumed });
+
+    if (!stale) {
+      emitChainStep(ctx, chainSteps, {
+        step: "chain_walk_fresh_reused",
+        binding_key: key,
+        depth: ctx.depth,
+      });
+      if (cached.single_use === true) {
+        singleUseToConsume.push(key);
+      }
+      continue;
+    }
+
+    // --- Stale: look up producer. ---
+    const producerEndpointId = ctx.producerIndex.get(key);
+    if (!producerEndpointId) {
+      emitChainStep(ctx, chainSteps, {
+        step: "chain_walk_stale_skipped",
+        binding_key: key,
+        reason: "no_producer_in_index",
+        depth: ctx.depth,
+      });
+      // Proceed with stale value (preserves pre-feature behavior; surfaces gap).
+      if (cached.single_use === true) {
+        singleUseToConsume.push(key);
+      }
+      continue;
+    }
+
+    if (ctx.depth >= ctx.maxDepth) {
+      emitChainStep(ctx, chainSteps, {
+        step: "chain_walk_depth_exceeded",
+        binding_key: key,
+        depth: ctx.depth,
+        max_depth: ctx.maxDepth,
+      });
+      // Abort this branch — proceed with stale value, do not recurse.
+      continue;
+    }
+
+    if (ctx.visited.has(producerEndpointId)) {
+      emitChainStep(ctx, chainSteps, {
+        step: "chain_walk_cycle_detected",
+        binding_key: key,
+        producer_endpoint_id: producerEndpointId,
+        depth: ctx.depth,
+      });
+      continue;
+    }
+
+    const producerEndpoint = (skill.endpoints ?? []).find(
+      (ep) => ep.endpoint_id === producerEndpointId,
+    );
+    if (!producerEndpoint) {
+      emitChainStep(ctx, chainSteps, {
+        step: "chain_walk_refetched_failure",
+        binding_key: key,
+        producer_endpoint_id: producerEndpointId,
+        reason: "producer_endpoint_missing",
+        depth: ctx.depth,
+      });
+      continue;
+    }
+
+    // --- Recurse. Mark visited BEFORE the call so any cycle this call would
+    // create is caught by the recursive frame. ctx is mutated in place; the
+    // child inherits the frozen clock + the same visited/consumed maps. ---
+    ctx.visited.add(producerEndpointId);
+    const childCtx: ChainWalkContext = {
+      now: ctx.now,
+      consumed: ctx.consumed,
+      depth: ctx.depth + 1,
+      visited: ctx.visited,
+      maxDepth: ctx.maxDepth,
+      trace: ctx.trace,
+      producerIndex: ctx.producerIndex,
+    };
+
+    let producerResult: ExecutionResult | undefined;
+    try {
+      producerResult = await executeEndpointWithChain(
+        skill,
+        producerEndpoint,
+        {},
+        undefined,
+        options,
+        childCtx,
+      );
+    } catch (err) {
+      emitChainStep(ctx, chainSteps, {
+        step: "chain_walk_refetched_failure",
+        binding_key: key,
+        producer_endpoint_id: producerEndpointId,
+        reason: "producer_threw",
+        error: err instanceof Error ? err.message : String(err),
+        depth: ctx.depth,
+      });
+      continue;
+    }
+
+    const producerStatus = producerResult.trace?.status_code;
+    const producerOk = producerResult.trace?.success === true
+      && (typeof producerStatus !== "number" || (producerStatus >= 200 && producerStatus < 300));
+    if (!producerOk) {
+      emitChainStep(ctx, chainSteps, {
+        step: "chain_walk_refetched_failure",
+        binding_key: key,
+        producer_endpoint_id: producerEndpointId,
+        reason: "producer_non_2xx",
+        status_code: producerStatus,
+        depth: ctx.depth,
+      });
+      continue;
+    }
+
+    const freshValue = extractBindingFromResult(producerResult, key);
+    if (freshValue === undefined) {
+      emitChainStep(ctx, chainSteps, {
+        step: "chain_walk_refetched_failure",
+        binding_key: key,
+        producer_endpoint_id: producerEndpointId,
+        reason: "extraction_empty",
+        depth: ctx.depth,
+      });
+      continue;
+    }
+
+    // --- Success: write fresh yield into cache (frozen-clock observed_at). ---
+    // The producer's `provides[]` declaration carries the canonical
+    // ttl_ms/single_use metadata; copy it through unchanged. Capture-side
+    // population is Layer C's job — we do not infer freshness here.
+    const providedBinding = (producerEndpoint.semantic?.provides ?? []).find(
+      (b) => b?.key === key,
+    );
+    const refreshedYield: SessionYield = {
+      value: freshValue,
+      observed_at: new Date(ctx.now).toISOString(),
+      ttl_ms: providedBinding?.ttl_ms,
+      single_use: providedBinding?.single_use,
+    };
+    yieldCache.set(key, refreshedYield);
+    // Clear any prior single-use consumption now that we have a fresh value.
+    ctx.consumed.delete(key);
+
+    emitChainStep(ctx, chainSteps, {
+      step: "chain_walk_refetched_success",
+      binding_key: key,
+      producer_endpoint_id: producerEndpointId,
+      depth: ctx.depth,
+    });
+
+    if (refreshedYield.single_use === true) {
+      singleUseToConsume.push(key);
+    }
+  }
+
+  // --- Leaf call: delegate to the unmodified executeEndpoint. ---
+  const leafResult = await executeEndpoint(skill, endpoint, params, projection, options);
+
+  // --- Mark single-use yields consumed AFTER the leaf call returns. ---
+  for (const key of singleUseToConsume) {
+    ctx.consumed.set(key, true);
+    emitChainStep(ctx, chainSteps, {
+      step: "chain_walk_single_use_consumed",
+      binding_key: key,
+      depth: ctx.depth,
+    });
+  }
+
+  // --- Merge chain_walk_* steps into the returned decision_trace. ---
+  if (chainSteps.length > 0) {
+    const existing = Array.isArray(leafResult.decision_trace)
+      ? leafResult.decision_trace
+      : [];
+    leafResult.decision_trace = [...existing, ...chainSteps];
+  }
+
+  return leafResult;
 }
 
 /**
