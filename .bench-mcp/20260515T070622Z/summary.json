@@ -1,0 +1,64 @@
+{
+  "run_id": "20260515T070622Z",
+  "probes": [
+    {
+      "probe_id": "001_anchor_https___news_ycombinator_com_",
+      "tool_call_count": 2,
+      "tools_used": [
+        "unbrowse_resolve",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: no_cached_match",
+      "elapsed_s": 31,
+      "usage": {
+        "input_tokens": 119363,
+        "cached_input_tokens": 90624,
+        "output_tokens": 506,
+        "reasoning_output_tokens": 354
+      }
+    },
+    {
+      "probe_id": "002_anchor_https___github_com_search_q_anthropic_type_repositories",
+      "tool_call_count": 0,
+      "tools_used": [],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: unbrowse_tools_unavailable",
+      "elapsed_s": 20,
+      "usage": {
+        "input_tokens": 80117,
+        "cached_input_tokens": 59008,
+        "output_tokens": 510,
+        "reasoning_output_tokens": 424
+      }
+    },
+    {
+      "probe_id": "003_semantic_rank_https___www_reddit_com_r_singularity_",
+      "tool_call_count": 2,
+      "tools_used": [
+        "unbrowse_resolve",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: no_cached_match",
+      "elapsed_s": 23,
+      "usage": {
+        "input_tokens": 119155,
+        "cached_input_tokens": 88576,
+        "output_tokens": 657,
+        "reasoning_output_tokens": 509
+      }
+    },
+    {
+      "probe_id": "004_graphql_https___x_com_search_q_AI_agents_src_typed_query",
+      "tool_call_count": 0,
+      "tools_used": [],
+      "final_message_excerpt": "",
+      "elapsed_s": null
+    },
+    {
+      "probe_id": "005_ssr_list_https___www_amazon_com_s_k_usb_c_cable",
+      "tool_call_count": 0,
+      "tools_used": [],
+      "final_message_excerpt": "",
+      "elapsed_s": null
+    }
+  ]
+}
