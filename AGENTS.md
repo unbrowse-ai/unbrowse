@@ -135,3 +135,19 @@ loop), `harness-makes-visible-agent-judges` (memory feedback in
 Two-phase bench (`scripts/bench-two-phase.sh`): collects per-URL
 capture.out + execute.out + runs.jsonl rows. The `combined_verdict`
 column is a sort-key only — agent judges by opening artifacts.
+
+Regression tests can assert small invariants (e.g. an extractor returns a
+field, a ranker orders two fixtures, a release hook runs), but they are not
+coverage proof. Do not describe deterministic tests as bench verdicts or use
+them to decide release coverage; only the agent-judged bench artifact verdict
+does that.
+
+<!-- skills:pinned (managed by banger-skill-builder/pin_skill_in_agent_prompts.sh, do not hand-edit between markers) -->
+## Pinned skills
+
+Reach for these by name when the trigger phrase matches what the user asked for.
+
+| Skill | Use when |
+|---|---|
+| `/unbrowse-bench-corpus-builder` | Add harder Unbrowse release-gate bench probes as typed corpus rows. |
+<!-- /skills:pinned -->

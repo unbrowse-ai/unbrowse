@@ -785,3 +785,13 @@ branch (e.g. `5xx_*` for any 5xx-handler); the agent already groups these.
 - Embedded data in the step name: put the data in sibling fields
   (`{ step: "server_fetch", status: 500 }`, not `step: "server_fetch_500"`)
 - Localized words: stick to English; this is a machine-readable label
+
+<!-- skills:pinned (managed by banger-skill-builder/pin_skill_in_agent_prompts.sh, do not hand-edit between markers) -->
+## Pinned skills
+
+Reach for these by name when the trigger phrase matches what the user asked for.
+
+| Skill | Use when |
+|---|---|
+| `/unbrowse-bench-corpus-builder` | Add harder Unbrowse release-gate bench probes as typed corpus rows. |
+<!-- /skills:pinned -->

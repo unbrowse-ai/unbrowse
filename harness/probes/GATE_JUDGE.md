@@ -12,13 +12,19 @@ Per probe:
   `auth-gated`, `hostile`
 - `intent` — the natural-language intent the agent was given
 - `contextUrl` — the page the agent was anchored to
+- optional `auth`, `difficulty`, and `strategy` labels — triage metadata
+  only. They never imply a verdict.
 - `capture.meta.json` — derived signals from `unbrowse capture`
   (filter_rejections, browser_block_signals, total_endpoints_captured,
    n_operations, captured_title)
 - `capture.html.excerpt` — first 8KB of the captured page HTML
+- `index.store.json` — evidence that the captured skill was stored into
+  the isolated local index before resolve ran
 - `resolve.shortlist.json` — full `unbrowse resolve` output with
   per-candidate evidence
 - `resolve.pick.json` — the top-1 candidate the harness picked
+- `execute.input.json` — exact skill, endpoint, intent, and context URL
+  passed to execute
 - `execute.response.raw` — uncapped raw response body from
   `unbrowse execute --raw`
 - `execute.meta.json` — status_code, response_bytes, decision_trace
@@ -47,23 +53,24 @@ Call the `emit_verdict` tool exactly once with this shape:
 
 ## Phase 1 — Indexing rubric
 
-Read `capture.meta.json` + `capture.html.excerpt` + lane.
+Read `capture.meta.json` + `capture.html.excerpt` + `index.store.json` + lane.
 
 | Verdict | When |
 |---------|------|
-| `INDEX_PASS` | ≥1 captured endpoint has a URL + sample shape consistent with the intent. You quote the URL + ≥1 sample field. |
-| `INDEX_FAIL_NO_ENDPOINTS` | `total_endpoints_captured == 0` AND lane is not `hostile`/`auth-gated`. Also fires when `filter_rejections` ate everything real. |
-| `INDEX_FAIL_WRONG_SHAPE` | Endpoints captured but none match the intent (telemetry/config only). Name what was captured vs what was missing. |
+| `INDEX_PASS` | ≥1 captured endpoint has a URL + sample shape consistent with the intent AND `index.store.json.stored` shows the captured skill reached the isolated index. You quote the URL or sample field and the stored skill evidence. |
+| `INDEX_FAIL_NO_ENDPOINTS` | `total_endpoints_captured == 0` AND lane is not `hostile`/`auth-gated`. Also fires when `filter_rejections` ate everything real, or capture emitted a skill but `index.store.json.stored` is false. |
+| `INDEX_FAIL_WRONG_SHAPE` | Endpoints captured and stored, but none match the intent (telemetry/config only). Name what was captured vs what was missing. |
 | `INDEX_EXCLUDED_BLOCKED` | `browser_block_signals` contains a vendor tag (`vendor:cloudflare`, `vendor:datadome`, …) OR `challenge_title`. Excluded from denominator. |
 | `INDEX_EXCLUDED_AUTH` | lane == `auth-gated` AND capture returned a usable handoff (`next_step` present in resolve.shortlist.json). Excluded from denominator. |
 
 ## Phase 2 — Retrieval rubric
 
-Read `resolve.shortlist.json` + `resolve.pick.json` + `execute.response.raw` + lane.
+Read `resolve.shortlist.json` + `resolve.pick.json` + `execute.input.json` +
+`execute.response.raw` + lane.
 
 | Verdict | When |
 |---------|------|
-| `RETRIEVE_PASS` | Response body contains content the intent asked for, for the right entity from contextUrl. Quote ≥1 concrete data field. |
+| `RETRIEVE_PASS` | Resolve picked the right indexed skill/endpoint/query for `execute.input.json.intent` and `context_url`, and the response body contains content the intent asked for, for the right entity from contextUrl. Quote ≥1 concrete data field. |
 | `RETRIEVE_FAIL_WRONG_ENTITY` | Response is well-shaped but for the wrong entity (A8 regression). e.g. intent says r/singularity, response is r/programming. Quote the mismatch. |
 | `RETRIEVE_FAIL_EMPTY` | Response is structurally valid but empty (`{items:[]}`) when the page clearly had content. |
 | `RETRIEVE_FAIL_WRONG_SHAPE` | Response is config/telemetry/feature-flags, not the data the intent asked for. |

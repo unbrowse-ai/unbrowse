@@ -138,4 +138,39 @@ describe("LIST_INTENT — rec-widget endpoints lose to canonical search surface"
     expect(ranked.length).toBe(2);
     expect(ranked[0].endpoint.endpoint_id).toBe("crates_api_search");
   });
+
+  test("versioned public API ranks above page_fetch for tag retrieval", () => {
+    const tagsApi = ep({
+      endpoint_id: "docker_tags_api",
+      url_template: "https://registry.hub.docker.com/v2/repositories/{namespace}/{repository}/tags?page_size={page_size}",
+      path_params: { namespace: "library", repository: "nginx" },
+      query: { page_size: "25" },
+      description: "Public Docker Hub tags API for library/nginx",
+      response_schema: {
+        type: "object",
+        properties: {
+          results: {
+            type: "array",
+            items: { type: "object", properties: { name: { type: "string" }, last_updated: { type: "string" } } },
+          },
+        },
+      },
+    });
+    const pageFetch = ep({
+      endpoint_id: "docker_tags_page",
+      url_template: "https://hub.docker.com/r/library/nginx/tags",
+      description: "Returns the rendered HTML for \"get dockerhub image tags\"",
+      response_schema: { type: "string", format: "html" },
+      dom_extraction: { extraction_method: "page_fetch", confidence: 0.5 },
+    });
+
+    const ranked = rankEndpoints(
+      [pageFetch, tagsApi],
+      "get dockerhub image tags",
+      "docker.com",
+      "https://hub.docker.com/r/library/nginx/tags",
+    );
+
+    expect(ranked[0].endpoint.endpoint_id).toBe("docker_tags_api");
+  });
 });

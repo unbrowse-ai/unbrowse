@@ -340,3 +340,13 @@ Shared journal between aiko-code sessions. Pre-compaction snapshots are appended
 
 **Open questions / next-session pickups**:
 > _filled by next session — read AIKO.md before resuming, then strike through resolved items._
+
+<!-- skills:pinned (managed by banger-skill-builder/pin_skill_in_agent_prompts.sh, do not hand-edit between markers) -->
+## Pinned skills
+
+Reach for these by name when the trigger phrase matches what the user asked for.
+
+| Skill | Use when |
+|---|---|
+| `/unbrowse-bench-corpus-builder` | Add harder Unbrowse release-gate bench probes as typed corpus rows. |
+<!-- /skills:pinned -->

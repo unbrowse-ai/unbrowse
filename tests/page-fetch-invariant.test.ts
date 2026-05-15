@@ -27,6 +27,8 @@ describe("buildPageFetchEndpoint", () => {
     expect(ep.method).toBe("GET");
     expect(ep.url_template).toContain("amazon.com/s");
     expect(ep.url_template).toContain("{k}");  // query param templated
+    expect(ep.query).toEqual({ k: "usb c cable" });
+    expect(ep.semantic?.example_request).toEqual({ k: "usb c cable" });
     expect(ep.idempotency).toBe("safe");
     expect(ep.verification_status).toBe("verified");
   });

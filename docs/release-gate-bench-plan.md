@@ -15,7 +15,7 @@ no API call, no token. The agent that ran the harness is the judge.
 
 | File | Role |
 |------|------|
-| `harness/probes/corpus-gate.txt` | 50-probe corpus, 6 lanes (anchor, semantic-rank, graphql, ssr-list, auth-gated, hostile) |
+| `harness/probes/corpus-gate.txt` | typed corpus rows: `lane | auth | difficulty | strategy | intent | contextUrl` |
 | `harness/probes/GATE_JUDGE.md` | Rubric the agent applies; INDEX_* + RETRIEVE_* verdict enum |
 | `harness/probes/bench-gate-baseline.json` | Frozen baseline + thresholds |
 | `scripts/bench-gate.sh` | Phase 1: collect per-probe capture / resolve / execute artifacts |
@@ -30,7 +30,7 @@ no API call, no token. The agent that ran the harness is the judge.
 corpus-gate.txt
      │
      ▼
-[bench-gate.sh] ── per-probe artifacts (capture.out, resolve.shortlist.json, execute.response.raw, ...)
+[bench-gate.sh] ── per-probe artifacts (capture.out, index.store.json, resolve.shortlist.json, execute.input.json, execute.response.raw, ...)
      │             NO verdicts. Zero heuristics.
      ▼
 [bench-gate-judge.ts] ── judge.bundle.md + verdict.template.json
@@ -70,14 +70,14 @@ verdict JSON schema inline. The agent's reasoning is preserved in
 The agent emits one of:
 
 **Indexing:**
-- `INDEX_PASS` — captured at least one endpoint whose URL + sample shape match the intent
+- `INDEX_PASS` — captured at least one endpoint whose URL + sample shape match the intent, and `index.store.json` proves it reached the isolated index
 - `INDEX_FAIL_NO_ENDPOINTS` — capture returned 0 endpoints (or filter ate everything real)
 - `INDEX_FAIL_WRONG_SHAPE` — endpoints captured but none matched the intent (telemetry/config only)
 - `INDEX_EXCLUDED_BLOCKED` — hostile-lane block (vendor tag); excluded from denominator
 - `INDEX_EXCLUDED_AUTH` — auth-gated handoff; excluded from denominator
 
 **Retrieval (covers execution accuracy):**
-- `RETRIEVE_PASS` — execute response contains content for the right entity, with concrete data quoted
+- `RETRIEVE_PASS` — resolve selected the right indexed endpoint/query from `execute.input.json`, and execute response contains content for the right entity, with concrete data quoted
 - `RETRIEVE_FAIL_WRONG_ENTITY` — A8 regression; right template, wrong entity
 - `RETRIEVE_FAIL_EMPTY` — structurally valid but empty
 - `RETRIEVE_FAIL_WRONG_SHAPE` — config / telemetry / feature flags returned instead of data

@@ -26,6 +26,7 @@ describe("buildPageArtifactCapture", () => {
       true,
     );
     expect(out.endpoint?.url_template).toBe("https://www.linkedin.com/search/results/people/?keywords={keywords}&type={type}");
+    expect(out.endpoint?.query).toEqual({ keywords: "openai", type: "accounts" });
     expect(out.endpoint?.semantic?.example_request).toEqual({ keywords: "openai", type: "accounts" });
   });
 
@@ -55,6 +56,10 @@ describe("buildPageArtifactCapture", () => {
     expect(out.endpoint?.url_template).toBe(
       "https://www.linkedin.com/search/results/people/?filters%5B0%5D%5Bvalue%5D={filters_0_value}&filters%5B1%5D%5Bvalue%5D={filters_1_value}",
     );
+    expect(out.endpoint?.query).toEqual({
+      "filters[0][value]": "sf",
+      "filters[1][value]": "eng",
+    });
     expect(out.endpoint?.semantic?.example_request).toEqual({
       "filters[0][value]": "sf",
       "filters[1][value]": "eng",
