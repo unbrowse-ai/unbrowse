@@ -1,0 +1,96 @@
+{
+  "run_id": "20260515T072843Z",
+  "probes": [
+    {
+      "probe_id": "001_anchor_https___news_ycombinator_com_",
+      "tool_call_count": 2,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: auth_required",
+      "elapsed_s": 59,
+      "usage": {
+        "input_tokens": 453478,
+        "cached_input_tokens": 378368,
+        "output_tokens": 1311,
+        "reasoning_output_tokens": 996
+      }
+    },
+    {
+      "probe_id": "002_anchor_https___github_com_search_q_anthropic_type_repositories",
+      "tool_call_count": 8,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_resolve",
+        "unbrowse_execute",
+        "unbrowse_feedback",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "mukul975/Anthropic-Cybersecurity-Skills",
+      "elapsed_s": 139,
+      "usage": {
+        "input_tokens": 700327,
+        "cached_input_tokens": 629504,
+        "output_tokens": 1990,
+        "reasoning_output_tokens": 1265
+      }
+    },
+    {
+      "probe_id": "003_semantic_rank_https___www_reddit_com_r_singularity_",
+      "tool_call_count": 3,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_resolve",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: publish_did_not_index",
+      "elapsed_s": 72,
+      "usage": {
+        "input_tokens": 283006,
+        "cached_input_tokens": 241280,
+        "output_tokens": 971,
+        "reasoning_output_tokens": 701
+      }
+    },
+    {
+      "probe_id": "004_graphql_https___x_com_search_q_AI_agents_src_typed_query",
+      "tool_call_count": 6,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_resolve",
+        "unbrowse_execute",
+        "unbrowse_feedback",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: wrong_endpoint",
+      "elapsed_s": 65,
+      "usage": {
+        "input_tokens": 287505,
+        "cached_input_tokens": 238080,
+        "output_tokens": 1892,
+        "reasoning_output_tokens": 1418
+      }
+    },
+    {
+      "probe_id": "005_ssr_list_https___www_amazon_com_s_k_usb_c_cable",
+      "tool_call_count": 8,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_diagnose",
+        "unbrowse_resolve",
+        "unbrowse_execute",
+        "unbrowse_feedback",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: execute_failed",
+      "elapsed_s": 102,
+      "usage": {
+        "input_tokens": 725663,
+        "cached_input_tokens": 685824,
+        "output_tokens": 2510,
+        "reasoning_output_tokens": 1682
+      }
+    }
+  ]
+}

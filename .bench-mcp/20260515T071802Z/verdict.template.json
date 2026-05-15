@@ -1,0 +1,60 @@
+{
+  "run_id": "20260515T071802Z",
+  "verdicts": [
+    {
+      "probe_id": "001_anchor_https___news_ycombinator_com_",
+      "mcp_call_verdict": "MCP_PASS | MCP_FAIL_NO_RESOLVE | MCP_FAIL_NO_EXECUTE | MCP_FAIL_WRONG_TOOL | MCP_EXCLUDED_AUTH | MCP_EXCLUDED_BLOCKED",
+      "mcp_call_reasoning": "Quote which tools were called in order. If the agent skipped resolve or execute, name what they did instead.",
+      "retrieve_verdict": "RETRIEVE_PASS | RETRIEVE_FAIL_WRONG_ENTITY | RETRIEVE_FAIL_EMPTY | RETRIEVE_FAIL_WRONG_SHAPE | RETRIEVE_FAIL_ERROR_BODY | RETRIEVE_EXCLUDED_AUTH | RETRIEVE_EXCLUDED_BLOCKED",
+      "retrieve_reasoning": "Quote a concrete data field from the execute result or quote the offending content for a fail.",
+      "final_answer_verdict": "FINAL_PASS | FINAL_FAIL_FABRICATED | FINAL_FAIL_GENERIC | FINAL_FAIL_NO_DATA | FINAL_EXCLUDED",
+      "final_answer_reasoning": "Did the final agent message quote real data from execute (PASS), make something up (FABRICATED), or refuse?",
+      "evidence_quote": "single line",
+      "suspicious": false
+    },
+    {
+      "probe_id": "002_anchor_https___github_com_search_q_anthropic_type_repositories",
+      "mcp_call_verdict": "MCP_PASS | MCP_FAIL_NO_RESOLVE | MCP_FAIL_NO_EXECUTE | MCP_FAIL_WRONG_TOOL | MCP_EXCLUDED_AUTH | MCP_EXCLUDED_BLOCKED",
+      "mcp_call_reasoning": "Quote which tools were called in order. If the agent skipped resolve or execute, name what they did instead.",
+      "retrieve_verdict": "RETRIEVE_PASS | RETRIEVE_FAIL_WRONG_ENTITY | RETRIEVE_FAIL_EMPTY | RETRIEVE_FAIL_WRONG_SHAPE | RETRIEVE_FAIL_ERROR_BODY | RETRIEVE_EXCLUDED_AUTH | RETRIEVE_EXCLUDED_BLOCKED",
+      "retrieve_reasoning": "Quote a concrete data field from the execute result or quote the offending content for a fail.",
+      "final_answer_verdict": "FINAL_PASS | FINAL_FAIL_FABRICATED | FINAL_FAIL_GENERIC | FINAL_FAIL_NO_DATA | FINAL_EXCLUDED",
+      "final_answer_reasoning": "Did the final agent message quote real data from execute (PASS), make something up (FABRICATED), or refuse?",
+      "evidence_quote": "single line",
+      "suspicious": false
+    },
+    {
+      "probe_id": "003_semantic_rank_https___www_reddit_com_r_singularity_",
+      "mcp_call_verdict": "MCP_PASS | MCP_FAIL_NO_RESOLVE | MCP_FAIL_NO_EXECUTE | MCP_FAIL_WRONG_TOOL | MCP_EXCLUDED_AUTH | MCP_EXCLUDED_BLOCKED",
+      "mcp_call_reasoning": "Quote which tools were called in order. If the agent skipped resolve or execute, name what they did instead.",
+      "retrieve_verdict": "RETRIEVE_PASS | RETRIEVE_FAIL_WRONG_ENTITY | RETRIEVE_FAIL_EMPTY | RETRIEVE_FAIL_WRONG_SHAPE | RETRIEVE_FAIL_ERROR_BODY | RETRIEVE_EXCLUDED_AUTH | RETRIEVE_EXCLUDED_BLOCKED",
+      "retrieve_reasoning": "Quote a concrete data field from the execute result or quote the offending content for a fail.",
+      "final_answer_verdict": "FINAL_PASS | FINAL_FAIL_FABRICATED | FINAL_FAIL_GENERIC | FINAL_FAIL_NO_DATA | FINAL_EXCLUDED",
+      "final_answer_reasoning": "Did the final agent message quote real data from execute (PASS), make something up (FABRICATED), or refuse?",
+      "evidence_quote": "single line",
+      "suspicious": false
+    },
+    {
+      "probe_id": "004_graphql_https___x_com_search_q_AI_agents_src_typed_query",
+      "mcp_call_verdict": "MCP_PASS | MCP_FAIL_NO_RESOLVE | MCP_FAIL_NO_EXECUTE | MCP_FAIL_WRONG_TOOL | MCP_EXCLUDED_AUTH | MCP_EXCLUDED_BLOCKED",
+      "mcp_call_reasoning": "Quote which tools were called in order. If the agent skipped resolve or execute, name what they did instead.",
+      "retrieve_verdict": "RETRIEVE_PASS | RETRIEVE_FAIL_WRONG_ENTITY | RETRIEVE_FAIL_EMPTY | RETRIEVE_FAIL_WRONG_SHAPE | RETRIEVE_FAIL_ERROR_BODY | RETRIEVE_EXCLUDED_AUTH | RETRIEVE_EXCLUDED_BLOCKED",
+      "retrieve_reasoning": "Quote a concrete data field from the execute result or quote the offending content for a fail.",
+      "final_answer_verdict": "FINAL_PASS | FINAL_FAIL_FABRICATED | FINAL_FAIL_GENERIC | FINAL_FAIL_NO_DATA | FINAL_EXCLUDED",
+      "final_answer_reasoning": "Did the final agent message quote real data from execute (PASS), make something up (FABRICATED), or refuse?",
+      "evidence_quote": "single line",
+      "suspicious": false
+    },
+    {
+      "probe_id": "005_ssr_list_https___www_amazon_com_s_k_usb_c_cable",
+      "mcp_call_verdict": "MCP_PASS | MCP_FAIL_NO_RESOLVE | MCP_FAIL_NO_EXECUTE | MCP_FAIL_WRONG_TOOL | MCP_EXCLUDED_AUTH | MCP_EXCLUDED_BLOCKED",
+      "mcp_call_reasoning": "Quote which tools were called in order. If the agent skipped resolve or execute, name what they did instead.",
+      "retrieve_verdict": "RETRIEVE_PASS | RETRIEVE_FAIL_WRONG_ENTITY | RETRIEVE_FAIL_EMPTY | RETRIEVE_FAIL_WRONG_SHAPE | RETRIEVE_FAIL_ERROR_BODY | RETRIEVE_EXCLUDED_AUTH | RETRIEVE_EXCLUDED_BLOCKED",
+      "retrieve_reasoning": "Quote a concrete data field from the execute result or quote the offending content for a fail.",
+      "final_answer_verdict": "FINAL_PASS | FINAL_FAIL_FABRICATED | FINAL_FAIL_GENERIC | FINAL_FAIL_NO_DATA | FINAL_EXCLUDED",
+      "final_answer_reasoning": "Did the final agent message quote real data from execute (PASS), make something up (FABRICATED), or refuse?",
+      "evidence_quote": "single line",
+      "suspicious": false
+    }
+  ]
+}

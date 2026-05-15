@@ -1,0 +1,92 @@
+{
+  "run_id": "20260515T071802Z",
+  "probes": [
+    {
+      "probe_id": "001_anchor_https___news_ycombinator_com_",
+      "tool_call_count": 2,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: auth_required",
+      "elapsed_s": 53,
+      "usage": {
+        "input_tokens": 282517,
+        "cached_input_tokens": 256640,
+        "output_tokens": 986,
+        "reasoning_output_tokens": 759
+      }
+    },
+    {
+      "probe_id": "002_anchor_https___github_com_search_q_anthropic_type_repositories",
+      "tool_call_count": 0,
+      "tools_used": [],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: unbrowse_tools_unavailable",
+      "elapsed_s": 23,
+      "usage": {
+        "input_tokens": 88011,
+        "cached_input_tokens": 64128,
+        "output_tokens": 519,
+        "reasoning_output_tokens": 394
+      }
+    },
+    {
+      "probe_id": "003_semantic_rank_https___www_reddit_com_r_singularity_",
+      "tool_call_count": 8,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_diagnose",
+        "unbrowse_resolve",
+        "unbrowse_execute",
+        "unbrowse_feedback",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: stale_endpoint",
+      "elapsed_s": 115,
+      "usage": {
+        "input_tokens": 636919,
+        "cached_input_tokens": 563072,
+        "output_tokens": 1787,
+        "reasoning_output_tokens": 1131
+      }
+    },
+    {
+      "probe_id": "004_graphql_https___x_com_search_q_AI_agents_src_typed_query",
+      "tool_call_count": 5,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_resolve",
+        "unbrowse_execute",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: stale_endpoint",
+      "elapsed_s": 116,
+      "usage": {
+        "input_tokens": 607182,
+        "cached_input_tokens": 549504,
+        "output_tokens": 1732,
+        "reasoning_output_tokens": 1231
+      }
+    },
+    {
+      "probe_id": "005_ssr_list_https___www_amazon_com_s_k_usb_c_cable",
+      "tool_call_count": 8,
+      "tools_used": [
+        "unbrowse_go",
+        "unbrowse_diagnose",
+        "unbrowse_resolve",
+        "unbrowse_execute",
+        "unbrowse_feedback",
+        "unbrowse_reflect"
+      ],
+      "final_message_excerpt": "INTENT_NOT_SATISFIED: execute_failed",
+      "elapsed_s": 118,
+      "usage": {
+        "input_tokens": 992439,
+        "cached_input_tokens": 940416,
+        "output_tokens": 2162,
+        "reasoning_output_tokens": 1240
+      }
+    }
+  ]
+}
