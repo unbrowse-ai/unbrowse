@@ -2990,7 +2990,7 @@ export async function executeEndpoint(
         try {
           const { extractFromDOM } = await import("../extraction/index.js");
           const extracted = extractFromDOM(text, skill.intent_signature ?? "");
-          if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : true)) {
+          if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
           } else {
             data = { _format_mismatch: true, received_content_type: contentType, data: text };
