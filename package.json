@@ -34,6 +34,8 @@
     "blog:publish": "bun scripts/publish-blog.ts",
     "optimize:landing-funnel": "bun scripts/landing-funnel-optimize.ts",
     "landing:publish": "bun scripts/publish-landing-variant.ts",
+    "check:skill-md": "bun scripts/check-skill-md.ts",
+    "check:skill-docs": "bun scripts/check-skill-docs.ts",
     "check:kuri-vendor": "node packages/skill/scripts/assert-kuri-vendor.mjs",
     "check:opaque-tarball": "node packages/skill/scripts/assert-opaque-tarball.mjs",
     "pack:cli": "bun run check:kuri-vendor && bun run check:opaque-tarball && npm pack --dry-run --workspace packages/skill",
