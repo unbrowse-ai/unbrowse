@@ -16,6 +16,8 @@ function stableEndpointId(method: string, urlTemplate: string): string {
   return hash.slice(0, 21); // same length as nanoid
 }
 import { inferEndpointSemantic, resolveEndpointPathBindings } from "../graph/index.js";
+import { parseMaxAge, parseExpiresIn, isCsrfShapedKey } from "../orchestrator/dag-feedback.js";
+import type { OperationBinding } from "../types/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
 import { buildDescriptionPrompt, groundedDescription, extractResponseKeys, inferDescriptionParams } from "./description-prompt.js";
@@ -574,6 +576,128 @@ function inferCsrfPlan(req: RawRequest, parsedBody?: unknown): CsrfPlan | undefi
   return undefined;
 }
 
+/**
+ * Capture-side (Layer C) helper. Decorate every `OperationBinding` with
+ * freshness metadata derived from the observed request/response context.
+ *
+ * AC2 of `.claude/jesus-loop.default.plan.md`:
+ *  - `observed_at` is ALWAYS set to capture time (ISO 8601).
+ *  - `ttl_ms` is set when extractable from observed signals (Set-Cookie
+ *    Max-Age/Expires, OAuth `expires_in`, `Cache-Control: max-age`).
+ *  - If no observed TTL signal exists AND the key looks csrf-shaped,
+ *    fall back to 600_000 ms (10 min). See plan steering #2.
+ *  - `single_use: true` ONLY when an explicit signal exists
+ *    (`X-Token-Single-Use: true` header, or `single_use: true` /
+ *    `use_count: 1` in the response JSON body).
+ *
+ * Pure on its inputs apart from the explicit `nowIso` / `nowMs` clock
+ * arguments — the clock is hoisted to the caller so Layer B stays clock-
+ * free. Caller passes `Date.now()` once per emit site.
+ *
+ * Returns a NEW array; never mutates the input.
+ */
+function augmentBindingsWithFreshness(
+  bindings: OperationBinding[] | undefined,
+  ctx: {
+    responseHeaders: Record<string, string>;
+    parsedResponseBody: unknown;
+    nowIso: string;
+    nowMs: number;
+  },
+): OperationBinding[] | undefined {
+  if (!bindings || bindings.length === 0) return bindings;
+
+  // Lowercase header lookup once.
+  const lowerHeaders: Record<string, string> = {};
+  for (const [k, v] of Object.entries(ctx.responseHeaders ?? {})) {
+    if (typeof v === "string") lowerHeaders[k.toLowerCase()] = v;
+  }
+  const setCookie = lowerHeaders["set-cookie"];
+  const cacheControl = lowerHeaders["cache-control"];
+  const singleUseHeader = lowerHeaders["x-token-single-use"];
+
+  // Cache-Control: max-age=N → ms.
+  let cacheControlTtl: number | undefined;
+  if (typeof cacheControl === "string") {
+    const m = cacheControl.match(/(?:^|,)\s*max-age\s*=\s*(\d+)/i);
+    if (m) {
+      const seconds = Number(m[1]);
+      if (Number.isFinite(seconds) && seconds >= 0) {
+        cacheControlTtl = seconds * 1000;
+      }
+    }
+  }
+
+  // OAuth-style `expires_in` from response body (top-level).
+  const expiresInTtl = parseExpiresIn(ctx.parsedResponseBody);
+
+  // Single-use signals derived once from response shape.
+  const headerSingleUse =
+    typeof singleUseHeader === "string" && /^true$/i.test(singleUseHeader.trim());
+  const bodyIsObject =
+    ctx.parsedResponseBody !== null &&
+    typeof ctx.parsedResponseBody === "object" &&
+    !Array.isArray(ctx.parsedResponseBody);
+  const bodyObj = bodyIsObject
+    ? (ctx.parsedResponseBody as Record<string, unknown>)
+    : undefined;
+  const bodySingleUse =
+    bodyObj !== undefined &&
+    (bodyObj.single_use === true ||
+      bodyObj.use_count === 1 ||
+      bodyObj.use_count === "1");
+
+  return bindings.map((binding) => {
+    let ttl_ms: number | undefined;
+
+    // 1. Set-Cookie Max-Age/Expires (only meaningful when the binding's
+    //    value source is cookie-shaped; we can't always know, so apply
+    //    whenever the response carried a Set-Cookie for the SAME key
+    //    or when the binding source explicitly says "cookie"/"set-cookie".
+    //    Cheap-and-correct heuristic: if Set-Cookie exists and contains
+    //    `<key>=...` (case-insensitive), use Max-Age/Expires from it.
+    if (typeof setCookie === "string" && setCookie.length > 0) {
+      const keyMatch = new RegExp(
+        `(?:^|,\\s*)${binding.key.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\s*=`,
+        "i",
+      );
+      const referencesKey =
+        keyMatch.test(setCookie) ||
+        (typeof binding.source === "string" &&
+          /set-?cookie|cookie/i.test(binding.source));
+      if (referencesKey) {
+        const parsed = parseMaxAge(setCookie, ctx.nowMs);
+        if (typeof parsed === "number" && parsed > 0) ttl_ms = parsed;
+      }
+    }
+
+    // 2. OAuth expires_in (top-level body field).
+    if (ttl_ms === undefined && typeof expiresInTtl === "number" && expiresInTtl > 0) {
+      ttl_ms = expiresInTtl;
+    }
+
+    // 3. Cache-Control: max-age=N.
+    if (ttl_ms === undefined && typeof cacheControlTtl === "number" && cacheControlTtl > 0) {
+      ttl_ms = cacheControlTtl;
+    }
+
+    // 4. AC2 fallback: csrf-shaped key default. See project_dag_recompute_north_star.md.
+    if (ttl_ms === undefined && isCsrfShapedKey(binding.key)) {
+      ttl_ms = 600_000;
+    }
+
+    // Single-use — ONLY on explicit signal.
+    const single_use = headerSingleUse || bodySingleUse ? true : undefined;
+
+    return {
+      ...binding,
+      observed_at: ctx.nowIso,
+      ...(typeof ttl_ms === "number" ? { ttl_ms } : {}),
+      ...(single_use === true ? { single_use: true } : {}),
+    };
+  });
+}
+
 function getIntentEntityRules(kind: IntentEntityKind): { strong: string[]; weak: string[]; negative: RegExp; negativeSignals?: string[] } {
   switch (kind) {
     case "comment":
@@ -1083,6 +1207,27 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
         auth_required: true,
       };
     }
+    // AC2 (Layer C) — populate binding freshness from observed traffic.
+    // `Date.now()` is called HERE at the capture boundary; Layer B stays clock-free.
+    if (endpoint.semantic) {
+      const nowMs = Date.now();
+      const nowIso = new Date(nowMs).toISOString();
+      const freshnessCtx = {
+        responseHeaders: req.response_headers ?? {},
+        parsedResponseBody: sampleResponse,
+        nowIso,
+        nowMs,
+      };
+      endpoint.semantic = {
+        ...endpoint.semantic,
+        ...(endpoint.semantic.requires
+          ? { requires: augmentBindingsWithFreshness(endpoint.semantic.requires, freshnessCtx) }
+          : {}),
+        ...(endpoint.semantic.provides
+          ? { provides: augmentBindingsWithFreshness(endpoint.semantic.provides, freshnessCtx) }
+          : {}),
+      };
+    }
     endpoint.description = endpoint.semantic?.description_out ?? endpoint.description;
     // Prepend GraphQL operation name to description for discoverability
     if (endpointGraphqlOp && endpoint.description && !endpoint.description.includes(endpointGraphqlOp)) {
@@ -1167,6 +1312,27 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
         observedAt: msgs[0]?.timestamp,
         sampleRequestUrl: wsUrl,
       });
+      // AC2 (Layer C) — WS bindings get `observed_at` only; no HTTP headers
+      // here, so ttl_ms falls back to csrf-shape heuristic when applicable.
+      if (endpoint.semantic) {
+        const nowMs = Date.now();
+        const nowIso = new Date(nowMs).toISOString();
+        const wsFreshnessCtx = {
+          responseHeaders: {} as Record<string, string>,
+          parsedResponseBody: jsonSamples[0],
+          nowIso,
+          nowMs,
+        };
+        endpoint.semantic = {
+          ...endpoint.semantic,
+          ...(endpoint.semantic.requires
+            ? { requires: augmentBindingsWithFreshness(endpoint.semantic.requires, wsFreshnessCtx) }
+            : {}),
+          ...(endpoint.semantic.provides
+            ? { provides: augmentBindingsWithFreshness(endpoint.semantic.provides, wsFreshnessCtx) }
+            : {}),
+        };
+      }
       endpoint.description = endpoint.semantic?.description_out ?? endpoint.description;
       endpoints.push(endpoint);
     }
