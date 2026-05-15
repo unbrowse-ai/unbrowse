@@ -521,7 +521,31 @@ export function resolveExecutionUrlTemplate(
   if (endpoint.method !== "GET") return endpoint.url_template;
   if (!isDocumentLikeUrl(endpoint.url_template)) return endpoint.url_template;
   if (endpoint.trigger_url && !isDocumentLikeUrl(endpoint.trigger_url)) return endpoint.url_template;
+  // Regression: executor-drops-url-template-and-params.
+  // When the captured url_template carries intent-bearing structure (template
+  // placeholders like `{q}`, a non-trivial querystring, or path segments
+  // beyond the root), flattening it to `contextUrl` loses that signal.
+  // Three distinct templated endpoints all collapse to the same bare
+  // homepage probe otherwise. Document-replay context preference only kicks
+  // in when the captured template is genuinely bare (root path, no query,
+  // no placeholders) and the contextUrl carries the specific target.
+  if (templateCarriesIntentSignal(endpoint.url_template)) return endpoint.url_template;
   return contextUrl;
+}
+
+function templateCarriesIntentSignal(template: string): boolean {
+  try {
+    const parsed = new URL(template);
+    if (parsed.search && parsed.search.length > 1) return true;
+    const trimmedPath = parsed.pathname.replace(/^\/+|\/+$/g, "");
+    if (trimmedPath.length > 0) return true;
+    return false;
+  } catch {
+    // If url_template still has unparsed placeholders (e.g. `{base}/path`),
+    // assume it carries signal. Better to keep the captured template than
+    // silently overwrite intent-bearing structure.
+    return /\{[^}]+\}/.test(template);
+  }
 }
 
 export function shouldIgnoreLearnedBrowserStrategy(
