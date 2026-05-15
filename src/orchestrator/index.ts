@@ -20,6 +20,7 @@ import {
   computeReachableEndpoints,
   ensureSkillOperationGraph,
   toAgentWorkflowDagView,
+  filterDagOperationsByRankedEndpoints,
 } from "../graph/index.js";
 import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
 import { getRegistrableDomain, isSameBrandDomain } from "../domain.js";
@@ -2277,6 +2278,16 @@ export async function resolveAndExecute(
       const sb = epRankedScoreByEndpointId.get(b.endpoint_id) ?? -Infinity;
       return sb - sa;
     });
+    // Keep available_operations membership consistent with available_endpoints.
+    // The graph-reachability filter above winnowed epRanked, but workflowDag.operations
+    // was built before that and still contains operations whose endpoints were dropped.
+    // Observed on huggingface.co/models (2026-05-15): list intent shortlist had 3 ops
+    // (2 GET DOM lists + 1 POST /api/event telemetry write) while available_endpoints
+    // had only the 2 GETs. The write-on-read POST is exactly the noise we promise to
+    // filter out at admission. Same membership in both views, every time.
+    if (epRankedScoreByEndpointId.size > 0) {
+      sortedOperations = filterDagOperationsByRankedEndpoints(sortedOperations, epRankedScoreByEndpointId.keys());
+    }
     // --require-proof filter: drop unproven operations from the shortlist.
     // Filter only narrows; deferral path is unchanged.
     if (options?.require_proof) {
