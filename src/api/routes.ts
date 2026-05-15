@@ -1166,6 +1166,21 @@ export async function registerRoutes(app: FastifyInstance) {
       const skillId = learned?.skill_id ?? (typeof inner.learned_skill_id === "string" ? inner.learned_skill_id : undefined);
       const ms = Date.now() - t0;
 
+      if (learned && endpoints.length > 0) {
+        const cacheKey = buildResolveCacheKey(learned.domain, intent, url);
+        const scopedKey = scopedCacheKey(clientScope, cacheKey);
+        writeSkillSnapshot(scopedKey, learned);
+        const domainKey = getDomainReuseKey(url ?? learned.domain);
+        if (domainKey) {
+          domainSkillCache.set(domainKey, {
+            skillId: learned.skill_id,
+            localSkillPath: snapshotPathForCacheKey(scopedKey),
+            ts: Date.now(),
+          });
+          persistDomainCache();
+        }
+      }
+
       // Mirror the share_pointers gate so the agent sees what actually happened.
       const sharePointers = getContributionConfig().contribution.share_pointers;
       const marketplacePublished = sharePointers && endpoints.length > 0 && exec.trace.success === true;
