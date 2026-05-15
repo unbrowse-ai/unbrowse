@@ -100,6 +100,30 @@ export interface OperationBinding {
   observed_at?: string;
 }
 
+// Minimal contract for decision-trace steps emitted by the chain walker and
+// other executor branches. Day-5 (chain walker implementation) will read and
+// write these; richer typing can land later without breaking the shape.
+// See .claude/jesus-loop.default.architecture.md for canonical step names
+// (chain_walk_refetched_success, chain_walk_depth_exceeded, ...).
+export interface DecisionTraceStep {
+  step: string;
+  [key: string]: unknown;
+}
+
+// Walk context threaded through the chain-walk DAG resolver. See
+// .claude/jesus-loop.default.architecture.md for the design rationale and the
+// invariants Day-5 must preserve (frozen `now`, append-only `trace`,
+// single-use markers in `consumed`, cycle detection via `visited`).
+export interface ChainWalkContext {
+  now: number;                          // epoch ms, frozen at walk start
+  consumed: Map<string, boolean>;       // single-use markers by binding key
+  depth: number;                        // current walk depth
+  visited: Set<string>;                 // endpoint_ids visited (cycle detection)
+  maxDepth: number;                     // default 4; injectable for tests
+  trace: DecisionTraceStep[];           // append-only
+  producerIndex?: Map<string, string>;  // binding.key → producer endpoint_id
+}
+
 export interface EndpointSemanticDescriptor {
   action_kind: string;
   resource_kind: string;
