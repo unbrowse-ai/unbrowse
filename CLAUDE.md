@@ -794,4 +794,5 @@ Reach for these by name when the trigger phrase matches what the user asked for.
 | Skill | Use when |
 |---|---|
 | `/unbrowse-bench-corpus-builder` | Add harder Unbrowse release-gate bench probes as typed corpus rows. |
+| `/unbrowse-bench-improvement-loop` | Run a self-improving Unbrowse bench loop. |
 <!-- /skills:pinned -->
