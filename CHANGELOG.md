@@ -17,6 +17,8 @@
 
 * **bench-gate:** the full release-gate harness now defaults to `bun src/cli.ts` instead of the installed `unbrowse` binary, so local release validation judges the checked-out code rather than a stale or incomplete global install.
 
+* **bench-gate:** `execute.response.raw` now preserves array and scalar execution results instead of only object bodies, so the agent judge sees the actual retrieved data for DOM/page-artifact endpoints.
+
 * **vault:** store macOS Keychain credentials under one Unbrowse vault item instead of creating a separate Keychain row for every site/session. Existing per-account entries migrate into the single vault on first use, reducing repeated "Always Allow" prompts without dropping saved auth.
 
 * **indexer:** `drainPendingIndexJobs` no longer throws after 30s when a detached worker is still actively draining the queue. Under burst capture load (e.g. 58-probe bench-gate), the parent capture's drain budget isn't enough to wait for all jobs to flush — but the worker keeps processing them in the background after the parent exits. The function now returns success at timeout if the heartbeat is fresh (<2s) or pending count is strictly decreasing, throwing only when no worker appears to be running and jobs remain. Capture correctness doesn't depend on indexing finishing within the capture process's lifetime — indexing is intentionally async.

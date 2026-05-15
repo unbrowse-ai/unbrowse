@@ -113,7 +113,8 @@ if [ -n "$skill_id" ] && [ -n "$endpoint_id" ]; then
     response_bytes: (.result.body | tostring | length),
     decision_trace: (.trace // .decision_trace // [])
   }' < "$pdir/execute.out" > "$pdir/execute.meta.json" 2>/dev/null || echo '{}' > "$pdir/execute.meta.json"
-  jq -r '.result.body // .result // empty' < "$pdir/execute.out" > "$pdir/execute.response.raw" 2>/dev/null || : > "$pdir/execute.response.raw"
+  jq -r 'if (.result | type) == "object" and (.result | has("body")) then .result.body else (.result // empty) end' \
+    < "$pdir/execute.out" > "$pdir/execute.response.raw" 2>/dev/null || : > "$pdir/execute.response.raw"
 else
   echo '{"skipped":"no_skill_or_endpoint_from_resolve"}' > "$pdir/execute.meta.json"
   : > "$pdir/execute.out"
