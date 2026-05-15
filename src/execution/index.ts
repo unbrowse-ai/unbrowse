@@ -2999,6 +2999,22 @@ export async function executeEndpoint(
           log("exec", `dom-extraction error: ${err instanceof Error ? err.message : String(err)}`);
           data = { _format_mismatch: true, received_content_type: contentType, data: text };
         }
+        } else if (res.ok && endpoint.response_schema && (contentType.includes("text/html") || contentType.includes("application/xhtml") || /^\s*</.test(text))) {
+        // Expected JSON response but got HTML — try in-process DOM extraction as fallback
+        // before declaring format mismatch. Many SSR pages serve the data on the rendered HTML.
+        log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)} — trying DOM extraction fallback`);
+        try {
+          const { extractFromDOM } = await import("../extraction/index.js");
+          const extracted = extractFromDOM(text, skill.intent_signature ?? "");
+          if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
+            data = extracted.data;
+          } else {
+            data = { _format_mismatch: true, received_content_type: contentType, data: text };
+          }
+        } catch (err) {
+          log("exec", `dom-extraction fallback error: ${err instanceof Error ? err.message : String(err)}`);
+          data = { _format_mismatch: true, received_content_type: contentType, data: text };
+        }
         } else if (res.ok && endpoint.response_schema) {
         // Expected JSON response but got non-JSON content type — mark as format mismatch
         log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)}`);
@@ -4922,7 +4938,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // intent tokens. Single rule, no conditional ladders.
     if (isPageFetchEndpoint(ep) && intent && LIST_INTENT.test(intent)) {
       score = hasStructuredSearchApiInCorpus ? Math.min(score, 60) : Math.max(score, 100);
-    } else if (isPageFetchEndpoint(ep) && intent && hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?)\b/i.test(intent)) {
+    } else if (isPageFetchEndpoint(ep) && intent && hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?|questions?|answers?|works?|books?|profiles?|details?|info|metadata|abstract|article|articles|posts?|stats?|scores?|games?|quotes?|prices?|tickers?)\b/i.test(intent)) {
       score = Math.min(score, 60);
     }
 
@@ -5296,7 +5312,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       isPageFetchEndpoint(ep) &&
       intent &&
       ((LIST_INTENT.test(intent) && hasStructuredSearchApiInCorpus) ||
-        (hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?)\b/i.test(intent)))
+        (hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?|questions?|answers?|works?|books?|profiles?|details?|info|metadata|abstract|article|articles|posts?|stats?|scores?|games?|quotes?|prices?|tickers?)\b/i.test(intent)))
     ) {
       score = Math.min(score, 60);
     }
