@@ -74,6 +74,38 @@ describe("RecordedBaseline loader", () => {
     expect(hit).not.toBeNull();
     expect(hit?.baseline_version).toBe("6.16.0");
   });
+
+  test("hasGolden() reflects presence; false when missing, true when populated", () => {
+    expect(new RecordedBaseline("/no/such/x.jsonl").hasGolden()).toBe(false);
+    const dir = mkdtempSync(resolve(tmpdir(), "wb-has-"));
+    const m = resolve(dir, "manifest.jsonl");
+    writeFileSync(m, JSON.stringify({ key: "k", tool: "unbrowse_resolve", response: { ok: 1 } }) + "\n");
+    expect(new RecordedBaseline(m).hasGolden()).toBe(true);
+  });
+
+  test("mtime reload: a golden written AFTER construction is picked up with no restart", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "wb-mtime-"));
+    const m = resolve(dir, "manifest.jsonl");
+    // Construct against a missing file (proxy spawned before recorder ran).
+    const rb = new RecordedBaseline(m);
+    expect(rb.hasGolden()).toBe(false);
+    const args = { intent: "get hn", url: "https://news.ycombinator.com/" };
+    expect(rb.lookup("unbrowse_resolve", args)).toBeNull();
+    // Recorder finishes: golden appears. No new RecordedBaseline, no restart.
+    writeFileSync(
+      m,
+      JSON.stringify({
+        key: recordedKey("unbrowse_resolve", args),
+        tool: "unbrowse_resolve",
+        response: { result: { status: "ok" } },
+        baseline_version: "6.16.0",
+      }) + "\n",
+    );
+    const hit = rb.lookup("unbrowse_resolve", args);
+    expect(hit).not.toBeNull();
+    expect(hit?.baseline_version).toBe("6.16.0");
+    expect(rb.hasGolden()).toBe(true);
+  });
 });
 
 async function callProxyOnce(
@@ -183,5 +215,64 @@ describe("proxy recorded mode (real spawn)", () => {
     expect(delta?.["baseline"]).toBeNull();
     const diff = delta?.["diff"] as Record<string, unknown>;
     expect(String(diff["structural_diff_summary"])).toContain("not in golden set");
+  });
+
+  test("AUTO: golden present + NO mode env -> recorded (the /mcp-survivable switch)", async () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "wb-auto-"));
+    const manifest = resolve(dir, "manifest.jsonl");
+    const args = { intent: "auto detect", url: "https://example.org/" };
+    writeFileSync(
+      manifest,
+      JSON.stringify({
+        key: recordedKey("unbrowse_resolve", args),
+        tool: "unbrowse_resolve",
+        response: { result: { status: "ok", available_operations: [{ endpoint_id: "g1" }] } },
+        baseline_version: "6.16.0",
+      }) + "\n",
+    );
+
+    const merged = await callProxyOnce(
+      {
+        // NO WORKBENCH_BASELINE_MODE. Golden presence alone must flip it.
+        WORKBENCH_GOLDEN_PATH: manifest,
+        UNBROWSE_BIN_CANDIDATE: `bun run ${RESOLVE_STUB}`,
+        UNBROWSE_BIN_BASELINE: "/bin/false",
+      },
+      {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "unbrowse_resolve", arguments: args },
+      },
+    );
+
+    const delta = merged["_workbench_delta"] as Record<string, unknown> | undefined;
+    expect(delta?.["mode"]).toBe("recorded");
+    const baseline = delta?.["baseline"] as Record<string, unknown> | null;
+    expect(baseline?.["baseline_version"]).toBe("6.16.0");
+  });
+
+  test("AUTO: no golden + NO mode env -> live (spawns baseline child)", async () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "wb-auto-live-"));
+    const manifest = resolve(dir, "manifest.jsonl"); // never written
+
+    const merged = await callProxyOnce(
+      {
+        WORKBENCH_GOLDEN_PATH: manifest,
+        UNBROWSE_BIN_CANDIDATE: `bun run ${RESOLVE_STUB}`,
+        // live mode WILL try to spawn this; resolve-stub answers fine so
+        // the diff is identical (same stub both sides).
+        UNBROWSE_BIN_BASELINE: `bun run ${RESOLVE_STUB}`,
+      },
+      {
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: { name: "unbrowse_resolve", arguments: { intent: "x", url: "https://x.test/" } },
+      },
+    );
+
+    const delta = merged["_workbench_delta"] as Record<string, unknown> | undefined;
+    expect(delta?.["mode"]).toBe("live");
   });
 });

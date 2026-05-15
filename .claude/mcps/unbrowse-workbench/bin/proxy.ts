@@ -35,12 +35,22 @@ const baselineCmd = (process.env.UNBROWSE_BIN_BASELINE || "").trim();
 const candidateUrl = process.env.UNBROWSE_URL_CANDIDATE || DEFAULT_CANDIDATE_URL;
 const baselineUrl = process.env.UNBROWSE_URL_BASELINE || DEFAULT_BASELINE_URL;
 
-// live (default): spawn a baseline daemon, fan every call to it in parallel.
-// recorded: skip the baseline daemon; diff candidate against a golden
-// manifest recorded once by scripts/workbench-record-baseline.ts. Halves
-// per-call cost (one browser navigation instead of two). Only resolve
-// responses are in the golden set v1 (see src/recorded-baseline.ts).
-const baselineMode = (process.env.WORKBENCH_BASELINE_MODE || "live").trim();
+// Mode switch is GOLDEN-PRESENCE by default, not an env var. Rationale:
+// /mcp reconnect does NOT re-read ~/.claude.json env (Claude Code caches
+// the MCP config at session start), so an env-var switch needs a full
+// Claude Code restart to flip. The golden file's existence is the
+// declaration "use recorded mode" and survives any number of /mcp.
+//
+//   golden present + non-empty  -> recorded (no baseline daemon, ~half cost)
+//   golden absent/empty         -> live (spawn baseline daemon, fan both)
+//
+// WORKBENCH_BASELINE_MODE is an optional FORCE override only:
+//   "live"     -> always live even if a golden exists
+//   "recorded" -> always recorded even if golden missing (degraded: emits
+//                 no-recorded-baseline until the golden is recorded; the
+//                 mtime re-stat in RecordedBaseline then picks it up with
+//                 no restart)
+const forceMode = (process.env.WORKBENCH_BASELINE_MODE || "").trim();
 const goldenPath =
   process.env.WORKBENCH_GOLDEN_PATH ||
   resolvePath(
@@ -58,8 +68,23 @@ function logErr(s: string): void {
   process.stderr.write(`[workbench] ${s}\n`);
 }
 
+// Always construct it (cheap: one statSync). hasGolden() drives the
+// default; the instance also self-reloads on mtime change so a golden
+// recorded after this proxy spawned takes effect with no restart.
+const recordedProbe = new RecordedBaseline(goldenPath);
+const goldenPresent = recordedProbe.hasGolden();
+
+let recordedMode: boolean;
+if (forceMode === "live") recordedMode = false;
+else if (forceMode === "recorded") recordedMode = true;
+else recordedMode = goldenPresent;
+
 logErr(`candidate=${candidateCmd} url=${candidateUrl}`);
-logErr(`baseline_mode=${baselineMode}`);
+logErr(
+  `baseline_mode=${recordedMode ? "recorded" : "live"} ` +
+    `(golden=${goldenPresent ? `${recordedProbe.entryCount} entries` : "absent"}` +
+    `${forceMode ? `, forced=${forceMode}` : ", auto"}) path=${recordedProbe.loadedFrom}`,
+);
 
 const candParsed = parseCommand(candidateCmd);
 const candidate = spawnChild(
@@ -72,14 +97,11 @@ const candidate = spawnChild(
 let baseline: ReturnType<typeof spawnChild> | null = null;
 let recorded: RecordedBaseline | null = null;
 
-if (baselineMode === "recorded") {
-  recorded = new RecordedBaseline(goldenPath);
-  logErr(
-    `recorded-baseline: ${recorded.entryCount} entries from ${recorded.loadedFrom}`,
-  );
-  if (recorded.entryCount === 0) {
+if (recordedMode) {
+  recorded = recordedProbe;
+  if (!goldenPresent) {
     logErr(
-      "recorded-baseline: golden manifest empty or missing; run scripts/workbench-record-baseline.sh. Deltas will report no-recorded-baseline until then.",
+      "recorded-baseline: forced recorded but golden missing/empty; run scripts/workbench-record-baseline.sh. Deltas report no-recorded-baseline until the file appears (auto-picked up, no restart).",
     );
   }
 } else {
