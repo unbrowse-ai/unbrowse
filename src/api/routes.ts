@@ -40,6 +40,7 @@ import { writeDomainNote, readDomainNote } from "../extraction/domain-notes.js";
 import { buildStructuredDataHeader } from "../extraction/index.js";
 import {
   BrowseSessionError,
+  buildSnapResponse,
   createRegisteredBrowseSession,
   extractBrowseFailureMessage,
   getOrCreateNavigateBrowseSession,
@@ -2982,14 +2983,26 @@ export async function registerRoutes(app: FastifyInstance) {
     const { filter } = (req.body as { filter?: string; session_id?: string }) ?? {};
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: snapshot } = await withSerializedStrictBrowseSession(
+      const { session, result } = await withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
         requestedSessionId(req),
-        async (session) => brokerForSession(session).snapshot(session.tabId, filter),
+        async (session) => {
+          const broker = brokerForSession(session);
+          const snapshot = await broker.snapshot(session.tabId, filter);
+          // Probe the actual landed URL so the agent can detect tab drift
+          // (e.g. captcha redirect, adopted tab on a different host).
+          const currentUrl = await broker.getCurrentUrl(session.tabId).catch(() => null);
+          return { snapshot, currentUrl };
+        },
       );
-      const diagnostic = diagnoseSnapshot(snapshot, session.url);
-      return reply.send({ snapshot, session_id: session.sessionId, tab_id: session.tabId, ...diagnostic });
+      const snapResponse = buildSnapResponse({
+        snapshot: result.snapshot,
+        session,
+        currentUrl: result.currentUrl,
+      });
+      const diagnostic = diagnoseSnapshot(result.snapshot, snapResponse.current_url ?? session.url);
+      return reply.send({ ...snapResponse, ...diagnostic });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
     }

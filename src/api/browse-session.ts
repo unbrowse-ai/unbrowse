@@ -670,3 +670,56 @@ export async function getOrCreateNavigateBrowseSession(
   }
   return createBrowseSession(sessions, client, injectInterceptor);
 }
+
+export interface SnapResponseInput {
+  snapshot: unknown;
+  session: BrowseSession;
+  currentUrl: string | null | undefined;
+}
+
+export interface SnapResponse {
+  snapshot: unknown;
+  session_id: string;
+  tab_id: string;
+  current_url: string;
+  current_domain: string;
+  landed_domain_mismatch?: true;
+  expected_domain?: string;
+}
+
+/**
+ * Build the response for /v1/browse/snap. Surfaces the observed url and
+ * domain so the calling agent can detect when the tab has drifted away
+ * from the page it opened (e.g. a redirect to a captcha, or an unrelated
+ * tab adopted under the same sessionId). The substrate reports what it
+ * sees; the agent judges whether that matches the user intent.
+ */
+export function buildSnapResponse(input: SnapResponseInput): SnapResponse {
+  const { snapshot, session, currentUrl } = input;
+  const observedUrl = typeof currentUrl === "string" && currentUrl.startsWith("http")
+    ? currentUrl
+    : session.url;
+  const observedDomain = extractDomain(observedUrl) || session.domain;
+
+  const response: SnapResponse = {
+    snapshot,
+    session_id: session.sessionId,
+    tab_id: session.tabId,
+    current_url: observedUrl,
+    current_domain: observedDomain,
+  };
+
+  const expectedDomain = session.domain;
+  if (
+    typeof currentUrl === "string"
+    && currentUrl.startsWith("http")
+    && expectedDomain
+    && observedDomain
+    && expectedDomain !== observedDomain
+  ) {
+    response.landed_domain_mismatch = true;
+    response.expected_domain = expectedDomain;
+  }
+
+  return response;
+}
