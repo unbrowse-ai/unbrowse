@@ -26,7 +26,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-interface ProbeRef { probe_id: string; lane: string; intent: string; url: string; }
+interface ProbeRef { probe_id: string; lane: string; auth?: string; difficulty?: string; strategy?: string; intent: string; url: string; }
 interface Manifest { run_id: string; corpus: string; cli_version: string; node_version: string; started_at: string; probes: ProbeRef[]; }
 
 const INDEX_VERDICTS = ["INDEX_PASS","INDEX_FAIL_NO_ENDPOINTS","INDEX_FAIL_WRONG_SHAPE","INDEX_EXCLUDED_BLOCKED","INDEX_EXCLUDED_AUTH"] as const;
@@ -80,8 +80,10 @@ function loadProbeBundle(runDir: string, probe: ProbeRef) {
   return {
     capture_meta: readFile(path.join(d, "capture.meta.json"), 16_000),
     capture_html_excerpt: readFile(path.join(d, "capture.html.excerpt"), 8192),
+    index_store: readFile(path.join(d, "index.store.json"), 8_000),
     resolve_shortlist: readFile(path.join(d, "resolve.shortlist.json"), 64_000),
     resolve_pick: readFile(path.join(d, "resolve.pick.json"), 4_000),
+    execute_input: readFile(path.join(d, "execute.input.json"), 4_000),
     execute_response_raw: readFile(path.join(d, "execute.response.raw"), 64_000),
     execute_meta: readFile(path.join(d, "execute.meta.json"), 8_000),
     timings: readFile(path.join(d, "timings.json"), 2_000),
@@ -108,13 +110,24 @@ function renderProbeMarkdown(probe: ProbeRef, bundle: ReturnType<typeof loadProb
     `## ${probe.probe_id}`,
     "",
     `- **lane**: \`${probe.lane}\``,
+    probe.auth ? `- **auth**: \`${probe.auth}\`` : "",
+    probe.difficulty ? `- **difficulty**: \`${probe.difficulty}\`` : "",
+    probe.strategy ? `- **strategy**: \`${probe.strategy}\`` : "",
     `- **intent**: ${probe.intent}`,
     `- **contextUrl**: ${probe.url}`,
     "",
+    "### Agent-judged trace checklist",
+    "",
+    "- Index: inspect `capture.meta.json`, `capture.html.excerpt`, and `index.store.json` to judge whether the right endpoint was discovered and stored.",
+    "- Retrieve: inspect `resolve.shortlist.json`, `resolve.pick.json`, and `execute.input.json` to judge whether the indexed skill resolved to the right endpoint/query for this intent.",
+    "- Execute: inspect `execute.response.raw` and `execute.meta.json` to judge whether execution returned the requested thing for the right entity.",
+    "",
     "### capture.meta.json", "```json", bundle.capture_meta || "(empty)", "```",
     "### capture.html.excerpt", "```html", bundle.capture_html_excerpt || "(empty)", "```",
+    "### index.store.json", "```json", bundle.index_store || "(empty)", "```",
     "### resolve.shortlist.json", "```json", bundle.resolve_shortlist || "(empty)", "```",
     "### resolve.pick.json", "```json", bundle.resolve_pick || "(empty)", "```",
+    "### execute.input.json", "```json", bundle.execute_input || "(empty)", "```",
     "### execute.response.raw", "```", bundle.execute_response_raw || "(empty)", "```",
     "### execute.meta.json", "```json", bundle.execute_meta || "(empty)", "```",
     "### timings.json", "```json", bundle.timings || "(empty)", "```",

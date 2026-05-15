@@ -1505,6 +1505,11 @@ export function assessIntentResult(data: unknown, intent?: string): {
       }
       return { verdict: "fail", reason: "message_only", projected };
     }
+    if (/\b(arxiv|abstract|paper)\b/.test(lower)) {
+      if (hasAnyPath(projected, ["title", "name"]) && hasAnyPath(projected, ["abstract", "summary", "description"])) {
+        return { verdict: "pass", reason: "paper_abstract_record", projected };
+      }
+    }
     if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users|repo|repository|repositories|project|projects|package|packages|doc|docs|documentation|question|questions|recipe|recipes|course|courses|definition|dictionary|meaning|product|products|item|items|stock|stocks|ticker|tickers|quote|quotes|channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
       const classified = classifyRows([projected], intent ?? "");
       return { ...classified, projected };

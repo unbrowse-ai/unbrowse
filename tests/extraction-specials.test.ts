@@ -96,6 +96,49 @@ describe("special HTML extraction", () => {
     expect((extracted.data as Array<Record<string, string>>)[0]?.version).toBe("1.66.0");
   });
 
+  it("extracts single package detail pages from page metadata", () => {
+    const html = `
+      <html><head>
+        <title>anthropic · PyPI</title>
+        <meta name="description" content="Python library for the Anthropic API" />
+        <link rel="canonical" href="https://pypi.org/project/anthropic/" />
+      </head><body>
+        <main>
+          <h1>anthropic</h1>
+          <p class="package-header__pip-instructions">pip install anthropic</p>
+        </main>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(html, "get pypi package");
+    expect(extracted.extraction_method).toBe("key-value");
+    expect((extracted.data as Record<string, string>).name).toBe("anthropic");
+    expect((extracted.data as Record<string, string>).description).toContain("Anthropic API");
+  });
+
+  it("extracts arXiv abstracts as single records", () => {
+    const html = `
+      <html><head>
+        <meta name="citation_title" content="A Test-Time Compute Model" />
+        <link rel="canonical" href="https://arxiv.org/abs/2604.00694" />
+      </head><body>
+        <main>
+          <h1 class="title mathjax">Title: A Test-Time Compute Model</h1>
+          <div class="authors"><a>Jane Doe</a><a>John Smith</a></div>
+          <blockquote class="abstract mathjax">
+            Abstract: We study how additional inference-time computation changes model behavior
+            across difficult reasoning tasks and report a compact scaling law.
+          </blockquote>
+        </main>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(html, "get arxiv abstract");
+    expect(extracted.extraction_method).toBe("key-value");
+    expect((extracted.data as Record<string, string>).title).toBe("A Test-Time Compute Model");
+    expect((extracted.data as Record<string, string>).abstract).toContain("inference-time computation");
+  });
+
   it("prefers rich question cards over sparse navigation chips", () => {
     const html = `
       <html><body>

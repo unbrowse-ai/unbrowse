@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Per-probe worker called by xargs -P from bench-gate.sh.
-# Reads a tab-separated probe spec on argv: <pid> <lane> <intent> <url> <pdir>
+# Reads a tab-separated probe spec on argv:
+# <pid> <lane> <auth> <difficulty> <strategy> <intent> <url> <pdir>
 set -uo pipefail
 
 # Re-parse CLI_ARGS from the exported string (xargs strips array environment).
@@ -8,7 +9,7 @@ read -r -a CLI_ARGS <<< "${CLI_ARGS_STR:-}"
 TIMEOUT="${TIMEOUT:-90}"
 
 # Strip optional surrounding whitespace.
-pid="$1"; lane="$2"; intent="$3"; url="$4"; pdir="$5"
+pid="$1"; lane="$2"; auth="$3"; difficulty="$4"; strategy="$5"; intent="$6"; url="$7"; pdir="$8"
 
 err() { echo "$*" >&2; }
 now_ms() { python3 -c 'import time;print(int(time.time()*1000))' 2>/dev/null || date +%s000; }
@@ -59,6 +60,7 @@ fi
 # wait, resolve fires BEFORE the just-captured skill is indexed and returns
 # empty. Poll the pending queue (max 15s) so resolve sees the fresh skill.
 captured_skill_id="$(jq -r '.skill_id // empty' < "$pdir/capture.out" 2>/dev/null || true)"
+snapshot_path=""
 if [ -n "$captured_skill_id" ]; then
   QPEND="${HOME:-/tmp}/.unbrowse/queue/pending"
   SNAPSHOT_DIR="${UNBROWSE_SKILL_SNAPSHOT_DIR:-${HOME:-/tmp}/.unbrowse/skill-snapshots}"
@@ -67,8 +69,13 @@ if [ -n "$captured_skill_id" ]; then
     # The snapshot filename is a hash of the scoped cache key, not the skill id.
     # Scan the isolated snapshot dir so resolve only runs after this probe's
     # freshly-captured skill is indexed and queryable.
-    if find "$SNAPSHOT_DIR" -maxdepth 1 -name '*.json' -print0 2>/dev/null \
-      | xargs -0 jq -e --arg id "$captured_skill_id" 'select(.skill_id == $id)' >/dev/null 2>&1; then
+    snapshot_path="$(find "$SNAPSHOT_DIR" -maxdepth 1 -name '*.json' -print 2>/dev/null | while IFS= read -r f; do
+      if jq -e --arg id "$captured_skill_id" '.skill_id == $id' "$f" >/dev/null 2>&1; then
+        printf '%s\n' "$f"
+        break
+      fi
+    done)"
+    if [ -n "$snapshot_path" ]; then
       break
     fi
     pending=$(ls "$QPEND"/*.json 2>/dev/null | wc -l | tr -d ' ')
@@ -80,6 +87,32 @@ if [ -n "$captured_skill_id" ]; then
     fi
     sleep 0.2
   done
+fi
+
+if [ -n "$captured_skill_id" ]; then
+  stored=false
+  endpoint_count=0
+  intent_signature=""
+  if [ -n "$snapshot_path" ] && [ -f "$snapshot_path" ]; then
+    stored=true
+    endpoint_count="$(jq -r '(.endpoints // []) | length' "$snapshot_path" 2>/dev/null || echo 0)"
+    intent_signature="$(jq -r '.intent_signature // empty' "$snapshot_path" 2>/dev/null || true)"
+  fi
+  pending_count="$(ls "${HOME:-/tmp}/.unbrowse/queue/pending"/*.json 2>/dev/null | wc -l | tr -d ' ')"
+  jq -nc \
+    --arg skill_id "$captured_skill_id" \
+    --arg snapshot_dir "${UNBROWSE_SKILL_SNAPSHOT_DIR:-${HOME:-/tmp}/.unbrowse/skill-snapshots}" \
+    --arg snapshot_path "$snapshot_path" \
+    --arg intent_signature "$intent_signature" \
+    --argjson stored "$stored" \
+    --argjson endpoint_count "${endpoint_count:-0}" \
+    --argjson pending_count "${pending_count:-0}" \
+    '{captured_skill_id:$skill_id, stored:$stored, snapshot_dir:$snapshot_dir, snapshot_endpoint_count:$endpoint_count, pending_queue_count:$pending_count}
+      + (if $snapshot_path|length > 0 then {snapshot_path:$snapshot_path} else {} end)
+      + (if $intent_signature|length > 0 then {snapshot_intent_signature:$intent_signature} else {} end)' \
+    > "$pdir/index.store.json"
+else
+  echo '{"stored":false,"reason":"capture_did_not_emit_skill_id"}' > "$pdir/index.store.json"
 fi
 
 # ── Phase 2a: resolve ────────────────────────────────────────────────────
@@ -105,6 +138,15 @@ skill_id="$(jq -r '.skill_id // empty' < "$pdir/resolve.pick.json" 2>/dev/null |
 endpoint_id="$(jq -r '.endpoint_id // empty' < "$pdir/resolve.pick.json" 2>/dev/null || true)"
 t4=$(now_ms); t5="$t4"
 if [ -n "$skill_id" ] && [ -n "$endpoint_id" ]; then
+  jq -nc \
+    --arg skill_id "$skill_id" --arg endpoint_id "$endpoint_id" \
+    --arg intent "$intent" --arg url "$url" \
+    --arg lane "$lane" --arg auth "$auth" --arg difficulty "$difficulty" --arg strategy "$strategy" \
+    '{skill_id:$skill_id, endpoint_id:$endpoint_id, lane:$lane, intent:$intent, context_url:$url, raw:true}
+      + (if $auth|length > 0 then {auth:$auth} else {} end)
+      + (if $difficulty|length > 0 then {difficulty:$difficulty} else {} end)
+      + (if $strategy|length > 0 then {strategy:$strategy} else {} end)' \
+    > "$pdir/execute.input.json"
   timeout "$TIMEOUT" "${CLI_ARGS[@]}" execute --skill "$skill_id" --endpoint "$endpoint_id" --raw \
     </dev/null > "$pdir/execute.out" 2> "$pdir/execute.stderr.log" || true
   t5=$(now_ms)
@@ -116,6 +158,9 @@ if [ -n "$skill_id" ] && [ -n "$endpoint_id" ]; then
   jq -r 'if (.result | type) == "object" and (.result | has("body")) then .result.body else (.result // empty) end' \
     < "$pdir/execute.out" > "$pdir/execute.response.raw" 2>/dev/null || : > "$pdir/execute.response.raw"
 else
+  jq -nc --arg intent "$intent" --arg url "$url" \
+    '{skipped:"no_skill_or_endpoint_from_resolve", intent:$intent, context_url:$url}' \
+    > "$pdir/execute.input.json"
   echo '{"skipped":"no_skill_or_endpoint_from_resolve"}' > "$pdir/execute.meta.json"
   : > "$pdir/execute.out"
   : > "$pdir/execute.response.raw"

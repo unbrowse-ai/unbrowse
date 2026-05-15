@@ -500,6 +500,13 @@ function buildSampleRequestFromUrl(url: string): Record<string, unknown> {
   }
 }
 
+function looksLikeApiUrl(url: string): boolean {
+  return /\/api\/|graphql|\/rest\/|\/rpc\/|voyager|\/v\d+(?:\/|$)/i.test(url)
+    || /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge)\./i.test((() => {
+      try { return new URL(url).hostname; } catch { return ""; }
+    })());
+}
+
 export function buildPageArtifactCapture(
   url: string,
   intent: string,
@@ -535,6 +542,7 @@ export function buildPageArtifactCapture(
   const isSpaSource = extracted.extraction_method.startsWith("spa-");
   const response_schema = inferSchema([extracted.data]);
   const computedTemplate = templatizeQueryParams(url);
+  const sampleRequest = buildSampleRequestFromUrl(url);
   const description = validSearchForm
     ? `Captured search form artifact for ${intent}`
     : isSpaSource
@@ -556,11 +564,12 @@ export function buildPageArtifactCapture(
       ...(validSearchForm ? { search_form: validSearchForm } : {}),
     },
     trigger_url: url,
+    ...(Object.keys(sampleRequest).length > 0 ? { query: sampleRequest } : {}),
   };
   endpoint.semantic = {
     ...inferEndpointSemantic(endpoint, {
       sampleResponse: extracted.data,
-      sampleRequest: buildSampleRequestFromUrl(url),
+      sampleRequest,
       observedAt: new Date().toISOString(),
       sampleRequestUrl: url,
     }),
@@ -608,6 +617,7 @@ export function buildPageFetchEndpoint(
   authRequired = false,
 ): EndpointDescriptor {
   const computedTemplate = templatizeQueryParams(url);
+  const sampleRequest = buildSampleRequestFromUrl(url);
   return {
     endpoint_id: stableEndpointId("GET", computedTemplate + "#page_fetch"),
     method: "GET",
@@ -627,14 +637,87 @@ export function buildPageFetchEndpoint(
       confidence: 0.5,
     },
     trigger_url: url,
+    ...(Object.keys(sampleRequest).length > 0 ? { query: sampleRequest } : {}),
     semantic: {
       action_kind: "fetch",
       resource_kind: "page",
       ...(authRequired ? { auth_required: true } : {}),
       description_in: `Fetches the rendered page at ${url}`,
       description_out: `Returns the rendered HTML for "${intent}"`,
+      ...(Object.keys(sampleRequest).length > 0 ? { example_request: sampleRequest } : {}),
     },
   };
+}
+
+function derivePublicApiEndpointsFromUrl(
+  url: string,
+  intent: string,
+  authRequired = false,
+): EndpointDescriptor[] {
+  try {
+    const u = new URL(url);
+    const dockerMatch = u.hostname === "hub.docker.com"
+      ? u.pathname.match(/^\/r\/([^/]+)\/([^/]+)\/tags\/?$/)
+      : null;
+    if (dockerMatch && /\b(image tags?|docker(?:hub)?|tags?)\b/i.test(intent)) {
+      const namespace = decodeURIComponent(dockerMatch[1]);
+      const repository = decodeURIComponent(dockerMatch[2]);
+      const urlTemplate = "https://registry.hub.docker.com/v2/repositories/{namespace}/{repository}/tags?page_size={page_size}";
+      const endpoint: EndpointDescriptor = {
+        endpoint_id: stableEndpointId("GET", urlTemplate),
+        method: "GET",
+        url_template: urlTemplate,
+        path_params: { namespace, repository },
+        query: { page_size: "25" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.85,
+        description: `Public Docker Hub tags API for ${namespace}/${repository}`,
+        response_schema: {
+          type: "object",
+          properties: {
+            count: { type: "number" },
+            next: { type: ["string", "null"] },
+            previous: { type: ["string", "null"] },
+            results: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  full_size: { type: "number" },
+                  last_updated: { type: "string" },
+                  images: { type: "array" },
+                },
+              },
+            },
+          },
+        },
+        trigger_url: url,
+        semantic: {
+          action_kind: "list",
+          resource_kind: "image",
+          ...(authRequired ? { auth_required: true } : {}),
+          description_in: "Requires namespace, repository, page_size",
+          description_out: `Returns Docker Hub image tags for ${namespace}/${repository}`,
+          example_request: { namespace, repository, page_size: "25" },
+          example_fields: ["results[].name", "results[].full_size", "results[].last_updated", "results[].images"],
+          requires: [
+            { key: "namespace", required: false, source: "path_params", semantic_type: "input" },
+            { key: "repository", required: false, source: "path_params", semantic_type: "input" },
+            { key: "page_size", required: false, source: "query", semantic_type: "input" },
+          ],
+          provides: [
+            { key: "tag_name", semantic_type: "image_tag_name", source: "response" },
+          ],
+        },
+      };
+      return [endpoint];
+    }
+  } catch {
+    return [];
+  }
+  return [];
 }
 
 export function isPageFetchEndpoint(ep: EndpointDescriptor): boolean {
@@ -1606,9 +1689,11 @@ async function executeBrowserCapture(
   // artifact, the agent can still call this endpoint to retrieve the
   // rendered page (HTML→markdown via execute's existing GET path).
   // See .bench-history/ROOT_FIX_GUIDE.md for the architecture.
+  const publicApiEndpoints = derivePublicApiEndpointsFromUrl(url, intent, authBackedCapture);
   const pageFetch = buildPageFetchEndpoint(url, intent, authBackedCapture);
   const learnedEndpoints = [
     ...cleanEndpoints,
+    ...publicApiEndpoints,
     ...(domArtifactEndpoint ? [domArtifactEndpoint] : []),
     // Skip injection if the corpus already has a page_fetch endpoint
     // (e.g. on re-capture of an existing skill that already had it).
@@ -4089,7 +4174,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     rankedCandidates
       .filter((ep) => {
         const url = ep.url_template.toLowerCase();
-        const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(url);
+        const looksLikeApiEndpoint = looksLikeApiUrl(url);
         return !!ep.trigger_url && !ep.dom_extraction && (looksLikeApiEndpoint || !!ep.response_schema || ep.method === "WS");
       })
       .map((ep) => ep.trigger_url)
@@ -4101,7 +4186,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   // independent of trigger_url linkage (marketplace skills + test fixtures often lack it).
   const hasStructuredApiInCorpus = rankedCandidates.some((ep) => {
     const url = ep.url_template.toLowerCase();
-    const looksLikeApi = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(url);
+    const looksLikeApi = looksLikeApiUrl(url);
     return looksLikeApi && !ep.dom_extraction && !/captured (?:search form |page )?artifact/i.test(ep.description ?? "");
   });
   const endpointHasSearchBinding = (ep: EndpointDescriptor): boolean => {
@@ -4116,7 +4201,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   };
   const hasStructuredSearchApiInCorpus = rankedCandidates.some((ep) => {
     const url = ep.url_template.toLowerCase();
-    const looksLikeApi = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(url);
+    const looksLikeApi = looksLikeApiUrl(url);
     return looksLikeApi
       && !ep.dom_extraction
       && !!ep.response_schema
@@ -4378,7 +4463,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       }
     }
 
-    const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(ep.url_template);
+    const looksLikeApiEndpoint = looksLikeApiUrl(ep.url_template);
     const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
     const isCapturedPageArtifact = /captured (?:search form |page )?artifact/i.test(ep.description ?? "");
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
@@ -4452,6 +4537,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // intent tokens. Single rule, no conditional ladders.
     if (isPageFetchEndpoint(ep) && intent && LIST_INTENT.test(intent)) {
       score = hasStructuredSearchApiInCorpus ? Math.min(score, 60) : Math.max(score, 100);
+    } else if (isPageFetchEndpoint(ep) && intent && hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?)\b/i.test(intent)) {
+      score = Math.min(score, 60);
     }
 
     // Even with dom_extraction, a captured page artifact loses to an API sibling
@@ -4464,7 +4551,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         (other) =>
           other !== ep &&
           other.trigger_url === ep.trigger_url &&
-          /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(other.url_template) &&
+          looksLikeApiUrl(other.url_template) &&
           !other.dom_extraction &&
           !/captured (?:search form |page )?artifact/i.test(other.description ?? "")
       )
@@ -4697,8 +4784,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         // Use 1/4 weight so a legit yahoo /v8/finance/chart isn't wiped out.
         const isApiEndpoint =
           ep.verification_status === "verified" &&
-          (/\/api\/|graphql|\/rest\/|\/rpc\//i.test(ep.url_template) ||
-            /^(api|gql|graphql|rest|services?|backend|query\d*|edge|cdn|static)\./i.test(hostname));
+          (looksLikeApiUrl(ep.url_template) ||
+            /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)\./i.test(hostname));
         const apiSoftening = isApiEndpoint ? 0.25 : 1;
         const penaltyMultiplier = leakedLiterals >= 3 ? leakedLiterals * 2 : 1;
         score -= leakedLiterals * 200 * penaltyMultiplier * apiSoftening;
@@ -4721,8 +4808,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
           const epBare = epHost.replace(/^www\./, "");
           if (ctxBare !== epBare) {
             const epIsSharedApi =
-              /^(api|gql|graphql|rest|services?|backend|query\d*|edge|cdn|static)\./i.test(epHost) ||
-              /\/api\/|graphql|\/rest\/|\/rpc\//i.test(ep.url_template);
+              /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)\./i.test(epHost) ||
+              looksLikeApiUrl(ep.url_template);
             const ctxRegistrable = ctxBare.split(".").slice(-2).join(".");
             const epRegistrable = epBare.split(".").slice(-2).join(".");
             if (ctxRegistrable !== epRegistrable) {
@@ -4802,8 +4889,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (
       isPageFetchEndpoint(ep) &&
       intent &&
-      LIST_INTENT.test(intent) &&
-      hasStructuredSearchApiInCorpus
+      ((LIST_INTENT.test(intent) && hasStructuredSearchApiInCorpus) ||
+        (hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?)\b/i.test(intent)))
     ) {
       score = Math.min(score, 60);
     }

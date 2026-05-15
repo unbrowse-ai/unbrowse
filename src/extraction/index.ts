@@ -1030,6 +1030,96 @@ function extractDefinitionSpecial(html: string, intent: string): ExtractedStruct
   }];
 }
 
+function extractPackageDetailSpecial(html: string, intent: string): ExtractedStructure[] {
+  const intentLower = intent.toLowerCase();
+  if (!/\b(package|packages|npm|pypi|crate|gem)\b/.test(intentLower)) return [];
+  if (/\b(search|find|list|browse|discover)\b/.test(intentLower)) return [];
+  const $ = cheerio.load(html);
+  const canonical = cleanText($('link[rel="canonical"]').attr("href") ?? $('meta[property="og:url"]').attr("content") ?? "");
+  const rawTitle = cleanText(
+    $("h1").first().text()
+    || $('meta[property="og:title"]').attr("content")
+    || $('meta[name="twitter:title"]').attr("content")
+    || $("title").first().text()
+  );
+  const description = cleanText(
+    $('meta[name="description"]').attr("content")
+    || $('meta[property="og:description"]').attr("content")
+    || $('meta[name="twitter:description"]').attr("content")
+    || $("main p, article p").map((_, el) => cleanText($(el).text())).get().find((value) => value.length >= 20 && value.length <= 600)
+    || ""
+  );
+  const pathName = (() => {
+    try {
+      const u = new URL(canonical || "https://example.com/");
+      const match = u.pathname.match(/\/(?:package|project|crates|gems)\/([^/]+)/i);
+      return match ? decodeURIComponent(match[1]) : "";
+    } catch {
+      return "";
+    }
+  })();
+  const nameFromTitle = rawTitle
+    .replace(/\s*[-·|]\s*(npm|PyPI|crates\.io|RubyGems\.org).*$/i, "")
+    .replace(/^Project description\s*/i, "")
+    .trim();
+  const name = cleanText(
+    $(".package-header__name, .package-snippet__name, [class*='package'][class*='name']").first().text()
+    || pathName
+    || nameFromTitle
+  );
+  if (!name || (!description && !canonical)) return [];
+
+  const versionText = cleanText(
+    $('[class*="version"], [data-testid*="version"]').first().text()
+    || $("main").text().match(/\b(?:Version|Latest version)\s+([0-9][^\s,;)]*)/i)?.[1]
+    || ""
+  );
+  const row: Record<string, unknown> = {
+    name,
+    title: rawTitle || name,
+    ...(description ? { description, summary: description } : {}),
+    ...(versionText && versionText.length < 80 ? { version: versionText.replace(/^Version\s+/i, "") } : {}),
+    ...(canonical ? { url: canonical } : {}),
+  };
+  return [{ type: "key-value", data: row, element_count: 1 }];
+}
+
+function extractArxivAbstractSpecial(html: string, intent: string): ExtractedStructure[] {
+  const intentLower = intent.toLowerCase();
+  if (!/\b(arxiv|abstract|paper)\b/.test(intentLower)) return [];
+  if (!/arxiv\.org|class=["'][^"']*abstract|citation_title/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const title = cleanText(
+    $('meta[name="citation_title"]').attr("content")
+    || $(".title").first().text().replace(/^\s*Title:\s*/i, "")
+    || $("h1").first().text().replace(/^\s*Title:\s*/i, "")
+    || $("title").first().text()
+  );
+  const abstract = cleanText(
+    $(".abstract").first().text().replace(/^\s*Abstract:\s*/i, "")
+    || $('meta[name="description"]').attr("content")
+    || ""
+  );
+  if (!title || abstract.length < 40) return [];
+  const authors = $(".authors a")
+    .map((_, el) => cleanText($(el).text()))
+    .get()
+    .filter(Boolean)
+    .slice(0, 20);
+  const canonical = cleanText($('link[rel="canonical"]').attr("href") ?? $('meta[property="og:url"]').attr("content") ?? "");
+  return [{
+    type: "key-value",
+    data: {
+      title,
+      abstract,
+      summary: abstract,
+      ...(authors.length > 0 ? { authors } : {}),
+      ...(canonical ? { url: canonical } : {}),
+    },
+    element_count: 1,
+  }];
+}
+
 /**
  * Extract article body content for read-style intents (wikipedia article, blog post,
  * reference page). Targets `<main>`, `<article>`, or `#mw-content-text` and returns
@@ -1803,12 +1893,14 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const postStructures = extractPostSpecial(workingHtml, intent);
   const trendStructures = extractTrendSpecial(workingHtml, intent);
   const definitionStructures = extractDefinitionSpecial(workingHtml, intent);
+  const packageDetailStructures = extractPackageDetailSpecial(workingHtml, intent);
+  const arxivAbstractStructures = extractArxivAbstractSpecial(workingHtml, intent);
   const courseStructures = extractCourseSearchSpecial(workingHtml, intent);
   // Article extractor reads full html (not the 300KB-capped workingHtml) so the
   // wikipedia mw-parser-output marker survives even on giant pages with massive
   // reference sections that would otherwise push it past the cap.
   const articleStructures = extractArticleBodySpecial(html.length > 600_000 ? html.slice(0, 600_000) : html, intent);
-  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {
