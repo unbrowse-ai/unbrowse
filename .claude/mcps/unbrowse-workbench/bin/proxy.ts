@@ -16,6 +16,8 @@ import { LineReader, encodeMessage } from "../src/framing.ts";
 import { spawnChild, parseCommand } from "../src/spawn.ts";
 import { Fanout } from "../src/fanout.ts";
 import { computeStructuralDiff } from "../src/delta.ts";
+import { RecordedBaseline, RECORDED_TOOLS } from "../src/recorded-baseline.ts";
+import { resolve as resolvePath } from "node:path";
 
 const DEFAULT_CANDIDATE =
   "bun run /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/mcp.ts";
@@ -33,12 +35,31 @@ const baselineCmd = (process.env.UNBROWSE_BIN_BASELINE || "").trim();
 const candidateUrl = process.env.UNBROWSE_URL_CANDIDATE || DEFAULT_CANDIDATE_URL;
 const baselineUrl = process.env.UNBROWSE_URL_BASELINE || DEFAULT_BASELINE_URL;
 
+// live (default): spawn a baseline daemon, fan every call to it in parallel.
+// recorded: skip the baseline daemon; diff candidate against a golden
+// manifest recorded once by scripts/workbench-record-baseline.ts. Halves
+// per-call cost (one browser navigation instead of two). Only resolve
+// responses are in the golden set v1 (see src/recorded-baseline.ts).
+const baselineMode = (process.env.WORKBENCH_BASELINE_MODE || "live").trim();
+const goldenPath =
+  process.env.WORKBENCH_GOLDEN_PATH ||
+  resolvePath(
+    import.meta.dir,
+    "..",
+    "..",
+    "..",
+    "..",
+    ".workbench-baseline",
+    "golden",
+    "manifest.jsonl",
+  );
+
 function logErr(s: string): void {
   process.stderr.write(`[workbench] ${s}\n`);
 }
 
 logErr(`candidate=${candidateCmd} url=${candidateUrl}`);
-logErr(`baseline=${baselineCmd || "(not set; baseline side disabled)"}${baselineCmd ? ` url=${baselineUrl}` : ""}`);
+logErr(`baseline_mode=${baselineMode}`);
 
 const candParsed = parseCommand(candidateCmd);
 const candidate = spawnChild(
@@ -49,18 +70,35 @@ const candidate = spawnChild(
 );
 
 let baseline: ReturnType<typeof spawnChild> | null = null;
-if (baselineCmd) {
-  try {
-    const baseParsed = parseCommand(baselineCmd);
-    baseline = spawnChild(
-      baseParsed.command,
-      baseParsed.args,
-      { UNBROWSE_URL: baselineUrl },
-      "baseline",
+let recorded: RecordedBaseline | null = null;
+
+if (baselineMode === "recorded") {
+  recorded = new RecordedBaseline(goldenPath);
+  logErr(
+    `recorded-baseline: ${recorded.entryCount} entries from ${recorded.loadedFrom}`,
+  );
+  if (recorded.entryCount === 0) {
+    logErr(
+      "recorded-baseline: golden manifest empty or missing; run scripts/workbench-record-baseline.sh. Deltas will report no-recorded-baseline until then.",
     );
-  } catch (err) {
-    logErr(`baseline spawn failed: ${(err as Error).message}`);
-    baseline = null;
+  }
+} else {
+  logErr(
+    `baseline=${baselineCmd || "(not set; baseline side disabled)"}${baselineCmd ? ` url=${baselineUrl}` : ""}`,
+  );
+  if (baselineCmd) {
+    try {
+      const baseParsed = parseCommand(baselineCmd);
+      baseline = spawnChild(
+        baseParsed.command,
+        baseParsed.args,
+        { UNBROWSE_URL: baselineUrl },
+        "baseline",
+      );
+    } catch (err) {
+      logErr(`baseline spawn failed: ${(err as Error).message}`);
+      baseline = null;
+    }
   }
 }
 
@@ -119,7 +157,8 @@ async function handleRequest(request: Record<string, unknown>): Promise<void> {
     return;
   }
 
-  // tools/call: fan out to both sides.
+  // tools/call. live mode: fan to candidate+baseline. recorded mode:
+  // candidate only, diff against the golden manifest.
   let result;
   try {
     result = await fan.fanout(request, liveSide);
@@ -136,6 +175,66 @@ async function handleRequest(request: Record<string, unknown>): Promise<void> {
   }
 
   const merged = { ...result.liveResponse };
+
+  if (recorded) {
+    // recorded mode: substitute the golden response for the live baseline.
+    const params = (request["params"] ?? {}) as Record<string, unknown>;
+    const toolName = String(params["name"] ?? "");
+    const toolArgs = params["arguments"] ?? {};
+    if (RECORDED_TOOLS.has(toolName)) {
+      const entry = recorded.lookup(toolName, toolArgs);
+      if (entry) {
+        const diff = computeStructuralDiff(
+          result.candidateResponse,
+          entry.response,
+          result.candidate,
+          { ms: 0, bytes: Buffer.byteLength(JSON.stringify(entry.response), "utf8") },
+        );
+        merged["_workbench_delta"] = {
+          live: "candidate",
+          mode: "recorded",
+          candidate: result.candidate,
+          baseline: {
+            ms: 0,
+            bytes: Buffer.byteLength(JSON.stringify(entry.response), "utf8"),
+            recorded_at: entry.recorded_at ?? null,
+            baseline_version: entry.baseline_version ?? null,
+          },
+          diff,
+        };
+      } else {
+        merged["_workbench_delta"] = {
+          live: "candidate",
+          mode: "recorded",
+          candidate: result.candidate,
+          baseline: null,
+          diff: {
+            bytes_diff: 0,
+            ms_diff: 0,
+            structural_diff_summary: `no recorded baseline for ${toolName} (run scripts/workbench-record-baseline.sh)`,
+          },
+        };
+      }
+    } else {
+      // go/snap/close/execute: not in the golden set v1. candidate-only,
+      // no synthetic diff (honest: we did not record this).
+      merged["_workbench_delta"] = {
+        live: "candidate",
+        mode: "recorded",
+        candidate: result.candidate,
+        baseline: null,
+        diff: {
+          bytes_diff: 0,
+          ms_diff: 0,
+          structural_diff_summary: `recorded mode: ${toolName} not in golden set (resolve-only v1)`,
+        },
+      };
+    }
+    writeOut(merged);
+    return;
+  }
+
+  // live mode: diff candidate against the live baseline sibling.
   const diff = computeStructuralDiff(
     result.candidateResponse,
     result.baselineResponse,
@@ -144,6 +243,7 @@ async function handleRequest(request: Record<string, unknown>): Promise<void> {
   );
   merged["_workbench_delta"] = {
     live: liveSide,
+    mode: "live",
     candidate: result.candidate,
     baseline: result.baseline,
     diff,
