@@ -13,6 +13,7 @@ import { forceVisibleKuriEnv, getStoredAuth, getAuthCookies, refreshAuthFromBrow
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
+import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus, parseRetryAfter } from "./retry.js";
@@ -3783,11 +3784,24 @@ export async function executeEndpoint(
     }
   }
 
-  // Schema drift detection on re-execution
+  // Schema drift detection on re-execution. When drift is observed,
+  // surface a structured re_capture signal so the calling agent can
+  // dispatch unbrowse_go in headful-as-learning mode (AC3 lane-04).
+  // Substrate emits truth; agent judges whether to act.
   if (trace.success && endpoint.response_schema && data != null) {
     const drift = detectSchemaDrift(endpoint.response_schema, data);
     if (drift.drifted) {
       trace.drift = drift;
+      const recaptureSignal = buildDriftRecaptureSignal(
+        drift,
+        { endpoint_id: endpoint.endpoint_id, url_template: endpoint.url_template, method: endpoint.method },
+        options?.contextUrl,
+        options?.intent,
+      );
+      if (recaptureSignal) {
+        trace.steps?.push({ step: "recipe_replay_drift_recapture", reason: recaptureSignal.reason });
+        trace.re_capture_signal = recaptureSignal;
+      }
     }
   }
 
