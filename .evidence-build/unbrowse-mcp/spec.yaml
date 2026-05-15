@@ -1,0 +1,72 @@
+product_id: unbrowse-mcp
+repo_path: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+description: |
+  The unbrowse MCP must work well at three step-chain axes when an agent drives
+  it end-to-end. This wave's criteria are derived from the in-house bench
+  corpus (.harness/probes/corpus-gate.txt, 58 probes) and the wave-1
+  convergence ledger (~/.claude/skills/unbrowse-self-build/convergence.jsonl)
+  rather than from Reddit. Each criterion cites probe URLs and shipped-fix
+  commit SHAs (in lieu of Reddit thread ids) so the falsifier is reproducible.
+
+  Axis model (MCP step-chain):
+    - INDEXING: unbrowse_go + unbrowse_snap + unbrowse_close must populate
+      `available_operations` with operations that match the page's real
+      capability surface. Tab isolation, HAR + interceptor coverage,
+      enrichment pipeline, marketplace publish.
+    - RETRIEVAL: unbrowse_resolve must return a ranked shortlist where the
+      top-1 endpoint matches the calling intent. URL templates must carry
+      intent-bearing structure, sample_values must not cross hosts, ranker
+      must prefer SSR-list / real-data endpoints over count/telemetry/auth
+      bouncers, auth-required flows must hand off with `next_action`.
+    - EXECUTION: unbrowse_execute must return real data matching intent.
+      URL-template params interpolate correctly, raw mode returns the body
+      not the schema, GraphQL operations send the right operationName,
+      response shape matches what the agent asked for.
+
+axes:
+  - id: indexing
+    description: "unbrowse_go + snap + close populate available_operations correctly"
+    substrate_surfaces:
+      - src/api/browse-session.ts
+      - src/api/routes.ts
+      - src/capture/extractEndpoints.ts
+      - src/capture/INTERCEPTOR_SCRIPT.ts
+      - src/orchestrator/streaming-publish.ts
+  - id: retrieval
+    description: "unbrowse_resolve returns a ranked shortlist with the right top-1 for the intent"
+    substrate_surfaces:
+      - src/orchestrator/index.ts
+      - src/execution/index.ts
+      - src/graph/index.ts
+      - src/client/index.ts
+  - id: execution
+    description: "unbrowse_execute returns real data matching the calling intent"
+    substrate_surfaces:
+      - src/execution/index.ts
+      - src/execution/url-template.ts
+      - src/mcp.ts
+
+evidence_source: in_house_bench
+evidence_inputs:
+  - harness/probes/corpus-gate.txt
+  - ~/.claude/skills/unbrowse-self-build/convergence.jsonl
+  - ~/.claude/skills/unbrowse-improvement-loop/coverage.jsonl
+
+improvement_loop: /unbrowse-improvement-loop
+improvement_fleet: /unbrowse-improvement-fleet
+wave_runner: /unbrowse-self-build
+workbench_proxy: .claude/mcps/unbrowse-workbench/
+
+out_of_scope_lanes:
+  - anti-bot-bypass-cloudflare-datadome-perimeterx-captcha
+  - kuri-zig-binary-changes
+  - novel-dom-extractor-families
+  - ranking-confidence-calibration
+  - proxy-rotation-residential-ips
+
+adversarial_held:
+  - auth-gated corpus rows (8): must hand off cleanly, not crash
+  - hostile corpus rows (15): expected BROWSER_BLOCK, excluded from denominator
+
+session: lewis-2026-05-16
+wave: 1
