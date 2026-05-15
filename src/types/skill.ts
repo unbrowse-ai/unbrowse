@@ -604,7 +604,23 @@ export interface ExecutionOptions {
   budget_ms?: number;
   /** When true, the resolve shortlist is filtered to only independently verified proofs. */
   require_proof?: boolean;
+  /** Per-walk session yield cache. Map from binding `key` → cached value + freshness
+   *  metadata produced by an earlier call in the same chain walk. Threaded by
+   *  `executeEndpointWithChain`. Optional — when absent, the wrapper has no prior
+   *  cached values to evaluate and effectively delegates to `executeEndpoint`. */
+  session_yields?: SessionYieldCache;
 }
+
+/** Single cached binding value carrying the freshness metadata `isBindingStale` needs. */
+export interface SessionYield {
+  value: unknown;
+  observed_at: string;
+  ttl_ms?: number;
+  single_use?: boolean;
+}
+
+/** Walk-scoped cache: binding `key` → most-recently observed yield. */
+export type SessionYieldCache = Map<string, SessionYield>;
 
 export interface ValidationResult {
   valid: boolean;
