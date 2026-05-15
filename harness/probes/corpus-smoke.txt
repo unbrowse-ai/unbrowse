@@ -1,0 +1,7 @@
+# Smoke corpus — one probe per non-excluded lane to validate the bench-mcp pipeline.
+# Format: lane | auth | difficulty | strategy | intent | contextUrl
+anchor | none | easy | dom-artifact | get top hacker news stories | https://news.ycombinator.com/
+anchor | none | medium | dom-artifact | search github repos | https://github.com/search?q=anthropic&type=repositories
+semantic-rank | none | medium | semantic-rank | get singularity subreddit posts | https://www.reddit.com/r/singularity/
+graphql | optional | hard | graphql | search tweets about AI agents | https://x.com/search?q=AI+agents&src=typed_query
+ssr-list | none | hard | ssr-list | search amazon for usb-c cables | https://www.amazon.com/s?k=usb-c+cable

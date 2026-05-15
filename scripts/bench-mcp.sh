@@ -64,23 +64,29 @@ run_probe() {
 
   local prompt
   prompt=$(cat <<EOF
-You are running a single bench probe. You have the unbrowse MCP server available with tools like unbrowse_resolve, unbrowse_execute, unbrowse_feedback, etc. Use ONLY those MCP tools. Do not shell out, do not edit files, do not call other MCP servers.
+You are running a single bench probe. You have the unbrowse MCP server available. Use ONLY unbrowse_* MCP tools. Do not shell out, do not edit files, do not call other MCP servers.
+
+The MCP server is pointed at the STAGING marketplace (clean baseline: 0 skills). Every probe starts cold — there is nothing cached for this URL yet. Your job is the full flywheel: index this URL into staging, then retrieve from it.
 
 Probe:
 - intent: "$intent"
 - contextUrl: "$url"
 - lane: $lane
 
-Procedure:
-1. Call unbrowse_resolve with the intent and contextUrl. Read the shortlist.
-2. Pick the endpoint most likely to satisfy the intent for THIS contextUrl. If the shortlist is empty or only contains a clearly wrong endpoint, say so and stop.
-3. Call unbrowse_execute on the chosen endpoint. If it returns an error_body, you may try one other endpoint from the shortlist; do not try more than two endpoints total.
-4. If execute returns auth_required, browser cookies will already have been attempted upstream. Call unbrowse_reflect with intent_status="failed" and end with: "INTENT_NOT_SATISFIED: auth_required". Do NOT call unbrowse_auth_capture in this bench run (would pop a window).
-5. If execute returns a vendor block (captcha, datadome, perimeterx, cloudflare challenge), call unbrowse_reflect with intent_status="failed" and end with: "INTENT_NOT_SATISFIED: blocked".
-6. After a successful execute, call unbrowse_feedback with a rating (5=right+fast, 3=incomplete, 2=wrong endpoint, 1=useless). Then call unbrowse_reflect with intent_status.
-7. End your turn with a single line: the most relevant concrete data field from the response that answers the intent (e.g. one product title for "search amazon", or one ticker price for "AAPL quote"). If you cannot satisfy the intent, end with exactly: "INTENT_NOT_SATISFIED: <reason>"
+Single-trajectory procedure (capture → publish → resolve → execute → quote):
+1. Call unbrowse_go with the contextUrl to open a headless browse session. The session passively captures HAR + fetch/XHR traffic.
+2. (Optional) Call unbrowse_snap once to confirm the page loaded. If the snap shows a vendor-block / captcha shell, skip to step 7 with INTENT_NOT_SATISFIED: blocked.
+3. Call unbrowse_close. This triggers the full enrichment pipeline (extractEndpoints, augment, buildSkillOperationGraph, cachePublishedSkill, queueBackgroundIndex). It publishes a skill to STAGING marketplace. Note the skill_id / endpoint count in the response.
+4. Call unbrowse_resolve with the same intent and contextUrl. The just-published skill should now appear in the shortlist (marketplace winner instead of probe). If the shortlist is still empty, this is the bug we want to surface — say "INTENT_NOT_SATISFIED: publish_did_not_index" and stop. Do not retry.
+5. Pick the endpoint from the shortlist that best matches the intent for THIS contextUrl. Call unbrowse_execute on it. If it returns an error_body, you may try one other endpoint from the shortlist; do not try more than two total.
+6. After a successful execute, call unbrowse_feedback (5=right+fast, 3=incomplete, 2=wrong endpoint, 1=useless). Then call unbrowse_reflect with intent_status (achieved/partial/failed).
+7. End your turn with a single line: the most relevant concrete data field from the execute response that answers the intent (e.g. one product title for "search amazon", one ticker price for "AAPL quote", one post title for "top hacker news stories"). If you cannot satisfy the intent, end with exactly: "INTENT_NOT_SATISFIED: <reason>"
 
-Headless mode is on; you cannot open a visible browser. Do not summarize the conversation. Do not invent data. Quote actual fields from the response.
+Auth: if unbrowse_close or unbrowse_execute returns auth_required, call unbrowse_reflect intent_status=failed and end with "INTENT_NOT_SATISFIED: auth_required". Do NOT call unbrowse_auth_capture (would pop a window).
+Vendor block: if you see captcha / datadome / perimeterx / cloudflare-challenge in any tool result, end with "INTENT_NOT_SATISFIED: blocked".
+
+Headless mode is on; you cannot open a visible browser. Do not summarize the conversation. Do not invent data. Quote actual fields from the execute response.
+EOF
 )
 
   printf '%s' "$prompt" > "$pdir/prompt.txt"
@@ -89,6 +95,10 @@ Headless mode is on; you cannot open a visible browser. Do not summarize the con
 
   local model_flag=()
   if [ -n "$MODEL" ]; then model_flag=(-m "$MODEL"); fi
+
+  # Staging marketplace URL (override default beta-api.unbrowse.ai). Set
+  # UNBROWSE_BENCH_API_URL env to point at a different staging if needed.
+  local bench_api_url="${UNBROWSE_BENCH_API_URL:-https://unbrowse-backend-staging.lewis-6d8.workers.dev}"
 
   timeout "$TIMEOUT" codex exec \
     --json \
@@ -100,28 +110,50 @@ Headless mode is on; you cannot open a visible browser. Do not summarize the con
     -c 'mcp_servers.unbrowse.env.UNBROWSE_BENCH_MCP="1"' \
     -c 'mcp_servers.unbrowse.env.HEADLESS="1"' \
     -c 'mcp_servers.unbrowse.env.KURI_HEADLESS="1"' \
-    "${model_flag[@]}" \
+    -c "mcp_servers.unbrowse.env.UNBROWSE_API_URL=\"$bench_api_url\"" \
+    ${model_flag[@]+"${model_flag[@]}"} \
     "$prompt" \
     > "$pdir/events.jsonl" 2> "$pdir/codex.stderr.log" || true
 
   t1=$(date +%s)
   printf '{"pid":"%s","elapsed_s":%d}\n' "$pid" "$((t1 - t0))" > "$pdir/timing.json"
-  echo "bench-mcp: $pid done ${((t1-t0))}s" >&2
+  echo "bench-mcp: $pid done $((t1-t0))s" >&2
 }
 
 export -f run_probe
 export TIMEOUT MODEL
 
-queue_to_nul() {
-  awk 'BEGIN{ORS="\0"} {gsub("\t","\0"); print}' "$1"
+run_one() {
+  local pid="$1" lane="$2" auth="$3" difficulty="$4" strategy="$5" intent="$6" url="$7" pdir="$8"
+  run_probe "$pid" "$lane" "$auth" "$difficulty" "$strategy" "$intent" "$url" "$pdir"
 }
+export -f run_one
 
 if [ "$PARALLEL" -le 1 ]; then
   while IFS=$'\t' read -r pid lane auth difficulty strategy intent url pdir; do
-    run_probe "$pid" "$lane" "$auth" "$difficulty" "$strategy" "$intent" "$url" "$pdir"
+    run_one "$pid" "$lane" "$auth" "$difficulty" "$strategy" "$intent" "$url" "$pdir"
   done < "$QUEUE_FILE"
 else
-  queue_to_nul "$QUEUE_FILE" | xargs -0 -P "$PARALLEL" -n 8 bash -c 'run_probe "$@"' _
+  # Portable bounded-parallelism: launch up to $PARALLEL background jobs, wait for
+  # any slot to free before launching the next. BSD/macOS bash 3.2 compatible.
+  # The previous xargs -0 -n 8 path lost positional args because BSD xargs collapses
+  # adjacent NULs differently than GNU xargs, leaving $pdir empty.
+  pids=()
+  while IFS=$'\t' read -r pid lane auth difficulty strategy intent url pdir; do
+    while [ "${#pids[@]}" -ge "$PARALLEL" ]; do
+      new_pids=()
+      for p in ${pids[@]+"${pids[@]}"}; do
+        if kill -0 "$p" 2>/dev/null; then
+          new_pids+=("$p")
+        fi
+      done
+      pids=(${new_pids[@]+"${new_pids[@]}"})
+      if [ "${#pids[@]}" -ge "$PARALLEL" ]; then sleep 0.5; fi
+    done
+    run_one "$pid" "$lane" "$auth" "$difficulty" "$strategy" "$intent" "$url" "$pdir" </dev/null &
+    pids+=("$!")
+  done < "$QUEUE_FILE"
+  wait
 fi
 
 # Build manifest
