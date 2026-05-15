@@ -129,10 +129,46 @@ for (const file of files) {
   }
 }
 
+// Optionally pull server-side telemetry triage clusters via the GitHub auto-filed
+// issues. Server side: ~/.unbrowse/sessions ships to
+// beta-api.unbrowse.ai/v1/telemetry/session, stored in Neon Postgres, then
+// backend/src/jobs/triage-telemetry.ts files GitHub issues labeled
+// `triage-needed` on unbrowse-ai/unbrowse-dev for each new failure cluster.
+async function fetchGithubTriage(): Promise<Array<Record<string, unknown>>> {
+  const repo = process.env.UNBROWSE_TRIAGE_REPO ?? "unbrowse-ai/unbrowse-dev";
+  const token = process.env.GITHUB_TOKEN ?? process.env.SKILL_REPO_TOKEN;
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "bench-mcp-telemetry",
+  };
+  if (token) headers.Authorization = `token ${token}`;
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/issues?labels=triage-needed&state=open&per_page=20`,
+      { headers },
+    );
+    if (!res.ok) return [];
+    const issues = await res.json() as Array<Record<string, unknown>>;
+    return issues.map((issue) => ({
+      number: issue.number,
+      title: issue.title,
+      url: issue.html_url,
+      created_at: issue.created_at,
+      body_excerpt: typeof issue.body === "string" ? issue.body.slice(0, 400) : "",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+const includeServer = !!flags["include-server"];
+const serverTriage = includeServer ? await fetchGithubTriage() : [];
+
 const report = {
   sessions_scanned: sessionsScanned,
   since_days: sinceDays,
   sessions_dir: SESSIONS_DIR,
+  server_triage_clusters_open: serverTriage,
   intent_status: intentStatus,
   successes: Object.fromEntries(successes),
   failure_buckets: [...failures.values()]
