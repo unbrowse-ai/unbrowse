@@ -11,6 +11,10 @@
 ## [Unreleased]
 
 ### Features
+* **release:** prerelease hooks now run the issue-regression suite before the bench-gate stamp check, so preview cuts are blocked by regression failures before version bump/tagging.
+
+* **build:** release binary builds no longer minify by default. The previous `bun build --compile --minify` path was killed by the self-hosted release runner during the first platform build; minification is now opt-in via `UNBROWSE_BUILD_MINIFY=1`.
+
 * **vault:** store macOS Keychain credentials under one Unbrowse vault item instead of creating a separate Keychain row for every site/session. Existing per-account entries migrate into the single vault on first use, reducing repeated "Always Allow" prompts without dropping saved auth.
 
 * **indexer:** `drainPendingIndexJobs` no longer throws after 30s when a detached worker is still actively draining the queue. Under burst capture load (e.g. 58-probe bench-gate), the parent capture's drain budget isn't enough to wait for all jobs to flush — but the worker keeps processing them in the background after the parent exits. The function now returns success at timeout if the heartbeat is fresh (<2s) or pending count is strictly decreasing, throwing only when no worker appears to be running and jobs remain. Capture correctness doesn't depend on indexing finishing within the capture process's lifetime — indexing is intentionally async.
