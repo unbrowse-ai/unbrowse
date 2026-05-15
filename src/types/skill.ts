@@ -516,6 +516,10 @@ export interface ExecutionTrace {
   result?: unknown;
   har_lineage_id?: string;
   drift?: DriftResult;
+  /** AC3 lane-04: re_capture signal surfaced when drift is detected so
+   *  the calling agent can dispatch unbrowse_go in headful-as-learning
+   *  mode against the contextUrl. Substrate emits truth; agent judges. */
+  re_capture_signal?: import("../execution/drift-recapture-signal.js").DriftRecaptureSignal;
   /** Set when response_schema was backfilled from this execution's response */
   schema_backfilled?: boolean;
   /** Estimated tokens consumed by the response */
