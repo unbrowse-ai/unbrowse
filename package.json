@@ -74,7 +74,10 @@
     "bench:corpus:add": "bun scripts/bench-corpus.ts add",
     "bench:improve:triage": "bun scripts/bench-improve-triage.ts",
     "bench:history:record": "bun scripts/bench-history-record.ts",
-    "bench:history:release-notes": "bun scripts/bench-history-release-notes.ts"
+    "bench:history:release-notes": "bun scripts/bench-history-release-notes.ts",
+    "bench:mcp": "bash scripts/bench-mcp.sh",
+    "bench:mcp:judge": "bun scripts/bench-mcp-judge.ts",
+    "bench:mcp:telemetry": "bun scripts/bench-mcp-telemetry.ts"
   },
   "dependencies": {
     "@cascade-fyi/splits-sdk": "^0.11.1",
