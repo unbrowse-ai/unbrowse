@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.17.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.3...v6.17.0-preview.4) (2026-05-15)
+
+### Bug Fixes
+
+* **browse:** prepend schema.org JSON-LD to text/markdown to bypass personalized DOM widgets ([#457](https://github.com/unbrowse-ai/unbrowse-dev/issues/457)) ([24e85d0](https://github.com/unbrowse-ai/unbrowse-dev/commit/24e85d047888cacdc64012db42d5c05b99649976))
+* **indexer:** drainPendingIndexJobs returns success when worker is alive ([#458](https://github.com/unbrowse-ai/unbrowse-dev/issues/458)) ([c9a409f](https://github.com/unbrowse-ai/unbrowse-dev/commit/c9a409f137f4bb394ea5d60464e8036bb1045fb1))
+* prepare preview auth and bench gate updates ([511954b](https://github.com/unbrowse-ai/unbrowse-dev/commit/511954b789ae8c16a0a35db38bba7923e7be9581))
+
 ## [Unreleased]
 
 ### Features
