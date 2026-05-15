@@ -139,6 +139,38 @@ describe("LIST_INTENT — rec-widget endpoints lose to canonical search surface"
     expect(ranked[0].endpoint.endpoint_id).toBe("crates_api_search");
   });
 
+  test("real structured search API ranks above legacy rendered-html fallback", () => {
+    const apiSearch = ep({
+      endpoint_id: "crates_api_search",
+      url_template: "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}",
+      description: "Searches Crates with crates, meta using page, per_page, sort, q",
+      response_schema: {
+        type: "object",
+        properties: {
+          crates: { type: "array", items: { type: "object" } },
+          meta: { type: "object" },
+        },
+      },
+      query: { page: "1", per_page: "10", sort: "relevance", q: "tokio" },
+    });
+    const legacyPageFetch = ep({
+      endpoint_id: "legacy_page_fetch",
+      url_template: "https://crates.io/search?q={q}",
+      description: "Returns the rendered HTML for \"search rust crates\"",
+      response_schema: { type: "string", format: "html" },
+      dom_extraction: { extraction_method: "repeated-elements", confidence: 1 },
+    });
+
+    const ranked = rankEndpoints(
+      [legacyPageFetch, apiSearch],
+      "search rust crates",
+      "crates.io",
+      "https://crates.io/search?q=tokio",
+    );
+
+    expect(ranked[0].endpoint.endpoint_id).toBe("crates_api_search");
+  });
+
   test("versioned public API ranks above page_fetch for tag retrieval", () => {
     const tagsApi = ep({
       endpoint_id: "docker_tags_api",
@@ -172,5 +204,154 @@ describe("LIST_INTENT — rec-widget endpoints lose to canonical search surface"
     );
 
     expect(ranked[0].endpoint.endpoint_id).toBe("docker_tags_api");
+  });
+
+  test("public DEV articles API ranks above profile-card page artifact", () => {
+    const articlesApi = ep({
+      endpoint_id: "devto_articles_api",
+      url_template: "https://dev.to/api/articles?username={username}",
+      query: { username: "anthropic" },
+      description: "Public DEV articles API for anthropic",
+      response_schema: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            url: { type: "string" },
+            published_at: { type: "string" },
+          },
+        },
+      },
+    });
+    const profileArtifact = ep({
+      endpoint_id: "profile_cards",
+      url_template: "https://dev.to/anthropic",
+      description: "Captured page artifact for get devto post",
+      response_schema: {
+        type: "array",
+        items: { type: "object", properties: { title: { type: "string" }, image: { type: "string" } } },
+      },
+      dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+    });
+
+    const ranked = rankEndpoints(
+      [profileArtifact, articlesApi],
+      "get devto post",
+      "dev.to",
+      "https://dev.to/anthropic",
+    );
+
+    expect(ranked[0].endpoint.endpoint_id).toBe("devto_articles_api");
+  });
+
+  test("public OpenLibrary work API ranks above incidental work page links", () => {
+    const workApi = ep({
+      endpoint_id: "openlibrary_work_api",
+      url_template: "https://openlibrary.org/works/{work_id}.json",
+      path_params: { work_id: "OL45804W" },
+      description: "Public OpenLibrary work API for OL45804W",
+      response_schema: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "object" },
+          authors: { type: "array", items: { type: "object" } },
+        },
+      },
+    });
+    const pageLinks = ep({
+      endpoint_id: "publisher_language_links",
+      url_template: "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+      description: "Captured page artifact for get openlibrary work",
+      response_schema: {
+        type: "array",
+        items: { type: "object", properties: { title: { type: "string" }, link: { type: "string" } } },
+      },
+      dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+    });
+
+    const ranked = rankEndpoints(
+      [pageLinks, workApi],
+      "get openlibrary work",
+      "openlibrary.org",
+      "https://openlibrary.org/works/OL45804W",
+    );
+
+    expect(ranked[0].endpoint.endpoint_id).toBe("openlibrary_work_api");
+  });
+
+  test("public Stack Exchange question API ranks above tag-link extraction", () => {
+    const questionApi = ep({
+      endpoint_id: "stack_question_api",
+      url_template: "https://api.stackexchange.com/2.3/questions/{question_id}?order={order}&sort={sort}&site={site}&filter={filter}",
+      path_params: { question_id: "231767" },
+      query: { order: "desc", sort: "activity", site: "stackoverflow", filter: "withbody" },
+      description: "Public Stack Exchange question API for 231767",
+      response_schema: {
+        type: "object",
+        properties: {
+          items: {
+            type: "array",
+            items: { type: "object", properties: { title: { type: "string" }, body: { type: "string" } } },
+          },
+        },
+      },
+    });
+    const tagLinks = ep({
+      endpoint_id: "tag_links",
+      url_template: "https://stackoverflow.com/questions/231767",
+      description: "Captured page artifact for get stackoverflow question",
+      response_schema: {
+        type: "array",
+        items: { type: "object", properties: { title: { type: "string" }, url: { type: "string" } } },
+      },
+      dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+    });
+
+    const ranked = rankEndpoints(
+      [tagLinks, questionApi],
+      "get stackoverflow question",
+      "stackoverflow.com",
+      "https://stackoverflow.com/questions/231767",
+    );
+
+    expect(ranked[0].endpoint.endpoint_id).toBe("stack_question_api");
+  });
+
+  test("public ESPN scoreboard API ranks above players-to-watch page artifact", () => {
+    const scoreboardApi = ep({
+      endpoint_id: "espn_scoreboard_api",
+      url_template: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
+      description: "Public ESPN NBA scoreboard API",
+      response_schema: {
+        type: "object",
+        properties: {
+          events: {
+            type: "array",
+            items: { type: "object", properties: { competitions: { type: "array" }, status: { type: "object" } } },
+          },
+        },
+      },
+    });
+    const playersToWatch = ep({
+      endpoint_id: "players_to_watch",
+      url_template: "https://www.espn.com/nba/scoreboard",
+      description: "Captured page artifact for get espn nba scoreboard",
+      response_schema: {
+        type: "array",
+        items: { type: "object", properties: { title: { type: "string" }, link: { type: "string" } } },
+      },
+      dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+    });
+
+    const ranked = rankEndpoints(
+      [playersToWatch, scoreboardApi],
+      "get espn nba scoreboard",
+      "espn.com",
+      "https://www.espn.com/nba/scoreboard",
+    );
+
+    expect(ranked[0].endpoint.endpoint_id).toBe("espn_scoreboard_api");
   });
 });

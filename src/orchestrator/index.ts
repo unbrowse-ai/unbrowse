@@ -11,7 +11,7 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { decomposeGraphqlEndpoint, executeSkill } from "../execution/index.js";
+import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint } from "../execution/index.js";
 import { rankEndpoints } from "../ranking/index.js";
 import {
   getSkillChunk,
@@ -158,6 +158,7 @@ const skillRouteCache = new Map<
 const ROUTE_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "route-cache.json");
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
   ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
+const ISOLATED_SKILL_SNAPSHOT_MODE = !!process.env.UNBROWSE_SKILL_SNAPSHOT_DIR;
 
 // Domain-level skill cache: maps domain → best skillId (independent of intent/URL)
 // This enables cross-intent reuse: "find keyboards" seeds cache, "find monitors" reuses it
@@ -171,7 +172,7 @@ const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-
 const LOCAL_CACHES_ENABLED = process.env.UNBROWSE_LOCAL_CACHES === "1";
 
 export function persistDomainCache() {
-  if (!LOCAL_CACHES_ENABLED) return;
+  if (!LOCAL_CACHES_ENABLED || ISOLATED_SKILL_SNAPSHOT_MODE) return;
   try {
     const dir = dirname(DOMAIN_CACHE_FILE);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -179,7 +180,7 @@ export function persistDomainCache() {
   } catch { /* best effort */ }
 }
 
-if (LOCAL_CACHES_ENABLED) {
+if (LOCAL_CACHES_ENABLED && !ISOLATED_SKILL_SNAPSHOT_MODE) {
   try {
     if (existsSync(DOMAIN_CACHE_FILE)) {
       const data = JSON.parse(readFileSync(DOMAIN_CACHE_FILE, "utf-8"));
@@ -197,7 +198,7 @@ if (LOCAL_CACHES_ENABLED) {
 // Persist route cache to disk (debounced, with sync flush option)
 let _routeCacheDirty = false;
 function _writeRouteCacheToDisk() {
-  if (!LOCAL_CACHES_ENABLED) { _routeCacheDirty = false; return; }
+  if (!LOCAL_CACHES_ENABLED || ISOLATED_SKILL_SNAPSHOT_MODE) { _routeCacheDirty = false; return; }
   try {
     const dir = dirname(ROUTE_CACHE_FILE);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -240,7 +241,7 @@ export function invalidateRouteCacheForDomain(domain: string): void {
 routeCacheFlushTimer.unref?.();
 
 // Load route cache from disk on startup (skipped when disk caches disabled)
-if (LOCAL_CACHES_ENABLED) {
+if (LOCAL_CACHES_ENABLED && !ISOLATED_SKILL_SNAPSHOT_MODE) {
   try {
     if (existsSync(ROUTE_CACHE_FILE)) {
       const data = JSON.parse(readFileSync(ROUTE_CACHE_FILE, "utf-8"));
@@ -2234,6 +2235,21 @@ export async function resolveAndExecute(
       include_full_relevant_graph: true,
     });
     let epRanked = rankEndpoints(endpointScopedSkill.endpoints, queryIntent, endpointScopedSkill.domain, context?.url, params);
+    if (isSearchLikeIntent(queryIntent, context?.url)) {
+      const hasStructuredSearchApi = epRanked.some((r) =>
+        !r.endpoint.dom_extraction &&
+        r.endpoint.response_schema &&
+        endpointHasSearchBindings(r.endpoint)
+      );
+      if (hasStructuredSearchApi) {
+        epRanked = epRanked.map((r) =>
+          isPageFetchEndpoint(r.endpoint)
+            ? { ...r, score: Math.min(r.score, 60) }
+            : r
+        );
+        epRanked.sort((a, b) => b.score - a.score);
+      }
+    }
     // Graph-aware reachability filter
     const deferGraph = ensureSkillOperationGraph(endpointScopedSkill);
     const reachableIds = computeReachableEndpoints(deferGraph, knownBindings);
@@ -2984,6 +3000,20 @@ export async function resolveAndExecute(
       }
       return { ...r, score: r.score + readinessBonus };
     });
+    if (isSearchLikeIntent(queryIntent, context?.url)) {
+      const hasStructuredSearchApi = epRanked.some((r) =>
+        !r.endpoint.dom_extraction &&
+        r.endpoint.response_schema &&
+        endpointHasSearchBindings(r.endpoint)
+      );
+      if (hasStructuredSearchApi) {
+        epRanked = epRanked.map((r) =>
+          isPageFetchEndpoint(r.endpoint)
+            ? { ...r, score: Math.min(r.score, 60) }
+            : r
+        );
+      }
+    }
     epRanked.sort((a, b) => b.score - a.score);
     epRanked = prioritizeIntentMatchedApis(epRanked, queryIntent, context?.url);
 

@@ -56,7 +56,7 @@ export async function probeUrl(url: string, opts: ProbeOptions = {}): Promise<Pr
     // Some servers happily return 200 to HEAD but never set headers — accept
     // whatever they tell us. If method is rejected (405/501) we still try a
     // ranged GET below for richer evidence.
-    if (res.status !== 405 && res.status !== 501) {
+    if (res.status !== 400 && res.status !== 405 && res.status !== 501) {
       const ct = (res.headers.get("content-type") || "").toLowerCase();
       const lenHeader = res.headers.get("content-length");
       const byte_length = lenHeader && Number.isFinite(Number(lenHeader)) ? Number(lenHeader) : undefined;
