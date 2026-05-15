@@ -5492,6 +5492,32 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       score += 250;
     }
 
+    // LIST_INTENT scalar-schema demotion (lane-01 / AC2):
+    // For content-read list intents, an endpoint whose response schema declares
+    // ONLY scalar-typed top-level properties (count, total, number, string, bool)
+    // cannot satisfy a listing intent. The user asked for items, not a count.
+    // Canonical example: /search/count -> { count: number } ranking above
+    // /search/repositories -> { items: array }. Generic shape signal, not a
+    // per-domain registry.
+    if (looksLikeContentRead && ep.response_schema && !ep.dom_extraction) {
+      const schema = ep.response_schema as Record<string, unknown>;
+      const props = (schema.properties && typeof schema.properties === "object")
+        ? (schema.properties as Record<string, unknown>)
+        : null;
+      const SCALAR_TYPES = new Set(["number", "integer", "string", "boolean"]);
+      if (props) {
+        const propEntries = Object.values(props);
+        const allScalar = propEntries.length > 0 && propEntries.every((p) => {
+          if (!p || typeof p !== "object") return false;
+          const t = (p as Record<string, unknown>).type;
+          return typeof t === "string" && SCALAR_TYPES.has(t);
+        });
+        if (allScalar) {
+          score -= 250;
+        }
+      }
+    }
+
     // page_fetch invariant floor (see .bench-history/ROOT_FIX_GUIDE.md):
     // for content-read intents, the always-published page_fetch endpoint
     // beats telemetry XHRs but loses to a real /api/ endpoint matching
