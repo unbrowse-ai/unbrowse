@@ -1172,6 +1172,19 @@ export function findExistingSkillForDomain(domain: string, intent?: string): Ski
   return null;
 }
 
+/**
+ * True when the input has the shape of a real skill_id (21-char alphanumeric
+ * plus `-` and `_`, the nanoid alphabet used for skill_id allocation). False
+ * for hostnames, URLs, paths, or anything else. Used to gate the listSkills
+ * fallback in `getSkill`: a hostname-shaped input can never match a real
+ * skill_id, so the slow catalog fetch is pure waste for that case.
+ */
+export function looksLikeSkillId(input: unknown): boolean {
+  if (typeof input !== "string") return false;
+  if (input.length < 8 || input.length > 64) return false;
+  return /^[A-Za-z0-9_-]+$/.test(input);
+}
+
 export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
   const recent = getRecentLocalSkill(skillId, scopeId ?? process.env.UNBROWSE_CLIENT_ID);
   if (recent) return recent;
@@ -1183,6 +1196,12 @@ export async function getSkill(skillId: string, scopeId?: string): Promise<Skill
     writeSkillCache(skill, scopeId);
     return skill;
   } catch {
+    // The listSkills() fallback only matches by skill_id, so a hostname or
+    // URL-shaped input can never resolve here. Skip the slow catalog fetch
+    // for those inputs (5+ seconds in production), return null fast.
+    if (!looksLikeSkillId(skillId)) {
+      return null;
+    }
     try {
       const skills = await listSkills();
       const listed = skills.find((skill) => skill.skill_id === skillId) ?? null;
