@@ -12,6 +12,7 @@ import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } f
 import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory } from "./client/index.js";
 import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
 import { applySnapDetailLevel, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
+import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -1379,9 +1380,12 @@ const tools: ToolDefinition[] = [
       if (nestedError) return errorResult(nestedError, result);
       const processed = maybePostProcessResult(result, args);
       const withHints = addExecuteNextStepHints(isPlainObject(processed) ? processed as Record<string, unknown> : { result: processed }, args);
+      // AC5 lane-07: surface a fix-surface pointer when execute returned a known
+      // failure mode. Mapping is read from coverage.jsonl, not hard-coded here.
+      const enriched = enrichWithImprovementSuggestion(withHints);
       const impactLine = summarizeImpact(result);
       return successResult(
-        withHints,
+        enriched,
         impactLine
           ? `Execution result. ${impactLine}. See _workflow_hints for required next steps.`
           : "Execution result. See _workflow_hints for required next steps.",
@@ -1529,7 +1533,12 @@ const tools: ToolDefinition[] = [
       const notes = typeof args.notes_hash === "string" ? args.notes_hash : undefined;
       const logger = getSessionLogger();
       logger.recordReflection(status, notes);
-      return successResult({ ok: true, recorded: true, intent_status: status, telemetry_enabled: logger.enabled }, "Reflection recorded.");
+      const payload: Record<string, unknown> = { ok: true, recorded: true, intent_status: status, telemetry_enabled: logger.enabled };
+      // AC5 lane-07: failed/partial reflections get an improvement_suggestion
+      // when the caller carries a failure_mode hint. No hard-coded mapping:
+      // the ledger declares what each failure means.
+      const enriched = enrichWithImprovementSuggestion(payload);
+      return successResult(enriched, "Reflection recorded.");
     },
   },
   {
