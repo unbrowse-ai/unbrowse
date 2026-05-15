@@ -18,6 +18,8 @@
 * **bench:** remove the codex-driven `bench-mcp` harness (`scripts/bench-mcp.sh`, `scripts/bench-mcp-judge.ts`, `scripts/bench-mcp-telemetry.ts`) and its orphan `harness/probes/corpus-smoke.txt`. Spawning a second LLM agent to drive unbrowse MCP via stdio was the wrong substrate for regression-testing the index/retrieve flywheel; the calling agent should drive `unbrowse_*` tools itself and judge outcomes in-thread.
 
 ### Features
+* **mcp:** `unbrowse_snap` gains an optional `detail_level: "minimal" | "summary" | "full"` parameter (default `"minimal"`). `minimal` returns `{root_aria, current_url, page_title, interactive_count, landmark_count}`, measured under 1KB on Wikipedia/HN/error-state fixtures. `summary` adds a per-role landmarks tally and an `error_state` hint when an `alert` role is present, capped under 8KB. `full` preserves the raw Kuri a11y tree for backward compatibility. The empty-snapshot `warning`/`next_step` diagnostic carries through at every level. New pure helper at `src/api/browse-snap-detail-levels.ts` with eight unit assertions at `tests/mcp-snap-detail-levels.test.ts` measuring the byte caps directly.
+
 * **release:** prerelease hooks now run the issue-regression suite before the bench-gate stamp check, so preview cuts are blocked by regression failures before version bump/tagging.
 
 * **build:** release binary builds no longer minify by default. The previous `bun build --compile --minify` path was killed by the self-hosted release runner during the first platform build; minification is now opt-in via `UNBROWSE_BUILD_MINIFY=1`.

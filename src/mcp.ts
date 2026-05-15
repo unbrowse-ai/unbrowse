@@ -11,6 +11,7 @@ import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/ind
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory } from "./client/index.js";
 import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
+import { applySnapDetailLevel, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -1920,12 +1921,17 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_snap",
-    description: "Get the current accessibility snapshot with stable element refs like e12. Use during a browse session (after unbrowse_go) to see what's on page before interacting.",
+    description: "Get the current accessibility snapshot with stable element refs like e12. Use during a browse session (after unbrowse_go) to see what's on page before interacting. Defaults to detail_level=\"minimal\" (under 1KB); pass \"summary\" for landmark breakdown or \"full\" for the raw tree.",
     inputSchema: {
       type: "object",
       properties: {
         filter: { type: "string", description: "Optional snapshot filter, e.g. interactive." },
         session_id: { type: "string", description: "Optional browse session id." },
+        detail_level: {
+          type: "string",
+          enum: ["minimal", "summary", "full"],
+          description: "Response verbosity. minimal = root + counts (<1KB). summary = + landmarks + error_state (<8KB). full = raw a11y tree. Default minimal.",
+        },
       },
       additionalProperties: false,
     },
@@ -1935,7 +1941,35 @@ const tools: ToolDefinition[] = [
       const body: Record<string, unknown> = {};
       if (typeof args.filter === "string") body.filter = args.filter;
       if (typeof args.session_id === "string") body.session_id = args.session_id;
-      return successResult(await api("POST", "/v1/browse/snap", body), "Current browse snapshot.");
+      const raw = (await api("POST", "/v1/browse/snap", body)) as {
+        snapshot?: unknown;
+        session_id?: unknown;
+        tab_id?: unknown;
+        current_url?: unknown;
+        page_title?: unknown;
+        warning?: unknown;
+        next_step?: unknown;
+      };
+      const level: SnapDetailLevel | undefined =
+        args.detail_level === "minimal" || args.detail_level === "summary" || args.detail_level === "full"
+          ? args.detail_level
+          : undefined;
+      const snapshotText = typeof raw.snapshot === "string" ? raw.snapshot : "";
+      const trimmed = applySnapDetailLevel(snapshotText, level, {
+        current_url: typeof raw.current_url === "string" ? raw.current_url : null,
+        page_title: typeof raw.page_title === "string" ? raw.page_title : null,
+      });
+      const result: Record<string, unknown> = {
+        ...trimmed,
+        session_id: raw.session_id,
+        tab_id: raw.tab_id,
+      };
+      // Preserve the empty-snapshot diagnostic at all detail levels so
+      // a hydrating-SPA / wedged-Kuri / anti-bot signal isn't swallowed
+      // by the trim.
+      if (raw.warning !== undefined) result.warning = raw.warning;
+      if (raw.next_step !== undefined) result.next_step = raw.next_step;
+      return successResult(result, "Current browse snapshot.");
     },
   },
   {
