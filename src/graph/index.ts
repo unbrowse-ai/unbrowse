@@ -1642,6 +1642,29 @@ export function toAgentWorkflowDagView(
   };
 }
 
+// Keep `available_operations` (workflowDag view) consistent with
+// `available_endpoints` (rankEndpoints + reachability filter) membership. The
+// orchestrator runs an extra graph-reachability filter against epRanked AFTER
+// building the workflowDag, so operations whose endpoints got filtered out
+// stay in workflowDag.operations and surface to the agent as part of the
+// shortlist. Symptom (huggingface.co/models, 2026-05-15): list intent
+// shortlist contained 3 operations (detail-resource, list-resource, POST
+// /api/event write) while available_endpoints contained only the 2 GET
+// endpoints. The write-on-read POST is exactly the noise the AGENT UX
+// invariant 2 ("Less errors") says to filter OUT of the shortlist.
+//
+// Pure projection: returns a new operations array. Does not mutate input.
+export function filterDagOperationsByRankedEndpoints(
+  operations: AgentWorkflowDagOperation[],
+  rankedEndpointIds: Iterable<string>,
+): AgentWorkflowDagOperation[] {
+  const allowed = rankedEndpointIds instanceof Set
+    ? rankedEndpointIds
+    : new Set(rankedEndpointIds);
+  if (allowed.size === 0) return operations;
+  return operations.filter((op) => allowed.has(op.endpoint_id));
+}
+
 export function toAgentSkillChunkView(
   chunk: SkillChunk,
   endpoints?: EndpointDescriptor[],
