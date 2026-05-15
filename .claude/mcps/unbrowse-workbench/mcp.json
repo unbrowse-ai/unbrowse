@@ -1,7 +1,8 @@
 {
   "//": "unbrowse-workbench MCP server. Day-3 mustard-seed proxy.",
   "//env": "UNBROWSE_BIN_CANDIDATE: full shell command for the candidate (default: bun run /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/mcp.ts).",
-  "//env2": "UNBROWSE_BIN_BASELINE: full shell command for the baseline (default: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.workbench-baseline/<prev-tag>/unbrowse). Worker B's scripts/workbench-fetch-baseline.sh populates this.",
+  "//env2": "UNBROWSE_BIN_BASELINE: full shell command for the baseline (default: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.workbench-baseline/<prev-tag>/unbrowse mcp). Worker B's scripts/workbench-fetch-baseline.sh populates this.",
+  "//env3": "UNBROWSE_URL_CANDIDATE / UNBROWSE_URL_BASELINE: distinct base URLs so each child spawns its own Fastify HTTP daemon (defaults http://127.0.0.1:6970 / :6971). Without distinct ports, the second child silently re-uses the first child's daemon and _workbench_delta loses meaning.",
   "//install": "Copy mcpServers block into ~/.claude.json or .mcp.json.",
   "mcpServers": {
     "unbrowse-workbench": {
@@ -12,7 +13,9 @@
       ],
       "env": {
         "UNBROWSE_BIN_CANDIDATE": "bun run /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/mcp.ts",
-        "UNBROWSE_BIN_BASELINE": ""
+        "UNBROWSE_BIN_BASELINE": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.workbench-baseline/v6.16.0/unbrowse mcp",
+        "UNBROWSE_URL_CANDIDATE": "http://127.0.0.1:6970",
+        "UNBROWSE_URL_BASELINE": "http://127.0.0.1:6971"
       }
     }
   }

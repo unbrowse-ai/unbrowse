@@ -20,24 +20,44 @@ import { computeStructuralDiff } from "../src/delta.ts";
 const DEFAULT_CANDIDATE =
   "bun run /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/mcp.ts";
 
+// Per-side UNBROWSE_URL so each child spawns its own Fastify HTTP daemon on a
+// distinct port. Without this, the second child finds the first child's daemon
+// already listening on :6969 and silently re-uses it — both "candidate" and
+// "baseline" calls end up routed through the same upstream binary, which makes
+// _workbench_delta meaningless. Defaults pick non-conflicting high ports.
+const DEFAULT_CANDIDATE_URL = "http://127.0.0.1:6970";
+const DEFAULT_BASELINE_URL = "http://127.0.0.1:6971";
+
 const candidateCmd = process.env.UNBROWSE_BIN_CANDIDATE || DEFAULT_CANDIDATE;
 const baselineCmd = (process.env.UNBROWSE_BIN_BASELINE || "").trim();
+const candidateUrl = process.env.UNBROWSE_URL_CANDIDATE || DEFAULT_CANDIDATE_URL;
+const baselineUrl = process.env.UNBROWSE_URL_BASELINE || DEFAULT_BASELINE_URL;
 
 function logErr(s: string): void {
   process.stderr.write(`[workbench] ${s}\n`);
 }
 
-logErr(`candidate=${candidateCmd}`);
-logErr(`baseline=${baselineCmd || "(not set; baseline side disabled)"}`);
+logErr(`candidate=${candidateCmd} url=${candidateUrl}`);
+logErr(`baseline=${baselineCmd || "(not set; baseline side disabled)"}${baselineCmd ? ` url=${baselineUrl}` : ""}`);
 
 const candParsed = parseCommand(candidateCmd);
-const candidate = spawnChild(candParsed.command, candParsed.args, {}, "candidate");
+const candidate = spawnChild(
+  candParsed.command,
+  candParsed.args,
+  { UNBROWSE_URL: candidateUrl },
+  "candidate",
+);
 
 let baseline: ReturnType<typeof spawnChild> | null = null;
 if (baselineCmd) {
   try {
     const baseParsed = parseCommand(baselineCmd);
-    baseline = spawnChild(baseParsed.command, baseParsed.args, {}, "baseline");
+    baseline = spawnChild(
+      baseParsed.command,
+      baseParsed.args,
+      { UNBROWSE_URL: baselineUrl },
+      "baseline",
+    );
   } catch (err) {
     logErr(`baseline spawn failed: ${(err as Error).message}`);
     baseline = null;
