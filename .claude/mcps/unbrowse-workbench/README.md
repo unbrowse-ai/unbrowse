@@ -37,9 +37,15 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
 
 The framing should hold even if the children fail to start; you will see a JSON-RPC error response on stdout and child-exit lines on stderr.
 
-## Known limitations (Day-3 status)
+## Known limitations (Day-5 status)
 
-- `_workbench_delta.diff.structural_diff_summary` is the literal string `"TODO"`. Day-4 (Luminaries) replaces it with a real structural diff.
+- `_workbench_delta.diff.structural_diff_summary` now carries real signal (Day 5, `src/delta.ts`). Day-3 placeholder removed.
+  Examples: `"identical"`, `"1 field added: [improvement_suggestion]"`,
+  `"1 field removed: [_legacy_field]"`, `"3 values differ: [count,source,version]"`,
+  `"root keys differ: candidate=[jsonrpc,id,result] baseline=[jsonrpc,id,error]"`,
+  `"candidate side missing (upstream errored)"`. Output is capped at 256 chars;
+  diff walks one level deep, leaving deeper JSON-patch style breakdown to a
+  later Dominion-day extension if the agent reports gaps.
 - No AC1 swap-correctness smoke yet. Days 4-6 wire the bench gate.
 - Shell-style command parsing in `src/spawn.ts:parseCommand` is whitespace-split; quoted args with embedded spaces are not handled. Deferred.
 - Notifications (id-less messages) from children are dropped. Day-4 decides mirroring semantics for progress / log notifications.
