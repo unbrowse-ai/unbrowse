@@ -2,9 +2,18 @@
 node_modules/
 .pnp
 .pnp.js
-.claude/*
-!.claude/mcps/
+# .claude/ tree: ignore root state; whitelist only .claude/mcps/ at the
+# repo root (anchored, so sub-dir .claude/ leftovers stay ignored).
+/.claude/
+!/.claude/mcps/
+!/.claude/mcps/**
+**/.claude/
 .claudeold/
+# Workbench artifacts (developer-local; not shipped)
+.workbench-baseline/
+# Bench-history artifacts (per-run dirs + product-specific JSONL)
+.bench-history/20[0-9]*/
+.bench-history/*-runs.jsonl
 
 # Build outputs
 # Compiled binaries (built by release pipeline, never commit)
