@@ -193,7 +193,10 @@ describe("raceWithDeadline — async-hang regressions", () => {
     expect(r.winner?.name).toBe("fast");
     expect(elapsed).toBeLessThan(150);
     const hang = r.tried.find((t) => t.name === "hang")!;
-    expect(hang.status).toBe("deadline");
+    // Updated 2026-05-15: a hanging racer when another wins is now "cancelled"
+    // (race decided by win, not by deadline). See resolve-race-cancelled-status.test.ts.
+    expect(hang.status).toBe("cancelled");
+    expect(hang.reason).toBe("another_racer_won");
   });
 });
 

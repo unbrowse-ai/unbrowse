@@ -45,11 +45,14 @@ export interface RacerOutcome<T> {
   /**
    *  - "won": this racer's valid result is the returned winner
    *  - "lost": settled but invalid (or threw)
-   *  - "deadline": still in flight when the deadline fired
+   *  - "cancelled": still in flight when another racer won (race was decided
+   *    before the deadline). Distinct from "deadline" so the agent can see
+   *    that this racer was aborted by a win, not by budget exhaustion.
+   *  - "deadline": still in flight when the deadline fired (true timeout)
    */
-  status: "won" | "lost" | "deadline";
+  status: "won" | "lost" | "cancelled" | "deadline";
   ms: number;
-  /** Set on "lost" when the racer threw or returned an invalid shape. */
+  /** Set on "lost" when the racer threw or returned an invalid shape. Set on "cancelled" to identify why ("another_racer_won"). */
   reason?: string;
   /** Set on "won" — the validated result. */
   result?: T;
@@ -89,10 +92,15 @@ export async function raceWithDeadline<T>(
     const finalize = () => {
       if (resolved) return;
       resolved = true;
-      // Abort everything still in flight
+      // Abort everything still in flight. The status differs based on WHY we
+      // are finalizing: a winner means in-flight racers were cancelled (not
+      // timed out); no winner means the deadline elapsed.
+      const decidedByWin = winnerIndex >= 0;
       for (let i = 0; i < racers.length; i++) {
         if (!settled[i]) {
-          outcomes[i] = { ...outcomes[i]!, ms: Date.now() - start };
+          outcomes[i] = decidedByWin
+            ? { ...outcomes[i]!, status: "cancelled", reason: "another_racer_won", ms: Date.now() - start }
+            : { ...outcomes[i]!, ms: Date.now() - start };
           try { racers[i]!.abort?.(); } catch { /* ignore abort failures */ }
         }
       }
