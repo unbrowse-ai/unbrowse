@@ -45,6 +45,54 @@ interface SPAExtraction extends ExtractedStructure {
   type: "spa-nextjs" | "spa-nuxt" | "spa-initial-state" | "spa-preloaded-state";
 }
 
+function extractHtmlMetadataFallback(html: string): Record<string, unknown> | null {
+  // Last-resort extractor that always returns SOMETHING when the main extractor
+  // returns nothing. Pulls title, meta tags, JSON-LD blocks, and the first ~3KB
+  // of textual body content. Used by SSR-but-JS-rendered pages (Threads,
+  // Instagram, BeatSaver, Google Maps) where the main extractor finds no
+  // structures but the page still has metadata the agent can act on.
+  if (!html || html.length < 100) return null;
+  try {
+    const $ = cheerio.load(html);
+    const out: Record<string, unknown> = {};
+    const title = cleanText($("title").first().text() || $('meta[property="og:title"]').attr("content") || "");
+    if (title) out.title = title;
+    const description = cleanText(
+      $('meta[name="description"]').attr("content")
+      || $('meta[property="og:description"]').attr("content")
+      || $('meta[name="twitter:description"]').attr("content")
+      || ""
+    );
+    if (description) out.description = description;
+    const url = cleanText($('link[rel="canonical"]').attr("href") || $('meta[property="og:url"]').attr("content") || "");
+    if (url) out.url = url;
+    const image = cleanText($('meta[property="og:image"]').attr("content") || $('meta[name="twitter:image"]').attr("content") || "");
+    if (image) out.image = image;
+    const siteName = cleanText($('meta[property="og:site_name"]').attr("content") || "");
+    if (siteName) out.site_name = siteName;
+    const jsonLdBlocks: unknown[] = [];
+    $('script[type="application/ld+json"]').each((_, el) => {
+      const raw = $(el).html();
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") jsonLdBlocks.push(parsed);
+      } catch { /* skip malformed */ }
+    });
+    if (jsonLdBlocks.length > 0) out.json_ld = jsonLdBlocks;
+    const headings: string[] = [];
+    $("h1, h2").each((_, el) => {
+      const text = cleanText($(el).text());
+      if (text && text.length >= 4 && text.length <= 200 && headings.length < 12) headings.push(text);
+    });
+    if (headings.length > 0) out.headings = headings;
+    if (Object.keys(out).length === 0) return null;
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 function extractFlashNoticeSpecial(html: string, intent: string): ExtractedStructure[] {
   if (!/\b(flash|message|messages|alert|success|error|warning)\b/i.test(intent)) return [];
   const $ = cheerio.load(html);
@@ -1942,6 +1990,10 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {
+    const fallback = extractHtmlMetadataFallback(html);
+    if (fallback) {
+      return { data: fallback, extraction_method: "html_metadata_fallback", confidence: 0.4 };
+    }
     return { data: null, extraction_method: "none", confidence: 0 };
   }
 
