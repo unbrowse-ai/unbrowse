@@ -60,6 +60,7 @@ import {
   sanitizeRoutingEventBatch,
 } from "../routing-telemetry.js";
 import { runResolveRace } from "./resolve-race.js";
+import { buildNoMatchNextStep } from "./no-match-next-step.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
@@ -3647,16 +3648,18 @@ export async function resolveAndExecute(
         completed_at: new Date().toISOString(),
         success: false,
       };
+      const probeEvidence = { status: w.status, content_type: w.content_type, byte_length: w.byte_length };
+      const probeNextStep = buildNoMatchNextStep({
+        contextUrl: raceContextUrl,
+        intent,
+        probeEvidence,
+      });
       const probeResult = {
         status: "no_match" as const,
         tried: raceOutcome.tried.map((t) => t.name),
         ms: raceOutcome.ms,
-        probe_evidence: { status: w.status, content_type: w.content_type, byte_length: w.byte_length },
-        next_step: {
-          command: `unbrowse capture --url ${JSON.stringify(raceContextUrl)} --intent ${JSON.stringify(intent)}`,
-          est_ms: 8000,
-          creates_skill: true,
-        },
+        probe_evidence: probeEvidence,
+        next_step: probeNextStep,
         decision_trace: decisionTrace,
       };
       return {
@@ -3681,11 +3684,11 @@ export async function resolveAndExecute(
       status: "no_match" as const,
       tried: raceOutcome.tried.map((t) => t.name),
       ms: raceOutcome.ms,
-      next_step: {
-        command: `unbrowse capture --url ${JSON.stringify(raceContextUrl)} --intent ${JSON.stringify(intent)}`,
-        est_ms: 8000,
-        creates_skill: true,
-      },
+      next_step: buildNoMatchNextStep({
+        contextUrl: raceContextUrl,
+        intent,
+        probeEvidence: undefined,
+      }),
       decision_trace: decisionTrace,
     };
     return {
