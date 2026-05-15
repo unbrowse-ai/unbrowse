@@ -72,7 +72,9 @@
     "bench:gate:full": "bash scripts/bench-gate-full.sh",
     "bench:corpus:validate": "bun scripts/bench-corpus.ts validate",
     "bench:corpus:add": "bun scripts/bench-corpus.ts add",
-    "bench:improve:triage": "bun scripts/bench-improve-triage.ts"
+    "bench:improve:triage": "bun scripts/bench-improve-triage.ts",
+    "bench:history:record": "bun scripts/bench-history-record.ts",
+    "bench:history:release-notes": "bun scripts/bench-history-release-notes.ts"
   },
   "dependencies": {
     "@cascade-fyi/splits-sdk": "^0.11.1",

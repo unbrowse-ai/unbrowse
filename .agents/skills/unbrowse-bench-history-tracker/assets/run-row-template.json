@@ -1,0 +1,30 @@
+{
+  "run_id": "20260515T053816Z",
+  "ts": "2026-05-15T05:38:16Z",
+  "git_sha": "1e1996e3",
+  "cli_version": "6.17.0-preview.4",
+  "index_pass": 20,
+  "index_total": 43,
+  "index_coverage": 0.465,
+  "retrieve_pass": 18,
+  "retrieve_total": 43,
+  "retrieve_coverage": 0.419,
+  "anchor_pass": 11,
+  "anchor_total": 11,
+  "by_lane": {
+    "anchor": {"index_pass": 11, "index_total": 11, "retrieve_pass": 11, "retrieve_total": 11},
+    "semantic-rank": {"index_pass": 6, "index_total": 7, "retrieve_pass": 4, "retrieve_total": 7},
+    "graphql": {"index_pass": 0, "index_total": 6, "retrieve_pass": 0, "retrieve_total": 6},
+    "ssr-list": {"index_pass": 2, "index_total": 8, "retrieve_pass": 2, "retrieve_total": 8},
+    "auth-gated": {"index_pass": 0, "index_total": 0, "retrieve_pass": 0, "retrieve_total": 0},
+    "hostile": {"index_pass": 1, "index_total": 11, "retrieve_pass": 1, "retrieve_total": 11}
+  },
+  "hostile_suspicious_probes": ["055_hostile_https___www_espn_com_nba_scoreboard"],
+  "new_passes": [],
+  "new_fails": [],
+  "new_excluded": [],
+  "comment": "DOM extraction fallback + detail-intent rank clamp",
+  "commit_subject": "fix: HTML metadata fallback when DOM extraction empty",
+  "corpus_size": 58,
+  "gate_passed": false
+}
