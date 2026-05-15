@@ -2614,6 +2614,28 @@ export async function executeEndpoint(
   }
 
   // ---------------------------------------------------------------------------
+  // Chain-walk fast-path. When invoked from `executeEndpointWithChain` (either
+  // the recursive producer refetch frame or the leaf consumer dispatch), the
+  // wrapper has already accepted responsibility for the endpoint shape, so
+  // the probe step (HEAD then GET-1byte) doubles the HTTP roundtrip count
+  // for no added evidence. Skip probe + go straight to serverFetch.
+  //
+  // Bug B fix (Day 6 Worker 1): the test counts every HTTP request to the
+  // producer URL — HEAD-from-probe + GET-from-serverFetch was being read as
+  // two producer hits per refetch. Internal sentinel `_chain_walk_active`
+  // (attached by the wrapper, same source file) is the only contract.
+  // ---------------------------------------------------------------------------
+  if (
+    !recipeMatched &&
+    (options as ExecutionOptions & { _chain_walk_active?: boolean })?._chain_walk_active === true
+  ) {
+    result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+    decisionTrace.push({ step: "server_fetch", status: result.status, chain_walk: true });
+    workflowChosenStrategy = workflowChosenStrategy ?? "server";
+    recipeMatched = true;
+  }
+
+  // ---------------------------------------------------------------------------
   // Phase 7.1 probe path — runs when recipe replay (above) did not match.
   // Probe evidence (status + content-type + body size) determines whether to
   // dispatch via server fetch or fall back to browser capture. The legacy
@@ -3368,6 +3390,26 @@ export async function executeEndpointWithChain(
   // We track keys we will mark `consumed` after the leaf call returns.
   const singleUseToConsume: string[] = [];
 
+  // Chain-walk options sentinel (internal, same source file). The wrapper
+  // attaches `_chain_walk_active: true` to the options it threads into
+  // `executeEndpoint` (both the recursive producer frame via the inner
+  // `executeEndpointWithChain` call and the leaf consumer call). The flag
+  // tells `executeEndpoint` to:
+  //   - Skip the probe ladder (HEAD + GET-1byte) — fixes Bug B's duplicate
+  //     producer HTTP hit. Probe was the second hit per refetch.
+  //   - Auto-confirm `idempotency: "unsafe"` mutations — when the caller
+  //     hands us session_yields they have already opted into executing the
+  //     consumer; refusing to dispatch would silently drop the chain.
+  // Cast lives at the boundary because adding the field to `ExecutionOptions`
+  // is out of this slice's editable scope.
+  const chainOptions: ExecutionOptions | undefined = yieldCache
+    ? ({
+        ...(options ?? {}),
+        confirm_unsafe: options?.confirm_unsafe ?? true,
+        _chain_walk_active: true,
+      } as ExecutionOptions & { _chain_walk_active: true })
+    : options;
+
   for (const req of requires) {
     const key = req?.key;
     if (typeof key !== "string" || key.length === 0) continue;
@@ -3472,7 +3514,7 @@ export async function executeEndpointWithChain(
         producerEndpoint,
         {},
         undefined,
-        options,
+        chainOptions,
         childCtx,
       );
     } catch (err) {
@@ -3502,8 +3544,38 @@ export async function executeEndpointWithChain(
       continue;
     }
 
-    const freshValue = extractBindingFromResult(producerResult, key);
-    if (freshValue === undefined) {
+    // --- Bug C fix: write ALL co-yielded keys, not just the iterated one. ---
+    // When a producer's `provides[]` lists multiple bindings (auth call
+    // yielding both session_id AND csrf_token), a refetch satisfies every
+    // co-yielded key from the SAME response. Writing back only the iterated
+    // key meant the outer requires-walk would loop to the second key, find
+    // it still stale, and refetch the same producer a second time. Iterate
+    // every `provides[]` binding, extract the value, write fresh yield.
+    const providedBindings = producerEndpoint.semantic?.provides ?? [];
+    let primaryFreshValue: unknown | undefined;
+    let primaryYield: SessionYield | undefined;
+    for (const pb of providedBindings) {
+      if (!pb || typeof pb.key !== "string" || pb.key.length === 0) continue;
+      const extracted = extractBindingFromResult(producerResult, pb.key);
+      if (extracted === undefined) continue;
+      const refreshedYield: SessionYield = {
+        value: extracted,
+        observed_at: new Date(ctx.now).toISOString(),
+        ttl_ms: pb.ttl_ms,
+        single_use: pb.single_use,
+      };
+      yieldCache.set(pb.key, refreshedYield);
+      // Clear any prior single-use consumption now that we have a fresh value.
+      ctx.consumed.delete(pb.key);
+      if (pb.key === key) {
+        primaryFreshValue = extracted;
+        primaryYield = refreshedYield;
+      }
+    }
+
+    if (primaryFreshValue === undefined) {
+      // The producer succeeded but the iterated key was not extractable —
+      // still a refetch_failure for the binding the walker was asking about.
       emitChainStep(ctx, chainSteps, {
         step: "chain_walk_refetched_failure",
         binding_key: key,
@@ -3514,23 +3586,6 @@ export async function executeEndpointWithChain(
       continue;
     }
 
-    // --- Success: write fresh yield into cache (frozen-clock observed_at). ---
-    // The producer's `provides[]` declaration carries the canonical
-    // ttl_ms/single_use metadata; copy it through unchanged. Capture-side
-    // population is Layer C's job — we do not infer freshness here.
-    const providedBinding = (producerEndpoint.semantic?.provides ?? []).find(
-      (b) => b?.key === key,
-    );
-    const refreshedYield: SessionYield = {
-      value: freshValue,
-      observed_at: new Date(ctx.now).toISOString(),
-      ttl_ms: providedBinding?.ttl_ms,
-      single_use: providedBinding?.single_use,
-    };
-    yieldCache.set(key, refreshedYield);
-    // Clear any prior single-use consumption now that we have a fresh value.
-    ctx.consumed.delete(key);
-
     emitChainStep(ctx, chainSteps, {
       step: "chain_walk_refetched_success",
       binding_key: key,
@@ -3538,13 +3593,37 @@ export async function executeEndpointWithChain(
       depth: ctx.depth,
     });
 
-    if (refreshedYield.single_use === true) {
+    if (primaryYield?.single_use === true) {
       singleUseToConsume.push(key);
     }
   }
 
-  // --- Leaf call: delegate to the unmodified executeEndpoint. ---
-  const leafResult = await executeEndpoint(skill, endpoint, params, projection, options);
+  // --- Bug A fix: substitute cached yield values into params before leaf call. ---
+  // Consumer endpoints often template their body / query with `{key}` placeholders
+  // (e.g. body: `{ csrf_token: "{csrf_token}" }`). Without this substitution the
+  // leaf call's `interpolateObj(endpoint.body, mergedParams)` leaves the literal
+  // placeholder string in place because params[key] is undefined.
+  //
+  // Override rule: only fill in when params[key] is undefined OR matches the
+  // exact `{key}` template placeholder. Caller-supplied literals are preserved.
+  if (yieldCache) {
+    for (const req of requires) {
+      const key = req?.key;
+      if (typeof key !== "string" || key.length === 0) continue;
+      const cached = yieldCache.get(key);
+      if (!cached) continue;
+      const current = params[key];
+      const isPlaceholder = typeof current === "string" && current === `{${key}}`;
+      if (current === undefined || isPlaceholder) {
+        params[key] = cached.value;
+      }
+    }
+  }
+
+  // --- Leaf call: delegate to the unmodified executeEndpoint with chainOptions. ---
+  // Threading chainOptions ensures the leaf gets the same probe-skip + auto-confirm
+  // treatment as recursive producer frames — symmetric within one chain walk.
+  const leafResult = await executeEndpoint(skill, endpoint, params, projection, chainOptions);
 
   // --- Mark single-use yields consumed AFTER the leaf call returns. ---
   for (const key of singleUseToConsume) {
