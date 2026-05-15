@@ -990,6 +990,43 @@ function extractPostSpecial(html: string, intent: string): ExtractedStructure[] 
   return posts.length >= 1 ? [{ type: "repeated-elements", data: posts.slice(0, 20), element_count: posts.length }] : [];
 }
 
+function extractDevToPostSpecial(html: string, intent: string): ExtractedStructure[] {
+  const intentLower = intent.toLowerCase();
+  if (!/(devto|dev\.to|post|posts|article|articles)/.test(intentLower)) return [];
+  if (!/dev\.to|crayons-story|data-content-user-id/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const seen = new Set<string>();
+  const posts: Record<string, string>[] = [];
+
+  $("article.crayons-story, .crayons-story, [data-content-user-id]").each((_, el) => {
+    const $el = $(el);
+    const titleLink = $el.find("h2 a[href], h3 a[href], a[href*='/'][href]").filter((__, a) => {
+      const href = ($(a).attr("href") ?? "").split("?")[0];
+      return /^\/[^/\s]+\/[^/\s]+/.test(href) && !/^\/(?:signin|login|enter|settings|search|tags|new|notifications)\b/i.test(href);
+    }).first();
+    const href = (titleLink.attr("href") ?? "").split("?")[0];
+    const title = cleanText(titleLink.text());
+    if (!href || !title || title.length < 6 || seen.has(href)) return;
+    const description = cleanText($el.find("p, .crayons-story__snippet, [class*='snippet']").first().text());
+    const author = cleanText($el.find("[class*='user-name'], [class*='author'], .crayons-story__secondary").first().text());
+    const date = cleanText($el.find("time").first().text() || $el.find("[datetime]").first().attr("datetime") || "");
+    const tags = $el.find("a[href^='/t/']").map((__, a) => cleanText($(a).text()).replace(/^#/, "")).get().filter(Boolean).slice(0, 8);
+    const row: Record<string, string> = {
+      title,
+      url: href.startsWith("http") ? href : `https://dev.to${href}`,
+      link: href,
+    };
+    if (description && description !== title) row.description = description;
+    if (author && author.length < 120) row.author = author;
+    if (date) row.date = date;
+    if (tags.length > 0) row.tags = tags.join(", ");
+    posts.push(row);
+    seen.add(href);
+  });
+
+  return posts.length >= 1 ? [{ type: "repeated-elements", data: posts.slice(0, 20), element_count: posts.length }] : [];
+}
+
 function extractDefinitionSpecial(html: string, intent: string): ExtractedStructure[] {
   const intentLower = intent.toLowerCase();
   if (!/(definition|dictionary|meaning)/.test(intentLower)) return [];
@@ -1891,6 +1928,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const packageSearchStructures = extractPackageSearchSpecial(workingHtml, intent);
   const xProfileStructures = extractXProfileSpecial(workingHtml, intent);
   const postStructures = extractPostSpecial(workingHtml, intent);
+  const devToPostStructures = extractDevToPostSpecial(workingHtml, intent);
   const trendStructures = extractTrendSpecial(workingHtml, intent);
   const definitionStructures = extractDefinitionSpecial(workingHtml, intent);
   const packageDetailStructures = extractPackageDetailSpecial(workingHtml, intent);
@@ -1900,7 +1938,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   // wikipedia mw-parser-output marker survives even on giant pages with massive
   // reference sections that would otherwise push it past the cap.
   const articleStructures = extractArticleBodySpecial(html.length > 600_000 ? html.slice(0, 600_000) : html, intent);
-  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...devToPostStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {

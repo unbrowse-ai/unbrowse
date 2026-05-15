@@ -207,6 +207,34 @@ describe("special HTML extraction", () => {
     expect((extracted.data as Array<Record<string, string>>)[0]?.author).toBe("beto");
   });
 
+  it("extracts dev.to article cards instead of author profile cards", () => {
+    const html = `
+      <html><body>
+        <main>
+          <div class="profile-preview-card">
+            <a href="/anthropic">Alexey</a>
+            <img src="/profile.jpg" />
+          </div>
+          <article class="crayons-story" data-content-user-id="42">
+            <h2><a href="/anthropic/context-management-with-the-anthropic-api-51c9">Context management with the Anthropic API</a></h2>
+            <div class="crayons-story__secondary">Anthropic</div>
+            <time datetime="2026-05-10T00:00:00Z">May 10</time>
+            <a href="/t/ai">#ai</a>
+          </article>
+          <article class="crayons-story" data-content-user-id="43">
+            <h2><a href="/anthropic/building-agents-with-tools-2h8g">Building agents with tools</a></h2>
+            <div class="crayons-story__secondary">Anthropic</div>
+          </article>
+        </main>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(html, "get devto post");
+    expect(extracted.extraction_method).toBe("repeated-elements");
+    expect((extracted.data as Array<Record<string, string>>)[0]?.title).toContain("Context management");
+    expect((extracted.data as Array<Record<string, string>>)[0]?.url).toContain("dev.to/anthropic/context-management");
+  });
+
   it("extracts lobsters-style story links from /s/ urls", () => {
     const html = `
       <html><body>

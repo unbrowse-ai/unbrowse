@@ -501,8 +501,11 @@ function buildSampleRequestFromUrl(url: string): Record<string, unknown> {
 }
 
 function looksLikeApiUrl(url: string): boolean {
-  return /\/api\/|graphql|\/rest\/|\/rpc\/|voyager|\/v\d+(?:\/|$)/i.test(url)
-    || /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge)\./i.test((() => {
+  return /\/api\/|graphql|\/rest\/|\/rpc\/|voyager|\/v\d+(?:\/|$)|\/\d+\.\d+\/|\.json(?:\?|$)/i.test(url)
+    || /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|quote-api)\./i.test((() => {
+      try { return new URL(url).hostname; } catch { return ""; }
+    })())
+    || /\.api\./i.test((() => {
       try { return new URL(url).hostname; } catch { return ""; }
     })());
 }
@@ -656,6 +659,282 @@ function derivePublicApiEndpointsFromUrl(
 ): EndpointDescriptor[] {
   try {
     const u = new URL(url);
+    const publicEndpoint = (input: {
+      method?: "GET";
+      urlTemplate: string;
+      query?: Record<string, string>;
+      path_params?: Record<string, string>;
+      description: string;
+      reliability_score?: number;
+      response_schema: Record<string, unknown>;
+      action_kind: string;
+      resource_kind: string;
+      description_out: string;
+      example_fields: string[];
+      provides?: Array<{ key: string; semantic_type: string; source: string }>;
+    }): EndpointDescriptor => ({
+      endpoint_id: stableEndpointId(input.method ?? "GET", input.urlTemplate),
+      method: input.method ?? "GET",
+      url_template: input.urlTemplate,
+      ...(input.query ? { query: input.query } : {}),
+      ...(input.path_params ? { path_params: input.path_params } : {}),
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: input.reliability_score ?? 0.85,
+      description: input.description,
+      response_schema: input.response_schema,
+      trigger_url: url,
+      semantic: {
+        action_kind: input.action_kind,
+        resource_kind: input.resource_kind,
+        ...(authRequired ? { auth_required: true } : {}),
+        description_in: "Public read-only API endpoint derived from the requested URL",
+        description_out: input.description_out,
+        example_request: { ...(input.path_params ?? {}), ...(input.query ?? {}) },
+        example_fields: input.example_fields,
+        provides: input.provides ?? [],
+      },
+    });
+
+    if (u.hostname === "crates.io" && u.pathname === "/search" && /\b(crate|crates|rust|package|packages|search)\b/i.test(intent)) {
+      const q = u.searchParams.get("q") || "";
+      if (q) {
+        const urlTemplate = "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}";
+        const endpoint: EndpointDescriptor = {
+          endpoint_id: stableEndpointId("GET", urlTemplate),
+          method: "GET",
+          url_template: urlTemplate,
+          query: { page: "1", per_page: "10", sort: "relevance", q },
+          idempotency: "safe",
+          verification_status: "verified",
+          reliability_score: 0.9,
+          description: `Public crates.io search API for ${q}`,
+          response_schema: {
+            type: "object",
+            properties: {
+              crates: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    name: { type: "string" },
+                    description: { type: "string" },
+                    downloads: { type: "number" },
+                    repository: { type: "string" },
+                  },
+                },
+              },
+              meta: { type: "object" },
+            },
+          },
+          trigger_url: url,
+          semantic: {
+            action_kind: "search",
+            resource_kind: "crate",
+            ...(authRequired ? { auth_required: true } : {}),
+            description_in: "Requires page, per_page, sort, q",
+            description_out: `Searches crates.io crates for ${q}`,
+            example_request: { page: "1", per_page: "10", sort: "relevance", q },
+            example_fields: ["crates[].id", "crates[].name", "crates[].description", "crates[].downloads", "meta.total"],
+            requires: [
+              { key: "page", required: false, source: "query", semantic_type: "input" },
+              { key: "per_page", required: false, source: "query", semantic_type: "input" },
+              { key: "sort", required: false, source: "query", semantic_type: "input" },
+              { key: "q", required: false, source: "query", semantic_type: "input" },
+            ],
+            provides: [
+              { key: "crate_name", semantic_type: "resource_name", source: "response" },
+              { key: "crate_id", semantic_type: "resource_identifier", source: "response" },
+            ],
+          },
+        };
+        return [endpoint];
+      }
+    }
+    const stackQuestion = u.hostname === "stackoverflow.com"
+      ? u.pathname.match(/^\/questions\/(\d+)(?:\/|$)/)
+      : null;
+    if (stackQuestion && /\b(stack ?overflow|question|answer|answers)\b/i.test(intent)) {
+      const question_id = stackQuestion[1];
+      const urlTemplate = `https://api.stackexchange.com/2.3/questions/${question_id}?order={order}&sort={sort}&site={site}&filter={filter}`;
+      return [publicEndpoint({
+        urlTemplate,
+        path_params: { question_id },
+        query: { order: "desc", sort: "activity", site: "stackoverflow", filter: "withbody" },
+        description: `Public Stack Exchange question API for ${question_id}`,
+        reliability_score: 0.9,
+        response_schema: {
+          type: "object",
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  question_id: { type: "number" },
+                  title: { type: "string" },
+                  body: { type: "string" },
+                  link: { type: "string" },
+                  tags: { type: "array" },
+                  answer_count: { type: "number" },
+                },
+              },
+            },
+          },
+        },
+        action_kind: "fetch",
+        resource_kind: "question",
+        description_out: `Returns StackOverflow question ${question_id} with title, body, tags, and answer counts`,
+        example_fields: ["items[].question_id", "items[].title", "items[].body", "items[].link", "items[].answer_count"],
+        provides: [
+          { key: "question_id", semantic_type: "resource_identifier", source: "response" },
+          { key: "question_title", semantic_type: "resource_name", source: "response" },
+        ],
+      })];
+    }
+    const openLibraryWork = u.hostname === "openlibrary.org"
+      ? u.pathname.match(/^\/works\/([^/?#]+)/)
+      : null;
+    if (openLibraryWork && /\b(openlibrary|work|book|author|description)\b/i.test(intent)) {
+      const work_id = decodeURIComponent(openLibraryWork[1]).replace(/\.json$/i, "");
+      const urlTemplate = `https://openlibrary.org/works/${work_id}.json`;
+      return [publicEndpoint({
+        urlTemplate,
+        path_params: { work_id },
+        description: `Public OpenLibrary work API for ${work_id}`,
+        reliability_score: 0.9,
+        response_schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: {},
+            subjects: { type: "array" },
+            authors: { type: "array" },
+            first_publish_date: { type: "string" },
+            key: { type: "string" },
+          },
+        },
+        action_kind: "fetch",
+        resource_kind: "book",
+        description_out: `Returns OpenLibrary work metadata for ${work_id}`,
+        example_fields: ["title", "description", "subjects", "authors[].author.key", "first_publish_date"],
+        provides: [
+          { key: "work_id", semantic_type: "resource_identifier", source: "response" },
+          { key: "title", semantic_type: "resource_name", source: "response" },
+        ],
+      })];
+    }
+    if (u.hostname === "beatsaver.com" && /\b(beatsaver|beat saber|maps?|search)\b/i.test(intent)) {
+      const q = u.searchParams.get("q") || "";
+      if (q) {
+        const urlTemplate = "https://api.beatsaver.com/search/text/0?q={q}";
+        return [publicEndpoint({
+          urlTemplate,
+          path_params: { page: "0" },
+          query: { q },
+          description: `Public BeatSaver text search API for ${q}`,
+          response_schema: {
+            type: "object",
+            properties: {
+              docs: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    name: { type: "string" },
+                    description: { type: "string" },
+                    uploader: { type: "object" },
+                    stats: { type: "object" },
+                  },
+                },
+              },
+            },
+          },
+          action_kind: "search",
+          resource_kind: "map",
+          description_out: `Searches BeatSaver maps for ${q}`,
+          example_fields: ["docs[].id", "docs[].name", "docs[].description", "docs[].uploader.name", "docs[].stats.downloads"],
+          provides: [
+            { key: "map_id", semantic_type: "resource_identifier", source: "response" },
+            { key: "map_name", semantic_type: "resource_name", source: "response" },
+          ],
+        })];
+      }
+    }
+    const jupiterSwap = u.hostname === "jup.ag"
+      ? u.pathname.match(/^\/swap\/([A-Za-z0-9]+)-([A-Za-z0-9]+)/)
+      : null;
+    if (jupiterSwap && /\b(jupiter|jup|swap|quote|price)\b/i.test(intent)) {
+      const mintBySymbol: Record<string, string> = {
+        SOL: "So11111111111111111111111111111111111111112",
+        USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        USDT: "Es9vMFrzaCERmJfrF4H2FYD4T2nJw6T5ShZMQ4tXoFd",
+      };
+      const inputSymbol = jupiterSwap[1].toUpperCase();
+      const outputSymbol = jupiterSwap[2].toUpperCase();
+      const inputMint = mintBySymbol[inputSymbol];
+      const outputMint = mintBySymbol[outputSymbol];
+      if (inputMint && outputMint) {
+        const urlTemplate = "https://api.jup.ag/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amount}";
+        return [publicEndpoint({
+          urlTemplate,
+          query: { inputMint, outputMint, amount: "1000000000" },
+          description: `Public Jupiter quote API for ${inputSymbol}-${outputSymbol}`,
+          response_schema: {
+            type: "object",
+            properties: {
+              inputMint: { type: "string" },
+              outputMint: { type: "string" },
+              inAmount: { type: "string" },
+              outAmount: { type: "string" },
+              routePlan: { type: "array" },
+            },
+          },
+          action_kind: "fetch",
+          resource_kind: "quote",
+          description_out: `Returns Jupiter swap quote from ${inputSymbol} to ${outputSymbol}`,
+          example_fields: ["inputMint", "outputMint", "inAmount", "outAmount", "routePlan[].swapInfo.label"],
+          provides: [
+            { key: "outAmount", semantic_type: "price_or_quote", source: "response" },
+          ],
+        })];
+      }
+    }
+    if (u.hostname === "www.espn.com" && /^\/nba\/scoreboard\/?$/i.test(u.pathname) && /\b(scoreboard|nba|scores?|games?)\b/i.test(intent)) {
+      const urlTemplate = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard";
+      return [publicEndpoint({
+        urlTemplate,
+        description: "Public ESPN NBA scoreboard API",
+        reliability_score: 0.9,
+        response_schema: {
+          type: "object",
+          properties: {
+            events: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  date: { type: "string" },
+                  competitions: { type: "array" },
+                  status: { type: "object" },
+                },
+              },
+            },
+          },
+        },
+        action_kind: "list",
+        resource_kind: "game",
+        description_out: "Returns NBA scoreboard events, competitors, status, and scores",
+        example_fields: ["events[].name", "events[].date", "events[].competitions[].competitors[].score", "events[].status.type.description"],
+        provides: [
+          { key: "game_name", semantic_type: "resource_name", source: "response" },
+          { key: "score", semantic_type: "score", source: "response" },
+        ],
+      })];
+    }
     const dockerMatch = u.hostname === "hub.docker.com"
       ? u.pathname.match(/^\/r\/([^/]+)\/([^/]+)\/tags\/?$/)
       : null;
@@ -714,6 +993,56 @@ function derivePublicApiEndpointsFromUrl(
       };
       return [endpoint];
     }
+    const devToUser = u.hostname === "dev.to"
+      ? u.pathname.match(/^\/([^/?#]+)\/?$/)
+      : null;
+    if (devToUser && /\b(devto|dev\.to|post|posts|article|articles)\b/i.test(intent)) {
+      const username = decodeURIComponent(devToUser[1]);
+      if (!/^(enter|signin|login|search|tags|new|settings|notifications)$/i.test(username)) {
+        const urlTemplate = "https://dev.to/api/articles?username={username}";
+        const endpoint: EndpointDescriptor = {
+          endpoint_id: stableEndpointId("GET", urlTemplate),
+          method: "GET",
+          url_template: urlTemplate,
+          query: { username },
+          idempotency: "safe",
+          verification_status: "verified",
+          reliability_score: 0.85,
+          description: `Public DEV articles API for ${username}`,
+          response_schema: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                url: { type: "string" },
+                description: { type: "string" },
+                published_at: { type: "string" },
+                tag_list: { type: "array" },
+              },
+            },
+          },
+          trigger_url: url,
+          semantic: {
+            action_kind: "list",
+            resource_kind: "post",
+            ...(authRequired ? { auth_required: true } : {}),
+            description_in: "Requires username",
+            description_out: `Returns DEV articles for ${username}`,
+            example_request: { username },
+            example_fields: ["[].title", "[].url", "[].description", "[].published_at", "[].tag_list"],
+            requires: [
+              { key: "username", required: false, source: "query", semantic_type: "input" },
+            ],
+            provides: [
+              { key: "post_title", semantic_type: "post_title", source: "response" },
+              { key: "post_url", semantic_type: "post_url", source: "response" },
+            ],
+          },
+        };
+        return [endpoint];
+      }
+    }
   } catch {
     return [];
   }
@@ -721,7 +1050,14 @@ function derivePublicApiEndpointsFromUrl(
 }
 
 export function isPageFetchEndpoint(ep: EndpointDescriptor): boolean {
-  return ep.dom_extraction?.extraction_method === "page_fetch";
+  if (ep.dom_extraction?.extraction_method === "page_fetch") return true;
+  const schema = ep.response_schema as Record<string, unknown> | undefined;
+  const description = ep.description ?? "";
+  if (ep.dom_extraction && /rendered (?:html|page)|fetches the rendered page|returns the rendered html/i.test(description)) return true;
+  return !!ep.dom_extraction
+    && schema?.type === "string"
+    && schema?.format === "html"
+    && /rendered (?:html|page)|fetches the rendered page|returns the rendered html/i.test(description);
 }
 
 async function trySeedPublicDocumentFetchSkill(
@@ -733,6 +1069,54 @@ async function trySeedPublicDocumentFetchSkill(
   cookies: Array<{ name: string; value: string; domain: string }> | undefined,
   usedStoredAuth: boolean,
 ): Promise<ExecutionResult | undefined> {
+  const directPublicEndpoints = derivePublicApiEndpointsFromUrl(url, intent, usedStoredAuth);
+  if (directPublicEndpoints.length > 0) {
+    const domain = getRegistrableDomain(targetDomain);
+    const existingSkill = findExistingSkillForDomain(domain, intent);
+    const localEndpoints = await prepareLearnedEndpoints(
+      existingSkill ? mergeEndpoints(existingSkill.endpoints, directPublicEndpoints) : directPublicEndpoints,
+      intent,
+      domain,
+    );
+    const localDraft: SkillManifest = {
+      skill_id: existingSkill?.skill_id ?? nanoid(),
+      version: "1.0.0",
+      schema_version: "1",
+      lifecycle: "active" as const,
+      execution_type: "http" as const,
+      created_at: existingSkill?.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      name: domain,
+      intent_signature: intent,
+      domain,
+      description: `API skill for ${domain}`,
+      owner_type: "agent" as const,
+      endpoints: localEndpoints,
+      operation_graph: buildSkillOperationGraph(localEndpoints),
+      intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
+      ...(usedStoredAuth ? { auth_profile_ref: `${domain}-session` } : {}),
+    };
+    try { cachePublishedSkill(localDraft); } catch { /* best-effort */ }
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: nanoid(),
+      skill_id: localDraft.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      success: true,
+      result: {
+        learned_skill_id: localDraft.skill_id,
+        endpoints_discovered: localEndpoints.length,
+        seeded_from: "public_api_template",
+      },
+    });
+    return {
+      trace,
+      result: trace.result,
+      learned_skill: localDraft,
+    };
+  }
+
   const headers: Record<string, string> = {
     accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "user-agent": DEFAULT_BROWSER_UA,
@@ -826,10 +1210,11 @@ async function trySeedPublicDocumentFetchSkill(
 
   const domain = getRegistrableDomain(targetDomain);
   const existingSkill = findExistingSkillForDomain(domain, intent);
+  const publicApiEndpoints = derivePublicApiEndpointsFromUrl(response.url || url, intent, usedStoredAuth);
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill
-      ? mergeEndpoints(existingSkill.endpoints, [built.endpoint])
-      : [built.endpoint],
+      ? mergeEndpoints(existingSkill.endpoints, [...publicApiEndpoints, built.endpoint])
+      : [...publicApiEndpoints, built.endpoint],
     intent,
     domain,
   );
@@ -900,12 +1285,12 @@ async function trySeedPublicDocumentFetchSkill(
     endpoint_id: "browser-capture",
     started_at: new Date().toISOString(),
     completed_at: new Date().toISOString(),
-    success: true,
-    result: {
-      learned_skill_id: learned.skill_id,
-      endpoints_discovered: 1,
-      seeded_from: "document_fetch",
-    },
+      success: true,
+      result: {
+        learned_skill_id: learned.skill_id,
+        endpoints_discovered: localEndpoints.length,
+        seeded_from: "document_fetch",
+      },
   });
   return {
     trace,
@@ -4440,7 +4825,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // comparison is meaningless — different services have different path conventions.
       const sameHost = contextHost !== "" && hostname === contextHost;
       const isGenericApiRoot = /^\/?(graphql|api|rest|rpc|gql)\/?$/i.test(pathname);
-      if (sameHost && !isGenericApiRoot) {
+      if (sameHost && !isGenericApiRoot && !looksLikeApiUrl(ep.url_template)) {
         const compareLen = Math.min(contextSegs.length, endpointSegs.length);
         let concreteMismatches = 0;
         for (let si = 0; si < compareLen; si++) {
@@ -4586,6 +4971,27 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       if (/(sidebar|recommend|recommendations|usersbyrestids|user details|profile|profiles|followers|following|people|spotlight)/i.test(contentHaystack)) score -= 140;
       if (isCapturedPageArtifact && hasStructuredApiSibling) score -= 320;
       else if (looksLikeDocumentRoute && hasStructuredApiSibling) score -= 200;
+    }
+    if (intent && /\b(post|posts|article|articles)\b/i.test(intent)) {
+      const articleHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})}`.toLowerCase();
+      if (looksLikeApiEndpoint && !ep.dom_extraction && /(articles?|posts?).*(title|url|published|description)|title.*(articles?|posts?)/i.test(articleHaystack)) {
+        score += 180;
+      }
+      if (isCapturedPageArtifact && hasStructuredApiInCorpus) {
+        score -= 320;
+      }
+      if (isCapturedPageArtifact && /(profile|profiles|avatar|follow|user details|spotlight)/i.test(articleHaystack)) {
+        score -= 180;
+      }
+    }
+    if (intent && /\b(question|answers?|work|book|scoreboard|scores?|games?|quote|stats?)\b/i.test(intent)) {
+      const detailHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})}`.toLowerCase();
+      if (looksLikeApiEndpoint && !ep.dom_extraction && /(questions?|answers?|works?|books?|events?|competitions?|scores?|quote|price|stats?)/i.test(detailHaystack)) {
+        score += 900;
+      }
+      if (isCapturedPageArtifact && hasStructuredApiInCorpus) {
+        score -= 900;
+      }
     }
 
     const requestHint = JSON.stringify(semantic.example_request ?? {}).toLowerCase();
@@ -4745,7 +5151,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       const SHARED_PATH_TOKENS = new Set([
         "api", "v1", "v2", "v3", "graphql", "rest", "rpc", "data", "json", "xml",
         "search", "list", "get", "post", "fetch", "query", "users", "user",
-        "items", "item", "posts", "post", "feed", "home", "hot", "top", "new", "best", "rising",
+        "items", "item", "posts", "post", "articles", "article", "feed", "home", "hot", "top", "new", "best", "rising",
         "page", "pages", "feeds", "details", "detail", "info", "profile", "profiles",
         "me", "self", "public", "private", "draft", "drafts", "comments", "comment",
         "web", "mobile", "desktop", "main", "index", "edge", "next", "static",
