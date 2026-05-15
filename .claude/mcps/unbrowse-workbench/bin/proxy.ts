@@ -15,6 +15,7 @@
 import { LineReader, encodeMessage } from "../src/framing.ts";
 import { spawnChild, parseCommand } from "../src/spawn.ts";
 import { Fanout } from "../src/fanout.ts";
+import { computeStructuralDiff } from "../src/delta.ts";
 
 const DEFAULT_CANDIDATE =
   "bun run /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/mcp.ts";
@@ -115,16 +116,17 @@ async function handleRequest(request: Record<string, unknown>): Promise<void> {
   }
 
   const merged = { ...result.liveResponse };
+  const diff = computeStructuralDiff(
+    result.candidateResponse,
+    result.baselineResponse,
+    result.candidate,
+    result.baseline,
+  );
   merged["_workbench_delta"] = {
     live: liveSide,
     candidate: result.candidate,
     baseline: result.baseline,
-    diff: {
-      bytes_diff: result.candidate.bytes - result.baseline.bytes,
-      ms_diff: result.candidate.ms - result.baseline.ms,
-      // Day-4 (Luminaries) replaces this with a real structural diff.
-      structural_diff_summary: "TODO",
-    },
+    diff,
   };
   writeOut(merged);
 }
