@@ -216,6 +216,16 @@ export interface RaceWinnerProbe {
   status: number;
   content_type?: string;
   byte_length?: number;
+  /**
+   * Which probe method settled the result: HEAD when the HEAD branch
+   * returned a non-rejection status, GET-1byte when HEAD was rejected
+   * (400/405/501 or threw) and the ranged-GET fallback fired. Propagated
+   * from probeUrl so the orchestrator's no_match emit-site can surface
+   * the truth in probe_evidence; the agent treats a HEAD-success differently
+   * from a GET-1byte-success when judging whether to retry the URL,
+   * escalate to capture, or trust the content-type verdict.
+   */
+  method_used?: "HEAD" | "GET-1byte";
   ms: number;
 }
 
@@ -236,7 +246,7 @@ export interface RunResolveRaceArgs {
   /** Override marketplace lookup (defaults to getSkillCached). Test seam. */
   marketplaceLookup?: (skillId: string, scope?: string) => Promise<SkillManifest | null>;
   /** Override probe (defaults to probeUrl). Test seam. */
-  probeOverride?: (url: string) => Promise<{ status: number; content_type?: string; byte_length?: number }>;
+  probeOverride?: (url: string) => Promise<{ status: number; content_type?: string; byte_length?: number; method_used?: "HEAD" | "GET-1byte" }>;
 }
 
 export interface RunResolveRaceResult {
@@ -367,6 +377,7 @@ export async function runResolveRace(args: RunResolveRaceArgs): Promise<RunResol
         status: probe.status,
         content_type: probe.content_type,
         byte_length: probe.byte_length,
+        method_used: probe.method_used,
         ms: Date.now() - t,
       };
     },
