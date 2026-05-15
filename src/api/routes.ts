@@ -53,6 +53,7 @@ import { cacheBrowseRequests, harEntriesToRawRequests } from "./browse-index.js"
 import { readActiveSessions } from "./session-store.js";
 import { isUrlWaitHint, resolveSubmitWaitHint, submitBrowseForm } from "./browse-submit.js";
 import { AUTH_PROBE_JS, classifyAuthSignals, type AuthProbeResult } from "./auth-detection.js";
+import { diagnoseSnapshot } from "./browse-snap-diagnostics.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
 import {
   decideCheckpointPublish,
@@ -2987,7 +2988,8 @@ export async function registerRoutes(app: FastifyInstance) {
         requestedSessionId(req),
         async (session) => brokerForSession(session).snapshot(session.tabId, filter),
       );
-      return reply.send({ snapshot, session_id: session.sessionId, tab_id: session.tabId });
+      const diagnostic = diagnoseSnapshot(snapshot, session.url);
+      return reply.send({ snapshot, session_id: session.sessionId, tab_id: session.tabId, ...diagnostic });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
     }
