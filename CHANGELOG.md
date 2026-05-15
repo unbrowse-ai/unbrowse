@@ -45,6 +45,18 @@
 * **New helpers `getMyContributions` + `computeMilestoneState`** in `src/marketplace/popular-unreviewed.ts` — pure milestone math and a real-filesystem join of local skill manifests × execution traces, filtered to skills the named agent indexed or contributed to.
 
 
+### Added — DAG freshness + recompute chain walk (jl/default Day 6)
+
+* **`OperationBinding` carries optional freshness metadata.** New fields `ttl_ms`, `single_use`, and `observed_at` on every captured binding (`src/types/skill.ts`). Decision-trace and chain-walk consumers read these to decide whether a yielded value is still fresh enough to satisfy a downstream `requires[]`.
+* **Capture-side population of freshness.** `reverse-engineer` now fills `ttl_ms` / `single_use` / `observed_at` from real evidence: `Set-Cookie` `Max-Age` and `Expires` headers, OAuth-style `expires_in` response fields, `Cache-Control: max-age=…`, and as a last resort a csrf-shape name heuristic (`/csrf|xsrf/i` or `/token/i` without `/auth|access|refresh/i`, default `600_000` ms). No per-domain registries — the metadata is derived from the captured response, not from a list of hostnames.
+* **Pure `isBindingStale` helper.** Clock-injected predicate (`src/dag/feedback`-side, callable from capture and execute). Covered by 41 unit cases plus 4 algebraic property tests (monotonicity in age, fresh-forever idempotence, single-use lattice ordering, boundary precision at `observed_at + ttl_ms`). No mocks; tests exercise the real function with synthetic but real `Date.now`-shaped inputs.
+* **`executeEndpointWithChain` higher-order wrapper.** New skeleton in `src/execution/index.ts` (AC5) that walks the leaf endpoint's `requires[]` before the leaf call, refetches stale or single-use-exhausted yields via recursion (depth cap 4, cycle detection), and emits canonical `chain_walk_*` `decision_trace` steps following the existing `<scope>_<state>` naming convention. Golden-path and adversarial-edge tests land alongside the wrapper. Subsequent Day-6 commits on `jl/default` fix three wrapper bugs surfaced by the adversarial suite; see the SHIPPED status flip for TTL-bound and single-use recompute classes in `project_dag_recompute_north_star.md`.
+* **New shared types `ChainWalkContext` + `DecisionTraceStep`.** Surface the chain-walk state and emitted trace shape so callers (MCP wire-budget diet, harness probes, tests) can read freshness fields without re-parsing prose.
+* **MCP wire-budget diet preserves freshness fields.** The 25KB tool-result cap now treats `ttl_ms`, `single_use`, `observed_at`, and `chain_walk_*` trace steps as load-bearing — they survive the diet so the calling agent can still make a freshness judgement on a truncated payload.
+* **`harness/probes/csrf-recompute.sh`** — AC6 end-to-end probe. Stands up a synthetic local server with a 5-second token rotation, captures the auth + leaf pair, and exercises `executeEndpointWithChain` across token expiry. The harness collects artifacts; the agent in-thread judges whether the chain walk recomputed the right binding (no heuristic verdict baked in).
+* **Design rationale.** See `.claude/jesus-loop.default.architecture.md` for the AC1–AC6 acceptance matrix and memory `project_dag_recompute_north_star.md` for the gap table whose TTL-bound and single-use rows flip to SHIPPED via the wrapper above plus its Day-6 follow-up fixes.
+
+
 ### Added
 
 * **Faremeter Flex (`@faremeter/flex` scheme) as the new settlement layer.** Every paid execute now signs an authorization with native splits (10% platform recoup baked in, up to 5 recipients per authorization summing to 10000 bps).
