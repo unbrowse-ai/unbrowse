@@ -15,7 +15,7 @@
 #
 # Env:
 #   CORPUS                override corpus (default: harness/probes/corpus-gate.txt)
-#   UNBROWSE              override CLI (default: unbrowse)
+#   UNBROWSE              override CLI (default: bun src/cli.ts)
 #   OUT_DIR               override .bench-gate root
 #
 # Flags:
@@ -46,7 +46,7 @@ cd "$ROOT_DIR"
 
 export CORPUS="${CORPUS:-harness/probes/corpus-gate.txt}"
 export OUT_DIR="${OUT_DIR:-.bench-gate}"
-export UNBROWSE="${UNBROWSE:-unbrowse}"
+export UNBROWSE="${UNBROWSE:-bun src/cli.ts}"
 export LIMIT
 
 echo "[bench-gate-full] phase 1/5 — harness collect"

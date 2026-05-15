@@ -91,7 +91,7 @@ while IFS='|' read -r lane intent url; do
   mkdir -p "$pdir"
   printf '%s\t%s\t%s\t%s\t%s\n' "$pid" "$lane" "$intent" "$url" "$pdir" >> "$QUEUE_FILE"
 done < "$CORPUS"
-N_PROBES=$i
+N_PROBES="$(wc -l < "$QUEUE_FILE" | tr -d ' ')"
 err "bench-gate: queued $N_PROBES probe(s)"
 
 # Per-probe pipeline as a function so xargs/parallel can call it.
