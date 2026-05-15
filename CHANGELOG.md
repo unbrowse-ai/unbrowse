@@ -10,6 +10,9 @@
 
 ## [Unreleased]
 
+### Bug Fixes
+* **mcp:** when `dietIfOversize`'s safety-net wrapper fires (response still over the 25KB wire budget after pass-1 string-truncation and pass-2 array-cap), the truncation payload now carries `suggested_limit` (a positive number derived from the overshoot ratio) and `next_step` (a concrete retry instruction). Previously the agent got only `{truncated, reason, body_excerpt}` and had no concrete value to retry with. Reproduced live against `unbrowse_resolve` on `x.com/search?q=AI+agents` returning a 1.3MB response. Closes AC3 from `docs/mcp-issues-2026-05-13.md`. Tests pin contract at `tests/mcp-diet-safety-net-hints.test.ts`.
+
 ### Chores
 * **bench:** remove the codex-driven `bench-mcp` harness (`scripts/bench-mcp.sh`, `scripts/bench-mcp-judge.ts`, `scripts/bench-mcp-telemetry.ts`) and its orphan `harness/probes/corpus-smoke.txt`. Spawning a second LLM agent to drive unbrowse MCP via stdio was the wrong substrate for regression-testing the index/retrieve flywheel; the calling agent should drive `unbrowse_*` tools itself and judge outcomes in-thread.
 

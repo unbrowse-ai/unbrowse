@@ -793,11 +793,19 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
   dieted = capOversizeArrays(dieted);
   serialized = JSON.stringify(dieted);
   if (serialized && serialized.length <= budget) return dieted;
-
   // Safety net: hard-cut at budget with an honest marker. Never ship oversize.
   // Shrink the body_excerpt until the final wrapped object fits - JSON-escape
   // expansion (quotes, backslashes) means a raw char-budget can still blow up.
+  //
+  // AC3 from docs/mcp-issues-2026-05-13.md: surface `next_step` and
+  // `suggested_limit` so the agent can recover. Without these the agent loses
+  // the array entirely and has no concrete value to retry with.
   const safetyText = serialized ?? "";
+  const overshootRatio = serialized && serialized.length > 0
+    ? Math.min(1, budget / serialized.length)
+    : 0;
+  const suggestedLimit = Math.max(1, Math.floor(ARRAY_MAX_ELEMENTS * overshootRatio));
+  const nextStep = `Response exceeded the ${budget}-char MCP wire budget even after array-cap. Retry with limit:${suggestedLimit} (or smaller), or pass path:"<your-array-path>[]" + extract:"field1,field2" to project before the diet.`;
   let cutLen = Math.max(0, budget - 512);
   for (let i = 0; i < 10; i++) {
     const candidate = {
@@ -805,6 +813,8 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
       reason: "payload_exceeded_wire_budget_after_diet",
       budget_chars: budget,
       original_chars: initial.length,
+      suggested_limit: suggestedLimit,
+      next_step: nextStep,
       body_excerpt: safetyText.slice(0, cutLen),
     };
     const wrapped = JSON.stringify(candidate);
@@ -818,6 +828,8 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
     reason: "payload_exceeded_wire_budget_after_diet",
     budget_chars: budget,
     original_chars: initial.length,
+    suggested_limit: suggestedLimit,
+    next_step: nextStep,
     body_excerpt: "",
   };
 }
