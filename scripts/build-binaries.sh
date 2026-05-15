@@ -37,11 +37,16 @@ build_target() {
   local tmpdir
 
   echo "[build] $target -> $outfile"
-  bun build "$ROOT_DIR/src/single-binary.ts" \
-    --compile \
-    --minify \
-    --target="$bun_target" \
-    --outfile "$outfile" 2>&1
+  local build_args=(
+    "$ROOT_DIR/src/single-binary.ts"
+    --compile
+    --target="$bun_target"
+    --outfile "$outfile"
+  )
+  if [ "${UNBROWSE_BUILD_MINIFY:-0}" = "1" ]; then
+    build_args+=(--minify)
+  fi
+  bun build "${build_args[@]}" 2>&1
 
   local size=$(ls -lh "$outfile" | awk '{print $5}')
   echo "[build] $target done ($size)"

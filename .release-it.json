@@ -29,6 +29,7 @@
   },
   "hooks": {
     "before:init": [
+      "bun run test:issue-regressions",
       "bun test tests/path-params.test.ts tests/utils.test.ts",
       "bash scripts/bench-gate-prerelease.sh"
     ],
