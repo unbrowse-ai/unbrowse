@@ -52,6 +52,7 @@ import {
 import { cacheBrowseRequests, harEntriesToRawRequests } from "./browse-index.js";
 import { readActiveSessions } from "./session-store.js";
 import { isUrlWaitHint, resolveSubmitWaitHint, submitBrowseForm } from "./browse-submit.js";
+import { AUTH_PROBE_JS, classifyAuthSignals, type AuthProbeResult } from "./auth-detection.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
 import {
   decideCheckpointPublish,
@@ -2815,25 +2816,21 @@ export async function registerRoutes(app: FastifyInstance) {
         result = await navigateSession(session);
       }
 
-      // Detect auth walls — if the page is asking for login, flag it so the
-      // agent (or auto-login) can handle it without a separate manual command.
+      // Detect auth walls: narrow signals only. Mere presence of a "Log In"
+      // link in the navbar is NOT an auth wall; the page must have an actual
+      // login form (<input type="password">) or explicit gating copy. See
+      // ./auth-detection.ts for the rationale and signal list.
       let authRequired = false;
       let authHint: string | undefined;
       try {
         const broker = brokerForSession(session);
-        const authProbe = await broker.evaluate(
-          session.tabId,
-          `JSON.stringify({
-            hasLoginBtn: !!(document.querySelector('[data-testid*="login"], [class*="login"], a[href*="login"], button[class*="sign"]')),
-            loginText: (document.body.innerText.match(/log\\s*in|sign\\s*in|sign\\s*up/i) || [])[0] || null,
-            url: location.href
-          })`,
-        ).catch(() => null);
+        const authProbe = await broker.evaluate(session.tabId, AUTH_PROBE_JS).catch(() => null);
         if (authProbe && typeof authProbe === "string") {
-          const info = JSON.parse(authProbe);
-          if (info.hasLoginBtn || info.loginText) {
+          const info = JSON.parse(authProbe) as AuthProbeResult;
+          const classified = classifyAuthSignals(info);
+          if (classified.required) {
             authRequired = true;
-            authHint = `Page requires authentication. Visible Chrome opening for sign-in; cookies will save automatically. Retry unbrowse_go once you've logged in.`;
+            authHint = `Page requires authentication (${classified.reason}). Visible Chrome opening for sign-in; cookies will save automatically. Retry unbrowse_go once you've logged in.`;
           }
         }
       } catch { /* non-fatal */ }
