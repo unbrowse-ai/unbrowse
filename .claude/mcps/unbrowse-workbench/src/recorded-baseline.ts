@@ -14,7 +14,7 @@
 // the recording stays valid across runs. Site-dependent execute deltas are
 // out of scope for v1 (documented; the recorder skips them).
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 
 // Arguments that vary per-run and must be stripped before keying so a
 // recorded baseline matches a fresh candidate call for the same probe.
@@ -53,33 +53,67 @@ export interface GoldenEntry {
 }
 
 export class RecordedBaseline {
-  private readonly map = new Map<string, GoldenEntry>();
+  private map = new Map<string, GoldenEntry>();
   readonly loadedFrom: string;
-  readonly entryCount: number;
+  private lastMtimeMs = -1;
+  private lastSize = -1;
 
   constructor(manifestPath: string) {
     this.loadedFrom = manifestPath;
-    if (!existsSync(manifestPath)) {
-      this.entryCount = 0;
-      return;
+    this.reloadIfChanged();
+  }
+
+  /** Current entry count (re-stats the file first). */
+  get entryCount(): number {
+    this.reloadIfChanged();
+    return this.map.size;
+  }
+
+  /**
+   * Re-read the manifest if it appeared, grew, or changed since last load.
+   * The recorder appends incrementally and may finish AFTER the proxy
+   * spawned; re-stat on access means a golden recorded mid-session takes
+   * effect with no proxy restart and no /mcp. Cheap: one statSync per call.
+   */
+  private reloadIfChanged(): void {
+    let mtimeMs = -1;
+    let size = -1;
+    try {
+      const st = statSync(this.loadedFrom);
+      mtimeMs = st.mtimeMs;
+      size = st.size;
+    } catch {
+      // file absent: if we had entries they are now stale-but-kept (a
+      // transient unlink during re-record should not blank the set);
+      // if we never had any, stay empty.
+      if (this.lastMtimeMs === -1) return;
     }
-    const text = readFileSync(manifestPath, "utf8");
-    let n = 0;
-    for (const line of text.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        const entry = JSON.parse(trimmed) as GoldenEntry;
-        if (entry && typeof entry.key === "string" && entry.response) {
-          this.map.set(entry.key, entry);
-          n++;
+    if (mtimeMs === this.lastMtimeMs && size === this.lastSize) return;
+    this.lastMtimeMs = mtimeMs;
+    this.lastSize = size;
+
+    const next = new Map<string, GoldenEntry>();
+    if (existsSync(this.loadedFrom)) {
+      const text = readFileSync(this.loadedFrom, "utf8");
+      for (const line of text.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const entry = JSON.parse(trimmed) as GoldenEntry;
+          if (entry && typeof entry.key === "string" && entry.response) {
+            next.set(entry.key, entry);
+          }
+        } catch {
+          // skip malformed (partial last line during an in-progress
+          // append); the rest of the golden set stays valid.
         }
-      } catch {
-        // skip malformed line; recording is append-only and a partial
-        // last line should not nuke the whole golden set.
       }
     }
-    this.entryCount = n;
+    if (next.size > 0 || this.map.size === 0) {
+      // only swap in a non-empty set, or when we had nothing anyway.
+      // Guards against an empty/truncated read blanking a good golden.
+      this.map = next;
+    }
   }
 
   /**
@@ -88,7 +122,13 @@ export class RecordedBaseline {
    * snap, close, execute in v1 — only resolve is in the golden set).
    */
   lookup(toolName: string, args: unknown): GoldenEntry | null {
+    this.reloadIfChanged();
     return this.map.get(recordedKey(toolName, args)) ?? null;
+  }
+
+  /** True when a non-empty golden is present (the recorded-mode switch). */
+  hasGolden(): boolean {
+    return this.entryCount > 0;
   }
 }
 
