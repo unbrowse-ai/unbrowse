@@ -92,6 +92,12 @@ export interface OperationBinding {
   required?: boolean;
   source?: string;
   example_value?: string;
+  // NEW freshness metadata, all optional for backward compat.
+  // See .claude/jesus-loop.default.architecture.md and
+  // ~/.claude/projects/-Users-lekt9-Projects-unbrowse-ecosystem-unbrowse/memory/project_dag_recompute_north_star.md
+  ttl_ms?: number;
+  single_use?: boolean;
+  observed_at?: string;
 }
 
 export interface EndpointSemanticDescriptor {
