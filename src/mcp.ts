@@ -800,21 +800,32 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
   // AC3 from docs/mcp-issues-2026-05-13.md: surface `next_step` and
   // `suggested_limit` so the agent can recover. Without these the agent loses
   // the array entirely and has no concrete value to retry with.
+  //
+  // Accumulation case (npmjs.com/package/typescript live repro 2026-05-15):
+  // when the bulk is many small fields inside a top-level object (not a
+  // string, not an array), passes 1+2 are no-ops and the agent is left
+  // staring at a truncated body_excerpt with no clue which subtree to drill
+  // into. Surface `top_level_keys` mapping each top-level key to its
+  // serialized byte size so the agent can pick a `path:` past the heavy
+  // field. Only present when the original input is a plain object; omitted
+  // for strings/arrays/scalars (no fabrication).
   const safetyText = serialized ?? "";
   const overshootRatio = serialized && serialized.length > 0
     ? Math.min(1, budget / serialized.length)
     : 0;
   const suggestedLimit = Math.max(1, Math.floor(ARRAY_MAX_ELEMENTS * overshootRatio));
-  const nextStep = `Response exceeded the ${budget}-char MCP wire budget even after array-cap. Retry with limit:${suggestedLimit} (or smaller), or pass path:"<your-array-path>[]" + extract:"field1,field2" to project before the diet.`;
+  const nextStep = `Response exceeded the ${budget}-char MCP wire budget even after array-cap. Retry with limit:${suggestedLimit} (or smaller), or pass path:"<your-array-path>[]" + extract:"field1,field2" to project before the diet. See top_level_keys for the heaviest subtree.`;
+  const topLevelKeys = computeTopLevelKeyByteSizes(value);
   let cutLen = Math.max(0, budget - 512);
   for (let i = 0; i < 10; i++) {
-    const candidate = {
+    const candidate: Record<string, unknown> = {
       truncated: true,
       reason: "payload_exceeded_wire_budget_after_diet",
       budget_chars: budget,
       original_chars: initial.length,
       suggested_limit: suggestedLimit,
       next_step: nextStep,
+      ...(topLevelKeys ? { top_level_keys: topLevelKeys } : {}),
       body_excerpt: safetyText.slice(0, cutLen),
     };
     const wrapped = JSON.stringify(candidate);
@@ -830,9 +841,24 @@ export function dietIfOversize(value: unknown, budget: number = WIRE_BUDGET_CHAR
     original_chars: initial.length,
     suggested_limit: suggestedLimit,
     next_step: nextStep,
+    ...(topLevelKeys ? { top_level_keys: topLevelKeys } : {}),
     body_excerpt: "",
   };
 }
+
+// Map each top-level key of a plain object to its serialized byte size.
+// Returns null for non-object inputs (no fabrication). Used by the diet
+// safety-net so the agent can pick a `path:` past the heaviest subtree.
+function computeTopLevelKeyByteSizes(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    const serialized = JSON.stringify(v);
+    out[k] = serialized ? serialized.length : 0;
+  }
+  return out;
+}
+
 export function maybePostProcessResult(result: Record<string, unknown>, args: Record<string, unknown>): unknown {
   // Day 5 (Creatures): when the caller explicitly projects via path / extract /
   // limit / schema, that projection is authoritative. The diet safety-net must
