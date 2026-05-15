@@ -21,6 +21,8 @@
 
 * **bench-gate:** judge bundles now include explicit `index.store.json` and `execute.input.json` evidence, and the corpus is typed by lane, auth, difficulty, and strategy. The new corpus builder script validates rows and forbids verdict language so coverage remains fully Codex-agent judged from artifacts.
 
+* **bench-gate:** add a self-improvement loop skill and triage script that turn agent-judged bench failures into artifact-linked improvement plans. The loop keeps fixes tied to failed probes and only stamps a release after the full agent-judged compare passes.
+
 * **vault:** store macOS Keychain credentials under one Unbrowse vault item instead of creating a separate Keychain row for every site/session. Existing per-account entries migrate into the single vault on first use, reducing repeated "Always Allow" prompts without dropping saved auth.
 
 * **indexer:** `drainPendingIndexJobs` no longer throws after 30s when a detached worker is still actively draining the queue. Under burst capture load (e.g. 58-probe bench-gate), the parent capture's drain budget isn't enough to wait for all jobs to flush — but the worker keeps processing them in the background after the parent exits. The function now returns success at timeout if the heartbeat is fresh (<2s) or pending count is strictly decreasing, throwing only when no worker appears to be running and jobs remain. Capture correctness doesn't depend on indexing finishing within the capture process's lifetime — indexing is intentionally async.
