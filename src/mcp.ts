@@ -1930,7 +1930,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_snap",
-    description: "Get the current accessibility snapshot with stable element refs like e12. Use during a browse session (after unbrowse_go) to see what's on page before interacting. Defaults to detail_level=\"minimal\" (under 1KB); pass \"summary\" for landmark breakdown or \"full\" for the raw tree.",
+    description: "Get the current accessibility snapshot with stable element refs like e12. Use during a browse session (after unbrowse_go) to see what's on page before interacting. Defaults to detail_level=\"minimal\" (under 1KB); pass \"summary\" for landmark breakdown or \"full\" for the raw tree. Pass session_id from the unbrowse_go response when multiple browse sessions are concurrently live (parallel agents); the substrate raises session_id_required if more than one session exists and no id is given.",
     inputSchema: {
       type: "object",
       properties: {

@@ -478,7 +478,14 @@ export async function resolveRequestedBrowseSession(
 
   const live = await listLiveBrowseSessions(sessions, client);
   if (live.length === 0) throw new BrowseSessionError("no_active_session");
-  return live[live.length - 1];
+  // Auto-resolve only when exactly one session is live. With multiple live
+  // sessions (parallel agent callers), silently picking the most recent
+  // would leak Agent A's snap/close/click into Agent B's tab. Force the
+  // caller to be explicit. unbrowse_go returns the session_id in its
+  // response; subsequent calls must thread it back. Mirrors the
+  // session_id_required behavior in getOrCreateBrowseSession (L505).
+  if (live.length > 1) throw new BrowseSessionError("session_id_required");
+  return live[0];
 }
 
 export async function getOrCreateBrowseSession(
