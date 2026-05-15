@@ -31,6 +31,13 @@ export async function probeUrl(url: string, opts: ProbeOptions = {}): Promise<Pr
     "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "accept": "*/*",
     "accept-language": "en-US,en;q=0.9",
+    // accept-encoding: identity so Content-Length reflects the decoded body
+    // size. Without this, gzipped SSR pages (e.g. lobste.rs at 57676 bytes
+    // decoded) return a tiny compressed Content-Length (lobste.rs: 20 bytes on
+    // HEAD with gzip), and decideFromProbe mistakes them for SPA shells and
+    // routes through trigger-intercept/browser instead of server fetch + extract.
+    // Probes never read response bodies, so compression buys nothing here.
+    "accept-encoding": "identity",
     ...(opts.headers ?? {}),
   };
   if (opts.cookies && opts.cookies.length > 0) {
