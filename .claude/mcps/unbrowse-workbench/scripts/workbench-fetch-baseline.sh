@@ -36,7 +36,7 @@ fi
 
 mkdir -p "$CACHE_DIR"
 
-# Step 3: Strategy A — build via worktree of the tag.
+# Step 3: Strategy A: build via worktree of the tag.
 WORKTREE_DIR="/tmp/unbrowse-baseline-$TAG-$$"
 cleanup_worktree() {
   if [ -d "$WORKTREE_DIR" ]; then
@@ -82,7 +82,7 @@ if [ "$STRATEGY_A_OK" = "1" ]; then
   exit 0
 fi
 
-# Step 4: Strategy B — npm pack the published version and extract the prebuilt binary.
+# Step 4: Strategy B: npm pack the published version and extract the prebuilt binary.
 # Not yet implemented; explicit failure so the human notices.
 log "Strategy A failed; Strategy B (npm pack of $TAG) is not yet implemented."
 log "Manual fallback: build $TAG yourself, then place the binary at $CACHE_BIN"
