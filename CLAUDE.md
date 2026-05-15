@@ -795,4 +795,5 @@ Reach for these by name when the trigger phrase matches what the user asked for.
 |---|---|
 | `/unbrowse-bench-corpus-builder` | Add harder Unbrowse release-gate bench probes as typed corpus rows. |
 | `/unbrowse-bench-improvement-loop` | Run a self-improving Unbrowse bench loop. |
+| `/unbrowse-bench-history-tracker` | Append every agent-judged bench-gate run to a per-run history ledger and surface deltas in release notes. |
 <!-- /skills:pinned -->
