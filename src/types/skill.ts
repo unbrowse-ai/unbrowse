@@ -92,6 +92,36 @@ export interface OperationBinding {
   required?: boolean;
   source?: string;
   example_value?: string;
+  // NEW freshness metadata, all optional for backward compat.
+  // See .claude/jesus-loop.default.architecture.md and
+  // ~/.claude/projects/-Users-lekt9-Projects-unbrowse-ecosystem-unbrowse/memory/project_dag_recompute_north_star.md
+  ttl_ms?: number;
+  single_use?: boolean;
+  observed_at?: string;
+}
+
+// Minimal contract for decision-trace steps emitted by the chain walker and
+// other executor branches. Day-5 (chain walker implementation) will read and
+// write these; richer typing can land later without breaking the shape.
+// See .claude/jesus-loop.default.architecture.md for canonical step names
+// (chain_walk_refetched_success, chain_walk_depth_exceeded, ...).
+export interface DecisionTraceStep {
+  step: string;
+  [key: string]: unknown;
+}
+
+// Walk context threaded through the chain-walk DAG resolver. See
+// .claude/jesus-loop.default.architecture.md for the design rationale and the
+// invariants Day-5 must preserve (frozen `now`, append-only `trace`,
+// single-use markers in `consumed`, cycle detection via `visited`).
+export interface ChainWalkContext {
+  now: number;                          // epoch ms, frozen at walk start
+  consumed: Map<string, boolean>;       // single-use markers by binding key
+  depth: number;                        // current walk depth
+  visited: Set<string>;                 // endpoint_ids visited (cycle detection)
+  maxDepth: number;                     // default 4; injectable for tests
+  trace: DecisionTraceStep[];           // append-only
+  producerIndex?: Map<string, string>;  // binding.key → producer endpoint_id
 }
 
 export interface EndpointSemanticDescriptor {
@@ -574,7 +604,23 @@ export interface ExecutionOptions {
   budget_ms?: number;
   /** When true, the resolve shortlist is filtered to only independently verified proofs. */
   require_proof?: boolean;
+  /** Per-walk session yield cache. Map from binding `key` → cached value + freshness
+   *  metadata produced by an earlier call in the same chain walk. Threaded by
+   *  `executeEndpointWithChain`. Optional — when absent, the wrapper has no prior
+   *  cached values to evaluate and effectively delegates to `executeEndpoint`. */
+  session_yields?: SessionYieldCache;
 }
+
+/** Single cached binding value carrying the freshness metadata `isBindingStale` needs. */
+export interface SessionYield {
+  value: unknown;
+  observed_at: string;
+  ttl_ms?: number;
+  single_use?: boolean;
+}
+
+/** Walk-scoped cache: binding `key` → most-recently observed yield. */
+export type SessionYieldCache = Map<string, SessionYield>;
 
 export interface ValidationResult {
   valid: boolean;
