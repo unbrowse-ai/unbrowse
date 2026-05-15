@@ -105,4 +105,37 @@ describe("LIST_INTENT — rec-widget endpoints lose to canonical search surface"
     expect(ranked.length).toBe(2);
     expect(ranked[0].endpoint.endpoint_id).toBe("search");
   });
+
+  test("real structured search API ranks above fallback page_fetch", () => {
+    const apiSearch = ep({
+      endpoint_id: "crates_api_search",
+      url_template: "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}",
+      description: "Searches Crates with crates, meta using page, per_page, sort, q",
+      response_schema: {
+        type: "object",
+        properties: {
+          crates: { type: "array", items: { type: "object" } },
+          meta: { type: "object" },
+        },
+      },
+      query: { page: "1", per_page: "10", sort: "relevance", q: "tokio" },
+    });
+    const pageFetch = ep({
+      endpoint_id: "page_fetch",
+      url_template: "https://crates.io/search?q={q}",
+      description: "Returns the rendered HTML for \"search rust crates\"",
+      response_schema: { type: "string", format: "html" },
+      dom_extraction: { extraction_method: "page_fetch", confidence: 0.5 },
+    });
+
+    const ranked = rankEndpoints(
+      [pageFetch, apiSearch],
+      "search rust crates",
+      "crates.io",
+      "https://crates.io/search?q=tokio",
+    );
+
+    expect(ranked.length).toBe(2);
+    expect(ranked[0].endpoint.endpoint_id).toBe("crates_api_search");
+  });
 });

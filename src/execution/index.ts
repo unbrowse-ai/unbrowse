@@ -1455,6 +1455,19 @@ async function executeBrowserCapture(
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
 
+        const domCacheKey = buildResolveCacheKey(domain, intent, url);
+        const domScopedKey = scopedCacheKey(options?.client_scope ?? "global", domCacheKey);
+        writeSkillSnapshot(domScopedKey, domDraft);
+        const domDomainKey = getDomainReuseKey(url ?? domain);
+        if (domDomainKey) {
+          domainSkillCache.set(domDomainKey, {
+            skillId: domDraft.skill_id,
+            localSkillPath: snapshotPathForCacheKey(domScopedKey),
+            ts: Date.now(),
+          });
+          persistDomainCache();
+        }
+
         // Only publish to marketplace if quality passes AND admission gate admits
         // a real endpoint. Dom-fallback-only skills poison resolve with fake
         // cache hits that hide the real API behind a synthetic page artifact.
@@ -4091,6 +4104,25 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const looksLikeApi = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(url);
     return looksLikeApi && !ep.dom_extraction && !/captured (?:search form |page )?artifact/i.test(ep.description ?? "");
   });
+  const endpointHasSearchBinding = (ep: EndpointDescriptor): boolean => {
+    const haystack = JSON.stringify({
+      url_template: ep.url_template,
+      query: ep.query ?? {},
+      body_params: ep.body_params ?? {},
+      body: ep.body ?? {},
+      semantic_requires: resolveEndpointSemantic(ep)?.requires ?? [],
+    }).toLowerCase();
+    return /(?:^|[^a-z])(q|query|search|term|keyword|keywords|text|s)(?:[^a-z]|$)/i.test(haystack);
+  };
+  const hasStructuredSearchApiInCorpus = rankedCandidates.some((ep) => {
+    const url = ep.url_template.toLowerCase();
+    const looksLikeApi = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(url);
+    return looksLikeApi
+      && !ep.dom_extraction
+      && !!ep.response_schema
+      && endpointHasSearchBinding(ep)
+      && !/captured (?:search form |page )?artifact/i.test(ep.description ?? "");
+  });
 
   // Tokenize intent with synonym expansion for better recall
   const rawTokens = intent ? tokenize(intent) : [];
@@ -4419,7 +4451,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // beats telemetry XHRs but loses to a real /api/ endpoint matching
     // intent tokens. Single rule, no conditional ladders.
     if (isPageFetchEndpoint(ep) && intent && LIST_INTENT.test(intent)) {
-      score = Math.max(score, 100);
+      score = hasStructuredSearchApiInCorpus ? Math.min(score, 60) : Math.max(score, 100);
     }
 
     // Even with dom_extraction, a captured page artifact loses to an API sibling
@@ -4765,6 +4797,15 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
           score -= 100;
         }
       }
+    }
+
+    if (
+      isPageFetchEndpoint(ep) &&
+      intent &&
+      LIST_INTENT.test(intent) &&
+      hasStructuredSearchApiInCorpus
+    ) {
+      score = Math.min(score, 60);
     }
 
     return { endpoint: ep, score };

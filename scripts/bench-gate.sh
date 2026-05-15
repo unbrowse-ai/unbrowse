@@ -48,8 +48,36 @@ probe_slug() {
 
 err "bench-gate: run-id=$RUN_ID corpus=$CORPUS out=$RUN_DIR cli=$CLI_CMD"
 
-probes_json="["
-first=1
+PARALLEL="${PARALLEL:-1}"   # >1 enables parallel probe execution
+HEALTH_FLOOR="${HEALTH_FLOOR:-0}"  # >0 enables aggregate fast-fail: if first 10 probes have fewer than this many non-empty capture.meta.json, abort
+CLEAN_SLATE="${CLEAN_SLATE:-1}"  # 1=isolate skill snapshots per run + clear pending queue; 0=keep existing state
+err "bench-gate: parallel=$PARALLEL health_floor=$HEALTH_FLOOR clean_slate=$CLEAN_SLATE"
+
+# Clean-slate enforcement: every probe must start from a known empty state so
+# resolve picks the JUST-CAPTURED skill, not a stale snapshot from a prior
+# bench run. Per-run isolation via UNBROWSE_SKILL_SNAPSHOT_DIR keeps the
+# canonical user state untouched.
+if [ "$CLEAN_SLATE" = "1" ]; then
+  export UNBROWSE_LOCAL_CACHES=1
+  export UNBROWSE_INLINE_INDEX=1
+  export UNBROWSE_SKILL_SNAPSHOT_DIR="$RUN_DIR/.skill-snapshots"
+  mkdir -p "$UNBROWSE_SKILL_SNAPSHOT_DIR"
+  err "bench-gate: isolated skill snapshots → $UNBROWSE_SKILL_SNAPSHOT_DIR"
+  err "bench-gate: stopping local server so first probe starts with isolated cache env"
+  timeout 20 "${CLI_ARGS[@]}" stop --force >/dev/null 2>&1 || true
+  # Clear the queue + heartbeat so stale jobs from a prior interrupted run
+  # don't poison the indexer.
+  QHOME="${HOME:-/tmp}/.unbrowse/queue/pending"
+  if [ -d "$QHOME" ]; then
+    rm -f "$QHOME"/*.json "$QHOME"/*.lock "$QHOME/.heartbeat" 2>/dev/null || true
+    err "bench-gate: cleared pending queue at $QHOME"
+  fi
+fi
+
+# Phase 1: build the probe queue (lane|intent|url|pid|pdir) so we can run each
+# probe block as a self-contained function and feed them to a parallel pool.
+QUEUE_FILE="$(mktemp -t bench-gate-queue.XXXXXX)"
+trap 'rm -f "$QUEUE_FILE"' EXIT
 i=0
 while IFS='|' read -r lane intent url; do
   lane="${lane## }"; lane="${lane%% }"
@@ -58,19 +86,28 @@ while IFS='|' read -r lane intent url; do
   case "$lane" in ''|\#*) continue ;; esac
   i=$((i+1))
   if [ "$LIMIT" -gt 0 ] && [ "$i" -gt "$LIMIT" ]; then break; fi
-
   pid="$(printf '%03d_%s' "$i" "$(probe_slug "$lane" "$url")")"
   pdir="$RUN_DIR/$pid"
   mkdir -p "$pdir"
-  err "[$i] $lane | $intent | $url"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$pid" "$lane" "$intent" "$url" "$pdir" >> "$QUEUE_FILE"
+done < "$CORPUS"
+N_PROBES=$i
+err "bench-gate: queued $N_PROBES probe(s)"
+
+# Per-probe pipeline as a function so xargs/parallel can call it.
+# Exports its own copies of CLI_ARGS and other env via the parent shell scope.
+export -f probe_slug 2>/dev/null || true
+export TIMEOUT
+run_probe() {
+  local pid="$1" lane="$2" intent="$3" url="$4" pdir="$5"
+  local t0 t1 t2 t3 t4 t5 cap_meta cap_path pick skill_id endpoint_id
+  err "[$pid] $lane | $intent | $url"
 
   # ── Phase 1: capture ──────────────────────────────────────────────────
   t0=$(now_ms)
   timeout "$TIMEOUT" "${CLI_ARGS[@]}" capture --url "$url" --intent "$intent" \
     </dev/null > "$pdir/capture.out" 2> "$pdir/capture.stderr.log" || true
   t1=$(now_ms)
-  # Derive signals from capture.out. If it's not JSON we still keep the raw
-  # text — the judge can read it.
   cap_meta='{}'
   if head -c 1 "$pdir/capture.out" 2>/dev/null | grep -q '{' ; then
     cap_meta="$(jq -c '{
@@ -85,7 +122,6 @@ while IFS='|' read -r lane intent url; do
   fi
   printf '%s\n' "$cap_meta" > "$pdir/capture.meta.json"
 
-  # HTML excerpt — try to read capture_path if it's a file, else best-effort blank
   cap_path="$(jq -r '.capture_path // empty' < "$pdir/capture.meta.json" 2>/dev/null || true)"
   if [ -n "$cap_path" ] && [ -f "$cap_path" ]; then
     head -c 8192 "$cap_path" > "$pdir/capture.html.excerpt" 2>/dev/null || true
@@ -93,15 +129,12 @@ while IFS='|' read -r lane intent url; do
     : > "$pdir/capture.html.excerpt"
   fi
 
-  # ── Phase 2a: resolve (no auto-execute; harness controls execute) ─────
+  # ── Phase 2a: resolve ─────────────────────────────────────────────────
   t2=$(now_ms)
   timeout "$TIMEOUT" "${CLI_ARGS[@]}" resolve --intent "$intent" --url "$url" --no-execute \
     </dev/null > "$pdir/resolve.shortlist.json" 2> "$pdir/resolve.stderr.log" || true
   t3=$(now_ms)
 
-  # ── Pick: delegate to product ranker; we take the first candidate ─────
-  # NB: NO heuristic scoring here. Product's resolve output is already ranked.
-  # Try multiple shapes — resolve returns different envelopes per status.
   pick="$(jq -c '
     (.available_endpoints // .result.available_endpoints // []) as $eps
     | {
@@ -136,13 +169,56 @@ while IFS='|' read -r lane intent url; do
 
   printf '{"capture_ms":%d,"resolve_ms":%d,"execute_ms":%d}\n' \
     "$((t1-t0))" "$((t3-t2))" "$((t5-t4))" > "$pdir/timings.json"
+}
 
+# Run probes — parallel or sequential.
+WORKER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bench-gate-probe-worker.sh"
+export CLI_ARGS_STR="${CLI_ARGS[*]}"
+export TIMEOUT RUN_DIR
+if [ "$PARALLEL" -le 1 ]; then
+  while IFS=$'\t' read -r pid lane intent url pdir; do
+    run_probe "$pid" "$lane" "$intent" "$url" "$pdir"
+  done < "$QUEUE_FILE"
+else
+  err "bench-gate: launching pool of $PARALLEL workers (xargs -P)"
+  # Convert tab-separated queue to NUL-separated for xargs -0 -n 5. NUL lets
+  # us pass args with embedded spaces (intent strings) without splitting.
+  queue_to_nul() {
+    awk -F'\t' '{for(i=1;i<=NF;i++){printf "%s%c", $i, 0}}' "$1"
+  }
+  if [ "$HEALTH_FLOOR" -gt 0 ] && [ "$N_PROBES" -gt 10 ]; then
+    HEAD_FILE="$(mktemp -t bench-gate-head.XXXXXX)"
+    TAIL_FILE="$(mktemp -t bench-gate-tail.XXXXXX)"
+    head -n 10 "$QUEUE_FILE" > "$HEAD_FILE"
+    tail -n +11 "$QUEUE_FILE" > "$TAIL_FILE"
+    err "bench-gate: phase 1 — first 10 probes (health gate)"
+    queue_to_nul "$HEAD_FILE" | xargs -0 -P "$PARALLEL" -n 5 "$WORKER_SCRIPT"
+    non_empty=$(grep -l '"skill_id":' "$RUN_DIR"/*/capture.meta.json 2>/dev/null | wc -l | tr -d ' ')
+    err "bench-gate: health gate — $non_empty/10 non-empty captures (floor=$HEALTH_FLOOR)"
+    if [ "$non_empty" -lt "$HEALTH_FLOOR" ]; then
+      err "bench-gate: FAIL-FAST — only $non_empty/10 captures produced data, aborting"
+      rm -f "$HEAD_FILE" "$TAIL_FILE"
+      printf '%s\n' "$RUN_DIR"
+      exit 2
+    fi
+    err "bench-gate: phase 2 — remaining $((N_PROBES - 10)) probes"
+    queue_to_nul "$TAIL_FILE" | xargs -0 -P "$PARALLEL" -n 5 "$WORKER_SCRIPT"
+    rm -f "$HEAD_FILE" "$TAIL_FILE"
+  else
+    queue_to_nul "$QUEUE_FILE" | xargs -0 -P "$PARALLEL" -n 5 "$WORKER_SCRIPT"
+  fi
+fi
+
+# Build probes_json from queue (preserves original order).
+probes_json="["
+first=1
+while IFS=$'\t' read -r pid lane intent url pdir; do
   if [ $first -eq 0 ]; then probes_json="$probes_json,"; fi
   first=0
   probes_json="$probes_json$(jq -nc \
     --arg id "$pid" --arg lane "$lane" --arg intent "$intent" --arg url "$url" \
     '{probe_id:$id, lane:$lane, intent:$intent, url:$url}')"
-done < "$CORPUS"
+done < "$QUEUE_FILE"
 probes_json="$probes_json]"
 
 # ── manifest.json (NO verdict field anywhere) ───────────────────────────
@@ -155,5 +231,5 @@ jq -nc \
   '{run_id:$run_id, corpus:$corpus, cli_version:$cli_version, node_version:$node_version, started_at:$started, probes:$probes}' \
   > "$RUN_DIR/manifest.json"
 
-err "bench-gate: wrote $RUN_DIR/manifest.json with $i probe(s)"
+err "bench-gate: wrote $RUN_DIR/manifest.json with $N_PROBES probe(s)"
 printf '%s\n' "$RUN_DIR"

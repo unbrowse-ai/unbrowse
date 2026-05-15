@@ -81,10 +81,18 @@ export interface StoredCredential {
 }
 
 const SERVICE = "unbrowse";
+const KEYCHAIN_VAULT_ACCOUNT = "__unbrowse_vault_v1";
 // Use a fixed location so the vault works regardless of server CWD
 const VAULT_DIR = join(homedir(), ".unbrowse", "vault");
 const VAULT_FILE = join(VAULT_DIR, "credentials.enc");
 const KEY_FILE = join(VAULT_DIR, ".key");
+
+type VaultBackend = "keytar" | "file";
+
+interface VaultStore {
+  backend: VaultBackend;
+  data: Record<string, string>;
+}
 
 function getOrCreateKey(): Buffer {
   if (!existsSync(VAULT_DIR)) mkdirSync(VAULT_DIR, { recursive: true, mode: 0o700 });
@@ -126,6 +134,63 @@ function writeVaultFile(data: Record<string, string>): void {
   writeFileSync(VAULT_FILE, Buffer.concat([iv, enc]), { mode: 0o600 });
 }
 
+function parseKeychainVault(raw: string): Record<string, string> {
+  const onlyStringValues = (value: Record<string, unknown>): Record<string, string> =>
+    Object.fromEntries(
+      Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    );
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    if ("credentials" in parsed && typeof (parsed as { credentials?: unknown }).credentials === "object") {
+      const credentials = (parsed as { credentials: Record<string, unknown> }).credentials;
+      return onlyStringValues(credentials);
+    }
+    return onlyStringValues(parsed as Record<string, unknown>);
+  } catch {
+    return {};
+  }
+}
+
+function serializeKeychainVault(data: Record<string, string>): string {
+  return JSON.stringify({
+    schema_version: 1,
+    credentials: data,
+  });
+}
+
+async function readVaultStore(): Promise<VaultStore> {
+  const keytarResult = await callKeytar((client) => client.getPassword(SERVICE, KEYCHAIN_VAULT_ACCOUNT));
+  if (keytarResult !== KEYTAR_UNAVAILABLE) {
+    return {
+      backend: "keytar",
+      data: keytarResult ? parseKeychainVault(keytarResult) : {},
+    };
+  }
+  return { backend: "file", data: readVaultFile() };
+}
+
+async function writeVaultStore(store: VaultStore): Promise<void> {
+  if (store.backend === "keytar") {
+    const keytarResult = await callKeytar((client) =>
+      client.setPassword(SERVICE, KEYCHAIN_VAULT_ACCOUNT, serializeKeychainVault(store.data)),
+    );
+    if (keytarResult !== KEYTAR_UNAVAILABLE) return;
+  }
+  writeVaultFile(store.data);
+}
+
+async function deleteLegacyKeychainAccount(account: string): Promise<void> {
+  const result = await callKeytar((client) => client.deletePassword(SERVICE, account));
+  if (result === KEYTAR_UNAVAILABLE) return;
+}
+
+async function readLegacyKeychainAccount(account: string): Promise<string | null | typeof KEYTAR_UNAVAILABLE> {
+  if (account === KEYCHAIN_VAULT_ACCOUNT) return null;
+  return callKeytar((client) => client.getPassword(SERVICE, account));
+}
+
 export async function storeCredential(
   account: string,
   value: string,
@@ -138,12 +203,10 @@ export async function storeCredential(
     max_age_ms: opts?.max_age_ms,
   };
   const serialized = JSON.stringify(wrapped);
-  const keytarResult = await callKeytar((client) => client.setPassword(SERVICE, account, serialized));
-  if (keytarResult !== KEYTAR_UNAVAILABLE) return;
-  await withVaultLock(() => {
-    const data = readVaultFile();
-    data[account] = serialized;
-    writeVaultFile(data);
+  await withVaultLock(async () => {
+    const store = await readVaultStore();
+    store.data[account] = serialized;
+    await writeVaultStore(store);
   });
 }
 
@@ -158,15 +221,29 @@ function isExpired(cred: StoredCredential): boolean {
 }
 
 export async function getCredential(account: string): Promise<string | null> {
-  let raw: string | null;
-  const keytarResult = await callKeytar((client) => client.getPassword(SERVICE, account));
-  if (keytarResult !== KEYTAR_UNAVAILABLE) {
-    raw = keytarResult;
-  } else {
-    const data = readVaultFile();
-    raw = data[account] ?? null;
-  }
+  let raw: string | null = null;
+  await withVaultLock(async () => {
+    const store = await readVaultStore();
+    raw = store.data[account] ?? null;
+    if (raw || store.backend !== "keytar") return;
+
+    const legacy = await readLegacyKeychainAccount(account);
+    if (legacy === KEYTAR_UNAVAILABLE || !legacy) return;
+    raw = legacy;
+    store.data[account] = legacy;
+    await writeVaultStore(store);
+    await deleteLegacyKeychainAccount(account);
+  });
   if (!raw) return null;
+
+  async function deleteExpired(): Promise<void> {
+    await withVaultLock(async () => {
+      const store = await readVaultStore();
+      delete store.data[account];
+      await writeVaultStore(store);
+    });
+    await deleteLegacyKeychainAccount(account);
+  }
 
   // Try to parse as StoredCredential; backward-compat: raw strings are legacy (no expiry)
   try {
@@ -174,7 +251,7 @@ export async function getCredential(account: string): Promise<string | null> {
     if (parsed.value && parsed.stored_at) {
       // It's a wrapped credential — check expiry
       if (isExpired(parsed)) {
-        await deleteCredential(account);
+        await deleteExpired();
         return null;
       }
       return parsed.value;
@@ -186,11 +263,10 @@ export async function getCredential(account: string): Promise<string | null> {
 }
 
 export async function deleteCredential(account: string): Promise<void> {
-  const keytarResult = await callKeytar((client) => client.deletePassword(SERVICE, account));
-  if (keytarResult !== KEYTAR_UNAVAILABLE) return;
-  await withVaultLock(() => {
-    const data = readVaultFile();
-    delete data[account];
-    writeVaultFile(data);
+  await withVaultLock(async () => {
+    const store = await readVaultStore();
+    delete store.data[account];
+    await writeVaultStore(store);
   });
+  await deleteLegacyKeychainAccount(account);
 }
