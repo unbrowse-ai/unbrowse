@@ -225,3 +225,39 @@ export function applySnapDetailLevel(
     landmark_count: parsed.landmarks.length,
   };
 }
+
+/**
+ * Shape a raw `/v1/browse/snap` backend response into the MCP tool result
+ * value + summary. Extracted from the `unbrowse_snap` handler so the
+ * raw-to-result mapping is unit-testable without spawning the server.
+ */
+export function shapeSnapResult(
+  raw: Record<string, unknown>,
+  level: SnapDetailLevel | undefined,
+): { value: Record<string, unknown>; summary: string } {
+  // A genuine /v1/browse/snap response always carries `snapshot` as a string
+  // (the a11y tree text, "" when the page has no structure). A backend error
+  // envelope (sendBrowseSessionError: recoverable_browse_failure on a wedged /
+  // aborted tab, a BrowseSessionError code, or api()'s HTTP-error shape) has
+  // `error` and no string `snapshot`. Reshaping it through applySnapDetailLevel
+  // would discard error/recoverable/message and fabricate a fake-empty
+  // "Current browse snapshot.", hiding a wedged or recoverable failure from the
+  // agent. Surface it as-is instead, the same way every other browse handler
+  // passes the raw body through so error/recoverable stay visible.
+  if (typeof raw.snapshot !== "string" && raw.error !== undefined) {
+    return { value: raw, summary: "Browser snapshot unavailable." };
+  }
+  const snapshotText = typeof raw.snapshot === "string" ? raw.snapshot : "";
+  const trimmed = applySnapDetailLevel(snapshotText, level, {
+    current_url: typeof raw.current_url === "string" ? raw.current_url : null,
+    page_title: typeof raw.page_title === "string" ? raw.page_title : null,
+  });
+  const result: Record<string, unknown> = {
+    ...trimmed,
+    session_id: raw.session_id,
+    tab_id: raw.tab_id,
+  };
+  if (raw.warning !== undefined) result.warning = raw.warning;
+  if (raw.next_step !== undefined) result.next_step = raw.next_step;
+  return { value: result, summary: "Current browse snapshot." };
+}
