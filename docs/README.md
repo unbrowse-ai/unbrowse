@@ -1,53 +1,20 @@
-# Unbrowse Docs
+# Unbrowse
 
-Canonical companion docs for the Unbrowse stack. Public site: [docs.unbrowse.ai](https://docs.unbrowse.ai).
+Unbrowse is an API-native browser for AI agents. It lets an agent reach the data and actions behind a website without driving the website's visible interface every time.
 
-> **Heads up — see [OPEN-SOURCE-NOTICE.md](./OPEN-SOURCE-NOTICE.md).** The public OSS repo is a frozen snapshot. Current production builds are closed-source for safety reasons.
+Most AI agents use the web the way a tired human would: open the page, wait for it to load, click through menus, fight popups, fill forms, wait again. Unbrowse learns the structured request path behind a site once, then reuses it. When a site genuinely needs a real browser session (cookies, sign-in, redirect handling), Unbrowse keeps that browser context in the loop. Same permissions, less ceremony.
 
-## Start here
+This documentation is organised by who is reading it.
 
-- [Quickstart](./guides/quickstart.md) — install, register, first resolve
-- [API Reference](./api.md) — local server routes, marketplace endpoints
-- [Deployment](./deployment.md) — release flow, Cloudflare topology
+* **Start Here** explains what Unbrowse is in plain language, no background assumed.
+* **For Agents** is the operating model for an AI agent calling Unbrowse.
+* **For Developers** is how to integrate it in code.
+* **Concepts** is the conceptual model behind the system, drawn from the published papers.
+* **For Investors** is the wedge, the moat, and where to read the research.
 
-## SDK & onboarding
+The two papers this documentation draws from:
 
-- [SDK package](../packages/sdk/README.md) — `@unbrowse/sdk` TypeScript client
-- [SDK docs](../packages/sdk/docs/) — getting started, API reference, examples
-- [Build on Unbrowse](./sdk/build-on-unbrowse.md) — archetypes, composition patterns, build phases, extension points
-- [Onboarding validators](./sdk/onboarding-validators.md) — for clients running swarms of agents that mine routes for rewards
-- [Onboarding users](./sdk/onboarding-users.md) — single-operator mining flow
-- [Rewards & economics](./sdk/rewards-and-economics.md) — x402, splits, payouts
-- [Frontend dashboard plan](./frontend-dashboard-plan.md) — IA + visualizations + build phases for `unbrowse.ai/dashboard`
-- [Rewards & economics](./sdk/rewards-and-economics.md) — x402, splits, payouts
+* [Internal APIs Are All You Need](https://arxiv.org/abs/2604.00694) on shared route discovery and the case against browser-first agent architectures.
+* The Unbrowse Maintenance Network paper on trust, accountability, and optional bonding in a shared route graph.
 
-## Architecture
-
-- [Capture & DAG](./architecture-capture-and-dag.md) — how passive capture builds the skill graph
-- [Endpoint as cell](./endpoint-as-cell.md) — the cellular model of skills
-- [Deep reverse-engineering](./deep-reveng.md) — multi-source extraction (network, JS heap, SSR, DOM)
-- [ZK proofs](./zk-proofs.md) — `commitment_only` proof scope and trust boundary
-- [Workflow harness](./workflow-harness.md) — workflow trace collection
-
-## Whitepaper
-
-- [Companion docs](./whitepaper/README.md) — implementation-aware companion to the published paper
-- Canonical PDF: [`whitepaper/unbrowse-whitepaper.pdf`](./whitepaper/unbrowse-whitepaper.pdf)
-
-## Releases & ops
-
-- [Releasing](./RELEASING.md)
-- [Most recent release notes](./release-2026-05.md)
-- [PR validation matrix](./pr-validation-matrix.md)
-- [GitHub webhook PR bot](./github-webhook-pr-bot.md)
-- [Codex eval harness](./codex-eval-harness.md)
-- [Capability harness](./unbrowse-capability-harness.md)
-
-## GTM
-
-- [Master plan essay](./gtm/master-plan-essay.md)
-- [Launch pack](./gtm/2026-04-03-launch-pack.md)
-
-## Archive
-
-Historical regression notes and old planning docs are kept under [`archive/`](./archive/) for reference. They are not current product truth.
+Source and licensing scope is described in the [Open Source Notice](OPEN-SOURCE-NOTICE.md).
