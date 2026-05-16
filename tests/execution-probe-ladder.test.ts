@@ -23,13 +23,18 @@ describe("decideFromProbe", () => {
     expect(d.strategy).toBe("server");
   });
 
-  it("200 + html + 50KB → server", () => {
+  it("200 + html + 50KB → server (renderedness not asserted from size alone)", () => {
     const d = decideFromProbe({
       probe: probe({ content_type: "text/html; charset=utf-8", byte_length: 50_000 }),
       has_trigger_url: true,
     });
+    // Behavior preserved: server-fetch first is the cheap default for
+    // large HTML. But the probe (HEAD / GET-1byte) never saw the body,
+    // so the reason must not claim "server-rendered" from byte_length
+    // alone (truth-telling fix; see probe-decision-honest-renderedness).
     expect(d.strategy).toBe("server");
-    expect(d.reason).toContain("server-rendered");
+    expect(d.reason).not.toContain("server-rendered");
+    expect(d.reason.toLowerCase()).toMatch(/unverified|renderedness/);
   });
 
   it("200 + html + 800B + has_trigger_url → trigger-intercept", () => {
