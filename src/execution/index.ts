@@ -2312,7 +2312,7 @@ async function executeBrowserCapture(
   };
 }
 
-async function tryHttpFetch(
+export async function tryHttpFetch(
   url: string,
   authHeaders: Record<string, string>,
   cookies: Array<{ name: string; value: string; domain: string }>,
