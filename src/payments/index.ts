@@ -85,13 +85,44 @@ export interface PaymentGateResult {
   status: PaymentStatus;
   requirement?: PaymentRequirement;
   message: string;
-  next_step?: string;
+  next_step?: string | GateNextStep;
   method?: PaymentMethod;
   balance_remaining_uc?: number;
 }
 
+/**
+ * Structured, actionable refusal payload. Surfaces the product's OWN declared
+ * remediation commands (see src/cli.ts) as data so the calling agent can act,
+ * instead of a bare prose sentence. This is the system telling the truth about
+ * what satisfies the use-gate; it authors no agent speech and pins no host.
+ */
+export interface GateNextStep {
+  message: string;
+  options: Array<{ path: "account" | "wallet"; command: string; effect: string }>;
+}
+
+export function buildGateRefusal(): GateNextStep {
+  return {
+    message:
+      "Authenticate to use unbrowse: register an account, or fund an x402 wallet (Faremeter Flex via the configured facilitator).",
+    options: [
+      {
+        path: "account",
+        command: "unbrowse account --register",
+        effect: "a registered account API key satisfies the gate, fully headless",
+      },
+      {
+        path: "wallet",
+        command: "npx @crossmint/lobster-cli setup",
+        effect:
+          "an x402 wallet pays per call; lobster funding needs a human at the hosted approval URL",
+      },
+    ],
+  };
+}
+
 // ---------------------------------------------------------------------------
-// X402 configuration — Solana + Base, USDC via corbits.dev
+// X402 configuration - Solana + Base, USDC; facilitator defaults to PayAI (Faremeter Flex)
 // ---------------------------------------------------------------------------
 
 export const X402_CONFIG = {
@@ -109,7 +140,7 @@ export const X402_CONFIG = {
       mainnet: "base-mainnet",
     },
   },
-  facilitator: "https://facilitator.corbits.dev",
+  facilitator: process.env.UNBROWSE_X402_FACILITATOR ?? "https://facilitator.payai.network",
   supports_pda_wallets: true,
 } as const;
 
@@ -398,20 +429,32 @@ export async function checkPaymentRequirement(
     memo: `unbrowse:${skillId}:${endpointId}`,
   };
 
-  if (options?.wallet_configured === false) {
+  // Lewis directive: hard gate login, but x402 payment substitutes for login.
+  // A registered account API key is itself a satisfying use-credential, so a
+  // keyed caller is never the anonymous case (payment may still apply).
+  const accountRegistered = (() => {
+    try {
+      return getApiKey() !== "";
+    } catch {
+      return false;
+    }
+  })();
+
+  if (options?.wallet_configured === false && !accountRegistered) {
     return {
       status: "wallet_not_configured",
       requirement,
-      message: "No agent wallet configured. Set up a wallet like lobster.cash to use paid skills.",
-      next_step: "Complete wallet setup before proceeding with this skill execution.",
+      message:
+        "Usage requires a registered account or a funded x402 wallet. No account key and no wallet were found.",
+      next_step: buildGateRefusal(),
     };
   }
 
   return {
     status: "payment_required",
     requirement,
-    message: `This execution requires ${amount} USDC. Transaction execution and final status are handled by your wallet provider.`,
-    next_step: "If a wallet step is required and wallet context is missing, complete wallet setup first.",
+    message: `This execution requires ${amount} USDC via x402 (your wallet provider settles it), or a registered account.`,
+    next_step: buildGateRefusal(),
   };
 }
 

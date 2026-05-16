@@ -68,6 +68,10 @@ describe("checkPaymentRequirement", () => {
   test("returns wallet_not_configured when wallet_configured is false", async () => {
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
+    // wallet_not_configured is the correct status only for a TRULY anonymous
+    // caller (no account key AND no wallet) under the account-or-x402 gate.
+    delete process.env.UNBROWSE_API_KEY;
+    process.env.UNBROWSE_CONFIG_DIR = mkdtempSync(path.join(os.tmpdir(), "ubpw-anon-cfg-"));
     const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
       ...PAID_ROUTE,
       wallet_configured: false,
@@ -320,6 +324,11 @@ describe("payment gate integration", () => {
     delete process.env.AGENT_WALLET_ADDRESS;
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
+    // The new account-or-wallet gate: this test asserts the genuinely
+    // ANONYMOUS path (no account credential AND no wallet). Establish it
+    // deterministically so an ambient dev api key cannot leak in.
+    delete process.env.UNBROWSE_API_KEY;
+    process.env.UNBROWSE_CONFIG_DIR = mkdtempSync(path.join(os.tmpdir(), "ubpw-anon-cfg2-"));
 
     const walletCheck = checkWalletConfigured();
     expect(walletCheck.configured).toBe(false);
