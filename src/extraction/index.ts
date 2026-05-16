@@ -2008,26 +2008,32 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
 
   const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
   const bestPassing = (() => {
+    // Prefer article-body extraction over a schema-only JSON-LD / meta envelope.
+    // A type:"article" structure is emitted by extractArticleBodySpecial only
+    // when the page is genuinely article/wikipedia-shaped (it applies its own
+    // intent + page-shape gate upstream), so its presence WITH real sections
+    // means the body content the agent asked for was found. A same-page JSON-LD
+    // Article object has @type/name/url/dates/publisher but no body text or
+    // sections. assessIntentResult abstains ("skip", not "pass") on free-form
+    // article AND json-ld payloads alike, so this preference used to sit behind
+    // the passing.length gate below and never ran; the JSON-LD card then won on
+    // raw relevance score and the agent got the schema.org envelope instead of
+    // the article. This check is structural (existing structure.type values),
+    // not a per-domain or intent-string rule, and runs regardless of whether
+    // anything earned an explicit pass verdict.
+    const bestArticle = scored.find((candidate) => candidate.structure.type === "article");
+    if (bestArticle) {
+      const articleData = bestArticle.structure.data as { sections?: unknown[] };
+      if (articleData?.sections && Array.isArray(articleData.sections) && articleData.sections.length > 0) {
+        return bestArticle;
+      }
+    }
     if (passing.length === 0) return undefined;
     const bestPassingOverall = passing[0];
     const bestPassingSpa = passing.find((candidate) => candidate.structure.type.startsWith("spa-"));
     // Prefer cleaner SPA payloads when they're effectively tied with DOM-derived candidates.
     if (bestPassingSpa && bestPassingOverall && bestPassingSpa.score >= bestPassingOverall.score - 2) {
       return bestPassingSpa;
-    }
-    // Prefer article-body extraction over schema-only JSON-LD when intent is article-shaped:
-    // a JSON-LD Article object has @type/name/url/dates but no body text or sections, which
-    // doesn't satisfy "wikipedia article on quantum computing"-style intents. Article-body
-    // returns title + summary + sections (the actual content the agent asked for).
-    const isArticleIntent = /(wikipedia|article|wiki page|page on|read|content of|body of|summary of|about )/i.test(intent);
-    if (isArticleIntent) {
-      const bestArticle = scored.find((candidate) => candidate.structure.type === "article");
-      if (bestArticle) {
-        const articleData = bestArticle.structure.data as { sections?: unknown[] };
-        if (articleData?.sections && Array.isArray(articleData.sections) && articleData.sections.length > 0) {
-          return bestArticle;
-        }
-      }
     }
     return bestPassingOverall;
   })();
