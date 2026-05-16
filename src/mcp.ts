@@ -929,6 +929,47 @@ export function maybePostProcessResult(result: Record<string, unknown>, args: Re
     };
   }
 
+  // Surface the declared agent decision surface, not internal state.
+  // A resolve response carries the full SkillManifest at `skill` (every
+  // endpoint's schema + samples) AND the ranked shortlist the agent
+  // actually picks from at `available_endpoints`. The manifest is
+  // substrate-internal: resolveSkillId / executeResolvedEndpoint already
+  // consumed `skill.skill_id` upstream of this function, and skill_id is
+  // also on `result.result.skill_id`. Serialized whole it is dead weight
+  // that blows the wire budget (live: 91KB skill of a 121KB payload) and,
+  // because the diet is string+array-only, drops the agent into a
+  // truncated envelope with no shortlist. When both the manifest and the
+  // shortlist that supersedes it are present, replace the manifest with
+  // its identity so the response fits and the shortlist survives. This is
+  // surfacing what is declared, not a hardcoded key-strip: the condition
+  // is purely structural (full manifest + the shortlist that obsoletes
+  // it) and skill_id is preserved for the agent's next execute call.
+  const skillNode = (result as Record<string, unknown>).skill;
+  const resultNode = (result as Record<string, unknown>).result;
+  const shortlist =
+    (Array.isArray((result as Record<string, unknown>).available_endpoints) &&
+      (result as Record<string, unknown>).available_endpoints) ||
+    (isPlainObject(resultNode) && Array.isArray(resultNode.available_endpoints) &&
+      resultNode.available_endpoints) ||
+    null;
+  if (
+    isPlainObject(skillNode) &&
+    Array.isArray(skillNode.endpoints) &&
+    Array.isArray(shortlist) &&
+    shortlist.length > 0
+  ) {
+    const skillId =
+      (typeof skillNode.skill_id === "string" && skillNode.skill_id) ||
+      (isPlainObject(resultNode) && typeof resultNode.skill_id === "string" && resultNode.skill_id) ||
+      undefined;
+    const compactResult: Record<string, unknown> = {
+      ...(result as Record<string, unknown>),
+      skill: skillId ? { skill_id: skillId } : undefined,
+    };
+    if (compactResult.skill === undefined) delete compactResult.skill;
+    return dietIfOversize(compactResult);
+  }
+
   return dietIfOversize(result);
 }
 
