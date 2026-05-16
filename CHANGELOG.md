@@ -1,5 +1,34 @@
 # Changelog
 
+## [6.17.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.5...v6.17.0-preview.6) (2026-05-16)
+
+### Features
+
+* **cli:** Phase 0d c2 - CLI dispatches in-process, no :6969 daemon ([e71bdff](https://github.com/unbrowse-ai/unbrowse-dev/commit/e71bdff844ce8081c4ab8c71e184223d248c353d))
+* **evidence-build:** unbrowse-mcp axis-aggregated criteria + bench ([67c5d0d](https://github.com/unbrowse-ai/unbrowse-dev/commit/67c5d0d5a38f4f385910cb05f3c34696d0294553))
+* **mcp:** Phase 0d c1 - in-process Fastify (app.inject), no :6969 daemon ([62fa229](https://github.com/unbrowse-ai/unbrowse-dev/commit/62fa229fdbd4f17e45a61450c24a6ab61577b184))
+* **mcp:** Phase 0d c3 - stdio drains capture spool, no daemon timer ([7cc921b](https://github.com/unbrowse-ai/unbrowse-dev/commit/7cc921b8a0e58727c0623c951e2672485b2fcf10))
+* **server:** Phase 0d c4 - delete the idle-reaper (last flap vector) ([ee95f8b](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee95f8bedbc0862dcfce2501542248fd37af4e37))
+* **workbench:** recorded-baseline mode (skip live baseline daemon) ([7367a5e](https://github.com/unbrowse-ai/unbrowse-dev/commit/7367a5ecc5079aa7040d4bd419eeb74399ff32b1))
+
+### Bug Fixes
+
+* **browse/snap:** stop masking a concrete non-http location with the requested url ([bae7b56](https://github.com/unbrowse-ai/unbrowse-dev/commit/bae7b56a04cc7c8c027af439530278d2a00bc1db)), closes [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3)
+* **browse:** require session_id when >1 browse sessions are live ([4f9f9b2](https://github.com/unbrowse-ai/unbrowse-dev/commit/4f9f9b26a5c03780ee6ff0c7d4c50823d09b71dc))
+* **capture:** synthetic admission body must not become a response contract ([50583ea](https://github.com/unbrowse-ai/unbrowse-dev/commit/50583ea2c13dbd760b9146d6dd0e60b00c05f5ed))
+* **execute:** decideFromProbe stops asserting server-rendered from size alone ([d2bf415](https://github.com/unbrowse-ai/unbrowse-dev/commit/d2bf4157985adc1cf431b54779b1288b769a5f2d))
+* **execute:** drift/success truth-telling coherence ([d425c08](https://github.com/unbrowse-ai/unbrowse-dev/commit/d425c088cb44567563d4eac1b6fbd97b45e6f441))
+* **extraction:** article body wins over same-page JSON-LD envelope ([81630b2](https://github.com/unbrowse-ai/unbrowse-dev/commit/81630b207249223c7bbf455bdd426af9fadd5b32))
+* **indexing:** server-fetch fallback so SSR pages index on close ([c335b40](https://github.com/unbrowse-ai/unbrowse-dev/commit/c335b40e477f4f156a9f0f0a628df65898900429))
+* **indexing:** server-fetch fallback when getPageHtml extracts below the gate ([7eb588b](https://github.com/unbrowse-ai/unbrowse-dev/commit/7eb588bd35510df9dc853dbdc12cb5947e662e5b))
+* **indexing:** tolerate leading whitespace before <!DOCTYPE in close guard ([1e221aa](https://github.com/unbrowse-ai/unbrowse-dev/commit/1e221aaa1fbf7623e97bc5d6899323f3585daeee))
+* **kuri:** vendor broker fix for handleEvaluate header-after-body SIGABRT ([6ba2c2a](https://github.com/unbrowse-ai/unbrowse-dev/commit/6ba2c2ac270e83e4d14d6c694ae1b3b02691e608))
+* **mcp/resolve:** stop serializing the full SkillManifest onto the agent wire ([bf2b580](https://github.com/unbrowse-ai/unbrowse-dev/commit/bf2b580257f515bb1d5a514bbf9e78b22f4a726a))
+* **mcp/snap:** surface recoverable browse failure instead of a fake-empty snapshot ([6e6b037](https://github.com/unbrowse-ai/unbrowse-dev/commit/6e6b037638cb23de77ba1d4051cdcf3894d030dd))
+* **release:** publish @unbrowse/sdk to npm on tag ([#460](https://github.com/unbrowse-ai/unbrowse-dev/issues/460)) ([b2abf50](https://github.com/unbrowse-ai/unbrowse-dev/commit/b2abf50ab03a52bb6f7b0044c0d2c9be42cfea16))
+* **workbench:** golden-presence switch (env-independent, survives /mcp) ([d0ce99e](https://github.com/unbrowse-ai/unbrowse-dev/commit/d0ce99e57a0158632d92212bbeecc280ac54e625))
+* **workbench:** per-side UNBROWSE_URL so candidate + baseline get distinct daemon ports ([25285f9](https://github.com/unbrowse-ai/unbrowse-dev/commit/25285f95839e662553039347fe49e0b4ac6ed039))
+
 ## Unreleased
 
 ### Bug Fixes
