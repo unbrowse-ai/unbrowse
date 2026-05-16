@@ -244,7 +244,7 @@ export async function cacheBrowseRequests(params: {
       // can rescrape fresh tokens on replay.
       try {
         const html = getPageHtml ? await getPageHtml() : undefined;
-        if (html && html.startsWith("<")) {
+        if (html && html.trimStart().startsWith("<")) {
           const preCheck = requests.filter(r => r.request_headers["authorization"] || r.request_headers["x-csrf-token"]).length;
           const enriched = enrichEndpointsWithTokenSources(quickSkill.endpoints, requests, html, jsBundles);
           log("browse-index", `token enrichment: ${enriched} bindings, ${preCheck} auth-reqs pre-call, ${quickSkill.endpoints.length} eps`);
@@ -289,11 +289,11 @@ export async function cacheBrowseRequests(params: {
     // tryHttpFetch the SSR execute fast-path uses) instead of declaring
     // nothing to index and leaving the agent to loop on go -> close ->
     // resolve forever with zero learning.
-    if (!html || !html.startsWith("<")) {
+    if (!html || !html.trimStart().startsWith("<")) {
       const fetched = await tryHttpFetch(sessionUrl, {}, []);
       html = fetched?.html;
     }
-    if (!html || !html.startsWith("<")) return { domain, indexed: false, mode: "none", skill: null };
+    if (!html || !html.trimStart().startsWith("<")) return { domain, indexed: false, mode: "none", skill: null };
 
     const extracted = extractFromDOM(html, intent);
     const searchForms = detectSearchForms(html);
