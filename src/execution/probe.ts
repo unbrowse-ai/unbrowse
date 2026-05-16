@@ -230,9 +230,19 @@ export function decideFromProbe(input: DecisionInput): Decision {
   }
 
   if (isHtml && bodyLarge) {
+    // The probe is HEAD / GET-1byte: it measured byte_length but never
+    // fetched the body, so it has zero evidence the HTML is server-
+    // rendered (a 5kB+ JS-SPA shell is indistinguishable from 5kB+ of
+    // SSR content at this layer; see the SSR/SPA note below). Server-
+    // fetch first is still the correct cheap default (genuine-SSR sites
+    // are the majority and a browser open is the failure mode), but the
+    // reason must state the real basis, not assert "server-rendered".
+    // When the body turns out to be a SPA shell the executor's drift /
+    // empty-result path emits a re_capture_signal that routes to the
+    // browser; this decision does not need to pre-judge renderedness.
     return {
       strategy: "server",
-      reason: `probe ${status} + html ${byte_length}B — server-rendered, fetch + extract`,
+      reason: `probe ${status} + html ${byte_length}B >= ${SMALL_HTML_BYTES}B; renderedness unverified from range probe, server-fetch first (drift or empty falls through to re-capture)`,
     };
   }
 
