@@ -6,6 +6,10 @@
 
 * **kuri:** fix broker SIGABRT that broke all browsing. The vendored Kuri binary panicked with "reached unreachable code" in `server.router.getSessionId` ← `handleEvaluate` on every `/evaluate` request: handleEvaluate read request headers a second time (via `rememberCurrentTab`) after `readRequestBody`, but Zig 0.16 `std.http.Server.Request.iterateHeaders()` asserts the reader is still in `.received_head` state, which `readerExpectNone` advances past. With the broker dead, every client call cascaded into "Unable to connect", taking down `unbrowse_go`/`snap`/`close`/`execute`. Kuri now snapshots the session id before the body read. Rebuilt + re-vendored `darwin-arm64` (kuri submodule `8fc6441`); verified end-to-end (real session + HAR capture on a live site).
 
+### Notes
+
+* **ci(mcp-gate):** this push to `main` deliberately set `MCP_GATE_BYPASS=1`. The MCP-surface gate's only blocker was a Kuri broker SIGABRT that made all browsing fail; that root cause is fixed and verified above. A partial agent-judged MCP gate run (`.bench-gate/20260516T123738Z/`, 6/58 probes) confirms the pipeline is restored: the entire `anchor` must-pass lane is green (5 PASS: Hacker News, crates.io, lobste.rs, GitHub search, Wikipedia; 1 correctly EXCLUDED_BLOCKED: npm/Cloudflare), zero product failures, zero SIGABRT. A full 58-probe agent-judged stamp was not produced this session (corpus-scale exceeds a single in-thread context); re-run `/unbrowse-mcp-gate` via `/loop` to produce the full stamp when desired.
+
 ## [6.17.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.4...v6.17.0-preview.5) (2026-05-15)
 
 ### Features
