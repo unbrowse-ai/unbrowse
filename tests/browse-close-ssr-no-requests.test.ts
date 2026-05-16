@@ -204,3 +204,71 @@ describe("cacheBrowseRequests SSR HTTP fallback when live getPageHtml yields jun
     }
   });
 });
+
+// Loop 10: in-thread MCP dogfooding of "search openlibrary for dune books"
+// (openlibrary.org/search?q=dune, server-rendered). close returned
+// indexed:false/mode:none/request_count:0 and the post-close resolve stayed
+// no_match -> dead chain, agent loops -- even though loop-7's server-fetch
+// fallback IS in the running source. A real server GET of that URL returns
+// HTTP 200 with 172KB of valid SSR HTML, but the response body begins with
+// "\n\n<!DOCTYPE html>" (leading newlines, extremely common from
+// Jinja/Django/Rails templates). The HTML-validity guard `html.startsWith("<")`
+// in cacheBrowseRequests treats leading whitespace as non-HTML and discards
+// the whole 172KB document (extractFromDOM on it yields conf-0.63 array[12]
+// and shouldIndexDomBrowseFallback returns allow:true once it is actually
+// run). The codebase already uses the correct `trimStart().startsWith("<")`
+// pattern at src/capture/index.ts; the close-index guards must match it.
+describe("cacheBrowseRequests tolerates leading whitespace before <!DOCTYPE", () => {
+  it("indexes a dom skill when getPageHtml returns valid HTML prefixed with newlines", async () => {
+    // sessionUrl 404s so the tryHttpFetch fallback cannot rescue: this isolates
+    // that the leading-whitespace getPageHtml body itself must be accepted.
+    const server = createServer((_req, res) => {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("not found");
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const result = await cacheBrowseRequests({
+        sessionUrl: `http://127.0.0.1:${port}/search?q=dune`,
+        sessionDomain: "openlibrary.org",
+        requests: [],
+        // Real-world shape: server emits "\n\n<!DOCTYPE html>" (Open Library,
+        // and many templating engines, do exactly this).
+        getPageHtml: async () => "\n\n" + HN_LIKE_HTML,
+        intent: "browse openlibrary.org",
+      });
+      expect(result.indexed).toBe(true);
+      expect(result.mode).toBe("dom");
+      expect(result.skill).not.toBeNull();
+      const ep = result.skill!.endpoints.find((e) => e.dom_extraction);
+      expect(ep).toBeDefined();
+      expect(ep!.method).toBe("GET");
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
+  it("still returns mode:none when the body is genuinely not HTML (no false positive)", async () => {
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const result = await cacheBrowseRequests({
+        sessionUrl: `http://127.0.0.1:${port}/x.json`,
+        sessionDomain: "127.0.0.1",
+        requests: [],
+        getPageHtml: async () => "   \n  not html at all, just whitespace then text",
+        intent: "browse 127.0.0.1",
+      });
+      expect(result.indexed).toBe(false);
+      expect(result.mode).toBe("none");
+      expect(result.skill).toBeNull();
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+});
