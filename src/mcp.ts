@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureLocalServer } from "./runtime/local-server.js";
+import { getInProcessApp } from "./runtime/in-process-app.js";
 import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./workflow/publish.js";
 import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
@@ -16,11 +16,9 @@ import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
-process.env.MCP_SERVER_MODE ??= "1";
+// Phase 0d: no MCP_SERVER_MODE. The stdio MCP runs the API in-process; there is no daemon.
 
-const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
 const CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `mcp-${process.pid}`;
-const NO_AUTO_START = process.argv.includes("--no-auto-start");
 const LATEST_PROTOCOL_VERSION = "2025-11-25";
 const SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05"] as const;
 const PREVIEW_LIMIT = 12_000;
@@ -586,61 +584,17 @@ function listPrompt(prompt: PromptDefinition): ListedPrompt {
   };
 }
 
-let serverReadyPromise: Promise<void> | null = null;
-
+// Phase 0d: stateless stdio. "Ready" means the in-process Fastify app is
+// built (route surface + browse-session rehydrate from disk). There is no
+// daemon to spawn, no :6969 to wait on, nothing to respawn.
 async function ensureServerReady(): Promise<void> {
-  if (!serverReadyPromise) {
-    // Reset on rejection so the next call retries auto-start instead of
-    // permanently caching the failure. Without this, a single transient
-    // first-call failure (cold-start race, brief port contention, slow
-    // disk on a sleepy machine) wedges every subsequent tool call into
-    // the same stale "server not running" error for the rest of the MCP
-    // session - the model gives up and tells the user unbrowse is down
-    // even though a retry would succeed.
-    serverReadyPromise = ensureLocalServer(BASE_URL, NO_AUTO_START, import.meta.url)
-      .catch((err) => {
-        serverReadyPromise = null;
-        throw err;
-      });
-  }
-  return serverReadyPromise;
+  await getInProcessApp();
 }
 
-// Drop the cached "server is ready" promise so the next ensureServerReady()
-// re-runs ensureLocalServer and respawns the disposable daemon. Called when
-// api() observes a connection failure (idle reaper killed `unbrowse serve`,
-// daemon crashed, port contention) - sessions.jsonl rehydration restores
-// any open browse sessions on respawn.
+// Retained for call-site compatibility. The in-process app is a stable
+// per-stdio-process singleton; there is no disposable daemon to invalidate.
 function invalidateServerReady(): void {
-  serverReadyPromise = null;
-}
-
-function isConnectError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  // Codes seen in the wild: Node/undici → ECONNREFUSED/ECONNRESET/etc;
-  // Bun → ConnectionRefused / ConnectionReset / Timeout.
-  const codes = new Set([
-    "ECONNREFUSED",
-    "ECONNRESET",
-    "EHOSTUNREACH",
-    "ENETUNREACH",
-    "ETIMEDOUT",
-    "ConnectionRefused",
-    "ConnectionReset",
-    "Timeout",
-  ]);
-  const messageRegex = /ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|fetch failed|Unable to connect|Connection refused/i;
-  const seen = new Set<unknown>();
-  let cur: unknown = err;
-  while (cur && !seen.has(cur)) {
-    seen.add(cur);
-    const code = (cur as { code?: unknown }).code;
-    if (typeof code === "string" && codes.has(code)) return true;
-    const message = (cur as { message?: unknown }).message;
-    if (typeof message === "string" && messageRegex.test(message)) return true;
-    cur = (cur as { cause?: unknown }).cause;
-  }
-  return false;
+  /* no-op: no resident daemon under the stateless model */
 }
 
 function getVersion(): string {
@@ -1056,8 +1010,8 @@ export function addCaptureNextStepHints(
 }
 
 async function api(method: string, route: string, body?: unknown): Promise<unknown> {
-  let target = `${BASE_URL}${route}`;
-  let requestBody = body;
+  let url = route;
+  let payload = body;
   if (method === "GET" && body && typeof body === "object") {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
@@ -1066,41 +1020,32 @@ async function api(method: string, route: string, body?: unknown): Promise<unkno
       }
     }
     const query = params.toString();
-    if (query) target += `${target.includes("?") ? "&" : "?"}${query}`;
-    requestBody = undefined;
+    if (query) url += `${url.includes("?") ? "&" : "?"}${query}`;
+    payload = undefined;
   }
 
-  const doFetch = () =>
-    fetch(target, {
-      method,
-      headers: {
-        ...(requestBody ? { "Content-Type": "application/json" } : {}),
-        "x-unbrowse-client-id": CLIENT_ID,
-      },
-      body: requestBody ? JSON.stringify(requestBody) : undefined,
-    });
+  // Phase 0d: no HTTP, no :6969 daemon. Dispatch in-process via Fastify
+  // inject against the same route surface server.ts would listen on. Kuri
+  // (the separate CDP broker) holds the only live state.
+  const app = await getInProcessApp();
+  const res = await app.inject({
+    method: method as "GET" | "POST",
+    url,
+    headers: {
+      ...(payload ? { "content-type": "application/json" } : {}),
+      "x-unbrowse-client-id": CLIENT_ID,
+    },
+    payload: payload !== undefined ? JSON.stringify(payload) : undefined,
+  });
 
-  let res: Response;
-  try {
-    res = await doFetch();
-  } catch (err) {
-    // Disposable daemon design: `unbrowse serve` self-exits after idle
-    // (and sessions persist via sessions.jsonl). If we hit a connect error,
-    // assume the daemon was reaped and respawn it, then retry once.
-    if (!isConnectError(err)) throw err;
-    invalidateServerReady();
-    await ensureServerReady();
-    res = await doFetch();
-  }
-
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
+  const ct = res.headers["content-type"];
+  const ctStr = Array.isArray(ct) ? ct.join(";") : String(ct ?? "");
+  if (ctStr.includes("application/json")) {
     return res.json();
   }
-
-  const text = await res.text();
-  if (res.ok) return { ok: true, text };
-  return { error: `HTTP ${res.status}: ${text}` };
+  const text = res.body;
+  if (res.statusCode >= 200 && res.statusCode < 300) return { ok: true, text };
+  return { error: `HTTP ${res.statusCode}: ${text}` };
 }
 
 function resolveNestedError(value: Record<string, unknown>): string | undefined {
@@ -2795,7 +2740,7 @@ async function main(): Promise<void> {
     void flushSession();
   });
 
-  writeStderr(`starting stdio server on ${BASE_URL} (${NO_AUTO_START ? "no auto-start" : "auto-start enabled"})`);
+  writeStderr("starting stateless stdio MCP (in-process API, no daemon)");
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
 
   for await (const line of rl) {
