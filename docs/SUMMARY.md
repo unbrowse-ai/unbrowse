@@ -1,6 +1,7 @@
 # Table of contents
 
 * [Unbrowse](README.md)
+* [Where This Goes](vision.md)
 
 ## Start Here
 
@@ -27,7 +28,10 @@
 * [Shadow APIs](concepts/shadow-apis.md)
 * [The Route Graph as a Productive Asset](concepts/route-graph-as-asset.md)
 * [The Maintenance Problem](concepts/the-maintenance-problem.md)
+* [The Maintenance Network](concepts/the-maintenance-network.md)
+* [Route Trust Tiers](concepts/route-trust-tiers.md)
 * [Trust and Accountability](concepts/trust-and-accountability.md)
+* [Accountable Bonding and Where FDRY Fits](concepts/accountable-bonding.md)
 * [How Quality Is Evaluated](concepts/evaluation-framing.md)
 
 ## For Investors
@@ -37,6 +41,10 @@
 * [Market Framing](for-investors/market-framing.md)
 * [Read the Papers](for-investors/read-the-papers.md)
 
+## Built on Unbrowse
+
+* [Built on Unbrowse](built-on-unbrowse/README.md)
+* [Aiko: The Reference Consumer Agent](built-on-unbrowse/aiko-agent.md)
 ## SDK Reference
 
 * [Build on Unbrowse](sdk/build-on-unbrowse.md)
