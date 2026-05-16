@@ -637,6 +637,23 @@ async function apiRequest<T = unknown>(
         ? JSON.parse(legacyPaymentTerms)
         : (data as Record<string, unknown>).terms;
 
+    // Try Faremeter Flex escrow settlement before lobster/throw (one shared seam).
+    try {
+      const { settleViaFlex } = await import("../payments/flex-pay.js");
+      const flexResult = await settleViaFlex<T>(`${API_URL}${path}`, terms, {
+        body,
+        headers: {
+          "Content-Type": "application/json",
+          ...releaseAttestationHeaders,
+          ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        },
+      });
+      if (flexResult) {
+        return { data: flexResult.data, headers: new Headers() };
+      }
+    } catch (flexErr) {
+      console.warn(`[x402] flex settle failed: ${(flexErr as Error).message}`);
+    }
     // Try lobster.cash automatic payment before throwing
     try {
       const { isLobsterAvailable, payAndRetry } = await import("../payments/lobster-pay.js");

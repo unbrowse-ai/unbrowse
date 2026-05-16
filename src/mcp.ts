@@ -1054,6 +1054,54 @@ async function api(method: string, route: string, body?: unknown): Promise<unkno
     // structured, actionable gate the client surfaces, so the calling agent
     // can register an account or pay via x402 (Faremeter Flex / configured
     // facilitator) and retry, instead of dead-ending on a string.
+    // One shared Flex settlement seam (the same module the CLI 402 path uses).
+    // The paid retry is injected through THIS in-process app so it keeps the
+    // exact route + client-id shaping the original 402 came through; the
+    // authorize/sign/submit/splits-verbatim money logic lives in flex-pay.ts.
+    try {
+      const { settleViaFlex } = await import("./payments/flex-pay.js");
+      let terms: unknown;
+      const prHeader =
+        res.headers["payment-required"] ?? res.headers["x-payment-required"];
+      if (typeof prHeader === "string") {
+        try {
+          terms = JSON.parse(Buffer.from(prHeader, "base64").toString("utf8"));
+        } catch {
+          /* not a base64 terms header; fall through */
+        }
+      }
+      if (terms === undefined) {
+        try {
+          terms = JSON.parse(text);
+        } catch {
+          /* 402 body is not JSON terms */
+        }
+      }
+      const flex = await settleViaFlex(url, terms, {
+        body: payload,
+        retry: async (paymentHeader: string) => {
+          const r = await app.inject({
+            method: method as "GET" | "POST",
+            url,
+            headers: {
+              ...(payload ? { "content-type": "application/json" } : {}),
+              "x-unbrowse-client-id": CLIENT_ID,
+              "X-PAYMENT": paymentHeader,
+            },
+            payload: payload !== undefined ? JSON.stringify(payload) : undefined,
+          });
+          if (r.statusCode < 200 || r.statusCode >= 300) {
+            throw new Error(`flex retry HTTP ${r.statusCode}`);
+          }
+          return r.json();
+        },
+      });
+      if (flex) return flex.data;
+    } catch (flexErr) {
+      console.warn(
+        `[x402] mcp flex settle failed: ${(flexErr as Error).message}`,
+      );
+    }
     return {
       error: "payment_required",
       status_code: 402,
