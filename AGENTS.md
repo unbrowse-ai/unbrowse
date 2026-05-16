@@ -152,4 +152,5 @@ Reach for these by name when the trigger phrase matches what the user asked for.
 | `/unbrowse-bench-corpus-builder` | Add harder Unbrowse release-gate bench probes as typed corpus rows. |
 | `/unbrowse-bench-history-tracker` | Append every agent-judged bench-gate run to a per-run history ledger and surface deltas in release notes. |
 | `/web-app-harness` | scaffold a harness for this web app; set up the test loop; wire build test deploy debug fix |
+| `/falsifier-gated-build` | verify this build honestly; is this regression mine or pre-existing; did I actually fix it or is it a painted lamp |
 <!-- /skills:pinned -->
