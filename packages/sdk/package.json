@@ -38,7 +38,8 @@
     }
   },
   "optionalDependencies": {
-    "unbrowse": "^6.15.0"
+    "unbrowse": "^6.15.0",
+    "@faremeter/flex-solana": "^0.2.1"
   },
   "devDependencies": {
     "typescript": "^6.0.2"

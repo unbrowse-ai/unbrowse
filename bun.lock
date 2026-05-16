@@ -85,11 +85,12 @@
     },
     "packages/sdk": {
       "name": "@unbrowse/sdk",
-      "version": "6.17.0-preview.0",
+      "version": "6.17.0-preview.6",
       "devDependencies": {
         "typescript": "^6.0.2",
       },
       "optionalDependencies": {
+        "@faremeter/flex-solana": "^0.2.1",
         "unbrowse": "^6.15.0",
       },
       "peerDependencies": {
@@ -101,7 +102,7 @@
     },
     "packages/skill": {
       "name": "unbrowse",
-      "version": "6.17.0-preview.0",
+      "version": "6.17.0-preview.6",
       "bin": {
         "unbrowse": "bin/unbrowse-wrapper.mjs",
       },
@@ -110,6 +111,7 @@
         "@fastify/cors": "^11.2.0",
         "@fastify/rate-limit": "^10.3.0",
         "@solana/kit": "^6.6.0",
+        "@unbrowse/sdk": "workspace:*",
         "@x402/fetch": "^2.9.0",
         "bs58": "^6.0.0",
         "cheerio": "^1.2.0",
@@ -123,6 +125,7 @@
         "@types/node": "^24.6.1",
       },
       "optionalDependencies": {
+        "@faremeter/flex-solana": "^0.2.1",
         "keytar": "^7.9.0",
       },
     },

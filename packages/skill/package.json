@@ -34,10 +34,12 @@
     "fastify": "^5.7.4",
     "nanoid": "^5.1.6",
     "tsx": "^4.20.6",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "@unbrowse/sdk": "workspace:*"
   },
   "optionalDependencies": {
-    "keytar": "^7.9.0"
+    "keytar": "^7.9.0",
+    "@faremeter/flex-solana": "^0.2.1"
   },
   "devDependencies": {
     "@types/node": "^24.6.1"

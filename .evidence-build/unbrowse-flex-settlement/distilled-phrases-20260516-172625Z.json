@@ -1,0 +1,420 @@
+{
+  "ts": "2026-05-16T17:26:25Z",
+  "product_id": "unbrowse-flex-settlement",
+  "records_seen": 10,
+  "phrases_surfaced": 47,
+  "allowed_source_ids": [
+    "code:backend/src/services/flex.ts#L34",
+    "code:package.json#faremeter-deps",
+    "code:src/client/index.ts#L642",
+    "code:src/mcp.ts#L1058",
+    "code:src/payments/index.ts#L143",
+    "code:src/payments/index.ts#buildGateRefusal",
+    "faremeter:flex-concepts#splits",
+    "faremeter:flex-quickstart#authorize",
+    "faremeter:flex-quickstart#escrow",
+    "faremeter:payai#facilitator"
+  ],
+  "phrases": [
+    {
+      "phrase": "key authorization",
+      "record_count": 6,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1058",
+        "code:src/payments/index.ts#buildGateRefusal",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "session key",
+      "record_count": 6,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1058",
+        "code:src/payments/index.ts#buildGateRefusal",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "session key authorization",
+      "record_count": 6,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1058",
+        "code:src/payments/index.ts#buildGateRefusal",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "escrow create",
+      "record_count": 4,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "code:src/payments/index.ts#L143",
+        "code:src/payments/index.ts#buildGateRefusal",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "source docs",
+      "record_count": 4,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "docs faremeter",
+      "record_count": 3,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "docs faremeter xyz",
+      "record_count": 3,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "faremeter xyz",
+      "record_count": 3,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "faremeter xyz flex",
+      "record_count": 3,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "flex settlement",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1058",
+        "code:src/payments/index.ts#buildGateRefusal"
+      ]
+    },
+    {
+      "phrase": "payai facilitator",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "code:src/payments/index.ts#buildGateRefusal",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "source docs faremeter",
+      "record_count": 3,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "xyz flex",
+      "record_count": 3,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "authorization escrow",
+      "record_count": 2,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "code:src/payments/index.ts#buildGateRefusal"
+      ]
+    },
+    {
+      "phrase": "authorization splits",
+      "record_count": 2,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "faremeter:flex-concepts#splits"
+      ]
+    },
+    {
+      "phrase": "authorize settle",
+      "record_count": 2,
+      "source_ids": [
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "computeflexsplits frozen",
+      "record_count": 2,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "faremeter:flex-concepts#splits"
+      ]
+    },
+    {
+      "phrase": "computeflexsplits output",
+      "record_count": 2,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "faremeter:flex-concepts#splits"
+      ]
+    },
+    {
+      "phrase": "create session",
+      "record_count": 2,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "create session key",
+      "record_count": 2,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "escrow create session",
+      "record_count": 2,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "facilitator binding",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "facilitator https",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "facilitator https facilitator",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "facilitator payai",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "facilitator payai network",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "faremeter fetch",
+      "record_count": 2,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "faremeter:flex-quickstart#authorize"
+      ]
+    },
+    {
+      "phrase": "faremeter flex-solana",
+      "record_count": 2,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "faremeter payment-solana",
+      "record_count": 2,
+      "source_ids": [
+        "code:package.json#faremeter-deps",
+        "faremeter:flex-quickstart#authorize"
+      ]
+    },
+    {
+      "phrase": "flex authorization",
+      "record_count": 2,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "faremeter:flex-concepts#splits"
+      ]
+    },
+    {
+      "phrase": "flex client",
+      "record_count": 2,
+      "source_ids": [
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "flex concepts",
+      "record_count": 2,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize"
+      ]
+    },
+    {
+      "phrase": "flex quickstart",
+      "record_count": 2,
+      "source_ids": [
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    },
+    {
+      "phrase": "flex settlement session",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/payments/index.ts#buildGateRefusal"
+      ]
+    },
+    {
+      "phrase": "https facilitator",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "https facilitator payai",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "path payment",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1058"
+      ]
+    },
+    {
+      "phrase": "path payment parity",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1058"
+      ]
+    },
+    {
+      "phrase": "payai network",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/payments/index.ts#L143",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "payment parity",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1058"
+      ]
+    },
+    {
+      "phrase": "session-key authorization",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/payments/index.ts#buildGateRefusal"
+      ]
+    },
+    {
+      "phrase": "settle path",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "faremeter:payai#facilitator"
+      ]
+    },
+    {
+      "phrase": "settlement session",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/payments/index.ts#buildGateRefusal"
+      ]
+    },
+    {
+      "phrase": "settlement session key",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/payments/index.ts#buildGateRefusal"
+      ]
+    },
+    {
+      "phrase": "signed authorization",
+      "record_count": 2,
+      "source_ids": [
+        "faremeter:flex-concepts#splits",
+        "faremeter:flex-quickstart#authorize"
+      ]
+    },
+    {
+      "phrase": "splits array",
+      "record_count": 2,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "faremeter:flex-concepts#splits"
+      ]
+    },
+    {
+      "phrase": "xyz flex quickstart",
+      "record_count": 2,
+      "source_ids": [
+        "faremeter:flex-quickstart#authorize",
+        "faremeter:flex-quickstart#escrow"
+      ]
+    }
+  ]
+}

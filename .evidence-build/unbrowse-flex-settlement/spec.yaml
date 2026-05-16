@@ -1,0 +1,75 @@
+product_id: unbrowse-flex-settlement
+mode: product
+repo_path: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+improvement_loop: /unbrowse-improvement-loop
+improvement_fleet: /unbrowse-improvement-fleet
+wave_runner: /self-build
+session: lewis-2026-05-17
+wave: 1
+
+description: |
+  The deep grow-from-here the unbrowse-payment-gate wave (commit 6ef1fed9,
+  shipped to main) deliberately scoped out. Today the MCP/CLI x402 pay path
+  only SURFACES a structured buildGateRefusal next_step on a 402; it does
+  not actually SETTLE. This wave builds real Faremeter Flex client
+  settlement: create/reuse a client escrow, register an Ed25519 session
+  key, on HTTP 402 build + session-key-sign a Flex payment authorization
+  (splits = the FROZEN computeFlexSplits output, bps sum 10000, <=5
+  recipients), submit via the configured PayAI facilitator
+  (facilitator.payai.network, the declared UNBROWSE_X402_FACILITATOR config
+  from 6ef1fed9), retry, and let the existing settle+record path fire.
+
+  NON-GOALS: do not change computeFlexSplits math; do not change the
+  account-or-x402 gate semantics shipped in 6ef1fed9; do not regress the
+  146/0 payment/auth suite; no per-domain heuristics; no hardcoded
+  facilitator literal (declared config only); no em dashes.
+
+sources:
+  - kind: command
+    id: code
+    run: bash .evidence-build/unbrowse-flex-settlement/probes/codebase-state.sh
+    note: |
+      Greps the real current state: src/payments (handlePaymentRequired,
+      buildGateRefusal, checkPaymentRequirement, X402_CONFIG.facilitator
+      declared config), src/client/index.ts payAndRetry/isX402Error,
+      src/mcp.ts api() 402 branch, backend/src/services/flex.ts
+      computeFlexSplits/PLATFORM_BPS (FROZEN), and whether
+      @faremeter/flex-solana / @faremeter/payment-solana / @faremeter/fetch
+      are dependencies. Emits code:path#Ln evidence rows.
+  - kind: command
+    id: faremeter
+    run: bash .evidence-build/unbrowse-flex-settlement/probes/faremeter-docs.sh
+    note: |
+      Emits evidence rows for the documented Flex client flow + PayAI
+      facilitator contract (faremeter:<doc> source ids), pulled from the
+      faremeter + PayAI docs surfaced in the prior session and bundled
+      here so the wave is offline-stable.
+
+axes:
+  - id: escrow-session-key
+    description: "client creates/reuses a Flex escrow + registers an Ed25519 session key, facilitator bound at escrow-creation = the declared config"
+    substrate_surfaces:
+      - src/payments/index.ts
+      - package.json
+  - id: authorize-and-settle
+    description: "on 402, build + session-key-sign a Flex payment authorization (splits from FROZEN computeFlexSplits) and submit via the configured PayAI facilitator, then retry"
+    substrate_surfaces:
+      - src/payments/index.ts
+      - src/client/index.ts
+      - src/mcp.ts
+      - backend/src/services/flex.ts
+  - id: settle-records-on-both-surfaces
+    description: "an MCP-originated AND a CLI-originated paid execute reach the same settle+record path after a real Flex authorization, parity preserved"
+    substrate_surfaces:
+      - src/mcp.ts
+      - src/client/index.ts
+
+out_of_scope_lanes:
+  - on-chain-flex-anchor-program-internals
+  - payai-facilitator-service-itself
+  - kuri-zig
+  - computeFlexSplits-math-change
+  - gate-semantics-change-from-6ef1fed9
+
+adversarial_held:
+  - "lobster-headless-limit carries forward: full escrow funding needs a human at the hosted approval URL; account-register stays the headless satisfiable path. The settle path uses the x402.payai.network instant-refund echo as the no-mock behavioral falsifier so it can be exercised without real funds."
