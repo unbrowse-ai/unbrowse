@@ -703,9 +703,23 @@ export interface SnapResponse {
  */
 export function buildSnapResponse(input: SnapResponseInput): SnapResponse {
   const { snapshot, session, currentUrl } = input;
-  const observedUrl = typeof currentUrl === "string" && currentUrl.startsWith("http")
-    ? currentUrl
-    : session.url;
+  const isHttp =
+    typeof currentUrl === "string" && currentUrl.startsWith("http");
+  // A concrete observed location that is neither http(s) nor the
+  // pre-navigation placeholder (about:blank) is real evidence the tab is
+  // NOT on the requested page: e.g. broker.getCurrentUrl returned
+  // "chrome://newtab/" because a navigation was requested but never
+  // landed (reddit dogfood 2026-05-16, window.location.href confirmed
+  // "chrome://newtab/"). Surface that truth instead of masking it with
+  // the requested url. Generic: any non-empty, non-http, non-about:blank
+  // value (chrome://, chrome-error://, view-source:, data:, file:, ...),
+  // not a string match on any specific placeholder name.
+  const isConcreteNonWeb =
+    typeof currentUrl === "string" &&
+    currentUrl.trim().length > 0 &&
+    !isHttp &&
+    currentUrl !== "about:blank";
+  const observedUrl = isHttp || isConcreteNonWeb ? (currentUrl as string) : session.url;
   const observedDomain = extractDomain(observedUrl) || session.domain;
 
   const response: SnapResponse = {
@@ -717,9 +731,15 @@ export function buildSnapResponse(input: SnapResponseInput): SnapResponse {
   };
 
   const expectedDomain = session.domain;
-  if (
-    typeof currentUrl === "string"
-    && currentUrl.startsWith("http")
+  if (isConcreteNonWeb && expectedDomain) {
+    // A non-web observed location is definitionally not the expected web
+    // page; flag drift unconditionally (extractDomain on chrome:// /
+    // data: / view-source: is unreliable, so do not gate on a hostname
+    // comparison here).
+    response.landed_domain_mismatch = true;
+    response.expected_domain = expectedDomain;
+  } else if (
+    isHttp
     && expectedDomain
     && observedDomain
     && expectedDomain !== observedDomain
