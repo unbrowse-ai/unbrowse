@@ -403,6 +403,7 @@
 
 ### Bug Fixes
 
+* **execute:** drift/success truth-telling coherence. When `executeEndpoint` detected response-schema drift on a previously-captured endpoint it emitted a `re_capture_signal` (AC3) but left `trace.success = true`, so callers received drifted or degenerate output (e.g. a JS-SPA shell `{title,url}` instead of search results) as a "successful" answer. "Re-capture needed" and "here is your data" are mutually exclusive; `success` now reflects the signal the substrate already computed. The drift branch in `src/execution/index.ts` now mirrors the adjacent `assessIntentResult`-fail pattern: flips `trace.success` false, sets `trace.error = schema_drift_recapture_required`, and foregrounds the `re_capture_signal` + `drift_summary` as the actionable result. Scoped to the drift+signal case only (no drift = success unaffected). Surfaced by in-thread MCP dogfooding of `search beatsaver for camellia` (server-fetch returned the SPA shell, drift fired, success stayed true). Real-runtime test `tests/execution-drift-success-coherence.test.ts` (2 cases, no mocks, live `executeSkill` + fetch stub).
 * **tests:** `cli-capture-verb.test.ts` envelope tests now use async `spawn` instead of `spawnSync`, so the in-process stub HTTP server's event loop keeps pumping while the CLI subprocess runs (fixed 3 pre-existing timeouts).
 
 
