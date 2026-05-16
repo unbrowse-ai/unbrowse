@@ -1,5 +1,5 @@
 // tests/payment-gate.test.ts
-// evidence-build unbrowse-payment-gate — gate-anon-refused (AC1),
+// evidence-build unbrowse-payment-gate - gate-anon-refused (AC1),
 // gate-x402-bypasses-login (AC2), gate-actionable-nextstep (AC3).
 // NO MOCKS. Real src/payments + real config fixture. True falsifiers:
 // RED on v6.17.0-preview.6 for the genuine reason, GREEN only when the

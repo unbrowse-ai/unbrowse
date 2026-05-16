@@ -1,5 +1,5 @@
 // tests/setup-gate.test.ts
-// evidence-build unbrowse-payment-gate — setup-registers-or-wallet (AC7),
+// evidence-build unbrowse-payment-gate - setup-registers-or-wallet (AC7),
 // setup-lobster-path (AC8). NO MOCKS. Hardened: the prior tests false-greened
 // on setup's ALWAYS-present static wallet prose. These tie the terminal state
 // to the REAL gate observable (the same structured next_step AC1/AC3 demand),
@@ -31,7 +31,7 @@ afterEach(() => {
   process.env = { ...origEnv };
 });
 
-// AC7 setup-registers-or-wallet — sources: code:src/cli.ts#L1863,
+// AC7 setup-registers-or-wallet - sources: code:src/cli.ts#L1863,
 // code:src/runtime/setup.ts#L259, podman:setup-no-gate, podman:install.
 describe("setup-registers-or-wallet", () => {
   test("after fresh-machine setup the gate is satisfied OR still enforced+actionable", async () => {
@@ -40,7 +40,7 @@ describe("setup-registers-or-wallet", () => {
     const satisfied = getApiKey() !== "" || checkWalletConfigured().configured;
     // If setup did not produce a satisfiable credential, the gate MUST still
     // refuse a paid route with the structured actionable next_step (real
-    // commands) — never silently leave usage open. Today: not satisfied AND
+    // commands) - never silently leave usage open. Today: not satisfied AND
     // next_step is bare prose without commands -> RED.
     if (!satisfied) {
       const r = await checkPaymentRequirement("marketplace:any", "ep-1", {
@@ -56,7 +56,7 @@ describe("setup-registers-or-wallet", () => {
   });
 });
 
-// AC8 setup-lobster-path — sources: code:src/runtime/setup.ts#L210,
+// AC8 setup-lobster-path - sources: code:src/runtime/setup.ts#L210,
 // code:src/payments/wallet.ts#L95, podman:lobster-reachable.
 describe("setup-lobster-path", () => {
   test("the Lobster Cash path is surfaced in the structured gate next_step", async () => {

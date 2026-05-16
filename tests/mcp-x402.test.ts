@@ -1,8 +1,8 @@
 // tests/mcp-x402.test.ts
-// evidence-build unbrowse-payment-gate — mcp-402-carried (AC4),
+// evidence-build unbrowse-payment-gate - mcp-402-carried (AC4),
 // mcp-cli-payment-parity (AC5), splits-settle-on-mcp (AC6). NO MOCKS.
 // Hardened Step-4 luminaries: symbol-AGNOSTIC (no pinned handler name, per
-// CLAUDE.md substrate-enables) — they assert the shared payments module is
+// CLAUDE.md substrate-enables) - they assert the shared payments module is
 // imported by BOTH surfaces (true parity), not that a specific symbol exists.
 // RED on v6.17.0-preview.6: src/mcp.ts swallows the backend 402 at L1050 and
 // imports nothing from ../payments/; the CLI path does.
@@ -19,7 +19,7 @@ const clientSrc = readFileSync(path.join(root, "src/client/index.ts"), "utf8");
 // regardless of which symbol the fix chooses to export/use.
 const IMPORTS_PAYMENTS = /(?:from|import\s*\()\s*["'][^"']*\/payments\//;
 
-// AC4 mcp-402-carried — the MCP path must route its backend 402 through the
+// AC4 mcp-402-carried - the MCP path must route its backend 402 through the
 // shared payments module instead of returning a bare HTTP error string.
 // sources: code:src/mcp.ts#L1033, code:src/client/index.ts#L642, podman:mcp-x402.
 describe("mcp-402-carried", () => {
@@ -33,7 +33,7 @@ describe("mcp-402-carried", () => {
   });
 });
 
-// AC5 mcp-cli-payment-parity — true parity = BOTH surfaces import the SAME
+// AC5 mcp-cli-payment-parity - true parity = BOTH surfaces import the SAME
 // shared payments module. sources: code:src/client/index.ts#L642, code:src/mcp.ts#L1033.
 describe("mcp-cli-payment-parity", () => {
   test("CLI and MCP both import the shared payments module", () => {
@@ -42,7 +42,7 @@ describe("mcp-cli-payment-parity", () => {
   });
 });
 
-// AC6 splits-settle-on-mcp — frozen split MATH guard (NON-GOAL: do not change
+// AC6 splits-settle-on-mcp - frozen split MATH guard (NON-GOAL: do not change
 // it). Green today and must stay green. sources:
 // code:backend/src/services/flex.ts#L34, code:src/mcp.ts#L1033, podman:mcp-x402.
 describe("splits-settle-on-mcp", () => {
