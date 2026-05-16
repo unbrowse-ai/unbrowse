@@ -19,6 +19,11 @@ beforeEach(() => {
   // Block reading the developer's actual ~/.lobster/config.json so the
   // "not configured when no env" assertion is reproducible across machines.
   process.env.UNBROWSE_DISABLE_LOCAL_WALLET = "1";
+  // Account-or-x402 gate: keep this payments unit file deterministically
+  // anonymous (no leaked dev api key / config) so wallet_not_configured is
+  // the correct status for the no-credential path, reproducible across machines.
+  delete process.env.UNBROWSE_API_KEY;
+  process.env.UNBROWSE_CONFIG_DIR = "/tmp/ubpg-lobster-no-cfg";
 });
 
 describe("checkWalletConfigured", () => {
@@ -76,7 +81,7 @@ describe("checkPaymentRequirement", () => {
       wallet_configured: false,
     });
     expect(result.status).toBe("wallet_not_configured");
-    expect(result.message).toContain("lobster.cash");
+    expect(JSON.stringify(result)).toContain("@crossmint/lobster-cli");
   });
 
   it("uses price override", async () => {
@@ -130,7 +135,7 @@ describe("interpretPaymentResult", () => {
 
 describe("X402 config", () => {
   it("keeps supported chains and facilitator wiring", () => {
-    expect(X402_CONFIG.facilitator).toBe("https://facilitator.corbits.dev");
+    expect(X402_CONFIG.facilitator).toBe(process.env.UNBROWSE_X402_FACILITATOR ?? "https://facilitator.payai.network");
     expect(X402_CONFIG.supports_pda_wallets).toBe(true);
     expect(X402_CONFIG.chains.solana.network).toBe("solana");
     expect(X402_CONFIG.chains.solana.currency).toBe("USDC");

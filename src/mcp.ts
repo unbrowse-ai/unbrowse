@@ -13,6 +13,7 @@ import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransaction
 import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
 import { shapeSnapResult, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
 import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js";
+import { buildGateRefusal } from "./payments/index.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 
@@ -1047,6 +1048,20 @@ async function api(method: string, route: string, body?: unknown): Promise<unkno
   }
   const text = res.body;
   if (res.statusCode >= 200 && res.statusCode < 300) return { ok: true, text };
+  if (res.statusCode === 402) {
+    // Parity with the CLI 402 path: do not swallow payment-required as a bare
+    // HTTP error. Surface the backend's Flex payment terms plus the same
+    // structured, actionable gate the client surfaces, so the calling agent
+    // can register an account or pay via x402 (Faremeter Flex / configured
+    // facilitator) and retry, instead of dead-ending on a string.
+    return {
+      error: "payment_required",
+      status_code: 402,
+      payment_required: true,
+      body: text,
+      next_step: buildGateRefusal(),
+    };
+  }
   return { error: `HTTP ${res.statusCode}: ${text}` };
 }
 
