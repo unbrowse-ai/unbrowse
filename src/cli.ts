@@ -31,7 +31,8 @@ import {
 } from "./client/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
-import { ensureLocalServer, checkServerVersion, stopServer, restartServer, stopManagedServer } from "./runtime/local-server.js";
+import { checkServerVersion, stopServer, restartServer, stopManagedServer } from "./runtime/local-server.js";
+import { getInProcessApp } from "./runtime/in-process-app.js";
 import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
@@ -186,8 +187,8 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
 // ---------------------------------------------------------------------------
 
 async function api(method: string, path: string, body?: unknown, opts?: { timeoutMs?: number }): Promise<unknown> {
-  let target = `${BASE_URL}${path}`;
-  let requestBody = body;
+  let url = path;
+  let payload = body;
   if (method === "GET" && body && typeof body === "object") {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
@@ -196,43 +197,41 @@ async function api(method: string, path: string, body?: unknown, opts?: { timeou
       }
     }
     const query = params.toString();
-    if (query) target += `${target.includes("?") ? "&" : "?"}${query}`;
-    requestBody = undefined;
+    if (query) url += `${url.includes("?") ? "&" : "?"}${query}`;
+    payload = undefined;
   }
-  const ctrl = new AbortController();
+
+  // Phase 0d: no HTTP, no :6969 daemon. Dispatch in-process via Fastify
+  // inject against the same route surface. Kuri (the separate CDP broker)
+  // holds the only live state.
+  const app = await getInProcessApp();
+  const injectP = app.inject({
+    method: method as "GET" | "POST",
+    url,
+    headers: {
+      ...(payload ? { "content-type": "application/json" } : {}),
+      "x-unbrowse-client-id": CLI_CLIENT_ID,
+    },
+    payload: payload !== undefined ? JSON.stringify(payload) : undefined,
+  });
+
   const timeoutMs = opts?.timeoutMs;
-  const timer = typeof timeoutMs === "number" && timeoutMs > 0
-    ? setTimeout(() => ctrl.abort(), timeoutMs)
-    : null;
-  let res: Response;
-  try {
-    res = await fetch(target, {
-      method,
-      headers: {
-        ...(requestBody ? { "Content-Type": "application/json" } : {}),
-        "x-unbrowse-client-id": CLI_CLIENT_ID,
-      },
-      body: requestBody ? JSON.stringify(requestBody) : undefined,
-      signal: ctrl.signal,
-    });
-  } catch (err) {
-    if (timer) clearTimeout(timer);
-    if ((err as Error)?.name === "AbortError") {
-      return {
-        error: "cli_timeout",
-        message: `CLI gave up waiting on local server after ${timeoutMs}ms. Try: pkill -9 -f 'unbrowse|kuri'`,
-      };
-    }
-    throw err;
-  } finally {
-    if (timer) clearTimeout(timer);
+  const res =
+    timeoutMs && timeoutMs > 0
+      ? await Promise.race([
+          injectP,
+          new Promise<null>((r) => setTimeout(() => r(null), timeoutMs)),
+        ])
+      : await injectP;
+  if (res === null) {
+    return { error: "cli_timeout", message: `In-process API exceeded ${timeoutMs}ms.` };
   }
-  if (!res.ok && res.headers.get("content-type")?.includes("json")) {
-    return res.json();
-  }
-  if (!res.ok) {
-    return { error: `HTTP ${res.status}: ${await res.text()}` };
-  }
+
+  const ctRaw = res.headers["content-type"];
+  const ct = Array.isArray(ctRaw) ? ctRaw.join(";") : String(ctRaw ?? "");
+  const ok = res.statusCode >= 200 && res.statusCode < 300;
+  if (!ok && ct.includes("json")) return res.json();
+  if (!ok) return { error: `HTTP ${res.statusCode}: ${res.body}` };
   return res.json();
 }
 
@@ -1942,7 +1941,7 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
   // analytics. Setup just installs deps and starts the local server.
 
   try {
-    await ensureLocalServer(BASE_URL, false, import.meta.url);
+    await getInProcessApp();
     report.server = { started: true, base_url: BASE_URL };
     await recordFunnelTelemetryEvent("server_autostart_succeeded", {
       source: "setup",
@@ -2135,7 +2134,7 @@ async function cmdDashboard(flags: Record<string, string | boolean>): Promise<vo
     output({ status: "login_required", url: loginUrl }, !!flags.pretty);
     return;
   }
-  await ensureLocalServer(BASE_URL, false, import.meta.url);
+  await getInProcessApp();
   const pair = createDashboardPairingToken();
   const url = `${FRONTEND_URL}/login?local=${encodeURIComponent(BASE_URL)}&pair=${encodeURIComponent(pair.token)}`;
   if (!flags["no-open"]) openUrl(url);
@@ -4047,7 +4046,7 @@ async function main(): Promise<void> {
   if (!KNOWN_COMMANDS.has(command)) {
     const pack = findSitePack(command);
     if (pack) {
-      await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
+      await getInProcessApp();
       const taskName = args[0];
       if (!taskName || taskName === "help") {
         return cmdSiteHelp(pack, flags);
@@ -4063,7 +4062,7 @@ async function main(): Promise<void> {
     }
   }
 
-  await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
+  await getInProcessApp();
 
   switch (command) {
     case "health": return cmdHealth(flags);
