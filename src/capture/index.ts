@@ -318,6 +318,14 @@ export interface RawRequest {
   response_status: number;
   response_headers: Record<string, string>;
   response_body?: string;
+  /**
+   * True when `response_body` was NOT captured from the wire but fabricated by
+   * the substrate purely so an uncaptured-but-API-shaped request survives
+   * admission. A fabricated body must never become a response contract
+   * (response_schema / proven_recipe) or flip verification_status: the
+   * endpoint's real response shape is unknown, not whatever was synthesized.
+   */
+  synthetic_body?: boolean;
   timestamp: string;
   /** Query hook bridge: which action step triggered this request (#114) */
   triggered_by_step?: number;

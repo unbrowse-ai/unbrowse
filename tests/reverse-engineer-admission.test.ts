@@ -311,3 +311,72 @@ describe("reverse engineer parsed-body admission", () => {
     expect(ep.body?.query ?? ep.body_params?.query).toBeDefined();
   });
 });
+
+// Loop 8: in-thread MCP dogfooding of "search crates.io for serde"
+// (crates.io/search?q=serde, an Ember SPA). The /api/v1/crates?q=serde XHR
+// fired and rendered results, but Kuri captured the request with NO response
+// body (the documented "Kuri HAR misses async fetch/XHR" gap). extractEndpoints
+// correctly admits it via the isApiUrl bypass, then injects a synthetic
+// `{data:{__typename:name}}` body "so downstream processing works". That
+// fabrication leaked into response_schema + proven_recipe + flipped
+// verification_status to "unverified". On execute, server_fetch returned the
+// real correct crates JSON (HTTP 200, crates[]/meta), the drift detector
+// compared it against the fabricated {data:{__typename}} contract, fired
+// fields_added_or_removed, and the drift/success coherence path suppressed the
+// correct data the agent asked for. The substrate must not promote a body it
+// fabricated for admission survival into a response contract: an endpoint
+// whose response was never captured has NO response shape (truthfully
+// "pending"), so there is nothing to drift from and the live data flows.
+describe("reverse engineer: synthetic admission body is not a response contract", () => {
+  function apiNoBody(): RawRequest {
+    return {
+      url: "https://crates.io/api/v1/crates?page=1&per_page=10&sort=relevance&q=serde",
+      method: "GET",
+      request_headers: {},
+      response_status: 200,
+      response_headers: {},
+      response_body: undefined,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  it("admits an api endpoint whose response body was never captured", () => {
+    const endpoints = extractEndpoints([apiNoBody()], undefined, {
+      pageUrl: "https://crates.io/search?q=serde",
+      intent: "search crates",
+    });
+    // The synthetic body's only legitimate job (admission survival) is kept.
+    expect(endpoints.length).toBe(1);
+  });
+
+  it("does NOT fabricate a response_schema / proven_recipe from the synthetic body", () => {
+    const endpoints = extractEndpoints([apiNoBody()], undefined, {
+      pageUrl: "https://crates.io/search?q=serde",
+      intent: "search crates",
+    });
+    const ep = endpoints[0]!;
+    // Pre-fix: response_schema === {data:{__typename:"string"}} (the fabricated
+    // contract that made the real crates[]/meta response "drift").
+    expect(ep.response_schema).toBeUndefined();
+    expect(ep.proven_recipe).toBeUndefined();
+    // Honest: a response we never observed is "pending", not "unverified".
+    expect(ep.verification_status).toBe("pending");
+  });
+
+  it("a genuinely captured JSON body still yields a schema + recipe (b622a279/real-capture path unaffected)", () => {
+    const endpoints = extractEndpoints([
+      {
+        url: "https://crates.io/api/v1/crates?q=serde",
+        method: "GET",
+        request_headers: {},
+        response_status: 200,
+        response_headers: { "content-type": "application/json" },
+        response_body: '{"crates":[{"id":"serde","name":"serde"}],"meta":{"total":1}}',
+        timestamp: new Date().toISOString(),
+      },
+    ], undefined, { pageUrl: "https://crates.io/search?q=serde", intent: "search crates" });
+    const ep = endpoints[0]!;
+    expect(ep.response_schema).toBeDefined();
+    expect(ep.verification_status).toBe("unverified");
+  });
+});
