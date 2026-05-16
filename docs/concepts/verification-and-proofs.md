@@ -21,6 +21,6 @@ Third-party notarised proofs (MPC notary handshakes, WASM verifiers), selective 
 
 ## The security work behind this
 
-The proof-metadata model, the four-state trust channel, the trust-channel boundary for downstream consumers, and the discipline of not lighting a Verified badge until provenance is real are part of security and verification work led by Goh Hee Sheng. The conservative posture is the point: a trust system that overstates itself is worse than one that is honest about its current limits.
+The proof-metadata model, the four-state trust channel, the trust-channel boundary for downstream consumers, and the discipline of not lighting a Verified badge until provenance is real are part of security and verification work led by Goh Ee Sheng. The conservative posture is the point: a trust system that overstates itself is worse than one that is honest about its current limits.
 
 For how this connects to economic accountability, see [Trust and Accountability](trust-and-accountability.md) and [Accountable Bonding and Where FDRY Fits](accountable-bonding.md).
