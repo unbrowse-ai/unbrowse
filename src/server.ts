@@ -18,8 +18,6 @@ type StartServerOptions = {
   logger?: boolean;
   pidFile?: string;
   scheduleVerification?: boolean;
-  /** Override the reaper's exit behavior. Default: process.exit(0). Tests pass a tracking callback. */
-  onIdleExit?: () => void;
 };
 
 export type RunningUnbrowseServer = {
@@ -104,14 +102,6 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   await app.register(cors, { origin: true });
   await registerRateLimiter(app);
 
-  // Idle reaper: bump lastActivityTs on every request so the interval below
-  // knows when the daemon is genuinely quiet.
-  let lastActivityTs = Date.now();
-  app.addHook("onRequest", (_req, _reply, done) => {
-    lastActivityTs = Date.now();
-    done();
-  });
-
   await registerRoutes(app);
 
   // Rehydrate browse sessions from ~/.unbrowse/sessions.jsonl so active
@@ -133,48 +123,11 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
     schedulePeriodicStaleCleanup();
   }
 
-  // Idle reaper — self-exit when no HTTP activity AND no browse sessions
-  // for UNBROWSE_SERVE_IDLE_MS. Stops the zombie-process accumulation where
-  // every Ctrl-C'd Claude session leaves a detached daemon behind.
-  // Set UNBROWSE_SERVE_IDLE_MS=0 to disable (long-running dev servers).
-  // When MCP spawned the daemon, the stdin-EOF watcher handles clean-up; this
-  // tighter default is the fallback when MCP exits ungracefully (SIGKILL, crash).
-  const DEFAULT_IDLE_MS = process.env.MCP_SERVER_MODE === "1" ? 15_000 : 60_000;
-  const idleMs = Number(process.env.UNBROWSE_SERVE_IDLE_MS ?? DEFAULT_IDLE_MS);
-  const idleCheckMs = Number(process.env.UNBROWSE_SERVE_IDLE_CHECK_MS ?? 10_000);
-  let reaperTimer: NodeJS.Timeout | undefined;
-  if (idleMs > 0) {
-    const { getBrowseSessionCount } = await import("./api/routes.js");
-    reaperTimer = setInterval(() => {
-      const idleFor = Date.now() - lastActivityTs;
-      if (idleFor < idleMs) return;
-      const sessions = getBrowseSessionCount();
-      if (sessions > 0) return;
-      app.log.info({ idleFor, idleMs }, "[reaper] idle, exiting");
-      const onExit = options.onIdleExit ?? (() => process.exit(0));
-      void (async () => {
-        try {
-          if (reaperTimer) clearInterval(reaperTimer);
-          reaperTimer = undefined;
-          await shutdownAllBrowsers();
-          await app.close();
-          clearPidFile(pidFile);
-        } catch (err) {
-          app.log.error({ err }, "[reaper] shutdown error");
-        } finally {
-          onExit();
-        }
-      })();
-    }, idleCheckMs);
-    reaperTimer.unref?.();
-  }
-
   return {
     app,
     host,
     port,
     async close(options?: { shutdownBrowsers?: boolean }): Promise<void> {
-      if (reaperTimer) clearInterval(reaperTimer);
       if (options?.shutdownBrowsers ?? true) {
         await shutdownAllBrowsers();
       }
