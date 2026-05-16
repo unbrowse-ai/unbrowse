@@ -1,0 +1,5 @@
+[setup] pkill any existing unbrowse/kuri
+[spawn] unbrowse mcp
+[spawn] MCP_PID=87040
+[daemon] pid=87046
+[call] sending tools/call unbrowse_run carousell

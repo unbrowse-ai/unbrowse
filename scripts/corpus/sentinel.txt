@@ -1,0 +1,8 @@
+search beatsaver for camellia|https://beatsaver.com/?q=camellia
+search rust crates|https://crates.io/search?q=tokio
+search openlibrary books|https://openlibrary.org/search?q=dune
+search pubmed papers|https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning
+get top hacker news stories|https://news.ycombinator.com/
+get package info|https://www.npmjs.com/package/openai
+get repo info for anthropics/anthropic-sdk-python|https://github.com/anthropics/anthropic-sdk-python
+get wikipedia article|https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)
