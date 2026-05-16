@@ -11,7 +11,7 @@ import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/ind
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory } from "./client/index.js";
 import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
-import { applySnapDetailLevel, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
+import { shapeSnapResult, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
 import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js";
 
 loadEnv({ quiet: true });
@@ -2004,22 +2004,8 @@ const tools: ToolDefinition[] = [
         args.detail_level === "minimal" || args.detail_level === "summary" || args.detail_level === "full"
           ? args.detail_level
           : undefined;
-      const snapshotText = typeof raw.snapshot === "string" ? raw.snapshot : "";
-      const trimmed = applySnapDetailLevel(snapshotText, level, {
-        current_url: typeof raw.current_url === "string" ? raw.current_url : null,
-        page_title: typeof raw.page_title === "string" ? raw.page_title : null,
-      });
-      const result: Record<string, unknown> = {
-        ...trimmed,
-        session_id: raw.session_id,
-        tab_id: raw.tab_id,
-      };
-      // Preserve the empty-snapshot diagnostic at all detail levels so
-      // a hydrating-SPA / wedged-Kuri / anti-bot signal isn't swallowed
-      // by the trim.
-      if (raw.warning !== undefined) result.warning = raw.warning;
-      if (raw.next_step !== undefined) result.next_step = raw.next_step;
-      return successResult(result, "Current browse snapshot.");
+      const shaped = shapeSnapResult(raw as Record<string, unknown>, level);
+      return successResult(shaped.value, shaped.summary);
     },
   },
   {
