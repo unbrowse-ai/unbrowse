@@ -1020,10 +1020,15 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
         continue;
       }
 
-      // Inject a synthetic response body so downstream processing works
+      // Inject a synthetic response body so downstream processing (admission,
+      // description) works for an API-shaped request whose real response was
+      // never captured. Mark it synthetic: this body is NOT evidence of the
+      // endpoint's response shape, so it must not become response_schema /
+      // proven_recipe or flip verification_status (see RawRequest.synthetic_body).
       const syntheticName = graphqlOpName ?? jsonEndpointName ?? "api_endpoint";
       req.response_body = JSON.stringify({ data: { __typename: syntheticName } });
       req.response_headers = { ...req.response_headers, "content-type": "application/json" };
+      req.synthetic_body = true;
     }
     // #227: Reject React Server Components wire format payloads — they are framework
     // rendering wire format, not data APIs. Use the proper RSC parser instead of
@@ -1107,22 +1112,27 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       ? decodeProtobufBody(req.response_body, responseContentType)
       : null;
 
-    // Infer response schema from captured body
+    // Infer response schema from the CAPTURED body only. A synthetic body was
+    // fabricated for admission survival, not observed from the wire, so it is
+    // not evidence of the endpoint's response shape; inferring a schema from it
+    // creates a fake contract that makes the real response "drift".
     let response_schema = undefined;
     if (protobufSample) {
       response_schema = inferSchema([protobufSample]);
-    } else if (req.response_body) {
+    } else if (req.response_body && !req.synthetic_body) {
       try {
         const cleaned = stripJsonPrefix(req.response_body);
         const parsed = JSON.parse(cleaned);
         response_schema = inferSchema([parsed]);
       } catch {
-        // not valid JSON — skip schema inference
+        // not valid JSON, skip schema inference
       }
     }
 
-    // BUG-008: mark endpoints with no response body as potentially CF-blocked
-    const verificationStatus = req.response_body ? "unverified" as const : "pending" as const;
+    // BUG-008: mark endpoints with no response body as potentially CF-blocked.
+    // A synthetic body is not a real observation, so it stays "pending" (the
+    // response shape is genuinely unknown), not "unverified".
+    const verificationStatus = (req.response_body && !req.synthetic_body) ? "unverified" as const : "pending" as const;
 
     // Skip endpoints with invalid URL templates
     if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
@@ -1186,9 +1196,11 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       // Record which page triggered this API call — used for trigger-and-intercept execution
       trigger_url: context?.pageUrl,
       ...(pathBindingCandidates.length > 0 ? { _path_binding_candidates: pathBindingCandidates } : {}),
-      // Phase 7.2 — stamp the proven recipe from this captured request/response pair.
-      // Skipped silently for non-2xx responses or missing bodies.
-      ...(buildProvenRecipe(req, computedUrlTemplate)
+      // Phase 7.2: stamp the proven recipe from this captured request/response
+      // pair. Skipped silently for non-2xx responses, missing bodies, or a
+      // synthetic body (a fabricated body is not a proven replay signal; it
+      // would make every real future response "drift" from the fake recipe).
+      ...(!req.synthetic_body && buildProvenRecipe(req, computedUrlTemplate)
         ? { proven_recipe: buildProvenRecipe(req, computedUrlTemplate)! }
         : {}),
     };
