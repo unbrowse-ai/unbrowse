@@ -289,23 +289,47 @@ export async function cacheBrowseRequests(params: {
     // tryHttpFetch the SSR execute fast-path uses) instead of declaring
     // nothing to index and leaving the agent to loop on go -> close ->
     // resolve forever with zero learning.
+    let usedServerFetch = false;
     if (!html || !html.trimStart().startsWith("<")) {
       const fetched = await tryHttpFetch(sessionUrl, {}, []);
       html = fetched?.html;
+      usedServerFetch = true;
     }
     if (!html || !html.trimStart().startsWith("<")) return { domain, indexed: false, mode: "none", skill: null };
 
-    const extracted = extractFromDOM(html, intent);
-    const searchForms = detectSearchForms(html);
-    const validForm = searchForms.find((form: { form_selector: string; fields: unknown[] }) => isStructuredSearchForm(form));
-    const domDecision = shouldIndexDomBrowseFallback({
-      requestCount: requests.length,
-      intent,
-      extractedData: extracted.data,
-      extractedConfidence: extracted.confidence,
-      hasStructuredForm: !!validForm,
-    });
+    const evaluate = (h: string) => {
+      const ex = extractFromDOM(h, intent);
+      const forms = detectSearchForms(h);
+      const vf = forms.find((form: { form_selector: string; fields: unknown[] }) => isStructuredSearchForm(form));
+      const dd = shouldIndexDomBrowseFallback({
+        requestCount: requests.length,
+        intent,
+        extractedData: ex.data,
+        extractedConfidence: ex.confidence,
+        hasStructuredForm: !!vf,
+      });
+      return { extracted: ex, validForm: vf, domDecision: dd, ok: dd.allow && !!ex.data };
+    };
 
+    let evald = evaluate(html);
+    // The live tab HTML (getPageHtml) can extract BELOW the index-quality gate
+    // on a page whose plain server-rendered HTML extracts ABOVE it (observed
+    // on openlibrary.org/search: rendered DOM conf 0.42 < 0.5, plain server
+    // GET conf 0.63). loop-7's principle is "exhaust the SSR server-fetch
+    // before declaring nothing to index"; previously the server-fetch only
+    // ran when getPageHtml was structurally junk, not when its extraction
+    // failed the gate. If the gate fails and we have not yet tried the
+    // server-fetch, try it and keep whichever HTML actually passes. This can
+    // only turn a mode:none into an index, never the reverse.
+    if (!evald.ok && !usedServerFetch) {
+      const fetched = await tryHttpFetch(sessionUrl, {}, []);
+      if (fetched?.html && fetched.html.trimStart().startsWith("<")) {
+        const alt = evaluate(fetched.html);
+        if (alt.ok) { html = fetched.html; evald = alt; }
+      }
+    }
+
+    const { extracted, validForm, domDecision } = evald;
     if (!domDecision.allow || !extracted.data) return { domain, indexed: false, mode: "none", skill: null };
 
     const urlTemplate = templatizeQueryParams(sessionUrl);

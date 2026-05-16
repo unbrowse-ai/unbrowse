@@ -272,3 +272,71 @@ describe("cacheBrowseRequests tolerates leading whitespace before <!DOCTYPE", ()
     }
   });
 });
+
+// Loop 12 (instrumented): in-thread MCP dogfooding of openlibrary.org/search?q=dune
+// close STILL returned indexed:false on a daemon WITH loop-10's trimStart fix.
+// One-shot debug instrumentation of the live close path proved the root:
+// Kuri getPageHtml returned a VALID 447KB rendered DOM (gh_valid:true, so
+// loop-10's trimStart fallback never fired, fell_back:false), but
+// extractFromDOM(renderedDOM,"browse openlibrary.org") scored confidence 0.42,
+// which shouldIndexDomBrowseFallback rejects (< 0.5 gate). A plain server GET
+// of the SAME url extracts at confidence 0.63 and passes. loop-7's principle
+// is "exhaust the SSR server-fetch before declaring nothing to index", but the
+// fallback only fired when getPageHtml was structurally junk -- not when its
+// extraction failed the index-quality gate. The fix tries the server-fetch
+// when the getPageHtml extraction fails the gate, before returning mode:none.
+describe("cacheBrowseRequests server-fetch fallback when getPageHtml extraction fails the gate", () => {
+  it("indexes via server-fetch when getPageHtml is valid HTML but extracts below the index gate", async () => {
+    // Server (sessionUrl) serves data-rich HTML that extracts ABOVE the gate.
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(HN_LIKE_HTML);
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const result = await cacheBrowseRequests({
+        sessionUrl: `http://127.0.0.1:${port}/search?q=dune`,
+        sessionDomain: "openlibrary.org",
+        requests: [],
+        // Valid HTML (starts with "<", so loop-10's junk-fallback does NOT
+        // fire) but structurally sparse: extraction fails the index-quality
+        // gate, exactly like openlibrary's rendered DOM (conf 0.42 < 0.5).
+        getPageHtml: async () => "<html><head><title>x</title></head><body><div>hello</div></body></html>",
+        intent: "browse openlibrary.org",
+      });
+      expect(result.indexed).toBe(true);
+      expect(result.mode).toBe("dom");
+      expect(result.skill).not.toBeNull();
+      const ep = result.skill!.endpoints.find((e) => e.dom_extraction);
+      expect(ep).toBeDefined();
+      expect(ep!.method).toBe("GET");
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
+  it("still returns mode:none when BOTH getPageHtml and the server-fetch fail the gate (no false positive)", async () => {
+    // Server serves sparse HTML too: neither source passes -> mode:none.
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end("<html><head><title>y</title></head><body><p>nothing structured here</p></body></html>");
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const result = await cacheBrowseRequests({
+        sessionUrl: `http://127.0.0.1:${port}/x`,
+        sessionDomain: "127.0.0.1",
+        requests: [],
+        getPageHtml: async () => "<html><head><title>x</title></head><body><div>hello</div></body></html>",
+        intent: "browse 127.0.0.1",
+      });
+      expect(result.indexed).toBe(false);
+      expect(result.mode).toBe("none");
+      expect(result.skill).toBeNull();
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+});
