@@ -1,0 +1,81 @@
+product_id: unbrowse-payment-gate
+mode: product
+repo_path: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+improvement_loop: /unbrowse-improvement-loop
+improvement_fleet: /unbrowse-improvement-fleet
+wave_runner: /self-build
+session: lewis-2026-05-16
+wave: 1
+
+description: |
+  A fresh machine must not be able to use unbrowse anonymously. Using the
+  product (resolve / execute, via CLI and MCP) requires EITHER a registered
+  account with a valid API key OR a working x402 wallet that pays per call.
+  Lewis's directive: "hard gate login but if they pay via x402 its fine."
+
+  This wave also closes the MCP x402 hole: the MCP execute path dispatches
+  in-process via Fastify inject() and swallows the HTTP 402 challenge
+  (src/mcp.ts api()), so paid execute never pays, never splits, never
+  records earnings on the MCP surface. The CLI HTTP path already handles
+  402 via payAndRetry (src/client/index.ts). MCP must reach parity: carry
+  the 402 challenge, pay via the wallet, retry, and let the existing
+  server-side split math (computeFlexSplits, 1000 bps platform / 9000 bps
+  contributors) settle and record.
+
+  Setup must take a fresh machine from zero to a satisfiable gate: register
+  an account OR provision + fund a wallet via Lobster Cash
+  (@crossmint/lobster-cli), with an actionable next_step when neither is
+  present instead of silent anonymous success.
+
+sources:
+  - kind: command
+    id: podman
+    run: bash .evidence-build/unbrowse-payment-gate/probes/podman-fresh-machine.sh
+    note: |
+      Spins a clean glibc node container with podman, installs the published
+      unbrowse, and observes the real fresh-machine experience: does setup
+      register/gate, does resolve/execute work with zero account + zero
+      wallet, does the MCP surface carry x402, does lobster-cli setup run.
+      Emits one evidence record per probe to stdout (evidence-record JSONL).
+  - kind: command
+    id: code
+    run: bash .evidence-build/unbrowse-payment-gate/probes/codebase-gaps.sh
+    note: |
+      Greps the actual gate / x402-MCP / lobster surfaces and emits one
+      evidence record per confirmed gap with a code:path#Lstart-Lend
+      source_id. Substrate-enables: records what the code declares today,
+      invents nothing.
+
+axes:
+  - id: gate
+    description: "resolve/execute refuse anonymous use; satisfied by account API key OR x402 wallet"
+    substrate_surfaces:
+      - src/client/index.ts
+      - src/mcp.ts
+      - src/cli.ts
+      - backend/src/middleware/auth.ts
+      - backend/src/middleware/sponsor.ts
+  - id: mcp-x402
+    description: "MCP execute carries the 402 challenge, pays, retries, splits + records earnings"
+    substrate_surfaces:
+      - src/mcp.ts
+      - src/client/index.ts
+      - src/payments/lobster-pay.ts
+      - backend/src/services/flex.ts
+      - backend/src/services/flex-route-helpers.ts
+  - id: setup-onboard
+    description: "fresh-machine setup registers an account OR provisions+funds a Lobster wallet, never silent anonymous"
+    substrate_surfaces:
+      - src/runtime/setup.ts
+      - src/cli.ts
+      - src/payments/wallet.ts
+
+out_of_scope_lanes:
+  - kuri-zig-binary-changes
+  - novel-dom-extractor-families
+  - ranker-confidence-calibration
+  - lobster-cli-internal-behaviour
+  - hosted-lobster-approval-page-ux
+
+adversarial_held:
+  - "lobster headless limit: a fresh user cannot get a funded wallet purely headless (the deposit/consent step needs a human at the hosted approval URL). The gate must therefore accept account-register as the fully headless path and surface the lobster approval URL as the wallet path, not block on it."

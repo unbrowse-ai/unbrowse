@@ -1,0 +1,490 @@
+{
+  "ts": "2026-05-16T14:37:35Z",
+  "product_id": "unbrowse-payment-gate",
+  "records_seen": 14,
+  "phrases_surfaced": 132,
+  "allowed_source_ids": [
+    "code:backend/src/middleware/auth.ts#L130",
+    "code:backend/src/services/flex.ts#L34",
+    "code:src/cli.ts#L1863",
+    "code:src/client/index.ts#L561",
+    "code:src/client/index.ts#L642",
+    "code:src/mcp.ts#L1033",
+    "code:src/payments/wallet.ts#L95",
+    "code:src/runtime/setup.ts#L210",
+    "code:src/runtime/setup.ts#L259",
+    "podman:install",
+    "podman:lobster-reachable",
+    "podman:mcp-x402",
+    "podman:resolve-anonymous",
+    "podman:setup-no-gate"
+  ],
+  "phrases": [
+    {
+      "phrase": "fresh machine",
+      "record_count": 8,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/payments/wallet.ts#L95",
+        "code:src/runtime/setup.ts#L210",
+        "code:src/runtime/setup.ts#L259",
+        "podman:install",
+        "podman:lobster-reachable",
+        "podman:mcp-x402",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "fresh machine setup",
+      "record_count": 7,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/payments/wallet.ts#L95",
+        "code:src/runtime/setup.ts#L210",
+        "code:src/runtime/setup.ts#L259",
+        "podman:install",
+        "podman:lobster-reachable",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "machine setup",
+      "record_count": 7,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/payments/wallet.ts#L95",
+        "code:src/runtime/setup.ts#L210",
+        "code:src/runtime/setup.ts#L259",
+        "podman:install",
+        "podman:lobster-reachable",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "gate login",
+      "record_count": 5,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/cli.ts#L1863",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "hard gate",
+      "record_count": 5,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/cli.ts#L1863",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "hard gate login",
+      "record_count": 5,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/cli.ts#L1863",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "account wallet",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/runtime/setup.ts#L259",
+        "podman:install",
+        "podman:resolve-anonymous",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "api key",
+      "record_count": 4,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/cli.ts#L1863",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "execute path",
+      "record_count": 4,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1033",
+        "podman:mcp-x402"
+      ]
+    },
+    {
+      "phrase": "lobster cash",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/payments/wallet.ts#L95",
+        "code:src/runtime/setup.ts#L210",
+        "podman:lobster-reachable",
+        "podman:mcp-x402"
+      ]
+    },
+    {
+      "phrase": "mcp execute",
+      "record_count": 4,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1033",
+        "podman:mcp-x402"
+      ]
+    },
+    {
+      "phrase": "mcp execute path",
+      "record_count": 4,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1033",
+        "podman:mcp-x402"
+      ]
+    },
+    {
+      "phrase": "payment parity",
+      "record_count": 4,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1033",
+        "podman:mcp-x402"
+      ]
+    },
+    {
+      "phrase": "wallet provision",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/payments/wallet.ts#L95",
+        "code:src/runtime/setup.ts#L210",
+        "code:src/runtime/setup.ts#L259",
+        "podman:lobster-reachable"
+      ]
+    },
+    {
+      "phrase": "wallet required",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/client/index.ts#L561",
+        "podman:install",
+        "podman:mcp-x402",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "without account",
+      "record_count": 4,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:install",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "anonymous resolve",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "api key wallet",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "auth gate",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "fresh machine wallet",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/payments/wallet.ts#L95",
+        "podman:lobster-reachable",
+        "podman:mcp-x402"
+      ]
+    },
+    {
+      "phrase": "gate hard",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "gate hard gate",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "key wallet",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "lobster cli",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/payments/wallet.ts#L95",
+        "code:src/runtime/setup.ts#L210",
+        "podman:lobster-reachable"
+      ]
+    },
+    {
+      "phrase": "machine setup wallet",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/runtime/setup.ts#L210",
+        "podman:lobster-reachable",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "machine wallet",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/payments/wallet.ts#L95",
+        "podman:lobster-reachable",
+        "podman:mcp-x402"
+      ]
+    },
+    {
+      "phrase": "optional auth",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "optional auth gate",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "payment payment",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/services/flex.ts#L34",
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1033"
+      ]
+    },
+    {
+      "phrase": "payment retry",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/client/index.ts#L642",
+        "code:src/mcp.ts#L1033",
+        "podman:mcp-x402"
+      ]
+    },
+    {
+      "phrase": "setup account",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/runtime/setup.ts#L259",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "setup wallet",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/runtime/setup.ts#L210",
+        "podman:lobster-reachable",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "silent anonymous",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/runtime/setup.ts#L259",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "wallet onboarding",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/payments/wallet.ts#L95",
+        "code:src/runtime/setup.ts#L210",
+        "podman:lobster-reachable"
+      ]
+    },
+    {
+      "phrase": "wallet optional",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/runtime/setup.ts#L259",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "without api",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "without api key",
+      "record_count": 3,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "account api",
+      "record_count": 2,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/cli.ts#L1863"
+      ]
+    },
+    {
+      "phrase": "account api key",
+      "record_count": 2,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/cli.ts#L1863"
+      ]
+    },
+    {
+      "phrase": "account gate",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/runtime/setup.ts#L259"
+      ]
+    },
+    {
+      "phrase": "account registration",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "account registration optional",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "account without",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "account without api",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "anonymous fresh",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/runtime/setup.ts#L259",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "anonymous fresh machine",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/runtime/setup.ts#L259",
+        "podman:setup-no-gate"
+      ]
+    },
+    {
+      "phrase": "anonymous resolve execute",
+      "record_count": 2,
+      "source_ids": [
+        "code:backend/src/middleware/auth.ts#L130",
+        "code:src/client/index.ts#L561"
+      ]
+    },
+    {
+      "phrase": "anonymous resolve without",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/client/index.ts#L561",
+        "podman:resolve-anonymous"
+      ]
+    },
+    {
+      "phrase": "anonymous wallet",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/runtime/setup.ts#L259"
+      ]
+    },
+    {
+      "phrase": "anonymous wallet optional",
+      "record_count": 2,
+      "source_ids": [
+        "code:src/cli.ts#L1863",
+        "code:src/runtime/setup.ts#L259"
+      ]
+    }
+  ]
+}
