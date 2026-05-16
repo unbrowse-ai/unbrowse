@@ -135,7 +135,11 @@ describe("interpretPaymentResult", () => {
 
 describe("X402 config", () => {
   it("keeps supported chains and facilitator wiring", () => {
-    expect(X402_CONFIG.facilitator).toBe(process.env.UNBROWSE_X402_FACILITATOR ?? "https://facilitator.payai.network");
+    // Pins the shipped default facilitator (PayAI, per user steering). The
+    // expected side is a concrete literal from the intended contract, NOT a
+    // mirror of the production `??` expression (no tautology). Env-override
+    // behavior is a separate concern verified elsewhere.
+    expect(X402_CONFIG.facilitator).toBe("https://facilitator.payai.network");
     expect(X402_CONFIG.supports_pda_wallets).toBe(true);
     expect(X402_CONFIG.chains.solana.network).toBe("solana");
     expect(X402_CONFIG.chains.solana.currency).toBe("USDC");
