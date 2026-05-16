@@ -264,6 +264,105 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ env.NODE_AUTH_TOKEN }}
           UNBROWSE_PUBLISHED_VERSION: ${{ steps.pkg.outputs.version }}
+
+  publish-sdk:
+    name: Publish SDK (npm)
+    runs-on: self-hosted
+    needs: publish-cli
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: bun install --frozen-lockfile
+
+      - name: Read SDK package metadata
+        id: pkg
+        run: |
+          PKG_NAME="$(node -p 'require("./packages/sdk/package.json").name')"
+          PKG_VERSION="$(node -p 'require("./packages/sdk/package.json").version')"
+          if [ -z "$PKG_NAME" ] || [ -z "$PKG_VERSION" ]; then
+            echo "::error::Failed to read packages/sdk/package.json metadata."
+            exit 1
+          fi
+          echo "name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve npm token
+        id: npm-auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+          NODE_AUTH_TOKEN_INPUT: ${{ secrets.NODE_AUTH_TOKEN }}
+        run: |
+          TOKEN="${NPM_TOKEN:-${NPM_PUBLISH_TOKEN:-${NODE_AUTH_TOKEN_INPUT:-}}}"
+          if [ -z "$TOKEN" ]; then
+            if [ "$GITHUB_REPOSITORY" = "unbrowse-ai/unbrowse" ]; then
+              echo "::error::Missing npm publish secret. Set NPM_TOKEN or NPM_PUBLISH_TOKEN."
+              exit 1
+            fi
+            echo "::notice::Skipping @unbrowse/sdk publish; no npm token configured for $GITHUB_REPOSITORY."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "NODE_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Build SDK
+        if: steps.npm-auth.outputs.skip_publish != '1'
+        working-directory: packages/sdk
+        run: npm run build
+
+      - name: Check if version already exists
+        if: steps.npm-auth.outputs.skip_publish != '1'
+        id: version-check
+        run: |
+          PKG_NAME="${{ steps.pkg.outputs.name }}"
+          PKG_VERSION="${{ steps.pkg.outputs.version }}"
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published; skipping npm publish."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish SDK to npm
+        if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
+        working-directory: packages/sdk
+        run: |
+          PKG_VERSION="${{ steps.pkg.outputs.version }}"
+          # Mirror the CLI dist-tag convention: preview tags publish under the
+          # `preview` dist-tag, stable versions become `latest`. @unbrowse/sdk
+          # is a scoped package never published before, so --access public is
+          # required for the first publish (and harmless thereafter).
+          NPM_TAG="latest"
+          case "$PKG_VERSION" in
+            *-preview.*) NPM_TAG="preview" ;;
+          esac
+          echo "Publishing @unbrowse/sdk@${PKG_VERSION} (dist-tag: ${NPM_TAG})"
+          PUBLISH_LOG="$(mktemp)"
+          set +e
+          npm publish --access public --tag "$NPM_TAG" 2>&1 | tee "$PUBLISH_LOG"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$STATUS" -eq 0 ]; then
+            exit 0
+          fi
+          if grep -qi "previously published versions" "$PUBLISH_LOG"; then
+            echo "::notice::@unbrowse/sdk version already exists on npm; treating publish as a no-op."
+            exit 0
+          fi
+          exit "$STATUS"
   deploy-backend:
     name: Deploy Backend (CF Worker)
     runs-on: self-hosted

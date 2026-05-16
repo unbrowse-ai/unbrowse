@@ -118,7 +118,7 @@ fi
 echo "=== Applying $BUMP bump: $CURRENT_VERSION -> $NEXT_VERSION ==="
 
 # Bump version in all package.json files and version.json
-for PKG in package.json packages/skill/package.json version.json; do
+for PKG in package.json packages/skill/package.json packages/sdk/package.json version.json; do
   node -e "
     const fs = require('fs');
     const pkg = JSON.parse(fs.readFileSync('$PKG', 'utf8'));
@@ -133,7 +133,7 @@ echo -e "## v${NEXT_VERSION}\n${CHANGELOG}" > .release-notes.md
 echo "  wrote .release-notes.md"
 
 # Stage and commit
-git add package.json packages/skill/package.json .release-notes.md
+git add package.json packages/skill/package.json packages/sdk/package.json .release-notes.md
 git commit -m "chore: release v${NEXT_VERSION}
 
 $(echo -e "$CHANGELOG")
