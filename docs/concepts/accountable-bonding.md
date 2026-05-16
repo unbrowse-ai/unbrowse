@@ -26,4 +26,6 @@ FDRY does not justify the wedge. The route graph is already justified by saved d
 
 This sequencing keeps the product honest and prevents optional coordination mechanisms from becoming premature narrative burdens.
 
+A fuller version of the Unbrowse Maintenance Network paper is being prepared for public release; this page tracks its current public form. For the token's neutral disclosure, see [FDRY Token Disclosure](../reference/fdry.md).
+
 Source: the Unbrowse Maintenance Network paper (Tham, 2026). It extends, and does not replace, the core whitepaper.

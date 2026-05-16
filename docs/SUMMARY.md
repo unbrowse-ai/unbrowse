@@ -33,6 +33,7 @@
 * [Trust and Accountability](concepts/trust-and-accountability.md)
 * [Accountable Bonding and Where FDRY Fits](concepts/accountable-bonding.md)
 * [How Quality Is Evaluated](concepts/evaluation-framing.md)
+* [Verification and Proofs](concepts/verification-and-proofs.md)
 
 ## For Investors
 
@@ -45,6 +46,7 @@
 
 * [Built on Unbrowse](built-on-unbrowse/README.md)
 * [Aiko: The Reference Consumer Agent](built-on-unbrowse/aiko-agent.md)
+
 ## SDK Reference
 
 * [Build on Unbrowse](sdk/build-on-unbrowse.md)
@@ -56,3 +58,4 @@
 ## Reference
 
 * [Open Source Notice](OPEN-SOURCE-NOTICE.md)
+* [FDRY Token Disclosure](reference/fdry.md)
