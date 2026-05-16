@@ -3801,6 +3801,25 @@ export async function executeEndpoint(
       if (recaptureSignal) {
         trace.steps?.push({ step: "recipe_replay_drift_recapture", reason: recaptureSignal.reason });
         trace.re_capture_signal = recaptureSignal;
+        // Truth-telling coherence: a re_capture_signal is the substrate's
+        // own determination that the served payload no longer matches the
+        // endpoint's learned contract. "Re-capture needed" and "success:
+        // here is your data" are mutually exclusive; leaving success
+        // true makes the agent accept drifted/degenerate output (e.g. a
+        // SPA shell {title,url} instead of search results) as the answer.
+        // Mirror the adjacent assessIntentResult-fail pattern below:
+        // flip success, name the failure, foreground the signal as the
+        // actionable result. The signal is already computed; success
+        // must reflect it, not contradict it.
+        trace.success = false;
+        trace.error = "schema_drift_recapture_required";
+        data = {
+          error: "schema_drift_recapture_required",
+          message: `Endpoint ${endpoint.endpoint_id} response drifted from its learned schema (${recaptureSignal.reason}); the served payload is not the contracted data. Re-learn the shape before trusting this endpoint.`,
+          drift_summary: recaptureSignal.drift_summary,
+          re_capture_signal: recaptureSignal,
+        };
+        trace.result = data;
       }
     }
   }
