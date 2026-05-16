@@ -13,6 +13,8 @@ import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransaction
 import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
 import { shapeSnapResult, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
 import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js";
+import { drainPendingIndexJobs } from "./indexer/index.js";
+import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -2509,6 +2511,19 @@ function visibleTools(): typeof tools {
 let initializeSeen = false;
 let negotiatedProtocolVersion = LATEST_PROTOCOL_VERSION;
 
+// Phase 0d: with no resident daemon, queued capture-pipeline work
+// (queueBackgroundIndex from unbrowse_close) must be drained by the
+// stdio process itself. Each tool call kicks a deduped fire-and-forget
+// drain so a prior close's index/publish lands without blocking close.
+let spoolDrainInFlight = false;
+function maybeDrainSpool(): void {
+  if (spoolDrainInFlight) return;
+  spoolDrainInFlight = true;
+  void Promise.allSettled([drainPendingIndexJobs(), drainPendingPassivePublishes()])
+    .finally(() => {
+      spoolDrainInFlight = false;
+    });
+}
 export async function handleRequest(message: JsonRpcRequest): Promise<void> {
   const id = message.id ?? null;
   const method = message.method;
@@ -2754,6 +2769,10 @@ async function main(): Promise<void> {
         continue;
       }
       await handleRequest(message);
+      // Phase 0d: no daemon to drain the capture spool on a timer. Each
+      // tool call opportunistically drains queued index/passive-publish
+      // jobs from a prior unbrowse_close (deduped, fire-and-forget).
+      maybeDrainSpool();
     } catch (error) {
       writeStderr(error instanceof Error ? error.stack ?? error.message : String(error));
     }
