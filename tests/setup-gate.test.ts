@@ -1,13 +1,17 @@
 // tests/setup-gate.test.ts
-// evidence-build unbrowse-payment-gate — lanes: setup-registers-or-wallet
-// (AC7), setup-lobster-path (AC8). NO MOCKS. Real src/runtime/setup runSetup
-// in a temp HOME. Failing-first: encodes the criteria.md pass_when and FAILS
-// on v6.17.0-preview.6 where setup ends silent signed_in:no wallet:none.
+// evidence-build unbrowse-payment-gate — setup-registers-or-wallet (AC7),
+// setup-lobster-path (AC8). NO MOCKS. Hardened: the prior tests false-greened
+// on setup's ALWAYS-present static wallet prose. These tie the terminal state
+// to the REAL gate observable (the same structured next_step AC1/AC3 demand),
+// so they are RED today for the genuine reason and GREEN only when setup
+// truly ends satisfiable. Real runSetup runs (proves no crash); the assertion
+// is on the gate, not on static report prose.
 import { describe, expect, test, afterEach } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { runSetup } from "../src/runtime/setup.js";
+import { checkPaymentRequirement } from "../src/payments/index.js";
 import { checkWalletConfigured } from "../src/payments/wallet.js";
 import { getApiKey } from "../src/client/index.js";
 
@@ -20,9 +24,7 @@ function freshMachine(): void {
   delete process.env.LOBSTER_WALLET_ADDRESS;
   delete process.env.AGENT_WALLET_ADDRESS;
   process.env.UNBROWSE_DISABLE_LOCAL_WALLET = "1";
-  // Do not let setup shell out to `npx @crossmint/lobster-cli` in a test;
-  // we are asserting the GATE/terminal-state behavior, not lobster itself.
-  process.env.UNBROWSE_SKIP_WALLET_SETUP = "1";
+  process.env.UNBROWSE_SKIP_WALLET_SETUP = "1"; // do not shell out to npx in a test
 }
 
 afterEach(() => {
@@ -32,30 +34,44 @@ afterEach(() => {
 // AC7 setup-registers-or-wallet — sources: code:src/cli.ts#L1863,
 // code:src/runtime/setup.ts#L259, podman:setup-no-gate, podman:install.
 describe("setup-registers-or-wallet", () => {
-  test("fresh-machine setup does not finish silently unsatisfiable", async () => {
+  test("after fresh-machine setup the gate is satisfied OR still enforced+actionable", async () => {
     freshMachine();
-    const report = await runSetup({ installBrowser: false });
-    const accountPresent = getApiKey() !== "";
-    const walletPresent = checkWalletConfigured().configured;
-    // pass_when: setup ends at a satisfiable gate (account OR wallet) OR it
-    // surfaces the unmet gate with an actionable next step. It must NOT be a
-    // silent clean no-op while resolve/execute remain open anonymously.
-    const blob = JSON.stringify(report);
-    const surfacesGate =
-      /account --register|@crossmint\/lobster-cli|payment|wallet required|register/i.test(blob);
-    expect(accountPresent || walletPresent || surfacesGate).toBe(true);
+    await runSetup({ installBrowser: false }); // real run; proves no crash/hang
+    const satisfied = getApiKey() !== "" || checkWalletConfigured().configured;
+    // If setup did not produce a satisfiable credential, the gate MUST still
+    // refuse a paid route with the structured actionable next_step (real
+    // commands) — never silently leave usage open. Today: not satisfied AND
+    // next_step is bare prose without commands -> RED.
+    if (!satisfied) {
+      const r = await checkPaymentRequirement("marketplace:any", "ep-1", {
+        price_usd: "0.001",
+        wallet_configured: false,
+      });
+      const blob = JSON.stringify(r);
+      expect(r.status).not.toBe("free");
+      expect(blob).toMatch(/unbrowse account --register|npx @crossmint\/lobster-cli setup/);
+    } else {
+      expect(satisfied).toBe(true);
+    }
   });
 });
 
 // AC8 setup-lobster-path — sources: code:src/runtime/setup.ts#L210,
 // code:src/payments/wallet.ts#L95, podman:lobster-reachable.
 describe("setup-lobster-path", () => {
-  test("setup surfaces the Lobster Cash wallet-provisioning path", async () => {
+  test("the Lobster Cash path is surfaced in the structured gate next_step", async () => {
     freshMachine();
-    const report = await runSetup({ installBrowser: false });
-    const blob = JSON.stringify(report);
-    // The product's own declared wallet-provisioning command (src/cli.ts:1900)
-    // must be surfaced as the wallet onboarding next step.
-    expect(blob).toContain("@crossmint/lobster-cli");
+    await runSetup({ installBrowser: false });
+    // The lobster provisioning path must be an ACTIONABLE next step in the
+    // gate (the structured next_step AC3 demands), not only buried in
+    // setup's free-form wallet.message prose (which is always present and
+    // thus a false-green). Today next_step is a bare sentence -> RED.
+    const r = await checkPaymentRequirement("marketplace:any", "ep-1", {
+      price_usd: "0.001",
+      wallet_configured: false,
+    });
+    const ns = (r as { next_step?: unknown }).next_step;
+    const text = typeof ns === "string" ? ns : JSON.stringify(ns);
+    expect(text).toContain("@crossmint/lobster-cli");
   });
 });
