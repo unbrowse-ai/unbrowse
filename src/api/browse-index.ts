@@ -271,16 +271,29 @@ export async function cacheBrowseRequests(params: {
     return { domain, indexed: false, mode: "http", skill: existingSkill ?? null };
   }
 
-  if (!getPageHtml) return { domain, indexed: false, mode: "none", skill: null };
-
   try {
-    const html = await getPageHtml();
-    if (!html || !html.startsWith("<")) return { domain, indexed: false, mode: "none", skill: null };
-
     const { extractFromDOM } = await import("../extraction/index.js");
     const { detectSearchForms, isStructuredSearchForm } = await import("../execution/search-forms.js");
     const { inferSchema } = await import("../transform/index.js");
-    const { templatizeQueryParams } = await import("../execution/index.js");
+    const { templatizeQueryParams, tryHttpFetch } = await import("../execution/index.js");
+
+    let html: string | undefined;
+    try {
+      html = getPageHtml ? await getPageHtml() : undefined;
+    } catch { html = undefined; }
+    // getPageHtml is the live Kuri CDP tab HTML; CLAUDE.md documents it may
+    // return "[object Object]" / empty when the CDP response shape changes.
+    // Reaching here with rawEndpoints.length===0 means the page made no
+    // captured XHRs, i.e. it is pure SSR, so its content is fully available
+    // from a plain server GET of the session URL. Fall back to that (the same
+    // tryHttpFetch the SSR execute fast-path uses) instead of declaring
+    // nothing to index and leaving the agent to loop on go -> close ->
+    // resolve forever with zero learning.
+    if (!html || !html.startsWith("<")) {
+      const fetched = await tryHttpFetch(sessionUrl, {}, []);
+      html = fetched?.html;
+    }
+    if (!html || !html.startsWith("<")) return { domain, indexed: false, mode: "none", skill: null };
 
     const extracted = extractFromDOM(html, intent);
     const searchForms = detectSearchForms(html);

@@ -17,6 +17,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import { cacheBrowseRequests, shouldIndexDomBrowseFallback } from "../src/api/browse-index.js";
+import { createServer } from "node:http";
 
 // Approximates the body shape of news.ycombinator.com/newest (table-based
 // repeated-row layout with title + score + comment count per story).
@@ -128,5 +129,78 @@ describe("cacheBrowseRequests no-requests-with-HTML path", () => {
     expect(result.indexed).toBe(false);
     expect(result.mode).toBe("none");
     expect(result.skill).toBeNull();
+  });
+});
+
+// Loop 7: in-thread MCP dogfooding of "get the anthropic python package info"
+// (pypi.org/project/anthropic, also reproduced on en.wikipedia.org) showed
+// unbrowse_close returning indexed:false / mode:none / request_count:0 on a
+// fully-rendered 184KB SSR page, and the post-close resolve still no_match, so
+// the agent loops on go->close->resolve forever with zero learning. Evidence:
+// a plain server GET of the same URL returns 200 text/html 183KB and
+// extractFromDOM yields conf-0.9 repeated-elements data. The close path bailed
+// at browse-index.ts because getPageHtml() (the Kuri CDP tab-HTML call, which
+// CLAUDE.md documents may return "[object Object]" / junk) was the SOLE source;
+// the requests.length===0 branch IS definitionally the pure-SSR case where a
+// server fetch is the canonical reliable source, and tryHttpFetch already does
+// exactly that in executeDomExtractionEndpoint's SSR fast-path. These tests pin
+// the contract: when getPageHtml yields junk on a zero-request SSR page, the
+// indexer must fall back to a server fetch of the session URL before declaring
+// nothing to index. Real HTTP server, real cacheBrowseRequests, no SUT mocks.
+describe("cacheBrowseRequests SSR HTTP fallback when live getPageHtml yields junk", () => {
+  it("server-fetches the SSR page and indexes a dom skill when getPageHtml returns Kuri junk", async () => {
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(HN_LIKE_HTML);
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const result = await cacheBrowseRequests({
+        sessionUrl: `http://127.0.0.1:${port}/newest`,
+        sessionDomain: "news.ycombinator.com",
+        requests: [],
+        // The documented Kuri CDP failure shape (CLAUDE.md). Pre-fix this made
+        // the close path return mode:none even though the page is fetchable.
+        getPageHtml: async () => "[object Object]",
+        intent: "browse news.ycombinator.com",
+      });
+      expect(result.indexed).toBe(true);
+      expect(result.mode).toBe("dom");
+      expect(result.skill).not.toBeNull();
+      expect(result.skill!.endpoints.length).toBeGreaterThanOrEqual(1);
+      // Position-independent: the shared 127.0.0.1 domain skill cache may
+      // merge endpoints from other suite tests, so assert the synthesized
+      // SSR-fallback endpoint exists among them rather than at index 0.
+      const ep = result.skill!.endpoints.find((e) => e.dom_extraction);
+      expect(ep).toBeDefined();
+      expect(ep!.method).toBe("GET");
+      expect(ep!.dom_extraction).toBeDefined();
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
+  it("still returns mode:none (no false positive, no throw) when getPageHtml is junk AND the session URL is not HTML", async () => {
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const result = await cacheBrowseRequests({
+        sessionUrl: `http://127.0.0.1:${port}/data.json`,
+        sessionDomain: "127.0.0.1",
+        requests: [],
+        getPageHtml: async () => "[object Object]",
+        intent: "browse 127.0.0.1",
+      });
+      expect(result.indexed).toBe(false);
+      expect(result.mode).toBe("none");
+      expect(result.skill).toBeNull();
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
   });
 });
