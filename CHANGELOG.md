@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* **kuri:** fix broker SIGABRT that broke all browsing. The vendored Kuri binary panicked with "reached unreachable code" in `server.router.getSessionId` ← `handleEvaluate` on every `/evaluate` request: handleEvaluate read request headers a second time (via `rememberCurrentTab`) after `readRequestBody`, but Zig 0.16 `std.http.Server.Request.iterateHeaders()` asserts the reader is still in `.received_head` state, which `readerExpectNone` advances past. With the broker dead, every client call cascaded into "Unable to connect", taking down `unbrowse_go`/`snap`/`close`/`execute`. Kuri now snapshots the session id before the body read. Rebuilt + re-vendored `darwin-arm64` (kuri submodule `8fc6441`); verified end-to-end (real session + HAR capture on a live site).
+
 ## [6.17.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v6.17.0-preview.4...v6.17.0-preview.5) (2026-05-15)
 
 ### Features
