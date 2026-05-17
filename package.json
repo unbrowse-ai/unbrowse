@@ -70,6 +70,8 @@
     "bench:gate:prerelease": "bash scripts/bench-gate-prerelease.sh",
     "bench:gate:freeze": "bun scripts/bench-gate-compare.ts --freeze",
     "bench:gate:full": "bash scripts/bench-gate-full.sh",
+    "bench:gate:mcp": "bash scripts/bench-gate-mcp.sh",
+    "bench:gate:mcp:collect": "bun scripts/bench-gate-mcp-collect.ts",
     "bench:corpus:validate": "bun scripts/bench-corpus.ts validate",
     "bench:corpus:add": "bun scripts/bench-corpus.ts add",
     "bench:improve:triage": "bun scripts/bench-improve-triage.ts",

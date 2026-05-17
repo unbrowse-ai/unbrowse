@@ -53,9 +53,23 @@ fi
 if [[ ! -f "$STAMP" ]]; then
   red "[bench-gate-prerelease] FAIL — no bench-gate stamp at $STAMP"
   cat >&2 <<'EOF'
-
 This release is blocked because no agent-judged bench-gate PASS exists
-for the current code state. To unblock:
+for the current code state.
+
+RECOMMENDED — MCP-driven gate (measures the real agent path):
+
+  1. bun run bench:gate:mcp                         # prep run dir + per-probe prompts
+  2. (parent agent fans out one Agent-tool call per probe, batches of 4-6;
+     each subagent uses ONLY mcp__unbrowse__* tools to run the full
+     empty-index browse -> index -> publish -> resolve -> execute loop
+     N times; subagents write subagent.result.json)
+  3. bun run bench:gate:mcp:collect -- --artifacts .bench-gate/<run-id>
+  4. bun run bench:gate:validate -- --artifacts .bench-gate/<run-id>
+  5. bun run bench:gate:compare -- --artifacts .bench-gate/<run-id> --stamp
+  6. git add .bench-gate/stamp.json && git commit -m "chore: bench-gate stamp"
+  7. retry the release
+
+LEGACY — CLI-shortcut gate (one-shot capture; faster, narrower coverage):
 
   1. bun run bench:gate:full
   2. (agent reads .bench-gate/<run-id>/judge.bundle.md and writes verdict.json)
@@ -64,8 +78,9 @@ for the current code state. To unblock:
   5. git add .bench-gate/stamp.json && git commit -m "chore: bench-gate stamp"
   6. retry the release
 
-See docs/release-gate-bench-plan.md for the full protocol. To bypass
-deliberately (NOT in CI), set BENCH_GATE_BYPASS=1 and explain in CHANGELOG.
+See docs/bench-gate-mcp.md for the MCP flow, docs/release-gate-bench-plan.md
+for the underlying protocol. To bypass deliberately (NOT in CI), set
+BENCH_GATE_BYPASS=1 and explain in CHANGELOG.
 EOF
   exit 1
 fi

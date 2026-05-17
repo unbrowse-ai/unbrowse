@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Features
+
+* **bench-gate:** MCP-driven subagent release gate. The old gate runs one `unbrowse capture` per probe — a CLI shortcut that conflates browse + index + publish into one call and never exercises the MCP surface real agents use. The new `bun run bench:gate:mcp` flow preps one subagent prompt per probe (default 58 from `harness/probes/corpus-gate.txt`), wipes `~/.unbrowse/{skill-snapshots,queue/pending,route-cache}` so every probe starts from an EMPTY skill index, and emits the per-probe directories the parent agent fans out via the Agent tool. Each subagent uses ONLY `mcp__unbrowse__*` tools to run the full loop: `unbrowse_resolve` (verify empty) → `unbrowse_go` → `unbrowse_snap`/`unbrowse_eval`/etc. → `unbrowse_close` (triggers index + publish) → `unbrowse_resolve` (verify published skill resolves) → `unbrowse_execute` (raw, verify response). Each probe runs N iterations (default 3) so stability is observable: STABLE / FLAKY / UNSTABLE. `scripts/bench-gate-mcp-collect.ts` consolidates the per-probe `subagent.result.json` files into the same `{ run_id, verdicts[] }` shape `bench-gate-judge.ts --validate` already accepts, so the existing validate + compare + stamp + release-it before:init pipeline reuses the same schema regardless of whether the verdict came from the old judge bundle or the new MCP fan-out. FLAKY/UNSTABLE iterations flip `suspicious: true` even when iter-1 passed so the parent re-audits before stamping. Live-tested end-to-end against hacker news (empty resolve → browse → close indexed 2 endpoints → resolve hit → execute returned 30 structured stories at status 200). Covered by `tests/bench-gate-mcp.test.ts` (5 no-mock contract tests: clean-slate wipe semantics, `--keep-index` opt-out, per-probe prompt+context shape, collector→validator round-trip, FLAKY → suspicious flag). Docs: `docs/bench-gate-mcp.md`. Old `bun run bench:gate:full` flow stays available for fast spot-checks; release-time stamping prefers the MCP gate.
+
+
+* **payment-gate:** account-or-x402 use gate + MCP 402 parity (Flex/PayAI) ([7be6caa](https://github.com/unbrowse-ai/unbrowse-dev/commit/7be6caa1a2f2e9d4f92359dbe38346b8510e0be0))
+* **wallet:** surface lobster.cash wallet status end-to-end ([#467](https://github.com/unbrowse-ai/unbrowse-dev/issues/467)) ([11ea3db](https://github.com/unbrowse-ai/unbrowse-dev/commit/11ea3db7b738a82c3334bcbba15a51030af56efa)), closes [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6)
+
+### Bug Fixes
+
+* **vault:** keytar operation errors fall back to file backend per-call ([#468](https://github.com/unbrowse-ai/unbrowse-dev/issues/468)) ([21afec9](https://github.com/unbrowse-ai/unbrowse-dev/commit/21afec90023d67cf655c0a9d62698c50665269fe)), closes [#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6) [#70](https://github.com/unbrowse-ai/unbrowse-dev/issues/70)
+
+## Unreleased
+
 ### Bug Fixes
 
 * **vault:** keytar operation errors (e.g. opaque "An unknown error occurred." with no stack from a macOS keychain entry whose ACL no longer admits the current process) now fall back to the encrypted file backend for that call instead of propagating an unhandled throw to `storeCredential` / `getCredential`. Binding errors still permanently disable keytar for the process (regex match against `KEYTAR_BINDING_ERROR_RE`), but per-call operation failures no longer poison the auth-vault pipeline. The Bun-side `test:issue-regressions` pre-release hook was the canary: issue #70 began failing locally with "An unknown error occurred." even though CI (Linux, no keytar binding) stayed green. Covered by `tests/vault-keytar-fallback.test.ts` (real `setKeytarClientForTests`, no mocks, drives the exact macOS shape via stack-stripped Errors and asserts the file backend completes the call).
