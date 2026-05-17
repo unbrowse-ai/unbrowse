@@ -62,12 +62,16 @@ afterEach(() => {
 
 function runPrep(args: string[], corpus: string): { stdout: string; stderr: string; runDir: string } {
   const r = spawnSync("bash", [PREP, "--corpus", corpus, ...args], {
-    env: { ...process.env, HOME: tmpHome, OUT_DIR: tmpOut },
+    // The prep script aborts when UNBROWSE_PER_SESSION_KURI is unset
+    // to guard against parallel-fanout crosstalk. Structural tests
+    // here are not measuring concurrency, just prompt+manifest
+    // shape, so set the env to bypass the abort. The dedicated
+    // env-check tests below explicitly toggle / unset it.
+    env: { ...process.env, HOME: tmpHome, OUT_DIR: tmpOut, UNBROWSE_PER_SESSION_KURI: "1" },
     encoding: "utf8",
     timeout: 30_000,
     cwd: REPO_ROOT,
   });
-  // The script prints the run dir as its last stdout line.
   const stdout = r.stdout ?? "";
   const lastLine = stdout.trim().split("\n").pop() ?? "";
   return { stdout, stderr: r.stderr ?? "", runDir: lastLine };
@@ -242,4 +246,43 @@ test("collector: flags FLAKY runs as suspicious even when iter-1 passed", () => 
   // The PASS labels come from iter-1, but the FLAKY stability must
   // bubble up as "suspicious: true" so the parent re-audits.
   expect(v.suspicious).toBe(true);
+});
+
+test("prep: aborts when UNBROWSE_PER_SESSION_KURI is unset (concurrent crosstalk guard)", () => {
+  const corpus = writeCorpus([
+    "anchor | none | easy | dom-artifact | x | https://example.com/",
+  ]);
+  const prevEnv = process.env.UNBROWSE_PER_SESSION_KURI;
+  delete process.env.UNBROWSE_PER_SESSION_KURI;
+  try {
+    const r = spawnSync("bash", [PREP, "--corpus", corpus, "--limit", "1"], {
+      env: { ...process.env, HOME: tmpHome, OUT_DIR: tmpOut },
+      encoding: "utf8",
+      timeout: 30_000,
+      cwd: REPO_ROOT,
+    });
+    expect(r.status).toBe(3);
+    expect((r.stderr ?? "").includes("UNBROWSE_PER_SESSION_KURI")).toBe(true);
+  } finally {
+    if (prevEnv !== undefined) process.env.UNBROWSE_PER_SESSION_KURI = prevEnv;
+  }
+});
+
+test("prep: --ack-sequential lets gate run sequentially without the env", () => {
+  const corpus = writeCorpus([
+    "anchor | none | easy | dom-artifact | x | https://example.com/",
+  ]);
+  const prevEnv = process.env.UNBROWSE_PER_SESSION_KURI;
+  delete process.env.UNBROWSE_PER_SESSION_KURI;
+  try {
+    const r = spawnSync("bash", [PREP, "--ack-sequential", "--corpus", corpus, "--limit", "1"], {
+      env: { ...process.env, HOME: tmpHome, OUT_DIR: tmpOut },
+      encoding: "utf8",
+      timeout: 30_000,
+      cwd: REPO_ROOT,
+    });
+    expect(r.status).toBe(0);
+  } finally {
+    if (prevEnv !== undefined) process.env.UNBROWSE_PER_SESSION_KURI = prevEnv;
+  }
 });

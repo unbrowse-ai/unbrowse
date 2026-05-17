@@ -42,13 +42,15 @@ OUT_DIR="${OUT_DIR:-.bench-gate}"
 ITERATIONS="${ITERATIONS:-3}"
 LIMIT="${LIMIT:-0}"
 KEEP_INDEX=0
+ACK_SEQUENTIAL_FLAG=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --corpus)     CORPUS="$2"; shift 2 ;;
-    --iterations) ITERATIONS="$2"; shift 2 ;;
-    --limit)      LIMIT="$2"; shift 2 ;;
-    --keep-index) KEEP_INDEX=1; shift ;;
+    --corpus)          CORPUS="$2"; shift 2 ;;
+    --iterations)      ITERATIONS="$2"; shift 2 ;;
+    --limit)           LIMIT="$2"; shift 2 ;;
+    --keep-index)      KEEP_INDEX=1; shift ;;
+    --ack-sequential)  ACK_SEQUENTIAL_FLAG=1; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -133,6 +135,39 @@ done < "$CORPUS"
 n_probes=$(wc -l < "$probes_jsonl" | tr -d ' ')
 err "queued $n_probes probe(s)"
 
+# ── 2.5. Enforce per-session-Kuri so concurrent subagent fan-out doesn't
+#        cross-bind tabs or leak metadata between sessions ───────────────
+# Per CLAUDE.md "Parallel gate collection" the per-session Kuri broker
+# (UNBROWSE_PER_SESSION_KURI=1) is what stops the conc>=4 cross-talk
+# observed in real bench-gate runs (see .bench-gate/20260517T213540Z
+# probes #006 and #012). Without it, concurrent /v1/browse/go calls
+# share a broker create-lock and the tab one subagent opens can bind
+# to another subagent's session. The prep script can't enable this
+# itself — the env must be set on the running unbrowse MCP server
+# process — so we surface the requirement loudly here and refuse to
+# pretend the resulting gate is reliable.
+if [ "${UNBROWSE_PER_SESSION_KURI:-0}" != "1" ] && [ "${UNBROWSE_PER_SESSION_KURI:-}" != "true" ]; then
+  err ""
+  err "WARNING: UNBROWSE_PER_SESSION_KURI is NOT set in this prep-script env."
+  err ""
+  err "  The MCP-driven gate fans out subagents in parallel batches; without"
+  err "  per-session-Kuri the broker create-lock cross-binds tabs and"
+  err "  produces false-positive failures (proven in run 20260517T213540Z)."
+  err ""
+  err "  Set it on the unbrowse MCP server process before the subagents fire:"
+  err "    export UNBROWSE_PER_SESSION_KURI=1"
+  err "    pkill -9 -f 'unbrowse|kuri'; sleep 2"
+  err "    # the MCP client (Claude Code) will reconnect on next tool call"
+  err ""
+  err "  If you are deliberately running sequentially (batch size 1) the env"
+  err "  is not required — re-run with --ack-sequential to suppress this warning."
+  err ""
+  if [ "$ACK_SEQUENTIAL_FLAG" != "1" ] && [ "${ACK_SEQUENTIAL:-0}" != "1" ]; then
+    err "Aborting. Set the env (or --ack-sequential) and retry."
+    exit 3
+  fi
+fi
+
 # ── 3. Write per-probe subagent prompts + context ────────────────────────
 while IFS= read -r row; do
   probe_id=$(jq -r '.probe_id' <<<"$row")
@@ -211,8 +246,33 @@ Pick ONE of: PASS, FAIL_BROWSE, FAIL_INDEX_NO_ENDPOINTS,
 FAIL_PUBLISH_NOT_VISIBLE, FAIL_RESOLVE_AFTER_PUBLISH,
 FAIL_EXECUTE_ERROR, FAIL_EXECUTE_EMPTY, EXCLUDED_AUTH, EXCLUDED_BLOCKED.
 
-You judge from the evidence you collected (snap content, response bytes,
-status codes). The parent will read your reasoning, not just the label.
+Classification rules — pick the LABEL that matches the evidence, not
+the shape of the HTTP error:
+
+- \`EXCLUDED_BLOCKED\` — execute or any phase returned an anti-bot
+  refusal: HTTP 403 with no auth attempted; HTTP 429 sustained;
+  vendor-named challenge (cloudflare / perimeterx / datadome /
+  imperva / akamai / kasada); response body containing "Access
+  Denied", "Please verify you are a human", "challenge", "blocked";
+  or trace evidence the request looked like a server-side fetch
+  the site refused. Treat reddit / x.com / instagram 403 the same
+  way unless your trace shows a real bug. This is NOT a unbrowse
+  failure; the site refused automation.
+- \`EXCLUDED_AUTH\` — site clearly gates the data behind login;
+  resolve / execute surfaced an auth_required signal; cookies
+  absent or expired. NOT a unbrowse failure.
+- \`FAIL_EXECUTE_ERROR\` — execute returned a non-2xx and the
+  response body is NOT an anti-bot refusal AND NOT an auth gate.
+  Real bug. Capture the trace.
+- \`FAIL_EXECUTE_EMPTY\` — execute returned 2xx but the body is
+  empty or obviously irrelevant to the intent. Real bug.
+- \`PASS\` — empty resolve, browse OK, publish OK,
+  resolve-after-publish saw the new skill, execute returned data
+  you judge relevant.
+
+You judge from the evidence you collected (snap content, response
+bytes, status codes, decision_trace). The parent will read your
+reasoning, not just the label.
 
 ## Stability label (across iterations)
 
