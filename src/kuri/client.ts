@@ -1498,13 +1498,29 @@ export async function executeInPageFetch(
   body?: unknown,
   state: BrokerState = defaultBrokerState,
 ): Promise<{ status: number; data: unknown }> {
+  // Pass the whole fetch config as a single JSON string and JSON.parse it
+  // inside the page. This avoids the previous shape — which embedded
+  // JSON.stringify(headers) directly into the JS source — silently dropping
+  // requests when a header value contained a character that's legal in JSON
+  // but not in raw JS source (notably U+2028 / U+2029 line/paragraph
+  // separators, but also a few other rare cases). The symptom on
+  // hub.docker.com was a "SyntaxError: Invalid or unexpected token" with
+  // HTTP status 0 — the script never reached its own try/catch because
+  // V8's parser rejected it before execution. Surfaced by the
+  // MCP-driven bench-gate's #010_anchor probe.
+  const cfg = JSON.stringify({
+    url,
+    method,
+    headers,
+    hasBody: body !== undefined,
+    body: body === undefined ? null : (typeof body === "string" ? body : JSON.stringify(body)),
+  });
   const fetchScript = `(async function() {
     try {
-      var res = await fetch(${JSON.stringify(url)}, {
-        method: ${JSON.stringify(method)},
-        headers: ${JSON.stringify(headers)},
-        ${body ? `body: ${JSON.stringify(JSON.stringify(body))},` : ""}
-      });
+      var cfg = JSON.parse(${JSON.stringify(cfg)});
+      var init = { method: cfg.method, headers: cfg.headers };
+      if (cfg.hasBody) init.body = cfg.body;
+      var res = await fetch(cfg.url, init);
       var text = await res.text();
       var data;
       try { data = JSON.parse(text); } catch(e) { data = text; }
