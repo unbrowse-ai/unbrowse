@@ -62,6 +62,9 @@ import { join as _joinForQueue } from "node:path";
 function _getQueueDir(): string {
   return _joinForQueue(process.env.HOME ?? "/tmp", ".unbrowse", "queue", "pending");
 }
+function _getCaptureSpoolDir(): string {
+  return _joinForQueue(process.env.HOME ?? "/tmp", ".unbrowse", "queue", "capture-pending");
+}
 function _getHeartbeatPath(): string {
   return _joinForQueue(process.env.HOME ?? "/tmp", ".unbrowse", "queue", ".heartbeat");
 }
@@ -73,13 +76,20 @@ async function _isHeartbeatStale(maxAgeMs: number = 10_000): Promise<boolean> {
     return true;
   }
 }
-async function _hasPendingJobs(): Promise<boolean> {
+async function _dirHasJobs(dir: string): Promise<boolean> {
   try {
-    const entries = await _readdirForQueue(_getQueueDir());
+    const entries = await _readdirForQueue(dir);
     return entries.some((e) => e.endsWith(".json") && !e.endsWith(".tmp"));
   } catch {
     return false;
   }
+}
+async function _hasPendingJobs(): Promise<boolean> {
+  // The detached drain worker now spans two lanes: capture-pending (raw,
+  // pre-enrich envelopes from a one-shot /v1/browse/go) and pending
+  // (enriched BackgroundIndexJob). Either lane being non-empty must trip
+  // the sweep so "drained by any later process" holds for both.
+  return (await _dirHasJobs(_getQueueDir())) || (await _dirHasJobs(_getCaptureSpoolDir()));
 }
 async function _spawnDrainWorker(): Promise<void> {
   // Audit #6 P1 fix: mirror index.ts spawn guards. Without entry guard and
@@ -3951,6 +3961,28 @@ async function main(): Promise<void> {
       try {
         const { drainUntilEmpty } = await import("./indexer/worker.js");
         const { _processIndexJobForCli } = await import("./indexer/index.js");
+        // Two-lane drain, one worker slot: capture-pending FIRST so any
+        // reconstructed BackgroundIndexJob lands in `pending/` and is
+        // processed in the same worker lifetime (no second spawn needed).
+        // Failure here never blocks the legacy pending drain.
+        try {
+          const { drainCaptureSpoolOnce } = await import("./indexer/capture-spool.js");
+          const { makeCaptureSpoolProcessor } = await import("./indexer/capture-spool-bridge.js");
+          const captureDir = _getCaptureSpoolDir();
+          let totalProcessed = 0;
+          // Drain in a loop until idle so envelopes that produced new pending
+          // jobs all flow through before we switch lanes.
+          for (;;) {
+            const r = await drainCaptureSpoolOnce(captureDir, makeCaptureSpoolProcessor());
+            totalProcessed += r.processed;
+            if (r.processed === 0 && r.failed === 0) break;
+          }
+          if (totalProcessed > 0) {
+            console.error(`[__drain-queue] capture-pending: drained ${totalProcessed} envelope(s)`);
+          }
+        } catch (err) {
+          console.error(`[__drain-queue] capture-pending pass failed: ${(err as Error)?.message ?? err}`);
+        }
         await drainUntilEmpty(queueDir, _processIndexJobForCli);
       } finally {
         await slot();

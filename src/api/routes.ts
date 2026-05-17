@@ -7,6 +7,7 @@ import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
 import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, enableNetworkHeaderCapture, getCapturedNetworkHeadersAsRequests, type RawRequest } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
+import { getCaptureSpoolDir, writeCaptureSpool, type CaptureSpoolEnvelope } from "../indexer/capture-spool.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
@@ -126,19 +127,20 @@ export function buildAnalyticsSessionPayload(
 
 
 /** Process HAR entries into routes and queue local index, with remote share opt-in only. */
-function passiveIndexFromRequests(
+export function passiveIndexFromRequests(
   requests: RawRequest[],
   pageUrl: string,
   options: { publishAfterIndex?: boolean } = {},
-): void {
-  if (requests.length === 0) return;
+): Promise<void> {
+  if (requests.length === 0) return Promise.resolve();
 
   let domain: string;
-  try { domain = new URL(pageUrl).hostname; } catch { return; }
+  try { domain = new URL(pageUrl).hostname; } catch { return Promise.resolve(); }
   const intent = `browse ${domain}`;
 
-  // Fire-and-forget — full pipeline runs async
-  void (async () => {
+  // Returns the inner pipeline's promise so the drain bridge can await
+  // durability; legacy fire-and-forget callers discard `Promise<void>` safely.
+  return (async () => {
     try {
       // 1. Extract endpoints from captured traffic
       const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
@@ -2409,6 +2411,77 @@ export async function registerRoutes(app: FastifyInstance) {
     session.harActive = true;
     await injectInterceptor(session.tabId).catch(() => {});
   }
+
+  // ── Durable raw-capture spool (one-shot survival) ────────────────────
+  // Produced at the tail of /v1/browse/go BEFORE reply.send so the
+  // captured route survives a CLI exit that races the in-memory
+  // pipeline (the existing flushBrowseCapture path only persists when
+  // the process stays alive long enough for the ~40s enrich tail).
+  // We do ONLY cheap broker reads here (harStop, drained interceptor
+  // buffer, CDP header snapshots) plus an atomic disk write — never
+  // enrich/cacheBrowseRequests. A later unbrowse process drains
+  // ~/.unbrowse/queue/capture-pending/ via the bridge processor and
+  // feeds the existing durable index queue.
+  async function spoolBrowseCapture(
+    session: BrowseSession,
+    options: { pageHtml?: string } = {},
+  ): Promise<{ written: boolean; path?: string; request_count: number }> {
+    // 1. Drain the inspected HAR map (consumes) and stop+restart the
+    //    broker's own HAR so we own a discrete window of entries.
+    let harEntries: KuriHarEntry[] = drainInspectedHarEntries(session.sessionId);
+    if (session.harActive) {
+      try {
+        const broker = brokerForSession(session);
+        const stopResult = await broker.harStop(session.tabId);
+        harEntries = [...harEntries, ...(stopResult.entries ?? [])];
+        try { await broker.harStart(session.tabId); } catch { /* ignore */ }
+      } catch { /* non-fatal */ }
+    }
+
+    // 2. Pull the live broker buffers (interceptor + CDP header snapshots)
+    //    NOW — they are tab-keyed in module memory and a later process
+    //    cannot recover them. RawRequest is the JSON-safe cut.
+    const intercepted = await collectInterceptedRequests(session.tabId).catch(() => []);
+    const interceptedAsRaw: RawRequest[] = intercepted.map((e) => ({
+      url: e.url,
+      method: e.method,
+      request_headers: e.request_headers,
+      request_body: e.request_body,
+      response_status: e.response_status,
+      response_headers: e.response_headers,
+      response_body: e.response_body,
+      timestamp: e.timestamp,
+    }));
+    const cdpHeaderRequests = getCapturedNetworkHeadersAsRequests(session.tabId);
+    const harAsRaw = harEntriesToRawRequests(harEntries, session.url);
+    const requests: RawRequest[] = [...harAsRaw, ...interceptedAsRaw, ...cdpHeaderRequests];
+
+    if (requests.length === 0 && !options.pageHtml) {
+      // Nothing worth spooling — no API-shaped capture and no SSR HTML
+      // for a future DOM-fallback drain. Avoid noise on disk.
+      return { written: false, request_count: 0 };
+    }
+
+    const domain = session.domain || profileName(session.url);
+    const publishDecision = decideCheckpointPublish(domain);
+    const envelope: CaptureSpoolEnvelope = {
+      version: 1,
+      domain,
+      capturedAt: Date.now(),
+      attempts: 0,
+      capture: {
+        sessionUrl: session.url,
+        sessionDomain: domain,
+        intent: `browse ${domain}`,
+        requests,
+        ...(options.pageHtml ? { pageHtml: options.pageHtml } : {}),
+        publishAfterIndex: publishDecision.publishQueued,
+      },
+    };
+    const path = await writeCaptureSpool(getCaptureSpoolDir(), envelope);
+    return { written: true, path, request_count: requests.length };
+  }
+
   // ── Fix A: in-flight light flush ─────────────────────────────────────
   // Snapshot the active session's HAR + interceptor buffer and write the
   // resulting skill into domainSkillCache, WITHOUT stopping HAR. The session
@@ -2934,6 +3007,20 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       } catch { /* getText best-effort: never break go */ }
 
+      // Durable capture spool: write the cheap raw cut to disk BEFORE
+      // reply.send so the captured route survives a one-shot CLI exit.
+      // Awaited (a fast disk write, not the ~40s enrich) so the bytes are
+      // renamed into ~/.unbrowse/queue/capture-pending/ before the client
+      // sees ok:true. The streaming watcher + close path keep their own
+      // persistence; this is the crash/exit safety net for the one-shot
+      // path the plan's GOAL targets. Best-effort: never breaks go.
+      let spool_written = false;
+      try {
+        const spoolRes = await spoolBrowseCapture(session, page ? { pageHtml: page.text } : {});
+        spool_written = spoolRes.written;
+      } catch (err) {
+        console.error(`[browse/go] spool failed (non-fatal): ${(err as Error).message}`);
+      }
       return reply.send({
         ok: true,
         session_id: session.sessionId,

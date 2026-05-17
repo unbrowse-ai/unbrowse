@@ -52,13 +52,33 @@ function disableKeytar(error: unknown): void {
   keytarFallbackLogged = true;
 }
 
+// keytar errors come in two flavors:
+//   1. Binding errors (module load, dlopen, no native build, missing
+//      method): the runtime is unusable, permanently disable.
+//   2. Operation errors (keychain ACL, sandbox refusal, opaque
+//      "An unknown error occurred." with no stack on macOS when an
+//      entry was created under a different code-signature/ACL): the
+//      runtime works, but THIS call fails. Returning
+//      KEYTAR_UNAVAILABLE lets the file backend take over per-call
+//      without breaking subsequent keytar usage for other accounts.
 async function callKeytar<T>(op: (client: KeytarClient) => Promise<T>): Promise<T | typeof KEYTAR_UNAVAILABLE> {
   if (!keytar) return KEYTAR_UNAVAILABLE;
   try {
     return await op(keytar);
   } catch (error) {
-    if (!isKeytarBindingError(error)) throw error;
-    disableKeytar(error);
+    if (isKeytarBindingError(error)) {
+      disableKeytar(error);
+      return KEYTAR_UNAVAILABLE;
+    }
+    // Operation-level keytar errors fall back to file backend instead of
+    // surfacing as throws. Issue #70 reproduced this with a macOS ACL
+    // failure on a previously-created vault entry: keytar threw an
+    // opaque "An unknown error occurred." that the binding regex did not
+    // match, so storeCredential propagated the throw and any caller
+    // depending on auth-vault state died. Bun's local pre-release hook
+    // (test:issue-regressions) was the canary.
+    const summary = error instanceof Error ? error.message : String(error);
+    log("vault", `keytar operation failed (${summary}); falling back to encrypted file for this call`);
     return KEYTAR_UNAVAILABLE;
   }
 }
