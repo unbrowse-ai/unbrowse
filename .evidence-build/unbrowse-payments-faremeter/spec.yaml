@@ -1,0 +1,52 @@
+id: unbrowse-payments-faremeter
+mode: product
+description: >
+  Wrap every paid skill execution behind a Stripe-subscription-backed
+  recurring credit grant, settled on-chain via Faremeter Flex (Solana) with
+  a 50/50 split between the platform recipient and per-skill indexer
+  contributors, with rotation between self-hosted Flex facilitator and the
+  PayAI exact-scheme rail.
+repo: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+backend_dir: backend
+frontend_dir: frontend
+improvement_loop: __ship_directly__   # explicit well-scoped ask, ride plan-mode (per global CLAUDE.md /evidence-build directive)
+
+scope:
+  payai_role: rotate                          # user-selected, read as feature-flagged A/B
+  indexer_split: proportional_contributors    # SkillContributor.cumulative_delta weighted, capped at 4 entries (Flex MAX_SPLITS=5 - 1 platform)
+  stripe_tiers: three_tier_free_pro_metered   # Free / Pro $20/mo / Metered overage
+  flex_placement: replace_existing_path       # wire @faremeter/payment-solana/flex into existing flex-route-helpers.ts, no new microservice
+
+env_added:
+  PAYMENT_RECIPIENT: Bpr49sQXsxwNXNMRWS2v3tTBGWu2QgZtdA83BX77xBX1   # public Solana wallet pubkey, lodged in worker secrets
+  PAYAI_ROTATION_BPS: "5000"                  # default rotation: 50% PayAI, 50% Flex per execution (config knob)
+  STRIPE_PRICE_PRO_MONTHLY: <to-be-set>       # set after creating Stripe product
+  STRIPE_PRICE_METERED: <to-be-set>           # set after creating Stripe meter
+
+# PayAI API key: USER MUST ROTATE first (was pasted in chat). Once rotated,
+# set as PAYAI_API_KEY worker secret via `wrangler secret put`. Never
+# committed.
+
+sources:
+  # No reddit per Lewis's standing rule (no-reddit-when-other-sources).
+  - kind: command
+    id: code
+    run: "static codebase map of existing Flex/PayAI/Stripe surface (in-context exploration this wave)"
+  - kind: command
+    id: faremeter-docs
+    run: "Faremeter Flex docs pasted in invocation transcript: overview, concepts, quickstart, facilitator, program-reference"
+  - kind: command
+    id: stripe-best-practices
+    run: "/stripe-best-practices skill knowledge applied to subscription + metered + webhook patterns"
+
+features:
+  - stripe_three_tier_subscription
+  - faremeter_flex_50_50_split
+  - rotation_flag_payai_vs_flex
+  - key_funding_recurring_top_up
+  - platform_recipient_pubkey
+
+verify:
+  no_secrets_in_repo: true
+  no_mocks_in_tests: true
+  tri_file_type_sync: true

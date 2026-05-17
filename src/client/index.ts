@@ -827,8 +827,23 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
     try {
       const profile = await getMyProfile();
       const wallet = getLocalWalletContext();
-      if (wallet.wallet_address && profile.wallet_address !== wallet.wallet_address) {
+      // Auto-publish the lobster.cash wallet to the backend agent profile,
+      // but ONLY when the server has no wallet set. We never clobber an
+      // existing server-side wallet just because the local lobster config
+      // changed; the user may have intentionally registered a different
+      // wallet, and lobster's per-machine config can drift from the
+      // canonical agent identity. Surface mismatches via `unbrowse wallet`
+      // instead of silently overwriting.
+      if (wallet.wallet_address && !profile.wallet_address) {
         await syncAgentWallet(wallet);
+      } else if (
+        wallet.wallet_address &&
+        profile.wallet_address &&
+        profile.wallet_address !== wallet.wallet_address
+      ) {
+        console.warn(
+          `[unbrowse] local lobster wallet ${wallet.wallet_address.slice(0, 8)}... differs from server-side ${profile.wallet_address.slice(0, 8)}...; run \`unbrowse wallet\` to inspect.`,
+        );
       }
     } catch { /* non-fatal */ }
     return;

@@ -1,0 +1,26 @@
+id: unbrowse-recompute-tiers
+mode: product
+description: "Close all three DAG-recompute tiers: harden the shipped CSRF/chain-walk path (T1), build the localStorage/sessionStorage binding source (T2), and add full SPA-bundle symbolic-execution token recompute (T3, north-star override)."
+repo_path: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+improvement_loop: /unbrowse-improvement-loop
+fleet: /unbrowse-improvement-fleet
+
+# Evidence substrate is the codebase + the architecture memory, NOT Reddit.
+# Per the standing rule (CLAUDE.md), a spec declaring non-reddit sources and
+# no reddit source runs ZERO /reddit calls. The criteria for these three
+# tiers are already declared in the north-star gap table and the freshness
+# four-layer template; the command source surfaces what the code declares.
+sources:
+  - kind: command
+    id: codebase
+    run: "python3 .evidence-build/unbrowse-recompute-tiers/emit_evidence.py"
+
+# Decision provenance for the Tier 3 north-star override:
+# AskUserQuestion 2026-05-17 -> "Full bundle symbolic execution" +
+# "One /jesus-loop across all 3". Recorded as evidence record
+# decision:askuserquestion-2026-05-17-tier3-full-symbolic-exec.
+decision_provenance:
+  ts: "2026-05-17"
+  tier3_scope: full-bundle-symbolic-execution
+  sequencing: one-jesus-loop-across-all-three
+  overrides: "project_dag_recompute_north_star.md row: JS-computed tokens (was: do-not-solve)"

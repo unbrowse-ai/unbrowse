@@ -141,6 +141,51 @@ field, a ranker orders two fixtures, a release hook runs), but they are not
 coverage proof. Do not describe deterministic tests as bench verdicts or use
 them to decide release coverage; only the agent-judged bench artifact verdict
 does that.
+## Parallel gate collection (deterministic, non-LLM): collector binds the harness-judge split
+
+> STATUS 2026-05-17 (updated): VALIDATED AT conc=4. Both root-cause
+> bugs are fixed and falsifier-proven, NOT the `recentLocalSkills` D2
+> race I first hypothesized (that guess was wrong). The real causes,
+> traced: (1) concurrent `/v1/browse/go` raced `createBrowseSession` so
+> sessions cross-bound tabs (probe A rendered probe B) , fixed by
+> per-broker create-lock + create-on-unknown-id (commit 41fab174);
+> (2) `--headless=new` renderer-backgrounds non-active tabs so
+> concurrent snap starved 3/4 , fixed by the standard Playwright
+> background-throttle flags in the kuri launcher (commit db9190af,
+> re-vendored). `.bench-gate/parallel-isolation-falsifier.sh` now
+> PASSES 4/4 (real collector, conc=4, distinct hosts, every probe its
+> own host, indexed); 35/35 browse-session unit tests pass. The
+> collector IS usable for parallel collection at low concurrency. The
+> higher-N ceiling is NOT yet characterized: start at conc=4-6 and
+> raise only with the falsifier green at that N. The single in-thread
+> serial loop also remains valid. Judgment still single in-thread.
+
+`scripts/mcp-gate-parallel-collect.ts` is the parallel, NON-LLM collector
+for the MCP release gate. It is the operational form of the rule above:
+collection MAY be parallel and non-LLM; the VERDICT stays a single
+in-thread agent reading raw artifacts vs `harness/probes/GATE_JUDGE.md`.
+
+- One deterministic process, bounded worker pool. `UNBROWSE_GATE_CONCURRENCY`
+  env (default 30) sizes the pool. Each probe runs the faithful
+  resolve->go->snap->eval->close->resolve->execute sequence via the real
+  `getInProcessApp` + `app.inject` path, writing the existing 8 artifact
+  files. Resume-safe: a probe whose `execute.meta.json` exists is skipped.
+- Endpoint pick is the deterministic top of score-sorted
+  `available_endpoints` (structural rule, NOT a verdict). Params are
+  derived from the probe URL querystring (structural primitive).
+- It emits ZERO verdicts. `capture.meta.json.iso_self_check`
+  (snap.current_url host vs intended host) is RAW isolation evidence at
+  the chosen concurrency, judged in-thread, never a script PASS/FAIL.
+- Empirical basis: concurrent sessions isolate cleanly at N<=6 (zero
+  crosstalk), proven by `.bench-gate/parallel-go-falsifier.ts` and
+  `.bench-gate/parallel-crosstalk-observe.ts` (real concurrent
+  app.inject, no mocks). >6 is unverified; the per-probe iso_self_check
+  is the in-run falsifier the agent reads. Full design + the Phase-1
+  collapse finding: `docs/PARALLEL_SESSIONS_REBUILD.md`.
+- Never let an LLM sub-agent collect or judge here: an LLM collector
+  leaks judgment and is slower than the pool; a sub-agent verdict
+  violates the harness/judge split. The gate SKILL.md was amended
+  2026-05-17 to encode exactly this split.
 
 <!-- skills:pinned (managed by banger-skill-builder/pin_skill_in_agent_prompts.sh, do not hand-edit between markers) -->
 ## Pinned skills

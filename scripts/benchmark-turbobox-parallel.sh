@@ -264,10 +264,10 @@ source = d.get('source', '') if isinstance(d, dict) else ''
 if isinstance(r, dict) and (r.get('available_operations') or r.get('available_endpoints')):
     print('pass')
     sys.exit(0)
-#   b) direct-fetch short-circuit: unbrowse detected a raw JSON endpoint and returned the data.
-#      Without this, direct-fetch wins were wrongly classified as fails because the output
+#   b) direct-fetch/direct-document short-circuit: unbrowse returned the data directly.
+#      Without this, direct wins were wrongly classified as fails because the output
 #      doesn't include an available_operations array.
-if (source == 'direct-fetch' or trace.get('skill_id') == 'direct-fetch') and trace.get('success') is True and not (isinstance(r, dict) and r.get('error')):
+if (source in ('direct-fetch', 'direct-document') or trace.get('skill_id') in ('direct-fetch', 'direct-document')) and trace.get('success') is True and not (isinstance(r, dict) and r.get('error')):
     print('pass')
     sys.exit(0)
 # Block: browser/environment couldn't complete (not a product fault).

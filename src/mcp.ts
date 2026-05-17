@@ -1012,6 +1012,46 @@ export function addCaptureNextStepHints(
   return { ...result, next_action, _workflow_hints: hints };
 }
 
+export function addGoNextStepHints(
+  result: unknown,
+  _args: Record<string, unknown>,
+): unknown {
+  if (!isPlainObject(result)) return result;
+  const nested = isPlainObject(result.result) ? result.result : result;
+  const sessionId =
+    isPlainObject(nested) && typeof nested.session_id === "string"
+      ? nested.session_id
+      : undefined;
+
+  // The session-scoped tools just became callable (tools/list_changed
+  // fired in setBrowseSessionOpen). Surface them straight from the
+  // SESSION_TOOL_NAMES declaration so this list can never drift from what
+  // tools/list now exposes. The substrate reports what is callable; it
+  // does not prescribe a procedure for the caller to follow.
+  const session_tools_now_available = [...SESSION_TOOL_NAMES];
+
+  const hints: Record<string, unknown> = {
+    next_step:
+      "A live browse session is open. The tools in session_tools_now_available are callable now: unbrowse_snap to read the page, click/fill/type/select/press/scroll/submit to interact, eval/text/markdown/screenshot to extract. When you are done, call unbrowse_close (or unbrowse_sync). That call triggers the capture, enrichment and index pipeline. If close is never called, nothing is indexed and the route stays unresolvable.",
+    session_tools_now_available,
+    index_step:
+      "unbrowse_close ends the session and indexes the captured traffic; unbrowse_sync checkpoints the index without ending the session.",
+    reflect_when_done:
+      "When the user-facing goal is complete (achieved, failed, partial), call unbrowse_reflect once with intent_status. Helps surface slow/broken paths to maintainers. Anonymous.",
+  };
+  if (sessionId) hints.session_id = sessionId;
+
+  const next_action: Record<string, unknown> = {
+    title: "Inspect the live page",
+    command: "unbrowse_snap",
+    command_args: sessionId ? { session_id: sessionId } : {},
+    why:
+      "A browse session is open; snapshot it to see element refs before interacting. unbrowse_close indexes the captured traffic when you are done.",
+  };
+
+  return { ...result, next_action, _workflow_hints: hints };
+}
+
 async function api(method: string, route: string, body?: unknown): Promise<unknown> {
   let url = route;
   let payload = body;
@@ -1837,6 +1877,10 @@ const tools: ToolDefinition[] = [
           type: "boolean",
           description: "Whether ready-to-publish skills auto-publish on close/sync (true) or wait for an explicit unbrowse_publish call (false). Independent of share_pointers and auto_review - auto_publish=false + share_pointers=true means you publish manually, on your timing.",
         },
+        attach_existing_chrome: {
+          type: "boolean",
+          description: "Browser launch policy. true (default, North Star) = attach to your already-running Chrome on the CDP port whenever possible, so one pipeline captures every tab any agent opens. false = never touch your real Chrome; always launch a clean managed headless Chrome (no visible window, no tabs in your browser). Set false on shared machines, automated/CI gate runs, or for privacy. Persisted to config.json; the env knob KURI_DISABLE_CDP_ATTACH=1 is the per-process override and still wins.",
+        },
         publish_blacklist: {
           type: "array",
           items: { type: "string" },
@@ -1861,6 +1905,8 @@ const tools: ToolDefinition[] = [
         || args.auto_review === false
         || args.share_pointers === true
         || args.share_pointers === false
+        || args.attach_existing_chrome === true
+        || args.attach_existing_chrome === false
         || Array.isArray(args.publish_blacklist)
         || Array.isArray(args.publish_promptlist)
         || args.clear_publish_blacklist === true
@@ -1879,6 +1925,9 @@ const tools: ToolDefinition[] = [
       }
       if (args.share_pointers === true || args.share_pointers === false) {
         body.share_pointers = args.share_pointers;
+      }
+      if (args.attach_existing_chrome === true || args.attach_existing_chrome === false) {
+        body.attach_existing_chrome = args.attach_existing_chrome;
       }
       if (Array.isArray(args.publish_blacklist)) body.publish_domain_blacklist = args.publish_blacklist;
       if (Array.isArray(args.publish_promptlist)) body.publish_domain_promptlist = args.publish_promptlist;
@@ -1974,7 +2023,8 @@ const tools: ToolDefinition[] = [
         url: args.url,
         ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
       });
-      const wrapped = successResult(result, "Live browse session opened.");
+      const withHints = addGoNextStepHints(result, args);
+      const wrapped = successResult(withHints, "Live browse session opened.");
       setBrowseSessionOpen(true);
       return wrapped;
     },
@@ -2537,7 +2587,7 @@ function jsonRpcNotification(method: string, params?: Record<string, unknown>): 
 }
 
 // Phase 2 (cheatsheet): session-aware tool visibility for on-the-fly reveal.
-const SESSION_TOOL_NAMES = new Set([
+export const SESSION_TOOL_NAMES = new Set([
   "unbrowse_snap",
   "unbrowse_click",
   "unbrowse_fill",
@@ -2568,7 +2618,13 @@ export function getBrowseSessionOpen(): boolean {
 }
 
 function visibleTools(): typeof tools {
-  return browseSessionOpen ? tools : tools.filter((t) => !SESSION_TOOL_NAMES.has(t.name));
+  // All tools are always discoverable. Session-scoped tools were
+  // previously hidden until browseSessionOpen, but that made them
+  // unreachable to any client whose tool catalog is frozen before a
+  // session exists (a spawned sub-agent never sees the post-go
+  // notifications/tools/list_changed). The no-session call is guarded
+  // with a truthful fast error in the tools/call dispatch instead.
+  return tools;
 }
 
 let initializeSeen = false;
@@ -2722,6 +2778,24 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
     const validationErrors = validateArguments(tool.inputSchema, toolArgs);
     if (validationErrors.length > 0) {
       jsonRpcResult(id, errorResult(`Invalid arguments for ${name}`, { errors: validationErrors }));
+      return;
+    }
+
+    // Session-scoped tools operate on a live browse session. They are
+    // always discoverable in tools/list so a client whose catalog is
+    // frozen before a session exists (a spawned sub-agent never sees the
+    // post-go list_changed) can still find them. Calling one with no open
+    // session would block the handler waiting on a browser that does not
+    // exist, so surface the truth: a fast structured error pointing at
+    // unbrowse_go, instead of hiding the tool or hanging.
+    if (SESSION_TOOL_NAMES.has(name) && !browseSessionOpen) {
+      jsonRpcResult(
+        id,
+        errorResult(
+          `${name} needs a live browse session. Call unbrowse_go first to open one, then retry; the go result's _workflow_hints.session_tools_now_available lists what becomes callable.`,
+          { error: "no_browse_session_open", tool: name, next_action: { command: "unbrowse_go" } },
+        ),
+      );
       return;
     }
 

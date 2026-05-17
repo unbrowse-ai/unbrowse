@@ -1,8 +1,26 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
-import { getUserById, listKeysForUser, getAccountPreferences, setAccountPreferences } from "../services/accounts.js";
-import { listSkills } from "../services/marketplace.js";
+import {
+  getUserById,
+  listKeysForUser,
+  getAccountPreferences,
+  setAccountPreferences,
+  bindKeyToUser,
+  unbindKeyFromUser,
+} from "../services/accounts.js";
+import {
+  createLocalKey,
+  revokeLocalKey,
+  getKeyMeta,
+  getKeyFunding,
+  setKeyFunding,
+  clearKeyFunding,
+  type KeyFundingInput,
+} from "../services/keys.js";
+import { listSkills, getSkill, invalidateSkillListCaches } from "../services/marketplace.js";
+import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
+import { skillsKV } from "../services/kv.js";
 import { getAgent } from "../services/agents.js";
 
 type AccountEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
@@ -52,14 +70,184 @@ accountRoutes.get("/account/me", async (c) => {
   });
 });
 
-// GET /v1/account/keys
+// GET /v1/account/credits -- user-level credit balance (D1b, wave-3).
+// Reads the Stripe-tier grant ledger keyed by user_id. Independent of
+// the agent-keyed credits.ts subsidy pool which stays for free-tier
+// agent credits.
+accountRoutes.get("/account/credits", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const { getUserCreditBalance } = await import("../services/user-credits.js");
+  const balance = await getUserCreditBalance(c.env, userId);
+  return c.json(balance);
+});
+
+// GET /v1/account/keys -- list keys with name, created_at, revoked_at, funding
 accountRoutes.get("/account/keys", async (c) => {
   const userId = c.get("user_id");
   if (!userId) return accountRequired(c);
 
   const keyIds = await listKeysForUser(c.env, userId);
-  // TODO(account-meta): plumb created_at via inverse index
-  return c.json({ keys: keyIds.map((id) => ({ keyId: id })) });
+  const keys = await Promise.all(
+    keyIds.map(async (id) => {
+      const [meta, funding] = await Promise.all([
+        getKeyMeta(c.env, id),
+        getKeyFunding(c.env, id),
+      ]);
+      return {
+        keyId: id,
+        name: meta?.name ?? "",
+        created_at: meta?.created_at ?? null,
+        revoked_at: meta?.revoked_at ?? null,
+        funding: funding ?? null,
+      };
+    }),
+  );
+  return c.json({ keys });
+});
+
+async function userOwnsKey(c: Context<AccountEnv>, userId: string, keyId: string): Promise<boolean> {
+  const keyIds = await listKeysForUser(c.env, userId);
+  return keyIds.includes(keyId);
+}
+
+// POST /v1/account/keys -- create a new named API key bound to this account
+accountRoutes.post("/account/keys", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+
+  let name = "default";
+  try {
+    const text = await c.req.text();
+    if (text.trim().length > 0) {
+      const body = JSON.parse(text) as { name?: unknown };
+      if (body.name !== undefined) {
+        if (typeof body.name !== "string" || body.name.trim().length === 0 || body.name.length > 64) {
+          return c.json({ error: "invalid_input", message: "name must be a non-empty string up to 64 chars." }, 400);
+        }
+        name = body.name.trim();
+      }
+    }
+  } catch {
+    return c.json({ error: "invalid_input", message: "Body must be valid JSON." }, 400);
+  }
+
+  const { keyId, key, meta } = await createLocalKey(c.env, name);
+  await bindKeyToUser(c.env, keyId, userId);
+  // One-shot: the plaintext key is returned exactly once and never stored.
+  return c.json({
+    keyId,
+    key,
+    name: meta.name,
+    created_at: meta.created_at,
+    message: "Store this key now. It is shown once and cannot be retrieved again.",
+  }, 201);
+});
+
+// DELETE /v1/account/keys/:keyId -- revoke a key (idempotent)
+accountRoutes.delete("/account/keys/:keyId", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const keyId = c.req.param("keyId");
+  if (!keyId) return c.json({ error: "invalid_input", message: "keyId required." }, 400);
+  if (!(await userOwnsKey(c, userId, keyId))) {
+    return c.json({ error: "not_found", message: "No such key on this account." }, 404);
+  }
+
+  const revoked = await revokeLocalKey(c.env, keyId);
+  await unbindKeyFromUser(c.env, keyId, userId);
+  if (!revoked) {
+    return c.json({ error: "not_found", message: "Key metadata missing; unbound from account." }, 404);
+  }
+  return c.json({ ok: true, keyId, revoked: true });
+});
+
+// POST /v1/account/keys/:keyId/rotate -- issue a replacement, revoke the old
+accountRoutes.post("/account/keys/:keyId/rotate", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const oldKeyId = c.req.param("keyId");
+  if (!oldKeyId) return c.json({ error: "invalid_input", message: "keyId required." }, 400);
+  if (!(await userOwnsKey(c, userId, oldKeyId))) {
+    return c.json({ error: "not_found", message: "No such key on this account." }, 404);
+  }
+
+  const oldMeta = await getKeyMeta(c.env, oldKeyId);
+  const name = oldMeta?.name ?? "rotated";
+  const { keyId, key, meta } = await createLocalKey(c.env, name);
+  await bindKeyToUser(c.env, keyId, userId);
+  await revokeLocalKey(c.env, oldKeyId);
+  await unbindKeyFromUser(c.env, oldKeyId, userId);
+  return c.json({
+    keyId,
+    key,
+    name: meta.name,
+    created_at: meta.created_at,
+    rotated_from: oldKeyId,
+    message: "Store this key now. The previous key is revoked.",
+  }, 201);
+});
+
+// --- L6: API key wrapping x402 (per-key funding binding) ---
+
+// GET /v1/account/keys/:keyId/funding
+accountRoutes.get("/account/keys/:keyId/funding", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const keyId = c.req.param("keyId");
+  if (!keyId || !(await userOwnsKey(c, userId, keyId))) {
+    return c.json({ error: "not_found", message: "No such key on this account." }, 404);
+  }
+  const funding = await getKeyFunding(c.env, keyId);
+  return c.json({ keyId, funding: funding ?? null });
+});
+
+// POST /v1/account/keys/:keyId/funding -- bind a wallet or credit budget so
+// calls authenticated by this key auto-pay paid skills (no per-call signing).
+accountRoutes.post("/account/keys/:keyId/funding", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const keyId = c.req.param("keyId");
+  if (!keyId || !(await userOwnsKey(c, userId, keyId))) {
+    return c.json({ error: "not_found", message: "No such key on this account." }, 404);
+  }
+
+  let body: { kind?: unknown; wallet?: unknown; budget_uc?: unknown };
+  try {
+    body = JSON.parse(await c.req.text()) as typeof body;
+  } catch {
+    return c.json({ error: "invalid_input", message: "Body must be valid JSON." }, 400);
+  }
+
+  let funding: KeyFundingInput;
+  if (body.kind === "wallet") {
+    if (typeof body.wallet !== "string" || body.wallet.trim().length < 8) {
+      return c.json({ error: "invalid_input", message: "wallet must be a wallet address string." }, 400);
+    }
+    funding = { kind: "wallet", wallet: body.wallet.trim() };
+  } else if (body.kind === "credit") {
+    if (typeof body.budget_uc !== "number" || !Number.isFinite(body.budget_uc) || body.budget_uc <= 0) {
+      return c.json({ error: "invalid_input", message: "budget_uc must be a positive number (micro-cents)." }, 400);
+    }
+    funding = { kind: "credit", budget_uc: Math.floor(body.budget_uc) };
+  } else {
+    return c.json({ error: "invalid_input", message: "kind must be 'wallet' or 'credit'." }, 400);
+  }
+
+  const bound = await setKeyFunding(c.env, keyId, funding);
+  return c.json({ keyId, funding: bound });
+});
+
+// DELETE /v1/account/keys/:keyId/funding -- unbind, restore manual payment
+accountRoutes.delete("/account/keys/:keyId/funding", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const keyId = c.req.param("keyId");
+  if (!keyId || !(await userOwnsKey(c, userId, keyId))) {
+    return c.json({ error: "not_found", message: "No such key on this account." }, 404);
+  }
+  await clearKeyFunding(c.env, keyId);
+  return c.json({ ok: true, keyId, funding: null });
 });
 
 // GET /v1/account/skills
@@ -72,6 +260,50 @@ accountRoutes.get("/account/skills", async (c) => {
   return c.json({ skills });
 });
 
+// PATCH /v1/account/skills/:skillId -- owner-controlled public/private
+// visibility. Account-scoped (bearerAuth only, no signed-client gate) so the
+// website can toggle it; the CLI/programmatic path stays on
+// PATCH /v1/skills/:id. Same index-toggle semantics as that route.
+accountRoutes.patch("/account/skills/:skillId", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const skillId = c.req.param("skillId");
+  if (!skillId) return c.json({ error: "invalid_input", message: "skillId required." }, 400);
+
+  let body: { visibility?: unknown };
+  try {
+    body = JSON.parse(await c.req.text()) as { visibility?: unknown };
+  } catch {
+    return c.json({ error: "invalid_input", message: "Body must be valid JSON." }, 400);
+  }
+  if (body.visibility !== "public" && body.visibility !== "private") {
+    return c.json({ error: "invalid_input", message: "visibility must be 'public' or 'private'." }, 400);
+  }
+
+  const skill = await getSkill(c.env, skillId);
+  if (!skill) return c.json({ error: "not_found", message: "Skill not found." }, 404);
+  if ((skill as { owner_user_id?: string }).owner_user_id !== userId) {
+    return c.json({ error: "forbidden", message: "You do not own this skill." }, 403);
+  }
+
+  const prev = skill.visibility ?? "public";
+  if (prev !== body.visibility) {
+    skill.visibility = body.visibility;
+    skill.updated_at = new Date().toISOString();
+    await skillsKV(c.env).put(`skill:${skillId}`, JSON.stringify(skill));
+    if (body.visibility === "private") {
+      await removeSkillFromIndex(c.env, skill.skill_id, skill.domain).catch((err) =>
+        console.warn(`[account] removeSkillFromIndex failed for ${skill.skill_id}:`, (err as Error).message),
+      );
+    } else {
+      await reindexSkill(c.env, skill).catch((err) =>
+        console.warn(`[account] reindexSkill failed for ${skill.skill_id}:`, (err as Error).message),
+      );
+    }
+    await invalidateSkillListCaches(c.env).catch(() => {});
+  }
+  return c.json({ skill_id: skillId, visibility: skill.visibility ?? "public" });
+});
 // GET /v1/account/preferences
 accountRoutes.get("/account/preferences", async (c) => {
   const userId = c.get("user_id");

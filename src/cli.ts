@@ -9,6 +9,8 @@
 
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
+import { cmdCookies } from "./cli-cookies.js";
+import { cmdWallet } from "./cli-wallet.js";
 import {
   detectTelemetryHostType,
   ensureCliInstallTracked,
@@ -3464,7 +3466,7 @@ async function cmdMarkdown(flags: Record<string, string | boolean>): Promise<voi
   }
 }
 
-async function cmdCookies(flags: Record<string, string | boolean>): Promise<void> {
+async function cmdBrowseCookies(flags: Record<string, string | boolean>): Promise<void> {
   output(await api("GET", "/v1/browse/cookies", typeof flags.session === "string" ? { session_id: flags.session } : undefined), !!flags.pretty);
 }
 
@@ -4039,7 +4041,7 @@ async function main(): Promise<void> {
     "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "config", "auth", "auth-capture", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
     "status", "inspect", "stop", "restart", "serve", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
-    "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
+    "screenshot", "text", "markdown", "cookies", "wallet", "eval", "back", "forward", "sync", "close",
     "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
   ]);
 
@@ -4099,7 +4101,7 @@ async function main(): Promise<void> {
     case "screenshot": return cmdScreenshot(flags);
     case "text": return cmdText(flags);
     case "markdown": return cmdMarkdown(flags);
-    case "cookies": return cmdCookies(flags);
+    case "browse-cookies": return cmdBrowseCookies(flags);
     case "eval": return cmdEval(args, flags);
     case "back": return cmdBack(flags);
     case "forward": return cmdForward(flags);
@@ -4153,6 +4155,21 @@ async function main(): Promise<void> {
     case "login":
       info("[deprecated] `login` is now `auth` (the old name suggested Unbrowse account login, but it captures site auth)");
       return cmdLogin(flags, args);
+    case "cookies":
+      // W4-F: remote cookie jar. Opt-in per invocation:
+      //   unbrowse cookies push <domain>   -> encrypt + upload current cookies for <domain>
+      //   unbrowse cookies pull <domain>   -> download + inject into the local Kuri profile
+      //   unbrowse cookies list             -> show synced domains + last-sync times
+      //   unbrowse cookies remove <domain>  -> delete that domain's vault entry
+      //   unbrowse cookies purge            -> delete the entire vault (account-wide)
+      return cmdCookies(args, flags);
+    case "wallet":
+      // L2: lobster.cash wallet status + delegation surface.
+      // Read-only. Prints local resolution (env/lobster file/unset) +
+      // server-side agent profile wallet so the user can see whether
+      // they match. Honors the unbrowse delegation boundary: unbrowse
+      // never signs or provisions; lobster does.
+      return cmdWallet(args, flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }

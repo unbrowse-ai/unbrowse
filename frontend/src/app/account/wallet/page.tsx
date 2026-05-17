@@ -115,18 +115,26 @@ export default function WalletPage() {
   if (!isAuthenticated || !apiKey) {
     return (
       <main className="mx-auto max-w-[70ch] px-6 py-16 space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
-          Pair your wallet
-        </h1>
-        <p className="text-sm text-text-secondary">
-          Sign in first.{" "}
+        <header>
           <Link
-            href="/login"
-            className="text-text-primary hover:text-text-secondary underline"
+            href="/account"
+            className="text-xs text-text-muted hover:text-text-secondary"
           >
-            /login
+            ← Back to account
           </Link>
-        </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-text-primary">
+            Pair your wallet
+          </h1>
+          <p className="text-sm text-text-secondary">
+            Sign in first to pair a Solana wallet for Flex/x402 settlement.
+          </p>
+        </header>
+        <Link
+          href="/login"
+          className="inline-block rounded-2xl bg-text-primary text-surface px-4 py-2 text-sm font-medium hover:opacity-90"
+        >
+          Sign in with email
+        </Link>
       </main>
     );
   }

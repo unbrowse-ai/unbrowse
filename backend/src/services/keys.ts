@@ -4,6 +4,12 @@ import { statsKV } from "./kv.js";
 const KEY_PREFIX = "ubr";
 const KEY_BODY_BYTES = 24;
 const HASH_KEY_PREFIX = "keyhash:";
+// Reverse index keyId -> hash + metadata. Without this, revoke-by-keyId is
+// impossible (the plaintext key, and thus its hash, is never retained after
+// creation). This is the missing piece the old revokeLocalKey stub lacked.
+const KEYID_PREFIX = "keyid:";
+// Per-key x402 funding binding (L6 api-key-wrapping-x402).
+const KEYFUND_PREFIX = "keyfund:";
 
 export function generateLocalKey(): { key: string; keyId: string } {
   const bytes = crypto.getRandomValues(new Uint8Array(KEY_BODY_BYTES));
@@ -29,23 +35,42 @@ async function sha256Hex(data: Uint8Array): Promise<string> {
   return hex(h1) + hex(h2) + hex(h1 ^ h2) + hex(h2 ^ h1);
 }
 
-async function storeKeyHash(env: Env, keyHash: string, keyId: string, name: string): Promise<void> {
-  await statsKV(env).put(`${HASH_KEY_PREFIX}${keyHash}`, JSON.stringify({
-    keyId,
-    name,
-    created_at: new Date().toISOString(),
-    revoked_at: null as string | null,
-  }));
+interface KeyHashRecord {
+  keyId: string;
+  name: string;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export interface KeyMeta {
+  keyId: string;
+  name: string;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+interface KeyIdRecord extends KeyMeta {
+  keyHash: string;
+}
+
+async function storeKeyRecords(env: Env, keyHash: string, keyId: string, name: string): Promise<KeyMeta> {
+  const created_at = new Date().toISOString();
+  const hashRec: KeyHashRecord = { keyId, name, created_at, revoked_at: null };
+  const idRec: KeyIdRecord = { keyId, keyHash, name, created_at, revoked_at: null };
+  const kv = statsKV(env);
+  await kv.put(`${HASH_KEY_PREFIX}${keyHash}`, JSON.stringify(hashRec));
+  await kv.put(`${KEYID_PREFIX}${keyId}`, JSON.stringify(idRec));
+  return { keyId, name, created_at, revoked_at: null };
 }
 
 export async function createLocalKey(
   env: Env,
   name: string,
-): Promise<{ keyId: string; key: string }> {
+): Promise<{ keyId: string; key: string; meta: KeyMeta }> {
   const { key, keyId } = generateLocalKey();
   const keyHash = await sha256Hex(new TextEncoder().encode(key));
-  await storeKeyHash(env, keyHash, keyId, name);
-  return { keyId, key };
+  const meta = await storeKeyRecords(env, keyHash, keyId, name);
+  return { keyId, key, meta };
 }
 
 export async function verifyLocalKey(
@@ -63,7 +88,7 @@ export async function verifyLocalKey(
   }
 
   try {
-    const meta = JSON.parse(raw) as { keyId: string; revoked_at: string | null };
+    const meta = JSON.parse(raw) as KeyHashRecord;
     if (meta.revoked_at) {
       return { valid: false };
     }
@@ -73,6 +98,108 @@ export async function verifyLocalKey(
   }
 }
 
+/** Read key metadata (name, created_at, revoked_at) by keyId for the account list. */
+export async function getKeyMeta(env: Env, keyId: string): Promise<KeyMeta | null> {
+  const raw = await statsKV(env).get(`${KEYID_PREFIX}${keyId}`) as string | null;
+  if (!raw) return null;
+  try {
+    const rec = JSON.parse(raw) as KeyIdRecord;
+    return { keyId: rec.keyId, name: rec.name, created_at: rec.created_at, revoked_at: rec.revoked_at };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Revoke a key by keyId. Flips revoked_at on BOTH the keyhash record (which
+ * verifyLocalKey reads on every authenticated request) and the keyid reverse
+ * record. Returns false when the keyId is unknown so callers can 404.
+ */
 export async function revokeLocalKey(env: Env, keyId: string): Promise<boolean> {
-  return false;
+  const kv = statsKV(env);
+  const raw = await kv.get(`${KEYID_PREFIX}${keyId}`) as string | null;
+  if (!raw) return false;
+  let rec: KeyIdRecord;
+  try {
+    rec = JSON.parse(raw) as KeyIdRecord;
+  } catch {
+    return false;
+  }
+  if (rec.revoked_at) return true; // idempotent
+  const now = new Date().toISOString();
+  rec.revoked_at = now;
+  await kv.put(`${KEYID_PREFIX}${keyId}`, JSON.stringify(rec));
+
+  const hashRaw = await kv.get(`${HASH_KEY_PREFIX}${rec.keyHash}`) as string | null;
+  if (hashRaw) {
+    try {
+      const hashRec = JSON.parse(hashRaw) as KeyHashRecord;
+      hashRec.revoked_at = now;
+      await kv.put(`${HASH_KEY_PREFIX}${rec.keyHash}`, JSON.stringify(hashRec));
+    } catch {
+      // keyhash record corrupt — keyid record is already flipped, so the
+      // key still loses its account binding even if verify can't see it.
+    }
+  }
+  await kv.delete(`${KEYFUND_PREFIX}${keyId}`);
+  return true;
+}
+
+// --- L6: API key wrapping x402 ---
+
+export type KeyFunding =
+  | { kind: "wallet"; wallet: string; bound_at: string }
+  | { kind: "credit"; budget_uc: number; bound_at: string };
+
+// Distributive Omit so the discriminated union keeps its per-variant fields
+// (a plain Omit<Union, K> collapses to the common keys only).
+type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
+export type KeyFundingInput = DistributiveOmit<KeyFunding, "bound_at">;
+
+export async function getKeyFunding(env: Env, keyId: string): Promise<KeyFunding | null> {
+  const raw = await statsKV(env).get(`${KEYFUND_PREFIX}${keyId}`) as string | null;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as KeyFunding;
+  } catch {
+    return null;
+  }
+}
+
+export async function setKeyFunding(env: Env, keyId: string, funding: KeyFundingInput): Promise<KeyFunding> {
+  const rec = { ...funding, bound_at: new Date().toISOString() } as KeyFunding;
+  await statsKV(env).put(`${KEYFUND_PREFIX}${keyId}`, JSON.stringify(rec));
+  return rec;
+}
+
+export async function clearKeyFunding(env: Env, keyId: string): Promise<void> {
+  await statsKV(env).delete(`${KEYFUND_PREFIX}${keyId}`);
+}
+
+/**
+ * Debit a credit-budget-bound key by amountUc (micro-cents). Returns
+ * { ok:true, remaining_uc } when the budget covered it (budget decremented),
+ * or { ok:false, reason } when the key has no credit binding or the budget
+ * is insufficient (budget left untouched). Wallet-bound keys are not debited
+ * here -- they pay via the Flex facilitator path, not a KV decrement.
+ */
+export async function debitKeyFunding(
+  env: Env,
+  keyId: string,
+  amountUc: number,
+): Promise<{ ok: true; remaining_uc: number } | { ok: false; reason: "no_credit_binding" | "insufficient"; remaining_uc: number }> {
+  if (!Number.isFinite(amountUc) || amountUc < 0) {
+    return { ok: false, reason: "no_credit_binding", remaining_uc: 0 };
+  }
+  const funding = await getKeyFunding(env, keyId);
+  if (!funding || funding.kind !== "credit") {
+    return { ok: false, reason: "no_credit_binding", remaining_uc: 0 };
+  }
+  if (funding.budget_uc < amountUc) {
+    return { ok: false, reason: "insufficient", remaining_uc: funding.budget_uc };
+  }
+  const remaining = funding.budget_uc - amountUc;
+  const next: KeyFunding = { kind: "credit", budget_uc: remaining, bound_at: funding.bound_at };
+  await statsKV(env).put(`${KEYFUND_PREFIX}${keyId}`, JSON.stringify(next));
+  return { ok: true, remaining_uc: remaining };
 }

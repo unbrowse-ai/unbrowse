@@ -75,6 +75,8 @@ export interface SkillManifest {
   updated_at: string;
   proof_summary?: ProofSummary;
   reviewed_at?: string;
+  /** Owner-controlled marketplace visibility. Tri-file sync with backend/src/types.ts + src/types/skill.ts (CLAUDE.md). */
+  visibility?: "public" | "private";
 }
 
 export interface PopularSkillSummary {
@@ -447,11 +449,14 @@ export async function searchSkills(intent: string, domain?: string): Promise<Sea
   try {
     const data = await api<{ results: SearchResult[] }>("POST", path, body);
     return data.results.filter((result) => !isSuppressedDomain(searchResultDomain(result)));
-  } catch {
+  } catch (err) {
+    // Do not silently swallow: a swallowed 401/402 here is exactly what made
+    // public /search render an empty list forever. Anonymous search is now
+    // public server-side; surface anything still failing.
+    console.error(`[searchSkills] ${path} failed:`, (err as Error).message);
     return [];
   }
 }
-
 export async function registerAgent(name: string, tosVersion?: string): Promise<{ agent_id: string; api_key: string }> {
   return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", {
     name,

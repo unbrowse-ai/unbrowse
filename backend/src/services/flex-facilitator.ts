@@ -337,7 +337,28 @@ export function resetFlexFacilitatorCacheForTests(): void {
 
 export function platformRecipientUsdcAta(env: Env): string {
   const ata = env.FLEX_PLATFORM_RECIPIENT_USDC_ATA?.trim();
-  if (!ata) throw new Error("FLEX_PLATFORM_RECIPIENT_USDC_ATA not set");
+  if (!ata) {
+    // Common confusion: the base wallet pubkey (e.g. PAYMENT_RECIPIENT) is
+    // NOT the right value here. Faremeter Flex pays into the USDC associated
+    // token account derived from `<wallet, USDC mint>`. Derive it once with
+    // `spl-token address --owner <wallet> --token EPjFWdd5Auf...` and pin
+    // the resulting address as `FLEX_PLATFORM_RECIPIENT_USDC_ATA`.
+    throw new Error(
+      "FLEX_PLATFORM_RECIPIENT_USDC_ATA not set. " +
+      "This must be the USDC associated token account of your platform wallet, " +
+      "NOT the wallet's base pubkey. Derive via " +
+      "`spl-token address --owner <PAYMENT_RECIPIENT> --token EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.",
+    );
+  }
+  // Loose validation: USDC ATAs on Solana are 32-byte ed25519-derived
+  // addresses, base58-encoded into 32-44 chars. Reject obviously wrong
+  // values (e.g. someone pasted a hex eth address or a placeholder).
+  if (ata.length < 32 || ata.length > 44 || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(ata)) {
+    throw new Error(
+      `FLEX_PLATFORM_RECIPIENT_USDC_ATA does not look like a base58 Solana address (got length=${ata.length}). ` +
+      "Expected a 32-44 char base58 USDC ATA pubkey.",
+    );
+  }
   return ata;
 }
 

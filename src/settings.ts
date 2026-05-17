@@ -154,6 +154,33 @@ export function updateCapturePipelineSettings(update: {
   return next;
 }
 
+// --- Browser attach opt-out (persisted) ---------------------------------
+// North Star default: attach to the user's existing Chrome whenever
+// possible (one pipeline captures every tab any agent opens). Some
+// environments (shared machines, automated gate runs, privacy) want the
+// opposite: a clean managed headless Chrome that never touches the user's
+// real browser. PERSISTED user setting (config.json
+// browser.attach_existing_chrome), surfaced via unbrowse_settings.
+// Default true (attach). Only an explicit false opts out. The env knob
+// KURI_DISABLE_CDP_ATTACH still works as a per-process override and wins.
+export function getBrowserAttachEnabled(): boolean {
+  const raw = loadRawConfig();
+  const browser = raw.browser && typeof raw.browser === "object"
+    ? raw.browser as Record<string, unknown>
+    : {};
+  return browser.attach_existing_chrome !== false;
+}
+
+export function setBrowserAttachEnabled(enabled: boolean): boolean {
+  const raw = loadRawConfig();
+  const browser = raw.browser && typeof raw.browser === "object"
+    ? { ...(raw.browser as Record<string, unknown>) }
+    : {};
+  browser.attach_existing_chrome = enabled;
+  saveRawConfig({ ...raw, browser });
+  return enabled;
+}
+
 export function decideCheckpointPublish(domain: string): CheckpointPublishDecision {
   const settings = getCapturePipelineSettings();
   if (!settings.auto_publish_checkpoints) {

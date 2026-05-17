@@ -1,0 +1,656 @@
+{
+  "ts": "2026-05-16T17:27:29Z",
+  "product_id": "unbrowse-recompute-tiers",
+  "records_seen": 19,
+  "phrases_surfaced": 132,
+  "allowed_source_ids": [
+    "code:docs/deep-reveng.md#symbolic-loses",
+    "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+    "code:src/execution/px-challenge.ts#cookies-not-yields",
+    "code:src/execution/px-challenge.ts#solvePxAndRetry",
+    "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+    "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+    "code:src/reverse-engineer/index.ts#storage-not-read",
+    "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+    "code:src/types/skill.ts#L98-99-freshness-fields",
+    "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+    "grep:buildSkillOperationGraph-src-count",
+    "grep:cookies-vault-only",
+    "grep:localStorage-sessionStorage-src-zero",
+    "grep:step-dominion-stubs",
+    "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+    "memory:feedback-freshness-binding-pattern#four-layer",
+    "memory:project-dag-recompute-north-star#L32-33-shipped",
+    "memory:project-dag-recompute-north-star#L34-localstorage-OPEN",
+    "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+  ],
+  "phrases": [
+    {
+      "phrase": "dag recompute",
+      "record_count": 19,
+      "source_ids": [
+        "code:docs/deep-reveng.md#symbolic-loses",
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "north star",
+      "record_count": 19,
+      "source_ids": [
+        "code:docs/deep-reveng.md#symbolic-loses",
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "north star dag",
+      "record_count": 19,
+      "source_ids": [
+        "code:docs/deep-reveng.md#symbolic-loses",
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "star dag",
+      "record_count": 19,
+      "source_ids": [
+        "code:docs/deep-reveng.md#symbolic-loses",
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "star dag recompute",
+      "record_count": 19,
+      "source_ids": [
+        "code:docs/deep-reveng.md#symbolic-loses",
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "chain walk",
+      "record_count": 14,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "operation binding",
+      "record_count": 12,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped"
+      ]
+    },
+    {
+      "phrase": "csrf token",
+      "record_count": 11,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:cookies-vault-only",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped"
+      ]
+    },
+    {
+      "phrase": "lekt projects",
+      "record_count": 8,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs"
+      ]
+    },
+    {
+      "phrase": "lekt projects unbrowse-ecosystem",
+      "record_count": 8,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs"
+      ]
+    },
+    {
+      "phrase": "projects unbrowse-ecosystem",
+      "record_count": 8,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs"
+      ]
+    },
+    {
+      "phrase": "projects unbrowse-ecosystem unbrowse",
+      "record_count": 8,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs"
+      ]
+    },
+    {
+      "phrase": "unbrowse src",
+      "record_count": 8,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs"
+      ]
+    },
+    {
+      "phrase": "unbrowse-ecosystem unbrowse",
+      "record_count": 8,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs"
+      ]
+    },
+    {
+      "phrase": "unbrowse-ecosystem unbrowse src",
+      "record_count": 8,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero",
+        "grep:step-dominion-stubs"
+      ]
+    },
+    {
+      "phrase": "sandbox replay",
+      "record_count": 7,
+      "source_ids": [
+        "code:docs/deep-reveng.md#symbolic-loses",
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "bundle replay",
+      "record_count": 6,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:step-dominion-stubs",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror"
+      ]
+    },
+    {
+      "phrase": "freshness binding",
+      "record_count": 6,
+      "source_ids": [
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN"
+      ]
+    },
+    {
+      "phrase": "binding chain",
+      "record_count": 5,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "binding chain walk",
+      "record_count": 5,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "binding source",
+      "record_count": 5,
+      "source_ids": [
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN"
+      ]
+    },
+    {
+      "phrase": "dag recompute shipped",
+      "record_count": 5,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count"
+      ]
+    },
+    {
+      "phrase": "deep reveng",
+      "record_count": 5,
+      "source_ids": [
+        "code:docs/deep-reveng.md#symbolic-loses",
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:step-dominion-stubs",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "recompute shipped",
+      "record_count": 5,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "grep:buildSkillOperationGraph-src-count"
+      ]
+    },
+    {
+      "phrase": "yields binding",
+      "record_count": 5,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "binding north",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng"
+      ]
+    },
+    {
+      "phrase": "binding north star",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng"
+      ]
+    },
+    {
+      "phrase": "binding template",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN"
+      ]
+    },
+    {
+      "phrase": "capture layer",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "memory:feedback-freshness-binding-pattern#L18-vendored-mirror",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN"
+      ]
+    },
+    {
+      "phrase": "chain walk recompute",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "grep:cookies-vault-only"
+      ]
+    },
+    {
+      "phrase": "csrf token freshness",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "memory:feedback-freshness-binding-pattern#four-layer"
+      ]
+    },
+    {
+      "phrase": "freshness binding template",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN"
+      ]
+    },
+    {
+      "phrase": "localstorage sessionstorage",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN"
+      ]
+    },
+    {
+      "phrase": "token freshness",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "memory:feedback-freshness-binding-pattern#four-layer"
+      ]
+    },
+    {
+      "phrase": "walk recompute",
+      "record_count": 4,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/reverse-engineer/index.ts#augmentBindingsWithFreshness",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "grep:cookies-vault-only"
+      ]
+    },
+    {
+      "phrase": "csrf token north",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/orchestrator/dag-feedback.ts#isBindingStale-L154",
+        "code:src/reverse-engineer/index.ts#storage-not-read"
+      ]
+    },
+    {
+      "phrase": "dag binding",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "grep:cookies-vault-only"
+      ]
+    },
+    {
+      "phrase": "dag recompute memory",
+      "record_count": 3,
+      "source_ids": [
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "declared yields",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng"
+      ]
+    },
+    {
+      "phrase": "deep reveng sandbox",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "four-layer freshness",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/types/skill.ts#L98-99-freshness-fields",
+        "memory:feedback-freshness-binding-pattern#four-layer",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN"
+      ]
+    },
+    {
+      "phrase": "like csrf",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng"
+      ]
+    },
+    {
+      "phrase": "like csrf token",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng"
+      ]
+    },
+    {
+      "phrase": "open gap",
+      "record_count": 3,
+      "source_ids": [
+        "grep:cookies-vault-only",
+        "grep:localStorage-sessionStorage-src-zero",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN"
+      ]
+    },
+    {
+      "phrase": "operation binding chain",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/execution/px-challenge.ts#cookies-not-yields",
+        "code:src/reverse-engineer/index.ts#storage-not-read",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng"
+      ]
+    },
+    {
+      "phrase": "recompute memory",
+      "record_count": 3,
+      "source_ids": [
+        "memory:project-dag-recompute-north-star#L32-33-shipped",
+        "memory:project-dag-recompute-north-star#L34-localstorage-OPEN",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "reveng sandbox",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "reveng sandbox replay",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "decision:askuserquestion-2026-05-17-tier3-finish-deepreveng",
+        "memory:project-dag-recompute-north-star#L40-js-computed-declined"
+      ]
+    },
+    {
+      "phrase": "src execution",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/execution/index.ts#executeEndpointWithChain-L4084",
+        "code:src/execution/px-challenge.ts#solvePxAndRetry",
+        "grep:step-dominion-stubs"
+      ]
+    },
+    {
+      "phrase": "src hits",
+      "record_count": 3,
+      "source_ids": [
+        "code:src/sandbox/bundle-replay-client.ts#runBundleReplay",
+        "grep:buildSkillOperationGraph-src-count",
+        "grep:localStorage-sessionStorage-src-zero"
+      ]
+    }
+  ]
+}

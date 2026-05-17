@@ -11,6 +11,7 @@ const SAVINGS_SOURCES = new Set([
   "route-cache",
   "first-pass",
   "direct-fetch",
+  "direct-document",
   "browser-action",
 ]);
 

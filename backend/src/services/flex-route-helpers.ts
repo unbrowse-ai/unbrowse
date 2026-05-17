@@ -79,6 +79,7 @@ export async function respondWithFlexTerms(
       agentEscrow: escrow,
       resource: opts.resource,
       currentSlot,
+      agentId: opts.agentId,
     });
   } catch (err) {
     console.warn(`[flex] buildFlexPaymentTerms failed: ${(err as Error).message}`);
@@ -165,8 +166,13 @@ export async function handleFlexPaymentAuthorized(
   // platformRecipientUsdcAta via the exact-scheme `payTo`.
   const declaredScheme = (payload as { scheme?: unknown }).scheme;
   if (declaredScheme === "exact") {
+    // L2 telemetry: which rail the client dispatched on, so we can A/B
+    // fill rate + latency by rail. Set BEFORE the handler so a thrown
+    // executeFn still surfaces the rail attempted.
+    c.header("X-Unbrowse-Rail-Hint", "payai");
     return handleExactPaymentViaPayAI(c, payload as Record<string, unknown>, opts);
   }
+  c.header("X-Unbrowse-Rail-Hint", "flex");
 
   let facilitator;
   try {

@@ -77,7 +77,7 @@ function toSkillListItem(skill: SkillManifest): SkillListItem {
   };
 }
 
-async function invalidateSkillListCaches(env: Env): Promise<void> {
+export async function invalidateSkillListCaches(env: Env): Promise<void> {
   await skillsKV(env).delete(SKILL_LIST_CARD_CACHE_KEY).catch(() => {});
 }
 
@@ -98,6 +98,11 @@ export async function listSkillCards(
 
   const list = (await listSkills(env))
     .filter((skill) => !isMarketplaceDomainSuppressed(env, skill.domain))
+    // Private skills never enter the card cache, so every reader of the
+    // cached path (and the fresh path) is already private-free without a
+    // SkillListItem type change. The owner still sees them via the raw
+    // listSkills() path behind GET /v1/account/skills.
+    .filter((skill) => skill.visibility !== "private")
     .map(toSkillListItem)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
