@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
-import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
+import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema, invalidateSkillListCaches } from "../services/marketplace.js";
+import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
 import { renderSkillMd, renderEmptyDomainMarkdown } from "../services/skillmd.js";
 import { listPopularSkills } from "../services/popularity.js";
 import { validateSkillManifest } from "../services/validator.js";
@@ -126,6 +127,42 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
   const skill = await getSkill(c.env, c.req.param("id"));
   if (!skill) return c.json({ error: "Skill not found" }, 404);
 
+  // Private-skill access control (W4-E): private skills are not in the
+  // public listing or graph index, but the manifest is still fetchable
+  // by skill_id alone. Surface as 404 to non-owners so the URL space
+  // doesn't leak which private skill_ids exist. Owner detection runs on
+  // the optional bearer key -- anonymous callers always 404 on private.
+  if (skill.visibility === "private") {
+    const authzHeader = c.req.header("Authorization");
+    let callerUserId: string | null = null;
+    if (authzHeader?.startsWith("Bearer ")) {
+      try {
+        const token = authzHeader.slice("Bearer ".length).trim();
+        if (!(c.env.API_KEY && token === c.env.API_KEY)) {
+          const { verifyLocalKey } = await import("../services/keys.js");
+          const { lookupUserIdByKey } = await import("../services/accounts.js");
+          const verified = await verifyLocalKey(c.env, token);
+          if (verified?.valid && verified.keyId) {
+            callerUserId = await lookupUserIdByKey(c.env, verified.keyId).catch(() => null);
+          }
+        } else {
+          // Admin key: allow.
+          return c.json(skill);
+        }
+      } catch {
+        // Fall through to 404 below.
+      }
+    }
+    const ownerUserId = (skill as { owner_user_id?: string }).owner_user_id;
+    if (!callerUserId || !ownerUserId || callerUserId !== ownerUserId) {
+      return c.json({ error: "Skill not found" }, 404);
+    }
+    // Owner of private skill: skip the x402 payment gate. A user reading
+    // their own private skill manifest shouldn't be billed.
+    if (!skill.proof_summary) skill.proof_summary = summarizeSkillProofs(skill.endpoints);
+    return c.json(skill);
+  }
+
   // Compute dynamic price for this skill
   const statsArr = await Promise.all(
     skill.endpoints.map((ep) => getStats(c.env, skill.skill_id, ep.endpoint_id)),
@@ -181,6 +218,7 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
     const legacyPaymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const legacyProofHeader = c.req.header("X-Payment-Proof");
     let sponsoredAdmit = false;
+    let keyFundedAdmit = false;
 
     if (!flexPaymentHeader && !legacyPaymentHeader && !legacyProofHeader) {
       // No proof provided -- check sponsor tier first, then return 402 with
@@ -200,7 +238,27 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
         const blockResp = await checkFlexOnboardingOrBlock(c);
         if (blockResp) return blockResp;
       }
+
+      // L6 (API key wrapping x402): a key bound to a prepaid credit budget
+      // auto-pays here via a KV decrement instead of getting a 402, so calls
+      // authenticated by that key never need a per-call X-PAYMENT signature.
+      // Wallet-bound keys are NOT settled here -- they continue down the Flex
+      // facilitator path below exactly as before (on-chain settlement needs
+      // the signed envelope, not a KV write).
       if (candidateAgentId && candidateAgentId !== "__admin__") {
+        const { getKeyFunding, debitKeyFunding } = await import("../services/keys.js");
+        const funding = await getKeyFunding(c.env, candidateAgentId);
+        if (funding?.kind === "credit") {
+          const priceUc = Math.round(priceResult.price_usd * 1_000_000);
+          const debit = await debitKeyFunding(c.env, candidateAgentId, priceUc);
+          if (debit.ok) {
+            c.header("X-Unbrowse-Billing", `key-credit consumed_uc=${priceUc} remaining_uc=${debit.remaining_uc}`);
+            keyFundedAdmit = true;
+          }
+          // insufficient budget / no binding -> fall through to sponsor + Flex 402.
+        }
+      }
+      if (!keyFundedAdmit && candidateAgentId && candidateAgentId !== "__admin__") {
         const { maybeSponsor } = await import("../middleware/sponsor.js");
         // sponsorAcceptsForPriceUsd builds a minimal accepts[] for the
         // sponsor middleware's debit-side check (it never hits the wire).
@@ -232,7 +290,7 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
             agentId: candidateAgentId,
           });
         }
-      } else {
+      } else if (!keyFundedAdmit) {
         return await respondWithFlexTerms(c, {
           skill,
           priceUsd: priceResult.price_usd,
@@ -242,7 +300,7 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       }
     }
 
-    if (!sponsoredAdmit) {
+    if (!sponsoredAdmit && !keyFundedAdmit) {
     if (flexPaymentHeader) {
       // Flex authorization carries a signed FlexPaymentPayload — verify
       // via the Flex facilitator, then return the skill body.
@@ -257,6 +315,16 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
             price_usd: priceResult.price_usd,
             payment_proof: flexPaymentHeader,
           }).catch((err) => console.warn(`[flex] ledger write failed: ${(err as Error).message}`)));
+          // W5-B: per-execute Meter event for Metered-tier callers.
+          // fireMeterIfMetered is silent for free/Pro/unauth -- only the
+          // metered tier enqueues + schedules a background drain.
+          await (await import("../services/meter-on-execute.js"))
+            .fireMeterIfMetered(c, {
+              skill_id: skill.skill_id,
+              price_usd: priceResult.price_usd,
+              schedule: (task) => schedule(c, task),
+            })
+            .catch((err) => console.warn(`[meter] fireMeterIfMetered: ${(err as Error).message}`));
           // Backfill proof_summary on legacy skills.
           if (!skill.proof_summary) skill.proof_summary = summarizeSkillProofs(skill.endpoints);
           return new Response(JSON.stringify(skill), {
@@ -434,7 +502,7 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
 skillRoutes.patch("/skills/:id", bearerAuth, requireSignedClient, async (c) => {
   const skillId = c.req.param("id");
   if (!skillId) return c.json({ error: "skill id required" }, 400);
-  const body = await c.req.json<{ base_price_usd?: number; split_config?: string | null }>();
+  const body = await c.req.json<{ base_price_usd?: number; split_config?: string | null; visibility?: "public" | "private" }>();
 
   const skill = await getSkill(c.env, skillId);
   if (!skill) return c.json({ error: "Skill not found" }, 404);
@@ -456,9 +524,38 @@ skillRoutes.patch("/skills/:id", bearerAuth, requireSignedClient, async (c) => {
     else delete skill.split_config;
   }
 
+  let visibilityChangedTo: "public" | "private" | null = null;
+  if (body.visibility !== undefined) {
+    if (body.visibility !== "public" && body.visibility !== "private") {
+      return c.json({ error: "visibility must be 'public' or 'private'" }, 400);
+    }
+    const prev = skill.visibility ?? "public";
+    if (prev !== body.visibility) {
+      skill.visibility = body.visibility;
+      visibilityChangedTo = body.visibility;
+    }
+  }
+
   skill.updated_at = new Date().toISOString();
   const kv = skillsKV(c.env);
   await kv.put(`skill:${skillId}`, JSON.stringify(skill));
+
+  // Visibility toggles graph-index membership via the same primitives the
+  // publish path uses, so resolve/search stays consistent without a
+  // per-call private filter. Card list cache is dropped so the public
+  // homepage reflects the change immediately.
+  if (visibilityChangedTo === "private") {
+    await removeSkillFromIndex(c.env, skill.skill_id, skill.domain).catch((err) =>
+      console.warn(`[skills] removeSkillFromIndex failed for ${skill.skill_id}:`, (err as Error).message),
+    );
+    await invalidateSkillListCaches(c.env).catch(() => {});
+  } else if (visibilityChangedTo === "public") {
+    await reindexSkill(c.env, skill).catch((err) =>
+      console.warn(`[skills] reindexSkill failed for ${skill.skill_id}:`, (err as Error).message),
+    );
+    await invalidateSkillListCaches(c.env).catch(() => {});
+  }
+
   return c.json(skill);
 });
 

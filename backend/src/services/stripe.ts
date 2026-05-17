@@ -33,6 +33,13 @@ export const STRIPE_NOT_IMPLEMENTED = new Error(
 export const KV_KEYS = {
   userCustomer: (userId: string) => `stripe:user:${userId}`,
   customerSub: (customerId: string) => `stripe:customer:${customerId}`,
+  /**
+   * Reverse index customer.id -> user_id, written at customer-creation
+   * time so the webhook can resolve customer.id back to user_id without
+   * scanning. Reads are O(1) KV-get. (D1b precondition for wave-3
+   * tier-grant routing.)
+   */
+  customerUser: (customerId: string) => `stripe:customer:${customerId}:user`,
 } as const;
 
 type AuthCtx = Context<{
@@ -190,7 +197,25 @@ export async function getOrCreateCustomer(
     metadata: { userId },
   });
   await kv.put(KV_KEYS.userCustomer(userId), customer.id);
+  // Reverse index for webhook customer.id -> user_id resolution (D1b).
+  await kv.put(KV_KEYS.customerUser(customer.id), userId);
   return customer.id;
+}
+
+/**
+ * Webhook helper: resolve a Stripe customer.id back to the unbrowse
+ * user_id that owns it. Returns null when the reverse index is missing
+ * (customer created before wave 3 deployed); the caller must skip the
+ * grant rather than guess. Customers created from now on will populate
+ * the index automatically via getOrCreateCustomer.
+ */
+export async function lookupUserIdByCustomerId(
+  env: Env,
+  customerId: string,
+): Promise<string | null> {
+  const kv = statsKV(env);
+  const raw = (await kv.get(KV_KEYS.customerUser(customerId))) as string | null;
+  return typeof raw === "string" && raw.length > 0 ? raw : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -366,16 +391,27 @@ export async function createCheckoutSession(
   userId: string,
   email: string,
   returnUrl: string,
-): Promise<{ url: string }> {
-  if (!env.STRIPE_PRICE_BASE) {
-    throw new Error("STRIPE_PRICE_BASE not configured");
+  opts: { priceId?: string; tier?: "pro" | "metered" | "base" } = {},
+): Promise<{ url: string; price_id: string; tier: string }> {
+  // Tier picker (W5-C): caller passes `tier` (pro / metered) and we map
+  // to the matching env-configured price id. Explicit priceId still wins
+  // when set (admin override). Falls back to legacy STRIPE_PRICE_BASE
+  // when neither is supplied so existing /billing flows keep working.
+  const tier = opts.tier ?? "base";
+  const fromTier =
+    tier === "pro" ? env.STRIPE_PRICE_PRO_MONTHLY :
+    tier === "metered" ? env.STRIPE_PRICE_METERED :
+    env.STRIPE_PRICE_BASE;
+  const price_id = opts.priceId ?? fromTier;
+  if (!price_id) {
+    throw new Error(`tier ${tier} has no configured price id`);
   }
   const customerId = await getOrCreateCustomer(env, userId, email);
   const stripe = getStripe(env);
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
-    line_items: [{ price: env.STRIPE_PRICE_BASE, quantity: 1 }],
+    line_items: [{ price: price_id, quantity: 1 }],
     success_url: returnUrl + "?session_id={CHECKOUT_SESSION_ID}",
     cancel_url: returnUrl,
     allow_promotion_codes: true,
@@ -383,7 +419,7 @@ export async function createCheckoutSession(
   if (!session.url) {
     throw new Error("stripe checkout session returned no url");
   }
-  return { url: session.url };
+  return { url: session.url, price_id, tier };
 }
 
 export async function createPortalSession(
@@ -459,4 +495,33 @@ export async function processBillingEvent(
   `;
 
   await syncStripeDataToUserKV(env, customerId);
+
+  // D3 wave 3: dispatch tier-credit grants on subscription events.
+  // Fires AFTER syncStripeDataToUserKV so the cache reflects the latest
+  // state before the grant. Idempotent via ${customer.id}:${period_start};
+  // webhook re-deliveries noop. Non-actionable failure modes (missing
+  // reverse index, free/metered tier) are logged at the appropriate
+  // level; we never throw from here because Stripe retries the whole
+  // event on failure.
+  if (event.type?.startsWith("customer.subscription.")) {
+    try {
+      const { handleSubscriptionGrantEvent } = await import("./stripe-grants.js");
+      const outcome = await handleSubscriptionGrantEvent(
+        env,
+        event as Parameters<typeof handleSubscriptionGrantEvent>[1],
+      );
+      if (outcome.kind === "applied") {
+        console.log(
+          `[stripe-grants] applied user=${outcome.user_id} amount_uc=${outcome.amount_uc} new_balance=${outcome.balance.balance_uc}`,
+        );
+      } else if (outcome.kind === "no_customer_user_mapping") {
+        console.warn(
+          `[stripe-grants] missing customer->user index for customer=${outcome.customer_id} (pre-wave-3 customer?)`,
+        );
+      }
+      // duplicate + tier_no_grant are expected; no logging.
+    } catch (err) {
+      console.warn(`[stripe-grants] dispatcher threw: ${(err as Error).message}`);
+    }
+  }
 }

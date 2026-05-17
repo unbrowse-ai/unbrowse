@@ -49,22 +49,35 @@ describe("initialize capabilities (Phase 2)", () => {
   });
 });
 
-describe("tools/list dynamic partition (Phase 2)", () => {
-  test("with no browse session, SESSION_TOOL_NAMES are filtered out", async () => {
-    // Initialize once
+describe("tools/list always exposes the full tool set (session tools never hidden)", () => {
+  test("with NO browse session, SESSION_TOOL_NAMES are still present", async () => {
+    // Phase 2's hide-until-session reveal made session tools unreachable to
+    // any client whose tool catalog is frozen before a session exists (a
+    // spawned sub-agent: the post-go list_changed reaches only the parent).
+    // The substrate must surface what exists and let the tool error
+    // truthfully when called with no session, not hide the tool.
+    const { SESSION_TOOL_NAMES } = await import("../src/mcp.js");
     await call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0.0" } });
     const r = await call("tools/list");
     const tools = (r.result as any).tools as Array<{ name: string }>;
     const names = new Set(tools.map((t) => t.name));
 
-    // Static (always visible) — must be present
     for (const t of ["unbrowse_resolve", "unbrowse_execute", "unbrowse_go", "unbrowse_health"]) {
-      expect(names.has(t), `${t} must be visible without session`).toBe(true);
+      expect(names.has(t), `${t} must be visible`).toBe(true);
     }
-    // Session-bound — must be ABSENT without an open session
-    for (const t of ["unbrowse_snap", "unbrowse_click", "unbrowse_fill", "unbrowse_close"]) {
-      expect(names.has(t), `${t} must be hidden when no session is open`).toBe(false);
+    // Session-scoped tools are now ALWAYS discoverable, even with no session.
+    for (const t of SESSION_TOOL_NAMES as Set<string>) {
+      expect(names.has(t), `${t} must be discoverable without a session`).toBe(true);
     }
+  });
+
+  test("a session tool called with NO open session returns a clean error result (not a thrown -32603)", async () => {
+    await call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0.0" } });
+    const r = await call("tools/call", { name: "unbrowse_snap", arguments: {} });
+    // Handled envelope, not a JSON-RPC throw: always-visible is only safe
+    // if the handler errors truthfully with no session.
+    expect(r.result, "no-session session-tool call must return a result envelope").toBeDefined();
+    expect(r.error, "must not be a JSON-RPC -32603 throw").toBeUndefined();
   });
 
   test("tools/list returns full 33 when a session is open", async () => {

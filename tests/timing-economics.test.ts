@@ -56,6 +56,20 @@ describe("computeTimingEconomics", () => {
     expect(economics.tokens_saved_pct).toBe(99);
   });
 
+  it("counts direct document responses as browser-avoiding savings", () => {
+    const economics = computeTimingEconomics({
+      source: "direct-document",
+      totalMs: 700,
+      result: { title: "Markets - Bloomberg", text_excerpt: "x".repeat(1_200) },
+    });
+
+    expect(economics.baseline_source).toBe("estimated");
+    expect(economics.baseline_total_ms).toBe(DEFAULT_CAPTURE_MS);
+    expect(economics.time_saved_ms).toBe(DEFAULT_CAPTURE_MS - 700);
+    expect(economics.tokens_saved).toBeGreaterThan(0);
+    expect(economics.time_saved_pct).toBeGreaterThan(0);
+  });
+
   it("does not report savings for live capture paths", () => {
     const economics = computeTimingEconomics({
       source: "live-capture",

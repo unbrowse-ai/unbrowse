@@ -116,6 +116,15 @@ class TestSoftBlockRule(unittest.TestCase):
         ))
         self.assertEqual(v, "PASS")
 
+    def test_direct_document_success_classifies_pass(self):
+        """Bloomberg direct-document returns useful HTML without operations."""
+        v = classify(row(
+            captured_text_bytes=4000,
+            trace_success=True,
+            source="direct-document",
+        ))
+        self.assertEqual(v, "PASS")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

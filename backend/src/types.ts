@@ -23,6 +23,15 @@ export interface Env {
   X402_NETWORK_MODE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
+  /**
+   * Rotation weight (0-10000 bps) for which scheme appears FIRST in the
+   * dual-accept Flex 402 envelope. 0 = always Flex-first, 10000 = always
+   * PayAI-exact-first. Default 5000 = 50/50, deterministic per agent_id
+   * hash so a given agent consistently sees the same ordering inside the
+   * bucket (so latency comparisons hold). Clients still choose which
+   * accept entry to pay; this only biases the order they see.
+   */
+  PAYAI_ROTATION_BPS?: string;
   // v6.16: CASCADE_PLATFORM_WALLET and CASCADE_SIGNER_SECRET_KEY are unused by
   // the runtime — Flex carries the 10% platform cut natively in every signed
   // authorization's splits. They remain in the Env shape for one release so
@@ -49,6 +58,14 @@ export interface Env {
   /** Exa web search — parallel step in resolve, surfaces highlights when marketplace misses. */
   EXA_API_KEY?: string;
   /**
+   * Master key-encryption-key for the per-account cookie vault (L4). The
+   * vault wraps each user's random data key with AES-GCM under this secret
+   * (envelope encryption); cookies are never stored in plaintext. When
+   * unset the cookie endpoints return 503 vault_not_configured rather than
+   * degrading to weak storage. Set as a Worker secret in production.
+   */
+  COOKIE_VAULT_MASTER_KEY?: string;
+  /**
    * Comma-separated list of additional reserved domains. Non-admin publishers
    * cannot publish skills for these domains (or their subdomains). Combined
    * with the seed list in `services/domain-reservations.ts`.
@@ -68,6 +85,19 @@ export interface Env {
    */
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  /**
+   * Stripe Price IDs for the three-tier billing rail (D3 wave 3 of
+   * unbrowse-payments-faremeter). When unset, inferTier returns "free"
+   * and no grants fire.
+   * - STRIPE_PRICE_PRO_MONTHLY: the flat $20/mo recurring price; matching
+   *   subscriptions get a 200_000 uc grant on each period rollover.
+   * - STRIPE_PRICE_METERED: the metered price (Stripe Meter API); matching
+   *   subscriptions debit per execute (wave 4 ring-buffer flush).
+   */
+  STRIPE_PRICE_PRO_MONTHLY?: string;
+  STRIPE_PRICE_METERED?: string;
+  /** Stripe Meter event name (default `unbrowse_execute`) for the metered tier. */
+  STRIPE_METER_EVENT_NAME?: string;
   /** Stripe price ID for the base subscription tier (monthly quota). */
   STRIPE_PRICE_BASE?: string;
   /** Stripe price ID for metered overage (per-unit) above the quota. */
@@ -432,6 +462,15 @@ export interface SkillManifest {
    *   actual units consumed.
    */
   pricing?: SkillPricing;
+  /**
+   * Owner-controlled marketplace visibility. `public` (default) means the
+   * skill is surfaced in the public card list and the resolve/search graph
+   * index. `private` removes it from every cross-agent surface while the
+   * owner still sees it under `GET /v1/account/skills`. Toggled by
+   * `PATCH /v1/skills/:id`, which also adds/removes the skill from the
+   * graph index so resolve stays consistent.
+   */
+  visibility?: "public" | "private";
 }
 
 /**

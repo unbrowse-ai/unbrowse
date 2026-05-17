@@ -53,7 +53,6 @@ export const metadata: Metadata = {
     images: ["https://www.unbrowse.ai/og-image.png"],
   },
   other: {
-    "ai-skill": "https://www.unbrowse.ai/skill.md",
     "ai-plugin": "https://www.unbrowse.ai/.well-known/ai-plugin.json",
   },
 };
@@ -66,13 +65,6 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
-        <link
-          key="skill-md"
-          rel="alternate"
-          type="text/markdown"
-          href="/skill.md"
-          title="Agent Skill Documentation"
-        />
         <link
           key="llms-txt"
           rel="alternate"

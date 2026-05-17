@@ -92,7 +92,7 @@ def classify(row: dict) -> str:
         return "PASS"
     if trace_ok and src == "dom-fallback":
         return "PASS_DOM_FALLBACK_ONLY"
-    if trace_ok and src == "direct-fetch":
+    if trace_ok and src in ("direct-fetch", "direct-document"):
         return "PASS"
     if src == "browse-session":
         return "PASS"

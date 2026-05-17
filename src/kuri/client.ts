@@ -14,6 +14,19 @@ import net from "node:net";
 import path from "node:path";
 import { log } from "../logger.js";
 import { getPackageRoot } from "../runtime/paths.js";
+import { getBrowserAttachEnabled } from "../settings.js";
+
+/**
+ * Opt-in browse tracing. Set UNBROWSE_KURI_TRACE=1 to emit [kuri-trace]
+ * lines (newTab branch, navigate target, tab discovery) to the dated log
+ * for diagnosing wrong-tab / wedge issues. Lazy: the message closure is
+ * not even evaluated unless the flag is on, so JSON.stringify and the
+ * extra navigate /tabs round-trip cost nothing in normal operation.
+ */
+const KURI_TRACE = !!(process.env.UNBROWSE_KURI_TRACE && process.env.UNBROWSE_KURI_TRACE !== "0");
+function kuriTrace(msg: () => string): void {
+  if (KURI_TRACE) log("kuri-trace", msg());
+}
 
 const KURI_DEFAULT_PORT = 7700;
 const KURI_STARTUP_TIMEOUT_MS = 60_000;
@@ -253,8 +266,18 @@ export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): K
   // Follow-up: rebuild Kuri Zig binary to spawn Chrome on a dedicated port
   // (42069) instead of 9222, then advertise via CHROME_DEBUG_URL — that lets
   // us avoid touching the user's personal Chrome by accident.
-  // Opt-out: KURI_DISABLE_CDP_ATTACH=1 / UNBROWSE_LOCAL_ONLY=1 / KURI_CLEAN_ROOM=1
-  const attachToExistingChrome = !disableCdpAttach && !cleanRoom;
+  // Opt-out: env KURI_DISABLE_CDP_ATTACH=1 / UNBROWSE_LOCAL_ONLY=1 /
+  // KURI_CLEAN_ROOM=1 (per-process), OR the persisted user setting
+  // unbrowse_settings browser.attach_existing_chrome=false. Default stays
+  // attach (North Star). Defensive: any settings-read failure keeps the
+  // attach default so a broken config can never wedge kuri launch.
+  let attachDisabledBySetting = false;
+  try {
+    attachDisabledBySetting = getBrowserAttachEnabled() === false;
+  } catch {
+    attachDisabledBySetting = false;
+  }
+  const attachToExistingChrome = !disableCdpAttach && !cleanRoom && !attachDisabledBySetting;
   return {
     headless,
     attachToExistingChrome,
@@ -962,6 +985,7 @@ async function createTabViaChromeCdp(url = "about:blank", state: BrokerState = d
       });
       const target = await res.json() as { id?: string; targetId?: string };
       const tabId = target?.id ?? target?.targetId ?? "";
+      kuriTrace(() => `createTabViaChromeCdp req_url=${url} status=${res.status} raw=${JSON.stringify(target).slice(0, 300)} -> tabId=${tabId || "<empty>"}`);
       if (tabId) {
         log("kuri", `created new Chrome tab: ${tabId}`);
         await new Promise((resolve) => setTimeout(resolve, 300));
@@ -984,7 +1008,18 @@ async function findReusableIdleTab(state: BrokerState = defaultBrokerState): Pro
   await ensureTabsDiscovered(state);
   try {
     const tabs = (await kuriGet(state, "/tabs")) as Array<{ id?: string; url?: string }>;
-    const candidate = tabs.find((tab) => /^(about:blank|chrome:\/\/newtab\/?)$/i.test(tab?.url ?? ""));
+    // Only a CDP-created about:blank is safe to reuse. Chrome's headless
+    // chrome://newtab/ NTP is a privileged WebUI target: navigating it to an
+    // http(s) URL makes Chrome swap the renderer/target, so kuri's cached
+    // tab_id -> targetId/sessionId binding is stranded and every subsequent
+    // snap/evaluate fails ("CDP command failed" / empty tree): the
+    // "kuri works once then wedges" bug. about:blank -> http keeps the same
+    // target. Excluding the NTP also enforces per-session target isolation
+    // when several MCP clients share one managed Chrome (no client recycles
+    // the shared NTP out from under another).
+    kuriTrace(() => `findReusableIdleTab discovered=${JSON.stringify((tabs || []).map((t) => ({ id: t?.id, url: t?.url })))}`);
+    const candidate = tabs.find((tab) => /^about:blank$/i.test(tab?.url ?? ""));
+    kuriTrace(() => `findReusableIdleTab about:blank candidate=${candidate?.id ?? "<none>"}`);
     if (!candidate?.id) return "";
     // Verify tab is CDP-responsive before reusing — avoids recycling crashed zombie tabs
     try {
@@ -1001,7 +1036,20 @@ async function findReusableIdleTab(state: BrokerState = defaultBrokerState): Pro
 
 /** Navigate tab to URL. */
 export async function navigate(tabId: string, url: string, state: BrokerState = defaultBrokerState): Promise<void> {
-  await kuriGet(state, "/navigate", { tab_id: tabId, url });
+  kuriTrace(() => `navigate -> tab_id=${tabId} url=${url}`);
+  const resp = await kuriGet(state, "/navigate", { tab_id: tabId, url });
+  // Post-navigate state probe is an extra /tabs round-trip; only pay it
+  // when UNBROWSE_KURI_TRACE is set (debugging the wrong-tab/wedge path).
+  if (KURI_TRACE) {
+    try {
+      kuriTrace(() => `navigate <- resp=${JSON.stringify(resp).slice(0, 400)}`);
+      const after = (await kuriGet(state, "/tabs")) as Array<{ id?: string; url?: string }>;
+      const me = Array.isArray(after) ? after.find((t) => t?.id === tabId) : undefined;
+      kuriTrace(() => `navigate post-state tab_id=${tabId} now_url=${me?.url ?? "<<tab_id absent from /tabs>>"} all=${JSON.stringify((after || []).map((t) => ({ id: t?.id, url: t?.url })))}`);
+    } catch (e) {
+      kuriTrace(() => `navigate post-state probe threw: ${e instanceof Error ? e.message : e}`);
+    }
+  }
 }
 
 /** Evaluate JavaScript in tab context. */
@@ -1268,10 +1316,12 @@ export async function newTab(url?: string, state: BrokerState = defaultBrokerSta
     result = {};
   }
   let tabId = result?.tab_id ?? result?.id ?? result?.targetId ?? "";
-  if (!tabId) tabId = await findReusableIdleTab(state);
-  if (!tabId) tabId = await createTabViaChromeCdp(url ?? "about:blank", state);
+  kuriTrace(() => `newTab url=${url ?? "<none>"} /tab/new -> ${tabId || "<empty>"} (raw=${JSON.stringify(result).slice(0, 200)})`);
+  if (!tabId) { tabId = await findReusableIdleTab(state); kuriTrace(() => `newTab after findReusableIdleTab -> ${tabId || "<empty>"}`); }
+  if (!tabId) { tabId = await createTabViaChromeCdp(url ?? "about:blank", state); kuriTrace(() => `newTab after createTabViaChromeCdp -> ${tabId || "<empty>"}`); }
   if (tabId) {
     await waitForTabRegistration(state, tabId).catch(() => {});
+    kuriTrace(() => `newTab RETURN tabId=${tabId} (attempt 1)`);
     return tabId;
   }
 

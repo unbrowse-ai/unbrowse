@@ -250,19 +250,22 @@ async function createBrowseSession(
   injectInterceptor: (tabId: string) => Promise<unknown>,
   sessionId?: string,
 ): Promise<BrowseSession> {
-  await client.start();
-  const tabId = await client.newTab();
-  if (!tabId) throw new Error("Failed to create browser tab");
-  await client.harStart(tabId).catch(() => {});
-  await injectInterceptor(tabId);
-  return createRegisteredBrowseSession(sessions, {
-    sessionId,
-    tabId,
-    url: "about:blank",
-    domain: "",
-    harActive: true,
-    brokerPort: client.getPort?.(),
-    client,
+  const brokerKey = String(client.getPort?.() ?? "default");
+  return withBrokerCreateLock(brokerKey, async () => {
+    await client.start();
+    const tabId = await client.newTab();
+    if (!tabId) throw new Error("Failed to create browser tab");
+    await client.harStart(tabId).catch(() => {});
+    await injectInterceptor(tabId);
+    return createRegisteredBrowseSession(sessions, {
+      sessionId,
+      tabId,
+      url: "about:blank",
+      domain: "",
+      harActive: true,
+      brokerPort: client.getPort?.(),
+      client,
+    });
   });
 }
 
@@ -345,22 +348,27 @@ export async function isBrowseSessionLive(
     try {
       const tabs = await sessionClient.discoverTabs();
       let exactTab = tabs.find((tab) => tab.id === session.tabId);
-      // Adopt a freshly-minted CDP target id when there's exactly one tab in a
-      // restarted broker AND its url exactly matches the session url (or both
-      // are placeholder). Linux runners exhibit kuri broker churn that mints a
-      // new id for the same Chrome tab between calls; this rebinds the session
-      // to the new id instead of failing as session_expired.
-      // Tight URL match (not domain match) — different URL on same domain
-      // means the user navigated to a different state we shouldn't adopt.
+      // Drift tolerance: kuri broker churn can mint a new CDP target id
+      // for the SAME Chrome tab between calls. Rebind only when the lone
+      // tab carries a MEANINGFUL (non-placeholder) url that exactly
+      // matches the session's — that url is the tab's identity. A
+      // placeholder url (about:blank / chrome://newtab) carries NO
+      // identity: a fresh never-navigated session (url about:blank) and
+      // kuri's unrelated startup about:blank tab are indistinguishable by
+      // url, so adopting a lone blank tab silently binds the session to
+      // the wrong tab — the observed wrong-tab wedge (snap then reads the
+      // startup tab). No identity signal => do not guess; fall through to
+      // not-live so the caller re-issues go (cheap) instead of operating
+      // on the wrong tab. (Falsifier: .bench-gate/kuri-livecheck-falsifier.ts)
       if (!exactTab && tabs.length === 1) {
         const lone = tabs[0]!;
-        const sameUrl = !!session.url && !!lone.url && session.url === lone.url;
-        const bothPlaceholder = isPlaceholderBrowseUrl(session.url) && isPlaceholderBrowseUrl(lone.url);
-        if (sameUrl || bothPlaceholder) {
+        const meaningfulMatch = hasMeaningfulBrowseUrl(session.url)
+          && !!lone.url && session.url === lone.url;
+        if (meaningfulMatch) {
           dbg("adopting_single_tab_after_id_drift", {
             old_tab_id: session.tabId,
             new_tab_id: lone.id,
-            match: sameUrl ? "exact_url" : "both_placeholder",
+            match: "meaningful_exact_url",
           });
           session.tabId = lone.id;
           exactTab = lone;
@@ -556,6 +564,32 @@ async function withSessionQueue<T>(sessionId: string, fn: () => Promise<T>): Pro
   }
 }
 
+// Per-broker serialization of session CREATION only. Concurrent /v1/browse/go
+// calls (parallel collector) must not interleave newTab+register: kuri returns
+// a fresh target per /tab/new, but interleaved create critical-sections let
+// two sessions collapse onto one tab (createRegisteredBrowseSession adopts an
+// existing session by tabId), so probe A renders probe B's page. Serializing
+// ONLY the brief create section (start->newTab->harStart->inject->register)
+// per broker eliminates the cross-bind; navigate/snap/eval/close/resolve/
+// execute stay fully parallel. Falsifier: .bench-gate/parallel-isolation-falsifier.sh
+const brokerCreateQueues = new Map<string, Promise<void>>();
+async function withBrokerCreateLock<T>(brokerKey: string, fn: () => Promise<T>): Promise<T> {
+  const prev = brokerCreateQueues.get(brokerKey) ?? Promise.resolve();
+  let release!: () => void;
+  const waitTurn = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const gate = prev.catch(() => {}).then(() => waitTurn);
+  brokerCreateQueues.set(brokerKey, gate);
+  await prev.catch(() => {});
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (brokerCreateQueues.get(brokerKey) === gate) brokerCreateQueues.delete(brokerKey);
+  }
+}
+
 export async function withRecoveredBrowseSession<T>(
   sessions: Map<string, BrowseSession>,
   client: BrowseSessionClient,
@@ -672,8 +706,13 @@ export async function getOrCreateNavigateBrowseSession(
 ): Promise<BrowseSession> {
   if (requestedSessionId) {
     const session = sessions.get(requestedSessionId);
-    if (!session) throw new BrowseSessionError("session_not_found");
-    return session;
+    if (session) return session;
+    // Create-on-unknown-id: lets a parallel caller pre-assign a DISJOINT
+    // session_id per task up front. Combined with withBrokerCreateLock this
+    // gives each concurrent go() its own isolated tab (no cross-render).
+    // Only the navigate/go path creates; strict resolvers (snap/eval/close)
+    // still throw session_not_found for a stale id.
+    return createBrowseSession(sessions, client, injectInterceptor, requestedSessionId);
   }
   return createBrowseSession(sessions, client, injectInterceptor);
 }

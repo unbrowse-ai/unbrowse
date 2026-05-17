@@ -62,6 +62,7 @@ import {
 } from "../routing-telemetry.js";
 import { runResolveRace } from "./resolve-race.js";
 import { buildNoMatchNextStep } from "./no-match-next-step.js";
+import { buildBloombergDirectDocumentResult, fetchBloombergDirectDocument } from "./direct-document.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
@@ -1157,7 +1158,7 @@ export interface ResolveResultWithDiagnostic {
 export interface OrchestratorResult {
   result: ResolveResultWithDiagnostic | unknown;
   trace: ExecutionTrace;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass" | "route-cache" | "browser-action" | "defer" | "exa";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass" | "route-cache" | "browser-action" | "defer" | "exa" | "direct-fetch" | "direct-document";
   skill: SkillManifest;
   timing: OrchestrationTiming;
 }
@@ -3651,6 +3652,25 @@ export async function resolveAndExecute(
         };
       }
       // Exa had nothing either — surface probe evidence + next_step capture.
+      const directDocument = await fetchBloombergDirectDocument(raceContextUrl);
+      if (directDocument) {
+        const directTrace: ExecutionTrace = {
+          trace_id: nanoid(),
+          skill_id: "direct-document",
+          endpoint_id: "direct-document",
+          started_at: new Date(t0).toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+          status_code: 200,
+        };
+        return {
+          result: directDocument,
+          trace: directTrace,
+          source: "direct-document",
+          skill: undefined as any,
+          timing: finalize("direct-document", directDocument, "direct-document", undefined as any, directTrace),
+        };
+      }
       const probeTrace: ExecutionTrace = {
         trace_id: nanoid(),
         skill_id: "",
@@ -3691,6 +3711,25 @@ export async function resolveAndExecute(
       completed_at: new Date().toISOString(),
       success: false,
     };
+    const directDocument = await fetchBloombergDirectDocument(raceContextUrl);
+    if (directDocument) {
+      const directTrace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: "direct-document",
+        endpoint_id: "direct-document",
+        started_at: new Date(t0).toISOString(),
+        completed_at: new Date().toISOString(),
+        success: true,
+        status_code: 200,
+      };
+      return {
+        result: directDocument,
+        trace: directTrace,
+        source: "direct-document",
+        skill: undefined as any,
+        timing: finalize("direct-document", directDocument, "direct-document", undefined as any, directTrace),
+      };
+    }
     const noMatchResult = {
       status: "no_match" as const,
       tried: raceOutcome.tried.map((t) => t.name),
@@ -4348,6 +4387,26 @@ export async function resolveAndExecute(
                 // Not JSON, fall through to browser capture
               }
             }
+          }
+          const directDocument = buildBloombergDirectDocumentResult(context.url, bodyText, ct);
+          if (!directDocument.rejected) {
+            const trace: ExecutionTrace = {
+              trace_id: nanoid(),
+              skill_id: "direct-document",
+              endpoint_id: "direct-document",
+              started_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+              success: true,
+            };
+            const t = finalize("direct-document", directDocument, "direct-document", undefined as any, trace);
+            console.log(`[direct-document] ${context.url} returned HTML directly — skipping browser`);
+            return {
+              result: directDocument,
+              trace,
+              source: "direct-document",
+              skill: undefined as any,
+              timing: t,
+            };
           }
         }
         if (data !== undefined) {

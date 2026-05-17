@@ -251,7 +251,7 @@ def _classify(row):
         return "PASS"
     if trace_ok and src == "dom-fallback":
         return "PASS_DOM_FALLBACK_ONLY"
-    if trace_ok and src == "direct-fetch":
+    if trace_ok and src in ("direct-fetch", "direct-document"):
         return "PASS"
     if src == "browse-session":
         return "PASS"
@@ -437,8 +437,8 @@ for r in rows:
             buckets['PASS'].append(r['url'])
     elif trace_ok and src == 'dom-fallback':
         buckets['PASS_DOM_FALLBACK_ONLY'].append(r['url'])
-    elif trace_ok and src == 'direct-fetch':
-        # direct-fetch = product short-circuited to raw HTTP fetch. When
+    elif trace_ok and src in ('direct-fetch', 'direct-document'):
+        # direct-fetch/direct-document = product short-circuited to raw HTTP fetch. When
         # the trace is successful the body was retrieved — even without
         # extracted "endpoints", the agent has the raw HTML/JSON to act
         # on. Count as PASS for coverage purposes.

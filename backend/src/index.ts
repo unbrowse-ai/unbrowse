@@ -23,6 +23,7 @@ import { creditRoutes } from "./routes/credits.js";
 import { billingRoutes } from "./routes/billing.js";
 import { authRoutes } from "./routes/auth.js";
 import { accountRoutes } from "./routes/account.js";
+import { cookieRoutes } from "./routes/cookies.js";
 import { adminRoutes } from "./routes/admin.js";
 import { syntheticRoutes } from "./routes/synthetic.js";
 import { flushQueuedGithubNotifications } from "./services/github-webhooks.js";
@@ -76,6 +77,7 @@ app.route("/v1", creditRoutes);
 app.route("/v1", billingRoutes);
 app.route("/v1", authRoutes);
 app.route("/v1", accountRoutes);
+app.route("/v1", cookieRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);

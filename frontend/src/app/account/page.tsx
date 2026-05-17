@@ -11,10 +11,25 @@ import {
   fetchPreferences,
   fetchSkills,
   patchPreferences,
+  createKey,
+  revokeKey,
+  rotateKey,
+  bindKeyFunding,
+  unbindKeyFunding,
+  patchSkillVisibility,
+  fetchSponsorStatus,
+  fetchCreditBalance,
+  fetchUserCredits,
   type AccountKey,
   type AccountSkill,
   type AccountPreferences,
   type BillingMe,
+  type KeyFunding,
+  type CreatedKey,
+  type SponsorStatus,
+  type CreditBalance,
+  type UserCreditBalance,
+  type AccountMe,
 } from "@/lib/account-client";
 
 function copy(value: string): void {
@@ -129,6 +144,106 @@ function ProfileSection({
   );
 }
 
+function FundingControl({
+  apiKey,
+  k,
+  onChange,
+  onAuthError,
+}: {
+  apiKey: string;
+  k: AccountKey;
+  onChange: (keyId: string, funding: KeyFunding | null) => void;
+  onAuthError: (err: unknown) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [usd, setUsd] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  async function bindCredit() {
+    const dollars = Number.parseFloat(usd);
+    if (!Number.isFinite(dollars) || dollars <= 0) {
+      setErr("Enter a positive USD amount.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const f = await bindKeyFunding(apiKey, k.keyId, {
+        kind: "credit",
+        budget_uc: Math.round(dollars * 1_000_000),
+      });
+      onChange(k.keyId, f);
+      setUsd("");
+    } catch (e) {
+      onAuthError(e);
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unbind() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await unbindKeyFunding(apiKey, k.keyId);
+      onChange(k.keyId, null);
+    } catch (e) {
+      onAuthError(e);
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (k.funding) {
+    const label =
+      k.funding.kind === "credit"
+        ? `x402: $${(k.funding.budget_uc / 1_000_000).toFixed(2)} credit budget`
+        : `x402: wallet ${k.funding.wallet.slice(0, 10)}...`;
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-text-muted text-xs">{label}</span>
+        <button
+          type="button"
+          onClick={() => void unbind()}
+          disabled={busy}
+          className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
+        >
+          {busy ? "..." : "Unbind"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          inputMode="decimal"
+          value={usd}
+          onChange={(e) => setUsd(e.target.value)}
+          placeholder="USD"
+          className="w-20 px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-primary"
+        />
+        <button
+          type="button"
+          onClick={() => void bindCredit()}
+          disabled={busy}
+          className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
+          title="Bind a prepaid credit budget so this key auto-pays paid skills"
+        >
+          {busy ? "..." : "Bind x402"}
+        </button>
+      </div>
+      {err && <span className="text-xs text-red-400">{err}</span>}
+    </div>
+  );
+}
+
 function ApiKeysSection({
   apiKey,
   onAuthError,
@@ -138,6 +253,10 @@ function ApiKeysSection({
 }) {
   const [keys, setKeys] = useState<AccountKey[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [revealed, setRevealed] = useState<CreatedKey | null>(null);
+  const [actingId, setActingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,53 +275,191 @@ function ApiKeysSection({
     };
   }, [apiKey, onAuthError]);
 
-  if (error) {
-    return (
-      <SectionCard title="API Keys">
-        <ErrorChip message={error} />
-      </SectionCard>
-    );
+  async function refresh() {
+    try {
+      setKeys(await fetchKeys(apiKey));
+    } catch (err) {
+      onAuthError(err);
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
-  if (!keys) {
-    return (
-      <SectionCard title="API Keys">
-        <div className="text-sm text-text-muted">Loading...</div>
-      </SectionCard>
-    );
+  async function create() {
+    const name = newName.trim() || "default";
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await createKey(apiKey, name);
+      setRevealed(created);
+      setNewName("");
+      await refresh();
+    } catch (err) {
+      onAuthError(err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
-  if (keys.length === 0) {
-    return (
-      <SectionCard title="API Keys">
-        <div className="text-sm text-text-secondary">
-          No API keys returned. Generate one on the home page.
-        </div>
-      </SectionCard>
-    );
+  async function rotate(keyId: string) {
+    setActingId(keyId);
+    setError(null);
+    try {
+      const created = await rotateKey(apiKey, keyId);
+      setRevealed(created);
+      await refresh();
+    } catch (err) {
+      onAuthError(err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setActingId(null);
+    }
+  }
+
+  async function revoke(keyId: string) {
+    setActingId(keyId);
+    setError(null);
+    try {
+      await revokeKey(apiKey, keyId);
+      await refresh();
+    } catch (err) {
+      onAuthError(err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setActingId(null);
+    }
   }
 
   return (
     <SectionCard title="API Keys">
-      <ul className="divide-y divide-border">
-        {keys.map((k) => (
-          <li
-            key={k.keyId}
-            className="flex items-center justify-between gap-4 py-2"
-          >
-            <span className="text-text-primary font-mono text-sm truncate">
-              {k.keyId}
-            </span>
+      {revealed && (
+        <div className="rounded-lg border border-border bg-surface-raised p-3 space-y-2">
+          <p className="text-xs text-text-secondary">
+            New key &ldquo;{revealed.name}&rdquo;. Copy it now, it is shown
+            once and cannot be retrieved again.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-text-primary font-mono text-xs break-all">
+              {revealed.key}
+            </code>
             <button
               type="button"
-              onClick={() => copy(k.keyId)}
+              onClick={() => copy(revealed.key)}
               className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
             >
               Copy
             </button>
-          </li>
-        ))}
-      </ul>
+            <button
+              type="button"
+              onClick={() => setRevealed(null)}
+              className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-muted hover:bg-surface-raised transition-all"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="Key name (e.g. ci-bot)"
+          maxLength={64}
+          className="flex-1 px-3 py-2 rounded-lg border border-border bg-surface text-sm text-text-primary"
+        />
+        <button
+          type="button"
+          onClick={() => void create()}
+          disabled={busy}
+          className="px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50"
+        >
+          {busy ? "Creating..." : "Create key"}
+        </button>
+      </div>
+
+      {error && <ErrorChip message={error} />}
+
+      {!keys ? (
+        <div className="text-sm text-text-muted">Loading...</div>
+      ) : keys.length === 0 ? (
+        <div className="text-sm text-text-secondary">
+          No API keys yet. Create one above.
+        </div>
+      ) : (
+        <ul className="divide-y divide-border">
+          {keys.map((k) => {
+            const acting = actingId === k.keyId;
+            const revoked = !!k.revoked_at;
+            return (
+              <li key={k.keyId} className="flex flex-col gap-2 py-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <span className="text-text-primary text-sm">
+                      {k.name || "(unnamed)"}
+                      {revoked && (
+                        <span className="ml-2 text-xs text-red-400">
+                          revoked
+                        </span>
+                      )}
+                    </span>
+                    <span className="block text-text-muted font-mono text-xs truncate">
+                      {k.keyId}
+                      {k.created_at
+                        ? ` · ${new Date(k.created_at).toLocaleDateString()}`
+                        : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => copy(k.keyId)}
+                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void rotate(k.keyId)}
+                      disabled={acting || revoked}
+                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
+                    >
+                      {acting ? "..." : "Rotate"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void revoke(k.keyId)}
+                      disabled={acting || revoked}
+                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-red-400 hover:bg-surface-raised transition-all disabled:opacity-50"
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                </div>
+                {!revoked && (
+                  <div className="flex justify-end">
+                    <FundingControl
+                      apiKey={apiKey}
+                      k={k}
+                      onAuthError={onAuthError}
+                      onChange={(keyId, funding) =>
+                        setKeys((prev) =>
+                          prev
+                            ? prev.map((x) =>
+                                x.keyId === keyId ? { ...x, funding } : x,
+                              )
+                            : prev,
+                        )
+                      }
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </SectionCard>
   );
 }
@@ -216,6 +473,7 @@ function SkillsSection({
 }) {
   const [skills, setSkills] = useState<AccountSkill[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -233,6 +491,28 @@ function SkillsSection({
       cancelled = true;
     };
   }, [apiKey, onAuthError]);
+
+  async function toggleVisibility(skill: AccountSkill) {
+    const next: "public" | "private" =
+      (skill.visibility ?? "public") === "public" ? "private" : "public";
+    setSavingId(skill.skill_id);
+    setError(null);
+    try {
+      await patchSkillVisibility(apiKey, skill.skill_id, next);
+      setSkills((prev) =>
+        prev
+          ? prev.map((s) =>
+              s.skill_id === skill.skill_id ? { ...s, visibility: next } : s,
+            )
+          : prev,
+      );
+    } catch (err) {
+      onAuthError(err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   if (error) {
     return (
@@ -254,8 +534,8 @@ function SkillsSection({
     return (
       <SectionCard title="Published skills">
         <div className="text-sm text-text-secondary">
-          No skills published under this account yet. Skill ownership tracking
-          ships in a follow-up. Browse the public catalog at{" "}
+          No skills published under this account yet. Browse the public
+          catalog at{" "}
           <Link
             href="/search"
             className="text-text-primary hover:text-text-secondary underline"
@@ -270,20 +550,42 @@ function SkillsSection({
 
   return (
     <SectionCard title="Published skills">
+      <p className="text-xs text-text-muted">
+        Private skills stay yours but are excluded from public resolve and the
+        marketplace catalog.
+      </p>
       <ul className="divide-y divide-border">
-        {skills.map((s) => (
-          <li
-            key={s.skill_id}
-            className="flex items-center justify-between gap-4 py-2"
-          >
-            <span className="text-text-primary font-mono text-sm truncate">
-              {s.skill_id}
-            </span>
-            <span className="text-text-muted text-xs font-mono truncate">
-              {s.domain}
-            </span>
-          </li>
-        ))}
+        {skills.map((s) => {
+          const isPublic = (s.visibility ?? "public") === "public";
+          const busy = savingId === s.skill_id;
+          return (
+            <li
+              key={s.skill_id}
+              className="flex items-center justify-between gap-4 py-2"
+            >
+              <span className="text-text-primary font-mono text-sm truncate">
+                {s.skill_id}
+                <span className="block text-text-muted text-xs font-mono truncate">
+                  {s.domain}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => void toggleVisibility(s)}
+                disabled={busy}
+                aria-pressed={isPublic}
+                className="shrink-0 px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                title={
+                  isPublic
+                    ? "Public: in marketplace + resolve. Click to make private."
+                    : "Private: excluded from public resolve. Click to make public."
+                }
+              >
+                {busy ? "Saving..." : isPublic ? "Public" : "Private"}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </SectionCard>
   );
@@ -629,9 +931,284 @@ function FlexOnboardingSection({
   );
 }
 
+function TierPicker({
+  apiKey,
+  currentStatus,
+  onAuthError,
+}: {
+  apiKey: string;
+  currentStatus: string;
+  onAuthError: (err: unknown) => void;
+}) {
+  const [busy, setBusy] = useState<"pro" | "metered" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function upgrade(tier: "pro" | "metered") {
+    setBusy(tier);
+    setError(null);
+    try {
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "https://unbrowse.ai";
+      const res = await fetch(`/api/billing/checkout`, {
+        // Frontend talks to the worker directly via the api-base; reusing
+        // authed() via account-client would couple this picker to the
+        // account module's fetch helper. Inline call keeps it lean.
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ tier, return_url: `${origin}/billing/success` }),
+      }).catch(async (err) => {
+        // The /api/billing/checkout shim doesn't exist; fall through to a
+        // direct backend POST in that case.
+        throw err;
+      });
+      let url: string | null = null;
+      if (res.ok) {
+        const json = (await res.json()) as { url?: string };
+        url = json.url ?? null;
+      }
+      if (!url) {
+        // Direct backend fallback (no Next.js proxy).
+        const { getConfiguredApiOrigin } = await import("@/lib/api-base");
+        const backend = getConfiguredApiOrigin();
+        const direct = await fetch(`${backend}/v1/billing/checkout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({ tier, return_url: `${origin}/billing/success` }),
+        });
+        if (!direct.ok) {
+          throw new Error(`HTTP ${direct.status}: ${await direct.text()}`);
+        }
+        const json = (await direct.json()) as { url?: string };
+        url = json.url ?? null;
+      }
+      if (!url) throw new Error("checkout returned no url");
+      if (typeof window !== "undefined") window.location.href = url;
+    } catch (err) {
+      onAuthError(err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // When there's already an active subscription, hide the tier picker;
+  // the "Manage subscription" link routes the user through Stripe portal.
+  if (currentStatus !== "none") return null;
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void upgrade("pro")}
+          disabled={busy !== null}
+          className="px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-primary hover:bg-surface-raised transition-all disabled:opacity-50"
+          title="Pro: $20/mo + 200k uc monthly credit grant"
+        >
+          {busy === "pro" ? "..." : "Upgrade to Pro · $20/mo"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void upgrade("metered")}
+          disabled={busy !== null}
+          className="px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
+          title="Metered: pay per execute via Stripe Meter API"
+        >
+          {busy === "metered" ? "..." : "Switch to Metered"}
+        </button>
+      </div>
+      {error && <span className="text-xs text-red-400">{error}</span>}
+    </div>
+  );
+}
+
+function X402Panel({
+  apiKey,
+  onAuthError,
+}: {
+  apiKey: string;
+  onAuthError: (err: unknown) => void;
+}) {
+  const [sponsor, setSponsor] = useState<SponsorStatus | null>(null);
+  const [credits, setCredits] = useState<CreditBalance | null>(null);
+  const [creditsEnabled, setCreditsEnabled] = useState<boolean | null>(null);
+  const [userCredits, setUserCredits] = useState<UserCreditBalance | null>(null);
+  const [billing, setBilling] = useState<BillingMe | null>(null);
+  const [me, setMe] = useState<AccountMe | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [s, cb, b, uc, m] = await Promise.all([
+          fetchSponsorStatus(apiKey).catch((err) => {
+            onAuthError(err);
+            throw err;
+          }),
+          fetchCreditBalance(apiKey),
+          fetchBillingMe(apiKey),
+          fetchUserCredits(apiKey).catch(() => null),
+          fetchMe(apiKey).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setSponsor(s);
+        setCredits(cb);
+        setMe(m);
+        setCreditsEnabled(cb !== null);
+        setBilling(b);
+        setUserCredits(uc);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiKey, onAuthError]);
+
+  if (error) {
+    return (
+      <SectionCard title="x402 payments">
+        <ErrorChip message={error} />
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard title="x402 payments">
+      <p className="text-xs text-text-muted">
+        Live numbers, no estimates. Sponsor tier covers your first $/day before
+        x402 falls through to your own wallet or a bound credit budget.
+      </p>
+      {!sponsor ? (
+        <div className="text-sm text-text-muted">Loading...</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {userCredits && (userCredits.granted_uc > 0 || userCredits.balance_uc > 0) && (
+            <div className="rounded-lg border border-border bg-surface p-3 sm:col-span-2">
+              <div className="text-xs text-text-muted">
+                Your credit balance (Stripe-tier grants)
+              </div>
+              <div className="text-sm text-text-primary font-mono">
+                ${(userCredits.balance_uc / 1_000_000).toFixed(4)}
+              </div>
+              <div className="text-[10px] text-text-muted font-mono">
+                granted ${(userCredits.granted_uc / 1_000_000).toFixed(4)} ·
+                earned ${(userCredits.earned_uc / 1_000_000).toFixed(4)} ·
+                consumed ${(userCredits.consumed_uc / 1_000_000).toFixed(4)}
+              </div>
+            </div>
+          )}
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="text-xs text-text-muted">Sponsor today</div>
+            <div className="text-sm text-text-primary font-mono">
+              {sponsor.enabled
+                ? `$${sponsor.remaining_today_usd.toFixed(4)} left of $${sponsor.cap_daily_usd.toFixed(2)}`
+                : "not enabled"}
+            </div>
+            <div className="text-[10px] text-text-muted font-mono">
+              spent ${sponsor.spent_today_usd.toFixed(4)} · org
+              ${sponsor.global_spent_today_usd.toFixed(2)} / $
+              {sponsor.global_cap_daily_usd.toFixed(2)}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="text-xs text-text-muted">Credit balance</div>
+            <div className="text-sm text-text-primary font-mono">
+              {creditsEnabled === false
+                ? "not enabled"
+                : credits
+                  ? `$${(credits.balance_uc / 1_000_000).toFixed(4)} (${credits.is_self_sustaining ? "self-sustaining" : "subsidy"})`
+                  : "Loading..."}
+            </div>
+            {credits && (
+              <div className="text-[10px] text-text-muted font-mono">
+                earned ${(credits.earned_uc / 1_000_000).toFixed(4)} ·
+                spent ${(credits.consumed_uc / 1_000_000).toFixed(4)}
+              </div>
+            )}
+          </div>
+          <div className="rounded-lg border border-border bg-surface p-3 sm:col-span-2">
+            <div className="text-xs text-text-muted">Subscription</div>
+            <div className="text-sm text-text-primary">
+              {billing && billing.status !== "none"
+                ? `${billing.status}${"quota" in billing && billing.quota ? ` (quota ${billing.quota})` : ""}`
+                : "No active subscription"}
+            </div>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <Link
+                href="/billing"
+                className="text-xs text-text-secondary hover:text-text-primary underline"
+              >
+                Manage subscription →
+              </Link>
+              <TierPicker
+                apiKey={apiKey}
+                currentStatus={billing?.status ?? "none"}
+                onAuthError={onAuthError}
+              />
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-surface p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="text-xs text-text-muted">
+                Wallet (lobster.cash)
+              </div>
+              <a
+                href="https://lobster.cash"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-text-muted hover:text-text-primary underline"
+              >
+                What is lobster.cash?
+              </a>
+            </div>
+            {me?.wallet_address ? (
+              <>
+                <div className="text-sm text-text-primary font-mono break-all">
+                  {me.wallet_address}
+                </div>
+                <div className="text-[10px] text-text-muted font-mono">
+                  provider {me.wallet_provider ?? "lobster.cash"}
+                  {me.flex_escrow_address ? (
+                    <> · flex escrow {me.flex_escrow_address.slice(0, 6)}...{me.flex_escrow_address.slice(-4)}</>
+                  ) : null}
+                </div>
+                <div className="text-[10px] text-text-muted">
+                  unbrowse owns: intent, amount, recipient, memo.
+                  lobster owns: provisioning, signing, broadcast.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-sm text-text-primary">
+                  No payout wallet configured.
+                </div>
+                <div className="text-[10px] text-text-muted">
+                  Run <code className="px-1 py-0.5 rounded bg-surface-elevated">npx @crossmint/lobster-cli setup</code> on the machine you run unbrowse from. After setup, the next authed CLI call auto-publishes the wallet here.
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 function QuickLinks() {
   const links: Array<{ href: string; label: string; external?: boolean }> = [
     { href: "/dashboard", label: "Dashboard / earnings + activity" },
+    { href: "/account/cookies", label: "Cookie cloud vault" },
     { href: "/search", label: "Marketplace / browse skills" },
     { href: "/billing", label: "Billing / subscription + usage" },
     { href: "/papers", label: "Paper / read the research" },
@@ -723,7 +1300,7 @@ export default function AccountPage() {
           Your account
         </h1>
         <p className="text-sm text-text-secondary">
-          Profile, API keys, and skill ownership for this Unbrowse account.
+          Profile, API keys, skill visibility, cookie vault, x402 payments.
         </p>
       </header>
 
@@ -735,6 +1312,7 @@ export default function AccountPage() {
       <SkillsSection apiKey={apiKey} onAuthError={handleAuthError} />
       <PreferencesSection apiKey={apiKey} onAuthError={handleAuthError} />
       <BillingSummary apiKey={apiKey} onAuthError={handleAuthError} />
+      <X402Panel apiKey={apiKey} onAuthError={handleAuthError} />
       <QuickLinks />
     </main>
   );

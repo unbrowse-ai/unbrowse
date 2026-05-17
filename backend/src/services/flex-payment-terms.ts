@@ -86,6 +86,13 @@ export async function buildFlexPaymentTerms(
     agentEscrow: string;
     resource: string;
     currentSlot: bigint;
+    /**
+     * Caller agent_id for the L2 rail-rotation bucket. When provided,
+     * the `accepts` array ordering is biased by PAYAI_ROTATION_BPS so a
+     * given agent consistently sees the same scheme first across calls.
+     * Anonymous callers fall back to bucket 0.
+     */
+    agentId?: string;
   },
 ): Promise<FlexPaymentRequired> {
   const platformAta = platformRecipientUsdcAta(env);
@@ -111,6 +118,42 @@ export async function buildFlexPaymentTerms(
   const payaiFeePayer = env.PAYAI_FEEPAYER_PUBKEY?.trim() ||
     "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4";
 
+  const flexAccept: FlexAcceptEntry = {
+    scheme: "@faremeter/flex",
+    network: "solana-mainnet",
+    amount: maxAmountUc.toString(10),
+    asset: USDC_MINT_MAINNET,
+    payTo: opts.agentEscrow,
+    maxTimeoutSeconds: 60,
+    extra: {
+      flexAuthorizationDraft: draft,
+      splits,
+      programId,
+    },
+  };
+  const exactAccept: ExactAcceptEntry = {
+    scheme: "exact",
+    network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    amount: maxAmountUc.toString(10),
+    asset: USDC_MINT_MAINNET,
+    payTo: platformAta,
+    maxTimeoutSeconds: 300,
+    extra: {
+      feePayer: payaiFeePayer,
+      facilitator: "https://facilitator.payai.network",
+    },
+  };
+
+  // L2 rotation: bias which scheme the client sees first by the
+  // PAYAI_ROTATION_BPS hash bucket on the caller's agent_id. Clients
+  // generally pay the first accept entry whose scheme they recognize,
+  // so the array order is the actual traffic-routing knob.
+  const { pickRail } = await import("./rail-rotation.js");
+  const rail = pickRail(env, opts.agentId);
+  const accepts = rail.primary === "payai"
+    ? [exactAccept, flexAccept]
+    : [flexAccept, exactAccept];
+
   return {
     x402Version: 2,
     error: "Payment Required",
@@ -119,32 +162,6 @@ export async function buildFlexPaymentTerms(
       description: `Skill access: ${opts.skill.skill_id}`,
       mimeType: "application/json",
     },
-    accepts: [
-      {
-        scheme: "@faremeter/flex",
-        network: "solana-mainnet",
-        amount: maxAmountUc.toString(10),
-        asset: USDC_MINT_MAINNET,
-        payTo: opts.agentEscrow,
-        maxTimeoutSeconds: 60,
-        extra: {
-          flexAuthorizationDraft: draft,
-          splits,
-          programId,
-        },
-      },
-      {
-        scheme: "exact",
-        network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-        amount: maxAmountUc.toString(10),
-        asset: USDC_MINT_MAINNET,
-        payTo: platformAta,
-        maxTimeoutSeconds: 300,
-        extra: {
-          feePayer: payaiFeePayer,
-          facilitator: "https://facilitator.payai.network",
-        },
-      },
-    ],
+    accepts,
   };
 }

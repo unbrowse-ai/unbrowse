@@ -82,6 +82,21 @@ export async function lookupUserIdByKey(env: Env, keyId: string): Promise<string
   return v && v.length > 0 ? v : null;
 }
 
+/**
+ * Remove a key from a user's account. Deletes the key2user pointer and drops
+ * the keyId from the user's key list. Used by revoke and rotate so a revoked
+ * key no longer counts toward the account or resolves to a user_id.
+ */
+export async function unbindKeyFromUser(env: Env, keyId: string, userId: string): Promise<void> {
+  const kv = statsKV(env);
+  await kv.delete(`${KEY2USER_PREFIX}${keyId}`);
+  const raw = await kv.get(`${USERKEYS_PREFIX}${userId}`) as string | null;
+  if (!raw) return;
+  const row = JSON.parse(raw) as UserKeysRow;
+  const next = row.keyIds.filter((k) => k !== keyId);
+  await kv.put(`${USERKEYS_PREFIX}${userId}`, JSON.stringify({ keyIds: next } satisfies UserKeysRow));
+}
+
 export async function listKeysForUser(env: Env, userId: string): Promise<string[]> {
   const raw = await statsKV(env).get(`${USERKEYS_PREFIX}${userId}`) as string | null;
   if (!raw) return [];

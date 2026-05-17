@@ -21,12 +21,16 @@ billingRoutes.use("/billing/*", rateLimit({ limit: 30, window: 60, prefix: "bill
 billingRoutes.post("/billing/checkout", bearerAuth, async (c) => {
   const userId = c.get("user_id");
   if (!userId) return c.json({ error: "user_required" }, 401);
-  const body = await c.req.json<{ return_url?: string }>().catch(() => ({} as { return_url?: string }));
+  const body = await c.req.json<{ return_url?: string; tier?: "pro" | "metered" | "base" }>().catch(
+    () => ({} as { return_url?: string; tier?: "pro" | "metered" | "base" }),
+  );
   const returnUrl = body.return_url ?? `${c.env.PUBLIC_FRONTEND_URL ?? "https://unbrowse.ai"}/billing/success`;
   const email = ((c.get as unknown as (k: string) => string | undefined)("email")) ?? `${userId}@users.unbrowse.ai`;
   try {
-    const { url } = await createCheckoutSession(c.env, userId, email, returnUrl);
-    return c.json({ url });
+    const result = await createCheckoutSession(c.env, userId, email, returnUrl, {
+      tier: body.tier,
+    });
+    return c.json(result);
   } catch (err) {
     console.error("[billing/checkout]", (err as Error).message);
     return c.json({ error: "checkout_failed", message: (err as Error).message }, 500);

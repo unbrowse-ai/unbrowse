@@ -1,0 +1,35 @@
+id: unbrowse-lobster-integration
+mode: product
+description: >
+  Tighten the lobster.cash integration in the unbrowse client. Today's
+  contract is read-only (env var + ~/.lobster/agents.json lookup); the
+  next step is to auto-publish the wallet to the backend agent profile,
+  surface the Flex escrow + session-key state, give the CLI a wallet
+  status subcommand, and document lobster as the canonical wallet
+  provider entry point.
+repo: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+backend_dir: backend
+frontend_dir: frontend
+improvement_loop: __ship_directly__
+
+scope:
+  lobster_local_config: ~/.lobster/agents.json (read-only consumer)
+  delegation_boundary: |
+    unbrowse owns: intent, amount, recipient, memo, wallet display
+    lobster owns: wallet provisioning, key custody, signing, broadcast
+
+sources:
+  - kind: command
+    id: code-audit
+    run: "in-context grep of src/payments/* and src/cli.ts (wave 6 of unbrowse-payments-faremeter on 2026-05-18)"
+
+features:
+  - lobster_wallet_status_endpoint   # GET /v1/account/wallet
+  - lobster_wallet_card_on_account
+  - cli_unbrowse_wallet_status
+  - docs_lobster_named_in_how_unbrowse_pays
+  - flex_escrow_resolution_from_env
+
+verify:
+  no_secrets_in_repo: true
+  no_lobster_private_keys_handled: true   # delegation boundary stays

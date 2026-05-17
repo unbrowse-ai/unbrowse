@@ -6,7 +6,7 @@ Unbrowse — API-native agent browser powered by Kuri. Discovers internal APIs (
 
 ## North Star
 
-100x traction in one month (Apr 2 — May 2 2026). Every action should be evaluated against this. If it doesn't drive installs, usage, or retention — don't do it.
+100x traction is the standing goal. Every action should be evaluated against this. If it doesn't drive installs, usage, or retention — don't do it.
 
 Baselines (Apr 2): 611 stars, 5.4K npm downloads, 819 keys, 197 WAU, 88 executions, 3 marketplace endpoints.
 
@@ -48,7 +48,6 @@ Every code change is judged against the calling agent's experience. The four inv
 - **X.com timeline API not captured passively** — X's GraphQL HomeTimeline uses POST with massive JSON body that `extractEndpoints` filters out. Need to handle GraphQL POST endpoints with `operationName` extraction.
 - **MCP UX gaps vs CLI** — see [`docs/mcp-vs-cli-ux-audit.md`](docs/mcp-vs-cli-ux-audit.md). `src/mcp.ts` has command parity with the CLI but `listChanged: false`, hints are prose-only `_workflow_hints` instead of structured `next_action`, and no `workflow:*` recipe prompts. Verify claims still hold: `bash scripts/verify-mcp-audit.sh`.
 - **MCP workflow guide** — step-by-step tool-call sequence for callers, see [`docs/mcp-workflow-guide.md`](docs/mcp-workflow-guide.md). Three intent classes (cached / cold-browse-publish / URL-contents), all 33 tools referenced with `src/mcp.ts:LINE` cites. Falsifier: `bash scripts/verify-mcp-workflow-guide.sh` (length, coverage, citation-content match).
-- **Fourth `mcp.ts` mirror not covered by sync** — `.agents/skills/unbrowse/src/mcp.ts` is a vendored snapshot at commit `9f124ba1` that `scripts/sync-skill.sh` does not touch, so it sits outside the three-file `EndpointDescriptor` invariant declared above. Decision deferred: promote it into the sync flow or delete the snapshot in a later loop. Surfaced by `/jesus-loop` Day 1 light pass 2026-05-13. Falsifier: `bash scripts/verify-third-mirror-drift.sh` (compares whitespace-stripped `maybePostProcessResult` hashes against `scripts/.third-mirror-baseline`).
 ## Structure
 
 - `src/` — local server (resolve, execute, capture, MCP) — what the CLI/MCP run against
@@ -346,7 +345,6 @@ Omit empty sections. No emojis. No file paths or function names.
   - `pkill -9 -f 'unbrowse|kuri'; sleep 2` remains the nuclear option if any of the above leaves a zombie. The "Always kill" rule above still applies for SIGKILL-during-request edge cases that pin the activity bump. Phase 2.1 will revisit after a two-week production observation window.
 - **Guard HAR entry iteration**. Kuri HAR entries may have `undefined` headers/response fields. Always use `entry.request.headers ?? []`, never bare `entry.request.headers`.
 - **Guard kuri evaluate results**. `kuri.getCurrentUrl` and `kuri.getPageHtml` may return `"[object Object]"` when Kuri's CDP response shape changes. Validate URL starts with `http` and HTML starts with `<`.
-- **`rach/restart-base` is the working branch**, not `main`. Main is broken. Do not merge from or rebase onto main.
 - **`autoExtract` must be `true`** in `executeBrowserCapture`'s cookie resolution. Setting it to `false` silently skips browser cookie extraction and breaks all gated sites.
 - **Packaged CLI spawns a separate server process**. `bun src/cli.ts` runs inline (same process), but `unbrowse` (global install) spawns a detached node+tsx server. Stale servers are the #1 cause of "works from source, broken from package".
 - **Never mock in tests**. Tests must hit real endpoints, real files, real functions. Mocked tests pass when prod is broken — they prove nothing. Use live backend URLs (gated behind env vars for CI), real filesystem temp dirs, and actual function calls. If a test can't run without mocking, the code is too coupled — fix the code, not the test.
@@ -712,6 +710,51 @@ This rule applies to ANY bench that produces a per-URL outcome:
 bench-two-phase, bench-hard, bench-local, agent-experience harness,
 codex eval. Heuristic verdicts in any of these are leaven (1 Cor 5:7).
 
+## Parallel gate collection (deterministic, non-LLM): collector binds the harness-judge split
+
+> STATUS 2026-05-17 (updated): VALIDATED AT conc=4. Both root-cause
+> bugs are fixed and falsifier-proven, NOT the `recentLocalSkills` D2
+> race I first hypothesized (that guess was wrong). The real causes,
+> traced: (1) concurrent `/v1/browse/go` raced `createBrowseSession` so
+> sessions cross-bound tabs (probe A rendered probe B) , fixed by
+> per-broker create-lock + create-on-unknown-id (commit 41fab174);
+> (2) `--headless=new` renderer-backgrounds non-active tabs so
+> concurrent snap starved 3/4 , fixed by the standard Playwright
+> background-throttle flags in the kuri launcher (commit db9190af,
+> re-vendored). `.bench-gate/parallel-isolation-falsifier.sh` now
+> PASSES 4/4 (real collector, conc=4, distinct hosts, every probe its
+> own host, indexed); 35/35 browse-session unit tests pass. The
+> collector IS usable for parallel collection at low concurrency. The
+> higher-N ceiling is NOT yet characterized: start at conc=4-6 and
+> raise only with the falsifier green at that N. The single in-thread
+> serial loop also remains valid. Judgment still single in-thread.
+
+`scripts/mcp-gate-parallel-collect.ts` is the parallel, NON-LLM collector
+for the MCP release gate. It is the operational form of the rule above:
+collection MAY be parallel and non-LLM; the VERDICT stays a single
+in-thread agent reading raw artifacts vs `harness/probes/GATE_JUDGE.md`.
+
+- One deterministic process, bounded worker pool. `UNBROWSE_GATE_CONCURRENCY`
+  env (default 30) sizes the pool. Each probe runs the faithful
+  resolve->go->snap->eval->close->resolve->execute sequence via the real
+  `getInProcessApp` + `app.inject` path, writing the existing 8 artifact
+  files. Resume-safe: a probe whose `execute.meta.json` exists is skipped.
+- Endpoint pick is the deterministic top of score-sorted
+  `available_endpoints` (structural rule, NOT a verdict). Params are
+  derived from the probe URL querystring (structural primitive).
+- It emits ZERO verdicts. `capture.meta.json.iso_self_check`
+  (snap.current_url host vs intended host) is RAW isolation evidence at
+  the chosen concurrency, judged in-thread, never a script PASS/FAIL.
+- Empirical basis: concurrent sessions isolate cleanly at N<=6 (zero
+  crosstalk), proven by `.bench-gate/parallel-go-falsifier.ts` and
+  `.bench-gate/parallel-crosstalk-observe.ts` (real concurrent
+  app.inject, no mocks). >6 is unverified; the per-probe iso_self_check
+  is the in-run falsifier the agent reads. Full design + the Phase-1
+  collapse finding: `docs/PARALLEL_SESSIONS_REBUILD.md`.
+- Never let an LLM sub-agent collect or judge here: an LLM collector
+  leaks judgment and is slower than the pool; a sub-agent verdict
+  violates the harness/judge split. The gate SKILL.md was amended
+  2026-05-17 to encode exactly this split.
 ## Page-artifact promotion for content-read intents (data-rich SSR pages)
 
 When `rankEndpoints` evaluates a published skill that has BOTH a captured

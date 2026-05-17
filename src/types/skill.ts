@@ -495,6 +495,14 @@ export interface SkillManifest {
    * src/indexer/index.ts.
    */
   reviewed_at?: string;
+  /**
+   * Owner-controlled marketplace visibility. `public` (default) is surfaced
+   * in resolve/search and the public card list; `private` is excluded from
+   * every cross-agent surface while still owned by the publisher. Mirrors
+   * `SkillManifest.visibility` in backend/src/types.ts and
+   * frontend/src/lib/api.ts (tri-file sync; see CLAUDE.md).
+   */
+  visibility?: "public" | "private";
 }
 
 export interface ExecutionTrace {
@@ -638,7 +646,7 @@ export interface OrchestrationTiming {
   get_skill_ms: number;
   execute_ms: number;
   total_ms: number;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache" | "browser-action" | "exa";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache" | "browser-action" | "exa" | "direct-fetch" | "direct-document";
   cache_hit: boolean;
   candidates_found: number;
   candidates_tried: number;

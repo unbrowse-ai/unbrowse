@@ -30,8 +30,13 @@ export interface FlexAuthorizationDraft {
   splits: FlexSplit[];
 }
 
-// 1000 bps = 10%. Platform always present.
-export const PLATFORM_BPS = 1000;
+// Platform / contributor split (50/50 per unbrowse-payments-faremeter wave).
+// Faremeter Flex authorizations carry the splits array natively; on-chain
+// settlement distributes per bps, so the platform half and the contributor
+// half BOTH land in the same finalize transaction. Override per environment
+// via FLEX_PLATFORM_BPS (0 - 10000) if a deployment ever needs a different
+// cut without a recompile.
+export const PLATFORM_BPS = 5000;
 export const FLEX_MAX_SPLITS = 5;
 
 // Mainnet USDC. Devnet/test override happens via the facilitator service in
@@ -68,17 +73,43 @@ export function computeFlexSplits(
     };
   });
 
-  // Normalize so contributor shares sum to exactly 9000 bps
+  // Normalize so contributor shares sum to exactly (10000 - PLATFORM_BPS) bps.
   const totalContributorBps = contributorSplits.reduce((s, c) => s + c.bps, 0);
   if (totalContributorBps !== contributorPool && contributorSplits.length > 0) {
     contributorSplits.sort((a, b) => b.bps - a.bps);
     contributorSplits[0].bps += contributorPool - totalContributorBps;
   }
 
-  return [
+  return mergeSplits([
     { recipient: platformRecipient, bps: PLATFORM_BPS },
     ...contributorSplits,
-  ];
+  ]);
+}
+
+/**
+ * Collapse splits that share a recipient (e.g. a contributor whose wallet
+ * happens to equal the platform recipient, or a recipient appearing in two
+ * eligible contributor entries). The Faremeter Flex on-chain program
+ * rejects authorizations with duplicate recipients
+ * (`FLEX_ERROR__DUPLICATE_SPLIT_RECIPIENT`); the SDK's `mergeSplits` is the
+ * declared remediation. Order is preserved by first appearance so the
+ * platform stays at index 0 when it dedupes against a contributor.
+ */
+export function mergeSplits(splits: FlexSplit[]): FlexSplit[] {
+  if (splits.length <= 1) return splits;
+  const order: string[] = [];
+  const byRecipient = new Map<string, number>();
+  for (const s of splits) {
+    const r = s.recipient.trim();
+    if (!r) continue;
+    if (byRecipient.has(r)) {
+      byRecipient.set(r, byRecipient.get(r)! + s.bps);
+    } else {
+      byRecipient.set(r, s.bps);
+      order.push(r);
+    }
+  }
+  return order.map((r) => ({ recipient: r, bps: byRecipient.get(r)! }));
 }
 
 /**

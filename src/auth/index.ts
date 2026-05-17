@@ -227,6 +227,19 @@ export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | 
 }
 
 export function forceVisibleKuriEnv(env: NodeJS.ProcessEnv = process.env): () => void {
+  // Hard-headless lock. forceVisibleKuriEnv mutates process-global env so an
+  // interactive login or anti-bot fallback can pop a visible browser. Under
+  // the per-session-Kuri concurrency one probe's visible flip poisoned every
+  // other concurrent session's headless setting (2026-05-17: 40/58 sessions
+  // launched visible during a conc=16 gate run). When a caller declares the
+  // process must stay headless (UNBROWSE_FORCE_HEADLESS=1/true, set by the
+  // gate collector and any concurrent headless workload), this is a no-op:
+  // env is untouched and the returned restore does nothing. A real
+  // `unbrowse login` never sets the lock, so interactive auth is unchanged.
+  const lock = env.UNBROWSE_FORCE_HEADLESS;
+  if (lock === "1" || lock?.toLowerCase() === "true") {
+    return () => {};
+  }
   const prevHeadless = env.HEADLESS;
   const prevKuriHeadless = env.KURI_HEADLESS;
   const prevDisableCdpAttach = env.KURI_DISABLE_CDP_ATTACH;

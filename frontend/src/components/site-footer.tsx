@@ -13,20 +13,19 @@ const PRODUCT_LINKS: Array<{ href: string; label: string }> = [
   { href: "/", label: "Overview" },
   { href: "/#install", label: "Install" },
   { href: "/#demo", label: "Demo" },
-  { href: "/leaderboard", label: "Leaderboard" },
   { href: "/miners", label: "Miners" },
 ];
 
 const DEVELOPER_LINKS: Array<{ href: string; label: string }> = [
   { href: "https://github.com/unbrowse-ai/unbrowse", label: "GitHub" },
   { href: "https://www.npmjs.com/package/unbrowse", label: "npm" },
-  { href: "/skill.md", label: "Agent skill (skill.md)" },
   { href: "/llms.txt", label: "llms.txt" },
   { href: "/.well-known/ai-plugin.json", label: "ai-plugin.json" },
 ];
 
 const RESOURCES_LINKS: Array<{ href: string; label: string }> = [
   { href: "/internal-apis-are-all-you-need", label: "Whitepaper" },
+  { href: "/how-unbrowse-pays", label: "How Unbrowse pays" },
   { href: "/papers", label: "Papers" },
   { href: "/blog", label: "Blog" },
   { href: "/faq", label: "FAQ" },

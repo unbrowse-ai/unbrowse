@@ -61,6 +61,8 @@ import {
   decideExplicitPublish,
   getCapturePipelineSettings,
   updateCapturePipelineSettings,
+  getBrowserAttachEnabled,
+  setBrowserAttachEnabled,
 } from "../settings.js";
 import { publishFoundryBundle } from "../foundry/publish-bundle.js";
 import { buildEndpointReviewContext } from "../publish/review-context.js";
@@ -318,11 +320,40 @@ function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
   return kuri.getKuriClient();
 }
 
-function selectBrowseBrokerClient(requestedSessionId?: string): kuri.KuriClient {
+// Per-session Kuri isolation (opt-in, default OFF). With
+// UNBROWSE_PER_SESSION_KURI set, every NEW browse session gets its own Kuri
+// broker on a dedicated port instead of load-balancing the fixed
+// BROWSE_BROKER_MAX pool. A distinct port is a distinct brokerCreateQueues key
+// (browse-session.ts withBrokerCreateLock), so concurrent /v1/browse/go calls
+// stop serializing through one create-lock and stop cross-binding tabs (the
+// conc>6 gate-collector corruption, .bench-gate/20260517T102334Z). Dedicated
+// ports sit above the pool base; startOn() free-port-resolves a requested port
+// if it is occupied, so a stale cursor value never collides on the wire.
+// Allocation is synchronous: selectBrowseBrokerClient has no await before it
+// returns, so concurrent callers each take a unique cursor value atomically on
+// the single-threaded event loop.
+const PER_SESSION_BROKER_BASE_PORT = BROWSE_BROKER_BASE_PORT + 100;
+let perSessionBrokerCursor = 0;
+
+function perSessionKuriEnabled(): boolean {
+  const v = process.env.UNBROWSE_PER_SESSION_KURI;
+  return v === "1" || v?.toLowerCase() === "true";
+}
+
+function allocatePerSessionBrokerPort(): number {
+  return PER_SESSION_BROKER_BASE_PORT + perSessionBrokerCursor++;
+}
+
+export function selectBrowseBrokerClient(requestedSessionId?: string): kuri.KuriClient {
   if (requestedSessionId) {
     const existing = browseSessions.get(requestedSessionId);
     if (existing?.client) return existing.client as kuri.KuriClient;
     if (existing) return brokerForSession(existing);
+  }
+
+  if (perSessionKuriEnabled()) {
+    // NEW session under per-session isolation: dedicate a fresh broker port.
+    return kuri.getKuriClient(allocatePerSessionBrokerPort());
   }
 
   const loads = new Map<number, number>(browseBrokerPorts().map((port) => [port, 0]));
@@ -692,6 +723,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
     return reply.send({
       capture_pipeline: getCapturePipelineSettings(),
+      browser: { attach_existing_chrome: getBrowserAttachEnabled() },
       contribution: {
         share_pointers: contributionCfg.contribution.share_pointers,
         auto_review: contributionCfg.contribution.auto_review,
@@ -825,6 +857,7 @@ export async function registerRoutes(app: FastifyInstance) {
       clear_publish_domain_promptlist?: boolean;
       share_pointers?: boolean;
       auto_review?: boolean;
+      attach_existing_chrome?: boolean;
     };
 
     const settings = updateCapturePipelineSettings({
@@ -869,9 +902,13 @@ export async function registerRoutes(app: FastifyInstance) {
       next_step = "share_pointers=true, auto_review=false: only skills the agent reviews via unbrowse_review publish to the marketplace. Unreviewed captures stay local. Set auto_review=true to skip the review step.";
     }
 
+    if (typeof body.attach_existing_chrome === "boolean") {
+      setBrowserAttachEnabled(body.attach_existing_chrome);
+    }
     return reply.send({
       ok: true,
       capture_pipeline: settings,
+      browser: { attach_existing_chrome: getBrowserAttachEnabled() },
       contribution: {
         share_pointers: sharePointers,
         auto_review: autoReview,
@@ -2805,6 +2842,19 @@ export async function registerRoutes(app: FastifyInstance) {
       let session: BrowseSession;
       let result: { cookiesInjected: number };
       if (sessionId) {
+        // Create-on-unknown-id: a parallel caller (e.g. the gate collector)
+        // may pre-assign a DISJOINT session_id per task. If it does not exist
+        // yet, create it bound to that id (broker-create-locked, so concurrent
+        // creates cannot cross-bind tabs), then take the strict serialized
+        // navigate path. Existing ids keep the original strict behavior.
+        if (!browseSessions.get(sessionId)) {
+          await getOrCreateNavigateBrowseSession(
+            browseSessions,
+            browseClient,
+            injectInterceptor,
+            sessionId,
+          );
+        }
         const navigated = await withSerializedStrictBrowseSession(
           browseSessions,
           browseClient,
@@ -2862,6 +2912,28 @@ export async function registerRoutes(app: FastifyInstance) {
       // Fix B: kick off streaming background publish for this session
       startStreamingWatcher(session);
 
+      // Return the rendered page content inline so a content-read intent
+      // is satisfied by this single call (minimal steps to the intent).
+      // Reuses the exact extractor GET /v1/browse/text uses; best-effort,
+      // never breaks go on failure. Indexing stays deferred (separate
+      // concern, the background streaming watcher above).
+      let page: { text: string; structured_data: string | null } | undefined;
+      try {
+        const pageBroker = brokerForSession(session);
+        const text = await pageBroker.getText(session.tabId);
+        if (typeof text === "string" && text.length > 0) {
+          let structured: string | null = null;
+          try {
+            const html = await pageBroker.getPageHtml(session.tabId);
+            if (typeof html === "string" && html.startsWith("<")) {
+              structured = buildStructuredDataHeader(html);
+            }
+          } catch { /* getPageHtml best-effort */ }
+          const augmented = structured ? `${structured}\n\n---\n\n${text}` : text;
+          page = { text: augmented, structured_data: structured };
+        }
+      } catch { /* getText best-effort: never break go */ }
+
       return reply.send({
         ok: true,
         session_id: session.sessionId,
@@ -2871,6 +2943,7 @@ export async function registerRoutes(app: FastifyInstance) {
         ...(result.cookiesInjected > 0 ? { cookies_injected: result.cookiesInjected } : {}),
         ...(authRequired ? { auth_required: true, auth_hint: authHint } : {}),
         ...(loginWindowOpened ? { login_window_opened: true } : {}),
+        ...(page ? { page } : {}),
         // Autonomy signals — agents read these to judge whether the system is
         // capturing in the background as advertised. No separate "verify" verb;
         // every go response is self-describing.

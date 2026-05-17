@@ -1,8 +1,8 @@
-import { Hono, type Context } from "hono";
+import { Hono, type Context, type Next } from "hono";
 import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../services/discovery.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
+import { bearerAuth, requireSignedClient, optionalAuth } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
 import { searchPaymentsEnabled } from "../middleware/x402-gate.js";
 import {
@@ -13,6 +13,20 @@ import {
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
+
+/**
+ * Public discovery: the website's anonymous skill search must work without an
+ * API key (North Star: public discovery drives installs). When a key IS
+ * presented (an agent), keep the signed-client anti-abuse gate. Anonymous
+ * callers get public card-tier results only -- private skills are already
+ * out of the graph index (visibility toggle), so this never leaks them.
+ */
+async function signedClientIfAuthed(c: Context<{ Bindings: Env; Variables: { agent_id: string; user_id?: string } }>, next: Next) {
+  if (c.get("agent_id")) {
+    return requireSignedClient(c, next);
+  }
+  await next();
+}
 function schedule<T, E extends { Bindings: Env }>(c: Context<E>, task: Promise<T>): void {
   try {
     c.executionCtx.waitUntil(task);
@@ -184,12 +198,19 @@ searchRoutes.use("/search", rateLimit({ limit: 30, window: 60, prefix: "search" 
 searchRoutes.use("/search/domain", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 searchRoutes.use("/search/resolve", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 
-searchRoutes.post("/search", bearerAuth, requireSignedClient, async (c) => {
+searchRoutes.post("/search", optionalAuth, signedClientIfAuthed, async (c) => {
   const { intent, k } = await c.req.json<{ intent: string; k?: number }>();
   if (!intent) return c.json({ error: "intent required" }, 400);
   try {
-    const gate = await requireSearchPayment(c, "search");
-    if (gate) return gate;
+    // Anonymous = the public website skill registry. Free, rate-limited,
+    // public-only (private skills are out of the graph index). Payment +
+    // the search fee apply to authenticated agents doing programmatic
+    // resolution -- that's where the x402 search economics belong.
+    const isAnonymous = !c.get("agent_id");
+    if (!isAnonymous) {
+      const gate = await requireSearchPayment(c, "search");
+      if (gate) return gate;
+    }
     const agentId = c.get("agent_id") ?? "anonymous";
     const cacheTtlSeconds = 30;
     const results = shouldCacheSearch(c)
@@ -198,7 +219,7 @@ searchRoutes.post("/search", bearerAuth, requireSignedClient, async (c) => {
       }))
       : { results: await searchIntent(c.env, intent, k ?? 5) };
     if (shouldCacheSearch(c)) setSearchCacheHeaders(c, cacheTtlSeconds);
-    if (shouldRequireSearchPayment(c.env)) {
+    if (!isAnonymous && shouldRequireSearchPayment(c.env)) {
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     }
