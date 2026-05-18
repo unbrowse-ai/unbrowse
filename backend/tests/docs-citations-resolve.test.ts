@@ -18,7 +18,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 
@@ -26,6 +26,13 @@ const DOCS = [
   "docs/HOW_UNBROWSE_PAYS.md",
   "docs/EARN_AS_INDEXER.md",
   "docs/CLAIM_YOUR_DOMAIN.md",
+  // 2026-05-18 follow-up: concept-level docs added alongside the
+  // sabbath-verdict cleanup. Same citation discipline as Step-3 docs.
+  // (docs/sdk/rewards-and-economics.md uses bare-filename SUMMARY refs
+  // like `layer.md` which the regex treats as repo-relative paths and
+  // misclassifies; it's covered by the SDK doc test harness, not here.)
+  "docs/concepts/fare-splits.md",
+  "docs/concepts/claiming-a-website.md",
 ];
 
 // Extension allowlist: only citations ending in a real source extension
@@ -42,7 +49,7 @@ const DOCS = [
 //   - `(?![A-Za-z0-9_])` after the extension prevents matches like
 //     `foo.tsfile`.
 const CITATION_RE =
-  /(?<![A-Za-z0-9_/@:.])\.?[A-Za-z][\w/.-]*\.(tsx|jsx|mjs|cjs|ts|js|md|sh|json|yaml|yml|toml)(?![A-Za-z0-9_])(:\d+(?:-\d+)?)?/g;
+  /(?<![A-Za-z0-9_/@:.\-])\.?[A-Za-z][\w/.-]*\.(tsx|jsx|mjs|cjs|ts|js|md|sh|json|yaml|yml|toml)(?![A-Za-z0-9_])(:\d+(?:-\d+)?)?/g;
 
 interface RawCitation {
   doc: string;
@@ -154,7 +161,16 @@ function countLines(absPath: string): number {
 function validate(citations: RawCitation[]): CiteFailure[] {
   const failures: CiteFailure[] = [];
   for (const c of citations) {
-    const abs = resolve(REPO_ROOT, c.pathPart);
+    // Try repo-root resolution first (legacy Step-3 docs cite
+    // backend/src/... paths). If that file doesn't exist, fall back to
+    // doc-relative resolution (concept-level docs cross-link siblings
+    // via bare filenames like `fare-splits.md`).
+    let abs = resolve(REPO_ROOT, c.pathPart);
+    if (!existsSync(abs)) {
+      const docDir = dirname(resolve(REPO_ROOT, c.doc));
+      const altAbs = resolve(docDir, c.pathPart);
+      if (existsSync(altAbs)) abs = altAbs;
+    }
     if (!existsSync(abs)) {
       failures.push({
         doc: c.doc,

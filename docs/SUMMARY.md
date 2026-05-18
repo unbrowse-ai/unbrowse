@@ -34,6 +34,8 @@
 * [Accountable Bonding and Where FDRY Fits](concepts/accountable-bonding.md)
 * [How Quality Is Evaluated](concepts/evaluation-framing.md)
 * [Verification and Proofs](concepts/verification-and-proofs.md)
+* [Fare Splits](concepts/fare-splits.md)
+* [Claiming a Website](concepts/claiming-a-website.md)
 
 ## For Investors
 
