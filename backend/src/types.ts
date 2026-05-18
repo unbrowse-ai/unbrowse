@@ -436,6 +436,26 @@ export interface SkillManifest {
    */
   owner_compensation_opt_in?: boolean;
   /**
+   * Solana pubkey of the verified domain owner. SERVER-OWNED. Stamped only
+   * by the DNS-claim verify endpoint at backend/src/routes/claim.ts after
+   * the dual-DoH attestation passes (see backend/src/services/domain-claim.ts
+   * for the verification primitive). PATCH /v1/skills/:id MUST reject any
+   * user-supplied value for this field.
+   */
+  owner_wallet_address?: string;
+  /**
+   * USDC ATA derived from owner_wallet_address. SERVER-OWNED. Required by
+   * computeFlexSplits in backend/src/services/flex.ts to route the OWNER_BPS
+   * lane; until this field is populated the owner branch is dormant.
+   */
+  owner_wallet_usdc_ata?: string;
+  /**
+   * ISO timestamp the DNS-TXT verify succeeded. SERVER-OWNED. Surfaced on
+   * the public /v1/claim/status endpoint so a site owner can confirm their
+   * binding without re-running the verify flow.
+   */
+  owner_wallet_verified_at?: string;
+  /**
    * Optional base price override in USD per execution.
    * If unset, the platform default base price applies.
    */
