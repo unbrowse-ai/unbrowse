@@ -148,69 +148,41 @@ test("BUG-1: DOM-fallback uses session cookies so CF-gated tryHttpFetch returns 
   expect(result.skill?.endpoints.length).toBeGreaterThan(0);
 });
 
-test("BUG-1 mutation: without getCookies, CF-gated fallback still fails (proves the cookies matter)", async () => {
-  // Same padded shape as test #1 — needs >1024 bytes to pass tryHttpFetch.
-  const realHtml = `<!DOCTYPE html>
-<html lang="en-US">
-<head>
-  <meta charset="utf-8">
-  <title>openai - npm</title>
-  <meta name="description" content="The official TypeScript library for the OpenAI API. Latest version 6.38.0">
-  <meta property="og:title" content="openai">
-  <link rel="canonical" href="http://npmjs.example/package/openai">
-</head>
-<body>
-  <main>
-    <h1>openai</h1>
-    <p>The official TypeScript library for the OpenAI API. Latest version 6.38.0, last published 2 days ago. Start using openai in your project by running 'npm i openai'. The library includes type definitions for all request params and response fields, offers both synchronous and asynchronous clients powered by fetch, and is the most-installed OpenAI client on npm.</p>
-    <dl>
-      <dt>Latest version</dt><dd>6.38.0</dd>
-      <dt>License</dt><dd>Apache-2.0</dd>
-      <dt>Unpacked size</dt><dd>3.4 MB</dd>
-      <dt>Weekly downloads</dt><dd>10,221,447</dd>
-    </dl>
-  </main>
-</body>
-</html>`;
+// (deleted: "BUG-1 mutation: without getCookies, CF-gated fallback still fails")
+//
+// This mutation test was pinning the pre-PR#500 admission gate which
+// rejected DOM-fallbacks under confidence 0.5. PR#500 removed the gate
+// by design — agent + usage signal now decide quality via the
+// reliability_score feedback loop. The "without getCookies = indexed
+// false" mutation no longer falsifies anything: every non-null capture
+// admits. Keeping the test as `indexed=false` was actively wrong;
+// rewriting it to `indexed=true with neutral reliability` is moot
+// because reliability_score is a usage-time signal, not a publish-time
+// constant (dag-feedback boosts it 0.05 per success). The happy-path
+// test above + the non-fatal-error test below already pin every
 
+test("BUG-1: getCookies failure is non-fatal (substrate doesn't throw, falls back to empty cookies)", async () => {
+  const realHtml = `<!DOCTYPE html>
+<html><head><title>openai - npm</title><meta name="description" content="The official TypeScript library for the OpenAI API."></head>
+<body><main><h1>openai</h1><dl><dt>Latest version</dt><dd>6.38.0</dd><dt>License</dt><dd>Apache-2.0</dd><dt>Weekly downloads</dt><dd>10221447</dd></dl></main></body></html>`;
   const { baseUrl } = await startCfGatedServer(realHtml, "cf_clearance=abc123");
   const sessionUrl = `${baseUrl}/package/openai`;
 
-  // No getCookies passed — server-fetch gets the CF challenge stub.
+  // Whatever happens here — admitted or rejected — the substrate must
+  // not throw. This is the ONLY behavioural claim this test makes;
+  // indexed-value assertions belong in the dedicated admission tests
+  // above. (Pre-#500 this also asserted indexed===false; that was
+  // pinning the heuristic admission gate which has since been
+  // removed by design.)
   const result = await cacheBrowseRequests({
     sessionUrl,
     sessionDomain: "127.0.0.1",
     requests: [],
     getPageHtml: async () => "[object Object]",
+    getCookies: async () => { throw new Error("simulated cookie store error"); },
     intent: "get package info openai",
   });
 
-  // The CF challenge stub returns ~5KB of garbage. extractFromDOM only
-  // produces html_metadata_fallback at confidence 0.4, below the
-  // shouldIndexDomBrowseFallback 0.5 gate. So indexed should be false.
-  expect(result.indexed).toBe(false);
-});
-
-test("BUG-1: getCookies failure is non-fatal (falls back to empty cookies, same as no callback)", async () => {
-  const realHtml = `<!DOCTYPE html><html><head><title>x</title></head><body><h1>x</h1></body></html>`;
-  const { baseUrl } = await startCfGatedServer(realHtml, "cf_clearance=zzz");
-  const sessionUrl = `${baseUrl}/package/openai`;
-
-  // getCookies throws — must not crash; DOM-fallback runs with empty cookies.
-  const result = await cacheBrowseRequests({
-    sessionUrl,
-    sessionDomain: "127.0.0.1",
-    requests: [],
-    getPageHtml: async () => "[object Object]",
-    getCookies: async () => {
-      throw new Error("simulated broker error");
-    },
-    intent: "x",
-  });
-
-  // Same behavior as no getCookies — CF gate refuses, DOM-fallback can't
-  // extract from challenge stub. Test that the result is a clean indexed:false,
-  // not an unhandled-promise crash.
-  expect(result.indexed).toBe(false);
-  expect(result.skill).toBeNull();
+  expect(result).toBeTruthy();
+  expect(typeof result.indexed).toBe("boolean");
 });
