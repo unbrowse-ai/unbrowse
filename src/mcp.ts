@@ -2950,6 +2950,37 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
     currentRequestId = null;
   }
 }
+/**
+ * Probe localhost:6969 at MCP startup. Phase 0d binaries don't bind it,
+ * but older globally-installed `unbrowse` binaries auto-spawn a daemon
+ * there. When both run, kuri broker state leaks and the browse transport
+ * wedges (memory: reference_mcp_wedged_by_stale_global_daemon).
+ *
+ * Substrate-correct behaviour: detect, warn loudly with the exact
+ * remediation command, and keep going. We do NOT auto-kill because the
+ * user may be running `unbrowse serve` intentionally — a heuristic that
+ * decides "the user actually wants this dead" baked into the substrate
+ * is the kind of prescription this codebase doesn't tolerate.
+ */
+export async function probeStaleDaemonAndWarn(): Promise<void> {
+  if (process.env.UNBROWSE_SKIP_DAEMON_PROBE === "1") return;
+  const probeUrl = process.env.UNBROWSE_DAEMON_PROBE_URL ?? "http://localhost:6969/health";
+  const timeoutMs = Number(process.env.UNBROWSE_DAEMON_PROBE_TIMEOUT_MS ?? 250);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(probeUrl, { signal: controller.signal }).catch(() => null);
+    clearTimeout(timer);
+    if (!res) return; // nothing listening — clean
+    writeStderr("WARN: a process is responding on localhost:6969 — likely a stale `unbrowse` daemon from an older global install.");
+    writeStderr("  This MCP runs the API in-process; the daemon doesn't help it, but kuri state can leak across both and wedge the browse transport.");
+    writeStderr("  Fix:   pkill -9 -f 'unbrowse|kuri'; sleep 2");
+    writeStderr("  Skip:  set UNBROWSE_SKIP_DAEMON_PROBE=1 if you're running `unbrowse serve` intentionally.");
+  } catch {
+    clearTimeout(timer);
+    // probe error (DNS, AbortError, etc.) — silently treat as clean.
+  }
+}
 
 async function main(): Promise<void> {
   // Day 5 Phase 0c: convert async throws into JSON-RPC envelopes routed to the
@@ -3005,6 +3036,16 @@ async function main(): Promise<void> {
   process.on("beforeExit", () => {
     void flushSession();
   });
+
+  // Stale-global-daemon probe. Phase 0d removed the :6969 HTTP daemon
+  // from this build, but users still have older `unbrowse` binaries
+  // globally installed that auto-spawn one. If both are running, kuri
+  // state can leak across them and the browse transport wedges
+  // (memory: reference_mcp_wedged_by_stale_global_daemon). Probe
+  // localhost:6969 with a 250ms timeout — if anything answers, surface
+  // a loud actionable warning. We do NOT auto-kill (the user may be
+  // running `unbrowse serve` intentionally); we tell them what to do.
+  await probeStaleDaemonAndWarn();
 
   writeStderr("starting stateless stdio MCP (in-process API, no daemon)");
 
