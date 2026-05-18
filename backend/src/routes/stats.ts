@@ -13,6 +13,20 @@ import { getSkill } from "../services/marketplace.js";
 import { updateContributorDelta } from "../services/splits.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { getTractionMetrics } from "../services/traction.js";
+import {
+  getEngagement,
+  getRetention,
+  getActivation,
+  getAgentHealth,
+  getBottleneckMetrics,
+} from "../services/analytics.js";
+import {
+  getGrowthMetrics,
+  getUsageMetrics,
+  getOptimizationFunnel,
+  getNetworkHealthMetrics,
+  getUnitEconomicsMetrics,
+} from "../services/metrics.js";
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
 
@@ -80,6 +94,51 @@ publicStatsRoutes.get("/stats/traction", async (c) => {
     return await getTractionMetrics(c.env);
   });
   
+  c.header("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=600");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(payload);
+});
+
+// GET /v1/stats/deep: full analytics surface (cohorts, retention, funnel, bottlenecks).
+publicStatsRoutes.get("/stats/deep", async (c) => {
+  const payload = await getOrSetHttpCache(c.env, "stats:deep", 300, async () => {
+    const [
+      engagement,
+      retention,
+      activation,
+      optimization_funnel,
+      agent_health,
+      growth,
+      usage,
+      bottlenecks,
+      network_health,
+      unit_economics,
+    ] = await Promise.all([
+      getEngagement(c.env),
+      getRetention(c.env),
+      getActivation(c.env),
+      getOptimizationFunnel(c.env),
+      getAgentHealth(c.env),
+      getGrowthMetrics(c.env),
+      getUsageMetrics(c.env),
+      getBottleneckMetrics(c.env),
+      getNetworkHealthMetrics(c.env),
+      getUnitEconomicsMetrics(c.env),
+    ]);
+    return {
+      engagement,
+      retention,
+      activation,
+      optimization_funnel,
+      agent_health,
+      growth,
+      usage,
+      bottlenecks,
+      network_health,
+      unit_economics,
+    };
+  });
+
   c.header("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=600");
   c.header("Access-Control-Allow-Origin", "*");
   return c.json(payload);
