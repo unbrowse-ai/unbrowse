@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { getStatus as getDomainClaimStatus, getTakedownStatus as getDomainTakedownStatus } from "@/lib/claim-client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { PrivyLoginButtonOptional } from "@/components/privy-login-button";
@@ -1200,9 +1201,113 @@ function X402Panel({
               </>
             )}
           </div>
+          <DomainClaimsCard />
         </div>
       )}
     </SectionCard>
+  );
+}
+
+/**
+ * Owner-earnings lookup card. Surfaces verified claim + opt-out status
+ * for a domain the user types in. No "list-my-claimed-domains" route
+ * exists yet — bindings are keyed by domain, not by user — so this is
+ * a lookup form, not a list. Honest scope. If a future backend route
+ * lists bindings by caller wallet, this card swaps to that.
+ *
+ * Pure client component: hits the public GET /v1/claim/status and
+ * /v1/claim/takedown/status endpoints (no auth required for reads).
+ */
+function DomainClaimsCard() {
+  const [domain, setDomain] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [claim, setClaim] = useState<{ verified: boolean; wallet_address?: string; verified_at?: string } | null>(null);
+  const [takedown, setTakedown] = useState<{ opted_out: boolean; opted_out_at?: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function check() {
+    const trimmed = domain.trim().toLowerCase();
+    if (!trimmed) return;
+    setLoading(true);
+    setError(null);
+    setClaim(null);
+    setTakedown(null);
+    try {
+      const [c, t] = await Promise.all([
+        getDomainClaimStatus(trimmed).catch(() => null),
+        getDomainTakedownStatus(trimmed).catch(() => null),
+      ]);
+      setClaim(c);
+      setTakedown(t);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-surface p-3 sm:col-span-2">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-xs text-text-muted">
+          Domain claims (owner earnings lookup)
+        </div>
+        <Link
+          href="/claim"
+          className="text-[10px] text-text-muted hover:text-text-primary underline"
+        >
+          Claim a new domain →
+        </Link>
+      </div>
+      <div className="flex gap-2 mt-2 flex-wrap">
+        <input
+          type="text"
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void check(); }}
+          placeholder="example.com"
+          className="flex-1 min-w-[180px] rounded-md border border-border bg-surface-elevated px-2 py-1 text-sm text-text-primary font-mono"
+        />
+        <button
+          type="button"
+          onClick={() => void check()}
+          disabled={loading || !domain.trim()}
+          className="rounded-md border border-border bg-surface-elevated px-3 py-1 text-xs text-text-primary hover:bg-surface disabled:opacity-50"
+        >
+          {loading ? "Checking..." : "Check"}
+        </button>
+      </div>
+      {error && (
+        <div className="text-[10px] text-red-400 mt-1">{error}</div>
+      )}
+      {(claim || takedown) && (
+        <div className="text-[10px] text-text-muted mt-2 space-y-1">
+          {claim?.verified ? (
+            <div>
+              <span className="text-text-primary">verified</span>: wallet{" "}
+              <span className="font-mono">
+                {claim.wallet_address?.slice(0, 6)}...{claim.wallet_address?.slice(-4)}
+              </span>
+              {claim.verified_at && <> on {new Date(claim.verified_at).toLocaleDateString()}</>}
+              . OWNER_BPS (2000 bps / 20%) routes to this wallet on every paid call to any skill for{" "}
+              <span className="font-mono">{domain.trim().toLowerCase()}</span>.
+            </div>
+          ) : (
+            <div>
+              <span className="text-text-primary">not verified yet</span>. Visit{" "}
+              <Link href="/claim" className="underline hover:text-text-primary">/claim</Link>{" "}
+              to publish a DNS TXT record and bind a wallet. Until then, the 20% owner lane folds back into the indexer pool.
+            </div>
+          )}
+          {takedown?.opted_out && (
+            <div className="text-amber-400">
+              opted out: skills for this domain are marketplace-disabled (since{" "}
+              {takedown.opted_out_at ? new Date(takedown.opted_out_at).toLocaleDateString() : "unknown date"}).
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
