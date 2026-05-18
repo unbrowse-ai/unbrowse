@@ -625,6 +625,13 @@ export interface ExecutionOptions {
   contextUrl?: string;
   /** Skip marketplace search and caches — go straight to browser capture */
   force_capture?: boolean;
+  /** Skip the remote marketplace search entirely, resolve against local
+   *  caches + browser capture only. Set by callers that already hold
+   *  the relevant local skill in hand (e.g. 404-recovery in the
+   *  /v1/skills/:id/execute route — we already KNOW the local skill
+   *  exists with possible sibling endpoints; waiting 2500ms for a
+   *  remote round-trip we'd ignore anyway is pure latency tax). */
+  local_skills_only?: boolean;
   /** Request/client namespace for isolating local server state across concurrent CLI users */
   client_scope?: string;
   /** Set only when the caller has already completed payment verification for a paid run */

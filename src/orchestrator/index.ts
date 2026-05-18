@@ -4135,7 +4135,7 @@ export async function resolveAndExecute(
     process.env.UNBROWSE_RESOLVE_SEARCH_TIMEOUT_MS ?? (context?.url ? "2500" : "10000"),
   );
 
-  if (!forceCapture) {
+  if (!forceCapture && !options?.local_skills_only) {
     // 1. Search marketplace — single remote call, capped by timeout when URL available
     const ts0 = Date.now();
     type SearchResult = { id: number; score: number; metadata: Record<string, unknown> };
