@@ -345,31 +345,84 @@ describe("mintChallenge", () => {
 });
 
 // ---------------------------------------------------------------------------
-// verifyTxtBothProviders stub
+// verifyTxtBothProviders real implementation
+//
+// Dual-DoH attestation. Tests inject a fake `fetchImpl` so we never hit the
+// real Cloudflare/Google DoH endpoints in CI. Same fetch-injection pattern
+// every other test that exercises domain-claim.ts uses.
 // ---------------------------------------------------------------------------
 
-describe("verifyTxtBothProviders (step 2 stub)", () => {
-  it("returns { ok: false, reason: 'not_implemented' } today", async () => {
-    const r = await verifyTxtBothProviders("_unbrowse-claim.example.com", "unbrowse-claim=x;wallet=y");
-    expect(r.ok).toBe(false);
-    if (r.ok === false) {
-      expect(r.reason).toBe("not_implemented");
+function makeDohFetch(opts: {
+  cloudflare?: { status?: number; body?: unknown } | "error";
+  google?: { status?: number; body?: unknown } | "error";
+}): typeof fetch {
+  return (async (input: RequestInfo | URL): Promise<Response> => {
+    const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    const host = new URL(urlStr).hostname;
+    if (host === "cloudflare-dns.com") {
+      if (opts.cloudflare === "error") throw new Error("network down");
+      const { status = 200, body = { Answer: [] } } = opts.cloudflare ?? {};
+      return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/dns-json" } });
     }
+    if (host === "dns.google") {
+      if (opts.google === "error") throw new Error("network down");
+      const { status = 200, body = { Answer: [] } } = opts.google ?? {};
+      return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/dns-json" } });
+    }
+    throw new Error(`Unexpected DoH host: ${host}`);
+  }) as typeof fetch;
+}
+
+describe("verifyTxtBothProviders", () => {
+  it("returns ok with both attestations when both providers match", async () => {
+    const fetchImpl = makeDohFetch({
+      cloudflare: { body: { Answer: [{ type: 16, data: '"unbrowse-claim=abc;wallet=def"' }] } },
+      google: { body: { Answer: [{ type: 16, data: '"unbrowse-claim=abc;wallet=def"' }] } },
+    });
+    const r = await verifyTxtBothProviders(
+      "_unbrowse-claim.example.com",
+      "unbrowse-claim=abc;wallet=def",
+      fetchImpl,
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.attestations).toHaveLength(2);
+      expect(r.attestations.map((a) => a.provider).sort()).toEqual(["cloudflare", "google"]);
+    }
+  });
+
+  it("returns dns_mismatch when neither provider has the expected record", async () => {
+    const fetchImpl = makeDohFetch({
+      cloudflare: { body: { Answer: [{ type: 16, data: '"some-other-value"' }] } },
+      google: { body: { Answer: [{ type: 16, data: '"some-other-value"' }] } },
+    });
+    const r = await verifyTxtBothProviders("_x.example.com", "expected", fetchImpl);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe("dns_mismatch");
+  });
+
+  it("returns partial_propagation when only one provider matches", async () => {
+    const fetchImpl = makeDohFetch({
+      cloudflare: { body: { Answer: [{ type: 16, data: '"v"' }] } },
+      google: { body: { Answer: [] } },
+    });
+    const r = await verifyTxtBothProviders("_x.example.com", "v", fetchImpl);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe("partial_propagation");
+  });
+
+  it("returns doh_unreachable when a provider throws", async () => {
+    const fetchImpl = makeDohFetch({
+      cloudflare: { body: { Answer: [{ type: 16, data: '"v"' }] } },
+      google: "error",
+    });
+    const r = await verifyTxtBothProviders("_x.example.com", "v", fetchImpl);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe("doh_unreachable");
   });
 
   it("returns a Promise (async signature)", () => {
-    const p = verifyTxtBothProviders("a", "b");
+    const p = verifyTxtBothProviders("a", "b", makeDohFetch({}));
     expect(p).toBeInstanceOf(Promise);
-  });
-
-  it("returns the same not_implemented reason regardless of args (stub is arg-agnostic)", async () => {
-    const r1 = await verifyTxtBothProviders("", "");
-    const r2 = await verifyTxtBothProviders("_unbrowse-claim.x.com", "unbrowse-claim=abc;wallet=def");
-    expect(r1.ok).toBe(false);
-    expect(r2.ok).toBe(false);
-    if (r1.ok === false && r2.ok === false) {
-      expect(r1.reason).toBe(r2.reason);
-      expect(r1.reason).toBe("not_implemented");
-    }
   });
 });

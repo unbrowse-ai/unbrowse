@@ -57,6 +57,46 @@ export function buildRateLimitKey(domain: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Takedown / opt-out primitives.
+//
+// A verified domain owner can take their domain DOWN from the marketplace.
+// The DNS-TXT proof is the same primitive as the claim flow, but the value is
+// `unbrowse-takedown=<challenge>` (no wallet field, takedown is binary).
+//
+// On verify, every SkillManifest whose domain matches gets lifecycle set to
+// "disabled", AND a persistent `domain-optout:<domain>` KV key is written so
+// future captures of the same domain do not publish.
+// ---------------------------------------------------------------------------
+
+/**
+ * TXT record value the site owner must publish to prove a takedown request.
+ * Unlike the claim TXT value, the takedown TXT does not embed a wallet:
+ * takedown is a binary "this domain is off the marketplace" signal, not a
+ * payout binding.
+ */
+export function buildTakedownTxtValue(challenge: string): string {
+  return `unbrowse-takedown=${challenge}`;
+}
+
+/**
+ * KV key for a pending takedown challenge. Scoped on domain only — there is
+ * no wallet to bind, and the same DNS record is the proof regardless of who
+ * minted the challenge. TTL'd 24h, same as the claim challenge.
+ */
+export function buildTakedownChallengeKey(domain: string): string {
+  return `domain-takedown-challenge:${domain.trim().toLowerCase()}`;
+}
+
+/**
+ * KV key for the persistent opt-out record (no TTL). Once written, the publish
+ * path in services/marketplace.ts:publishSkill MUST consult this key before
+ * writing a new skill for the same domain and skip publication when present.
+ */
+export function buildOptOutKey(domain: string): string {
+  return `domain-optout:${domain.trim().toLowerCase()}`;
+}
+
+// ---------------------------------------------------------------------------
 // Stored shapes. JSON contracts in KV — keep schema_version on the binding so
 // readers can migrate v1 records without ambiguity in step 4+.
 // ---------------------------------------------------------------------------
@@ -80,6 +120,32 @@ export interface DomainClaimBinding {
   verified_by_agent_id: string;
   txt_value_witness: string;
   doh_attestations: Array<{ provider: string; observed_at: string }>;
+  schema_version: number;
+}
+
+export interface DomainTakedownChallenge {
+  domain: string;
+  challenge: string;
+  txt_name: string;
+  txt_value: string;
+  created_at: string;
+  expires_at: string;
+  agent_id: string;
+}
+
+/**
+ * Persistent opt-out record (no TTL). The PRESENCE of `domain-optout:<domain>`
+ * in statsKV is the gate; the JSON shape captures the audit trail. The
+ * publish path in services/marketplace.ts:publishSkill consults this key
+ * before writing a new skill for the same domain and aborts when present.
+ */
+export interface DomainTakedownRecord {
+  domain: string;
+  verified_at: string;
+  verified_by_agent_id: string;
+  txt_value_witness: string;
+  doh_attestations: Array<{ provider: string; observed_at: string }>;
+  reason?: string;
   schema_version: number;
 }
 
@@ -153,48 +219,211 @@ export function mintChallenge(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Dual-DoH attestation primitive. Step 4 wires the real fetches; Step 2 ships
-// the signature + the sketch in comments so the next step knows the contract.
+// Dual-DoH attestation primitive.
+//
+// Cloudflare DoH AND Google DoH must independently return a TXT at <txtName>
+// whose de-quoted, multi-segment-concatenated value equals <expectedValue>.
+// Single-provider success is rejected (anti-spoofing gate from
+// firmament-step2.md "Architecture separations" #8).
 // ---------------------------------------------------------------------------
 
+export type VerifyTxtAttestation = { provider: string; observed_at: string };
+
 export type VerifyTxtResult =
-  | { ok: true }
+  | { ok: true; attestations: VerifyTxtAttestation[] }
   | { ok: false; reason: string; detail?: unknown };
+
+interface DohAnswer {
+  name?: string;
+  type?: number;
+  TTL?: number;
+  data?: string;
+}
+
+interface DohResponse {
+  Status?: number;
+  Answer?: DohAnswer[];
+}
+
+interface ProviderObservation {
+  name: string;
+  status: "matched" | "no_record" | "non_match" | "http_error" | "network_error";
+  http_status?: number;
+  observed_values: string[];
+}
+
+const DOH_CLOUDFLARE_URL_DEFAULT =
+  "https://cloudflare-dns.com/dns-query";
+const DOH_GOOGLE_URL_DEFAULT = "https://dns.google/resolve";
+const DOH_TIMEOUT_MS = 4_000;
+const DOH_MAX_BYTES = 8 * 1024;
+
+function dohEndpoint(envName: string, fallback: string): string {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env;
+  const override = env?.[envName];
+  return override && override.trim() ? override.trim() : fallback;
+}
+
+/**
+ * Strip surrounding double-quotes from one DoH TXT segment, and concatenate
+ * multi-segment runs that the resolver returned space-separated as
+ * `"chunk1" "chunk2"`. Whitespace between segments is dropped per RFC 1035
+ * §3.3.14: contiguous character-strings form one logical TXT value.
+ */
+export function normalizeDohTxtData(raw: string): string {
+  if (typeof raw !== "string") return "";
+  // Match every "..."-delimited segment (handles \" escapes defensively) and
+  // join them with no separator. Some resolvers also return data unquoted for
+  // short TXT records; fall through to a trim in that case.
+  const re = /"((?:[^"\\]|\\.)*)"/g;
+  const segments: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(raw)) !== null) {
+    segments.push(match[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\"));
+  }
+  if (segments.length === 0) return raw.trim();
+  return segments.join("").trim();
+}
+
+async function queryProvider(
+  providerName: string,
+  url: string,
+  txtName: string,
+  expectedValue: string,
+  fetchImpl: typeof fetch,
+): Promise<ProviderObservation> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DOH_TIMEOUT_MS);
+  const full = `${url}${url.includes("?") ? "&" : "?"}name=${encodeURIComponent(txtName)}&type=TXT`;
+  try {
+    const res = await fetchImpl(full, {
+      method: "GET",
+      redirect: "manual",
+      signal: controller.signal,
+      headers: { Accept: "application/dns-json" },
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      return { name: providerName, status: "http_error", http_status: res.status, observed_values: [] };
+    }
+    const text = (await res.text()).slice(0, DOH_MAX_BYTES);
+    let parsed: DohResponse;
+    try {
+      parsed = JSON.parse(text) as DohResponse;
+    } catch {
+      return { name: providerName, status: "http_error", http_status: res.status, observed_values: [] };
+    }
+    const answers = Array.isArray(parsed.Answer) ? parsed.Answer : [];
+    const txtAnswers = answers.filter((a) => a.type === 16 && typeof a.data === "string");
+    if (txtAnswers.length === 0) {
+      return { name: providerName, status: "no_record", http_status: res.status, observed_values: [] };
+    }
+    const observed = txtAnswers.map((a) => normalizeDohTxtData(a.data as string));
+    if (observed.some((v) => v === expectedValue)) {
+      return { name: providerName, status: "matched", http_status: res.status, observed_values: observed };
+    }
+    return { name: providerName, status: "non_match", http_status: res.status, observed_values: observed };
+  } catch (err) {
+    clearTimeout(timer);
+    return {
+      name: providerName,
+      status: "network_error",
+      observed_values: [(err as Error).message ?? "network_error"],
+    };
+  }
+}
 
 /**
  * Verify that BOTH Cloudflare DoH AND Google DoH independently return a TXT
- * record at `txtName` whose de-quoted, segment-concatenated, trimmed value
- * equals `expectedValue` byte-for-byte.
+ * record at `txtName` whose de-quoted, segment-concatenated value equals
+ * `expectedValue` byte-for-byte.
  *
- * Step 4 implementation contract (per firmament-step2.md "DNS verification
- * primitive"):
- *   - Endpoints:
- *       Cloudflare: https://cloudflare-dns.com/dns-query?name=<txtName>&type=TXT
- *         with header Accept: application/dns-json
- *       Google:     https://dns.google/resolve?name=<txtName>&type=TXT
- *   - Parallel fetches via AbortController, 4s timeout each.
- *   - redirect: "manual", credentials: "omit", 8 KB response cap.
- *   - Each provider must:
- *       1. Return HTTP 200.
- *       2. Parse JSON with at least one Answer entry of type 16 (TXT) whose
- *          data (DoH may return as "\"chunk1\" \"chunk2\"" — concatenate the
- *          inner segments after stripping surrounding quotes) equals
- *          expectedValue after whitespace trim.
- *   - Agreement rule: BOTH must succeed. No 1-of-2 partial accept.
- *   - On disagreement, return ok:false with reason "dns_mismatch" and a
- *     detail object listing each provider's observed_values for the route
- *     handler to surface back to the caller.
- *   - On network/HTTP failure, return ok:false with reason "doh_unreachable".
+ * Endpoints (overridable via UNBROWSE_DOH_CLOUDFLARE_URL / UNBROWSE_DOH_GOOGLE_URL):
+ *   - Cloudflare: https://cloudflare-dns.com/dns-query
+ *   - Google:     https://dns.google/resolve
  *
- * STUB: returns not_implemented until step 4. Signature is final.
+ * Each call runs in parallel with a 4s AbortController, 8KB response cap,
+ * redirect: "manual". The third `fetchImpl` arg defaults to globalThis.fetch
+ * and exists so tests can inject canned application/dns-json responses
+ * without spinning up a real HTTP server.
+ *
+ * Result rules:
+ *   - Both providers matched ......... { ok: true, attestations: [..., ...] }
+ *   - One matched, one did not ....... { ok: false, reason: "partial_propagation" }
+ *   - Neither matched (have records) . { ok: false, reason: "dns_mismatch" }
+ *   - Neither matched (no records) ... { ok: false, reason: "dns_mismatch" }
+ *   - Any network/HTTP failure ....... { ok: false, reason: "doh_unreachable" }
  */
 export async function verifyTxtBothProviders(
   txtName: string,
   expectedValue: string,
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
 ): Promise<VerifyTxtResult> {
-  // Reference the args so tsc --noUnusedParameters (if ever enabled) stays
-  // quiet, and so the seed proves the contract surface is reachable.
-  void txtName;
-  void expectedValue;
-  return { ok: false, reason: "not_implemented" };
+  const cfUrl = dohEndpoint("UNBROWSE_DOH_CLOUDFLARE_URL", DOH_CLOUDFLARE_URL_DEFAULT);
+  const goUrl = dohEndpoint("UNBROWSE_DOH_GOOGLE_URL", DOH_GOOGLE_URL_DEFAULT);
+
+  const [cf, go] = await Promise.all([
+    queryProvider("cloudflare", cfUrl, txtName, expectedValue, fetchImpl),
+    queryProvider("google", goUrl, txtName, expectedValue, fetchImpl),
+  ]);
+
+  const observations: ProviderObservation[] = [cf, go];
+  const observedAt = new Date().toISOString();
+
+  // Any provider that could not be reached at all is fatal — we have no
+  // attestation, so we cannot prove the record exists.
+  if (observations.some((o) => o.status === "network_error" || o.status === "http_error")) {
+    return {
+      ok: false,
+      reason: "doh_unreachable",
+      detail: {
+        providers: observations.map((o) => ({
+          name: o.name,
+          status: o.status,
+          http_status: o.http_status,
+          observed_values: o.observed_values,
+        })),
+      },
+    };
+  }
+
+  const matched = observations.filter((o) => o.status === "matched");
+
+  if (matched.length === observations.length) {
+    return {
+      ok: true,
+      attestations: matched.map((m) => ({ provider: m.name, observed_at: observedAt })),
+    };
+  }
+
+  // Partial: exactly one provider matched. The other either returned no
+  // record or returned a different value. Surface this as a soft state so
+  // the UI can render a "propagating, retry in 1-5 min" hint per
+  // firmament-step2.md "Edge case decisions".
+  if (matched.length === 1) {
+    return {
+      ok: false,
+      reason: "partial_propagation",
+      detail: {
+        providers: observations.map((o) => ({
+          name: o.name,
+          status: o.status,
+          observed_values: o.observed_values,
+        })),
+      },
+    };
+  }
+
+  return {
+    ok: false,
+    reason: "dns_mismatch",
+    detail: {
+      providers: observations.map((o) => ({
+        name: o.name,
+        status: o.status,
+        observed_values: o.observed_values,
+      })),
+    },
+  };
 }

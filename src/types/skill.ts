@@ -256,6 +256,13 @@ export interface EndpointDescriptor {
   proven_recipe?: ProvenRecipe;
   /** Proof metadata or client-side commitment attached to this endpoint */
   zk_proof?: import("./proof.js").ZkProof;
+  /**
+   * Owner-submitted provenance flag. Set to `true` by the backend
+   * `promoteOfficialSubmission` triage helper when a domain owner's canonical
+   * x402-supported endpoint is promoted out of the triage queue. Tri-file
+   * synced with `backend/src/types.ts` and `frontend/src/lib/api.ts`.
+   */
+  owner_submitted?: boolean;
 }
 export interface EndpointConstraint {
   /** The parameter or field this constraint applies to */

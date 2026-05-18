@@ -33,7 +33,7 @@ See `docs/CLAIM_YOUR_DOMAIN.md` for the step-by-step.
 
 ## Wallets stay with lobster.cash
 
-The substrate never holds private keys. The frontend recommends lobster.cash as the payout wallet (`frontend/src/app/how-unbrowse-pays/page.tsx:205-227`): `npx @crossmint/lobster-cli setup` provisions a Solana account, lobster signs, unbrowse only declares intent, amount, recipient, and memo. If you want a different signer, the payment terms are plain x402; any wallet that can sign a Faremeter Flex authorization works.
+The substrate never holds private keys. The frontend recommends lobster.cash as the payout wallet (the live `/how-unbrowse-pays` page renders from `docs/HOW_UNBROWSE_PAYS.md` via `frontend/src/lib/docs-renderer.ts`): `npx @crossmint/lobster-cli setup` provisions a Solana account, lobster signs, unbrowse only declares intent, amount, recipient, and memo. If you want a different signer, the payment terms are plain x402; any wallet that can sign a Faremeter Flex authorization works.
 
 ## x402 is the main rail
 

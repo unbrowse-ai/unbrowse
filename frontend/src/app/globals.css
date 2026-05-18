@@ -343,3 +343,80 @@ h1, h2, .font-display {
   stroke-dashoffset: 300;
   animation: route-trace 3s ease-in-out infinite;
 }
+
+/* ═══ Docs Markdown (single-source-of-truth doc pages) ═══ */
+/* Used by pages that render markdown from /docs/<SLUG>.md via
+   src/lib/docs-renderer.ts. Matches the legacy hardcoded-JSX look
+   on /how-unbrowse-pays so the visual layout is unchanged. */
+.docs-markdown {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.docs-markdown h2 {
+  font-family: var(--font-display, 'Google Sans Display'), system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+.docs-markdown h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+.docs-markdown p {
+  margin-bottom: 0.75rem;
+}
+.docs-markdown ul,
+.docs-markdown ol {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+.docs-markdown ul { list-style: disc; }
+.docs-markdown ol { list-style: decimal; }
+.docs-markdown li { margin: 0.25rem 0; }
+.docs-markdown li > p { margin-bottom: 0.25rem; }
+.docs-markdown strong { color: var(--text-primary); font-weight: 600; }
+.docs-markdown a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.docs-markdown a:hover { color: var(--text-secondary); }
+.docs-markdown code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  background: var(--code-bg);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.docs-markdown pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.docs-markdown pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.docs-markdown blockquote {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 1rem;
+  color: var(--text-muted);
+  margin: 0.75rem 0;
+}
+.docs-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
