@@ -1501,7 +1501,7 @@ const tools: ToolDefinition[] = [
       required: ["skill"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       const body: Record<string, unknown> = { params: {}, projection: { raw: args.raw !== false } };
@@ -1645,7 +1645,7 @@ const tools: ToolDefinition[] = [
       required: ["skill", "endpoint", "rating"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       const body: Record<string, unknown> = {
@@ -1694,7 +1694,7 @@ const tools: ToolDefinition[] = [
       required: ["skill"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       return successResult(await api("POST", `/v1/skills/${args.skill}/index`, {}), "Local index recomputed.");
@@ -1756,7 +1756,7 @@ const tools: ToolDefinition[] = [
       required: ["skill", "endpoints"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       return successResult(
@@ -1818,7 +1818,7 @@ const tools: ToolDefinition[] = [
       required: ["skill"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       const body: Record<string, unknown> = {};
@@ -1947,7 +1947,7 @@ const tools: ToolDefinition[] = [
       },
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       const hasMutation = args.auto_publish === true
@@ -1999,7 +1999,7 @@ const tools: ToolDefinition[] = [
       required: ["url"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true, openWorldHint: true },
+    annotations: { openWorldHint: true },
     handler: async (args) => {
       await ensureServerReady();
 
@@ -2137,7 +2137,7 @@ const tools: ToolDefinition[] = [
       required: ["ref"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       return successResult(await api("POST", "/v1/browse/click", {
@@ -2159,7 +2159,7 @@ const tools: ToolDefinition[] = [
       required: ["ref", "value"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       return successResult(await api("POST", "/v1/browse/fill", {
@@ -2181,7 +2181,7 @@ const tools: ToolDefinition[] = [
       required: ["text"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       return successResult(await api("POST", "/v1/browse/type", {
@@ -2202,7 +2202,7 @@ const tools: ToolDefinition[] = [
       required: ["key"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       return successResult(await api("POST", "/v1/browse/press", {
@@ -2224,7 +2224,7 @@ const tools: ToolDefinition[] = [
       required: ["ref", "value"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       return successResult(await api("POST", "/v1/browse/select", {
@@ -2246,7 +2246,7 @@ const tools: ToolDefinition[] = [
       },
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       const body: Record<string, unknown> = {};
@@ -2272,7 +2272,7 @@ const tools: ToolDefinition[] = [
       },
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true, openWorldHint: true },
+    annotations: { openWorldHint: true },
     handler: async (args) => {
       await ensureServerReady();
       const body: Record<string, unknown> = {};
@@ -2354,7 +2354,7 @@ const tools: ToolDefinition[] = [
       required: ["expression"],
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       return successResult(await api("POST", "/v1/browse/eval", {
@@ -2371,7 +2371,7 @@ const tools: ToolDefinition[] = [
       properties: { session_id: { type: "string", description: "Optional browse session id." } },
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       const result = await api("POST", "/v1/browse/sync", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined);
@@ -2387,7 +2387,7 @@ const tools: ToolDefinition[] = [
       properties: { session_id: { type: "string", description: "Optional browse session id." } },
       additionalProperties: false,
     },
-    annotations: { destructiveHint: true },
+    annotations: {},
     handler: async (args) => {
       await ensureServerReady();
       const result = await api("POST", "/v1/browse/close", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined);
