@@ -139,9 +139,18 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
          : { picked_from: "none", status: post2.body?.status ?? "no_match" }, null, 2));
 
   if (pick && skillId) {
+    // Prefer the picked endpoint's own source_skill_id when present —
+    // resolve's shortlist can include endpoints merged in from cached
+    // publishes whose skill_id differs from the top-level skill_id
+    // (gate probe 003 crates.io 2026-05-19: top-level skill A returned,
+    // shortlist[0] endpoint belonged to skill B, execute against A
+    // returned endpoint_not_found). Fall back to the top-level
+    // skillId for backward-compat shortlists that don't carry the
+    // field.
+    const executeSkillId: string = (pick as { source_skill_id?: string }).source_skill_id ?? skillId;
     const params = { endpoint_id: pick.endpoint_id, url: p.url, ...derivedParams(p.url) };
-    w(dir, "execute.input.json", JSON.stringify({ skill: skillId, endpoint: pick.endpoint_id, intent: p.intent, context_url: p.url, params }, null, 2));
-    const ex = await post(`/v1/skills/${skillId}/execute`, { params, projection: { raw: true }, context_url: p.url, intent: p.intent });
+    w(dir, "execute.input.json", JSON.stringify({ skill: executeSkillId, endpoint: pick.endpoint_id, intent: p.intent, context_url: p.url, params }, null, 2));
+    const ex = await post(`/v1/skills/${executeSkillId}/execute`, { params, projection: { raw: true }, context_url: p.url, intent: p.intent });
     const resultBody = ex.body?.result ?? ex.body;
     const raw = typeof resultBody === "string" ? resultBody : JSON.stringify(resultBody);
     w(dir, "execute.response.raw", raw);
