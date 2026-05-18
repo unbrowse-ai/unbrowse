@@ -2539,6 +2539,12 @@ export async function registerRoutes(app: FastifyInstance) {
       jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
       intent: `browse ${session.domain || profileName(session.url)}`,
       extraAuthHeaderRequests: getCapturedNetworkHeadersAsRequests(session.tabId),
+      getCookies: async () => {
+        try {
+          const c = await brokerForSession(session).getCookies(session.tabId);
+          return c.map((k) => ({ name: k.name, value: k.value, domain: k.domain }));
+        } catch { return []; }
+      },
     });
 
     // Write domain skill cache so the orchestrator's domain-cache check finds it
@@ -2717,6 +2723,12 @@ export async function registerRoutes(app: FastifyInstance) {
       jsBundles: jsBundles.size > 0 ? jsBundles : undefined,
       intent: `browse ${session.domain || profileName(session.url)}`,
       extraAuthHeaderRequests: cdpExtraAuthRequests,
+      getCookies: async () => {
+        try {
+          const c = await brokerForSession(session).getCookies(session.tabId);
+          return c.map((k) => ({ name: k.name, value: k.value, domain: k.domain }));
+        } catch { return []; }
+      },
     });
 
     // Persist domain-skill-cache SYNCHRONOUSLY so resolve can find this skill
