@@ -2427,6 +2427,7 @@ export async function resolveAndExecute(
         const descriptionMeta = getEndpointDescriptionMetadata(r.endpoint);
         return {
           endpoint_id: r.endpoint.endpoint_id,
+          source_skill_id: endpointScopedSkill.skill_id,
           score: Math.round(r.score * 10) / 10,
           description: descriptionMeta.display,
           description_source: descriptionMeta.source,
@@ -2474,6 +2475,7 @@ export async function resolveAndExecute(
         : (endpointScopedSkill.endpoints || []).map((ep) => ({ ep: ep as unknown as Record<string, unknown>, score: NaN }));
       const fallbackShortlist = sourceCandidates.slice(0, 5).map(({ ep, score }) => ({
         endpoint_id: ep.endpoint_id,
+        source_skill_id: endpointScopedSkill.skill_id,
         method: ep.method,
         url_template: ep.url_template,
         description: ep.description ?? (ep as Record<string, unknown>).description_out,
@@ -2540,6 +2542,19 @@ export async function resolveAndExecute(
           const descriptionMeta = getEndpointDescriptionMetadata(r.endpoint);
           return {
             endpoint_id: r.endpoint.endpoint_id,
+            // Each shortlisted endpoint carries the skill_id of the skill
+            // it was ranked from. Execute attribution: pre-fix the
+            // collector took `skill = top-level skill.skill_id` and
+            // `endpoint = available_endpoints[0].endpoint_id`, but those
+            // can disagree when resolve's shortlist contains endpoints
+            // merged in from cached publishes (gate probe 003 crates.io
+            // 2026-05-19: top-level skill V-ugzSxDfgDKHR0TD_ufE had one
+            // endpoint, available_endpoints[0]=3bqbHNiOc3pUKKy3ezdAG was
+            // not in it; execute returned endpoint_not_found). Callers
+            // that want correct attribution use this field as the skill
+            // param; falling back to top-level skill_id is legal when
+            // the shortlist endpoint genuinely belongs to that skill.
+            source_skill_id: endpointScopedSkill.skill_id,
             method: r.endpoint.method,
             description: descriptionMeta.display,
             description_source: descriptionMeta.source,
