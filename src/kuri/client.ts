@@ -219,6 +219,48 @@ function forgetBrokerClient(state: BrokerState): void {
   brokerClients.delete(brokerCacheKey(state.port));
 }
 
+// Global semaphore around the kuri-spawn work. The per-broker
+// `state.startPromise` already single-flights concurrent calls for the
+// SAME broker, but distinct sessions own distinct brokers — so N
+// concurrent /v1/browse/go calls each trigger their own spawn, and the
+// host's chrome PIDs / ports / file-descriptor budget runs out after
+// ~6-8 simultaneous spawns. Gate run 20260518T125601Z surfaced this
+// as "Kuri failed to start after 4 attempts" on probes 019-058 once
+// the earlier failure modes (kuri.evaluate / liveness / concat-reject)
+// stopped short-circuiting probes.
+//
+// This bounds the total in-flight spawn count to a small K (env
+// KURI_SPAWN_CONCURRENCY, default 4) and queues the rest. Each waiter
+// resolves when an active spawn finishes. The semaphore wraps ONLY the
+// expensive process-launch + chrome-startup work; reuse-existing-broker
+// short-circuits don't take a slot.
+const KURI_SPAWN_CONCURRENCY = Math.max(
+  1,
+  Number(process.env.KURI_SPAWN_CONCURRENCY) || 4,
+);
+let activeKuriSpawns = 0;
+const kuriSpawnWaiters: Array<() => void> = [];
+
+export function _kuriSpawnSemaphoreStateForTests(): { active: number; queued: number; cap: number } {
+  return { active: activeKuriSpawns, queued: kuriSpawnWaiters.length, cap: KURI_SPAWN_CONCURRENCY };
+}
+
+async function acquireKuriSpawnSlot(): Promise<() => void> {
+  if (activeKuriSpawns < KURI_SPAWN_CONCURRENCY) {
+    activeKuriSpawns += 1;
+  } else {
+    await new Promise<void>((resolve) => kuriSpawnWaiters.push(resolve));
+    activeKuriSpawns += 1;
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    activeKuriSpawns -= 1;
+    const next = kuriSpawnWaiters.shift();
+    if (next) next();
+  };
+}
 function envFlag(value: string | undefined): boolean {
   return value === "1" || value?.toLowerCase() === "true";
 }
@@ -760,6 +802,16 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
     // Reuse only when the broker is healthy and either CDP or tabs are still reachable.
     if (await reuseHealthyBrokerIfPossible(state, launchConfig)) return;
 
+    // From here on we'll spawn a fresh kuri process + (optionally) a
+    // managed Chrome — both expensive and resource-bound. Bound the
+    // GLOBAL concurrent spawn count via the module-level semaphore so
+    // sustained-load runs (bench-gate, parallel collectors, codex
+    // workers) can't exhaust the host's chrome PIDs / ports / FDs.
+    // Reuse short-circuits above bypass the slot, so cold brokers
+    // already running don't pay this cost.
+    const releaseSpawnSlot = await acquireKuriSpawnSlot();
+    try {
+
     const binary = findKuriBinary();
     log("kuri", `starting: ${binary} on port ${state.port}`);
     if (!existsSync(binary)) {
@@ -879,6 +931,9 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
       } catch { /* no matching process — fine */ }
     }
     throw new Error(`Kuri failed to start after ${maxAttempts} attempts`);
+    } finally {
+      releaseSpawnSlot();
+    }
   })();
 
   state.startPromise = startPromise.finally(() => {
