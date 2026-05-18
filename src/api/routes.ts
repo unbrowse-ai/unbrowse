@@ -3532,7 +3532,23 @@ export async function registerRoutes(app: FastifyInstance) {
           const syncResult = await flushBrowseCapture(session, { queueIndex: true, queuePublish: true });
           stopStreamingWatcher(session.sessionId);
           await broker.closeTab(session.tabId).catch(() => {});
+          const closedBrokerPort = session.brokerPort;
           removeBrowseSession(browseSessions, session.sessionId);
+          // Per-session broker shutdown. When this session was on a dedicated
+          // broker (port >= PER_SESSION_BROKER_BASE_PORT) and no other live
+          // session still uses that port, tear down the kuri+chrome processes
+          // so they don't leak. Pre-fix: every session_id since the broker
+          // isolation fix allocated a fresh kuri + chrome that never got
+          // stopped on close, so a single MCP session piled up 9 brokers +
+          // 10 chromes after 5 closes (sample-{anchor-mdn,rank-reddit,...}).
+          // Pool brokers (port < base) are intentionally kept; they're reused.
+          if (
+            typeof closedBrokerPort === "number"
+            && closedBrokerPort >= PER_SESSION_BROKER_BASE_PORT
+            && ![...browseSessions.values()].some((s) => s.brokerPort === closedBrokerPort)
+          ) {
+            await broker.stop().catch(() => {});
+          }
           return syncResult;
         },
       );
