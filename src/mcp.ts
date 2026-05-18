@@ -2905,7 +2905,39 @@ async function main(): Promise<void> {
         jsonRpcError(message.id ?? null, -32600, "Invalid Request", { expected: "2.0", received: message.jsonrpc });
         continue;
       }
-      await handleRequest(message);
+      // BUG-4 mitigation: every handler runs with a hard timeout so the
+      // read loop always advances. Without this a slow unbrowse_go on a
+      // hostile site can block the loop indefinitely; the MCP client's
+      // heartbeat then times out and reports the server as disconnected
+      // even though it's still alive. The 2026-05-17 MCP bench-gate run
+      // saw this fail mode three times under concurrent subagent load.
+      // Surfaces the timeout as a structured error response on the same
+      // request id; the handler itself continues in the background (it
+      // may still write its eventual response, which the client should
+      // ignore since the id is already resolved).
+      const timeoutMs = parseInt(process.env.UNBROWSE_MCP_HANDLER_TIMEOUT_MS ?? "90000", 10) || 90000;
+      const id = message.id ?? null;
+      const handlerPromise = handleRequest(message).catch((err) => {
+        writeStderr(err instanceof Error ? err.stack ?? err.message : String(err));
+      });
+      let timedOut = false;
+      const timeoutPromise = new Promise<void>((resolve) => {
+        const t = setTimeout(() => {
+          timedOut = true;
+          jsonRpcError(
+            id,
+            -32001,
+            `handler_timeout: request exceeded ${timeoutMs}ms`,
+            { method: message.method ?? "unknown", timeout_ms: timeoutMs },
+          );
+          resolve();
+        }, timeoutMs);
+        handlerPromise.finally(() => {
+          clearTimeout(t);
+          if (!timedOut) resolve();
+        });
+      });
+      await timeoutPromise;
       // Phase 0d: no daemon to drain the capture spool on a timer. Each
       // tool call opportunistically drains queued index/passive-publish
       // jobs from a prior unbrowse_close (deduped, fire-and-forget).
