@@ -418,6 +418,57 @@ function listWorkflowResources(): ResourceDefinition[] {
   return resources;
 }
 
+function listStatsResources(): ResourceDefinition[] {
+  // Surfaces the impact-log aggregate so MCP clients can read "how much
+  // wall-clock time and how many LLM tokens has unbrowse saved this agent
+  // vs the browser baseline" without calling a tool. Two views project
+  // the relevant fields from the same `readImpactSummary()` call — the
+  // log read is cheap (rotated JSONL, single pass) so we don't memoize.
+  // Source path is included so the agent can audit / inspect the raw log
+  // if it wants to. Empty log returns zeros, never an error.
+  return [
+    {
+      uri: "unbrowse://stats/time-saved",
+      name: "Time Saved (Unbrowse)",
+      description: "Total wall-clock time the unbrowse client has saved this agent vs the browser baseline, aggregated from the local impact log. Includes total milliseconds + rolled-up seconds/minutes, average percent saved per call, run counts (total / successful / browser-avoided), date range of the log, and the source path for audit.",
+      mimeType: "application/json",
+      read: () => {
+        const s = readImpactSummary();
+        return {
+          total_time_saved_ms: s.total_time_saved_ms,
+          total_time_saved_seconds: Math.round(s.total_time_saved_ms / 1000),
+          total_time_saved_minutes: Math.round(s.total_time_saved_ms / 60000),
+          avg_time_saved_pct: s.avg_time_saved_pct,
+          total_runs: s.total_runs,
+          successful_runs: s.successful_runs,
+          browser_avoided_runs: s.browser_avoided_runs,
+          first_entry_at: s.first_entry_at,
+          last_entry_at: s.last_entry_at,
+          source_path: getImpactLogPath(),
+        };
+      },
+    },
+    {
+      uri: "unbrowse://stats/tokens-saved",
+      name: "Tokens Saved (Unbrowse)",
+      description: "Total LLM tokens the unbrowse client has saved this agent by returning structured JSON instead of raw scraped HTML, aggregated from the local impact log. Includes total tokens saved, average percent saved per call, run counts, date range, and the source path for audit.",
+      mimeType: "application/json",
+      read: () => {
+        const s = readImpactSummary();
+        return {
+          total_tokens_saved: s.total_tokens_saved,
+          avg_tokens_saved_pct: s.avg_tokens_saved_pct,
+          total_runs: s.total_runs,
+          successful_runs: s.successful_runs,
+          first_entry_at: s.first_entry_at,
+          last_entry_at: s.last_entry_at,
+          source_path: getImpactLogPath(),
+        };
+      },
+    },
+  ];
+}
+
 function listResource(resource: ResourceDefinition): ListedResource {
   return {
     uri: resource.uri,
@@ -2716,7 +2767,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
 
   if (method === "resources/list") {
     jsonRpcResult(id, {
-      resources: listWorkflowResources().map(listResource),
+      resources: [...listWorkflowResources(), ...listStatsResources()].map(listResource),
     });
     return;
   }
@@ -2727,7 +2778,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
       jsonRpcError(id, -32602, "Resource uri is required");
       return;
     }
-    const resource = listWorkflowResources().find((entry) => entry.uri === uri);
+    const resource = [...listWorkflowResources(), ...listStatsResources()].find((entry) => entry.uri === uri);
     if (!resource) {
       jsonRpcError(id, -32602, `Unknown resource: ${uri}`);
       return;
