@@ -15,6 +15,7 @@
 // harness/probes/GATE_JUDGE.md.
 import { getInProcessApp } from "../src/runtime/in-process-app.ts";
 import { classifyReason, pickSkillId } from "./mcp-gate-parallel-classify.ts";
+import { findBestBrowserSession } from "../src/auth/browser-cookies.ts";
 import { mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -95,8 +96,36 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
 
   // host self-check: raw isolation evidence at this concurrency (NOT a verdict)
   const snapHost = hostOf(sb.current_url);
-  const intendedHost = hostOf(p.url);
   const isoSelfCheck = { snap_current_url: sb.current_url ?? null, intended_host: intendedHost, snap_host: snapHost,
+    host_match: snapHost ? snapHost === intendedHost : null };
+
+  // Browser-cookie discovery — evidence for the auth-cookies lane judge.
+  // Tells whether the user's local Chromium SQLite store has cookies
+  // for this probe's host, and from which browser. Lets the judge
+  // distinguish "no cookies, exclude from denominator" from "cookies
+  // present but substrate still got a login wall = real bug".
+  let browserCookieEvidence: {
+    cookies_available: number;
+    session_cookies: number;
+    browser: string | null;
+    error: string | null;
+  } = { cookies_available: 0, session_cookies: 0, browser: null, error: null };
+  try {
+    const host = intendedHost ?? "";
+    if (host) {
+      const session = await findBestBrowserSession(host);
+      if (session) {
+        browserCookieEvidence = {
+          cookies_available: session.cookies?.length ?? 0,
+          session_cookies: session.sessionCookies ?? 0,
+          browser: session.browser ?? null,
+          error: null,
+        };
+      }
+    }
+  } catch (err) {
+    browserCookieEvidence.error = err instanceof Error ? err.message : String(err);
+  }
     host_match: snapHost ? snapHost === intendedHost : null };
 
   const blockSignals: string[] = [];
@@ -121,6 +150,11 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
     // 20260518T115632Z where 13+ probes returned `go_failed` at conc=6 with no
     // way to attribute the failure to a specific kuri/broker condition.
     go_failed: cb._go_failed ?? null,
+    // Browser-cookie evidence for the auth-cookies lane judge. The
+    // count distinguishes "no local cookies → exclude probe from
+    // denominator" from "cookies present but login wall → real bug".
+    // See harness/probes/GATE_JUDGE.md auth-cookies bullet.
+    browser_cookies: browserCookieEvidence,
   }, null, 2));
 
   const evalStr = typeof evalRes.body?.result === "string" ? evalRes.body.result : JSON.stringify(evalRes.body ?? {});
