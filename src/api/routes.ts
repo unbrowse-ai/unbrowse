@@ -2069,7 +2069,12 @@ export async function registerRoutes(app: FastifyInstance) {
             { ...recoveryParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
-            { confirm_unsafe, confirm_third_party_terms, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
+            // local_skills_only: we already hold the failed skill in
+            // hand and just need to find a sibling endpoint or capture
+            // afresh — there's no value in waiting up to 2500ms for a
+            // marketplace round-trip whose result would be ignored.
+            // PR #506 follow-up to PR #503: cuts 404-recovery latency.
+            { confirm_unsafe, confirm_third_party_terms, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope, local_skills_only: true }
           );
           saveTrace(freshResult.trace);
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
