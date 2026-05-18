@@ -29,6 +29,15 @@ export interface Env {
    * unless you have separate alerting/throttling on degraded responses.
    */
   X402_DEGRADED_ALLOW?: string;
+  /**
+   * Nuclear kill-switch (2026-05-18 security rotation). When set to "1" / "true",
+   * `bearerAuth` rejects EVERY API key with `error: "all_keys_rotated"` + a
+   * re-register URL. Used after a leaked-token cleanup or audit; flip to "0"
+   * to restore normal verification. Does not delete keys from KV — purely a
+   * gate; if the rotation needs to be reverted, clear this env and keys work
+   * again. See: services/keys.ts verifyLocalKey early-return.
+   */
+  ALL_KEYS_REVOKED?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
   /**
