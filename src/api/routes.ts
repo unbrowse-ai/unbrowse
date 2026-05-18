@@ -51,7 +51,7 @@ import {
   withSerializedStrictBrowseSession,
   removeBrowseSession,
 } from "./browse-session.js";
-import { cacheBrowseRequests, harEntriesToRawRequests } from "./browse-index.js";
+import { cacheBrowseRequests, harEntriesToRawRequests, type CaptureDiagnostic } from "./browse-index.js";
 import { readActiveSessions } from "./session-store.js";
 import { isUrlWaitHint, resolveSubmitWaitHint, submitBrowseForm } from "./browse-submit.js";
 import { AUTH_PROBE_JS, classifyAuthSignals, type AuthProbeResult } from "./auth-detection.js";
@@ -2691,6 +2691,7 @@ export async function registerRoutes(app: FastifyInstance) {
       matched_domain?: string;
     };
     background_publish_queued: boolean;
+    capture_diagnostic: CaptureDiagnostic;
   }> {
     let harEntries: KuriHarEntry[] = [];
     if (session.harActive) {
@@ -2810,6 +2811,7 @@ export async function registerRoutes(app: FastifyInstance) {
         ...(publishDecision.matchedDomain ? { matched_domain: publishDecision.matchedDomain } : {}),
       },
       background_publish_queued: publishQueued,
+      capture_diagnostic: syncResult.capture_diagnostic,
     };
   }
 
@@ -3509,6 +3511,7 @@ export async function registerRoutes(app: FastifyInstance) {
         pipeline: syncResult.pipeline,
         publish_policy: syncResult.publish_policy,
         background_publish_queued: syncResult.background_publish_queued,
+        capture_diagnostic: syncResult.capture_diagnostic,
         next_step: buildCheckpointNextStep("sync", syncResult, session.sessionId),
       });
     } catch (error) {
@@ -3564,6 +3567,7 @@ export async function registerRoutes(app: FastifyInstance) {
         publish_policy: syncResult.publish_policy,
         background_publish_queued: syncResult.background_publish_queued,
         auth_saved: session.domain || null,
+        capture_diagnostic: syncResult.capture_diagnostic,
         next_step: buildCheckpointNextStep("close", syncResult, session.sessionId),
       });
     } catch (error) {

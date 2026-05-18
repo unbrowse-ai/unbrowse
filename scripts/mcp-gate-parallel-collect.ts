@@ -14,6 +14,7 @@
 // in-thread agent renders it later from these raw artifacts vs
 // harness/probes/GATE_JUDGE.md.
 import { getInProcessApp } from "../src/runtime/in-process-app.ts";
+import { classifyReason, pickSkillId } from "./mcp-gate-parallel-classify.ts";
 import { mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -74,7 +75,7 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
   const eps = pickEndpoints(post2.body);
   const cb = close.body ?? {};
   const sb = snap.body ?? {};
-  const skillId = cb.skill_id ?? post2.body?.trace?.skill_id ?? pre.body?.trace?.skill_id ?? null;
+  const skillId = pickSkillId(cb, post2.body, pre.body);
 
   // host self-check: raw isolation evidence at this concurrency (NOT a verdict)
   const snapHost = hostOf(sb.current_url);
@@ -95,6 +96,7 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
     request_count: cb.request_count ?? 0,
     indexed: cb.indexed ?? false, mode: cb.mode ?? "none",
     skill_id: skillId, iso_self_check: isoSelfCheck,
+    capture_diagnostic: cb.capture_diagnostic ?? null,
   }, null, 2));
 
   const evalStr = typeof evalRes.body?.result === "string" ? evalRes.body.result : JSON.stringify(evalRes.body ?? {});
@@ -102,7 +104,7 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
 
   w(dir, "index.store.json", JSON.stringify({
     stored: cb.indexed === true && !!skillId, skill_id: skillId,
-    reason: cb.indexed ? "indexed" : (cb.next_step ?? cb._go_failed ? "go_failed" : "capture_did_not_emit_skill_id"),
+    reason: classifyReason(cb),
   }, null, 2));
 
   w(dir, "resolve.shortlist.json", JSON.stringify(post2.body, null, 2));

@@ -1,0 +1,19 @@
+# Project-local codex CLI config for this repo.
+# Used by scripts/bench-converge/orchestrate.sh which spawns `codex exec --yolo`
+# workers per probe. Each worker calls the unbrowse MCP tools against the
+# DEVELOPMENT source tree (bun src/mcp.ts) — not the globally installed
+# unbrowse binary — so fixes shipped during the convergence loop are
+# visible on the very next probe iteration.
+#
+# State isolation: UNBROWSE_HOME points each codex worker at a per-run
+# sandbox directory so the loop's index/queue/route-cache state never
+# bleeds into the user's normal ~/.unbrowse used by the running Claude
+# Code session. The orchestrator sets UNBROWSE_HOME itself; the default
+# below is a fallback for ad-hoc codex invocations.
+
+[mcp_servers.unbrowse]
+command = "bun"
+args = ["src/mcp.ts"]
+enabled = true
+default_tools_approval_mode = "approve"
+env = { UNBROWSE_HOME = ".bench-converge/.unbrowse-state", HEADLESS = "true", KURI_HEADLESS = "true", UNBROWSE_PER_SESSION_KURI = "1" }
