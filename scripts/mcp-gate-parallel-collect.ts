@@ -25,6 +25,22 @@ const probes: Array<{ probe_id: string; intent: string; url: string; lane: strin
 const CONC = Number(process.env.UNBROWSE_GATE_CONCURRENCY) || 30;
 const HDR = { "content-type": "application/json", "x-unbrowse-client-id": "mcp-gate-parallel" };
 
+// Force clean-room kuri: resolveKuriLaunchConfig defaults
+// attachToExistingChrome=true, so if the user has Chrome running on
+// :9222 (typical when Claude Code / a debugger is open) kuri silently
+// attaches to it instead of launching its own managed headless Chrome.
+// Bench-gate runs MUST be reproducible + isolated: every probe gets a
+// fresh managed headless Chrome, no cross-session leak into the user's
+// real browsing state. The flag must be set BEFORE getInProcessApp
+// boots the in-process app (kuri brokers spawn lazily on first
+// /v1/browse/go call, but the env they inherit is captured at module
+// load time here). Per src/kuri/client.ts:280 — any of
+// KURI_CLEAN_ROOM / UNBROWSE_LOCAL_ONLY / KURI_DISABLE_CDP_ATTACH
+// trips the same `attachToExistingChrome = false` branch.
+process.env.KURI_CLEAN_ROOM ??= "1";
+process.env.HEADLESS ??= "true";
+process.env.KURI_HEADLESS ??= "true";
+
 const app = await getInProcessApp();
 
 function hostOf(u?: string): string { try { return new URL(String(u)).host; } catch { return ""; } }
