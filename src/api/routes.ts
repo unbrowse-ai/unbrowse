@@ -2053,9 +2053,20 @@ export async function registerRoutes(app: FastifyInstance) {
             (typeof execParams.url === "string" && execParams.url) ||
             skill.endpoints.find((endpoint) => typeof endpoint.trigger_url === "string" && endpoint.trigger_url)?.trigger_url ||
             `https://${skill.domain}`;
+          // Strip the just-evicted endpoint_id from recovery params — otherwise
+          // resolveAndExecute carries it forward and the second execute hits
+          // `endpoint_not_found` because executeEndpoint already evicted it
+          // from the local cache on the 404 (see src/execution/index.ts:3473).
+          // The whole point of recovery is "this endpoint is stale; let
+          // resolve pick a fresh one." Probe 003 crates.io 2026-05-19:
+          // first execute returned 404 → evicted 3bqb → recovery
+          // resolveAndExecute({endpoint_id: 3bqb, ...}) → endpoint_not_found
+          // even though skill V still had 8PHsp5fAXZX1P4Z8nuT9_ available.
+          const { endpoint_id: _stale, ...recoveryParams } = execParams;
+          void _stale;
           const freshResult = await resolveAndExecute(
             intent || skill.intent_signature,
-            { ...execParams, url: recoveryUrl },
+            { ...recoveryParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
             { confirm_unsafe, confirm_third_party_terms, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
