@@ -226,18 +226,38 @@ export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | 
   return false;
 }
 
-export function forceVisibleKuriEnv(env: NodeJS.ProcessEnv = process.env): () => void {
-  // Hard-headless lock. forceVisibleKuriEnv mutates process-global env so an
-  // interactive login or anti-bot fallback can pop a visible browser. Under
-  // the per-session-Kuri concurrency one probe's visible flip poisoned every
-  // other concurrent session's headless setting (2026-05-17: 40/58 sessions
-  // launched visible during a conc=16 gate run). When a caller declares the
-  // process must stay headless (UNBROWSE_FORCE_HEADLESS=1/true, set by the
-  // gate collector and any concurrent headless workload), this is a no-op:
-  // env is untouched and the returned restore does nothing. A real
-  // `unbrowse login` never sets the lock, so interactive auth is unchanged.
-  const lock = env.UNBROWSE_FORCE_HEADLESS;
-  if (lock === "1" || lock?.toLowerCase() === "true") {
+export function forceVisibleKuriEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  options?: { allow?: boolean },
+): () => void {
+  // Hard-headless-by-default lock (flipped 2026-05-19). Headless is the
+  // safe production default: a bench-gate run, a scripted CLI, an MCP
+  // server, an automated capture — none of those should pop a Chrome
+  // window onto the user's screen, ever. Pre-flip default was
+  // opt-OUT: every caller that hit a captcha auto-flipped, and one
+  // probe's flip poisoned every concurrent session's headless setting.
+  //
+  // Post-flip: visible auth fallback is OPT-IN. Two opt-in paths:
+  //   1. Caller passes `{ allow: true }` — e.g. `interactiveLogin`
+  //      genuinely needs a visible window so the user can type their
+  //      password. The intent is clear at the call site.
+  //   2. Env var `UNBROWSE_ALLOW_VISIBLE_AUTH_FALLBACK=1` — escape
+  //      hatch for substrate-internal anti-bot retry paths in
+  //      execution/index.ts that already exist; turning them off by
+  //      default while preserving the ability to opt in.
+  //
+  // The legacy opt-out lock `UNBROWSE_FORCE_HEADLESS=1` still trumps
+  // both: when set, this is always a no-op, preserving the contract
+  // the gate collector and concurrent headless workloads rely on.
+  const hardLock = env.UNBROWSE_FORCE_HEADLESS;
+  if (hardLock === "1" || hardLock?.toLowerCase() === "true") {
+    return () => {};
+  }
+  const allowViaOption = options?.allow === true;
+  const allowViaEnv = env.UNBROWSE_ALLOW_VISIBLE_AUTH_FALLBACK === "1"
+    || env.UNBROWSE_ALLOW_VISIBLE_AUTH_FALLBACK?.toLowerCase() === "true";
+  if (!allowViaOption && !allowViaEnv) {
+    // Default path post-2026-05-19: headless is sticky.
     return () => {};
   }
   const prevHeadless = env.HEADLESS;
@@ -275,7 +295,9 @@ export async function interactiveLogin(
 
   // Login requires a visible browser. KURI_HEADLESS takes precedence over
   // HEADLESS in the Kuri launcher, so force both and restore them afterward.
-  const restoreVisibleLoginEnv = forceVisibleKuriEnv();
+  // Interactive login needs a visible window so the user can type
+  // their password — opt in explicitly.
+  const restoreVisibleLoginEnv = forceVisibleKuriEnv(undefined, { allow: true });
 
   try {
     fs.mkdirSync(profileDir, { recursive: true });
