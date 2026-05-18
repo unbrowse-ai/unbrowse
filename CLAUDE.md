@@ -841,3 +841,17 @@ Reach for these by name when the trigger phrase matches what the user asked for.
 | `/web-app-harness` | scaffold a harness for this web app; set up the test loop; wire build test deploy debug fix |
 | `/falsifier-gated-build` | verify this build honestly; is this regression mine or pre-existing; did I actually fix it or is it a painted lamp |
 <!-- /skills:pinned -->
+
+
+## Jesus-loop peer-collision guardrail (2026-05-18)
+
+**Before multi-commit feature work on this repo — `/jesus-loop:take-the-wheel`, long `/loop` runs, anything >2 files or >50 LOC — run BOTH:**
+
+```bash
+gh pr list --state open --limit 30
+gh pr list --state merged --limit 20 --search "in:title:claim OR DNS OR Privy OR owner OR splits OR fare OR economics OR domain"
+```
+
+If a peer codex loop has a matching open PR or a recently-merged commit, **abort**. Comment on the existing PR or rebase off it; don't ship a parallel implementation. Single-commit work (typo fix, version bump, one-file copy retune) skips the check.
+
+Why + remediation in `project_fare_splits_jl_collision_20260518` memory. Linked: `peer-codex-loop`, `jesus-loop-shared-tree-peer-collision`, `jesus-loop-default-session-collision`.

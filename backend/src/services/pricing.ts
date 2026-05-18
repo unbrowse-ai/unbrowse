@@ -33,9 +33,10 @@ export const MAX_PRICE_USD = 0.10; // $0.10
 
 /**
  * Fraction of the execution price earmarked for the site owner when
- * owner_compensation_opt_in is true.
+ * owner_compensation_opt_in is true. Mirrors `OWNER_BPS = 1500` in
+ * `services/flex.ts` (1500/10000 = 0.15).
  */
-export const SITE_OWNER_SHARE_PCT = 0.20; // 20%
+export const SITE_OWNER_SHARE_PCT = 0.15; // 15%
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
