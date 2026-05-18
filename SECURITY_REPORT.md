@@ -1,5 +1,7 @@
 # Security Report — Unbrowse
 
+> **Historical — superseded by `.superstack/security-reports/unbrowse-dev-2026-05-09.md`.** The 2026-05-09 audit re-scoped against the current codebase (marketplace ownership, skill manifest validator, x402 fail-closed, cross-host credential binding, ZK proof trust signals) and lands on the `security/audit-and-patches` branch. The findings below are kept for historical reference; verify against current code before treating any specific file:line as still-true.
+
 **Date:** 2026-02-28  
 **Scope:** `justrach/unbrowse34` full codebase  
 **Reviewed branches:** `main`, `fix/auth-recommended-hint` (PR #33), `fix/skill-not-found-after-resolve` (PR #35)

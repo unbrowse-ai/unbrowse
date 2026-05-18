@@ -190,15 +190,29 @@ graphRoutes.get("/graph/edges/:domain/:endpoint_id", async (c) => {
   }
 });
 
-// GET /v1/graph/proxy/* — pass-through to bolt instance
-graphRoutes.get("/graph/proxy/*", async (c) => {
+// GET /v1/graph/proxy/* — pass-through to upstream graph backend.
+//
+// SECURITY: this route forwards traffic to the upstream graph (EmergentDB)
+// using EMERGENTDB_API_KEY. Without auth + path normalisation, anyone could
+// burn the org's API quota or smuggle path traversal into upstream-paths.
+// We require a bearer token and a strict subpath shape.
+const GRAPH_PROXY_SUBPATH_RE = /^[A-Za-z0-9_/.-]+$/;
+graphRoutes.get("/graph/proxy/*", bearerAuth, async (c) => {
   // c.req.path is /graph/proxy/... (after /v1 mount)
   const subpath = c.req.path.replace(/^.*\/graph\/proxy\//, "");
+  if (!subpath) return c.json({ error: "subpath required" }, 400);
+  if (subpath.length > 256) return c.json({ error: "subpath too long" }, 400);
+  if (!GRAPH_PROXY_SUBPATH_RE.test(subpath)) {
+    return c.json({ error: "subpath must match [A-Za-z0-9_/.-]+" }, 400);
+  }
+  if (subpath.includes("..") || subpath.includes("//") || subpath.startsWith("/")) {
+    return c.json({ error: "subpath must not contain .. or leading slashes" }, 400);
+  }
   try {
     const result = await graphProxy(c.env, subpath);
     return c.json(result);
   } catch (err) {
     console.error("[graph/proxy] error:", (err as Error).message);
-    return c.json({ error: (err as Error).message }, 500);
+    return c.json({ error: "graph proxy failed" }, 502);
   }
 });

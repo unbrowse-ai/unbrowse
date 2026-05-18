@@ -79,6 +79,29 @@ function creatorLedgerKey(agentId: string): string { return `tx:creator:${agentI
 const TX_INDEX_KEY = "tx:index";
 const CONSUMER_INDEX_KEY = "tx:consumers:index";
 const CREATOR_INDEX_KEY = "tx:creators:index";
+/**
+ * Defense-in-depth: never persist anything that looks like a bearer token in
+ * the ledger. The route handlers should already pass agent_id, but if a
+ * regression slips through we redact at write time so the public
+ * `GET /v1/transactions/consumer/:agentId` endpoint can never leak keys.
+ */
+function sanitizeConsumerId(rawId: string): string {
+  const trimmed = (rawId ?? "").trim();
+  if (!trimmed) return "anonymous";
+  // Common bearer-token shapes used by unbrowse: ubr_<hex|alnum>, sk_*, ghp_*,
+  // or bare 24+ char hex/base64 strings. Reject and replace with a hashed
+  // synthetic id so the ledger row still reconciles.
+  const looksLikeKey =
+    /^ubr_[a-zA-Z0-9_-]{16,}$/.test(trimmed) ||
+    /^(sk|pk|gh[oprs]|github_pat)_/.test(trimmed) ||
+    /^bearer\s/i.test(trimmed) ||
+    (trimmed.length >= 32 && /^[A-Za-z0-9_-]+$/.test(trimmed));
+  if (looksLikeKey) {
+    return `redacted-${trimmed.slice(0, 6)}…`;
+  }
+  return trimmed;
+}
+
 export async function recordTransaction(
   env: Env,
   params: {
@@ -93,6 +116,7 @@ export async function recordTransaction(
 ): Promise<Transaction> {
   const kv = statsKV(env);
   const now = new Date().toISOString();
+  const consumerId = sanitizeConsumerId(params.consumer_id);
   const price_uc = Math.round(params.price_usd * 1_000_000);
   const platform_fee_uc = Math.round(price_uc * PLATFORM_FEE_RATE);
   const creator_payout_uc = price_uc - platform_fee_uc;
@@ -106,7 +130,7 @@ export async function recordTransaction(
 
   const tx: Transaction = {
     transaction_id: params.transaction_id,
-    consumer_id: params.consumer_id,
+    consumer_id: consumerId,
     creator_id: primaryCreatorId,
     skill_id: params.skill_id,
     endpoint_id: params.endpoint_id,

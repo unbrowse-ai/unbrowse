@@ -49,6 +49,43 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * `return_url` shows up as the href of the "Return to app" button on the
+ * post-signin page. Without an allowlist a publisher could feed in
+ * `javascript:fetch(...)` for XSS, or `https://attacker.com/steal-token` for
+ * phishing from a trusted unbrowse domain. We accept https on a small list
+ * of host suffixes plus localhost for dev.
+ */
+const RETURN_URL_HOST_ALLOWLIST = ["unbrowse.ai", "openclaw.dev"];
+function sanitizeReturnUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 2048) return null;
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f]/.test(trimmed)) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  // Only allow http on localhost loopbacks
+  if (parsed.protocol === "http:") {
+    if (parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1" && parsed.hostname !== "::1") {
+      return null;
+    }
+    return parsed.toString();
+  }
+  const host = parsed.hostname.toLowerCase();
+  const allowed = RETURN_URL_HOST_ALLOWLIST.some(
+    (suffix) => host === suffix || host.endsWith(`.${suffix}`),
+  );
+  if (!allowed) return null;
+  return parsed.toString();
+}
+
 // POST /v1/auth/email/start
 authRoutes.post("/auth/email/start", async (c) => {
   const { email, return_url } = await c.req.json<{ email?: string; return_url?: string }>();
@@ -64,9 +101,10 @@ authRoutes.post("/auth/email/start", async (c) => {
 
   const token = genToken();
   const normalizedEmail = email.trim().toLowerCase();
+  const safeReturnUrl = sanitizeReturnUrl(return_url ?? null);
   const record: MagicRecord = {
     email: normalizedEmail,
-    return_url: return_url ?? null,
+    return_url: safeReturnUrl,
     status: "pending",
   };
   try {
@@ -80,7 +118,7 @@ authRoutes.post("/auth/email/start", async (c) => {
   }
 
   try {
-    await sendMagicLink(c.env, { email: normalizedEmail, token, returnUrl: return_url });
+    await sendMagicLink(c.env, { email: normalizedEmail, token, returnUrl: safeReturnUrl ?? undefined });
   } catch (err) {
     // Clean up the pending magic: row so a failed send never leaves a
     // dangling token that could be polled or look "active" in audits.
@@ -124,7 +162,10 @@ authRoutes.get("/auth/email/verify", async (c) => {
     );
   }
 
-  const returnUrl = returnUrlOverride ?? stored.return_url ?? null;
+  // The override path can be set by anyone clicking the magic link with a
+  // crafted query string. Re-sanitize so a phishing target can't dress up
+  // an attacker URL with a stolen token.
+  const returnUrl = sanitizeReturnUrl(returnUrlOverride ?? stored.return_url ?? null);
 
   if (stored.status !== "verified") {
     const user = await upsertUser(c.env, stored.email, { verifyNow: true });

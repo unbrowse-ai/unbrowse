@@ -4,7 +4,7 @@ import { indexEndpoints, removeEndpointsFromIndex, purgeSkillVectors } from "./d
 import { generateDescriptions } from "./descriptions.js";
 import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
 import { summarizeEmergentDBError } from "./emergentdb.js";
-import { skillsKV } from "./kv.js";
+import { skillsKV, statsKV } from "./kv.js";
 import { verifyReleaseManifest } from "./release-manifest.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
 import { matchedReservedDomain } from "./domain-reservations.js";
@@ -160,13 +160,34 @@ export async function publishSkill(
   const existing = await findExistingByDomain(env, draft.domain);
   const now = new Date().toISOString();
 
+  // Site-owner takedown gate (PR #483): if the verified domain owner has hit
+  // /v1/claim/takedown, all future publishes for that domain are refused —
+  // regardless of submitter, including admin overrides. See
+  // backend/src/services/domain-claim.ts::buildTakedownKey.
+  const takedownRaw = (await statsKV(env).get(
+    `domain-takedown:${draft.domain.trim().toLowerCase()}`,
+  )) as string | null;
+  if (takedownRaw) {
+    throw new Error(`publish_forbidden_taken_down:${draft.domain.toLowerCase()}`);
+  }
+  const submitterAgentId = context?.submitter_agent_id;
+  const isAdminSubmission = submitterAgentId === "__admin__";
+
+  // Ownership gate (security/audit-and-patches): a domain-level skill is owned
+  // by the agent that first published it. Subsequent publishes from any other
+  // non-admin agent are rejected. Admins may always publish (used for
+  // marketplace seeding).
+  if (existing && existing.owner_agent_id && submitterAgentId && !isAdminSubmission) {
+    if (existing.owner_agent_id !== submitterAgentId) {
+      throw new Error("publish_forbidden_not_owner");
+    }
+  }
+
   // Reserved-domain gate: high-impact brand and infra domains can only be
   // published by admin keys. Without this, any agent could squat
   // `domain: "stripe.com"` and seed the marketplace with prompt-injection
-  // content downstream agents would read. The ownership gate elsewhere
-  // freezes a squat in place once it lands; this prevents it from landing.
-  const submitterAgentId = context?.submitter_agent_id;
-  const isAdminSubmission = submitterAgentId === "__admin__";
+  // content downstream agents would read. The ownership gate above freezes
+  // a squat in place once it lands; this prevents it from landing.
   if (!isAdminSubmission) {
     const reserved = matchedReservedDomain(env, draft.domain);
     if (reserved) {
@@ -246,9 +267,14 @@ export async function publishSkill(
       owner_type: submitterAgentId && !isAdminSubmission
         ? "agent"
         : draft.owner_type,
-      // Server-owned: never copied from draft. Existing ownership is preserved
-      // across re-publishes; first non-admin publish onto an unowned skill
-      // claims it; admin re-publishes leave ownership unchanged.
+      // owner_agent_id is server-owned and never copied from draft.
+      // - Existing ownership is preserved across re-publishes (the gate above
+      //   already rejected non-owner non-admin republishes).
+      // - First non-admin publish onto an unowned (admin-seeded or pre-feature)
+      //   skill claims ownership for the publishing agent. Without this claim,
+      //   admin-seeded skills stay perpetually mutable by any authed agent
+      //   because the gate sees `existing.owner_agent_id` as falsy forever.
+      // - Admin republishes never claim/change ownership.
       owner_agent_id: existing.owner_agent_id
         ?? (submitterAgentId && !isAdminSubmission ? submitterAgentId : undefined),
       // domain_verified is server-set by the .well-known probe; preserve.
@@ -279,8 +305,15 @@ export async function publishSkill(
       provenance_events: [provenanceEvent],
       endpoints: draft.endpoints.map((endpoint) => ({
         ...endpoint,
-        verification_status: endpoint.verification_status ?? "unverified",
-        graph_visibility: endpoint.graph_visibility ?? "shadow",
+        // Trust signals are server-owned. Non-admin publishers always start
+        // at unverified/shadow. Admin publishes (e.g. seeded marketplace
+        // entries) keep their declared status.
+        verification_status: isAdminSubmission
+          ? endpoint.verification_status ?? "unverified"
+          : "unverified",
+        graph_visibility: isAdminSubmission
+          ? endpoint.graph_visibility ?? "shadow"
+          : "shadow",
         corroboration: applySubmissionToCorroboration(
           undefined,
           now,
@@ -673,12 +706,27 @@ function mergeEndpointsWithVisibility(
         ),
       });
     } else if (isRicher(ep, merged[dupeIdx])) {
+      // SECURITY: server-owned trust signals (verification_status: "verified",
+      // graph_visibility: "public", zk_proof.verified) must survive an owner
+      // re-publish that brings richer fields. The publish-side validator
+      // downgrades agent-attested verified→pending; without preservation here,
+      // a normal owner refresh would silently strip a server-stamped verified
+      // back down to pending and force re-promotion through corroboration.
+      const previous = merged[dupeIdx];
+      const preservedVerificationStatus = previous.verification_status === "verified"
+        ? previous.verification_status
+        : ep.verification_status;
+      const preservedZkProof = previous.zk_proof?.verified && previous.zk_proof.proof_type !== "commitment_only"
+        ? previous.zk_proof
+        : ep.zk_proof;
       merged[dupeIdx] = {
         ...ep,
-        endpoint_id: merged[dupeIdx].endpoint_id,
-        graph_visibility: merged[dupeIdx].graph_visibility ?? existingSkillVisibility,
+        endpoint_id: previous.endpoint_id,
+        verification_status: preservedVerificationStatus,
+        zk_proof: preservedZkProof,
+        graph_visibility: previous.graph_visibility ?? existingSkillVisibility,
         corroboration: applySubmissionToCorroboration(
-          merged[dupeIdx].corroboration,
+          previous.corroboration,
           submission.submitted_at,
           submission.submitter_agent_id,
           submission.release_manifest_verified,
