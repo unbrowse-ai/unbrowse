@@ -378,15 +378,29 @@ function looksLikeUiChromeText(value: string): boolean {
   return hits >= 2;
 }
 
-/** Detect concatenated values like "AAPLApple" or "Inc978,583" */
+/** Detect concatenated values like "AAPLApple" or "Inc978,583".
+ * The bare letter-then-digits shape `[a-zA-Z]\d{3,}` over-matches on
+ * legitimate identifiers (cache-busted asset hashes, OpenLibrary work
+ * IDs, version strings, GitHub issue refs, build numbers). The original
+ * intent — per the function header comment — was financial concatenation
+ * like "Inc978,583", which is uniquely signalled by the thousand-
+ * separator commas in the numeric tail. Webpack/Vite/npm asset hashes
+ * routinely contain digit runs ≥7 (e.g. `bdb4cdf27288716a27f6`), so a
+ * length-only heuristic still misclassifies them — the COMMA is the
+ * only reliable signal that the digits represent a finance value rather
+ * than an opaque identifier. Surfaced by 2026-05-18 MCP gate run
+ * 20260518T115632Z probe 002 (npm package page rejected at confidence
+ * 0.9 because asset URLs contain letter+digit hash segments).
+ */
 function isConcatenatedValue(s: string): boolean {
   // Uppercase ticker jammed onto capitalized word: AAPLApple, NVDANvidia
   if (/[A-Z]{2,}[A-Z][a-z]/.test(s)) return true;
-  // Word ending in letter immediately followed by digits: Inc978, Corp123
-  if (/[a-zA-Z]\d{3,}/.test(s)) return true;
+  // Word ending in letter immediately followed by a comma-formatted
+  // number: "Inc978,583", "Acme1,234". The thousand-separator is what
+  // makes this a finance value rather than an opaque identifier.
+  if (/[a-zA-Z]\d{1,3}(?:,\d{3})+/.test(s)) return true;
   return false;
 }
-
 /**
  * Validate extraction quality. Always returns data to the caller —
  * this only gates whether we publish to the marketplace.

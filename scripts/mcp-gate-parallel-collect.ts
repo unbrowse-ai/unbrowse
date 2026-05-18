@@ -97,6 +97,14 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
     indexed: cb.indexed ?? false, mode: cb.mode ?? "none",
     skill_id: skillId, iso_self_check: isoSelfCheck,
     capture_diagnostic: cb.capture_diagnostic ?? null,
+    // When /v1/browse/go fails, the collector stores the raw go response in
+    // close.body._go_failed (see runProbe above) but the artifact previously
+    // dropped it on the floor — `index.store.json.reason="go_failed"` was the
+    // only signal. The actual kuri error response (port-in-use, spawn-timeout,
+    // tab-not-found, etc.) was invisible to the judge. Surfaced by gate run
+    // 20260518T115632Z where 13+ probes returned `go_failed` at conc=6 with no
+    // way to attribute the failure to a specific kuri/broker condition.
+    go_failed: cb._go_failed ?? null,
   }, null, 2));
 
   const evalStr = typeof evalRes.body?.result === "string" ? evalRes.body.result : JSON.stringify(evalRes.body ?? {});
