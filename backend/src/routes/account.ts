@@ -20,7 +20,11 @@ import {
 } from "../services/keys.js";
 import { listSkills, getSkill, invalidateSkillListCaches } from "../services/marketplace.js";
 import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
-import { skillsKV } from "../services/kv.js";
+import { skillsKV, statsKV } from "../services/kv.js";
+import {
+  type DomainClaimBinding,
+  type DomainTakedownRecord,
+} from "../services/domain-claim.js";
 import { getAgent } from "../services/agents.js";
 
 type AccountEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
@@ -394,4 +398,78 @@ accountRoutes.get("/account/sponsor-status", async (c) => {
     global_cap_daily_usd: globalCapDailyUsd,
     global_spent_today_usd: globalSpentUc / 1_000_000,
   });
+});
+
+/**
+ * GET /v1/account/private-domains
+ *
+ * Returns the calling agent's domain claims (DNS-TXT verified wallet
+ * bindings that earn owner-share on paid execute) AND domain takedowns
+ * (DNS-TXT verified opt-outs that suppress future skill publish).
+ *
+ * Auth: same bearer auth as the rest of `/account/*`. The agent_id is
+ * read off the verified key, so an agent cannot enumerate another
+ * agent's records by querying this endpoint.
+ *
+ * Implementation note: there is no per-user secondary index yet — claims
+ * and takedowns are keyed by domain, not user. The route reads the full
+ * `domain-wallet:*` and `domain-optout:*` prefixes via the EdbKV index
+ * (one call each — values are inline in the index after the first cold
+ * load) and filters by `verified_by_agent_id`. Fine for the current
+ * scale (hundreds of domain records). If the corpus grows past O(10K)
+ * domains, add an `agent-domains:<agent_id>` reverse index stamped
+ * during verify and switch this route to read that.
+ *
+ * Powers a "My Private Domains" section on /account and the future
+ * `unbrowse account private-domains` CLI command.
+ */
+accountRoutes.get("/account/private-domains", async (c) => {
+  const agentId = c.get("agent_id");
+  const kv = statsKV(c.env);
+
+  const [optoutsRaw, claimsRaw] = await Promise.all([
+    kv.listWithValues("domain-optout:").catch(() => []),
+    kv.listWithValues("domain-wallet:").catch(() => []),
+  ]);
+
+  const takedowns: Array<{ domain: string; opted_out_at: string; reason?: string }> = [];
+  for (const entry of optoutsRaw) {
+    let record: DomainTakedownRecord;
+    try {
+      record = JSON.parse(entry.value) as DomainTakedownRecord;
+    } catch {
+      continue;
+    }
+    if (record.verified_by_agent_id !== agentId) continue;
+    if (typeof record.domain !== "string" || !record.domain) continue;
+    takedowns.push({
+      domain: record.domain,
+      opted_out_at: record.verified_at,
+      reason: record.reason,
+    });
+  }
+
+  const claims: Array<{ domain: string; wallet_address: string; verified_at: string }> = [];
+  for (const entry of claimsRaw) {
+    let record: DomainClaimBinding;
+    try {
+      record = JSON.parse(entry.value) as DomainClaimBinding;
+    } catch {
+      continue;
+    }
+    if (record.verified_by_agent_id !== agentId) continue;
+    if (typeof record.domain !== "string" || !record.domain) continue;
+    claims.push({
+      domain: record.domain,
+      wallet_address: record.wallet_address,
+      verified_at: record.verified_at,
+    });
+  }
+
+  // Deterministic order: alphabetically by domain so the UI / CLI render
+  // consistently between requests.
+  takedowns.sort((a, b) => a.domain.localeCompare(b.domain));
+  claims.sort((a, b) => a.domain.localeCompare(b.domain));
+
+  return c.json({ takedowns, claims, agent_id: agentId });
 });
