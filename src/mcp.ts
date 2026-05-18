@@ -2076,7 +2076,13 @@ const tools: ToolDefinition[] = [
       });
       const withHints = addGoNextStepHints(result, args);
       const wrapped = successResult(withHints, "Live browse session opened.");
-      setBrowseSessionOpen(true);
+      // Only increment the open-session counter when go actually opened a
+      // session. api() returns the JSON body verbatim, so a failed go (e.g.
+      // recoverable_browse_failure, auth_required handoff with no session)
+      // would otherwise inflate the counter without a balancing close,
+      // wedging the no_browse_session_open gate forever.
+      const opened = !!(result && typeof result === "object" && (result as { session_id?: unknown }).session_id);
+      if (opened) setBrowseSessionOpen(true);
       return wrapped;
     },
   },
@@ -2656,16 +2662,29 @@ export const SESSION_TOOL_NAMES = new Set([
   "unbrowse_close",
 ]);
 
-let browseSessionOpen = false;
+// Track the count of currently-open browse sessions, not a single boolean.
+// Pre-fix: a single boolean flipped true on any go and false on any close,
+// so 4 parallel sessions with their own session_ids hit a race: the first
+// close set the flag to false and the next 3 closes saw "no_browse_session_open"
+// even though their sessions were alive. Proven 2026-05-18 by the 4-probe
+// parallel MCP falsifier post-broker-isolation-fix: 3/4 close calls failed
+// with this exact error. A counter is the right shape — increment on go
+// success, decrement (clamp >=0) on close completion, gate on counter===0.
+let browseSessionOpenCount = 0;
 
 export function setBrowseSessionOpen(open: boolean): void {
-  const changed = browseSessionOpen !== open;
-  browseSessionOpen = open;
-  if (changed) jsonRpcNotification("notifications/tools/list_changed");
+  const wasOpen = browseSessionOpenCount > 0;
+  if (open) {
+    browseSessionOpenCount += 1;
+  } else if (browseSessionOpenCount > 0) {
+    browseSessionOpenCount -= 1;
+  }
+  const isOpen = browseSessionOpenCount > 0;
+  if (wasOpen !== isOpen) jsonRpcNotification("notifications/tools/list_changed");
 }
 
 export function getBrowseSessionOpen(): boolean {
-  return browseSessionOpen;
+  return browseSessionOpenCount > 0;
 }
 
 function visibleTools(): typeof tools {
