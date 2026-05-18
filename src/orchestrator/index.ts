@@ -420,6 +420,60 @@ function findBestLocalDomainSnapshot(
   return best;
 }
 
+/**
+ * Find an endpoint by ID across all locally-cached skill snapshots.
+ * Used by execute's defensive recovery path when the agent passes an
+ * endpoint_id that's not in the currently-loaded skill (BUG-3 from the
+ * 2026-05-17 MCP bench-gate: a publish that re-merged endpoints with
+ * different url_template normalization could shift the stableEndpointId,
+ * making the resolve-returned ID look "gone" to execute even though the
+ * endpoint descriptor still exists in an earlier snapshot of the same
+ * skill_id). When the agent's resolve returned this ID, the agent's
+ * execute should be able to use it. Substrate honors the contract.
+ *
+ * Returns the first matching endpoint found in any snapshot. Scans every
+ * snapshot — small N (low-hundreds of skills max on a working machine),
+ * O(skills * endpoints/skill) per lookup, fine for an exceptional path.
+ */
+export function findEndpointInSkillHistory(
+  endpointId: string,
+  skillId?: string,
+): { endpoint: SkillManifest["endpoints"][number]; via_skill: SkillManifest } | undefined {
+  if (!existsSync(SKILL_SNAPSHOT_DIR)) return undefined;
+  if (!endpointId) return undefined;
+  for (const entry of readdirSync(SKILL_SNAPSHOT_DIR)) {
+    if (!entry.endsWith(".json")) continue;
+    try {
+      const candidate = JSON.parse(readFileSync(join(SKILL_SNAPSHOT_DIR, entry), "utf-8")) as SkillManifest;
+      // If the caller named a skill_id, prefer same-id matches but still
+      // return cross-skill matches as a last resort — same endpoint_id
+      // implies same (method, url_template) by construction of
+      // stableEndpointId, so the endpoint IS the same logical operation.
+      if (skillId && candidate.skill_id !== skillId) continue;
+      const ep = (candidate.endpoints ?? []).find((e) => e.endpoint_id === endpointId);
+      if (ep) return { endpoint: ep, via_skill: candidate };
+    } catch {
+      /* ignore bad snapshot */
+    }
+  }
+  // Fallback: any skill (not just the named one) that contains this endpoint_id.
+  if (skillId) {
+    for (const entry of readdirSync(SKILL_SNAPSHOT_DIR)) {
+      if (!entry.endsWith(".json")) continue;
+      try {
+        const candidate = JSON.parse(readFileSync(join(SKILL_SNAPSHOT_DIR, entry), "utf-8")) as SkillManifest;
+        if (candidate.skill_id === skillId) continue; // already scanned
+        const ep = (candidate.endpoints ?? []).find((e) => e.endpoint_id === endpointId);
+        if (ep) return { endpoint: ep, via_skill: candidate };
+      } catch {
+        /* ignore bad snapshot */
+      }
+    }
+  }
+  return undefined;
+}
+
+
 function isIpv4Hostname(hostname: string): boolean {
   return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
 }

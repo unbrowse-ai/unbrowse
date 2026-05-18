@@ -53,6 +53,7 @@ import {
   buildResolveCacheKey,
   snapshotPathForCacheKey,
   generateLocalDescription,
+  findEndpointInSkillHistory,
 } from "../orchestrator/index.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { annotateEndpointPolicy, endpointRequiresThirdPartyTermsConfirmation, getEndpointPolicy } from "../site-policy.js";
@@ -1433,8 +1434,35 @@ export async function executeSkill(
       const { endpoint_id: _, ...cleanParams } = params;
       return executeEndpoint(skill, target, cleanParams, projection, options);
     }
-    // Agent explicitly chose this endpoint — don't silently swap to a different one
-    log("exec", `endpoint ${params.endpoint_id} not found in skill ${skill.skill_id} (${skill.endpoints.length} endpoints: ${skill.endpoints.map(e => e.endpoint_id).join(", ")})`);
+    // BUG-3 recovery: the agent's resolve returned this endpoint_id, but
+    // the currently-loaded skill snapshot no longer has it. This happens
+    // when publish or a concurrent capture re-merged endpoints with a
+    // url_template normalization shift, OR when the skill was rebuilt
+    // between the agent's resolve and execute calls. Search the local
+    // skill-snapshot history for any snapshot (this skill_id first, then
+    // any) that still has this endpoint_id; since stableEndpointId is a
+    // deterministic hash of (method, url_template), a matching ID means
+    // the same logical operation. Honor the agent's contract instead of
+    // failing the call.
+    const historic = findEndpointInSkillHistory(
+      String(params.endpoint_id),
+      skill.skill_id,
+    );
+    if (historic) {
+      log(
+        "exec",
+        `endpoint ${params.endpoint_id} not in current skill ${skill.skill_id} (${skill.endpoints.length} endpoints); recovered from history snapshot of skill ${historic.via_skill.skill_id}`,
+      );
+      const { endpoint_id: _, ...cleanParams } = params;
+      // Use the historic endpoint descriptor against the current skill
+      // (so auth / session lookups use the current skill's domain etc.).
+      // The endpoint's method + url_template carry the operation.
+      return executeEndpoint(skill, historic.endpoint, cleanParams, projection, options);
+    }
+    // Agent explicitly chose this endpoint and even the snapshot history
+    // doesn't have it — surface the failure with the candidates the agent
+    // could pick from instead.
+    log("exec", `endpoint ${params.endpoint_id} not found in skill ${skill.skill_id} or any snapshot history (${skill.endpoints.length} endpoints: ${skill.endpoints.map(e => e.endpoint_id).join(", ")})`);
     const trace: ExecutionTrace = {
       trace_id: nanoid(),
       skill_id: skill.skill_id,
@@ -1448,7 +1476,7 @@ export async function executeSkill(
       trace,
       result: {
         error: "endpoint_not_found",
-        message: `Endpoint ${params.endpoint_id} not found in skill ${skill.skill_id}. Available: ${skill.endpoints.map(e => `${e.endpoint_id} (${e.description?.slice(0, 50)})`).join(", ")}`,
+        message: `Endpoint ${params.endpoint_id} not found in skill ${skill.skill_id} (and not in snapshot history). Available: ${skill.endpoints.map(e => `${e.endpoint_id} (${e.description?.slice(0, 50)})`).join(", ")}`,
         available_endpoints: skill.endpoints.map(e => ({ endpoint_id: e.endpoint_id, description: e.description })),
       },
     };
