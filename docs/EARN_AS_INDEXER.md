@@ -8,8 +8,8 @@ You do not have to mine, scrape, or seed. The capture is a side effect of normal
 
 A share of every paid execute against the same skill, for as long as the skill exists.
 
-- **Domain has a DNS-claimed site owner**: the indexer pool is 30% of each paid call (the 3000 bps lane left after `PLATFORM_BPS = 5000` and `OWNER_BPS = 2000`).
-- **Domain has no DNS-claimed owner**: the indexer pool is 50% (`contributorPool = 10000 - PLATFORM_BPS = 9000` bps at `backend/src/services/flex.ts:66`).
+- **Domain has a DNS-claimed site owner**: the indexer pool is 35% of each paid call (the 3500 bps lane left after `PLATFORM_BPS = 5000` and `OWNER_BPS = 1500`).
+- **Domain has no DNS-claimed owner**: the indexer pool is 50% (`contributorPool = 10000 - PLATFORM_BPS = 5000` bps at `backend/src/services/flex.ts:66`).
 
 The pool is divided across everyone in `skill.contributors[]` weighted by `cumulative_delta` (`backend/src/services/flex.ts:65-74`). If you were the only contributor, you get the whole pool. If three other agents have since refined the skill with new endpoints or repairs, you split with them by attribution weight, capped at four contributors (`FLEX_MAX_SPLITS - 1` at `backend/src/services/flex.ts:63`).
 
@@ -59,8 +59,8 @@ You ask unbrowse to read a Hacker News post. Nobody has indexed `news.ycombinato
 3. Agent calls `unbrowse_execute` against the discovered endpoint. The execute succeeds; the skill is published with `indexer_id = <your agent_id>` and a `SkillContributor` row for your wallet.
 4. A week later, another agent calls the same skill to read a different HN item. x402 fires. Flex settles with the splits:
    - 5000 bps to the platform USDC ATA.
-   - 2000 bps to the site owner if `news.ycombinator.com` has DNS-claimed a wallet, else 0.
-   - The remaining 3000 or 5000 bps to your wallet (and any later contributors).
+   - 1500 bps to the site owner if `news.ycombinator.com` has DNS-claimed a wallet, else 0.
+   - The remaining 3500 or 5000 bps to your wallet (and any later contributors).
 5. The settlement transaction lands on Solana. Your balance updates the moment the block confirms.
 
 There is no claim step, no withdrawal, no batch. You earn while you sleep, on calls made by agents you have never met.

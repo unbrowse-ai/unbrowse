@@ -1,8 +1,8 @@
 ## Why claim
 
-If you run the domain that unbrowse is indexing, every paid call to a skill that talks to your domain routes you 20% of the price.
+If you run the domain that unbrowse is indexing, every paid call to a skill that talks to your domain routes you 15% of the price.
 
-The carve is `OWNER_BPS = 2000` (added beside `PLATFORM_BPS` at `backend/src/services/flex.ts:39`). It fires inside `computeFlexSplits` when two conditions hold: the skill carries `owner_compensation_opt_in === true` (`backend/src/types.ts:437`) AND a verified `owner_wallet_usdc_ata` exists, hydrated from the `domain-wallet:<domain>` KV binding at resolve time. Both conditions are server-owned; you cannot fake them via the publish API.
+The carve is `OWNER_BPS = 1500` (added beside `PLATFORM_BPS` at `backend/src/services/flex.ts`). It fires inside `computeFlexSplits` when two conditions hold: the skill carries `owner_compensation_opt_in === true` (`backend/src/types.ts:437`) AND a verified `owner_wallet_usdc_ata` exists, hydrated from the `domain-wallet:<domain>` KV binding at resolve time. Both conditions are server-owned; you cannot fake them via the publish API.
 
 No claim is needed for the platform to serve traffic to your site. You only claim when you want a share of the revenue.
 
@@ -28,7 +28,7 @@ Apex domains only in v1. If you run `news.ycombinator.com`, the record goes on `
 5. Publish the TXT record at your DNS provider. Name: `_unbrowse-claim.<apex>`. Value: exactly the `txt_value` from the response.
 6. Wait for propagation (typically 1 to 5 minutes for most providers).
 7. Click verify. The page calls `POST /v1/claim/verify`. The server resolves the TXT through two DoH providers in parallel and, if both agree, writes the binding to `domain-wallet:<domain>` KV (`.claude/firmament-step2.md:51-67`).
-8. From the next paid execute against any skill on the domain, the 2000 bps lane is live.
+8. From the next paid execute against any skill on the domain, the 1500 bps lane is live.
 
 You can check status any time, without auth:
 ```

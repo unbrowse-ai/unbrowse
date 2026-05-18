@@ -35,11 +35,11 @@ live capture --> extract endpoints --> admit + publish
 
 | Role | What they do | How they earn |
 |---|---|---|
-| **Contributor** | Publisher of a skill, indexer of a captured route, or otherwise attributed for the work that produced a callable endpoint | The remaining 30% (3000 bps) of each paid execute when the site owner has DNS-claimed the domain; 50% (5000 bps) when no owner has claimed |
-| **Site owner** | Verified operator of the domain the skill talks to (proven via DNS-TXT at `_unbrowse-claim.<apex>`, see [Claiming a Website](../concepts/claiming-a-website.md)) | 20% (2000 bps), routed via the on-chain split, only when both `owner_compensation_opt_in === true` and a verified `owner_wallet_usdc_ata` are stamped on the skill |
+| **Contributor** | Publisher of a skill, indexer of a captured route, or otherwise attributed for the work that produced a callable endpoint | The remaining 35% (3500 bps) of each paid execute when the site owner has DNS-claimed the domain; 50% (5000 bps) when no owner has claimed |
+| **Site owner** | Verified operator of the domain the skill talks to (proven via DNS-TXT at `_unbrowse-claim.<apex>`, see [Claiming a Website](../concepts/claiming-a-website.md)) | 15% (1500 bps), routed via the on-chain split, only when both `owner_compensation_opt_in === true` and a verified `owner_wallet_usdc_ata` are stamped on the skill |
 | **Platform** | Runs marketplace, settles x402, maintains anti-fraud | 50% (5000 bps) |
 
-The three lanes are computed by `computeFlexSplits` in `backend/src/services/flex.ts` (see `PLATFORM_BPS = 5000` and `OWNER_BPS = 2000`). The site-owner lane stays dormant until a DNS claim verifies and the post-verify stamping hook lands `owner_wallet_usdc_ata` on the skill; up to that moment the indexer/contributor pool collects the full 50%.
+The three lanes are computed by `computeFlexSplits` in `backend/src/services/flex.ts` (see `PLATFORM_BPS = 5000` and `OWNER_BPS = 1500`). The site-owner lane stays dormant until a DNS claim verifies and the post-verify stamping hook lands `owner_wallet_usdc_ata` on the skill; up to that moment the indexer/contributor pool collects the full 50%.
 
 Most agents who run validators are contributors on every successful capture. The split between sub-roles inside the contributor pool (publisher vs. indexer vs. reviewer) is governed by the attribution model and evolves — don't hardcode a sub-split into your tooling. Read your live ledger via the dashboard or `/v1/stats/indexer/:id/ledger` rather than assuming a fixed weight.
 
@@ -47,7 +47,7 @@ Most agents who run validators are contributors on every successful capture. The
 
 - **Cache hit**: small per-execution micro-payment (USDC over x402). Exact amounts depend on skill rarity and the live rate card.
 - **Live capture**: free for the caller. The captured skill becomes inventory.
-- **Paid x402 routes**: skills marked `paid` cost more (per-skill pricing). The 50/20/30 split (platform/owner-when-claimed/contributors) still applies.
+- **Paid x402 routes**: skills marked `paid` cost more (per-skill pricing). The 50/15/35 split (platform/owner-when-claimed/contributors) still applies.
 - **Attribution weighting**: contributors whose routes are uniquely useful earn larger shares than those whose routes have good alternatives. Stop adding marginal value and your share decays over subsequent executions.
 
 Exact rate cards live at [unbrowse.ai/pricing](https://www.unbrowse.ai/pricing). The runtime never settles below the platform threshold to keep gas-equivalents tractable — Faremeter Flex batches authorizations and finalizes on-chain when the refund window closes.
@@ -69,7 +69,7 @@ Marketplace ranking and payout weighting fold in the following signals. Each is 
 - **Replay verification (planned)**: independent re-execution of a captured skill before it accrues attribution weight. Not yet enforced backend-side. Don't depend on it being active today.
 - **Reputation-weighted payouts (planned)**: operators with high reject rates accumulating negative reputation that reduces payouts on legitimate captures too. Roadmap, not enforced today.
 
-If you are scoping an audit, take the **live** items as production behavior and the **planned** items as forward-looking. The 50/20/30 split, Flex settlement, and `feedback` ingestion are demonstrably wired today. (The site-owner lane stays dormant until DNS-claim verify; see the role table above and the [Claiming a Website](../concepts/claiming-a-website.md) doc.)
+If you are scoping an audit, take the **live** items as production behavior and the **planned** items as forward-looking. The 50/15/35 split, Flex settlement, and `feedback` ingestion are demonstrably wired today. (The site-owner lane stays dormant until DNS-claim verify; see the role table above and the [Claiming a Website](../concepts/claiming-a-website.md) doc.)
 
 ## When the system pays nothing
 

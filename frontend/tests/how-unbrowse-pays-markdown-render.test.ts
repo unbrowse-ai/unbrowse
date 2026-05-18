@@ -43,9 +43,9 @@ describe("how-unbrowse-pays markdown rendering", () => {
 		const { html } = loadDocMarkdown("HOW_UNBROWSE_PAYS");
 		// Phrases the validator stamped as required in the markdown source.
 		expect(html).toContain("50%");
-		expect(html).toContain("OWNER_BPS = 2000");
+		expect(html).toContain("OWNER_BPS = 1500");
 		expect(html).toContain("lobster.cash");
-		expect(html).toContain("50/30/20");
+		expect(html).toContain("50/35/15");
 	});
 
 	test("page injects its own H1; markdown source has none", () => {
