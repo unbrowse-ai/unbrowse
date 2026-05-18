@@ -148,30 +148,21 @@ export function shouldIndexDomBrowseFallback(params: {
     };
   }
 
-  const quality = validateExtractionQuality(extractedData, extractedConfidence, intent);
-  if (!quality.valid) {
-    if (hasStructuredForm && requestCount > 0 && intentLooksSearch) {
-      return { allow: true, intentLooksSearch };
-    }
-    return {
-      allow: false,
-      reason: quality.quality_note ?? "low_quality_dom_extraction",
-      intentLooksSearch,
-    };
-  }
-
-  const semanticAssessment = assessIntentResult(extractedData, intent);
-  if (semanticAssessment.verdict === "fail") {
-    if (hasStructuredForm && requestCount > 0 && intentLooksSearch) {
-      return { allow: true, intentLooksSearch };
-    }
-    return {
-      allow: false,
-      reason: semanticAssessment.reason ?? "dom_extraction_did_not_match_intent",
-      intentLooksSearch,
-    };
-  }
-
+  // Heuristic admission gates REMOVED 2026-05-18 per substrate-enables
+  // principle (CLAUDE.md): never bake a verdict into a script. The pre-fix
+  // shape called validateExtractionQuality (confidence < 0.5 / dupe-ratio
+  // > 0.5 / concat patterns / nav-chrome / primitive-rows) AND
+  // assessIntentResult (semantic heuristic) as admission gates. Both
+  // were "synthesize a verdict in code" — exactly what the rule forbids.
+  //
+  // Quality signals stay computed on the published skill as EVIDENCE
+  // fields (dom_extraction.confidence, etc.); the ranker reads them and
+  // the agent makes the call. Bad skills demote via reliability_score
+  // updates driven by unbrowse_reflect (Darwinian marketplace).
+  //
+  // The only remaining reject is "truly empty data" (handled above at
+  // the !extractedData branch). Anything with data is admitted; downstream
+  // resolve + agent-judge + reliability-feedback handle quality.
   return { allow: true, intentLooksSearch };
 }
 
@@ -418,7 +409,13 @@ export async function cacheBrowseRequests(params: {
       url_template: urlTemplate,
       idempotency: "safe",
       verification_status: "verified",
-      reliability_score: extracted.confidence ?? 0.7,
+      // Neutral prior. Pre-2026-05-18 this was initialized from the
+      // extraction confidence heuristic — coupling admission quality to
+      // post-publish ranking, baking a verdict into the score before any
+      // usage data existed. Substrate-correct shape: start at 0.5 and let
+      // unbrowse_reflect / verification feedback teach the score via
+      // updateEndpointScore. New skills earn their rank from real use.
+      reliability_score: 0.5,
       description: validForm && domDecision.intentLooksSearch ? `Search form for ${domain}` : `Page content from ${domain}`,
       response_schema: inferSchema([extracted.data]),
       dom_extraction: {

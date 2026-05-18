@@ -5394,13 +5394,22 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         score += Math.min(propCount * 2, 20);
       }
     }
-    // Reliability: undefined (no opinion) is neutral. Defined-and-low actively demotes —
-    // the auto-deprecation threshold is 0.2, anything below that has hit the consecutive-
-    // failure gate and should fall to the bottom of the shortlist.
+    // Reliability ranking (boosted 2026-05-18 as commit 3 of the
+    // Darwinian-marketplace clean-up). Pre-fix this added at most +10
+    // for a perfect 1.0 score — often drowned by 150-point BM25 deltas.
+    // Boost the high band so a well-earned endpoint actually wins the
+    // shortlist over a freshly-captured neutral endpoint.
+    //
+    //   < 0.2  → -60 (auto-deprecation gate, push to bottom)
+    //   < 0.5  → -15
+    //   ≈ 0.5  (neutral prior, never observed) → small COLD-START +8 so
+    //         new endpoints get tried rather than starving forever
+    //   ≥ 0.5  → +reliability * 40 (was ×10; max +40 for 1.0)
     if (typeof ep.reliability_score === "number") {
       if (ep.reliability_score < 0.2) score -= 60;
       else if (ep.reliability_score < 0.5) score -= 15;
-      else score += ep.reliability_score * 10;
+      else if (Math.abs(ep.reliability_score - 0.5) < 0.001) score += 8; // cold-start
+      else score += ep.reliability_score * 40;
     }
     if (ep.verification_status === "verified") score += 15;
     else if (ep.verification_status === "failed") score -= 40;
