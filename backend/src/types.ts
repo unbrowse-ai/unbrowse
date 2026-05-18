@@ -55,6 +55,8 @@ export interface Env {
   PUBLIC_FRONTEND_URL?: string;
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_ZONE_ID?: string;
+  /** Optional GitHub PAT for traction stats fetch. Raises rate limit to 5000/hr. */
+  GITHUB_TOKEN?: string;
   /** Exa web search — parallel step in resolve, surfaces highlights when marketplace misses. */
   EXA_API_KEY?: string;
   /**
