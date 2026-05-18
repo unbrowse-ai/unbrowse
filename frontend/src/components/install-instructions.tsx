@@ -7,6 +7,7 @@ import {
   injectKeyIntoCopyText,
   maskApiKey,
 } from "@/lib/install-key-injection";
+import { trackWebEvent } from "@/lib/web-telemetry";
 
 const O      = "#8B3800";          // dark burnt orange (commands on parchment)
 const O_DIM  = "rgba(100,55,10,0.75)";  // dim text (comments, labels)
@@ -137,6 +138,17 @@ export function InstallInstructions() {
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(copyValue);
+    // Funnel: the COPY click is the strongest install-intent signal on
+    // this widget. Mirror the event name the hero-cta already uses so
+    // analytics keeps a single `install_command_copied` event across
+    // every install surface. `surface` distinguishes them; `baked_account`
+    // measures how often the soft-gate actually converts a signed-in
+    // visitor into a connected install.
+    trackWebEvent("install_command_copied", {
+      tab_id: tab.id,
+      surface: "install-instructions",
+      baked_account: Boolean(baked),
+    });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
