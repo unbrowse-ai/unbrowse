@@ -13,6 +13,7 @@ import { forceVisibleKuriEnv, getStoredAuth, getAuthCookies, refreshAuthFromBrow
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
+import { classifyDrift } from "../transform/drift-classifier.js";
 import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
@@ -3784,13 +3785,20 @@ export async function executeEndpoint(
     }
   }
 
-  // Schema drift detection on re-execution. When drift is observed,
-  // surface a structured re_capture signal so the calling agent can
-  // dispatch unbrowse_go in headful-as-learning mode (AC3 lane-04).
-  // Substrate emits truth; agent judges whether to act.
+  // Schema drift detection on re-execution. When BREAKING drift is
+  // observed (fields removed or types changed incompatibly), surface a
+  // re_capture signal and flip success. Additive drift (new optional
+  // fields, number ↔ integer JSON-refinement, null ↔ value nullable
+  // variance) is recorded as informational on trace.drift but does NOT
+  // fail the call — the agent's learned shape is still a valid subset.
+  // The misclassification was caught by the 2026-05-17 MCP bench-gate
+  // on #017 Stack Exchange (number → integer), #022 x.com HomeTimeline
+  // (added forward-compat fields), and #030 PubMed (added title/url).
+  // Substrate emits truth; agent judges whether to act on the info.
   if (trace.success && endpoint.response_schema && data != null) {
     const drift = detectSchemaDrift(endpoint.response_schema, data);
     if (drift.drifted) {
+      const classification = classifyDrift(drift);
       trace.drift = drift;
       const recaptureSignal = buildDriftRecaptureSignal(
         drift,
@@ -3798,28 +3806,35 @@ export async function executeEndpoint(
         options?.contextUrl,
         options?.intent,
       );
-      if (recaptureSignal) {
+      if (recaptureSignal && classification.is_breaking) {
         trace.steps?.push({ step: "recipe_replay_drift_recapture", reason: recaptureSignal.reason });
         trace.re_capture_signal = recaptureSignal;
-        // Truth-telling coherence: a re_capture_signal is the substrate's
-        // own determination that the served payload no longer matches the
-        // endpoint's learned contract. "Re-capture needed" and "success:
-        // here is your data" are mutually exclusive; leaving success
-        // true makes the agent accept drifted/degenerate output (e.g. a
-        // SPA shell {title,url} instead of search results) as the answer.
-        // Mirror the adjacent assessIntentResult-fail pattern below:
-        // flip success, name the failure, foreground the signal as the
-        // actionable result. The signal is already computed; success
-        // must reflect it, not contradict it.
+        // Truth-telling coherence: a re_capture_signal for a BREAKING
+        // drift is the substrate's own determination that the served
+        // payload no longer matches the endpoint's learned contract.
+        // "Re-capture needed" and "success: here is your data" are
+        // mutually exclusive for breaking changes; flip success, name
+        // the failure, foreground the signal as the actionable result.
         trace.success = false;
         trace.error = "schema_drift_recapture_required";
         data = {
           error: "schema_drift_recapture_required",
-          message: `Endpoint ${endpoint.endpoint_id} response drifted from its learned schema (${recaptureSignal.reason}); the served payload is not the contracted data. Re-learn the shape before trusting this endpoint.`,
+          message: `Endpoint ${endpoint.endpoint_id} response drifted from its learned schema in BREAKING ways (${recaptureSignal.reason}: removed=${classification.breaking_changes.removed_fields.length}, incompatible_type_changes=${classification.breaking_changes.incompatible_type_changes.length}); the served payload is not the contracted data. Re-learn the shape before trusting this endpoint.`,
           drift_summary: recaptureSignal.drift_summary,
+          breaking_changes: classification.breaking_changes,
           re_capture_signal: recaptureSignal,
         };
         trace.result = data;
+      } else if (recaptureSignal) {
+        // Additive drift only — record the signal informationally so
+        // the agent can choose to re-capture proactively, but do NOT
+        // fail the call. The data the caller asked for is still here.
+        trace.steps?.push({
+          step: "drift_additive_only",
+          added_fields: classification.additive_changes.added_fields.length,
+          compatible_type_changes: classification.additive_changes.compatible_type_changes.length,
+        });
+        trace.re_capture_signal = recaptureSignal;
       }
     }
   }
