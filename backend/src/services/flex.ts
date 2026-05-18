@@ -40,13 +40,13 @@ export const PLATFORM_BPS = 5000;
 export const FLEX_MAX_SPLITS = 5;
 // OWNER_BPS is the share that goes to a DNS-claimed site owner (the
 // operator of the domain the skill talks to). Mirrors the
-// SITE_OWNER_SHARE_PCT = 0.20 constant in backend/src/services/pricing.ts
-// and matches the 50/30/20 split documented in docs/HOW_UNBROWSE_PAYS.md.
+// SITE_OWNER_SHARE_PCT = 0.15 constant in backend/src/services/pricing.ts
+// and matches the 50/35/15 split documented in docs/HOW_UNBROWSE_PAYS.md.
 // Only fires when SkillManifest.owner_compensation_opt_in === true AND
 // owner_wallet_usdc_ata is non-empty (server-stamped by the DNS-claim
 // verify endpoint at backend/src/routes/claim.ts). When neither holds,
 // the indexer pool keeps the full 10000 - PLATFORM_BPS = 5000 bps.
-export const OWNER_BPS = 2000;
+export const OWNER_BPS = 1500;
 
 // Mainnet USDC. Devnet/test override happens via the facilitator service in
 // Day-5, not here — this module is pure assembly.

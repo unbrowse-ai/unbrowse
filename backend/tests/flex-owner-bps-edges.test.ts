@@ -83,7 +83,7 @@ test("edge: 7 contribs at delta=1 + owner active drops to 3 contribs, bps sum is
   expect(splits.find((s) => s.recipient === PLATFORM)?.bps).toBe(PLATFORM_BPS);
   expect(splits.find((s) => s.recipient === OWNER)?.bps).toBe(OWNER_BPS);
 
-  // Surviving contributors share exactly contributorPool = 3000 bps.
+  // Surviving contributors share exactly contributorPool = 3500 bps (with OWNER_BPS=1500).
   const contributorSum = splits
     .filter((s) => s.recipient !== PLATFORM && s.recipient !== OWNER)
     .reduce((s, x) => s + x.bps, 0);
@@ -158,7 +158,7 @@ test("edge: owner ATA == sole contributor wallet collapses to one entry", () => 
   expect(splits.length).toBe(2);
   expect(sumBps(splits)).toBe(10000);
   const sharedLane = splits.find((s) => s.recipient === SHARED)!;
-  // OWNER_BPS (2000) + contributor pool (3000) = 5000.
+  // OWNER_BPS (1500) + contributor pool (3500) = 5000.
   expect(sharedLane.bps).toBe(OWNER_BPS + (10000 - PLATFORM_BPS - OWNER_BPS));
   expect(sharedLane.bps).toBe(5000);
 });
@@ -190,9 +190,9 @@ test("edge: owner ATA == one of several contributor wallets collapses that lane 
   expect(platformLane.bps).toBe(PLATFORM_BPS);
 
   const sharedLane = splits.find((s) => s.recipient === SHARED)!;
-  // Owner's 2000 + this contributor's portion of the 3000 contributor pool.
-  // Weights: 100/175, 50/175, 25/175. SHARED's share = round(100/175 * 3000) = 1714.
-  // After OWNER_BPS=2000 added: ~3714. Pin >= 3000 (owner) + smallest plausible (1).
+  // Owner's 1500 + this contributor's portion of the 3500 contributor pool.
+  // Weights: 100/175, 50/175, 25/175. SHARED's share = round(100/175 * 3500) = 2000.
+  // After OWNER_BPS=1500 added: ~3500. Pin >= OWNER_BPS + smallest plausible (1).
   expect(sharedLane.bps).toBeGreaterThan(OWNER_BPS);
   expect(sharedLane.bps).toBeLessThan(OWNER_BPS + (10000 - PLATFORM_BPS - OWNER_BPS));
 
@@ -287,8 +287,8 @@ test("edge: computeFlexSplits is idempotent (deep-equal output on re-call)", () 
 test("edge: mergeSplits preserves first-appearance order regardless of input order", () => {
   const platformFirst = mergeSplits([
     { recipient: PLATFORM, bps: 5000 },
-    { recipient: OWNER, bps: 2000 },
-    { recipient: "ContriB111111111111111111111111111111111111", bps: 3000 },
+    { recipient: OWNER, bps: 1500 },
+    { recipient: "ContriB111111111111111111111111111111111111", bps: 3500 },
   ]);
   expect(platformFirst.map((s) => s.recipient)).toEqual([
     PLATFORM,
@@ -297,9 +297,9 @@ test("edge: mergeSplits preserves first-appearance order regardless of input ord
   ]);
 
   const contribFirst = mergeSplits([
-    { recipient: "ContriB111111111111111111111111111111111111", bps: 3000 },
+    { recipient: "ContriB111111111111111111111111111111111111", bps: 3500 },
     { recipient: PLATFORM, bps: 5000 },
-    { recipient: OWNER, bps: 2000 },
+    { recipient: OWNER, bps: 1500 },
   ]);
   expect(contribFirst.map((s) => s.recipient)).toEqual([
     "ContriB111111111111111111111111111111111111",

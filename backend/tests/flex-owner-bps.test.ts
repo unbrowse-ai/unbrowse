@@ -5,10 +5,14 @@
  * CLAIM_YOUR_DOMAIN.md) describe is actually shipped:
  *
  *   - PLATFORM_BPS = 5000 (50%)
- *   - OWNER_BPS    = 2000 (20%), active only when owner_compensation_opt_in
+ *   - OWNER_BPS    = 1500 (15%), active only when owner_compensation_opt_in
  *                    is true AND owner_wallet_usdc_ata is non-empty
  *   - Indexer pool = 10000 - PLATFORM_BPS - (active ? OWNER_BPS : 0)
- *                    = 3000 (30%) when owner is active, else 5000 (50%)
+ *                    = 3500 (35%) when owner is active, else 5000 (50%)
+ *
+ * Hardcoded BPS values below are painted-lamp guards (see
+ * `feedback_xfail_mutation_test` memory): mutating OWNER_BPS in source
+ * breaks these tests deterministically.
  *
  * No mocks. Pure-function unit tests against the real computeFlexSplits.
  */
@@ -40,14 +44,14 @@ function sumBps(splits: { bps: number }[]): number {
   return splits.reduce((s, x) => s + x.bps, 0);
 }
 
-test("seed: OWNER_BPS constant is 2000 (20%)", () => {
-  expect(OWNER_BPS).toBe(2000);
+test("seed: OWNER_BPS constant is 1500 (15%)", () => {
+  expect(OWNER_BPS).toBe(1500);
 });
 
 test("seed: PLATFORM_BPS + OWNER_BPS + contributorPool = 10000 when owner active", () => {
-  expect(PLATFORM_BPS + OWNER_BPS).toBe(7000);
+  expect(PLATFORM_BPS + OWNER_BPS).toBe(6500);
   const contributorPool = 10000 - PLATFORM_BPS - OWNER_BPS;
-  expect(contributorPool).toBe(3000);
+  expect(contributorPool).toBe(3500);
 });
 
 test("seed: owner inactive (opt_in=false) keeps the existing 50/50 split", () => {
@@ -94,7 +98,7 @@ test("seed: owner active routes OWNER_BPS to the owner USDC ATA", () => {
   expect(sumBps(splits)).toBe(10000);
 });
 
-test("seed: owner active + 1 contributor splits 50/20/30", () => {
+test("seed: owner active + 1 contributor splits 50/15/35", () => {
   const contributor = "ContriB111111111111111111111111111111111111";
   const splits = computeFlexSplits(
     {
@@ -105,17 +109,17 @@ test("seed: owner active + 1 contributor splits 50/20/30", () => {
     PLATFORM,
   );
   expect(splits.find((s) => s.recipient === PLATFORM)?.bps).toBe(5000);
-  expect(splits.find((s) => s.recipient === OWNER)?.bps).toBe(2000);
-  expect(splits.find((s) => s.recipient === contributor)?.bps).toBe(3000);
+  expect(splits.find((s) => s.recipient === OWNER)?.bps).toBe(1500);
+  expect(splits.find((s) => s.recipient === contributor)?.bps).toBe(3500);
   expect(sumBps(splits)).toBe(10000);
 });
 
 test("seed: owner active + 3 contributors weighted by cumulative_delta", () => {
-  // 100 + 50 + 25 = 175. Pool = 3000.
-  //   100/175 * 3000 = 1714
-  //    50/175 * 3000 =  857
-  //    25/175 * 3000 =  429
-  //   sum 3000 (within rounding)
+  // 100 + 50 + 25 = 175. Pool = 3500.
+  //   100/175 * 3500 = 2000
+  //    50/175 * 3500 = 1000
+  //    25/175 * 3500 =  500
+  //   sum 3500 (exact under round-half-up)
   const splits = computeFlexSplits(
     {
       contributors: [
@@ -130,11 +134,11 @@ test("seed: owner active + 3 contributors weighted by cumulative_delta", () => {
   );
   expect(sumBps(splits)).toBe(10000);
   expect(splits.find((s) => s.recipient === PLATFORM)?.bps).toBe(5000);
-  expect(splits.find((s) => s.recipient === OWNER)?.bps).toBe(2000);
+  expect(splits.find((s) => s.recipient === OWNER)?.bps).toBe(1500);
   const contributorSum = splits
     .filter((s) => s.recipient !== PLATFORM && s.recipient !== OWNER)
     .reduce((sum, s) => sum + s.bps, 0);
-  expect(contributorSum).toBe(3000);
+  expect(contributorSum).toBe(3500);
 });
 
 test("seed: owner active + zero contributors folds residual back to platform", () => {
