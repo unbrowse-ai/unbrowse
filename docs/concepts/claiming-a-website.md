@@ -1,10 +1,10 @@
 # Claiming a Website
 
-How a site operator proves they own a domain and starts earning the 20% owner lane on every paid call to Unbrowse skills that talk to it.
+How a site operator proves they own a domain and starts earning the 15% owner lane on every paid call to Unbrowse skills that talk to it.
 
 ## Why claim
 
-Unbrowse marketplace skills capture the public APIs your site already serves. When agents call those skills, the price settles on-chain as a three-way [fare split](fare-splits.md). The 20% **owner lane** routes to a Solana wallet you control — but only after you've proven the domain is yours via a DNS TXT record. Until then, the 20% folds back into the indexer pool.
+Unbrowse marketplace skills capture the public APIs your site already serves. When agents call those skills, the price settles on-chain as a three-way [fare split](fare-splits.md). The 15% **owner lane** routes to a Solana wallet you control — but only after you've proven the domain is yours via a DNS TXT record. Until then, the 15% folds back into the indexer pool.
 
 You claim a domain once. Future paid calls to any skill whose `domain` matches your verified apex carry your wallet as a recipient in the on-chain split, atomically, in the same transaction the platform and indexers get paid.
 
@@ -28,7 +28,7 @@ You claim a domain once. Future paid calls to any skill whose `domain` matches y
    - `owner_wallet_address = <your wallet>`
    - `owner_wallet_usdc_ata = <your wallet>` (USDC ATA derive deferred)
    - `owner_wallet_verified_at = <verify timestamp>`
-8. The next paid call against any of those skills routes 20% (2000 bps) to your wallet via Faremeter Flex.
+8. The next paid call against any of those skills routes 15% (1500 bps) to your wallet via Faremeter Flex.
 
 The whole flow is documented in code at `backend/src/routes/claim.ts` and `backend/src/services/domain-claim-effects.ts`.
 
