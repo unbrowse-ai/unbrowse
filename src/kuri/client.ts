@@ -1083,11 +1083,27 @@ export async function evaluate(tabId: string, expression: string, state: BrokerS
     raw = (await kuriGet(state, "/evaluate", { tab_id: tabId, expression })) as typeof raw;
   }
   // CDP Runtime.evaluate response: { id, result: { result: { type, value } } }
+  // When kuri's /evaluate cannot produce a usable CDP value — error
+  // envelope (`result: { error: "..." }`), runtime exception
+  // (`result: { exceptionDetails: ... }`), or any shape missing the
+  // nested `result.result` — return undefined.
+  //
+  // Pre-fix this function returned the raw error object via `return raw`,
+  // which caused callers to do `String(rawObj ?? "")` and silently
+  // produce the literal 15-byte string `"[object Object]"`. That string
+  // passes the `livePageHtmlSize > 0` accounting in
+  // src/api/browse-index.ts but fails `html.trimStart().startsWith("<")`,
+  // so the DOM fallback reported `dom_html_size: 15` and proceeded —
+  // concealing the actual CDP failure behind a fake "tiny page" signal.
+  // Surfaced by 2026-05-18 MCP gate run 20260518T115632Z probe 001
+  // (Hacker News) where ~5 SSR probes (HN, MDN, figma, openlibrary)
+  // all carried the 15-byte fingerprint.
   const inner = raw?.result?.result;
-  if (!inner) return raw;
+  if (!inner) return undefined;
+  if (raw?.result && "exceptionDetails" in raw.result && raw.result.exceptionDetails) return undefined;
   if (inner.type === "undefined") return undefined;
   if ("value" in inner) return inner.value;
-  return inner.description ?? raw;
+  return inner.description ?? undefined;
 }
 
 export function getKuriErrorMessage(value: unknown): string | null {

@@ -2405,19 +2405,41 @@ export async function registerRoutes(app: FastifyInstance) {
       // Last resort: try health check instead of waitForLoad
       try { await broker.health(); ready = true; } catch {}
     }
-    await broker.networkEnable(session.tabId).catch(() => {});
+    // Each capture-setup step is wrapped so an early failure doesn't
+    // wedge the entire navigate path — but unlike the pre-fix code
+    // (`.catch(() => {})` silently swallowing every error) we now LOG
+    // the failure so the operator sees which step failed when the
+    // close pipeline subsequently reports `requests_count: 0`. Gate
+    // run 20260518T115632Z showed SPA probes (npm, crates.io,
+    // dockerhub, dev.to) capturing zero requests with no signal as to
+    // whether harStart failed, the interceptor didn't inject, or the
+    // page truly made no XHR — surfacing each step's outcome
+    // disambiguates that.
+    const captureStep = async (name: string, fn: () => Promise<unknown>) => {
+      try { await fn(); return true; } catch (e) {
+        console.warn(
+          `[capture-setup] ${name} failed for session=${session.sessionId} tab=${session.tabId}: ${(e as Error)?.message ?? e}`,
+        );
+        return false;
+      }
+    };
+    await captureStep("networkEnable", () => broker.networkEnable(session.tabId));
     // Hook the CDP Network.requestWillBeSent stream so request headers (Authorization,
     // x-csrf-*, etc.) from XHRs the JS interceptor or HAR miss are captured for replay.
     // Generic — no per-domain logic. Headers are persisted as a domain-session credential
     // at close time so executeEndpoint can replay them.
-    await enableNetworkHeaderCapture(session.tabId).catch(() => {});
-    await broker.harStart(session.tabId).catch(() => {});
+    await captureStep("enableNetworkHeaderCapture", () => enableNetworkHeaderCapture(session.tabId));
+    const harOk = await captureStep("harStart", () => broker.harStart(session.tabId));
     // Register interceptor as init script so it runs before page JS on every navigation
     // This catches SSR hydration API calls (Reddit GraphQL, etc.) that fire before evaluate()
-    await broker.addInitScript(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
-    await broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
-    session.harActive = true;
-    await injectInterceptor(session.tabId).catch(() => {});
+    await captureStep("addInitScript", () => broker.addInitScript(session.tabId, INTERCEPTOR_SCRIPT));
+    await captureStep("scriptInject", () => broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT));
+    // Only mark HAR active if harStart actually succeeded — pre-fix the
+    // flag was set unconditionally, so a silently-failed harStart
+    // produced an empty HAR drain at close, attributed to "site has no
+    // XHR" instead of "we never started recording."
+    session.harActive = harOk;
+    await captureStep("injectInterceptor", () => injectInterceptor(session.tabId));
   }
 
   // ── Durable raw-capture spool (one-shot survival) ────────────────────
@@ -2928,8 +2950,26 @@ export async function registerRoutes(app: FastifyInstance) {
           await broker.evaluate(session.tabId, "window.scrollTo(0, 0)");
         } catch { /* non-fatal — page may not support scroll */ }
 
+        // Post-navigate liveness probe: previously this threw `{ error:
+        // "CDP command failed" }` and turned every transient CDP hiccup
+        // into a fatal /v1/browse/go failure — even when `broker.navigate`
+        // had already succeeded and the page was actually loaded. Gate
+        // run 20260518T115632Z had ~13 probes (lobste.rs, wikipedia,
+        // arxiv, pypi, dockerhub, dev.to, reddit/programming, ...) fail
+        // this way at conc=6 against URLs that work serially in-thread.
+        //
+        // The right shape is: navigate's own try/catch above already
+        // recovers from spurious aborts (L2880-2916); by the time we
+        // reach here the page is loaded. A transient liveness false here
+        // doesn't mean the session is dead — it means the broker is
+        // briefly unresponsive. Warn so the operator sees it, but don't
+        // fail the request.
         const stillLive = await isBrowseSessionLive(session, browseClient).catch(() => false);
-        if (!stillLive) throw { error: "CDP command failed" };
+        if (!stillLive) {
+          console.warn(
+            `[browse-go] post-navigate liveness probe returned false for session=${session.sessionId} url=${session.url}; navigate already succeeded, continuing`,
+          );
+        }
 
         return { cookiesInjected };
       };
