@@ -21,7 +21,7 @@ Apex domains only in v1. If you run `news.ycombinator.com`, the record goes on `
 
 ## The flow
 
-1. Visit `/claim` on unbrowse.ai. (Frontend page lives at `frontend/src/app/claim/page.tsx`.)
+1. Visit `/claim` on unbrowse.ai. (Frontend page not yet shipped; the backend endpoints work today via curl.)
 2. Paste the apex domain you want to claim.
 3. Paste the Solana wallet that should receive payouts.
 4. The page calls `POST /v1/claim/challenge` with your domain and wallet (`backend/src/routes/claim.ts`). The response carries `challenge`, `txt_name`, `txt_value`, and `expires_at`. The challenge is good for 24 hours.

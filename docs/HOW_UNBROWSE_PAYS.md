@@ -29,7 +29,7 @@ The claim is a DNS-TXT record. The verifier resolves `_unbrowse-claim.<apex>` th
 
 The skill must also carry `owner_compensation_opt_in === true` (`backend/src/types.ts:437`). The publish handler sets this when the indexer or owner explicitly opts in. The OWNER_BPS lane fires only when both conditions hold: the opt-in flag is true AND `owner_wallet_usdc_ata` resolves from the `domain-wallet:<domain>` KV binding.
 
-See `unbrowse/docs/CLAIM_YOUR_DOMAIN.md` for the step-by-step.
+See `docs/CLAIM_YOUR_DOMAIN.md` for the step-by-step.
 
 ## Wallets stay with lobster.cash
 
