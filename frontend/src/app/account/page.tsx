@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { PrivyLoginButtonOptional } from "@/components/privy-login-button";
 import {
   AccountClientError,
   fetchBillingMe,
@@ -1280,13 +1281,14 @@ export default function AccountPage() {
         </p>
         <div className="rounded-2xl border border-border bg-surface-sunken p-5 text-sm text-text-secondary space-y-3">
           <p>No API key found in this browser.</p>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <Link href="/login" className="rounded-2xl bg-text-primary text-surface px-4 py-2 text-sm font-medium hover:opacity-90">
               Sign in with email
             </Link>
             <Link href="/" className="rounded-2xl border border-border px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface-raised">
               Generate a key on the home page
             </Link>
+            <PrivyLoginButtonOptional className="rounded-2xl" />
           </div>
         </div>
       </main>
