@@ -30,7 +30,18 @@
 
 set -euo pipefail
 
-STAMP=".bench-gate/stamp.json"
+# Two stamp files are accepted; prefer the MCP-surface stamp (the codex-yolo
+# convergence loop at scripts/bench-converge/orchestrate.sh writes this on
+# PROMOTE) over the legacy CLI-shortcut stamp. The MCP stamp covers the
+# real agent path: empty index -> browse -> publish -> resolve -> execute
+# loop, judged in-thread; the CLI stamp covers `unbrowse capture` only.
+STAMP_MCP=".bench-gate/stamp.mcp.json"
+STAMP_LEGACY=".bench-gate/stamp.json"
+if [[ -f "$STAMP_MCP" ]]; then
+  STAMP="$STAMP_MCP"
+else
+  STAMP="$STAMP_LEGACY"
+fi
 PATHS=(
   "src"
   "packages/sdk"

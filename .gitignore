@@ -100,7 +100,10 @@ tmp/
 .release-announcement.md
 .release-announcement.json
 .gstack/
-.codex/
+.codex/*
+# Whitelist project-level codex config — used by scripts/bench-converge to
+# bind dev MCP. Sessions/logs under .codex/ stay ignored.
+!.codex/config.toml
 codedb.snapshot
 .kuri/
 .neon
@@ -146,3 +149,8 @@ packages/skill/dist-sm/
 # `.bench-gate/stamp.json` IS committed — it's the release-it gate marker.
 .bench-gate/*/
 !.bench-gate/stamp.json
+!.bench-gate/stamp.mcp.json
+
+# bench-converge runtime artifacts (per-run dirs + sandboxed unbrowse state).
+# Stamp output lands in .bench-gate/stamp.mcp.json (whitelisted above).
+.bench-converge/

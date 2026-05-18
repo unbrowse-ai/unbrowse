@@ -97,11 +97,30 @@ export function mergeBrowseRequests(intercepted: RawRequest[], harEntries: KuriH
   return allRequests;
 }
 
+export interface CaptureDiagnostic {
+  // Raw counts and gate signals collected at each pipeline stage. Per
+  // CLAUDE.md's "substrate enables; does not prescribe" rule these are
+  // declared values from the existing stages (extractEndpoints,
+  // getPageHtml, tryHttpFetch, shouldIndexDomBrowseFallback) — never
+  // synthesized verdicts. The agent reads these against intent to judge
+  // which gate fired when `indexed: false` is returned on the 17 probes
+  // surfaced by 2026-05-18 MCP gate run `20260518T092341Z`.
+  requests_count: number;        // input to extractEndpoints (after enrichPassiveCaptureRequests)
+  raw_endpoints_count: number;   // output of extractEndpoints
+  http_path_grew_skill: boolean | null;  // null if http branch not taken
+  dom_fallback_attempted: boolean;       // raw_endpoints===0 branch entered
+  dom_html_size: number;                 // bytes from getPageHtml (live tab eval)
+  dom_used_server_fetch: boolean;        // tryHttpFetch ran as html fallback
+  dom_extraction_confidence: number | null; // null if extractFromDOM not called
+  dom_decision_reason: string | null;       // verbatim shouldIndexDomBrowseFallback.reason or "no_html"/"exception"
+}
+
 export interface BrowseIndexResult {
   domain: string;
   indexed: boolean;
   mode: "http" | "dom" | "none";
   skill: SkillManifest | null;
+  capture_diagnostic: CaptureDiagnostic;
 }
 
 export function shouldIndexDomBrowseFallback(params: {
@@ -191,6 +210,19 @@ export async function cacheBrowseRequests(params: {
 
   const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl: sessionUrl, finalUrl: sessionUrl });
 
+  // Mutable diagnostic accumulator. Populated as the pipeline runs; spread
+  // into every return so close-body always carries the per-stage signals.
+  const diagnostic: CaptureDiagnostic = {
+    requests_count: requests.length,
+    raw_endpoints_count: rawEndpoints.length,
+    http_path_grew_skill: null,
+    dom_fallback_attempted: false,
+    dom_html_size: 0,
+    dom_used_server_fetch: false,
+    dom_extraction_confidence: null,
+    dom_decision_reason: null,
+  };
+
   // Extract and persist auth headers (authorization, csrf, bearer tokens)
   // so serverFetch can replay them. Use registrable domain for vault key
   // so ads.x.com and ads-api.x.com share the same session. CDP-only synthetic
@@ -278,13 +310,16 @@ export async function cacheBrowseRequests(params: {
       try { cachePublishedSkill(quickSkill); } catch {}
       upsertDagEdgesFromOperationGraph(quickSkill);
       invalidateRouteCacheForDomain(domain);
-      return { domain, indexed: true, mode: "http", skill: quickSkill };
+      diagnostic.http_path_grew_skill = true;
+      return { domain, indexed: true, mode: "http", skill: quickSkill, capture_diagnostic: diagnostic };
     }
 
-    return { domain, indexed: false, mode: "http", skill: existingSkill ?? null };
+    diagnostic.http_path_grew_skill = false;
+    return { domain, indexed: false, mode: "http", skill: existingSkill ?? null, capture_diagnostic: diagnostic };
   }
 
   try {
+    diagnostic.dom_fallback_attempted = true;
     const { extractFromDOM } = await import("../extraction/index.js");
     const { detectSearchForms, isStructuredSearchForm } = await import("../execution/search-forms.js");
     const { inferSchema } = await import("../transform/index.js");
@@ -295,6 +330,7 @@ export async function cacheBrowseRequests(params: {
     try {
       html = getPageHtml ? await getPageHtml() : undefined;
       livePageHtmlSize = html ? html.length : 0;
+      diagnostic.dom_html_size = livePageHtmlSize;
     } catch { html = undefined; }
     // getPageHtml is the live Kuri CDP tab HTML; CLAUDE.md documents it may
     // return "[object Object]" / empty when the CDP response shape changes.
@@ -320,8 +356,13 @@ export async function cacheBrowseRequests(params: {
       const fetched = await tryHttpFetch(sessionUrl, {}, sessionCookies);
       html = fetched?.html;
       usedServerFetch = true;
+      diagnostic.dom_used_server_fetch = true;
+      if (html) diagnostic.dom_html_size = html.length;
     }
-    if (!html || !html.trimStart().startsWith("<")) return { domain, indexed: false, mode: "none", skill: null };
+    if (!html || !html.trimStart().startsWith("<")) {
+      diagnostic.dom_decision_reason = "no_html";
+      return { domain, indexed: false, mode: "none", skill: null, capture_diagnostic: diagnostic };
+    }
 
     const evaluate = (h: string) => {
       const ex = extractFromDOM(h, intent);
@@ -354,12 +395,21 @@ export async function cacheBrowseRequests(params: {
       const fetched = await tryHttpFetch(sessionUrl, {}, sessionCookies);
       if (fetched?.html && fetched.html.trimStart().startsWith("<")) {
         const alt = evaluate(fetched.html);
-        if (alt.ok) { html = fetched.html; evald = alt; }
+        if (alt.ok) {
+          html = fetched.html;
+          evald = alt;
+          diagnostic.dom_used_server_fetch = true;
+          diagnostic.dom_html_size = fetched.html.length;
+        }
       }
     }
 
     const { extracted, validForm, domDecision } = evald;
-    if (!domDecision.allow || !extracted.data) return { domain, indexed: false, mode: "none", skill: null };
+    diagnostic.dom_extraction_confidence = typeof extracted.confidence === "number" ? extracted.confidence : null;
+    if (!domDecision.allow || !extracted.data) {
+      diagnostic.dom_decision_reason = domDecision.reason ?? (!extracted.data ? "no_extracted_data" : "dom_fallback_rejected");
+      return { domain, indexed: false, mode: "none", skill: null, capture_diagnostic: diagnostic };
+    }
 
     const urlTemplate = templatizeQueryParams(sessionUrl);
     const endpoint: EndpointDescriptor = {
@@ -424,8 +474,9 @@ export async function cacheBrowseRequests(params: {
     try { cachePublishedSkill(skill); } catch {}
     upsertDagEdgesFromOperationGraph(skill);
     invalidateRouteCacheForDomain(domain);
-    return { domain, indexed: true, mode: "dom", skill };
+    return { domain, indexed: true, mode: "dom", skill, capture_diagnostic: diagnostic };
   } catch {
-    return { domain, indexed: false, mode: "none", skill: null };
+    diagnostic.dom_decision_reason = diagnostic.dom_decision_reason ?? "exception_in_dom_fallback";
+    return { domain, indexed: false, mode: "none", skill: null, capture_diagnostic: diagnostic };
   }
 }
