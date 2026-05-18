@@ -1,6 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
+import {
+  injectKeyIntoCommandText,
+  injectKeyIntoCopyText,
+  maskApiKey,
+} from "@/lib/install-key-injection";
 
 const O      = "#8B3800";          // dark burnt orange (commands on parchment)
 const O_DIM  = "rgba(100,55,10,0.75)";  // dim text (comments, labels)
@@ -10,7 +16,6 @@ const BG_MOBILE = "#e8d8b0";
 
 type LineType = "header" | "divider" | "comment" | "cmd" | "blank";
 interface TLine { type: LineType; text: string; }
-
 const TABS = [
   {
     id: "claude-code",
@@ -84,6 +89,13 @@ export function InstallInstructions() {
   const [cursor, setCursor]       = useState(true);
   const [copied, setCopied]       = useState(false);
   const [isMobile, setIsMobile]   = useState(false);
+  // Soft-gate: when the visitor is signed in, default to baking their API
+  // key into the install. They can opt out in one click; signed-out
+  // visitors see the existing un-keyed commands plus a "sign in to bake
+  // your key" hint. Never blocks the un-keyed install.
+  const [connectAccount, setConnectAccount] = useState(true);
+
+  const { apiKey, isAuthenticated, email, agentName } = useAuth();
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
@@ -112,8 +124,19 @@ export function InstallInstructions() {
     return () => clearInterval(iv);
   }, []);
 
+  // Key shown on screen is masked (so a passing screen-recorder doesn't
+  // grab a full key); the value that goes to the clipboard is the real key.
+  const baked = isAuthenticated && connectAccount && apiKey ? apiKey : null;
+  const bakedMasked = baked ? maskApiKey(baked) : null;
+  const renderedLines: TLine[] = tab.lines.map((line) =>
+    line.type === "cmd"
+      ? { ...line, text: injectKeyIntoCommandText(line.text, bakedMasked) }
+      : line,
+  );
+  const copyValue = injectKeyIntoCopyText(tab.copyText, baked);
+
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(tab.copyText);
+    await navigator.clipboard.writeText(copyValue);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -204,6 +227,58 @@ export function InstallInstructions() {
         </button>
       </div>
 
+      {/* ── Account-handoff row ── */}
+      {/* Signed in: offer a one-click toggle to bake the API key into the
+          install. Signed out: a quiet hint so the value is discoverable but
+          the anonymous install never gets blocked. */}
+      <div
+        data-testid="install-account-row"
+        style={{
+          borderBottom: "1px solid rgba(255,122,32,0.14)",
+          padding: "6px 14px",
+          fontFamily: "monospace",
+          fontSize: 10,
+          letterSpacing: "0.1em",
+          color: O_DIM,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: "10px",
+          background: "rgba(180,145,90,0.12)",
+          position: "relative", zIndex: 30,
+        }}
+      >
+        {isAuthenticated && apiKey ? (
+          <>
+            <span>
+              ● signed in
+              {(email || agentName)
+                ? ` as ${(email || agentName)!.toLowerCase()}`
+                : ""}
+            </span>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={connectAccount}
+                onChange={(e) => setConnectAccount(e.target.checked)}
+                style={{ accentColor: "#FF7A20" }}
+              />
+              <span>bake api key into install</span>
+            </label>
+          </>
+        ) : (
+          <>
+            <span style={{ opacity: 0.7 }}>○ anonymous install — the cli will prompt for an email on first run</span>
+            <a
+              href="/login"
+              style={{
+                color: O_HI, textDecoration: "underline", cursor: "pointer",
+              }}
+            >
+              sign in to bake your api key into the install →
+            </a>
+          </>
+        )}
+      </div>
+
       {/* ── Output ── */}
       <div
         style={{
@@ -215,7 +290,7 @@ export function InstallInstructions() {
           position: "relative", zIndex: 30,
         }}
       >
-        {tab.lines.slice(0, visible).map((line, i) =>
+        {renderedLines.slice(0, visible).map((line, i) =>
           line.type === "blank" ? (
             <div key={i} style={lineStyle("blank")} />
           ) : (
