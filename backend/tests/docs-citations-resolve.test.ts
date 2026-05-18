@@ -232,7 +232,11 @@ describe("docs/Step-3 citations resolve to real file:line", () => {
       { path: "backend/src/services/flex.ts", start: 66 },
       { path: "backend/src/types.ts", start: 437 },
       { path: "backend/src/types.ts", start: 516, end: 531 },
-      { path: "frontend/src/app/how-unbrowse-pays/page.tsx", start: 205, end: 227 },
+      // Step 5 (PR #480): the page shrank from 285 lines to 39 when it
+      // became a markdown renderer. The lobster-cash citation now lives
+      // in docs/HOW_UNBROWSE_PAYS.md itself; the guard pins the renderer
+      // module as the new structural anchor.
+      { path: "frontend/src/lib/docs-renderer.ts" },
       { path: "backend/src/routes/auth.ts", start: 53, end: 172 },
       { path: "backend/src/routes/claim.ts" },
       { path: "backend/src/services/domain-claim.ts" },

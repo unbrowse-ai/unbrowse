@@ -348,6 +348,13 @@ export interface EndpointDescriptor {
   annotations?: EndpointAnnotation[];
   /** Optional proof metadata or client-side commitment */
   zk_proof?: ZkProof;
+  /**
+   * Owner-submitted provenance flag. Set to `true` by `promoteOfficialSubmission`
+   * when a domain owner's canonical x402-supported endpoint is promoted out of
+   * the triage queue. Tri-file synced with `src/types/skill.ts` and
+   * `frontend/src/lib/api.ts`. Captured endpoints leave this undefined.
+   */
+  owner_submitted?: boolean;
 }
 
 export interface EndpointConstraint {

@@ -127,14 +127,17 @@ describe("/v1/claim/* seed contract", () => {
     expect(body.error).toBe("invalid_wallet");
   });
 
-  it("4. POST /claim/verify returns 501 not_implemented seed placeholder", async () => {
+  it("4. POST /claim/verify with no prior challenge returns 404 no_challenge", async () => {
+    // /v1/claim/verify is now wired (Step 5). Without a prior challenge KV
+    // row, the handler must surface 404 no_challenge so the caller knows to
+    // mint one. This pins the contract from firmament-step2.md "Endpoints"
+    // before the DoH happy-path test in claim-verify-e2e.test.ts.
     const res = await postJson("/v1/claim/verify", {
       domain: "example.com",
       wallet_address: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
     });
-    expect(res.status).toBe(501);
-    const body = (await res.json()) as { ok: boolean; error: string };
-    expect(body.ok).toBe(false);
-    expect(body.error).toBe("not_implemented");
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("no_challenge");
   });
 });

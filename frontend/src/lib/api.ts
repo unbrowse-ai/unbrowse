@@ -103,6 +103,13 @@ export interface EndpointDescriptor {
   reliability_score: number;
   response_schema?: unknown;
   zk_proof?: ZkProof;
+  /**
+   * Owner-submitted provenance flag. Set to `true` by the backend triage
+   * helper when a domain owner's canonical x402-supported endpoint is
+   * promoted out of the triage queue. Tri-file synced with
+   * `backend/src/types.ts` and `src/types/skill.ts` (CLAUDE.md).
+   */
+  owner_submitted?: boolean;
 }
 
 export interface SkillListEndpointPreview {
