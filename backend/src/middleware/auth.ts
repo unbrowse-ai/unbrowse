@@ -51,6 +51,21 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   }
   const token = authHeader.slice(7);
 
+  // Nuclear kill-switch (2026-05-18 security rotation): if ALL_KEYS_REVOKED is
+  // set, every key — including admin tokens that came from the env — is rejected
+  // with a re-register pointer. Reversible by clearing the env var. See
+  // types.ts::Env.ALL_KEYS_REVOKED for the rotation policy.
+  const allKeysRevoked = ((c.env as { ALL_KEYS_REVOKED?: string }).ALL_KEYS_REVOKED ?? "").toLowerCase();
+  if (allKeysRevoked === "1" || allKeysRevoked === "true") {
+    return c.json({
+      error: "all_keys_rotated",
+      message:
+        "All API keys were rotated on 2026-05-18 for security. Please sign in at https://unbrowse.ai/login to mint a new key. Old CLI installs need to re-run `unbrowse setup`.",
+      rotation_url: "https://unbrowse.ai/login",
+      rotated_at: "2026-05-18T00:00:00.000Z",
+    }, 401);
+  }
+
   // Legacy admin key (backward compat for existing CLI installs)
   if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
     c.set("agent_id", "__admin__");
@@ -106,6 +121,17 @@ export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
   }
   const token = authHeader.slice(7);
 
+  // ALL_KEYS_REVOKED kill-switch (mirrors bearerAuth). Reject before any KV lookup.
+  const allKeysRevokedNoTos = ((c.env as { ALL_KEYS_REVOKED?: string }).ALL_KEYS_REVOKED ?? "").toLowerCase();
+  if (allKeysRevokedNoTos === "1" || allKeysRevokedNoTos === "true") {
+    return c.json({
+      error: "all_keys_rotated",
+      message:
+        "All API keys were rotated on 2026-05-18 for security. Please sign in at https://unbrowse.ai/login to mint a new key.",
+      rotation_url: "https://unbrowse.ai/login",
+    }, 401);
+  }
+
   if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
     c.set("agent_id", "__admin__");
     await next();
@@ -126,10 +152,15 @@ export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
   await next();
 }
 
-/** Optional auth — sets agent_id if a valid key is present, but never rejects. */
+/** Optional auth — sets agent_id if a valid key is present, but never rejects.
+ * Honors the ALL_KEYS_REVOKED kill-switch by skipping agent_id assignment
+ * (routes still work anonymously; no one looks authenticated until they
+ * re-register). */
 export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
+  const allKeysRevokedOpt = ((c.env as { ALL_KEYS_REVOKED?: string }).ALL_KEYS_REVOKED ?? "").toLowerCase();
+  const killed = allKeysRevokedOpt === "1" || allKeysRevokedOpt === "true";
+  if (!killed && authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
     if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
       c.set("agent_id", "__admin__");
