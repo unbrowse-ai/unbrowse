@@ -1,9 +1,9 @@
 # Release-Gate Bench corpus (release-gate-bench-plan.md)
 # Format: lane | auth | difficulty | strategy | intent | contextUrl
-# Lanes: anchor (11) semantic-rank (8) graphql (6) ssr-list (10) auth-gated (8) hostile (15)
-# Total: 58
-# Sources: original curated set (50) + v1 refresh from r/webscraping + HN (8 added 2026-05-14)
-# Coverage denominator excludes auth-gated + hostile that resolve as EXCLUDED_*.
+# Lanes: anchor (11) semantic-rank (8) graphql (6) ssr-list (10) auth-gated (8) auth-cookies (8) hostile (15)
+# Total: 66
+# Sources: original curated set (50) + v1 refresh from r/webscraping + HN (8 added 2026-05-14) + Dia-cookie auth lane (8 added 2026-05-19)
+# Coverage denominator excludes auth-gated + hostile + auth-cookies-without-cookies that resolve as EXCLUDED_*.
 # Hostile-lane PASS is a yellow flag (anti-bot honey-trap), not celebrated.
 
 # ─── anchor (11) — must-pass; regression here blocks the release ──────────────
@@ -59,6 +59,21 @@ auth-gated | required | hard | auth-handoff | get figma file canvas | https://ww
 auth-gated | required | hard | auth-handoff | get slack channel messages | https://app.slack.com/client/T0/C0
 auth-gated | required | hard | auth-handoff | get x home timeline cold | https://x.com/home
 
+# ─── auth-cookies (8) — exercise Dia/Chrome cookie auto-injection to reach
+#   authenticated routes; included in denominator ONLY when the user is
+#   logged in (cookies present in the Chromium SQLite store for that
+#   domain). When no cookies exist for a domain, judge as
+#   *_EXCLUDED_AUTH (same as auth-handoff lane). When cookies ARE
+#   present, expect RETRIEVE_PASS with the agent's actual feed/inbox
+#   data, not a login wall. ────────────────────────────────────────────
+auth-cookies | dia | hard | cookie-injected | get linear my issues | https://linear.app/
+auth-cookies | dia | hard | cookie-injected | get github personal repos | https://github.com/settings/repositories
+auth-cookies | dia | hard | cookie-injected | get notion workspace pages | https://www.notion.so/
+auth-cookies | dia | hard | cookie-injected | get youtube subscriptions feed | https://www.youtube.com/feed/subscriptions
+auth-cookies | dia | hard | cookie-injected | get reddit logged-in front page | https://www.reddit.com/
+auth-cookies | dia | hard | cookie-injected | get x home timeline with cookies | https://x.com/home
+auth-cookies | dia | hard | cookie-injected | get gmail inbox with cookies | https://mail.google.com/mail/u/0/#inbox
+auth-cookies | dia | hard | cookie-injected | get cursor settings page | https://cursor.com/dashboard
 # ─── hostile (15) — vendor-shielded; expected BROWSER_BLOCK; excluded ─────────
 hostile | blocked | hostile | browser-block | search ticketmaster events | https://www.ticketmaster.com/search?q=concert
 hostile | blocked | hostile | browser-block | search instacart products | https://www.instacart.com/store/s?k=milk

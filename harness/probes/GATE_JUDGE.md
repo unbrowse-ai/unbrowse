@@ -9,7 +9,7 @@ heuristics; you read the artifact and decide.
 Per probe:
 
 - `lane` — one of `anchor`, `semantic-rank`, `graphql`, `ssr-list`,
-  `auth-gated`, `hostile`
+  `auth-gated`, `auth-cookies`, `hostile`
 - `intent` — the natural-language intent the agent was given
 - `contextUrl` — the page the agent was anchored to
 - optional `auth`, `difficulty`, and `strategy` labels — triage metadata
@@ -120,6 +120,34 @@ You do not compute these. You emit per-probe verdicts only.
   concrete `suggested_commands`. Emit `INDEX_EXCLUDED_AUTH` /
   `RETRIEVE_EXCLUDED_AUTH`. If the product crashed instead of handing off,
   that's `RETRIEVE_FAIL_ERROR_BODY`.
+- `auth-cookies` — the substrate's auto-cookie-injection path
+  (extracted from the user's real Dia / Chrome / Arc / Brave / Edge /
+  Vivaldi / Opera SQLite store) should reach authenticated content.
+  Two outcome regimes:
+
+  1. **User is logged in (cookies present for the domain).** The
+     response in `execute.response.raw` should contain authenticated
+     content the agent asked for — Gmail inbox subjects, GitHub repo
+     names from the user's own list, Linear issue titles, YouTube
+     subscriptions feed, Reddit personalized front page items. Emit
+     `RETRIEVE_PASS` and quote one concrete data field that's clearly
+     personalized (e.g. a real subject line, a private repo name).
+
+  2. **User is NOT logged in (no Dia/Chrome cookies for the domain).**
+     The response will be a login wall or anonymous-default content.
+     Emit `RETRIEVE_EXCLUDED_AUTH` — same as the `auth-gated` lane —
+     so the probe is excluded from the denominator. This is NOT a
+     failure: it means the substrate's cookie auto-injection had
+     nothing to work with locally.
+
+  Failure mode that IS a real bug: cookies were present but the
+  response is still a login wall (cookie injection broken or stripped
+  by the substrate mid-pipeline). Emit `RETRIEVE_FAIL_ERROR_BODY` and
+  quote the login-wall content in `evidence_quote`.
+
+  Indexing on `auth-cookies` mirrors retrieval: `INDEX_PASS` when
+  authenticated capture surfaces real endpoints; `INDEX_EXCLUDED_AUTH`
+  when no cookies were available.
 - `hostile` — the site actively fights bots. The bench expects most
   probes to BROWSER_BLOCK (emit `*_EXCLUDED_BLOCKED`). When the
   substrate DOES return data on a hostile probe, that is a successful
