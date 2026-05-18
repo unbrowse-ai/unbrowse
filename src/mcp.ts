@@ -1660,12 +1660,14 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_reflect",
-    description: "Declare the outcome of the user-facing intent you just pursued. Call this once per intent, after you believe the goal is achieved, failed, or partially complete. The substrate uses this signal to surface slow or broken paths to maintainers — it does not change your runtime behavior. Anonymous: only the outcome value (and optional hashed notes) are recorded; no transcript text. Skip the call if you are running diagnostics rather than pursuing a user intent.",
+    description: "Declare the outcome of the user-facing intent you just pursued. Call this once per intent, after you believe the goal is achieved, failed, or partially complete. The substrate uses this signal both to surface slow/broken paths to maintainers AND to update the reliability_score of the skill+endpoint you just executed against (when you pass skill_id+endpoint_id). Anonymous: only the outcome value (and optional hashed notes) are recorded; no transcript text. Skip the call if you are running diagnostics rather than pursuing a user intent.",
     inputSchema: {
       type: "object",
       properties: {
         intent_status: { type: "string", description: "achieved | failed | partial", enum: ["achieved", "failed", "partial"] },
         notes_hash: { type: "string", description: "Optional sha256:16 fingerprint of free-text notes. Hash locally before sending — never raw text." },
+        skill_id: { type: "string", description: "Optional. The skill_id you just executed against. When present, the substrate applies a Bayesian-smoothed reliability update to (skill_id, endpoint_id)." },
+        endpoint_id: { type: "string", description: "Optional. The endpoint_id you just executed against. Required together with skill_id for reliability attribution." },
       },
       required: ["intent_status"],
       additionalProperties: false,
@@ -1676,6 +1678,48 @@ const tools: ToolDefinition[] = [
       const logger = getSessionLogger();
       logger.recordReflection(status, notes);
       const payload: Record<string, unknown> = { ok: true, recorded: true, intent_status: status, telemetry_enabled: logger.enabled };
+      // Reliability attribution: when the agent names the (skill, endpoint)
+      // it just executed against, apply a Bayesian-smoothed update to
+      // reliability_score. The marketplace earns its quality scores
+      // from actual usage — admission no longer gates (the
+      // shouldIndexDomBrowseFallback heuristic was removed 2026-05-18).
+      const skillId = typeof args.skill_id === "string" ? args.skill_id : undefined;
+      const endpointId = typeof args.endpoint_id === "string" ? args.endpoint_id : undefined;
+      if (skillId && endpointId) {
+        try {
+          const { applyReliabilityUpdate } = await import("./marketplace/reliability.js");
+          const { updateEndpointScore } = await import("./marketplace/index.js");
+          const { domainSkillCache, readSkillSnapshot, writeSkillSnapshot } = await import("./orchestrator/index.js");
+          // Find the live local snapshot path for the skill so the update
+          // takes effect on the very next resolve (not just remote).
+          let snapshotPath: string | undefined;
+          for (const v of domainSkillCache.values()) {
+            if (v.skillId === skillId && v.localSkillPath) { snapshotPath = v.localSkillPath; break; }
+          }
+          const snapshot = readSkillSnapshot(snapshotPath);
+          if (snapshot) {
+            const ep = snapshot.endpoints.find((e) => e.endpoint_id === endpointId);
+            if (ep) {
+              const before = typeof ep.reliability_score === "number" ? ep.reliability_score : 0.5;
+              const after = applyReliabilityUpdate(before, status);
+              ep.reliability_score = after;
+              if (snapshotPath) {
+                const { writeFileSync } = await import("node:fs");
+                writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
+              }
+              payload.reliability_update = { skill_id: skillId, endpoint_id: endpointId, before, after, outcome: status };
+              // Best-effort remote update; never throw if the marketplace is offline.
+              updateEndpointScore(skillId, endpointId, after, status === "achieved" ? "verified" : status === "failed" ? "failed" : "stale").catch(() => {});
+            } else {
+              payload.reliability_update = { skill_id: skillId, endpoint_id: endpointId, error: "endpoint_not_found_in_snapshot" };
+            }
+          } else {
+            payload.reliability_update = { skill_id: skillId, endpoint_id: endpointId, error: "skill_snapshot_not_found_locally" };
+          }
+        } catch (e) {
+          payload.reliability_update = { skill_id: skillId, endpoint_id: endpointId, error: (e as Error)?.message ?? "reliability_update_failed" };
+        }
+      }
       // AC5 lane-07: failed/partial reflections get an improvement_suggestion
       // when the caller carries a failure_mode hint. No hard-coded mapping:
       // the ledger declares what each failure means.
