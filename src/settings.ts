@@ -155,20 +155,26 @@ export function updateCapturePipelineSettings(update: {
 }
 
 // --- Browser attach opt-out (persisted) ---------------------------------
-// North Star default: attach to the user's existing Chrome whenever
-// possible (one pipeline captures every tab any agent opens). Some
-// environments (shared machines, automated gate runs, privacy) want the
-// opposite: a clean managed headless Chrome that never touches the user's
-// real browser. PERSISTED user setting (config.json
-// browser.attach_existing_chrome), surfaced via unbrowse_settings.
-// Default true (attach). Only an explicit false opts out. The env knob
-// KURI_DISABLE_CDP_ATTACH still works as a per-process override and wins.
+// Attach to a user-running Chrome (CDP on :9222) when one is found,
+// instead of launching a managed clean Chrome. Pre-2026-05-18 this was
+// default-ON ("North Star: catch every tab agents open through one
+// pipeline"). Flipped to default-OFF after the bench-gate diagnosis
+// showed kuri silently coupling to the user's visible browser whenever
+// they had Chrome open with CDP — bypassing HEADLESS=true entirely
+// (headless governs managed Chrome, not attached Chrome) and leaking
+// gate-run state into the user's real browsing session.
+//
+// PERSISTED user setting (config.json browser.attach_existing_chrome),
+// surfaced via unbrowse_settings. Default false (clean managed Chrome).
+// Only an explicit true opts in. The env knob KURI_DISABLE_CDP_ATTACH
+// (and KURI_CLEAN_ROOM / UNBROWSE_LOCAL_ONLY) still work as per-process
+// overrides that win over the setting.
 export function getBrowserAttachEnabled(): boolean {
   const raw = loadRawConfig();
   const browser = raw.browser && typeof raw.browser === "object"
     ? raw.browser as Record<string, unknown>
     : {};
-  return browser.attach_existing_chrome !== false;
+  return browser.attach_existing_chrome === true;
 }
 
 export function setBrowserAttachEnabled(enabled: boolean): boolean {

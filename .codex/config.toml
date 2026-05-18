@@ -16,4 +16,4 @@ command = "bun"
 args = ["src/mcp.ts"]
 enabled = true
 default_tools_approval_mode = "approve"
-env = { UNBROWSE_HOME = ".bench-converge/.unbrowse-state", HEADLESS = "true", KURI_HEADLESS = "true", UNBROWSE_PER_SESSION_KURI = "1" }
+env = { UNBROWSE_HOME = ".bench-converge/.unbrowse-state", HEADLESS = "true", KURI_HEADLESS = "true", UNBROWSE_PER_SESSION_KURI = "1", KURI_CLEAN_ROOM = "1" }

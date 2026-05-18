@@ -256,33 +256,40 @@ export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): K
   }
   const cleanRoom = envFlag(env.UNBROWSE_LOCAL_ONLY) || envFlag(env.KURI_CLEAN_ROOM);
   const disableCdpAttach = envFlag(env.KURI_DISABLE_CDP_ATTACH);
-  // Default-on opportunistic attach (North Star): if Chrome is already running
-  // on a known CDP port (9222 today), attach to it instead of launching a
-  // separate managed Chrome. Captures every tab any agent opens — chrome-
-  // devtools MCP, Playwright, the user's own logged-in Chrome — through one
-  // pipeline. When no existing Chrome is found, Kuri falls through to the
-  // managed-Chrome launch, preserving Kuri-native auth (cookie injection,
-  // stealth, keychain auth-profile) as the primary capture mode.
-  // Follow-up: rebuild Kuri Zig binary to spawn Chrome on a dedicated port
-  // (42069) instead of 9222, then advertise via CHROME_DEBUG_URL — that lets
-  // us avoid touching the user's personal Chrome by accident.
-  // Opt-out: env KURI_DISABLE_CDP_ATTACH=1 / UNBROWSE_LOCAL_ONLY=1 /
-  // KURI_CLEAN_ROOM=1 (per-process), OR the persisted user setting
-  // unbrowse_settings browser.attach_existing_chrome=false. Default stays
-  // attach (North Star). Defensive: any settings-read failure keeps the
-  // attach default so a broken config can never wedge kuri launch.
-  let attachDisabledBySetting = false;
+  // Default-OFF opportunistic attach (flipped 2026-05-18): kuri no longer
+  // silently attaches to whatever Chrome instance happens to be running
+  // with CDP. The original "attach by default" North Star (catch every
+  // tab any agent opens through one pipeline) had a hidden cost: when
+  // the user has Chrome open (Claude Code, a debugger, daily browsing),
+  // every bench-gate run, every automated capture, every privacy-
+  // sensitive flow silently coupled to the user's visible browser —
+  // bypassing HEADLESS=true entirely, because headless only governs
+  // MANAGED Chrome that kuri launches itself, not chrome it attached to.
+  //
+  // Post-flip, attach is OPT-IN: set env `KURI_ATTACH_EXISTING_CHROME=1`
+  // OR the persisted setting `browser.attach_existing_chrome=true`. The
+  // existing opt-OUT flags (KURI_DISABLE_CDP_ATTACH / UNBROWSE_LOCAL_ONLY
+  // / KURI_CLEAN_ROOM) still trump opt-in (so a CI pipeline can force
+  // clean-room even if a user setting tries to attach).
+  //
+  // Defensive: any settings-read failure keeps attach OFF — a broken
+  // config can never silently flip a user into hijacking their visible
+  // browser.
+  const explicitAttachEnv = envFlag(env.KURI_ATTACH_EXISTING_CHROME);
+  let attachEnabledBySetting = false;
   try {
-    attachDisabledBySetting = getBrowserAttachEnabled() === false;
+    attachEnabledBySetting = getBrowserAttachEnabled() === true;
   } catch {
-    attachDisabledBySetting = false;
+    attachEnabledBySetting = false;
   }
-  const attachToExistingChrome = !disableCdpAttach && !cleanRoom && !attachDisabledBySetting;
+  const attachToExistingChrome =
+    (explicitAttachEnv || attachEnabledBySetting) && !disableCdpAttach && !cleanRoom;
   return {
     headless,
     attachToExistingChrome,
   };
 }
+
 
 function kuriBinaryName(): string {
   return process.platform === "win32" ? "kuri.exe" : "kuri";
