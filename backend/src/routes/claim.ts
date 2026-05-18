@@ -18,6 +18,7 @@ import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { statsKV, skillsKV } from "../services/kv.js";
 import { listSkills } from "../services/marketplace.js";
+import { stampOwnerOnDomainSkills } from "../services/domain-claim-effects.js";
 import {
   buildBindingKey,
   buildChallengeKey,
@@ -267,11 +268,35 @@ claimRoutes.post("/claim/verify", async (c) => {
   };
   await kv.put(buildBindingKey(domain), JSON.stringify(binding));
 
+  // Owner-wallet stamping (Step 4 luminary: the post-verify side effect
+  // that turns the verified binding into something computeFlexSplits
+  // actually reads). Walks every published skill for this domain and
+  // stamps owner_compensation_opt_in + owner_wallet_address +
+  // owner_wallet_usdc_ata + owner_wallet_verified_at. Without this hook
+  // the OWNER_BPS lane in flex.ts stays dormant in production even
+  // after a successful claim. Cherry-pick of peer commit 372bdab5;
+  // full reasoning in docs/CLAIM_YOUR_DOMAIN.md.
+  //
+  // Best-effort: a KV write failure here does NOT undo the binding.
+  // The caller already has a verified domain-wallet record; the
+  // stamping is a separate read-through-write-back over skill records
+  // that callers can re-run via a future admin route if needed.
+  const stamp = await stampOwnerOnDomainSkills(c.env, {
+    domain,
+    wallet_address: wallet,
+    verified_at: verifiedAt,
+  }).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.warn(`[claim/verify] stampOwnerOnDomainSkills failed: ${err}`);
+    return { domain, stamped_count: 0, skill_ids: [] };
+  });
+
   return c.json({
     ok: true,
     verified_at: verifiedAt,
     domain,
     wallet_address: wallet,
+    stamped_skills: stamp.stamped_count,
   });
 });
 
