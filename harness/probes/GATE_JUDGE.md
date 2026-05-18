@@ -49,8 +49,13 @@ Call the `emit_verdict` tool exactly once with this shape:
 ```
 
 `suspicious` is `true` only when lane is `hostile` and either verdict is
-`*_PASS`. Hostile-lane PASS is a yellow flag — surface it, don't celebrate.
-
+`suspicious` is `true` only when the response on a `hostile` lane probe
+contains a partial/ambiguous bypass — the body looks like it MIGHT be the
+agent's data but key fields are masked, truncated, or interspersed with
+challenge-page artefacts. A clean PASS with concrete quotable fields is
+not suspicious even on hostile lanes; the substrate doing its job and
+returning real data is the entire point of the bench. See the
+hostile-lane bullet below for the four trip-wires.
 ## Phase 1 — Indexing rubric
 
 Read `capture.meta.json` + `capture.html.excerpt` + `index.store.json` + lane.
@@ -115,9 +120,35 @@ You do not compute these. You emit per-probe verdicts only.
   concrete `suggested_commands`. Emit `INDEX_EXCLUDED_AUTH` /
   `RETRIEVE_EXCLUDED_AUTH`. If the product crashed instead of handing off,
   that's `RETRIEVE_FAIL_ERROR_BODY`.
-- `hostile` — expected to BROWSER_BLOCK. Emit `*_EXCLUDED_BLOCKED`. If
-  somehow the response contains real data, emit `*_PASS` with
-  `suspicious: true` so the release comment surfaces it.
+- `hostile` — the site actively fights bots. The bench expects most
+  probes to BROWSER_BLOCK (emit `*_EXCLUDED_BLOCKED`). When the
+  substrate DOES return data on a hostile probe, that is a successful
+  bypass and a legitimate PASS — that is the entire value proposition
+  of the product. The verdict is just `*_PASS`.
+
+  `suspicious: true` fires only when bypass is ambiguous. Four
+  trip-wires (ANY one is enough — quote which in `evidence_quote`):
+
+  1. **Partial data + challenge artefacts.** Response contains some
+     fields the intent asked for but ALSO chunks of Cloudflare /
+     PerimeterX / DataDome / Akamai challenge HTML, vendor scripts,
+     `cf-ray` trailers, or rate-limit warnings.
+  2. **Masked critical fields.** Real shape, but the headline values
+     are `null`, `"***"`, `"[hidden]"`, or zero where the page clearly
+     showed real ones (e.g. event prices on Ticketmaster all `0`,
+     SKUs on Nike all `null`).
+  3. **Wrong-entity slip on hostile sites.** Response is well-formed
+     for SOME entity, but not the contextUrl's entity (A8 violation
+     on a hostile lane is worse than on a clean lane — bypass +
+     wrong target).
+  4. **Truncation past the first record.** Body has a plausible first
+     item then ends mid-array or mid-object, suggestive of the bypass
+     decaying.
+
+  If none of these fire and the response has concrete quotable data
+  for the right entity, emit `*_PASS` with `suspicious: false`. A
+  reliable hostile-lane bypass IS the product working as designed —
+  don't yellow-flag it because it succeeded.
 
 ## Out of scope for this rubric
 
