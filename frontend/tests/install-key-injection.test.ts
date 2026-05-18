@@ -147,3 +147,32 @@ test("install-instructions.tsx imports and uses the injection helpers + useAuth"
   // Sign-in link is surfaced when unauthenticated
   expect(src.includes('href="/login"')).toBe(true);
 });
+
+test("install-instructions.tsx fires install_command_copied telemetry on COPY with tab_id + baked_account", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
+  const COMP = path.resolve(
+    TEST_DIR,
+    "..",
+    "src",
+    "components",
+    "install-instructions.tsx",
+  );
+  const src = fs.readFileSync(COMP, "utf8");
+  // The funnel-event helper is imported
+  expect(src.includes('from "@/lib/web-telemetry"')).toBe(true);
+  // Event name matches the one hero-cta.tsx already uses (single source
+  // of truth for "user copied an install command" across surfaces).
+  // The regex enforces the call is LIVE — a line that starts with
+  // whitespace + `trackWebEvent(` — not `// trackWebEvent(`. Without this
+  // guard the test passes against commented-out code (painted lamp).
+  expect(/^\s*trackWebEvent\("install_command_copied"/m.test(src)).toBe(true);
+  // The event payload carries the tab_id (which host) and baked_account
+  // (whether the soft-gate actually baked the user's API key).
+  expect(/^\s*tab_id:\s*tab\.id/m.test(src)).toBe(true);
+  expect(/^\s*baked_account:\s*Boolean\(baked\)/m.test(src)).toBe(true);
+  // surface distinguishes this widget from the hero CTA in analytics
+  expect(/^\s*surface: "install-instructions"/m.test(src)).toBe(true);
+});
