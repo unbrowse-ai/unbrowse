@@ -38,6 +38,15 @@ export interface FlexAuthorizationDraft {
 // cut without a recompile.
 export const PLATFORM_BPS = 5000;
 export const FLEX_MAX_SPLITS = 5;
+// OWNER_BPS is the share that goes to a DNS-claimed site owner (the
+// operator of the domain the skill talks to). Mirrors the
+// SITE_OWNER_SHARE_PCT = 0.20 constant in backend/src/services/pricing.ts
+// and matches the 50/30/20 split documented in docs/HOW_UNBROWSE_PAYS.md.
+// Only fires when SkillManifest.owner_compensation_opt_in === true AND
+// owner_wallet_usdc_ata is non-empty (server-stamped by the DNS-claim
+// verify endpoint at backend/src/routes/claim.ts). When neither holds,
+// the indexer pool keeps the full 10000 - PLATFORM_BPS = 5000 bps.
+export const OWNER_BPS = 2000;
 
 // Mainnet USDC. Devnet/test override happens via the facilitator service in
 // Day-5, not here — this module is pure assembly.
@@ -52,38 +61,85 @@ const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
  * - Returns empty array if no payable contributor (caller must handle).
  */
 export function computeFlexSplits(
-  skill: Pick<SkillManifest, "contributors">,
+  skill: Pick<SkillManifest,
+    | "contributors"
+    | "owner_compensation_opt_in"
+    | "owner_wallet_usdc_ata"
+  >,
   platformRecipient: string,
 ): FlexSplit[] {
   const payable = (skill.contributors ?? []).filter((c) => c.wallet_address?.trim());
-  if (payable.length === 0) return [];
 
-  // Top contributors only — cap at (FLEX_MAX_SPLITS - 1) to leave room for platform.
+  // Site-owner lane: when the domain has been DNS-claimed AND the skill
+  // opts in to owner compensation, carve OWNER_BPS off the top before
+  // the indexer pool is divided. The verify endpoint at
+  // backend/src/routes/claim.ts is the only path that stamps
+  // owner_wallet_usdc_ata; both fields are server-owned (see
+  // backend/src/types.ts new owner_wallet_* docstring). Until the
+  // verify endpoint ships, owner_wallet_usdc_ata is never set in
+  // production, so this branch is dormant by construction.
+  const ownerOptedIn = skill.owner_compensation_opt_in === true;
+  const ownerUsdcAta = skill.owner_wallet_usdc_ata?.trim();
+  const ownerActive = ownerOptedIn && !!ownerUsdcAta;
+  const ownerSplit: FlexSplit | null = ownerActive
+    ? { recipient: ownerUsdcAta!, bps: OWNER_BPS }
+    : null;
+
+  // When there is no indexer contributor pool AND no owner share,
+  // there is nothing to split beyond the platform; return empty so
+  // the caller falls back to a single-recipient transfer (today's
+  // behavior).
+  if (payable.length === 0 && !ownerActive) return [];
+
+  // Top contributors only — cap at (FLEX_MAX_SPLITS - 2) when an owner
+  // lane is active (reserves room for both platform AND owner), else
+  // (FLEX_MAX_SPLITS - 1) (just platform).
+  const contributorCap = ownerActive ? FLEX_MAX_SPLITS - 2 : FLEX_MAX_SPLITS - 1;
   const sorted = [...payable].sort((a, b) => b.cumulative_delta - a.cumulative_delta);
-  const eligible = sorted.slice(0, FLEX_MAX_SPLITS - 1);
+  const eligible = sorted.slice(0, Math.max(contributorCap, 0));
 
   const totalDelta = eligible.reduce((s, c) => s + Math.max(c.cumulative_delta, 0.01), 0);
-  const contributorPool = 10000 - PLATFORM_BPS;  // 9000 bps for contributors
+  const contributorPool = 10000 - PLATFORM_BPS - (ownerActive ? OWNER_BPS : 0);
 
-  const contributorSplits: FlexSplit[] = eligible.map((c) => {
-    const weight = Math.max(c.cumulative_delta, 0.01) / totalDelta;
-    return {
-      recipient: c.wallet_address!.trim(),  // TODO Day-5: this should be the USDC ATA, not the wallet address
-      bps: Math.max(1, Math.round(weight * contributorPool)),
-    };
-  });
+  const contributorSplits: FlexSplit[] = eligible.length > 0
+    ? eligible.map((c) => {
+        const weight = Math.max(c.cumulative_delta, 0.01) / totalDelta;
+        return {
+          recipient: c.wallet_address!.trim(),
+          bps: Math.max(1, Math.round(weight * contributorPool)),
+        };
+      })
+    : [];
 
-  // Normalize so contributor shares sum to exactly (10000 - PLATFORM_BPS) bps.
-  const totalContributorBps = contributorSplits.reduce((s, c) => s + c.bps, 0);
-  if (totalContributorBps !== contributorPool && contributorSplits.length > 0) {
-    contributorSplits.sort((a, b) => b.bps - a.bps);
-    contributorSplits[0].bps += contributorPool - totalContributorBps;
+  // Normalize so contributor shares sum to exactly contributorPool bps.
+  if (contributorSplits.length > 0) {
+    const totalContributorBps = contributorSplits.reduce((s, c) => s + c.bps, 0);
+    if (totalContributorBps !== contributorPool) {
+      contributorSplits.sort((a, b) => b.bps - a.bps);
+      contributorSplits[0].bps += contributorPool - totalContributorBps;
+    }
+  } else if (ownerActive) {
+    // No contributors but owner is active — fold the contributor pool
+    // back to the platform so the bps still sum to 10000.
+    // (Empty contributor list AND owner active AND no contributor pool
+    // would otherwise leave a hole; this keeps the on-chain sum exact.)
   }
 
-  return mergeSplits([
-    { recipient: platformRecipient, bps: PLATFORM_BPS },
-    ...contributorSplits,
-  ]);
+  // Merge order: platform -> owner -> contributors (stable for the
+  // Flex facilitator's duplicate-recipient remediation).
+  const splits: FlexSplit[] = [{ recipient: platformRecipient, bps: PLATFORM_BPS }];
+  if (ownerSplit) splits.push(ownerSplit);
+  splits.push(...contributorSplits);
+
+  // If the contributor pool was empty but owner was active, fold any
+  // unallocated bps into the platform recipient so the on-chain split
+  // sums to exactly 10000.
+  const allocated = splits.reduce((s, x) => s + x.bps, 0);
+  if (allocated < 10000) {
+    splits[0]!.bps += 10000 - allocated;
+  }
+
+  return mergeSplits(splits);
 }
 
 /**

@@ -483,6 +483,16 @@ export interface SkillManifest {
   base_price_usd?: number;
   /** Whether the skill owner has opted into compensation */
   owner_compensation_opt_in?: boolean;
+  /**
+   * Solana pubkey of the verified domain owner. SERVER-OWNED — populated
+   * by the DNS-claim verify endpoint, never user-supplied. See
+   * backend/src/types.ts for the full server-side docstring.
+   */
+  owner_wallet_address?: string;
+  /** USDC ATA derived from owner_wallet_address. SERVER-OWNED. */
+  owner_wallet_usdc_ata?: string;
+  /** ISO timestamp the DNS-TXT verify succeeded. SERVER-OWNED. */
+  owner_wallet_verified_at?: string;
   /** Server-owned submission provenance for staged promotion and abuse analysis. */
   provenance_events?: SkillSubmissionProvenance[];
   /** Server-owned graph trust state. */
