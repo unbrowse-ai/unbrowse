@@ -25,6 +25,16 @@ Unbrowse ships **`commitment_only` proofs** as the proof system. Real TLSNotary 
 
 **`commitment_only` is tamper-evident metadata, not cryptographic provenance.** A SHA-256 the publisher computed over the publisher's own captured bytes proves nothing about origin — anyone can fabricate a response and hash the fabrication. The system is useful for detecting after-the-fact tampering (e.g. someone editing the marketplace KV) and for cross-checking re-execution against the original capture. It is **not** evidence that the response came from a claimed origin over TLS.
 
+## Server-owned trust signals (cannot be self-attested)
+
+`zk_proof.verified` and `verification_status: "verified"` are **server-owned**. As of the 2026-05-09 security pass:
+
+- The publish-side validator downgrades any agent-attested `zk_proof.verified: true` for a non-`commitment_only` proof type to `false`. Only the server-side proof verifier (today: `verifyEndpointProofsInPlace`, which always returns `valid: false` for tlsnotary/reclaim until those are wired in) may stamp `true`.
+- The validator downgrades any agent-attested `verification_status: "verified"` to `pending`. Only admin keys (gated by `env.API_KEY`) and server flows (e.g. corroboration count crossing the threshold) may stamp `verified`.
+- The merge path on owner re-publish preserves a previously-stamped `verified` and `zk_proof.verified` (when the existing proof is server-verified and not `commitment_only`). A normal owner refresh therefore does not erase server verification.
+
+If you publish a manifest with `zk_proof.verified: true` on a non-commitment proof, the server silently sets it to `false` and surfaces a soft warning. This is intentional; do not file it as a bug.
+
 ## Trust-channel boundary (for downstream consumers)
 
 If exporting `SkillManifest` to a foreign distribution channel (skills.sh, third-party agent registries, raw markdown), strip `endpoints[].zk_proof`, `proof_summary`, and any computed `proof_status` from the rendered output. The four-state proof vocabulary is enforced only inside Unbrowse — outside it, the fields read as trust claims they aren't.

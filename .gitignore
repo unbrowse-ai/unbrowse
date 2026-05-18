@@ -112,6 +112,11 @@ submodules/foundry/
 .harness-out/
 .bench-budget*/
 
+# Recursive mining harness raw artifacts — captured agent transcripts that
+# can include arbitrary credentials (PATs, cookies, tokens). Never commit.
+harness/recursive/runs/**/raw-hits.jsonl
+harness/recursive/runs/**/raw-hits-*.jsonl
+
 # aiko local state (plans, codebase index, agent notes)
 .aiko/
 AIKO.md

@@ -50,7 +50,7 @@ export interface DomainNote {
   body: string;       // LLM-prose markdown
 }
 
-function sanitizeDomain(raw: string): string {
+export function sanitizeDomain(raw: string): string {
   if (typeof raw !== "string") {
     throw new Error("domain_must_be_string");
   }

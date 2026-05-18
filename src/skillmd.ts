@@ -5,8 +5,9 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { SkillManifest, EndpointDescriptor } from "./types/skill.js";
+import { sanitizeDomain } from "./extraction/domain-notes.js";
 
 function escapeYaml(s: string): string {
   return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ")}"`;
@@ -118,7 +119,16 @@ export function renderSkillMd(skill: SkillManifest): string {
 
 export function exportSkillMdLocal(skill: SkillManifest): string | null {
   try {
-    const dir = join(homedir(), ".unbrowse", "skills", skill.domain);
+    // SECURITY: skill.domain is publisher-controlled. A malicious manifest
+    // with `domain: "../../../.ssh/authorized_keys.d"` would write attacker
+    // content under ~/.ssh/. sanitizeDomain rejects path separators, ..,
+    // control chars, and anything outside the RFC1035 charset.
+    const safeDomain = sanitizeDomain(skill.domain);
+    const base = resolve(join(homedir(), ".unbrowse", "skills"));
+    const dir = resolve(join(base, safeDomain));
+    if (!dir.startsWith(base + "/") && dir !== base) {
+      throw new Error("skill_export_path_escape");
+    }
     mkdirSync(dir, { recursive: true });
     const path = join(dir, "SKILL.md");
     const content = renderSkillMd(skill);

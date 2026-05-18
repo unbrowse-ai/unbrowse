@@ -1,6 +1,8 @@
 export interface Env {
   API_KEY: string;
   LANDING_PUBLISH_KEY?: string;
+  /** Shared secret for /v1/blog/publish. Set via `wrangler secret put BLOG_PUBLISH_KEY`. */
+  BLOG_PUBLISH_KEY?: string;
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
   EMERGENTDB_TIMEOUT_MS?: string;
@@ -21,6 +23,12 @@ export interface Env {
   CREDITS_ENABLED?: string;
   X402_SEARCH_ENABLED?: string;
   X402_NETWORK_MODE?: string;
+  /**
+   * When set to "1"/"true", x402 verification falls back to allow-on-failure
+   * if the upstream facilitator is unreachable. Off by default — keep it off
+   * unless you have separate alerting/throttling on degraded responses.
+   */
+  X402_DEGRADED_ALLOW?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
   /**
@@ -415,10 +423,13 @@ export interface SkillManifest {
   /** Agent ID of the indexer who published this skill — used for Tier 1 attribution */
   indexer_id?: string;
   /**
-   * Agent ID of the original publisher. Server-owned. Surfaced on
-   * `unbrowse.ai/<domain>` so consumers can see who claimed the domain.
-   * Set by the publish handler on first non-admin publish; subsequent
-   * publishes from the same agent preserve it.
+  /**
+   * Agent ID of the original publisher. Server-owned (security/audit-and-patches).
+   * Subsequent publishes must come from this agent (or admin), otherwise the
+   * publish is rejected. This is the primary ownership gate for PATCH
+   * /skills/:id, PATCH /skills/:id/endpoints/:eid, and the domain-level merge
+   * in publishSkill. Surfaced on `unbrowse.ai/<domain>` so consumers can see
+   * who claimed the domain.
    */
   owner_agent_id?: string;
   /**
