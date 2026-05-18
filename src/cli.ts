@@ -1921,6 +1921,33 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     info("Email provider: Gmail (via GWS) — autonomous login enabled");
   }
 
+  // Register the MCP server + allow-list with Claude Code so new users get
+  // the parallel-MCP flow without 41 permission prompts on first call.
+  // Opt-out via `--no-claude-register`. No-op if claude CLI is absent.
+  if (flags["no-claude-register"]) {
+    info("Claude Code registration skipped (--no-claude-register).");
+  } else {
+    const { registerWithClaudeCode } = await import("./setup/claude-mcp-register.js");
+    const mcpEntrypoint = require.resolve("./mcp.js");
+    const claudeReg = await registerWithClaudeCode({
+      serverCommand: "bun",
+      serverArgs: ["run", mcpEntrypoint],
+    });
+    if (claudeReg.skipped) {
+      if (claudeReg.skip_reason === "claude_cli_not_found") {
+        info("Claude Code not found on PATH — skipping MCP registration (re-run after install).");
+      }
+    } else if (claudeReg.already_configured) {
+      info(`Claude Code: already configured (MCP server + 41 allow entries at ${claudeReg.settings_path}). No changes.`);
+    } else {
+      info(
+        `Claude Code: registered MCP server${claudeReg.mcp_server_registered ? "" : " (already present)"}, ` +
+        `${claudeReg.allowlist_entries_added} new tool allow rules + ${claudeReg.allowlist_entries_already_present} already present at ${claudeReg.settings_path}.`,
+      );
+    }
+  }
+
+
   await recordInstallTelemetryEvent("setup", {
     hostType,
     status: report.browser_engine.action === "failed" ? "failed" : "installed",
@@ -2484,7 +2511,7 @@ export const CLI_REFERENCE = {
   // canonical command.
   commands: [
     // ── Setup & lifecycle ─────────────────────────────────────────────────
-    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser]", desc: "Bootstrap browser engine + write the /unbrowse Open Code command. Run once on install. Idempotent." },
+    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser] [--no-claude-register]", desc: "Bootstrap browser engine, register unbrowse as a Claude Code MCP server (idempotent), and write the /unbrowse Open Code command. Run once on install. Re-run is safe." },
     { name: "upgrade", usage: "", desc: "Print the right upgrade command (npm i -g unbrowse@latest or @preview)." },
     { name: "health", usage: "", desc: "Quick local server health check. Returns version + uptime." },
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use." },
