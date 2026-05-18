@@ -351,10 +351,18 @@ export function selectBrowseBrokerClient(requestedSessionId?: string): kuri.Kuri
     const existing = browseSessions.get(requestedSessionId);
     if (existing?.client) return existing.client as kuri.KuriClient;
     if (existing) return brokerForSession(existing);
+    // Explicit session_id with no existing match: caller declared "this is a
+    // new isolated session" (typical of parallel MCP sub-agents / gate
+    // collectors). Always dedicate a fresh broker port so concurrent named
+    // sessions cannot cross-bind on the pool broker. The previous opt-in
+    // env-flag default left this on port 7700 and the 4-probe parallel MCP
+    // falsifier showed 50% session loss; isolating by named-session honors
+    // the caller's contract without forcing an env flag.
+    return kuri.getKuriClient(allocatePerSessionBrokerPort());
   }
 
   if (perSessionKuriEnabled()) {
-    // NEW session under per-session isolation: dedicate a fresh broker port.
+    // NEW unnamed session under per-session isolation: dedicate a fresh broker.
     return kuri.getKuriClient(allocatePerSessionBrokerPort());
   }
 
