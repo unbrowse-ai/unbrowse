@@ -17,6 +17,7 @@ import { classifyDrift } from "../transform/drift-classifier.js";
 import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
+import { recordEndpointStrike, clearEndpointStrikes } from "../client/eviction-strikes.js";
 import { withRetry, isRetryableStatus, parseRetryAfter } from "./retry.js";
 import { deriveRecipeReplayNextStep } from "./recipe-replay-hints.js";
 import { probeUrl, decideFromProbe } from "./probe.js";
@@ -3464,17 +3465,42 @@ export async function executeEndpoint(
         status_code: status,
       };
     }
-    // Stale-endpoint eviction. 404/410 are unambiguous "this URL is gone"
-    // signals — evict from the local route cache so subsequent resolves
-    // don't keep serving it. Backend will auto-deprecate after 2 strikes;
-    // this is the local mirror so THIS client stops attempting it now.
-    if (status === 404 || status === 410) {
+    // Stale-endpoint eviction. 410 Gone is an unambiguous "this URL is
+    // gone for good" protocol signal — evict immediately. 404 has many
+    // transient causes (deploy lag, cache race, recovery in-flight,
+    // params off-by-one) so count it as a strike and only evict on the
+    // 2nd strike inside a 5-minute window, matching the backend's
+    // 2-strike auto-deprecation. Pre-fix: single-strike 404 eviction
+    // killed callable sibling endpoints during 404-recovery (bench-gate
+    // probe 003 crates.io 2026-05-19, fixed end-to-end by PR #503 +
+    // this strike alignment).
+    if (status === 410) {
       try {
         const evicted = evictCachedEndpoint(skill.skill_id, endpoint.endpoint_id, options?.client_scope);
-        if (evicted) log("exec", `evicted stale endpoint ${endpoint.endpoint_id} from local cache (HTTP ${status})`);
+        if (evicted) log("exec", `evicted stale endpoint ${endpoint.endpoint_id} from local cache (HTTP 410)`);
+      } catch { /* best-effort */ }
+    } else if (status === 404) {
+      try {
+        const { shouldEvict, strikes: strikeCount } = recordEndpointStrike(
+          skill.skill_id,
+          endpoint.endpoint_id,
+          options?.client_scope,
+        );
+        if (shouldEvict) {
+          const evicted = evictCachedEndpoint(skill.skill_id, endpoint.endpoint_id, options?.client_scope);
+          if (evicted) log("exec", `evicted stale endpoint ${endpoint.endpoint_id} from local cache (HTTP 404 strike threshold)`);
+        } else {
+          log("exec", `endpoint ${endpoint.endpoint_id} HTTP 404 strike ${strikeCount}/2 (not yet evicted)`);
+        }
       } catch { /* best-effort */ }
     }
   } else {
+    // Successful call — clear any accumulated 404 strikes so they
+    // don't bleed across legitimate refreshes of a transiently-flapping
+    // endpoint.
+    try {
+      clearEndpointStrikes(skill.skill_id, endpoint.endpoint_id, options?.client_scope);
+    } catch { /* best-effort */ }
     trace.result = data;
   }
 
