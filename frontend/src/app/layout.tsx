@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import { AuthProvider } from "@/lib/auth-context";
+import { PrivyOptionalProvider } from "@/lib/privy-provider";
 import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { DocsEmbed } from "@/components/docs-embed";
@@ -183,15 +184,17 @@ export default function RootLayout({
       </head>
       <body className="antialiased overflow-x-hidden">
         <ThemeProvider>
-          <AuthProvider>
-            <ContentPageTracker />
-            <Navbar />
-            <main className="min-h-screen">
-              {children}
-            </main>
-            <SiteFooter />
-            <DocsEmbed />
-          </AuthProvider>
+          <PrivyOptionalProvider>
+            <AuthProvider>
+              <ContentPageTracker />
+              <Navbar />
+              <main className="min-h-screen">
+                {children}
+              </main>
+              <SiteFooter />
+              <DocsEmbed />
+            </AuthProvider>
+          </PrivyOptionalProvider>
         </ThemeProvider>
       </body>
     </html>

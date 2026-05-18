@@ -16,6 +16,7 @@
 	"dependencies": {
 		"@gitbook/embed": "^0.4.0",
 		"@opennextjs/cloudflare": "^1.15.1",
+		"@privy-io/react-auth": "^3.26.0",
 		"lucide-react": "^0.577.0",
 		"micromark": "^4.0.2",
 		"micromark-extension-gfm": "^3.0.0",
