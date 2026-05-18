@@ -9,7 +9,7 @@ import { getInProcessApp } from "./runtime/in-process-app.js";
 import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./workflow/publish.js";
 import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
-import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory } from "./client/index.js";
+import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory, loadConfig } from "./client/index.js";
 import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
 import { shapeSnapResult, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
 import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js";
@@ -2893,6 +2893,26 @@ async function main(): Promise<void> {
   });
 
   writeStderr("starting stateless stdio MCP (in-process API, no daemon)");
+
+  // Credential handoff: surface a registration URL on startup when no API key
+  // is configured. Stderr only — the stdio JSON-RPC channel stays clean.
+  // We do NOT block startup or refuse tool calls; many local tools (browse_go,
+  // snap, eval) work without a backend-registered agent. The agent reading the
+  // boot log sees the URL and can guide the user through registration.
+  // Respects UNBROWSE_WEB_URL for self-hosted / staging deploys.
+  try {
+    const envKey = process.env.UNBROWSE_API_KEY?.trim();
+    const configKey = loadConfig()?.api_key?.trim();
+    if (!envKey && !configKey) {
+      const webUrl = (process.env.UNBROWSE_WEB_URL ?? "https://unbrowse.ai").replace(/\/+$/, "");
+      writeStderr("no API key configured — backend-bound tools (resolve/execute/publish/earnings) will fail until you register.");
+      writeStderr(`  register:  ${webUrl}/login?cli=1`);
+      writeStderr(`  or run:    npx unbrowse register`);
+      writeStderr(`  or set:    export UNBROWSE_API_KEY=<key>`);
+    }
+  } catch (err) {
+    writeStderr(`credential check skipped: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
 
   for await (const line of rl) {
