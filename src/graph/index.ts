@@ -341,9 +341,17 @@ function isGenericDescription(description?: string): boolean {
 }
 
 function classifyDescriptionInput(description?: string): {
-  source: "agent" | "auto" | "missing";
+  source: "auto" | "missing";
   warning?: string;
 } {
+  // Prose-shape inference can NEVER return "agent". Only authoritative
+  // markers set explicitly by augmentEndpointsWithAgent (i.e. an LLM
+  // actually ran) can claim that label. Pre-2026-05-19 this function
+  // returned "agent" for any non-generic-shaped description, which
+  // false-labelled the metadata on every pre-#501 skill where no
+  // augmenter had ever run. The renderer (getEndpointDescriptionMetadata)
+  // already trusts `semantic.description_source === "agent"` as the
+  // authoritative path; everything else is "auto" or "missing".
   const normalized = normalizeTokenText(description ?? "").trim();
   if (!normalized) {
     return {
@@ -363,7 +371,9 @@ function classifyDescriptionInput(description?: string): {
       warning: "Auto-generated description. Review before trusting or publishing.",
     };
   }
-  return { source: "agent" };
+  // Plausibly-detailed prose with no authoritative marker. Still "auto"
+  // — the substrate is honest about not knowing whether an LLM ran.
+  return { source: "auto" };
 }
 
 export function getEndpointDescriptionMetadata(endpoint: Pick<EndpointDescriptor, "description" | "semantic" | "dom_extraction">): {
@@ -378,10 +388,11 @@ export function getEndpointDescriptionMetadata(endpoint: Pick<EndpointDescriptor
   // Schema-grounded auto descriptions (with real response fields) don't need
   // external LLM review — the calling agent IS the LLM that reviews them.
   const schemaGrounded = !!(endpoint.semantic?.example_fields?.length || endpoint.semantic?.response_summary);
-  const display = (input.source === "agent" || agentAugmented
-    ? endpoint.semantic?.description_out ?? endpoint.description ?? ""
-    : endpoint.semantic?.description_out ?? endpoint.description ?? "").trim();
-  const source = display ? (input.source === "agent" || agentAugmented ? "agent" : "auto") : "missing";
+  const display = (endpoint.semantic?.description_out ?? endpoint.description ?? "").trim();
+  // Only the authoritative semantic marker can claim "agent". Prose
+  // inference at most says "auto" or "missing" — see classifyDescription
+  // Input above.
+  const source = display ? (agentAugmented ? "agent" : "auto") : "missing";
   // Honor explicit description_needs_review when:
   //   - description isn't a captured-page-artifact stub (inferEndpointSemantic
   //     auto-sets the flag for those, can't trust it), AND
@@ -919,14 +930,18 @@ export function inferEndpointSemantic(
   const negativeTags = inferNegativeTags(text);
   const generatedDescription = buildSemanticDescription(endpoint, actionKind, resourceKind, fields);
   const descriptionInput = classifyDescriptionInput(endpoint.description);
-  const descriptionOut = descriptionInput.source === "agent"
+  // Preserve the existing description only when the authoritative
+  // semantic marker says an agent wrote it. Prose inference can no
+  // longer make that claim (post-2026-05-19).
+  const preexistingAgentMarker = endpoint.semantic?.description_source === "agent";
+  const descriptionOut = preexistingAgentMarker
     ? endpoint.description
     : generatedDescription;
   const descriptionIn = requires.length > 0
     ? `Requires ${requires.map((binding) => binding.key).join(", ")}`
     : "No additional inputs required";
   const descriptionSource: "agent" | "auto" | "missing" =
-    descriptionInput.source === "agent"
+    preexistingAgentMarker
       ? "agent"
       : (descriptionOut ? "auto" : "missing");
 

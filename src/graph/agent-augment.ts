@@ -222,6 +222,14 @@ function sanitizeSemanticUpdate(endpoint: EndpointDescriptor, update: LlmEndpoin
     requires: mergeBindings(semantic.requires, update.requires, allowedKeys),
     provides: mergeBindings(semantic.provides, update.provides, allowedKeys),
     confidence: Math.max(semantic.confidence ?? 0, 0.9),
+    // Authoritative provenance marker — the LLM augmenter has actually
+    // run and authored description_out. Downstream renderers
+    // (getEndpointDescriptionMetadata, computeSemanticDescriptor) read
+    // ONLY this field to claim description_source === "agent"; prose
+    // inference no longer false-labels endpoints that look human-written
+    // but never went through the augmenter.
+    description_source: "agent" as const,
+    description_needs_review: false,
   };
   return {
     ...endpoint,
