@@ -18,6 +18,7 @@ import type { RawRequest } from "../capture/index.js";
 import { cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { upsertDagEdgesFromOperationGraph } from "../orchestrator/dag-feedback.js";
+import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import {
@@ -257,6 +258,17 @@ export async function cacheBrowseRequests(params: {
         if (!endpoint.description) endpoint.description = generateLocalDescription(endpoint);
         if (!endpoint.semantic) endpoint.semantic = inferEndpointSemantic(endpoint);
       }
+      // LLM-augment descriptions with the configured agent provider
+      // (NEBIUS_API_KEY / OPENAI_API_KEY). Substrate-correct quality
+      // signal: each endpoints lookup string ("description" + schema
+      // keys) goes from heuristic URL-fragment stubs ("Returns
+      // resource details") to a concrete LLM-written one-liner
+      // grounded in the actual captured URL + sample response. Drives
+      // BM25 ranking quality. Silently no-ops if neither key is set;
+      // augment-side errors fall back to the heuristic. Discovered
+      // 2026-05-18 — the function existed (src/graph/agent-augment.ts)
+      // but had zero callers across src/.
+      const augmentedEndpoints = await augmentEndpointsWithAgent(mergedEndpoints, { intent, domain });
       const quickSkill: SkillManifest = {
         skill_id: existingSkill?.skill_id ?? nanoid(),
         version: "1.0.0",
@@ -270,8 +282,8 @@ export async function cacheBrowseRequests(params: {
         domain,
         description: `API skill for ${domain}`,
         owner_type: "agent",
-        endpoints: mergedEndpoints,
-        operation_graph: buildSkillOperationGraph(mergedEndpoints),
+        endpoints: augmentedEndpoints,
+        operation_graph: buildSkillOperationGraph(augmentedEndpoints),
         intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
       };
 
@@ -438,6 +450,11 @@ export async function cacheBrowseRequests(params: {
     for (const candidate of allEndpoints) {
       if (!candidate.description) candidate.description = generateLocalDescription(candidate);
     }
+    // LLM-augment descriptions on the DOM-mode path too. Same rationale
+    // as the HTTP-path site above. The DOM endpoint is the page-artifact
+    // synthetic; agent description tells the ranker what content it
+    // actually surfaces.
+    const augmentedAllEndpoints = await augmentEndpointsWithAgent(allEndpoints, { intent, domain });
 
     const skill: SkillManifest = {
       skill_id: existing?.skill_id ?? nanoid(),
@@ -452,8 +469,8 @@ export async function cacheBrowseRequests(params: {
       domain,
       description: `DOM skill for ${domain}`,
       owner_type: "agent",
-      endpoints: allEndpoints,
-      operation_graph: buildSkillOperationGraph(allEndpoints),
+      endpoints: augmentedAllEndpoints,
+      operation_graph: buildSkillOperationGraph(augmentedAllEndpoints),
       intents: [...new Set([...(existing?.intents ?? []), intent])],
     };
     const cacheKey = buildResolveCacheKey(domain, intent, sessionUrl);
