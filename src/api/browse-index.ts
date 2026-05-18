@@ -170,8 +170,21 @@ export async function cacheBrowseRequests(params: {
    * Authorization / x-csrf-* / etc. without inventing fake endpoints.
    */
   extraAuthHeaderRequests?: RawRequest[];
+  /**
+   * Optional getter for the live tab's cookies. The DOM-fallback path uses
+   * tryHttpFetch as a backstop when getPageHtml returns malformed HTML
+   * (CLAUDE.md: Kuri's CDP eval can serialize document.documentElement
+   * to "[object Object]" when the response shape changes). Without cookies,
+   * tryHttpFetch on a Cloudflare-gated site (npm, dockerhub, etc.) hits the
+   * "Just a moment..." challenge and returns ~5KB of garbage, so the DOM
+   * fallback rejects the extraction at 0.4 confidence. Passing the live
+   * tab's CF clearance cookies through lets the server-fetch get the same
+   * unlocked HTML the live tab is rendering. Surfaced by the 2026-05-17
+   * MCP bench-gate's #002 npm + #010 dockerhub probes (BUG-1).
+   */
+  getCookies?: () => Promise<Array<{ name: string; value: string; domain: string }>>;
 }): Promise<BrowseIndexResult> {
-  const { sessionUrl, sessionDomain, requests, getPageHtml, jsBundles, extraAuthHeaderRequests } = params;
+  const { sessionUrl, sessionDomain, requests, getPageHtml, jsBundles, extraAuthHeaderRequests, getCookies } = params;
   let domain: string;
   try { domain = new URL(sessionUrl).hostname; } catch { domain = sessionDomain; }
   const intent = params.intent ?? `browse ${domain}`;
@@ -278,8 +291,10 @@ export async function cacheBrowseRequests(params: {
     const { templatizeQueryParams, tryHttpFetch } = await import("../execution/index.js");
 
     let html: string | undefined;
+    let livePageHtmlSize = 0;
     try {
       html = getPageHtml ? await getPageHtml() : undefined;
+      livePageHtmlSize = html ? html.length : 0;
     } catch { html = undefined; }
     // getPageHtml is the live Kuri CDP tab HTML; CLAUDE.md documents it may
     // return "[object Object]" / empty when the CDP response shape changes.
@@ -289,9 +304,20 @@ export async function cacheBrowseRequests(params: {
     // tryHttpFetch the SSR execute fast-path uses) instead of declaring
     // nothing to index and leaving the agent to loop on go -> close ->
     // resolve forever with zero learning.
+    //
+    // For Cloudflare-gated sites (npm, dockerhub, etc.) tryHttpFetch on a
+    // raw URL hits the "Just a moment..." challenge and returns ~5KB of
+    // garbage; if we have the live tab's cookies, pass them through so the
+    // server-fetch carries the CF clearance the live tab earned. Surfaced
+    // by the 2026-05-17 MCP bench-gate's #002 npm + #010 dockerhub probes.
+    let sessionCookies: Array<{ name: string; value: string; domain: string }> = [];
+    if (getCookies) {
+      try { sessionCookies = await getCookies(); } catch { /* best-effort */ }
+    }
     let usedServerFetch = false;
     if (!html || !html.trimStart().startsWith("<")) {
-      const fetched = await tryHttpFetch(sessionUrl, {}, []);
+      log("browse-index", `getPageHtml malformed (size=${livePageHtmlSize}); falling back to tryHttpFetch with ${sessionCookies.length} session cookies`);
+      const fetched = await tryHttpFetch(sessionUrl, {}, sessionCookies);
       html = fetched?.html;
       usedServerFetch = true;
     }
@@ -319,10 +345,13 @@ export async function cacheBrowseRequests(params: {
     // before declaring nothing to index"; previously the server-fetch only
     // ran when getPageHtml was structurally junk, not when its extraction
     // failed the gate. If the gate fails and we have not yet tried the
-    // server-fetch, try it and keep whichever HTML actually passes. This can
-    // only turn a mode:none into an index, never the reverse.
+    // server-fetch, try it (with session cookies, so CF-gated sites
+    // produce the unlocked HTML, not the challenge page) and keep
+    // whichever HTML actually passes. This can only turn a mode:none into
+    // an index, never the reverse.
     if (!evald.ok && !usedServerFetch) {
-      const fetched = await tryHttpFetch(sessionUrl, {}, []);
+      log("browse-index", `live-html extraction failed gate (conf=${evald.extracted.confidence}); falling back to tryHttpFetch with ${sessionCookies.length} session cookies`);
+      const fetched = await tryHttpFetch(sessionUrl, {}, sessionCookies);
       if (fetched?.html && fetched.html.trimStart().startsWith("<")) {
         const alt = evaluate(fetched.html);
         if (alt.ok) { html = fetched.html; evald = alt; }
