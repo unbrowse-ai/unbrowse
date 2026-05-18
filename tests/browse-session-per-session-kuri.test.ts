@@ -27,12 +27,20 @@ afterEach(() => {
 });
 
 describe("per-session Kuri broker isolation", () => {
-  it("flag OFF: new sessions share the pool (default single-broker behavior unchanged)", () => {
+  it("flag OFF: NAMED sessions still isolate per session_id (the 2026-05-18 fix)", () => {
+    // Pre-fix contract: every session shared port 7700 unless the flag was set.
+    // Post-fix contract (routes.ts selectBrowseBrokerClient): an explicit
+    // session_id IS the caller's isolation contract — every named session gets
+    // its own broker port, regardless of UNBROWSE_PER_SESSION_KURI. Confirmed
+    // by tests/named-session-broker-isolation.test.ts mutation test (2 fails
+    // pre-fix, 0 fails post-fix). The flag now only governs ANONYMOUS sessions
+    // (the next test).
     delete process.env[FLAG];
     const a = selectBrowseBrokerClient("flagoff-A");
     const b = selectBrowseBrokerClient("flagoff-B");
-    // KURI_MULTI_BROKER_MAX defaults to 1, so both land on the one pool port.
-    expect(a.getPort()).toBe(b.getPort());
+    expect(a.getPort()).not.toBe(b.getPort());
+    expect(a.getPort()).toBeGreaterThan(POOL_BASE);
+    expect(b.getPort()).toBeGreaterThan(POOL_BASE);
   });
 
   it("flag ON: two new sessions get DISTINCT dedicated broker ports", () => {
