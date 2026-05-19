@@ -180,6 +180,16 @@ export interface Env {
    */
   FLEX_SPONSOR_ESCROW_ADDRESS?: string;
   SPONSOR_USE_FLEX_SPLIT?: string;
+  /**
+   * Semantic-augmentation model (server-side, v6.16+). The endpoint
+   * skeleton-enrichment LLM call moved server-side so the prompt + model
+   * are configurable without a client release. Falls back to
+   * UNBROWSE_AGENT_JUDGE_MODEL then a sane default in the service.
+   */
+  UNBROWSE_AGENT_SEMANTIC_MODEL?: string;
+  UNBROWSE_AGENT_JUDGE_MODEL?: string;
+  /** Disable server-side semantic augmentation entirely (returns no enrichment; client falls back to local heuristic). */
+  UNBROWSE_AGENT_SEMANTIC_AUGMENT?: string;
 }
 // --- Agent identity ---
 

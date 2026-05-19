@@ -1,23 +1,35 @@
 import type { EndpointDescriptor, OperationBinding } from "../types/index.js";
 import { resolveEndpointSemantic } from "./index.js";
 import { readDomainNote } from "../extraction/domain-notes.js";
+import { getApiKey, buildReleaseAttestationHeaders } from "../client/index.js";
+import {
+  CODE_HASH,
+  DEFAULT_BACKEND_URL,
+  GIT_SHA,
+  RELEASE_MANIFEST_BASE64,
+  RELEASE_MANIFEST_SIGNATURE,
+  TRACE_VERSION,
+} from "../version.js";
 
-const CHAT_URL = "https://api.tokenfactory.nebius.com/v1/chat/completions";
-const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
-const DEFAULT_MODEL = process.env.UNBROWSE_AGENT_SEMANTIC_MODEL ?? process.env.UNBROWSE_AGENT_JUDGE_MODEL ?? "gpt-4.1-mini";
+// The semantic-augmentation prompt + model orchestration moved
+// server-side (backend/src/services/semantic-augment.ts +
+// POST /v1/graph/augment-semantic). The client now sends the
+// already-sanitized endpoint skeleton UP and applies the enriched
+// metadata it gets DOWN. This keeps the prompt out of the npm bundle
+// and lets the model be swapped via server env (NEBIUS_API_KEY /
+// UNBROWSE_AGENT_SEMANTIC_MODEL) without a client release. Augmentation
+// stays best-effort and non-blocking: any failure returns the
+// endpoints unchanged so the caller's local heuristic
+// (generateLocalDescription) remains the description source.
+const API_URL = process.env.UNBROWSE_API_URL || process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
+const AUGMENT_PATH = "/v1/graph/augment-semantic";
 const ENABLED = process.env.UNBROWSE_AGENT_SEMANTIC_AUGMENT !== "0";
-const AUGMENT_TIMEOUT_MS = Number(process.env.UNBROWSE_AGENT_SEMANTIC_TIMEOUT_MS ?? 8000);
+const AUGMENT_TIMEOUT_MS = Number(process.env.UNBROWSE_AGENT_SEMANTIC_TIMEOUT_MS ?? 9000);
 const MAX_AUGMENT_ENDPOINTS = Math.max(1, Number(process.env.UNBROWSE_AGENT_SEMANTIC_MAX_ENDPOINTS ?? 6));
 const MAX_AUGMENT_PAYLOAD_CHARS = Math.max(4000, Number(process.env.UNBROWSE_AGENT_SEMANTIC_MAX_PAYLOAD_CHARS ?? 24000));
 const NOISE_ENDPOINT_HINTS = /(analytics|telemetry|beacon|metrics|cookie[_-]?sync|lr[_-]?sync|setuid|consent|cms\b|ups\/|guce\.|doubleverify|pubmatic|optable|pixel|experiments?|config|settings|heartbeat|ping\b|track|sync\b|auth\b|login\b)/i;
 const DATA_ENDPOINT_HINTS = /(\/api\/|graphql|\/ws\/|\/v\d+\/|\/quote\b|\/chart\b|\/search\b|\/feed\b|\/results\b|\/items?\b|\/products?\b|\/repos?\b|\/users?\b|\/channels?\b|\/guilds?\b|\/servers?\b)/i;
 const GENERIC_SEMANTIC_TYPES = new Set(["identifier", "input", "resource", "entity", "item"]);
-
-type Provider = {
-  url: string;
-  key: string;
-  model: string;
-};
 
 type LlmBinding = {
   key?: string;
@@ -37,15 +49,25 @@ type LlmEndpointSemantic = {
   negative_tags?: string[];
 };
 
-type LlmResponse = {
+type AugmentBackendResponse = {
   endpoints?: LlmEndpointSemantic[];
 };
 
 export type AgentSemanticAugmentOptions = {
   intent?: string;
   domain?: string;
+  /**
+   * Injection point for tests: stubs the backend augment call. In
+   * production this is the global `fetch`; the request goes to
+   * `${API_URL}${AUGMENT_PATH}`.
+   */
   fetchImpl?: typeof fetch;
-  provider?: Provider | null;
+  /**
+   * @deprecated Prompt + model orchestration moved server-side. This
+   * field is retained for source/back-compat only and is ignored. Pass
+   * `fetchImpl` to stub the backend response in tests instead.
+   */
+  provider?: unknown;
 };
 
 function compact(value: unknown, depth = 0): unknown {
@@ -170,14 +192,6 @@ function selectEndpointsForAugment(
   return selected;
 }
 
-function availableProviders(): Provider[] {
-  const providers = [
-    process.env.OPENAI_API_KEY ? { url: OPENAI_CHAT_URL, key: process.env.OPENAI_API_KEY, model: DEFAULT_MODEL } : null,
-    process.env.NEBIUS_API_KEY ? { url: CHAT_URL, key: process.env.NEBIUS_API_KEY, model: DEFAULT_MODEL } : null,
-  ].filter((provider): provider is Provider => !!provider);
-  return providers;
-}
-
 function validBindingKeys(endpoint: EndpointDescriptor): Set<string> {
   const semantic = resolveEndpointSemantic(endpoint);
   return new Set([
@@ -222,7 +236,7 @@ function sanitizeSemanticUpdate(endpoint: EndpointDescriptor, update: LlmEndpoin
     requires: mergeBindings(semantic.requires, update.requires, allowedKeys),
     provides: mergeBindings(semantic.provides, update.provides, allowedKeys),
     confidence: Math.max(semantic.confidence ?? 0, 0.9),
-    // Authoritative provenance marker — the LLM augmenter has actually
+    // Authoritative provenance marker -- the LLM augmenter has actually
     // run and authored description_out. Downstream renderers
     // (getEndpointDescriptionMetadata, computeSemanticDescriptor) read
     // ONLY this field to claim description_source === "agent"; prose
@@ -238,72 +252,54 @@ function sanitizeSemanticUpdate(endpoint: EndpointDescriptor, update: LlmEndpoin
   };
 }
 
-async function callAgent(
-  provider: Provider,
+/**
+ * POST the selected endpoint skeletons to the server-side augmentation
+ * route. The server owns the prompt + model orchestration. Returns the
+ * enriched per-endpoint metadata, or null on any failure (the caller
+ * then keeps endpoints unchanged -- best-effort, non-blocking).
+ */
+async function callBackendAugment(
   endpoints: EndpointDescriptor[],
   intent: string | undefined,
   domain: string | undefined,
   fetchImpl: typeof fetch,
   notePreamble: string,
-): Promise<LlmResponse | null> {
-  const basePrompt = [
-    "You refine learned API skill metadata for a web automation system.",
-    "Return JSON only.",
-    "Do not invent endpoints or binding keys.",
-    "Only reuse keys already present in each endpoint's current requires/provides.",
-    "Upgrade generic labels into better action/resource kinds and semantic binding types when grounded by the URL, trigger URL, sample request, sample response, and sibling endpoint context.",
-    "Prefer precise semantic types like repository_owner, repository_name, profile_identifier, query_text, product_identifier, recommendation_placement_id.",
-    "Reject generic output like identifier, input, resource unless no better grounded type exists.",
-    "For each endpoint, produce endpoint_id plus any improved action_kind, resource_kind, description_out, requires, provides, and negative_tags.",
-  ].join("\n");
-  const prompt = notePreamble ? `${notePreamble}${basePrompt}` : basePrompt;
-
+): Promise<AugmentBackendResponse | null> {
   const endpointPayload = endpoints.map((endpoint) => buildEndpointPayload(endpoint));
+  const key = getApiKey();
+  const releaseAttestationHeaders = buildReleaseAttestationHeaders(
+    RELEASE_MANIFEST_BASE64,
+    RELEASE_MANIFEST_SIGNATURE,
+  );
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AUGMENT_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetchImpl(provider.url, {
+    res = await fetchImpl(`${API_URL}${AUGMENT_PATH}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${provider.key}`,
         "Content-Type": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "X-Unbrowse-Trace-Version": TRACE_VERSION,
+        "X-Unbrowse-Code-Hash": CODE_HASH,
+        "X-Unbrowse-Git-Sha": GIT_SHA,
+        ...releaseAttestationHeaders,
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
       body: JSON.stringify({
-        model: provider.model,
-        response_format: { type: "json_object" },
-        // Pin determinism: the same captured endpoint must produce the
-        // same semantic labels on repeat captures. Without this, action_kind
-        // and resource_kind can drift (e.g. HN homepage labeled `post` one
-        // run and `comment` another), which breaks agent UX because the
-        // description the agent reads is not stable across captures.
-        temperature: 0,
-        top_p: 0,
-        seed: 1,
-        messages: [
-          { role: "system", content: prompt },
-          {
-            role: "user",
-            content: JSON.stringify({
-              intent,
-              domain,
-              endpoints: endpointPayload,
-            }),
-          },
-        ],
+        intent,
+        domain,
+        note_preamble: notePreamble || undefined,
+        endpoints: endpointPayload,
       }),
       signal: controller.signal,
     });
   } finally {
     clearTimeout(timeout);
   }
-  if (!res.ok) throw new Error(`semantic_augment_http_${res.status}`);
-  const body = await res.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = body.choices?.[0]?.message?.content;
-  if (!content) return null;
-  return JSON.parse(content) as LlmResponse;
+  if (!res.ok) return null;
+  const body = (await res.json()) as AugmentBackendResponse;
+  return body;
 }
 
 export async function augmentEndpointsWithAgent(
@@ -311,15 +307,14 @@ export async function augmentEndpointsWithAgent(
   opts: AgentSemanticAugmentOptions = {},
 ): Promise<EndpointDescriptor[]> {
   if (!ENABLED || endpoints.length === 0) return endpoints;
-  const provider = opts.provider === undefined ? availableProviders()[0] ?? null : opts.provider;
-  if (!provider) return endpoints;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const selected = selectEndpointsForAugment(endpoints, opts.intent, opts.domain);
   if (selected.length === 0) return endpoints;
   // Prior-knowledge preamble: LLM-prose markdown written by the
-  // notes-summarizer after past captures of this domain. Injected as
-  // additional context for the LLM ONLY — the deterministic ranker
-  // never sees it. See src/extraction/domain-notes.ts.
+  // notes-summarizer after past captures of this domain. Read
+  // client-side (local notes file), passed UP to the server which
+  // injects it as additional LLM context only -- the deterministic
+  // ranker never sees it. See src/extraction/domain-notes.ts.
   let notePreamble = "";
   if (opts.domain) {
     try {
@@ -335,7 +330,7 @@ export async function augmentEndpointsWithAgent(
     }
   }
   try {
-    const response = await callAgent(provider, selected, opts.intent, opts.domain, fetchImpl, notePreamble);
+    const response = await callBackendAugment(selected, opts.intent, opts.domain, fetchImpl, notePreamble);
     if (!response?.endpoints?.length) return endpoints;
     const updates = new Map(
       response.endpoints

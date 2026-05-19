@@ -2,8 +2,24 @@ import { describe, expect, it } from "bun:test";
 import { augmentEndpointsWithAgent } from "../src/graph/agent-augment.js";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
-describe("agent semantic augmentation", () => {
-  it("refines descriptions and semantic types without inventing new keys", async () => {
+// The semantic-augmentation prompt + model orchestration moved
+// server-side (backend/src/services/semantic-augment.ts +
+// POST /v1/graph/augment-semantic). The client now POSTs the
+// already-sanitized endpoint skeleton UP and applies the enriched
+// metadata it gets DOWN. These tests stub `fetchImpl` as the BACKEND
+// route (not a chat-completions endpoint) and assert the client
+// contract: skeleton up, enrichment merged down, noise filtered,
+// best-effort fallback on backend failure.
+
+function backendResponse(payload: unknown): Response {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+describe("agent semantic augmentation (server-side prompt)", () => {
+  it("applies the backend's enrichment without inventing new keys", async () => {
     const endpoint: EndpointDescriptor = {
       endpoint_id: "repo-search",
       method: "GET",
@@ -30,32 +46,31 @@ describe("agent semantic augmentation", () => {
       },
     };
 
+    let requestedUrl = "";
     const augmented = await augmentEndpointsWithAgent([endpoint], {
       intent: "get repository details",
       domain: "example.com",
-      provider: { url: "https://example.test/v1/chat/completions", key: "test-key", model: "gpt-test" },
-      fetchImpl: async () =>
-        new Response(JSON.stringify({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                endpoints: [{
-                  endpoint_id: "repo-search",
-                  action_kind: "search",
-                  resource_kind: "repository",
-                  description_out: "Searches repositories and returns owner and repo names",
-                  requires: [{ key: "q", semantic_type: "query_text", required: true, source: "query" }],
-                  provides: [
-                    { key: "owner", semantic_type: "repository_owner" },
-                    { key: "repo", semantic_type: "repository_name" },
-                    { key: "repo_id", semantic_type: "repository_identifier" },
-                  ],
-                }],
-              }),
-            },
+      fetchImpl: async (url) => {
+        requestedUrl = String(url);
+        return backendResponse({
+          endpoints: [{
+            endpoint_id: "repo-search",
+            action_kind: "search",
+            resource_kind: "repository",
+            description_out: "Searches repositories and returns owner and repo names",
+            requires: [{ key: "q", semantic_type: "query_text", required: true, source: "query" }],
+            provides: [
+              { key: "owner", semantic_type: "repository_owner" },
+              { key: "repo", semantic_type: "repository_name" },
+              { key: "repo_id", semantic_type: "repository_identifier" },
+            ],
           }],
-        })),
+        });
+      },
     });
+
+    // Client hits the server-side augment route, NOT a model endpoint.
+    expect(requestedUrl).toContain("/v1/graph/augment-semantic");
 
     const semantic = augmented[0]?.semantic;
     expect(augmented[0]?.description).toBe("Searches repositories and returns owner and repo names");
@@ -64,10 +79,12 @@ describe("agent semantic augmentation", () => {
     expect(semantic?.requires?.find((binding) => binding.key === "q")?.semantic_type).toBe("query_text");
     expect(semantic?.provides?.find((binding) => binding.key === "owner")?.semantic_type).toBe("repository_owner");
     expect(semantic?.provides?.find((binding) => binding.key === "repo")?.semantic_type).toBe("repository_name");
+    // "repo_id" was never a captured binding key: the client must not
+    // graft a server-invented key onto the endpoint.
     expect(semantic?.provides?.find((binding) => binding.key === "repo_id")).toBeUndefined();
   });
 
-  it("only sends the highest-signal endpoints to the model", async () => {
+  it("sends only the highest-signal endpoint skeletons UP to the server", async () => {
     const endpoints: EndpointDescriptor[] = [
       {
         endpoint_id: "noise-1",
@@ -154,18 +171,10 @@ describe("agent semantic augmentation", () => {
     await augmentEndpointsWithAgent(endpoints, {
       intent: "get stock quote",
       domain: "finance.yahoo.com",
-      provider: { url: "https://example.test/v1/chat/completions", key: "test-key", model: "gpt-test" },
       fetchImpl: async (_url, init) => {
-        const body = JSON.parse(String(init?.body)) as { messages: Array<{ content: string }> };
-        const payload = JSON.parse(body.messages[1]?.content ?? "{}") as { endpoints?: Array<{ endpoint_id: string }> };
-        sentEndpointIds = (payload.endpoints ?? []).map((endpoint) => endpoint.endpoint_id);
-        return new Response(JSON.stringify({
-          choices: [{
-            message: {
-              content: JSON.stringify({ endpoints: [] }),
-            },
-          }],
-        }));
+        const body = JSON.parse(String(init?.body)) as { endpoints?: Array<{ endpoint_id: string }> };
+        sentEndpointIds = (body.endpoints ?? []).map((endpoint) => endpoint.endpoint_id);
+        return backendResponse({ endpoints: [] });
       },
     });
 
@@ -175,12 +184,7 @@ describe("agent semantic augmentation", () => {
     expect(sentEndpointIds).not.toContain("noise-2");
   });
 
-  it("pins deterministic sampling params so same capture yields same labels", async () => {
-    // Regression: cold-start-bench caught HN homepage endpoint getting
-    // resource_kind=comment on one run and resource_kind=post on another.
-    // Root cause: the chat-completions request was missing temperature/seed,
-    // so OpenAI defaulted to temperature=1 and returned different labels for
-    // identical inputs. Fix pins temperature=0, top_p=0, seed=1.
+  it("posts intent + domain + endpoint skeletons (no prompt) to the backend", async () => {
     const endpoint: EndpointDescriptor = {
       endpoint_id: "deterministic-check",
       method: "GET",
@@ -204,19 +208,53 @@ describe("agent semantic augmentation", () => {
     await augmentEndpointsWithAgent([endpoint], {
       intent: "list top stories",
       domain: "news.ycombinator.com",
-      provider: { url: "https://example.test/v1/chat/completions", key: "test-key", model: "gpt-test" },
       fetchImpl: async (_url, init) => {
         sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        return new Response(JSON.stringify({
-          choices: [{ message: { content: JSON.stringify({ endpoints: [] }) } }],
-        }));
+        return backendResponse({ endpoints: [] });
       },
     });
 
     expect(sentBody).not.toBeNull();
-    expect(sentBody?.temperature).toBe(0);
-    expect(sentBody?.top_p).toBe(0);
-    expect(sentBody?.seed).toBe(1);
-    expect(sentBody?.response_format).toEqual({ type: "json_object" });
+    expect(sentBody?.intent).toBe("list top stories");
+    expect(sentBody?.domain).toBe("news.ycombinator.com");
+    expect(Array.isArray(sentBody?.endpoints)).toBe(true);
+    expect((sentBody?.endpoints as Array<{ endpoint_id: string }>)[0]?.endpoint_id).toBe("deterministic-check");
+    // The prompt + model knobs (temperature/seed/messages) must NOT be
+    // in the client request: they moved server-side.
+    expect(sentBody).not.toHaveProperty("messages");
+    expect(sentBody).not.toHaveProperty("temperature");
+    expect(sentBody).not.toHaveProperty("model");
+  });
+
+  it("returns endpoints unchanged when the backend augment fails (best-effort)", async () => {
+    const endpoint: EndpointDescriptor = {
+      endpoint_id: "fallback-check",
+      method: "GET",
+      url_template: "https://api.example.com/items",
+      description: "Returns resource details",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.9,
+      semantic: {
+        action_kind: "list",
+        resource_kind: "resource",
+        description_out: "Returns resource details",
+        requires: [],
+        provides: [],
+        negative_tags: [],
+        confidence: 0.7,
+      },
+    };
+
+    const augmented = await augmentEndpointsWithAgent([endpoint], {
+      intent: "list items",
+      domain: "example.com",
+      fetchImpl: async () => new Response("upstream down", { status: 503 }),
+    });
+
+    // Unchanged: the caller's local heuristic stays the source.
+    expect(augmented[0]?.description).toBe("Returns resource details");
+    expect(augmented[0]?.semantic?.description_source).toBeUndefined();
+    expect(augmented).toHaveLength(1);
   });
 });
