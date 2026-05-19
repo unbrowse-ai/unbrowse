@@ -13,19 +13,9 @@
 // structural primitive). The PASS/FAIL verdict is NOT computed here; the
 // in-thread agent renders it later from these raw artifacts vs
 // harness/probes/GATE_JUDGE.md.
-//
-// ENV-DEFAULT-FORCING BLOCK:
-//   UNBROWSE_GATE_CONCURRENCY (number, default 30) — worker-pool size.
-//   UNBROWSE_GATE_FORCE_GO (1|true|yes, default unset) — when set,
-//     ALWAYS run /v1/browse/go + snap + eval + close, even when the
-//     pre-resolve cache returned a non-empty available_endpoints
-//     shortlist. Default behaviour (cache short-circuits go) is
-//     unchanged when the env is unset. Used to force the cookie-
-//     injection / live capture path under auth-cookies probes whose
-//     marketplace skill is already cached.
 import { getInProcessApp } from "../src/runtime/in-process-app.ts";
 import { classifyReason, pickSkillId } from "./mcp-gate-parallel-classify.ts";
-import { buildCaptureMeta, parseForceGoEnv } from "./mcp-gate-parallel-helpers.ts";
+import { findBestBrowserSession } from "../src/auth/browser-cookies.ts";
 import { mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -34,8 +24,23 @@ if (!RUN_DIR) { console.error("usage: bun scripts/mcp-gate-parallel-collect.ts <
 const manifest = JSON.parse(readFileSync(join(RUN_DIR, "manifest.json"), "utf8"));
 const probes: Array<{ probe_id: string; intent: string; url: string; lane: string }> = manifest.probes;
 const CONC = Number(process.env.UNBROWSE_GATE_CONCURRENCY) || 30;
-const FORCE_GO = parseForceGoEnv(process.env.UNBROWSE_GATE_FORCE_GO);
 const HDR = { "content-type": "application/json", "x-unbrowse-client-id": "mcp-gate-parallel" };
+
+// Force clean-room kuri: resolveKuriLaunchConfig defaults
+// attachToExistingChrome=true, so if the user has Chrome running on
+// :9222 (typical when Claude Code / a debugger is open) kuri silently
+// attaches to it instead of launching its own managed headless Chrome.
+// Bench-gate runs MUST be reproducible + isolated: every probe gets a
+// fresh managed headless Chrome, no cross-session leak into the user's
+// real browsing state. The flag must be set BEFORE getInProcessApp
+// boots the in-process app (kuri brokers spawn lazily on first
+// /v1/browse/go call, but the env they inherit is captured at module
+// load time here). Per src/kuri/client.ts:280 — any of
+// KURI_CLEAN_ROOM / UNBROWSE_LOCAL_ONLY / KURI_DISABLE_CDP_ATTACH
+// trips the same `attachToExistingChrome = false` branch.
+process.env.KURI_CLEAN_ROOM ??= "1";
+process.env.HEADLESS ??= "true";
+process.env.KURI_HEADLESS ??= "true";
 
 const app = await getInProcessApp();
 
@@ -68,17 +73,12 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
   let preEps = pickEndpoints(pre.body);
 
   let close: any = { body: {} }, snap: any = { body: {} }, evalRes: any = { body: {} };
-  let go: { status?: number; body?: any } | null = null;
-  // F4: UNBROWSE_GATE_FORCE_GO=1 overrides the cache-hit short-circuit
-  // and always runs the go+snap+eval+close block — needed for auth-
-  // cookies probes whose marketplace skill is already cached, so the
-  // cookie-injection / live-capture path runs anyway.
-  if (preEps.length === 0 || FORCE_GO) {
+  if (preEps.length === 0) {
     // Disjoint per-probe session_id: with the create-on-unknown-id +
     // per-broker create-lock fix, each concurrent probe owns its own
     // isolated tab (no cross-render). probe_id is unique per manifest row.
     const sid = `gate-${p.probe_id}`;
-    go = await post("/v1/browse/go", { url: p.url, session_id: sid });
+    const go = await post("/v1/browse/go", { url: p.url, session_id: sid });
     if (go.status === 200 && go.body?.session_id) {
       snap = await post("/v1/browse/snap", { session_id: sid, detail_level: "minimal" });
       evalRes = await post("/v1/browse/eval", { session_id: sid, expression: "JSON.stringify(document.documentElement.outerHTML).slice(0,8192)" });
@@ -100,9 +100,62 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
   const isoSelfCheck = { snap_current_url: sb.current_url ?? null, intended_host: intendedHost, snap_host: snapHost,
     host_match: snapHost ? snapHost === intendedHost : null };
 
-  w(dir, "capture.meta.json", JSON.stringify(
-    buildCaptureMeta({ cb, eps, sb, evalRes, skillId, isoSelfCheck, go }),
-    null, 2));
+  // Browser-cookie discovery — evidence for the auth-cookies lane judge.
+  // Tells whether the user's local Chromium SQLite store has cookies
+  // for this probe's host, and from which browser. Lets the judge
+  // distinguish "no cookies, exclude from denominator" from "cookies
+  // present but substrate still got a login wall = real bug".
+  let browserCookieEvidence: {
+    cookies_available: number;
+    session_cookies: number;
+    browser: string | null;
+    error: string | null;
+  } = { cookies_available: 0, session_cookies: 0, browser: null, error: null };
+  try {
+    const host = intendedHost ?? "";
+    if (host) {
+      const session = await findBestBrowserSession(host);
+      if (session) {
+        browserCookieEvidence = {
+          cookies_available: session.cookies?.length ?? 0,
+          session_cookies: session.sessionCookies ?? 0,
+          browser: session.browser ?? null,
+          error: null,
+        };
+      }
+    }
+  } catch (err) {
+    browserCookieEvidence.error = err instanceof Error ? err.message : String(err);
+  }
+
+  const blockSignals: string[] = [];
+  if (sb.warning) blockSignals.push(String(sb.warning));
+  if (evalRes.body?.error) blockSignals.push(String(evalRes.body.error));
+
+  w(dir, "capture.meta.json", JSON.stringify({
+    total_endpoints_captured: cb.endpoint_count ?? 0,
+    n_operations: eps.length,
+    captured_title: sb.page_title || (typeof sb.root_aria === "string" ? sb.root_aria.slice(0, 120) : ""),
+    browser_block_signals: blockSignals,
+    filter_rejections: null, capture_path: null,
+    request_count: cb.request_count ?? 0,
+    indexed: cb.indexed ?? false, mode: cb.mode ?? "none",
+    skill_id: skillId, iso_self_check: isoSelfCheck,
+    capture_diagnostic: cb.capture_diagnostic ?? null,
+    // When /v1/browse/go fails, the collector stores the raw go response in
+    // close.body._go_failed (see runProbe above) but the artifact previously
+    // dropped it on the floor — `index.store.json.reason="go_failed"` was the
+    // only signal. The actual kuri error response (port-in-use, spawn-timeout,
+    // tab-not-found, etc.) was invisible to the judge. Surfaced by gate run
+    // 20260518T115632Z where 13+ probes returned `go_failed` at conc=6 with no
+    // way to attribute the failure to a specific kuri/broker condition.
+    go_failed: cb._go_failed ?? null,
+    // Browser-cookie evidence for the auth-cookies lane judge. The
+    // count distinguishes "no local cookies → exclude probe from
+    // denominator" from "cookies present but login wall → real bug".
+    // See harness/probes/GATE_JUDGE.md auth-cookies bullet.
+    browser_cookies: browserCookieEvidence,
+  }, null, 2));
 
   const evalStr = typeof evalRes.body?.result === "string" ? evalRes.body.result : JSON.stringify(evalRes.body ?? {});
   w(dir, "capture.html.excerpt", evalStr.slice(0, 8192));
@@ -120,9 +173,18 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
          : { picked_from: "none", status: post2.body?.status ?? "no_match" }, null, 2));
 
   if (pick && skillId) {
+    // Prefer the picked endpoint's own source_skill_id when present —
+    // resolve's shortlist can include endpoints merged in from cached
+    // publishes whose skill_id differs from the top-level skill_id
+    // (gate probe 003 crates.io 2026-05-19: top-level skill A returned,
+    // shortlist[0] endpoint belonged to skill B, execute against A
+    // returned endpoint_not_found). Fall back to the top-level
+    // skillId for backward-compat shortlists that don't carry the
+    // field.
+    const executeSkillId: string = (pick as { source_skill_id?: string }).source_skill_id ?? skillId;
     const params = { endpoint_id: pick.endpoint_id, url: p.url, ...derivedParams(p.url) };
-    w(dir, "execute.input.json", JSON.stringify({ skill: skillId, endpoint: pick.endpoint_id, intent: p.intent, context_url: p.url, params }, null, 2));
-    const ex = await post(`/v1/skills/${skillId}/execute`, { params, projection: { raw: true }, context_url: p.url, intent: p.intent });
+    w(dir, "execute.input.json", JSON.stringify({ skill: executeSkillId, endpoint: pick.endpoint_id, intent: p.intent, context_url: p.url, params }, null, 2));
+    const ex = await post(`/v1/skills/${executeSkillId}/execute`, { params, projection: { raw: true }, context_url: p.url, intent: p.intent });
     const resultBody = ex.body?.result ?? ex.body;
     const raw = typeof resultBody === "string" ? resultBody : JSON.stringify(resultBody);
     w(dir, "execute.response.raw", raw);
