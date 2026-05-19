@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { resolveChain, predictNext, recordSession, recordNegative, checkCredits, checkGraphHealth, getIntentCache, getCooccurrence, getEdges, graphProxy, upsertEdges } from "../services/graph.js";
+import { augmentEndpointsSemantic, type AugmentRequest } from "../services/semantic-augment.js";
 import type { GraphNode, GraphEdge } from "../services/graph.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
@@ -51,6 +52,42 @@ graphRoutes.post("/graph/edges", bearerAuth, requireSignedClient, async (c) => {
   } catch (err) {
     console.error("[graph/edges] error:", (err as Error).message);
     return c.json({ error: (err as Error).message }, 500);
+  }
+});
+// POST /v1/graph/augment-semantic: server-side endpoint-skeleton enrichment.
+//
+// The client sends already-sanitized endpoint skeletons UP (no secrets:
+// sample_request / sample_response are compacted client-side before
+// transit). The server runs the augmentation prompt against the
+// configured semantic model and returns enriched per-endpoint metadata
+// DOWN. The prompt + model orchestration live server-side
+// (services/semantic-augment.ts) so the prompt is not shipped in the
+// npm bundle and the model can be swapped via env without a client
+// release.
+//
+// Best-effort by contract: this NEVER blocks the client's index/publish
+// pipeline. Any failure (model unavailable, timeout, augment disabled)
+// returns 200 with `{ endpoints: [] }`; the client then falls back to
+// its local heuristic (generateLocalDescription). It is intentionally
+// NOT a 4xx/5xx on augmentation failure. The client treats an empty
+// list and a transport error identically (fall back), and a non-2xx
+// would only add noise to client logs for an optional enrichment.
+graphRoutes.post("/graph/augment-semantic", bearerAuth, requireSignedClient, async (c) => {
+  let req: AugmentRequest;
+  try {
+    req = await c.req.json<AugmentRequest>();
+  } catch {
+    return c.json({ endpoints: [] }, 200);
+  }
+  if (!req || !Array.isArray(req.endpoints) || req.endpoints.length === 0) {
+    return c.json({ endpoints: [] }, 200);
+  }
+  try {
+    const result = await augmentEndpointsSemantic(c.env, req);
+    return c.json(result);
+  } catch (err) {
+    console.error("[graph/augment-semantic] error:", (err as Error).message);
+    return c.json({ endpoints: [] }, 200);
   }
 });
 
