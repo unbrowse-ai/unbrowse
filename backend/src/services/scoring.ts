@@ -164,6 +164,106 @@ export async function recordFeedback(
   return avgRating;
 }
 
+export interface ServerReliability {
+  reliability_score: number;
+  verification_status: VerificationStatus;
+  stale: boolean;
+  auto_deprecated_at?: string;
+  total_observations: number;
+}
+
+/**
+ * Server-authoritative reliability for a (skill, endpoint).
+ *
+ * Reliability and staleness are inherently CROSS-USER aggregates: a single
+ * client only sees its own outcomes and cannot observe the population. The
+ * server holds the canonical EndpointStats and the persisted
+ * computeReliabilityScore result, so this is the value resolve should surface
+ * as evidence and the value the client should adopt after a reflect outcome,
+ * not a locally re-derived guess.
+ *
+ * It reports the persisted score, the live verification_status, whether the
+ * endpoint is server-side stale (the same EVIDENCE-derived predicate the
+ * marketplace auto-deprecation gate uses: disabled/failed status, an explicit
+ * auto_deprecated_at stamp, or score below the deprecation floor), and the
+ * observation count behind the aggregate so the caller can weigh confidence.
+ * Never a prescribed verdict, purely a read of observed execution outcomes
+ * plus age.
+ */
+export async function getServerReliability(
+  env: Env,
+  skillId: string,
+  endpointId: string
+): Promise<ServerReliability | null> {
+  const skill = await getSkill(env, skillId);
+  if (!skill) return null;
+  const endpoint = skill.endpoints.find((e) => e.endpoint_id === endpointId);
+  if (!endpoint) return null;
+  const stats = await getStats(env, skillId, endpointId);
+  const verificationStatus = (endpoint.verification_status ?? "unverified") as VerificationStatus;
+  const reliabilityScore =
+    typeof endpoint.reliability_score === "number"
+      ? endpoint.reliability_score
+      : computeReliabilityScore(stats, verificationStatus);
+  const stale =
+    verificationStatus === "disabled" ||
+    verificationStatus === "failed" ||
+    Boolean(stats.auto_deprecated_at) ||
+    reliabilityScore < DEPRECATION_THRESHOLD.min_score;
+  return {
+    reliability_score: reliabilityScore,
+    verification_status: verificationStatus,
+    stale,
+    auto_deprecated_at: stats.auto_deprecated_at,
+    total_observations: stats.total_executions + stats.feedback_count,
+  };
+}
+
+/**
+ * Apply one agent reflect outcome (achieved | partial | failed) to the
+ * server-authoritative aggregate, then return the recomputed authoritative
+ * reliability. The Bayesian-smoothed update is the SAME population machinery
+ * recordFeedback runs: a reflect outcome is an observation-bearing feedback
+ * signal mapped onto the 1-5 rating scale (achieved=5, partial=3, failed=1).
+ * Keeping the smoothing server-side is the point: the client cannot see the
+ * population, so it must not compute the aggregate itself.
+ */
+export async function recordReflectionOutcome(
+  env: Env,
+  skillId: string,
+  endpointId: string,
+  outcome: "achieved" | "partial" | "failed"
+): Promise<ServerReliability | null> {
+  const skill = await getSkill(env, skillId);
+  if (!skill) return null;
+  const endpoint = skill.endpoints.find((e) => e.endpoint_id === endpointId);
+  if (!endpoint) return null;
+  // A reflect outcome IS an observed execution result for (skill, endpoint),
+  // so it flows through the SAME population channel recordExecution drives:
+  // EndpointStats.consecutive_failures + the auto-deprecation gate +
+  // computeReliabilityScore. Routing through feedback alone would never move
+  // the score (computeReliabilityScore short-circuits at total_executions===0)
+  // and would never trip auto-deprecation; staleness has to be observable
+  // from real outcomes. achieved => success; failed/partial => non-success
+  // (partial carries a soft, weight-1 error so it nudges down without the
+  // hard 3x acceleration a 4xx/5xx execution would apply). Plus the rating
+  // signal (achieved=5, partial=3, failed=1) so the feedback term tracks too.
+  const now = new Date().toISOString();
+  const trace: ExecutionTrace = {
+    trace_id: `reflect-${skillId}-${endpointId}-${Date.now()}`,
+    skill_id: skillId,
+    endpoint_id: endpointId,
+    started_at: now,
+    completed_at: now,
+    success: outcome === "achieved",
+    ...(outcome === "achieved" ? {} : { error: outcome === "partial" ? "reflect_partial" : "reflect_failed" }),
+  };
+  await recordExecution(env, skillId, endpointId, trace);
+  const rating = outcome === "achieved" ? 5 : outcome === "partial" ? 3 : 1;
+  await recordFeedback(env, skillId, endpointId, rating);
+  return getServerReliability(env, skillId, endpointId);
+}
+
 /** Composite search score combining vector similarity, reliability, freshness, and verification */
 export function computeCompositeSearchScore(
   vectorSimilarity: number,

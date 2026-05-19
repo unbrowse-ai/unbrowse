@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env, OrchestrationTiming } from "../types.js";
 import { bearerAuth, optionalAuth } from "../middleware/auth.js";
-import { recordExecution, recordFeedback } from "../services/scoring.js";
+import { recordExecution, recordFeedback, recordReflectionOutcome, getServerReliability } from "../services/scoring.js";
 import { recordPerf, getPerf, recordAgentPerf } from "../services/perf.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { recordAgentExecution, recordAgentFeedback, countAgents } from "../services/agents.js";
@@ -246,6 +246,7 @@ export const statsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: stri
 // Rate limit: 120 executions per 60s, 60 feedback per 60s per agent
 statsRoutes.use("/stats/execution", agentRateLimit({ limit: 120, window: 60, prefix: "execution" }));
 statsRoutes.use("/stats/feedback", agentRateLimit({ limit: 60, window: 60, prefix: "feedback" }));
+statsRoutes.use("/stats/reflect", agentRateLimit({ limit: 60, window: 60, prefix: "reflect" }));
 
 // POST /v1/stats/perf — record orchestration timing
 statsRoutes.use("/stats/perf", agentRateLimit({ limit: 120, window: 60, prefix: "perf" }));
@@ -373,7 +374,38 @@ statsRoutes.post("/stats/feedback", optionalAuth, async (c) => {
   if (agentId) {
     c.executionCtx.waitUntil(recordAgentFeedback(c.env, agentId));
   }
-  return c.json({ ok: true, avg_rating: avgRating });
+  // Surface the server-authoritative reliability the recompute just produced
+  // so the client adopts the cross-user aggregate instead of re-deriving its
+  // own single-client guess. Best-effort: never block the feedback ack on it.
+  const reliability = await getServerReliability(c.env, skill_id, endpoint_id).catch(() => null);
+  return c.json({ ok: true, avg_rating: avgRating, reliability });
+});
+
+// POST /v1/stats/reflect: agent reflect outcome to server-authoritative
+// reliability update. The Bayesian smoothing runs server-side (it is a
+// cross-user aggregate the client cannot compute); the response carries the
+// recomputed authoritative reliability + staleness for the client to adopt.
+statsRoutes.post("/stats/reflect", optionalAuth, async (c) => {
+  const { skill_id, endpoint_id, intent_status } = await c.req.json<{
+    skill_id: string;
+    endpoint_id: string;
+    intent_status: "achieved" | "partial" | "failed";
+  }>();
+  if (!skill_id || !endpoint_id || !intent_status) {
+    return c.json({ error: "skill_id, endpoint_id, and intent_status required" }, 400);
+  }
+  if (intent_status !== "achieved" && intent_status !== "partial" && intent_status !== "failed") {
+    return c.json({ error: "intent_status must be achieved | partial | failed" }, 400);
+  }
+  const reliability = await recordReflectionOutcome(c.env, skill_id, endpoint_id, intent_status);
+  if (!reliability) {
+    return c.json({ ok: false, error: "skill_or_endpoint_not_found" }, 404);
+  }
+  const agentId = c.get("agent_id");
+  if (agentId) {
+    c.executionCtx.waitUntil(recordAgentFeedback(c.env, agentId));
+  }
+  return c.json({ ok: true, reliability });
 });
 
 // GET /v1/stats/fees — aggregate graph fee summary (admin)
