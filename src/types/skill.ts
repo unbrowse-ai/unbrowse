@@ -653,6 +653,18 @@ export interface ExecutionOptions {
    *  `executeEndpointWithChain`. Optional — when absent, the wrapper has no prior
    *  cached values to evaluate and effectively delegates to `executeEndpoint`. */
   session_yields?: SessionYieldCache;
+  /** Phase: opt-in paid residential-proxy fallback on HTTP 429. When set on a
+   *  per-request basis OR when `consent:proxy_fallback:<agent>` is "yes" in
+   *  the backend KV, executeEndpoint retries the outbound fetch through the
+   *  IProyal residential proxy on 429 and POSTs a per-call surcharge
+   *  (~$0.01) to the backend sponsor ledger. Plan slug:
+   *  add-an-opt-in-paid-residential-proxy-fallback-fo. */
+  paid_proxy_fallback?: boolean;
+  /** Test seam: force the proxy dispatch on the next outbound fetch even when
+   *  the target did not 429. Used ONLY by tests/proxy-fallback-429.test.ts to
+   *  assert egress IP changes through the dispatcher. Never set in product
+   *  flow. */
+  __forceProxy?: boolean;
 }
 
 /** Single cached binding value carrying the freshness metadata `isBindingStale` needs. */

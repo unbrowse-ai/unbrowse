@@ -3834,6 +3834,83 @@ export async function executeEndpoint(
     }
     // B3: honor Retry-After before treating 429 as stale.
     if (status === 429) {
+      // Wave 3: opt-in paid residential-proxy fallback.
+      // Plan: add-an-opt-in-paid-residential-proxy-fallback-fo.
+      const consented = options?.paid_proxy_fallback === true;
+      const targetUrl = endpoint.trigger_url || url;
+      if (!consented) {
+        decisionTrace.push({ step: "429_proxy_fallback_consent_missing" });
+        const offerData = staleEndpointResult(
+          status,
+          skill,
+          endpoint,
+          options?.contextUrl,
+          `Endpoint ${endpoint.endpoint_id} returned HTTP 429. The agent can opt into a paid residential-proxy retry by setting paid_proxy_fallback: true on the next execute call.`,
+        );
+        if (offerData && typeof offerData === "object") {
+          (offerData as Record<string, unknown>).next_step = {
+            kind: "paid_proxy_fallback_offer",
+            estimated_cost_usd: 0.01,
+            suggested_command: `unbrowse execute --skill ${skill.skill_id} --endpoint ${endpoint.endpoint_id} --paid-proxy-fallback`,
+          };
+        }
+        trace.result = offerData;
+        return { trace, result: offerData };
+      }
+      // Consented: attempt the proxy retry.
+      decisionTrace.push({ step: "429_proxy_fallback_attempted", target: targetUrl });
+      try {
+        const { proxiedFetchOnce, resolveProxyUrl } = await import("./proxy-fetch.js");
+        const proxyUrl = resolveProxyUrl();
+        if (!proxyUrl) {
+          decisionTrace.push({ step: "429_proxy_fallback_error", reason: "creds_missing" });
+        } else {
+          const { response: pr, dispatch } = await proxiedFetchOnce(targetUrl, {}, proxyUrl);
+          if (!dispatch.dispatched) {
+            decisionTrace.push({ step: "429_proxy_fallback_error", reason: dispatch.skipped_reason ?? "not_dispatched" });
+          } else if (pr.status >= 200 && pr.status < 300) {
+            const proxyBody = await pr.text();
+            const parsed: unknown = (() => {
+              try { return JSON.parse(proxyBody); } catch { return proxyBody; }
+            })();
+            decisionTrace.push({ step: "429_proxy_fallback_success", status: pr.status, bytes: proxyBody.length });
+            trace.success = true;
+            trace.status_code = pr.status;
+            trace.error = undefined;
+            const recoveredData = parsed as typeof data;
+            trace.result = recoveredData;
+            // Surcharge POST. Best-effort: the user's hot path is the
+            // recovered 200 body, never gated on billing reachability.
+            const surchargeBase = process.env.UNBROWSE_API_URL ?? "https://beta-api.unbrowse.ai";
+            const ledgerId = `proxy_${trace.trace_id ?? "u"}_${Date.now()}`;
+            try {
+              const sres = await fetch(`${surchargeBase}/v1/account/proxy-surcharge`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  skill_id: skill.skill_id,
+                  endpoint_id: endpoint.endpoint_id,
+                  ledger_id: ledgerId,
+                  cost_usd: Number(process.env.SPONSOR_PROXY_SURCHARGE_USD ?? "0.01"),
+                }),
+              });
+              if (sres.ok) {
+                decisionTrace.push({ step: "429_proxy_fallback_billed", ledger_id: ledgerId });
+              } else {
+                decisionTrace.push({ step: "429_proxy_fallback_billing_failed", status: sres.status });
+              }
+            } catch (err) {
+              decisionTrace.push({ step: "429_proxy_fallback_billing_failed", reason: err instanceof Error ? err.message : String(err) });
+            }
+            return { trace, result: recoveredData };
+          } else {
+            decisionTrace.push({ step: "429_proxy_fallback_no_unblock", status: pr.status });
+          }
+        }
+      } catch (err) {
+        decisionTrace.push({ step: "429_proxy_fallback_error", reason: err instanceof Error ? err.message : String(err) });
+      }
+      // Fall through to existing Retry-After / staleEndpointResult below.
       const retryAfterMs = parseRetryAfter(result?.response_headers ?? {});
       if (retryAfterMs != null) {
         const seconds = Math.ceil(retryAfterMs / 1000);
