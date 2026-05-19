@@ -31,6 +31,7 @@ import {
   loadAuthProfileBestEffort,
   saveAuthProfileBestEffort,
 } from "../auth/index.js";
+import { isEndpointStale } from "../auth/stale-endpoints.js";
 import { consumeDashboardPairingToken, recordFeedback, recordDiagnostics, recordExecution, getApiKey, getAgentId, getRecentLocalSkill, recordAnalyticsSession, listSkills, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
@@ -1150,6 +1151,29 @@ export async function registerRoutes(app: FastifyInstance) {
       if (innerResult?.available_endpoints && !res.available_endpoints) {
         res.available_endpoints = innerResult.available_endpoints;
       }
+
+      // Loop 5 (B-023 follow-up #2): filter endpoints that recently returned
+      // auth-shaped failures (401/403) from the surfaced shortlist. The
+      // agent shouldn't see endpoints we already know will 401 with the
+      // current cookies. Stale records expire by TTL (30min) so a fresh
+      // capture / vault refresh / browser cookie refresh restores
+      // visibility automatically. Domain is derived from context.url; if
+      // absent, the filter is a no-op (no per-domain scope to apply).
+      const ctxHost = (() => {
+        try { return context?.url ? new URL(context.url).hostname.toLowerCase().replace(/^www\./, "") : null; }
+        catch { return null; }
+      })();
+      if (ctxHost && Array.isArray(res.available_endpoints)) {
+        const before = res.available_endpoints.length;
+        res.available_endpoints = (res.available_endpoints as Array<{ endpoint_id?: string }>).filter(
+          (ep) => !ep?.endpoint_id || !isEndpointStale(ctxHost, ep.endpoint_id),
+        );
+        const hidden = before - res.available_endpoints.length;
+        if (hidden > 0) {
+          (res as Record<string, unknown>).hidden_stale_endpoints = hidden;
+        }
+      }
+
 
       await recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
         discovery_queries: 1,
