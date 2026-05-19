@@ -68,12 +68,12 @@ export async function importBrowserCookiesIntoTab(tabId: string, domain: string)
     // Try all browsers, pick the one with the best session for this domain
     const bestSession = findBestBrowserSession(domain);
     const cookies = bestSession ? bestSession.cookies : extractBrowserCookies(domain).cookies;
-    let imported = 0;
+    let setCallsOk = 0;
 
     for (const cookie of cookies) {
       try {
         await kuri.setCookie(tabId, cookie);
-        imported += 1;
+        setCallsOk += 1;
       } catch (error) {
         log(
           "auth",
@@ -82,10 +82,29 @@ export async function importBrowserCookiesIntoTab(tabId: string, domain: string)
       }
     }
 
-    if (imported > 0) {
-      log("auth", `browser_cookie_imported domain=${normalizeAuthDomain(domain)} tab_id=${tabId} count=${imported}`);
+    // F2 (B-023): substrate-honest return is jar truth, not call count.
+    // The diagnostic primitive proved injected=141 vs jar=0 for YouTube —
+    // Kuri's CDP setCookie accepts then silently drops cookies it can't
+    // store (wrong url/domain pair, sameSite mismatch, CDP target
+    // unresolved on fresh tabs). Without this, every caller that gated
+    // on `cookies_injected > 0` was reading a lying counter.
+    let jarCount = 0;
+    try {
+      const jar = await kuri.getCookies(tabId);
+      for (const cookie of jar) {
+        if (isDomainMatch(cookie.domain, domain)) jarCount += 1;
+      }
+    } catch (error) {
+      log(
+        "auth",
+        `browser_cookie_jar_read_failed domain=${normalizeAuthDomain(domain)} tab_id=${tabId} error=${formatAuthError(error)}`,
+      );
     }
-    return imported;
+
+    if (setCallsOk > 0 || jarCount > 0) {
+      log("auth", `browser_cookie_imported domain=${normalizeAuthDomain(domain)} tab_id=${tabId} set_calls_ok=${setCallsOk} jar_count=${jarCount}`);
+    }
+    return jarCount;
   } catch (error) {
     log(
       "auth",

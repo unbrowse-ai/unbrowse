@@ -1226,7 +1226,27 @@ async function setCookieViaCDP(wsUrl: string, cookie: {
   });
 }
 
-async function resolveCdpDebuggerUrlForTab(tabId: string): Promise<string | null> {
+// F1 (B-023): freshly-spawned tabs (via kuri.newTab("about:blank")) are
+// not yet visible in CDP /json listings at the moment setCookie runs.
+// One-shot resolve returned null → setCookie short-circuited to legacy
+// /cookies fallback (which silently strips secure/httpOnly). Diagnostic
+// primitive proved inject=141, jar=0 for YouTube. Wrap one-shot resolve
+// with bounded retry (default 0/150/350ms, total ≤500ms, configurable
+// via UNBROWSE_KURI_CDP_RESOLVE_RETRY_MS). Happy path stays zero-cost.
+export function parseCdpResolveRetryDelays(raw: string | undefined): number[] {
+  const DEFAULT = [0, 150, 350];
+  const CAP_MS = 2000;
+  if (!raw || !raw.trim()) return DEFAULT;
+  try {
+    const parts = raw.split(",").map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n >= 0);
+    if (parts.length === 0) return DEFAULT;
+    const total = parts.reduce((a, b) => a + b, 0);
+    if (total > CAP_MS) return DEFAULT;
+    return parts;
+  } catch { return DEFAULT; }
+}
+
+async function resolveCdpDebuggerUrlForTabOnce(tabId: string): Promise<string | null> {
   const portsToTry = Array.from(new Set(
     [kuriCdpPort, 9222, 9223, 9224, 9225].filter((port): port is number => typeof port === "number"),
   ));
@@ -1252,6 +1272,21 @@ async function resolveCdpDebuggerUrlForTab(tabId: string): Promise<string | null
   return null;
 }
 
+async function resolveCdpDebuggerUrlForTab(tabId: string): Promise<string | null> {
+  const delays = parseCdpResolveRetryDelays(process.env.UNBROWSE_KURI_CDP_RESOLVE_RETRY_MS);
+  for (let i = 0; i < delays.length; i += 1) {
+    if (delays[i] > 0) {
+      await new Promise((r) => setTimeout(r, delays[i]));
+    }
+    const url = await resolveCdpDebuggerUrlForTabOnce(tabId);
+    if (url) {
+      if (i > 0) log("kuri", `CDP target ${tabId} resolved after retry attempt=${i + 1} delay_ms=${delays[i]}`);
+      return url;
+    }
+  }
+  return null;
+}
+
 /** Set a single cookie via raw CDP (Chrome debug port) for full attribute support.
  *  Falls back to Kuri's /cookies endpoint if CDP is unavailable. */
 /** Set a single cookie via raw CDP (Chrome debug port) for full attribute support.
@@ -1260,28 +1295,35 @@ export async function setCookie(tabId: string, cookie: KuriCookie, state: Broker
   // Strip wrapping quotes from cookie values (Chrome stores some values like JSESSIONID with literal quotes)
   const value = cookie.value.replace(/^"|"$/g, "");
 
-  // Try raw CDP first — Kuri's /cookies endpoint doesn't pass secure/httpOnly/sameSite/expires
-  // which causes auth failures on sites like LinkedIn that require secure cookies.
+  // F3 (B-023): for secure/httpOnly cookies, the legacy /cookies fallback
+  // is DISABLED because it cannot persist those flags — Chrome silently
+  // drops the cookie and the caller sees no error. Honest failure beats
+  // dishonest success: throw when CDP target is unresolved OR setCookieViaCDP
+  // returns false. All five known callers wrap setCookie in try/catch or
+  // .catch(()=>{}), so the throw becomes an explicit log line rather than
+  // a silent data loss. Non-secure non-httpOnly cookies still hit the
+  // legacy fallback (those flags don't matter, /cookies can persist them).
   if (cookie.secure || cookie.httpOnly) {
-    try {
-      const debuggerUrl = await resolveCdpDebuggerUrlForTab(tabId);
-      if (debuggerUrl) {
-        const success = await setCookieViaCDP(debuggerUrl, {
-          name: cookie.name,
-          value,
-          domain: cookie.domain,
-          path: cookie.path || "/",
-          secure: cookie.secure ?? false,
-          httpOnly: cookie.httpOnly ?? false,
-          sameSite: cookie.sameSite || "Lax",
-          ...(cookie.expires && cookie.expires > 0 ? { expires: cookie.expires } : {}),
-        });
-        if (success) return;
-        log("kuri", `CDP cookie set failed for ${cookie.name} on ${cookie.domain}; falling back to /cookies`);
-      } else {
-        log("kuri", `no CDP websocket for tab ${tabId}; falling back to /cookies for secure cookie ${cookie.name}`);
-      }
-    } catch { /* CDP unavailable, fall through to Kuri */ }
+    const debuggerUrl = await resolveCdpDebuggerUrlForTab(tabId);
+    if (!debuggerUrl) {
+      throw new Error(
+        `no CDP websocket for tab ${tabId}; cannot persist secure/httpOnly cookie ${cookie.name} on ${cookie.domain}. Legacy /cookies fallback is disabled for secure/httpOnly cookies because it strips those flags and Chrome drops the cookie.`,
+      );
+    }
+    const success = await setCookieViaCDP(debuggerUrl, {
+      name: cookie.name,
+      value,
+      domain: cookie.domain,
+      path: cookie.path || "/",
+      secure: cookie.secure ?? false,
+      httpOnly: cookie.httpOnly ?? false,
+      sameSite: cookie.sameSite || "Lax",
+      ...(cookie.expires && cookie.expires > 0 ? { expires: cookie.expires } : {}),
+    });
+    if (success) return;
+    throw new Error(
+      `CDP setCookie failed for secure cookie ${cookie.name} on ${cookie.domain}; legacy fallback disabled (would strip secure/httpOnly).`,
+    );
   }
 
   // Fallback: Kuri's /cookies endpoint (no secure/httpOnly support)
