@@ -31,7 +31,7 @@ import {
   loadAuthProfileBestEffort,
   saveAuthProfileBestEffort,
 } from "../auth/index.js";
-import { isEndpointStale } from "../auth/stale-endpoints.js";
+import { isEndpointStale, buildAuthHint } from "../auth/stale-endpoints.js";
 import { consumeDashboardPairingToken, recordFeedback, recordDiagnostics, recordExecution, getApiKey, getAgentId, getRecentLocalSkill, recordAnalyticsSession, listSkills, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
@@ -1171,9 +1171,15 @@ export async function registerRoutes(app: FastifyInstance) {
         const hidden = before - res.available_endpoints.length;
         if (hidden > 0) {
           (res as Record<string, unknown>).hidden_stale_endpoints = hidden;
+          // Loop 5.1: surface a concrete login hint so the agent knows
+          // (a) login is required, (b) why (401/403/expired), and (c)
+          // the exact commands that refresh credentials. Without this
+          // the agent sees a silently-shortened shortlist and has to
+          // guess at the next move.
+          const hint = buildAuthHint(ctxHost);
+          if (hint) (res as Record<string, unknown>).auth_hint = hint;
         }
       }
-
 
       await recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
         discovery_queries: 1,
