@@ -13,6 +13,7 @@ import {
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
+import { rankEndpointsServer, type RankRequest } from "../services/rank.js";
 
 /**
  * Public discovery: the website's anonymous skill search must work without an
@@ -197,6 +198,7 @@ export const searchRoutes = new Hono<{ Bindings: Env }>();
 searchRoutes.use("/search", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 searchRoutes.use("/search/domain", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 searchRoutes.use("/search/resolve", rateLimit({ limit: 30, window: 60, prefix: "search" }));
+searchRoutes.use("/search/rank", rateLimit({ limit: 60, window: 60, prefix: "search" }));
 
 searchRoutes.post("/search", optionalAuth, signedClientIfAuthed, async (c) => {
   const { intent, k } = await c.req.json<{ intent: string; k?: number }>();
@@ -285,5 +287,39 @@ searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, async (c) 
   } catch (err) {
     console.error("[search] resolve search failed:", (err as Error).message);
     return c.json({ domain_results: [], global_results: [], skipped_global: false });
+  }
+});
+
+// POST /v1/search/rank — server-side evidence-derived endpoint ranker.
+//
+// WAVE 2 of the server-move: the ranking *intelligence* moves off the
+// npm bundle. The client posts the captured/marketplace endpoints for a
+// resolve and gets back a ranked shortlist with per-signal evidence so
+// the calling agent's LLM can judge ties itself (two-tool-call contract:
+// resolve = server intelligence, execute = client auth-context). No
+// per-domain registry, no second LLM — pure evidence-derived signals.
+// The client keeps a full local ranker as a degraded fallback for when
+// this route is unreachable, so offline resolve never hard-fails.
+searchRoutes.post("/search/rank", bearerAuth, requireSignedClient, async (c) => {
+  let body: RankRequest;
+  try {
+    body = await c.req.json<RankRequest>();
+  } catch {
+    return c.json({ error: "invalid json" }, 400);
+  }
+  if (!Array.isArray(body?.endpoints)) {
+    return c.json({ error: "endpoints[] required" }, 400);
+  }
+  // Bound the payload so a hostile client can't pin a Worker isolate.
+  if (body.endpoints.length > 500) {
+    body = { ...body, endpoints: body.endpoints.slice(0, 500) };
+  }
+  try {
+    const result = rankEndpointsServer(body);
+    return c.json(result);
+  } catch (err) {
+    console.error("[search] rank failed:", (err as Error).message);
+    // Signal degraded so the client keeps its local fallback authoritative.
+    return c.json({ ranked: [], degraded: true });
   }
 });

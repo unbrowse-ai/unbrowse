@@ -1456,6 +1456,63 @@ export async function searchIntentResolve(
   }
 }
 
+/**
+ * Per-signal evidence the server returns for each ranked endpoint so the
+ * calling agent's LLM can judge ties itself (two-tool-call contract).
+ */
+export interface RemoteRankSignalEvidence {
+  bm25: number;
+  url_path_overlap: number;
+  schema_richness: number;
+  host_pattern: number;
+  method_tiebreak: number;
+  response_shape: number;
+  freshness: number;
+  reliability: number;
+}
+
+export interface RemoteRankedEndpoint {
+  endpoint_id: string;
+  score: number;
+  evidence: RemoteRankSignalEvidence;
+}
+
+/**
+ * Server-side endpoint ranking (WAVE 2 server-move). Posts the resolve's
+ * candidate endpoints to /v1/search/rank and returns the ranked shortlist
+ * + per-signal evidence. Returns null on ANY failure (local-only mode,
+ * network unreachable, non-2xx, degraded flag) so the caller falls back
+ * to the local degraded ranker — resolve must never hard-fail offline.
+ * x402 payment-required errors propagate (same contract as search).
+ */
+export async function rankEndpointsRemote(
+  intent: string | undefined,
+  endpoints: Array<Record<string, unknown>>,
+  skillDomain?: string,
+  contextUrl?: string,
+): Promise<RemoteRankedEndpoint[] | null> {
+  if (LOCAL_ONLY) return null;
+  if (!Array.isArray(endpoints) || endpoints.length === 0) return null;
+  try {
+    const data = await api<{ ranked?: RemoteRankedEndpoint[]; degraded?: boolean }>(
+      "POST",
+      "/v1/search/rank",
+      {
+        intent,
+        endpoints,
+        skill_domain: skillDomain,
+        context_url: contextUrl,
+      },
+      { timeoutMs: 4000 },
+    );
+    if (!data || data.degraded === true || !Array.isArray(data.ranked)) return null;
+    return data.ranked;
+  } catch (err) {
+    if (isX402Error(err)) throw err;
+    return null;
+  }
+}
+
 // --- Stats ---
 
 /** Execution payload sent to POST /v1/stats/execution */
