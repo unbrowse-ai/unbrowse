@@ -67,3 +67,56 @@ export function buildCaptureMeta(args: CaptureMetaInputs): Record<string, unknow
     cookies_injected: go?.body?.cookies_injected ?? null,
   };
 }
+
+/**
+ * W0: per-probe timeout wrapper.
+ *
+ * Wraps a probe-running promise in a Promise.race against a timeout. When
+ * the timeout fires (default 90s, configurable via
+ * UNBROWSE_GATE_PROBE_TIMEOUT_MS), the wrapper rejects with a
+ * TimeoutError-shaped object so the caller can record a
+ * `crashed_during_collect: true` marker and move on. Reason it ships:
+ * scripts/mcp-gate-parallel-collect.ts hung 3+ runs at random points on
+ * auth-cookies / hostile lanes (browse-strict phase=run elapsed=470s+),
+ * killing the whole collector. With per-probe timeouts the worker pool
+ * keeps moving, the run completes with crashed_during_collect markers
+ * on the stuck probes, and the in-thread judge sees the evidence.
+ *
+ * Pure: no I/O, no side effects. The CALLER decides what to do on timeout.
+ * Tested in tests/collector-probe-timeout.test.ts (real-runtime, no mocks):
+ * a sleep promise > timeout rejects with TIMEOUT marker; a fast promise
+ * resolves with its real value.
+ */
+export class ProbeTimeoutError extends Error {
+  constructor(public readonly probe_id: string, public readonly ms: number) {
+    super(`probe ${probe_id} exceeded ${ms}ms timeout`);
+    this.name = "ProbeTimeoutError";
+  }
+}
+
+export function withProbeTimeout<T>(
+  probe_id: string,
+  ms: number,
+  task: () => Promise<T>,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new ProbeTimeoutError(probe_id, ms)), ms);
+  });
+  return Promise.race([
+    task().finally(() => { if (timer) clearTimeout(timer); }),
+    timeout,
+  ]);
+}
+
+/**
+ * Parse the UNBROWSE_GATE_PROBE_TIMEOUT_MS env. Default 90000 (90s).
+ * Floor at 5000 (5s) so callers can't accidentally pass a value too small
+ * to let any real probe complete. Returns the default for any non-numeric
+ * input.
+ */
+export function parseProbeTimeoutMs(value: string | undefined | null): number {
+  const raw = Number(String(value ?? "").trim());
+  if (!Number.isFinite(raw) || raw <= 0) return 90_000;
+  return Math.max(5_000, raw);
+}

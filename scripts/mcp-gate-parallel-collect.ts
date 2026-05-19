@@ -25,7 +25,7 @@
 //     marketplace skill is already cached.
 import { getInProcessApp } from "../src/runtime/in-process-app.ts";
 import { classifyReason, pickSkillId } from "./mcp-gate-parallel-classify.ts";
-import { buildCaptureMeta, parseForceGoEnv } from "./mcp-gate-parallel-helpers.ts";
+import { buildCaptureMeta, parseForceGoEnv, parseProbeTimeoutMs, withProbeTimeout, ProbeTimeoutError } from "./mcp-gate-parallel-helpers.ts";
 import { mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -35,6 +35,7 @@ const manifest = JSON.parse(readFileSync(join(RUN_DIR, "manifest.json"), "utf8")
 const probes: Array<{ probe_id: string; intent: string; url: string; lane: string }> = manifest.probes;
 const CONC = Number(process.env.UNBROWSE_GATE_CONCURRENCY) || 30;
 const FORCE_GO = parseForceGoEnv(process.env.UNBROWSE_GATE_FORCE_GO);
+const PROBE_TIMEOUT_MS = parseProbeTimeoutMs(process.env.UNBROWSE_GATE_PROBE_TIMEOUT_MS);
 const HDR = { "content-type": "application/json", "x-unbrowse-client-id": "mcp-gate-parallel" };
 
 const app = await getInProcessApp();
@@ -147,8 +148,49 @@ let idx = 0; let doneN = 0;
 async function worker(wid: number) {
   while (true) {
     const i = idx++; if (i >= probes.length) return;
-    try { const msg = await runProbe(probes[i]!); doneN++; console.log(`[w${wid}] (${doneN}/${probes.length}) ${msg}`); }
-    catch (e) { doneN++; console.log(`[w${wid}] (${doneN}/${probes.length}) ${probes[i]!.probe_id} ERROR ${(e as Error)?.message ?? e}`); }
+    const p = probes[i]!;
+    try {
+      // W0: per-probe timeout. Without this, a single auth-cookies /
+      // hostile probe whose browse-strict phase=run took 470s+ would
+      // freeze its worker indefinitely and (across enough such probes)
+      // drag the whole collector into a stuck-and-killed state. The
+      // wrapper races the probe against PROBE_TIMEOUT_MS; on timeout,
+      // a crashed_during_collect marker is written so the probe dir
+      // is "complete" (resume-skip on next run) and the in-thread
+      // judge sees the raw evidence (not a verdict).
+      const msg = await withProbeTimeout(p.probe_id, PROBE_TIMEOUT_MS, () => runProbe(p));
+      doneN++; console.log(`[w${wid}] (${doneN}/${probes.length}) ${msg}`);
+    } catch (e) {
+      doneN++;
+      if (e instanceof ProbeTimeoutError) {
+        // Write minimal artifacts so the probe dir is complete and
+        // does NOT get retried on the next collector run (resume-skip
+        // rule: existsSync(execute.meta.json) -> SKIP).
+        const dir = join(RUN_DIR, p.probe_id);
+        try { mkdirSync(dir, { recursive: true }); } catch { /* race-safe */ }
+        const marker = {
+          total_endpoints_captured: 0, n_operations: 0, captured_title: "",
+          browser_block_signals: ["crashed_during_collect"],
+          filter_rejections: null, capture_path: null, request_count: 0,
+          indexed: false, mode: "none", skill_id: null,
+          iso_self_check: { snap_current_url: null, intended_host: hostOf(p.url), snap_host: "", host_match: null },
+          capture_diagnostic: { reason: "crashed_during_collect", timeout_ms: e.ms, probe_id: p.probe_id },
+          cookies_injected: null,
+          crashed_during_collect: true,
+        };
+        try { writeFileSync(join(dir, "capture.meta.json"), JSON.stringify(marker, null, 2)); } catch { /* best-effort */ }
+        try { writeFileSync(join(dir, "capture.html.excerpt"), ""); } catch { /* best-effort */ }
+        try { writeFileSync(join(dir, "index.store.json"), JSON.stringify({ stored: false, skill_id: null, reason: "crashed_during_collect" }, null, 2)); } catch { /* best-effort */ }
+        try { writeFileSync(join(dir, "resolve.shortlist.json"), JSON.stringify({ status: "crashed_during_collect", available_endpoints: [] }, null, 2)); } catch { /* best-effort */ }
+        try { writeFileSync(join(dir, "resolve.pick.json"), JSON.stringify({ picked_from: "none", status: "crashed_during_collect" }, null, 2)); } catch { /* best-effort */ }
+        try { writeFileSync(join(dir, "execute.input.json"), JSON.stringify({ skill: null, endpoint: null, intent: p.intent, context_url: p.url, params: {}, note: "crashed_during_collect" }, null, 2)); } catch { /* best-effort */ }
+        try { writeFileSync(join(dir, "execute.response.raw"), JSON.stringify({ error: "crashed_during_collect", timeout_ms: e.ms })); } catch { /* best-effort */ }
+        try { writeFileSync(join(dir, "execute.meta.json"), JSON.stringify({ status_code: null, response_bytes: 0, decision_trace: [{ step: "crashed_during_collect", timeout_ms: e.ms }] }, null, 2)); } catch { /* best-effort */ }
+        console.log(`[w${wid}] (${doneN}/${probes.length}) ${p.probe_id} TIMEOUT after ${e.ms}ms (crashed_during_collect marker written)`);
+      } else {
+        console.log(`[w${wid}] (${doneN}/${probes.length}) ${p.probe_id} ERROR ${(e as Error)?.message ?? e}`);
+      }
+    }
   }
 }
 await Promise.all(Array.from({ length: Math.min(CONC, probes.length) }, (_, k) => worker(k)));
