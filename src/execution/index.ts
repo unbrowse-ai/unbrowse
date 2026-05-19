@@ -10,6 +10,7 @@ import { selectMarketplacePublishEndpoints } from "../publish-admission.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { forceVisibleKuriEnv, getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
+import { recordStaleEndpoint } from "../auth/stale-endpoints.js";
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
@@ -98,6 +99,15 @@ function staleEndpointResult(
   message?: string,
 ): Record<string, unknown> {
   const target = contextUrl || endpoint.trigger_url || `https://${skill.domain}`;
+  // Loop 5 (B-023 follow-up #2): persist the auth-failure as a structured
+  // stale record so the next resolve hides this endpoint from
+  // available_endpoints. 401 is the ground truth that cookies are stale
+  // for this endpoint; the agent shouldn't keep being shown it.
+  try {
+    recordStaleEndpoint(skill.domain, endpoint.endpoint_id, status, "unknown");
+  } catch {
+    /* best-effort; never break the human-facing error path */
+  }
   return {
     error: "stale_endpoint",
     status_code: status,
