@@ -68,12 +68,12 @@ export async function importBrowserCookiesIntoTab(tabId: string, domain: string)
     // Try all browsers, pick the one with the best session for this domain
     const bestSession = findBestBrowserSession(domain);
     const cookies = bestSession ? bestSession.cookies : extractBrowserCookies(domain).cookies;
-    let imported = 0;
+    let setCallsOk = 0;
 
     for (const cookie of cookies) {
       try {
         await kuri.setCookie(tabId, cookie);
-        imported += 1;
+        setCallsOk += 1;
       } catch (error) {
         log(
           "auth",
@@ -82,10 +82,36 @@ export async function importBrowserCookiesIntoTab(tabId: string, domain: string)
       }
     }
 
-    if (imported > 0) {
-      log("auth", `browser_cookie_imported domain=${normalizeAuthDomain(domain)} tab_id=${tabId} count=${imported}`);
+    // F2 (B-023): the value reported back to callers must be the kuri-jar
+    // truth, not the count of setCookie calls that didn't throw. The
+    // diagnostic primitive proved injected=141 vs jar=0 for YouTube — Kuri's
+    // CDP setCookie accepts then silently drops cookies it doesn't store
+    // (wrong url/domain pair, sameSite mismatch, etc). The substrate-honest
+    // return is "how many cookies for this domain are ACTUALLY in the tab
+    // jar after the loop", read by re-asking kuri.
+    let jarCount = 0;
+    try {
+      const jar = await kuri.getCookies(tabId);
+      for (const cookie of jar) {
+        if (isDomainMatch(cookie.domain, domain)) jarCount += 1;
+      }
+    } catch (error) {
+      // Don't silently swallow — surface the failure mode the same way
+      // setCookie failures are surfaced, so the agent reading logs sees
+      // why the jar count fell back to 0.
+      log(
+        "auth",
+        `browser_cookie_jar_read_failed domain=${normalizeAuthDomain(domain)} tab_id=${tabId} error=${formatAuthError(error)}`,
+      );
     }
-    return imported;
+
+    if (setCallsOk > 0 || jarCount > 0) {
+      log(
+        "auth",
+        `browser_cookie_imported domain=${normalizeAuthDomain(domain)} tab_id=${tabId} set_calls_ok=${setCallsOk} jar_count=${jarCount}`,
+      );
+    }
+    return jarCount;
   } catch (error) {
     log(
       "auth",
@@ -226,38 +252,18 @@ export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | 
   return false;
 }
 
-export function forceVisibleKuriEnv(
-  env: NodeJS.ProcessEnv = process.env,
-  options?: { allow?: boolean },
-): () => void {
-  // Hard-headless-by-default lock (flipped 2026-05-19). Headless is the
-  // safe production default: a bench-gate run, a scripted CLI, an MCP
-  // server, an automated capture — none of those should pop a Chrome
-  // window onto the user's screen, ever. Pre-flip default was
-  // opt-OUT: every caller that hit a captcha auto-flipped, and one
-  // probe's flip poisoned every concurrent session's headless setting.
-  //
-  // Post-flip: visible auth fallback is OPT-IN. Two opt-in paths:
-  //   1. Caller passes `{ allow: true }` — e.g. `interactiveLogin`
-  //      genuinely needs a visible window so the user can type their
-  //      password. The intent is clear at the call site.
-  //   2. Env var `UNBROWSE_ALLOW_VISIBLE_AUTH_FALLBACK=1` — escape
-  //      hatch for substrate-internal anti-bot retry paths in
-  //      execution/index.ts that already exist; turning them off by
-  //      default while preserving the ability to opt in.
-  //
-  // The legacy opt-out lock `UNBROWSE_FORCE_HEADLESS=1` still trumps
-  // both: when set, this is always a no-op, preserving the contract
-  // the gate collector and concurrent headless workloads rely on.
-  const hardLock = env.UNBROWSE_FORCE_HEADLESS;
-  if (hardLock === "1" || hardLock?.toLowerCase() === "true") {
-    return () => {};
-  }
-  const allowViaOption = options?.allow === true;
-  const allowViaEnv = env.UNBROWSE_ALLOW_VISIBLE_AUTH_FALLBACK === "1"
-    || env.UNBROWSE_ALLOW_VISIBLE_AUTH_FALLBACK?.toLowerCase() === "true";
-  if (!allowViaOption && !allowViaEnv) {
-    // Default path post-2026-05-19: headless is sticky.
+export function forceVisibleKuriEnv(env: NodeJS.ProcessEnv = process.env): () => void {
+  // Hard-headless lock. forceVisibleKuriEnv mutates process-global env so an
+  // interactive login or anti-bot fallback can pop a visible browser. Under
+  // the per-session-Kuri concurrency one probe's visible flip poisoned every
+  // other concurrent session's headless setting (2026-05-17: 40/58 sessions
+  // launched visible during a conc=16 gate run). When a caller declares the
+  // process must stay headless (UNBROWSE_FORCE_HEADLESS=1/true, set by the
+  // gate collector and any concurrent headless workload), this is a no-op:
+  // env is untouched and the returned restore does nothing. A real
+  // `unbrowse login` never sets the lock, so interactive auth is unchanged.
+  const lock = env.UNBROWSE_FORCE_HEADLESS;
+  if (lock === "1" || lock?.toLowerCase() === "true") {
     return () => {};
   }
   const prevHeadless = env.HEADLESS;
@@ -295,9 +301,7 @@ export async function interactiveLogin(
 
   // Login requires a visible browser. KURI_HEADLESS takes precedence over
   // HEADLESS in the Kuri launcher, so force both and restore them afterward.
-  // Interactive login needs a visible window so the user can type
-  // their password — opt in explicitly.
-  const restoreVisibleLoginEnv = forceVisibleKuriEnv(undefined, { allow: true });
+  const restoreVisibleLoginEnv = forceVisibleKuriEnv();
 
   try {
     fs.mkdirSync(profileDir, { recursive: true });
