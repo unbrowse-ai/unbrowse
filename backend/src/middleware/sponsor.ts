@@ -115,9 +115,16 @@ export interface SponsorLedgerRow {
    * codepath ran, "flex" when the sponsor-on-Flex authorization was minted.
    * Older rows (v6.15) elide this field — readers treat absent as "direct_spl".
    */
-  payment_method?: "direct_spl" | "flex";
+  payment_method?: "direct_spl" | "flex" | "surcharge";
   /** Flex authorization id (only present when payment_method === "flex"). */
   authorization_id?: string;
+  /** Per-call surcharge marker. When set, this row is a paid-proxy retry
+   *  bill, not a sponsored route payment. The `amount_uc` field carries
+   *  the surcharge in µ¢ (10_000 = 1¢). Plan: paid-proxy 429 fallback. */
+  surcharge_reason?: "proxy_429_fallback";
+  /** Endpoint-id on rows where one is available (kept optional; existing
+   *  sponsor rows do not carry it). */
+  endpoint_id?: string;
 }
 
 interface MaybeSponsorOpts {
@@ -401,6 +408,128 @@ function extractSkillIdFromUrl(rawUrl: string): string {
     return "unknown";
   } catch {
     return "unknown";
+  }
+}
+
+// ─── Per-call paid-proxy surcharge surface ─────────────────────────────────
+// Plan: add-an-opt-in-paid-residential-proxy-fallback-fo / Wave 4.
+// Surfaces:
+//   - recordProxySurcharge: writes a `kind: "sponsor"` ledger row marked
+//     surcharge_reason:"proxy_429_fallback", increments a SEPARATE per-day
+//     counter `sponsor:proxy-surcharge:<agent>:<UTC-date>`, idempotent on
+//     ledger_id. The base sponsor:agent counter stays untouched (the daily
+//     cap math is unaffected by this lane).
+//   - readProxySurchargeTodayUsd: read of the per-day counter as USD.
+//   - getProxyConsent / putProxyConsent: per-agent opt-in state. Stored
+//     under `consent:proxy_fallback:<agent>` so the local src/execution
+//     can poll on each 429 if it wants account-level consent instead of
+//     a per-request flag.
+
+export interface ProxySurchargeArgs {
+  agent_id: string;
+  skill_id: string;
+  endpoint_id?: string;
+  ledger_id: string;
+  cost_usd: number;
+}
+
+/** Per-agent paid-proxy-spend counter for today. Separate from the base
+ *  sponsor:agent counter so the daily cap math is unaffected. */
+function proxySurchargeKey(agentId: string, dateStr: string): string {
+  return `sponsor:proxy-surcharge:${agentId}:${dateStr}`;
+}
+
+/** Per-agent consent flag key. Default (absent) = "no". */
+function proxyConsentKey(agentId: string): string {
+  return `consent:proxy_fallback:${agentId}`;
+}
+
+/** Write the surcharge row + bump the per-day counter. Idempotent on
+ *  `ledger_id`: a second call with the same id is a no-op. */
+export async function recordProxySurcharge(
+  env: Env,
+  args: ProxySurchargeArgs,
+  opts: { now?: () => Date } = {},
+): Promise<SponsorLedgerRow> {
+  const now = (opts.now ?? (() => new Date()))();
+  const ledgerKey = `sponsor:ledger:${args.ledger_id}`;
+
+  // Idempotency: if the ledger row already exists, surface it without
+  // re-incrementing the counter.
+  let existingRaw: string | null = null;
+  try {
+    existingRaw = (await statsKV(env).get(ledgerKey)) as string | null;
+  } catch {
+    existingRaw = await env.STATS_KV.get(ledgerKey);
+  }
+  if (existingRaw) {
+    try {
+      return JSON.parse(existingRaw) as SponsorLedgerRow;
+    } catch {
+      // Corrupt row: fall through to overwrite with a fresh one.
+    }
+  }
+
+  const amountUc = Math.round(args.cost_usd * 1_000_000);
+  const row: SponsorLedgerRow = {
+    ledger_id: args.ledger_id,
+    kind: "sponsor",
+    agent_id: args.agent_id,
+    skill_id: args.skill_id,
+    endpoint_id: args.endpoint_id,
+    amount_uc: amountUc,
+    creator_wallet: "",
+    settled_tx: "",
+    settled_at: now.toISOString(),
+    payment_method: "surcharge",
+    surcharge_reason: "proxy_429_fallback",
+  };
+  await writeLedgerRow(env, row);
+
+  // Bump the per-day proxy-surcharge counter (separate lane).
+  const dateStr = todayUtc(now);
+  const counterKey = proxySurchargeKey(args.agent_id, dateStr);
+  const current = await readSpend(env, counterKey);
+  await writeSpend(env, counterKey, current + amountUc);
+  return row;
+}
+
+/** Read today's paid-proxy spend for one agent as USD. */
+export async function readProxySurchargeTodayUsd(
+  env: Env,
+  agentId: string,
+  opts: { now?: () => Date } = {},
+): Promise<number> {
+  const now = (opts.now ?? (() => new Date()))();
+  const uc = await readSpend(env, proxySurchargeKey(agentId, todayUtc(now)));
+  return uc / 1_000_000;
+}
+
+/** Read per-agent paid-proxy-fallback consent. Default (absent) = "no". */
+export async function getProxyConsent(
+  env: Env,
+  agentId: string,
+): Promise<"yes" | "no"> {
+  let raw: string | null = null;
+  try {
+    raw = (await statsKV(env).get(proxyConsentKey(agentId))) as string | null;
+  } catch {
+    raw = await env.STATS_KV.get(proxyConsentKey(agentId));
+  }
+  return raw === "yes" ? "yes" : "no";
+}
+
+/** Persist per-agent paid-proxy-fallback consent. */
+export async function putProxyConsent(
+  env: Env,
+  agentId: string,
+  consent: "yes" | "no",
+): Promise<void> {
+  try {
+    await statsKV(env).put(proxyConsentKey(agentId), consent);
+    return;
+  } catch {
+    await env.STATS_KV.put(proxyConsentKey(agentId), consent);
   }
 }
 
