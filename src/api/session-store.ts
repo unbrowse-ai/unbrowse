@@ -43,7 +43,7 @@ type SessionEvent =
 const DEFAULT_PATH = path.join(homedir(), ".unbrowse", "sessions.jsonl");
 const COMPACTION_THRESHOLD = 256;
 
-function sessionStorePath(): string {
+export function sessionStorePath(): string {
   return process.env.UNBROWSE_SESSION_STORE ?? DEFAULT_PATH;
 }
 

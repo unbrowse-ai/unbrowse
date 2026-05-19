@@ -533,3 +533,198 @@ export function findBestBrowserSession(domain: string): BrowserSessionResult | n
   const sessions = scanAllBrowserSessions(domain);
   return sessions[0] ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Domain-summary scanner — list distinct domains the user has cookies for,
+// without copying any cookie values. Used by the MCP resource layer.
+// ---------------------------------------------------------------------------
+
+export interface CookieDomainSummary {
+  domain: string;
+  browsers: string[];
+  session_cookie_count: number;
+  total_cookie_count: number;
+  newest_cookie_at: string | null;
+}
+
+interface CookieDomainScanReport {
+  domains: CookieDomainSummary[];
+  browsers_scanned: string[];
+  browsers_skipped: string[];
+}
+
+function chromiumCookiesPathForUserDataDir(userDataDir: string): string | null {
+  const candidates = [
+    join(userDataDir, "Default", "Cookies"),
+    join(userDataDir, "Default", "Network", "Cookies"),
+  ];
+  for (const p of candidates) if (existsSync(p)) return p;
+  return null;
+}
+
+function scanChromiumDomainSummary(
+  userDataDir: string,
+  browserName: string,
+): Array<{ host: string; total: number; session: number; newest: number | null }> | null {
+  const dbPath = chromiumCookiesPathForUserDataDir(userDataDir);
+  if (!dbPath) return null;
+  try {
+    return withTempCopy(dbPath, (temp) => {
+      // creation_utc is microseconds since Jan 1 1601; convert to ms-since-epoch
+      // at the read site. is_httponly+is_secure are the "session cookie" markers
+      // we use elsewhere in this module.
+      const sql =
+        "SELECT host_key, COUNT(*), " +
+        "SUM(CASE WHEN is_httponly=1 OR is_secure=1 THEN 1 ELSE 0 END), " +
+        "MAX(creation_utc) " +
+        "FROM cookies GROUP BY host_key";
+      const raw = sqliteQuery(temp, sql);
+      const rows = raw.split("\n").filter((l) => l.length > 0);
+      const out: Array<{ host: string; total: number; session: number; newest: number | null }> = [];
+      for (const line of rows) {
+        const parts = line.split("|");
+        if (parts.length < 4) continue;
+        const host = parts[0]!;
+        const total = Number.parseInt(parts[1] ?? "0", 10);
+        const session = Number.parseInt(parts[2] ?? "0", 10);
+        const creationMicros = Number.parseInt(parts[3] ?? "0", 10);
+        // Chrome creation_utc: microseconds since 1601-01-01 UTC.
+        // Convert to ms-since-epoch: (creation_utc - 11644473600000000) / 1000
+        const newest = creationMicros > 0
+          ? Math.round((creationMicros - 11644473600000000) / 1000)
+          : null;
+        out.push({ host, total, session, newest });
+      }
+      return out;
+    });
+  } catch {
+    return null;
+  }
+}
+
+function scanFirefoxDomainSummary(): Array<{ host: string; total: number; session: number; newest: number | null }> | null {
+  const profilesRoot = getFirefoxProfilesRoot();
+  if (!profilesRoot || !existsSync(profilesRoot)) return null;
+  const profile = pickFirefoxProfile(profilesRoot);
+  if (!profile) return null;
+  const cookiesPath = getFirefoxCookiesPath(profile);
+  if (!cookiesPath || !existsSync(cookiesPath)) return null;
+  try {
+    return withTempCopy(cookiesPath, (temp) => {
+      // Firefox cookies.sqlite: lastAccessed is microseconds-since-epoch.
+      // isHttpOnly + isSecure mark session cookies.
+      const sql =
+        "SELECT host, COUNT(*), " +
+        "SUM(CASE WHEN isHttpOnly=1 OR isSecure=1 THEN 1 ELSE 0 END), " +
+        "MAX(lastAccessed) " +
+        "FROM moz_cookies GROUP BY host";
+      const raw = sqliteQuery(temp, sql);
+      const rows = raw.split("\n").filter((l) => l.length > 0);
+      const out: Array<{ host: string; total: number; session: number; newest: number | null }> = [];
+      for (const line of rows) {
+        const parts = line.split("|");
+        if (parts.length < 4) continue;
+        const host = parts[0]!;
+        const total = Number.parseInt(parts[1] ?? "0", 10);
+        const session = Number.parseInt(parts[2] ?? "0", 10);
+        const lastAccessMicros = Number.parseInt(parts[3] ?? "0", 10);
+        const newest = lastAccessMicros > 0 ? Math.round(lastAccessMicros / 1000) : null;
+        out.push({ host, total, session, newest });
+      }
+      return out;
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enumerate distinct domains the user has cookies for across all installed
+ * Chromium-family browsers + Firefox. Returns metadata only — domain name,
+ * cookie counts, newest cookie timestamp. Never returns cookie values.
+ *
+ * Intended for MCP resource exposure so the calling agent knows BEFORE
+ * resolve/go whether the user has a cookied session for the target site.
+ *
+ * Domains are normalized by stripping a single leading "." (Chromium stores
+ * `.github.com` and Firefox stores `github.com`; we surface the bare host
+ * since that's what eTLD+1 matching expects).
+ */
+export function listCookieDomains(): CookieDomainScanReport {
+  const browsersScanned: string[] = [];
+  const browsersSkipped: string[] = [];
+  // Aggregate {host -> {browsers:Set, total, session, newest}}
+  const agg = new Map<string, { browsers: Set<string>; total: number; session: number; newest: number | null }>();
+  const home = homedir();
+
+  for (const browser of CHROMIUM_BROWSERS) {
+    const userDataDir = platform() === "darwin"
+      ? join(home, "Library", "Application Support", browser.macPath)
+      : platform() === "win32"
+        ? join(process.env.LOCALAPPDATA ?? join(home, "AppData", "Local"), browser.macPath, "User Data")
+        : join(home, ".config", browser.macPath.toLowerCase());
+
+    if (!existsSync(userDataDir)) {
+      browsersSkipped.push(`${browser.name} (not installed)`);
+      continue;
+    }
+    const rows = scanChromiumDomainSummary(userDataDir, browser.name);
+    if (rows == null) {
+      browsersSkipped.push(`${browser.name} (cookies db unreadable)`);
+      continue;
+    }
+    browsersScanned.push(browser.name);
+    for (const row of rows) {
+      const host = row.host.startsWith(".") ? row.host.slice(1) : row.host;
+      let entry = agg.get(host);
+      if (!entry) {
+        entry = { browsers: new Set(), total: 0, session: 0, newest: null };
+        agg.set(host, entry);
+      }
+      entry.browsers.add(browser.name);
+      entry.total += row.total;
+      entry.session += row.session;
+      if (row.newest != null && (entry.newest == null || row.newest > entry.newest)) {
+        entry.newest = row.newest;
+      }
+    }
+  }
+
+  // Firefox
+  const ff = scanFirefoxDomainSummary();
+  if (ff == null) {
+    browsersSkipped.push("Firefox (not installed or unreadable)");
+  } else {
+    browsersScanned.push("Firefox");
+    for (const row of ff) {
+      const host = row.host.startsWith(".") ? row.host.slice(1) : row.host;
+      let entry = agg.get(host);
+      if (!entry) {
+        entry = { browsers: new Set(), total: 0, session: 0, newest: null };
+        agg.set(host, entry);
+      }
+      entry.browsers.add("Firefox");
+      entry.total += row.total;
+      entry.session += row.session;
+      if (row.newest != null && (entry.newest == null || row.newest > entry.newest)) {
+        entry.newest = row.newest;
+      }
+    }
+  }
+
+  const domains: CookieDomainSummary[] = [];
+  for (const [domain, entry] of agg.entries()) {
+    if (!domain) continue;
+    domains.push({
+      domain,
+      browsers: [...entry.browsers],
+      session_cookie_count: entry.session,
+      total_cookie_count: entry.total,
+      newest_cookie_at: entry.newest != null ? new Date(entry.newest).toISOString() : null,
+    });
+  }
+  // Most-authenticated first
+  domains.sort((a, b) => b.session_cookie_count - a.session_cookie_count);
+
+  return { domains, browsers_scanned: browsersScanned, browsers_skipped: browsersSkipped };
+}

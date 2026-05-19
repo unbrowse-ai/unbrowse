@@ -78,7 +78,9 @@ type ResourceDefinition = {
   name: string;
   description: string;
   mimeType: string;
-  read: () => unknown;
+  // Sync resources stay sync; async resources (vault, cookies, history)
+  // return a Promise. The dispatcher awaits the result.
+  read: () => unknown | Promise<unknown>;
 };
 
 type ListedResource = {
@@ -463,6 +465,111 @@ function listStatsResources(): ResourceDefinition[] {
           first_entry_at: s.first_entry_at,
           last_entry_at: s.last_entry_at,
           source_path: getImpactLogPath(),
+        };
+      },
+    },
+  ];
+}
+
+function listUserContextResources(): ResourceDefinition[] {
+  // Surfaces user-context state — auth profiles, browser cookies, browser
+  // history, and active browse sessions — so calling agents can route
+  // BEFORE invoking resolve/go. The substrate uses this state internally
+  // at capture time; exposing it as resources lets the calling LLM make
+  // the routing decision instead of the substrate guessing.
+  //
+  // Privacy: never returns cookie values, header values, page contents,
+  // or page URLs (browser-history surfaces eTLD+1 only, opt-in via
+  // UNBROWSE_EXPOSE_HISTORY). See
+  // .claude/expose-unbrowse-mcp-resources-auth-profiles-brow/references/design.md
+  return [
+    {
+      uri: "unbrowse://auth/profiles",
+      name: "Saved Auth Profiles",
+      description:
+        "Domains for which unbrowse has a saved Keychain auth profile (cookies + headers). Returns metadata only — never returns secrets. Use this to decide whether to expect a cookied capture path or to suggest interactiveLogin to the user.",
+      mimeType: "application/json",
+      read: async () => {
+        const { listVaultKeys } = await import("./vault/index.js");
+        const keys = await listVaultKeys("auth:");
+        const profiles: Array<{
+          domain: string;
+          stored_at: string | null;
+          expires_at: string | null;
+          account_key: string;
+        }> = [];
+        for (const k of keys) {
+          // account key shape: `auth:<domain>` per src/auth/index.ts
+          const domain = k.account.startsWith("auth:") ? k.account.slice(5) : k.account;
+          profiles.push({
+            domain,
+            stored_at: k.stored_at,
+            expires_at: k.expires_at,
+            account_key: k.account,
+          });
+        }
+        profiles.sort((a, b) => a.domain.localeCompare(b.domain));
+        return {
+          count: profiles.length,
+          profiles,
+          source: "vault://unbrowse (keychain or ~/.unbrowse/vault/credentials.enc)",
+        };
+      },
+    },
+    {
+      uri: "unbrowse://cookies/domains",
+      name: "Browser Cookie Domains",
+      description:
+        "Domains for which the user has live browser session cookies (Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia/Chromium/Firefox). Returns domain + cookie counts + recency — never returns cookie values. Use this to decide whether to inject browser cookies during capture or route through a fresh-login flow.",
+      mimeType: "application/json",
+      read: async () => {
+        const { listCookieDomains } = await import("./auth/browser-cookies.js");
+        return listCookieDomains();
+      },
+    },
+    {
+      uri: "unbrowse://browser-history/recent",
+      name: "Recent Browser History (eTLD+1)",
+      description:
+        "Distinct eTLD+1 domains the user visited in the last 7 days, with visit counts. Default OFF — set UNBROWSE_EXPOSE_HISTORY=1 to enable. When enabled, only domain + visit count + last-visit timestamp surface; subdomains, paths, and queries are stripped by construction. Use this to disambiguate user intent (e.g. resolve 'reddit' → user actually visits these subdomains).",
+      mimeType: "application/json",
+      read: async () => {
+        const enabled = process.env.UNBROWSE_EXPOSE_HISTORY === "1" ||
+          process.env.UNBROWSE_EXPOSE_HISTORY === "true";
+        if (!enabled) {
+          return {
+            enabled: false,
+            hint: "Set UNBROWSE_EXPOSE_HISTORY=1 to enable browser-history exposure. Resource is privacy-gated.",
+            redaction_rule: "eTLD+1 only when enabled; subdomain/path/query never surface",
+          };
+        }
+        const { listRecentDomains } = await import("./auth/browser-history.js");
+        return { enabled: true, ...listRecentDomains({ sinceDaysAgo: 7 }) };
+      },
+    },
+    {
+      uri: "unbrowse://sessions/active",
+      name: "Active Browse Sessions",
+      description:
+        "Currently-open browse sessions tracked by the local unbrowse server (session id, tab id, domain, url, broker port, age). Use this to avoid opening a new browser session when one is already pointed at the target domain.",
+      mimeType: "application/json",
+      read: async () => {
+        const { readActiveSessions, sessionStorePath } = await import("./api/session-store.js");
+        const sessions = readActiveSessions();
+        const now = Date.now();
+        return {
+          count: sessions.length,
+          sessions: sessions.map((s) => ({
+            session_id: s.sessionId,
+            tab_id: s.tabId,
+            domain: s.domain,
+            url: s.url,
+            har_active: s.harActive,
+            broker_port: s.brokerPort ?? null,
+            opened_at: new Date(s.ts).toISOString(),
+            age_seconds: Math.max(0, Math.round((now - s.ts) / 1000)),
+          })),
+          source_path: sessionStorePath(),
         };
       },
     },
@@ -2830,7 +2937,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
 
   if (method === "resources/list") {
     jsonRpcResult(id, {
-      resources: [...listWorkflowResources(), ...listStatsResources()].map(listResource),
+      resources: [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources()].map(listResource),
     });
     return;
   }
@@ -2841,14 +2948,19 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
       jsonRpcError(id, -32602, "Resource uri is required");
       return;
     }
-    const resource = [...listWorkflowResources(), ...listStatsResources()].find((entry) => entry.uri === uri);
+    const resource = [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources()].find((entry) => entry.uri === uri);
     if (!resource) {
       jsonRpcError(id, -32602, `Unknown resource: ${uri}`);
       return;
     }
+    // Async-aware: workflow/stats reads are sync, user-context reads are async
+    // (they touch keychain, browser SQLite, etc.). Await whatever the resource
+    // returns so the textResource serializer sees the resolved value.
+    const value = await Promise.resolve(resource.read());
     jsonRpcResult(id, {
-      contents: [textResource(resource.uri, resource.read(), resource.mimeType)],
+      contents: [textResource(resource.uri, value, resource.mimeType)],
     });
+    return;
     return;
   }
 

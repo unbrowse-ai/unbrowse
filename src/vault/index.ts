@@ -290,3 +290,42 @@ export async function deleteCredential(account: string): Promise<void> {
   });
   await deleteLegacyKeychainAccount(account);
 }
+
+/**
+ * List vault account keys, optionally filtered by prefix.
+ *
+ * Returns metadata only — never returns the stored value. The intended use
+ * is for MCP resources that surface "which domains have a saved profile"
+ * without exposing secrets. Reads the same store backend (keychain or
+ * encrypted file) that getCredential reads.
+ *
+ * Returns one entry per account key with stored_at / expires_at parsed
+ * from the StoredCredential envelope when present (legacy raw strings
+ * yield null timestamps).
+ */
+export interface VaultKeyMeta {
+  account: string;
+  stored_at: string | null;
+  expires_at: string | null;
+}
+
+export async function listVaultKeys(prefix?: string): Promise<VaultKeyMeta[]> {
+  const store = await readVaultStore();
+  const out: VaultKeyMeta[] = [];
+  for (const [account, raw] of Object.entries(store.data)) {
+    if (prefix && !account.startsWith(prefix)) continue;
+    let stored_at: string | null = null;
+    let expires_at: string | null = null;
+    try {
+      const parsed = JSON.parse(raw) as Partial<StoredCredential>;
+      if (parsed && typeof parsed === "object") {
+        stored_at = parsed.stored_at ?? null;
+        expires_at = parsed.expires_at ?? null;
+      }
+    } catch {
+      // legacy raw string — no timestamps available
+    }
+    out.push({ account, stored_at, expires_at });
+  }
+  return out;
+}
