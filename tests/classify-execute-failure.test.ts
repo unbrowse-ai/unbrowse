@@ -291,4 +291,38 @@ describe("classifyExecuteFailure", () => {
       expect(r.vendor).toBe("datadome");
     });
   });
+
+  describe("W6: Akamai interstitial in JSON-extracted body (probe 032 ebay)", () => {
+    it("classifies Akamai 'Pardon Our Interruption' as vendor_blocked when body is JSON-extracted (no html title tags)", () => {
+      // Probe 032 (ebay.com/sch/i.html?_nkw=keyboard) returned
+      // {"title":"Pardon Our Interruption...","headings":["Checking your
+      // browser before you access eBay."]} as the executor's extracted body.
+      // The classifier's existing title regex only matches <title>...</title>
+      // HTML markup, so the Akamai marker was missed and probe 032 was
+      // bucketed RETRIEVE_FAIL_ERROR_BODY instead of RETRIEVE_EXCLUDED_BLOCKED.
+      const body = JSON.stringify({
+        title: "Pardon Our Interruption...",
+        headings: ["Checking your browser before you access eBay."],
+      });
+      const r = classifyExecuteFailure({ status: 200, body });
+      expect(r.kind).toBe("vendor_blocked");
+      expect(r.vendor).toBe("akamai_bot_manager");
+    });
+
+    it("also fires on the raw HTML interstitial body (regression-safety on the existing title path)", () => {
+      const body = `<!DOCTYPE html><html><head><title>Pardon Our Interruption...</title></head><body>Checking your browser before you access example.com</body></html>`;
+      const r = classifyExecuteFailure({ status: 200, body });
+      expect(r.kind).toBe("vendor_blocked");
+      // either vendor classification is fine; the point is "not stale_credentials"
+      expect(["akamai_bot_manager", "generic_challenge"]).toContain(r.vendor);
+    });
+
+    it("does NOT misfire on legitimate JSON responses that happen to contain the word 'browser'", () => {
+      const body = JSON.stringify({
+        results: [{ user_agent: "Mozilla/5.0 (Macintosh; Intel; rv:120) Firefox/120 (browser features)" }],
+      });
+      const r = classifyExecuteFailure({ status: 200, body });
+      expect(r.kind).not.toBe("vendor_blocked");
+    });
+  });
 });
