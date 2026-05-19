@@ -1320,6 +1320,40 @@ export function ensureSkillOperationGraph(skill: SkillManifest): SkillOperationG
   return buildSkillOperationGraph(skill.endpoints);
 }
 
+/**
+ * Overlay server-authoritative edge confidences onto a graph (pure).
+ *
+ * The cross-user online learning is server-side (the DAG moat; see
+ * `backend/src/services/graph-confidence.ts`). At resolve the client fetches
+ * the projection for this skill's edges and overlays it here. The graph
+ * TOPOLOGY (which edges exist, requires/yields) is still built locally by
+ * `buildSkillOperationGraph`; only the confidence NUMBER is replaced with
+ * the server's evidence-derived posterior.
+ *
+ * Degraded fallback: an edge with no entry in `projected` keeps its
+ * structural/last-known local confidence untouched (backend unreachable or
+ * no cross-user evidence yet => no learning, but resolve still works).
+ *
+ * Pure: no clock, no I/O, no mutation of the input graph.
+ */
+export function applyProjectedEdgeConfidences(
+  graph: SkillOperationGraph,
+  projected: Record<string, number> | undefined | null,
+): SkillOperationGraph {
+  if (!projected || Object.keys(projected).length === 0) return graph;
+  let changed = false;
+  const edges = graph.edges.map((edge) => {
+    const p = projected[edge.edge_id];
+    if (typeof p !== "number" || !Number.isFinite(p)) return edge;
+    const clamped = Math.max(0, Math.min(1, p));
+    if (clamped === edge.confidence) return edge;
+    changed = true;
+    return { ...edge, confidence: clamped };
+  });
+  if (!changed) return graph;
+  return { ...graph, edges };
+}
+
 export function knownBindingsFromInputs(
   params: Record<string, unknown> = {},
   contextUrl?: string,
