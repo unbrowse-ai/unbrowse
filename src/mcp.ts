@@ -1787,42 +1787,81 @@ const tools: ToolDefinition[] = [
       logger.recordReflection(status, notes);
       const payload: Record<string, unknown> = { ok: true, recorded: true, intent_status: status, telemetry_enabled: logger.enabled };
       // Reliability attribution: when the agent names the (skill, endpoint)
-      // it just executed against, apply a Bayesian-smoothed update to
-      // reliability_score. The marketplace earns its quality scores
-      // from actual usage — admission no longer gates (the
-      // shouldIndexDomBrowseFallback heuristic was removed 2026-05-18).
+      // it just executed against, the reflect outcome is sent UP and the
+      // SERVER applies the Bayesian-smoothed aggregate over cross-user
+      // EndpointStats (it also runs the auto-deprecation gate). Reliability +
+      // staleness are population computations a single client cannot see, so
+      // the client never derives them: it adopts the server-authoritative
+      // value into the local snapshot so the very next resolve surfaces it as
+      // evidence. Degraded fallback only when the marketplace is unreachable:
+      // a local last-known estimate, clearly labeled, never a hard-fail.
       const skillId = typeof args.skill_id === "string" ? args.skill_id : undefined;
       const endpointId = typeof args.endpoint_id === "string" ? args.endpoint_id : undefined;
       if (skillId && endpointId) {
         try {
-          const { applyReliabilityUpdate } = await import("./marketplace/reliability.js");
-          const { updateEndpointScore } = await import("./marketplace/index.js");
-          const { domainSkillCache, readSkillSnapshot, writeSkillSnapshot } = await import("./orchestrator/index.js");
-          // Find the live local snapshot path for the skill so the update
-          // takes effect on the very next resolve (not just remote).
+          const { recordReflectionOutcome } = await import("./client/index.js");
+          const { domainSkillCache, readSkillSnapshot } = await import("./orchestrator/index.js");
+          // Find the live local snapshot path so the adopted server value
+          // takes effect on the very next resolve.
           let snapshotPath: string | undefined;
           for (const v of domainSkillCache.values()) {
             if (v.skillId === skillId && v.localSkillPath) { snapshotPath = v.localSkillPath; break; }
           }
           const snapshot = readSkillSnapshot(snapshotPath);
-          if (snapshot) {
-            const ep = snapshot.endpoints.find((e) => e.endpoint_id === endpointId);
+          const ep = snapshot?.endpoints.find((e) => e.endpoint_id === endpointId);
+          const before = ep && typeof ep.reliability_score === "number" ? ep.reliability_score : 0.5;
+          const server = await recordReflectionOutcome(skillId, endpointId, status);
+          if (server) {
+            // Server-authoritative: adopt the recomputed cross-user aggregate.
             if (ep) {
-              const before = typeof ep.reliability_score === "number" ? ep.reliability_score : 0.5;
-              const after = applyReliabilityUpdate(before, status);
-              ep.reliability_score = after;
+              ep.reliability_score = server.reliability_score;
+              if (typeof server.verification_status === "string" && server.verification_status) {
+                (ep as { verification_status?: string }).verification_status = server.verification_status;
+              }
               if (snapshotPath) {
                 const { writeFileSync } = await import("node:fs");
                 writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
               }
-              payload.reliability_update = { skill_id: skillId, endpoint_id: endpointId, before, after, outcome: status };
-              // Best-effort remote update; never throw if the marketplace is offline.
-              updateEndpointScore(skillId, endpointId, after, status === "achieved" ? "verified" : status === "failed" ? "failed" : "stale").catch(() => {});
-            } else {
-              payload.reliability_update = { skill_id: skillId, endpoint_id: endpointId, error: "endpoint_not_found_in_snapshot" };
             }
+            payload.reliability_update = {
+              skill_id: skillId,
+              endpoint_id: endpointId,
+              before,
+              after: server.reliability_score,
+              outcome: status,
+              source: "server_authoritative",
+              verification_status: server.verification_status,
+              stale: server.stale,
+              total_observations: server.total_observations,
+              ...(server.auto_deprecated_at ? { auto_deprecated_at: server.auto_deprecated_at } : {}),
+            };
+          } else if (ep) {
+            // Marketplace unreachable: degraded local estimate from the
+            // last-known value so resolve still has a signal. NOT
+            // authoritative; superseded the next time the server is reached.
+            const { applyReliabilityUpdate } = await import("./marketplace/reliability.js");
+            const estimate = applyReliabilityUpdate(before, status);
+            ep.reliability_score = estimate;
+            if (snapshotPath) {
+              const { writeFileSync } = await import("node:fs");
+              writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
+            }
+            payload.reliability_update = {
+              skill_id: skillId,
+              endpoint_id: endpointId,
+              before,
+              after: estimate,
+              outcome: status,
+              source: "degraded_local_estimate",
+            };
           } else {
-            payload.reliability_update = { skill_id: skillId, endpoint_id: endpointId, error: "skill_snapshot_not_found_locally" };
+            payload.reliability_update = {
+              skill_id: skillId,
+              endpoint_id: endpointId,
+              outcome: status,
+              source: snapshot ? "server_authoritative" : "degraded_local_estimate",
+              note: snapshot ? "endpoint_not_found_in_snapshot" : "skill_snapshot_not_found_locally",
+            };
           }
         } catch (e) {
           payload.reliability_update = { skill_id: skillId, endpoint_id: endpointId, error: (e as Error)?.message ?? "reliability_update_failed" };

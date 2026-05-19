@@ -1555,6 +1555,46 @@ export async function recordFeedback(
   return data.avg_rating;
 }
 
+/**
+ * Server-authoritative reliability snapshot for a (skill, endpoint), as the
+ * marketplace recomputed it. Reliability and staleness are CROSS-USER
+ * aggregates the client cannot compute (a single client never sees the
+ * population), so this is read-only evidence the caller should adopt.
+ */
+export interface ServerReliabilitySnapshot {
+  reliability_score: number;
+  verification_status: string;
+  stale: boolean;
+  auto_deprecated_at?: string;
+  total_observations: number;
+}
+
+/**
+ * Send one agent reflect outcome UP and adopt the server-authoritative
+ * reliability the marketplace recomputed. The Bayesian-smoothed aggregate
+ * runs server-side over cross-user EndpointStats; the client must not derive
+ * its own. Returns null when the marketplace is unreachable / LOCAL_ONLY so
+ * the caller can fall back to its last-known local value (degraded, never a
+ * hard-fail).
+ */
+export async function recordReflectionOutcome(
+  skillId: string,
+  endpointId: string,
+  intentStatus: "achieved" | "partial" | "failed"
+): Promise<ServerReliabilitySnapshot | null> {
+  if (LOCAL_ONLY) return null;
+  try {
+    const data = await api<{ ok?: boolean; reliability?: ServerReliabilitySnapshot | null }>(
+      "POST",
+      "/v1/stats/reflect",
+      { skill_id: skillId, endpoint_id: endpointId, intent_status: intentStatus },
+    );
+    return data?.reliability ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // --- Diagnostics ---
 
 export async function recordDiagnostics(
