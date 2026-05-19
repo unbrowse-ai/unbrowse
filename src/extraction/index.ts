@@ -1871,6 +1871,99 @@ function scoreFieldRichness(structure: ExtractedStructure): number {
   return 0;
 }
 
+// W3: config-shape demotion. Some captured pages place i18n bundles,
+// theme objects, RSC bootstrap chunks, and stylesheet/script metadata
+// in __NEXT_DATA__ or similar containers. The SPA extractor pulls them
+// out as if they were the page's data, and the scoring loop ranks them
+// above real DOM content because they have many "entries". The fix:
+// detect these recognisable junk shapes and apply a heavy demotion so
+// real-data structures win the pick. Substrate-faithful: never invent
+// a verdict, only surface what's declared. The detector returns true
+// only on structural shape; it never reads intent or page domain.
+//
+// Affected bench probes from .bench-gate/20260519T203955Z: 011 dev.to,
+// 018/019 openlibrary, 031 priceline, 052 ticketmaster (translations +
+// theme.gradients.mrBlueSky), 059 target (spa-nextjs preload struct),
+// 066 vinted (RSC link/script chunks).
+const CONFIG_TOP_LEVEL_KEYS = new Set([
+  "translations",
+  "translation",
+  "i18n",
+  "messages",
+  "locales",
+  "theme",
+  "gradients",
+  "tokens",
+  "designTokens",
+  "designSystem",
+]);
+const CONFIG_CHUNK_VALUE_KEYS = new Set([
+  "href",
+  "src",
+  "precedence",
+  "nonce",
+  "crossOrigin",
+  "async",
+  "defer",
+  "rel",
+  "module",
+  "integrity",
+]);
+function looksLikeConfigShape(data: unknown): boolean {
+  if (data == null) return false;
+  // RSC bootstrap: an array where every entry is the React-Server-
+  // Components tuple shape `["$", "<tag>", "<id>", {<config>}]`. Next.js
+  // serialises script/link chunks this way.
+  if (Array.isArray(data) && data.length >= 3) {
+    const allRscTuples = data.every((entry) => {
+      if (!Array.isArray(entry) || entry.length < 4) return false;
+      const [marker, tag, , props] = entry as unknown[];
+      return (
+        marker === "$" &&
+        typeof tag === "string" &&
+        props != null &&
+        typeof props === "object" &&
+        !Array.isArray(props)
+      );
+    });
+    if (allRscTuples) return true;
+    // Same array but as a list of stylesheet/script objects (not the
+    // tuple form): every entry is an object with only CONFIG_CHUNK keys.
+    const allChunkObjects = data.every((entry) => {
+      if (entry == null || typeof entry !== "object" || Array.isArray(entry)) return false;
+      const keys = Object.keys(entry as Record<string, unknown>);
+      if (keys.length === 0) return false;
+      return keys.every((k) => CONFIG_CHUNK_VALUE_KEYS.has(k));
+    });
+    if (allChunkObjects) return true;
+  }
+  // i18n / theme: an object with a known top-level config key whose value
+  // is itself an object with many entries. We do NOT use intent or
+  // domain, only the structural shape.
+  if (typeof data === "object" && !Array.isArray(data)) {
+    const obj = data as Record<string, unknown>;
+    const topKeys = Object.keys(obj);
+    if (topKeys.length === 0) return false;
+    const hasConfigTop = topKeys.some((k) => CONFIG_TOP_LEVEL_KEYS.has(k));
+    if (!hasConfigTop) return false;
+    // Confirm the config bucket is the dominant payload, not a sibling
+    // of real data. A page with `{products: [...], translations: {...}}`
+    // should NOT trip; the products array would be the real signal and
+    // the parent object as a whole still carries data.
+    const configKeyCount = topKeys.filter((k) => CONFIG_TOP_LEVEL_KEYS.has(k)).length;
+    const dataKeyCount = topKeys.length - configKeyCount;
+    // If the object is ONLY config buckets (no sibling data keys), it
+    // is config-shape. If there are sibling data keys, leave it alone.
+    return dataKeyCount === 0;
+  }
+  return false;
+}
+
+function scoreConfigShapeDemotion(structure: ExtractedStructure): number {
+  return looksLikeConfigShape(structure.data) ? -200 : 0;
+}
+
+
 // ---------------------------------------------------------------------------
 // extractFromDOM
 // ---------------------------------------------------------------------------
@@ -2001,7 +2094,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s),
+    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s),
   }));
 
   scored.sort((a, b) => b.score - a.score);
