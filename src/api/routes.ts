@@ -2895,16 +2895,16 @@ export async function registerRoutes(app: FastifyInstance) {
           })();
 
           if (browserHasFreshSession) {
-            cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
+            cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain, broker);
           } else {
-            cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
+            cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain, broker);
             await loadAuthProfileBestEffort(session.tabId, newDomain, "browse_go");
           }
           // Also inject Google OAuth cookies so "Login with Google" auto-completes.
           // Many sites use Google OAuth and the user may be logged into Google in another browser.
           if (cookiesInjected === 0) {
-            const googleInjected = await importBrowserCookiesIntoTab(session.tabId, "google.com");
-            const accountsInjected = await importBrowserCookiesIntoTab(session.tabId, "accounts.google.com");
+            const googleInjected = await importBrowserCookiesIntoTab(session.tabId, "google.com", broker);
+            const accountsInjected = await importBrowserCookiesIntoTab(session.tabId, "accounts.google.com", broker);
             if (googleInjected > 0 || accountsInjected > 0) {
               console.log(`[auth] injected ${googleInjected + accountsInjected} Google OAuth cookies for potential SSO`);
             }
