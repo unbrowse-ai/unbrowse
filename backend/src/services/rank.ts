@@ -48,6 +48,10 @@ export interface RankSignalEvidence {
   response_shape: number;
   freshness: number;
   reliability: number;
+  /** Context-URL path-prefix match: how many leading path segments of the
+   *  endpoint url_template match the user's contextUrl path. Absent on
+   *  older clients; readers treat undefined as 0. */
+  context_path_prefix_match?: number;
 }
 
 export interface RankedEndpointResult {
@@ -206,6 +210,48 @@ function urlPathOverlap(ep: EndpointDescriptor, queryTokens: string[]): number {
   return overlap * 8;
 }
 
+/**
+ * contextPathPrefixMatch — generic structural preference for endpoints whose
+ * url_template path shares a left-prefix with the user-provided contextUrl.
+ *
+ * Background (Issue #48): when the agent passes
+ * `params.url = .../users/profile/past-trips`, the ranker had no contextUrl
+ * path signal; on airbnb.com it picked /trips/past (matching the intent
+ * keyword "past trips") over /users/profile/past-trips (which is the exact
+ * URL the user named).
+ *
+ * Substrate: pure URL.pathname segment comparison. NO per-domain registry,
+ * NO host arm. Returns 0 when no contextUrl or no path overlap.
+ */
+function contextPathPrefixMatch(ep: EndpointDescriptor, contextUrl?: string): number {
+  if (!contextUrl) return 0;
+  let epPath: string[] = [];
+  let ctxPath: string[] = [];
+  try {
+    epPath = new URL(ep.url_template).pathname.toLowerCase().split("/").filter(Boolean);
+    ctxPath = new URL(contextUrl).pathname.toLowerCase().split("/").filter(Boolean);
+  } catch {
+    return 0;
+  }
+  if (epPath.length === 0 || ctxPath.length === 0) return 0;
+  // Count contiguous matching segments from the LEFT. Treats template
+  // placeholders ({id}, :slug) as wildcard matches against any literal
+  // segment so the signal still fires on /users/{userId}/past-trips when
+  // contextUrl is /users/42/past-trips.
+  let matched = 0;
+  const n = Math.min(epPath.length, ctxPath.length);
+  for (let i = 0; i < n; i++) {
+    const epSeg = epPath[i];
+    const ctxSeg = ctxPath[i];
+    const isPlaceholder = /^[{:].*[}]?$/.test(epSeg);
+    if (epSeg === ctxSeg || isPlaceholder) matched += 1;
+    else break;
+  }
+  // Per-segment weight in the same ballpark as urlPathOverlap's per-token
+  // (+8); slightly lower because path-prefix can be coincidental.
+  return matched * 6;
+}
+
 function schemaRichness(ep: EndpointDescriptor): number {
   const props = ep.response_schema?.properties;
   if (!props) return 0;
@@ -302,8 +348,9 @@ export function rankEndpointsServer(req: RankRequest): RankResponse {
     const shape = responseShape(ep);
     const fresh = freshnessSignal(ep);
     const reliability = reliabilitySignal(ep);
+    const ctxPathPrefix = contextPathPrefixMatch(ep, req.context_url);
     const score =
-      bm25 + overlap + schema + host + method + shape + fresh + reliability;
+      bm25 + overlap + schema + host + method + shape + fresh + reliability + ctxPathPrefix;
     return {
       endpoint_id: ep.endpoint_id,
       score,
@@ -316,6 +363,7 @@ export function rankEndpointsServer(req: RankRequest): RankResponse {
         response_shape: shape,
         freshness: fresh,
         reliability,
+        context_path_prefix_match: ctxPathPrefix,
       },
     };
   });

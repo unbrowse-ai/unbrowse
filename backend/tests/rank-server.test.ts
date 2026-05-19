@@ -139,4 +139,62 @@ describe("WAVE 2 server-side ranker", () => {
     expect(onlyNoise.degraded).toBe(false);
     expect(Array.isArray(onlyNoise.ranked)).toBe(true);
   });
+
+  test("contextUrl path-prefix preference (Issue #48 / airbnb route-selection)", () => {
+    const endpoints = [
+      ep({
+        endpoint_id: "trips-past",
+        url_template: "https://www.airbnb.com/trips/past",
+        description: "List past trips for the current user.",
+        response_schema: { type: "array", properties: { trips: {} } } as never,
+      }),
+      ep({
+        endpoint_id: "users-profile-past-trips",
+        url_template: "https://www.airbnb.com/users/profile/past-trips",
+        description: "Past trips on the user profile view.",
+        response_schema: { type: "array", properties: { trips: {} } } as never,
+      }),
+    ];
+    const { ranked } = rankEndpointsServer({
+      intent: "get my past airbnb trips",
+      endpoints,
+      context_url: "https://www.airbnb.com/users/profile/past-trips",
+    });
+    expect(ranked.length).toBeGreaterThan(0);
+    expect(ranked[0].endpoint_id).toBe("users-profile-past-trips");
+    // Evidence must surface the new signal so the agent can judge ties.
+    expect(ranked[0].evidence.context_path_prefix_match).toBeGreaterThan(0);
+    // No-context-url case must not regress (both candidates score the same on this signal).
+    const noContext = rankEndpointsServer({
+      intent: "get my past airbnb trips",
+      endpoints,
+    });
+    for (const r of noContext.ranked) {
+      expect(r.evidence.context_path_prefix_match ?? 0).toBe(0);
+    }
+  });
+
+  test("contextUrl path-prefix is GENERIC (not a per-domain registry)", () => {
+    // Same shape, different domain — the signal must still apply.
+    const endpoints = [
+      ep({
+        endpoint_id: "wrong-path",
+        url_template: "https://example.org/api/other",
+        description: "Other endpoint.",
+        response_schema: { type: "object" } as never,
+      }),
+      ep({
+        endpoint_id: "right-path",
+        url_template: "https://example.org/api/users/42/items",
+        description: "Items for user 42.",
+        response_schema: { type: "array" } as never,
+      }),
+    ];
+    const { ranked } = rankEndpointsServer({
+      intent: "get items",
+      endpoints,
+      context_url: "https://example.org/api/users/42/items",
+    });
+    expect(ranked[0].endpoint_id).toBe("right-path");
+  });
 });
