@@ -12,7 +12,7 @@ import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint } from "../execution/index.js";
-import { rankEndpoints } from "../ranking/index.js";
+import { rankEndpoints, rankEndpointsServerFirst } from "../ranking/index.js";
 import {
   getSkillChunk,
   getEndpointDescriptionMetadata,
@@ -2267,17 +2267,46 @@ export async function resolveAndExecute(
     source: "marketplace" | "live-capture",
     extraFields?: Record<string, unknown>,
   ): Promise<AutoExecDecision> {
+    // WAVE 2 server-move: the agent-facing resolve shortlist is the
+    // primary surface where ranking intelligence is observed. Round-trip
+    // the backend rank route here (already an async context) so the
+    // tuning weights live server-side. rankEndpointsServerFirst falls
+    // back to the local ranker transparently on any backend failure, so
+    // an offline resolve still returns a shortlist (degraded, not empty).
+    let serverScores: Map<string, number> | undefined;
+    try {
+      const serverRanked = await rankEndpointsServerFirst(
+        skill.endpoints,
+        queryIntent,
+        skill.domain,
+        context?.url,
+        params,
+      );
+      const map = new Map<string, number>();
+      for (const r of serverRanked) map.set(r.endpoint.endpoint_id, r.score);
+      if (map.size > 0) serverScores = map;
+    } catch {
+      // x402 payment-required (the only throw path) — let the local
+      // ranker decide rather than failing the whole resolve.
+      serverScores = undefined;
+    }
     return {
-      orchestratorResult: buildDeferral(skill, source, extraFields),
+      orchestratorResult: buildDeferral(skill, source, extraFields, serverScores),
       autoexecFailedAll: false,
     };
   }
 
-  /** Build a deferral response — returns the skill + ranked endpoints for the agent to choose. */
+  /** Build a deferral response — returns the skill + ranked endpoints for the agent to choose.
+   *  `serverScores` (WAVE 2 server-move): when the backend rank route
+   *  produced an authoritative score map, it overrides the local
+   *  (degraded-fallback) per-endpoint scores before the search-like and
+   *  graph-reachability passes run. Absent => local ranker is authoritative
+   *  (offline / backend-unreachable path; resolve never hard-fails). */
   function buildDeferral(
     skill: SkillManifest,
     source: "marketplace" | "live-capture",
     extraFields?: Record<string, unknown>,
+    serverScores?: Map<string, number>,
   ): OrchestratorResult {
     const resolvedSkill = withContextReplayEndpoint(skill, queryIntent, context?.url);
     const usableEndpoints = resolvedSkill.endpoints.filter((endpoint) =>
@@ -2294,6 +2323,24 @@ export async function resolveAndExecute(
       include_full_relevant_graph: true,
     });
     let epRanked = rankEndpoints(endpointScopedSkill.endpoints, queryIntent, endpointScopedSkill.domain, context?.url, params);
+    // WAVE 2 server-move: when the backend rank route returned an
+    // authoritative score map, override the local (degraded-fallback)
+    // scores so the ranking *intelligence* lives server-side and is no
+    // longer recoverable from the client bundle. Endpoints the local
+    // ranker kept but the server omitted are pinned below server-scored
+    // ones (the server's noise filter dropped them on purpose). The
+    // downstream search-like demotion + graph-reachability passes still
+    // run on top, so structural invariants are preserved.
+    if (serverScores && serverScores.size > 0 && epRanked.length > 0) {
+      let anyServerScored = false;
+      epRanked = epRanked.map((r) => {
+        const s = serverScores.get(r.endpoint.endpoint_id);
+        if (s == null) return r;
+        anyServerScored = true;
+        return { ...r, score: s };
+      });
+      if (anyServerScored) epRanked.sort((a, b) => b.score - a.score);
+    }
     if (isSearchLikeIntent(queryIntent, context?.url)) {
       const hasStructuredSearchApi = epRanked.some((r) =>
         !r.endpoint.dom_extraction &&
