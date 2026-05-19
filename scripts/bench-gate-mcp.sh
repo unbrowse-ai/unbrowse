@@ -221,7 +221,29 @@ $( [ -n "$strategy" ] && echo "- strategy: ${strategy}" )
 For each iteration N in 1..${ITERATIONS}, perform exactly this loop using
 the unbrowse MCP tools. Do NOT use the unbrowse CLI; only mcp__unbrowse__*.
 
-1. \`mcp__unbrowse__unbrowse_resolve\` with { intent: "...", contextUrl: "..." }.
+0. **Read user-context resources BEFORE resolve.** This is a routing input,
+   not a verdict input. Call:
+   - \`resources/read\` with uri="unbrowse://auth/profiles" — look up whether
+     the probe URL's eTLD+1 has a saved auth profile (\`profiles[].domain\`).
+   - \`resources/read\` with uri="unbrowse://cookies/domains" — look up
+     whether the probe host has browser cookies; record
+     \`session_cookie_count\` for that domain if present.
+   - \`resources/read\` with uri="unbrowse://sessions/active" — note any
+     already-open session pointed at the probe host (avoid double-open).
+   - \`resources/read\` with uri="unbrowse://browser-history/recent" is OK
+     to read but may be disabled (UNBROWSE_EXPOSE_HISTORY); treat the
+     disabled-shape response as "no signal", not an error.
+
+   Record under \`pre_resolve_context\` in your result:
+   {has_auth_profile: bool, has_browser_cookies: bool,
+    browser_session_cookie_count: int, has_active_session_for_host: bool}.
+   Use this to JUDGE later outcomes (e.g. if has_browser_cookies=true and
+   execute later returns 401, that's a cookie-injection failure — that's
+   B-023 territory, not auth-required). Do NOT change the loop shape
+   based on this; the loop must run end-to-end so the gate measures the
+   substrate's real behavior given the available context.
+
+1. \`mcp__unbrowse__unbrowse_resolve\` with { intent: "...", contextUrl: "...". }.
    - If a non-empty available_endpoints list comes back, record
      pre_index_resolve="HIT" and you may either (a) skip the browse step
      for this iteration (treat as cache hit; report stability that way)
@@ -291,6 +313,12 @@ Write a single JSON object to: \`${pdir}/subagent.result.json\`. Schema:
   "lane": "${lane}",
   "intent": "${intent}",
   "url": "${url}",
+  "pre_resolve_context": {
+    "has_auth_profile": false,
+    "has_browser_cookies": false,
+    "browser_session_cookie_count": 0,
+    "has_active_session_for_host": false
+  },
   "iterations": [
     {
       "iteration": 1,
