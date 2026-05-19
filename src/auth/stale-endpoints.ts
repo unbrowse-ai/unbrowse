@@ -126,8 +126,37 @@ export function clearStaleEndpoints(): void {
 
 /** Loop 5.1: structured auth hint surfaced to the agent when resolve
  *  filters stale endpoints. The agent reads this to know that login is
- *  required AND why (401 from server vs expired local cookies). Includes
- *  concrete next-step commands. Returns null when there's nothing to hint. */
+ *  required AND why (401 from server vs expired local cookies). Returns
+ *  null when there's nothing to hint.
+ *
+ *  Loop 5.2: surfaces THREE login surfaces (in order of friction):
+ *  1. `keychain` — kuri auth-profile already saved (macOS Keychain on
+ *     Darwin, encrypted file elsewhere; see kuri/src/storage/auth_profiles.zig).
+ *     Zero friction — `kuri.authProfileLoad(tabId, domain)` is the
+ *     primitive the substrate already calls from /v1/browse/go.
+ *  2. `local_browser` — the user's real browser (Dia/Chrome) has fresh
+ *     cookies. Extracted via SQLite read on next go/execute; the agent
+ *     just needs to be online + signed-in there.
+ *  3. `agent_browser` — last resort: drive a fresh login session via
+ *     `unbrowse go <login_url>`. Always present so the agent always
+ *     has a callable fallback.
+ *
+ *  `web_login_url` is a clickable URL the human user can open directly
+ *  if they prefer their own browser. The substrate doesn't try to
+ *  guess per-site login paths — the registrable domain root is the
+ *  reliable choice across hosts (login redirects from there). */
+export interface AuthHintSurface {
+  kind: "keychain" | "local_browser" | "agent_browser";
+  label: string;
+  /** When `kind === "agent_browser"`, the literal command list. When
+   *  `kind === "keychain"` or `local_browser`, an explanatory command
+   *  for what the agent should call (kuri.authProfileLoad / a retry). */
+  commands?: string[];
+  /** Free-form explanation of the friction level + what this surface
+   *  does for the agent. */
+  description: string;
+}
+
 export interface AuthHint {
   /** Always true when present — surface signal for templated agents. */
   login_required: true;
@@ -136,7 +165,13 @@ export interface AuthHint {
   reason: StaleReason;
   /** Human-readable message — safe to render to the agent UI. */
   message: string;
-  /** Concrete commands that refresh credentials for this domain. */
+  /** Clickable URL the human user can open in their own browser to
+   *  refresh credentials end-to-end. Domain root because login flows
+   *  always redirect from there; we don't guess per-site /login paths. */
+  web_login_url: string;
+  /** Ordered list of refresh paths the agent can try. */
+  surfaces: AuthHintSurface[];
+  /** Backward-compat fields preserved from Loop 5.1. */
   next_step: string;
   commands: string[];
 }
@@ -163,18 +198,39 @@ export function buildAuthHint(domain: string, now: number = Date.now()): AuthHin
   // Pick the most recent record — that's the freshest evidence of why
   // the agent is being shown a hint right now.
   const latest = records.reduce((a, b) => (a.ts >= b.ts ? a : b));
-  const loginUrl = `https://${domain}/`;
+  const web_login_url = `https://${domain}/`;
+  const agentCommands = [
+    `unbrowse go "${web_login_url}"`,
+    "unbrowse snap --filter interactive",
+    "unbrowse close",
+  ];
+  const surfaces: AuthHintSurface[] = [
+    {
+      kind: "keychain",
+      label: "Reload saved kuri auth profile",
+      description: `If you've previously logged into ${domain} via unbrowse, the cookies + headers are persisted (macOS Keychain on Darwin, encrypted file elsewhere). The next /v1/browse/go on this domain auto-calls kuri.authProfileLoad — try a fresh go and re-execute. If that still 401s the profile is genuinely stale.`,
+    },
+    {
+      kind: "local_browser",
+      label: "Use the user's local browser cookies",
+      description: `If you're signed into ${domain} in Dia / Chrome / Brave on this machine, those cookies are extracted automatically on the next /v1/browse/go (src/auth/browser-cookies.ts reads the SQLite DB). The fastest path if the user has an active session anywhere.`,
+    },
+    {
+      kind: "agent_browser",
+      label: "Drive a fresh login via unbrowse",
+      description: `Last resort: open ${web_login_url} in an unbrowse-managed browser, complete the login interactively, then close to checkpoint. The fresh cookies + headers persist into kuri's keychain for next time.`,
+      commands: agentCommands,
+    },
+  ];
   return {
     login_required: true,
     domain,
     reason: latest.reason,
     message: reasonMessage(latest.reason, domain),
-    next_step: `Run \`unbrowse go "${loginUrl}"\` and complete the login in the browser, then \`unbrowse close\` to checkpoint fresh cookies.`,
-    commands: [
-      `unbrowse go "${loginUrl}"`,
-      "unbrowse snap --filter interactive",
-      "unbrowse close",
-    ],
+    web_login_url,
+    surfaces,
+    next_step: `Open ${web_login_url} in your browser to log in, OR run \`unbrowse go "${web_login_url}"\` to drive the login agentically. Either path refreshes cookies for next resolve.`,
+    commands: agentCommands,
   };
 }
 
