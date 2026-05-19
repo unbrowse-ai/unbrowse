@@ -340,8 +340,19 @@ const PER_SESSION_BROKER_BASE_PORT = BROWSE_BROKER_BASE_PORT + 100;
 let perSessionBrokerCursor = 0;
 
 function perSessionKuriEnabled(): boolean {
+  // Default ON. Every browse session gets its own kuri broker + Chrome +
+  // user-data-dir instead of the shared :9222 pool. The shared pool is the
+  // root cause of 3 consecutive ABORTED /unbrowse-self-build waves:
+  // N concurrent sessions (peer agents + bench sub-agents) cross-bind tabs
+  // on one broker (wave-1 contamination) then wedge it (wave-3, 16h frozen,
+  // zero scope=close traces). The explicit-session_id path already always
+  // isolates (selectBrowseBrokerClient requestedSessionId branch, commit
+  // 41fab174); this closes the remaining UNNAMED-session gap. Opt OUT with
+  // UNBROWSE_PER_SESSION_KURI=0|false to force the legacy shared pool
+  // (single-tenant resource saving only; never under concurrency).
   const v = process.env.UNBROWSE_PER_SESSION_KURI;
-  return v === "1" || v?.toLowerCase() === "true";
+  if (v === "0" || v?.toLowerCase() === "false") return false;
+  return true;
 }
 
 function allocatePerSessionBrokerPort(): number {
