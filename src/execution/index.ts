@@ -5046,6 +5046,18 @@ export function classifyExecuteFailure(input: {
     return { kind: "vendor_blocked", vendor: "captcha_vendor", evidence: "body_marker" };
   }
 
+  // W6: Akamai bot management interstitial detection on JSON-extracted bodies.
+  // The title-tag check below catches the same phrases when they sit inside
+  // <title>...</title> HTML markup. When an upstream extractor pulls the
+  // title into a JSON shape (e.g. {"title":"Pardon Our Interruption..."})
+  // the HTML markup is gone but the phrase remains, so we check the raw
+  // sample string for the specific Akamai interstitial phrases. Anchored
+  // on highly specific phrases (low false-positive risk on legitimate APIs).
+  // Plan: drive-every-bug-class-surfaced-by-the-mcp-gate-r W6 (probe 032 ebay).
+  if (/pardon our interruption|checking your browser before you access/i.test(sample)) {
+    return { kind: "vendor_blocked", vendor: "akamai_bot_manager", evidence: "interstitial_phrase" };
+  }
+
   // Title-of-an-HTML-error-page check — catches cases where the body is a
   // generic challenge page without a vendor-specific marker.
   const titleMatch = sample.match(/<title[^>]*>([^<]{0,200})<\/title>/i);
