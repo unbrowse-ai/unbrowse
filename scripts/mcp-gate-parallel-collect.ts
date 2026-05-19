@@ -96,6 +96,7 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
 
   // host self-check: raw isolation evidence at this concurrency (NOT a verdict)
   const snapHost = hostOf(sb.current_url);
+  const intendedHost = hostOf(p.url);
   const isoSelfCheck = { snap_current_url: sb.current_url ?? null, intended_host: intendedHost, snap_host: snapHost,
     host_match: snapHost ? snapHost === intendedHost : null };
 
@@ -126,7 +127,6 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
   } catch (err) {
     browserCookieEvidence.error = err instanceof Error ? err.message : String(err);
   }
-    host_match: snapHost ? snapHost === intendedHost : null };
 
   const blockSignals: string[] = [];
   if (sb.warning) blockSignals.push(String(sb.warning));
