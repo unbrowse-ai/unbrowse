@@ -24,6 +24,15 @@ if (!RUN_DIR) { console.error("usage: bun scripts/mcp-gate-parallel-collect.ts <
 const manifest = JSON.parse(readFileSync(join(RUN_DIR, "manifest.json"), "utf8"));
 const probes: Array<{ probe_id: string; intent: string; url: string; lane: string }> = manifest.probes;
 const CONC = Number(process.env.UNBROWSE_GATE_CONCURRENCY) || 30;
+// F4 (B-023): UNBROWSE_GATE_FORCE_GO=1 bypasses the pre-resolve cache-hit
+// short-circuit. Was the gate's reason 5/6 auth-cookies probes never
+// exercised the cookie-injection path — cached cross-host poisoned skills
+// kept go from running, so cookies were never injected into a fresh tab.
+// Default behaviour (cache short-circuits go) is unchanged when unset.
+const FORCE_GO = (() => {
+  const v = process.env.UNBROWSE_GATE_FORCE_GO?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+})();
 const HDR = { "content-type": "application/json", "x-unbrowse-client-id": "mcp-gate-parallel" };
 
 // Force clean-room kuri: resolveKuriLaunchConfig defaults
@@ -73,12 +82,14 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
   let preEps = pickEndpoints(pre.body);
 
   let close: any = { body: {} }, snap: any = { body: {} }, evalRes: any = { body: {} };
-  if (preEps.length === 0) {
+  let goResponse: { status?: number; body?: any } | null = null;
+  if (preEps.length === 0 || FORCE_GO) {
     // Disjoint per-probe session_id: with the create-on-unknown-id +
     // per-broker create-lock fix, each concurrent probe owns its own
     // isolated tab (no cross-render). probe_id is unique per manifest row.
     const sid = `gate-${p.probe_id}`;
     const go = await post("/v1/browse/go", { url: p.url, session_id: sid });
+    goResponse = go;
     if (go.status === 200 && go.body?.session_id) {
       snap = await post("/v1/browse/snap", { session_id: sid, detail_level: "minimal" });
       evalRes = await post("/v1/browse/eval", { session_id: sid, expression: "JSON.stringify(document.documentElement.outerHTML).slice(0,8192)" });
@@ -155,6 +166,12 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
     // denominator" from "cookies present but login wall → real bug".
     // See harness/probes/GATE_JUDGE.md auth-cookies bullet.
     browser_cookies: browserCookieEvidence,
+    // F5 (B-023): pass through /v1/browse/go's cookies_injected response
+    // field so the judge sees inject count without rerunning the
+    // diagnostic primitive. Null when go was skipped (pre-resolve cache
+    // hit + FORCE_GO unset) or when go failed. With F2's honest counter
+    // this is jar truth, not call-count truth.
+    cookies_injected: goResponse?.body?.cookies_injected ?? null,
   }, null, 2));
 
   const evalStr = typeof evalRes.body?.result === "string" ? evalRes.body.result : JSON.stringify(evalRes.body ?? {});
