@@ -120,3 +120,30 @@ describe("W4: noun-plural list intents promote high-confidence page-artifact (pr
     expect(ranked.length).toBe(2);
   });
 });
+
+describe("W4-followup: production-shape page-artifact (extraction_method 'multiple', confidence 0.56)", () => {
+  test("dockerhub real shape: extraction_method='multiple' + confidence=0.56 + 'Page content from' description still wins LIST_INTENT", () => {
+    const userEndpoint = {
+      endpoint_id: "user-details",
+      method: "GET", url_template: "https://hub.docker.com/v2/user/",
+      description: "Returns user details",
+      idempotency: "safe", verification_status: "verified", reliability_score: 0.9,
+      response_schema: { type: "object", properties: { data: { type: "object" } } },
+    } as unknown as import("../src/types/index.js").EndpointDescriptor;
+    const pageArtifact = {
+      endpoint_id: "nginx-tags-page",
+      method: "GET", url_template: "https://hub.docker.com/_/nginx/tags",
+      description: "Page content from hub.docker.com",
+      idempotency: "safe", verification_status: "verified", reliability_score: 0.9,
+      dom_extraction: { extraction_method: "multiple", confidence: 0.56 },
+      trigger_url: "https://hub.docker.com/_/nginx/tags",
+    } as unknown as import("../src/types/index.js").EndpointDescriptor;
+    const ranked = rankEndpoints(
+      [userEndpoint, pageArtifact],
+      "get dockerhub image tags",
+      "hub.docker.com",
+      "https://hub.docker.com/r/library/nginx/tags",
+    );
+    expect(ranked[0].endpoint.endpoint_id).toBe("nginx-tags-page");
+  });
+});
