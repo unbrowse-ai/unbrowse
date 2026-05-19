@@ -5440,7 +5440,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
   // API subdomain pattern — "api.example.com" or "io.example.com" strongly suggests data endpoint
   const API_SUBDOMAIN = /^(api|io|data|feed|stream|ws)\./i;
-  const LIST_INTENT = /\b(search|list|find|trending|top|latest|discover|browse)\b/i;
+  const LIST_INTENT = /\b(search|list|find|trending|top|latest|discover|browse|tags|versions|releases|packages|images|repositories|results|items|posts|articles|threads|reviews|products|listings|stories|videos|tweets|episodes)\b/i;
   const STATUS_INTENT = /\b(status|incident|outage|maintenance|uptime|degraded)\b/i;
   const COMMS_INTENT = /\b(guilds?|channels?|messages?|dms?|servers?|threads?|chat)\b/i;
   const COMMS_PATH = /\/(guilds?|channels?|messages?|threads?|conversations?|affinities)\b/i;
@@ -5731,13 +5731,25 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // captured a doc_only synthetic + a telemetry XHR; ranker picked the
     // telemetry; agent-judged response was wrong-shape for "get amazon search".
     const looksLikeContentRead = !!intent && LIST_INTENT.test(intent);
+    // W4: structural page-artifact detection. The description-based regex
+    // above misses page-artifacts whose description has been rewritten by
+    // LLM augmentation (description_source === "auto"). Structural signal:
+    // an endpoint with a dom_extraction object whose trigger_url matches
+    // its url_template IS a page-artifact regardless of description.
+    const isStructuralPageArtifact =
+      !!ep.dom_extraction
+      && !!ep.trigger_url
+      && ep.trigger_url === ep.url_template;
     const pageArtifactIsDataRich =
-      isCapturedPageArtifact
+      (isCapturedPageArtifact || isStructuralPageArtifact)
       && !!ep.dom_extraction
       && (ep.dom_extraction.confidence ?? 0) >= 0.8
-      && !!ep.response_schema
-      && ((ep.response_schema as Record<string, unknown>).type === "array"
-          || (ep.response_schema as Record<string, unknown>).type === "object");
+      // W4: response_schema is OPTIONAL for page-artifacts. The dom_extraction
+      // confidence IS the data-shape signal; page-artifacts often have null
+      // response_schema. When schema IS present, still require array/object.
+      && (!ep.response_schema
+        || (ep.response_schema as Record<string, unknown>).type === "array"
+        || (ep.response_schema as Record<string, unknown>).type === "object");
     if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
       score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
     } else if (looksLikeContentRead && pageArtifactIsDataRich) {
@@ -5777,9 +5789,21 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // beats telemetry XHRs but loses to a real /api/ endpoint matching
     // intent tokens. Single rule, no conditional ladders.
     if (isPageFetchEndpoint(ep) && intent && LIST_INTENT.test(intent)) {
-      score = hasStructuredSearchApiInCorpus ? Math.min(score, 60) : Math.max(score, 100);
+      if (pageArtifactIsDataRich) {
+        // W4: the data-rich page-artifact promotion above already raised
+        // score to win this intent. The page IS the data; do not clamp it
+        // back below structured-API siblings (those siblings often turn
+        // out to be user-info or telemetry, not the requested listing).
+        score = Math.max(score, 100);
+      } else {
+        score = hasStructuredSearchApiInCorpus ? Math.min(score, 60) : Math.max(score, 100);
+      }
     } else if (isPageFetchEndpoint(ep) && intent && hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?|questions?|answers?|works?|books?|profiles?|details?|info|metadata|abstract|article|articles|posts?|stats?|scores?|games?|quotes?|prices?|tickers?)\b/i.test(intent)) {
-      score = Math.min(score, 60);
+      if (pageArtifactIsDataRich) {
+        score = Math.max(score, 100);
+      } else {
+        score = Math.min(score, 60);
+      }
     }
 
     // Even with dom_extraction, a captured page artifact loses to an API sibling
@@ -6183,7 +6207,11 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       isPageFetchEndpoint(ep) &&
       intent &&
       ((LIST_INTENT.test(intent) && hasStructuredSearchApiInCorpus) ||
-        (hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?|questions?|answers?|works?|books?|profiles?|details?|info|metadata|abstract|article|articles|posts?|stats?|scores?|games?|quotes?|prices?|tickers?)\b/i.test(intent)))
+        (hasStructuredApiInCorpus && /\b(get|fetch|read|view|show|tags?|versions?|releases?|packages?|images?|questions?|answers?|works?|books?|profiles?|details?|info|metadata|abstract|article|articles|posts?|stats?|scores?|games?|quotes?|prices?|tickers?)\b/i.test(intent))) &&
+      // W4: do not clamp a data-rich page-artifact. The page IS the data
+      // for this intent (LIST_INTENT plurals + high-confidence DOM
+      // extraction) and the promotion path at the top should hold.
+      !pageArtifactIsDataRich
     ) {
       score = Math.min(score, 60);
     }
