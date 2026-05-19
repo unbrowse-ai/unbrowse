@@ -5680,7 +5680,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     const looksLikeApiEndpoint = looksLikeApiUrl(ep.url_template);
     const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
-    const isCapturedPageArtifact = /captured (?:search form |page )?artifact/i.test(ep.description ?? "");
+    const isCapturedPageArtifact = /captured (?:search form |page )?artifact|page content from/i.test(ep.description ?? "");
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
     const triggerPath = (() => {
       try {
@@ -5743,7 +5743,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const pageArtifactIsDataRich =
       (isCapturedPageArtifact || isStructuralPageArtifact)
       && !!ep.dom_extraction
-      && (ep.dom_extraction.confidence ?? 0) >= 0.8
+      && (ep.dom_extraction.confidence ?? 0) >= 0.5
       // W4: response_schema is OPTIONAL for page-artifacts. The dom_extraction
       // confidence IS the data-shape signal; page-artifacts often have null
       // response_schema. When schema IS present, still require array/object.
