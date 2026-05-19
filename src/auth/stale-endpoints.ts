@@ -31,7 +31,7 @@ export type CookieSource = "local-browser" | "remote-vault" | "unknown";
 /** Why the endpoint was marked stale. The agent reads this to know what
  *  action will refresh it — login flow (401/403) or just a re-capture
  *  (cookie expired with no auth failure observed). */
-export type StaleReason = "auth_failed_401" | "auth_failed_403" | "auth_failed_other" | "cookie_expired";
+export type StaleReason = "auth_failed_401" | "auth_failed_403" | "auth_failed_other" | "cookie_expired" | "graphql_error_envelope";
 
 export interface StaleRecord {
   domain: string;

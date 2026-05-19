@@ -110,3 +110,33 @@ export function classifyDrift(drift: DriftResult): DriftClassification {
     },
   };
 }
+
+/**
+ * Detect the GraphQL error-envelope response shape: `{ errors: [{message: "..."}], ... }`
+ * with `data` absent or null. The captured schema for a GraphQL endpoint typically
+ * has `data.<query>` populated from a successful capture; when the same endpoint
+ * later returns an error envelope (auth gone, query no longer valid, server-side
+ * failure), schema drift fires with `errors` / `errors[].message` added and the
+ * `data` subtree removed — masking the actual GraphQL error behind a generic
+ * "schema_drift_recapture_required". Real-world friction: bench-gate 010_anchor
+ * 2026-05-19 dockerhub api.scout.docker.com/v1/graphql (status 200, body
+ * `{ errors: [{message: ...}] }`) surfaced the drift error and hid the actual
+ * server message. This helper lets the execute path surface the GraphQL error
+ * message inline so the agent sees what the server actually said.
+ *
+ * Pure function. No I/O, no per-domain rules. Detects the structural pattern
+ * any GraphQL server can produce.
+ */
+export function detectGraphqlErrorEnvelope(data: unknown): { is_envelope: boolean; messages: string[] } {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return { is_envelope: false, messages: [] };
+  const obj = data as Record<string, unknown>;
+  if (!Array.isArray(obj.errors) || obj.errors.length === 0) return { is_envelope: false, messages: [] };
+  const hasData = "data" in obj && obj.data !== null && obj.data !== undefined;
+  if (hasData) return { is_envelope: false, messages: [] };
+  const messages = obj.errors
+    .map((e) => (typeof e === "object" && e !== null && typeof (e as Record<string, unknown>).message === "string"
+      ? ((e as Record<string, unknown>).message as string)
+      : null))
+    .filter((m): m is string => !!m);
+  return { is_envelope: true, messages };
+}

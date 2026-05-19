@@ -14,7 +14,7 @@ import { recordStaleEndpoint } from "../auth/stale-endpoints.js";
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
-import { classifyDrift } from "../transform/drift-classifier.js";
+import { classifyDrift, detectGraphqlErrorEnvelope } from "../transform/drift-classifier.js";
 import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
@@ -3895,13 +3895,43 @@ export async function executeEndpoint(
         // the failure, foreground the signal as the actionable result.
         trace.success = false;
         trace.error = "schema_drift_recapture_required";
-        data = {
-          error: "schema_drift_recapture_required",
-          message: `Endpoint ${endpoint.endpoint_id} response drifted from its learned schema in BREAKING ways (${recaptureSignal.reason}: removed=${classification.breaking_changes.removed_fields.length}, incompatible_type_changes=${classification.breaking_changes.incompatible_type_changes.length}); the served payload is not the contracted data. Re-learn the shape before trusting this endpoint.`,
-          drift_summary: recaptureSignal.drift_summary,
-          breaking_changes: classification.breaking_changes,
-          re_capture_signal: recaptureSignal,
-        };
+        // Truth-telling refinement: when the response is a GraphQL error
+        // envelope (the captured schema had `data.<query>` from a successful
+        // run; the live response now has `errors[]` with `data` absent), the
+        // generic "schema drift" message hides what the server actually said.
+        // Surface the GraphQL error messages so the agent sees the real
+        // failure (auth gone, query invalid, server-side error). The
+        // re_capture signal still fires so the endpoint can be refreshed.
+        const gqlEnvelope = detectGraphqlErrorEnvelope(data);
+        if (gqlEnvelope.is_envelope) {
+          trace.error = "graphql_error_envelope";
+          // Feedback loop: mark the endpoint stale so the next resolve hides
+          // it from available_endpoints. The capture is now known-broken
+          // (replay returns the GraphQL error envelope), and absent this
+          // signal the ranker keeps surfacing it at the same score. Same
+          // pattern as the 401/403 stale-endpoints path (see staleEndpointResult
+          // at L107). Best-effort; never break the human-facing error path.
+          try {
+            recordStaleEndpoint(skill.domain, endpoint.endpoint_id, 200, "unknown", undefined, "graphql_error_envelope");
+          } catch {
+            /* best-effort; never break the human-facing error path */
+          }
+          data = {
+            error: "graphql_error_envelope",
+            message: `Endpoint ${endpoint.endpoint_id} returned a GraphQL error envelope (data absent, errors[] populated). Server message(s): ${gqlEnvelope.messages.join("; ") || "(no message in error object)"}. The captured schema is stale; re-capture before trusting this endpoint.`,
+            graphql_errors: gqlEnvelope.messages,
+            drift_summary: recaptureSignal.drift_summary,
+            re_capture_signal: recaptureSignal,
+          };
+        } else {
+          data = {
+            error: "schema_drift_recapture_required",
+            message: `Endpoint ${endpoint.endpoint_id} response drifted from its learned schema in BREAKING ways (${recaptureSignal.reason}: removed=${classification.breaking_changes.removed_fields.length}, incompatible_type_changes=${classification.breaking_changes.incompatible_type_changes.length}); the served payload is not the contracted data. Re-learn the shape before trusting this endpoint.`,
+            drift_summary: recaptureSignal.drift_summary,
+            breaking_changes: classification.breaking_changes,
+            re_capture_signal: recaptureSignal,
+          };
+        }
         trace.result = data;
       } else if (recaptureSignal) {
         // Additive drift only — record the signal informationally so
@@ -6004,14 +6034,17 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // richer schema than the search results page.
     if (intent) {
       const intentLower2 = intent.toLowerCase();
+      // Write-shaped intent: user explicitly asked for a mutation.
+      // When present, write-endpoint demotions are suppressed.
+      const isWriteIntent = /\b(create|add|buy|order|checkout|book|reserve|send|post|publish|delete|update|edit|modify|remove)\b/i.test(intentLower2);
       const isReadIntent =
         /\b(search|find|list|browse|get|fetch|read|view|show|display|trending|popular|latest|results|results)\b/i.test(intentLower2) &&
-        !/\b(create|add|buy|order|checkout|book|reserve|send|post|publish|delete|update|edit|modify|remove)\b/i.test(intentLower2);
+        !isWriteIntent;
+      const epPathLower = (() => {
+        try { return new URL(ep.url_template).pathname.toLowerCase(); }
+        catch { return ep.url_template.toLowerCase(); }
+      })();
       if (isReadIntent) {
-        const epPathLower = (() => {
-          try { return new URL(ep.url_template).pathname.toLowerCase(); }
-          catch { return ep.url_template.toLowerCase(); }
-        })();
         const epActionKind = (ep.semantic?.action_kind ?? "").toLowerCase();
         // URL-path tokens that signal write/mutation — strong demotion
         const WRITE_PATH = /\/(cart|checkout|order|orders|buy|purchase|payment|payments|book|booking|reserve|signup|register|subscribe|delete|remove|update|edit|modify|add[-_]to[-_]?cart|add[-_]to[-_]?wishlist|favorite|like|unlike|follow|unfollow|vote|report|flag|abuse)\b/i;
@@ -6025,6 +6058,34 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         // POST without graphql / RPC hint on a read intent — penalize
         if (ep.method === "POST" && !/(graphql|rpc|search|query|fetch|list|get)/i.test(epPathLower)) {
           score -= 100;
+        }
+      }
+      // Mutation demotions: apply whenever the intent is NOT write-shaped.
+      // queryIntent reaches the ranker post-boilerplate-strip (selectSearchTermsForExecution
+      // / extractSearchTermsFromIntent), so "get dockerhub image tags" becomes
+      // "dockerhub image tags" and isReadIntent goes false. The signals below are
+      // structural (captured field + agent-augmented description prefix), not
+      // dependent on the read-verb surviving boilerplate stripping.
+      if (!isWriteIntent) {
+        // Structural mutation signal — captured endpoints flagged
+        // idempotency=unsafe will be refused by the executor with
+        // confirmation_required (see L2744). Such endpoints must never
+        // outrank safe peers when the user did not ask for a mutation.
+        // Real-world friction: dockerhub /v1/graphql GraphQL POST
+        // "Creates post" outranked GET tags endpoints
+        // (bench-gate 010_anchor 2026-05-19).
+        if (ep.idempotency === "unsafe") {
+          score -= 300;
+        }
+        // Agent-augmented descriptions reliably begin with the verb form
+        // for the operation kind ("Creates post with...", "Updates X...",
+        // "Deletes Y..."). When the description starts with a write verb
+        // and the user did not ask for a mutation, the endpoint is the
+        // wrong kind regardless of how rich its schema is. Structural
+        // pattern over the description field — not per-domain.
+        const descHead = (ep.description ?? "").trim();
+        if (/^(creates?|updates?|deletes?|removes?|sends?|adds?|publishes?|inserts?|destroys?|posts?\b)/i.test(descHead)) {
+          score -= 250;
         }
       }
     }

@@ -89,4 +89,59 @@ describe("A13 — read-intent demotes write-flavored endpoints", () => {
     expect(ranked.length).toBeGreaterThan(0);
     expect(ranked[0].endpoint.endpoint_id).toBe("list");
   });
+
+  // Regression: bench-gate 010_anchor 2026-05-19. Intent "get dockerhub image
+  // tags" → boilerplate stripper yields "dockerhub image tags", with no
+  // read-verb left. Original demotion gated on isReadIntent never fired, so
+  // a POST GraphQL "Creates post" mutation outranked GET reads.
+  test("idempotency=unsafe is demoted when intent is not write-shaped (post-strip)", () => {
+    const writeGql = ep({
+      endpoint_id: "write_gql",
+      url_template: "https://api.scout.docker.com/v1/graphql",
+      method: "POST",
+      idempotency: "unsafe",
+      description: "Creates post with imagesummariesbydigest, extensions, and ids",
+    });
+    const readGql = ep({
+      endpoint_id: "read_gql",
+      url_template: "https://api.scout.docker.com/v1/graphql",
+      method: "GET",
+      description: "Returns resource details",
+    });
+    // Boilerplate-stripped intent — no read verb survives, mimicking the
+    // queryIntent the orchestrator passes to rankEndpoints in production.
+    const ranked = rankEndpoints(
+      [writeGql, readGql],
+      "dockerhub image tags",
+      "docker.com",
+      "https://hub.docker.com/r/library/nginx/tags",
+    );
+    expect(ranked.length).toBeGreaterThan(0);
+    expect(ranked[0].endpoint.endpoint_id).toBe("read_gql");
+  });
+
+  test("description-prefix mutation verb is demoted when intent is not write-shaped", () => {
+    const createDesc = ep({
+      endpoint_id: "create_desc",
+      url_template: "https://api.example.com/v1/articles",
+      method: "POST",
+      description: "Creates article with title, body, and tags",
+    });
+    const readDesc = ep({
+      endpoint_id: "read_desc",
+      url_template: "https://api.example.com/v1/articles",
+      method: "GET",
+      description: "Returns article listings",
+    });
+    // Intent has no read or write verb — just the noun. New demotion must
+    // still fire on the description prefix.
+    const ranked = rankEndpoints(
+      [createDesc, readDesc],
+      "article listings",
+      "example.com",
+      "https://www.example.com/",
+    );
+    expect(ranked.length).toBeGreaterThan(0);
+    expect(ranked[0].endpoint.endpoint_id).toBe("read_desc");
+  });
 });
