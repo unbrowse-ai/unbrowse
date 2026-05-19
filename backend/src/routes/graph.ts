@@ -5,6 +5,7 @@ import type { GraphNode, GraphEdge } from "../services/graph.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { recordGraphFee, type GraphOperation } from "../services/fees.js";
+import { ingestEdgeOutcomes, projectConfidences, type EdgeOutcomeSignal } from "../services/graph-confidence.js";
 
 /** Record a graph fee in the background — never blocks or fails the response. */
 function chargeFee(env: Env, agentId: string, op: GraphOperation): void {
@@ -49,6 +50,50 @@ graphRoutes.post("/graph/edges", bearerAuth, requireSignedClient, async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     console.error("[graph/edges] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// POST /v1/graph/confidence: server-authoritative edge-confidence sync.
+//
+// This is the DAG moat boundary. The client sends already-sanitized
+// per-execution edge OUTCOMES up (domain + edge_id + succeeded + optional
+// negative weight; no payloads, no auth context, no secrets) and receives
+// the cross-user PROJECTED confidences back down. The learning math and the
+// per-edge aggregate counters live server-side only; a forked client never
+// sees them. When `outcomes` is empty the call is a read-only projection
+// (used at resolve to overlay the latest cross-user confidence).
+graphRoutes.post("/graph/confidence", bearerAuth, requireSignedClient, async (c) => {
+  const { domain, outcomes, edge_ids } = await c.req.json<{
+    domain: string;
+    outcomes?: EdgeOutcomeSignal[];
+    edge_ids?: string[];
+  }>();
+  if (!domain) return c.json({ error: "domain required" }, 400);
+  const reported = Array.isArray(outcomes) ? outcomes : [];
+  const wanted = Array.isArray(edge_ids) ? edge_ids : [];
+  if (reported.length === 0 && wanted.length === 0) {
+    return c.json({ error: "outcomes or edge_ids required" }, 400);
+  }
+  try {
+    const agentId = c.get("agent_id");
+    let projection = reported.length > 0
+      ? await ingestEdgeOutcomes(c.env, domain, reported)
+      : { confidences: {}, observations: {} };
+    // Cover any read-only edge_ids the caller asked about that weren't in
+    // the reported batch (resolve-time overlay path).
+    const missing = wanted.filter((id) => !(id in projection.confidences));
+    if (missing.length > 0) {
+      const extra = await projectConfidences(c.env, domain, missing);
+      projection = {
+        confidences: { ...projection.confidences, ...extra.confidences },
+        observations: { ...projection.observations, ...extra.observations },
+      };
+    }
+    chargeFee(c.env, agentId, "session");
+    return c.json({ ok: true, ...projection });
+  } catch (err) {
+    console.error("[graph/confidence] error:", (err as Error).message);
     return c.json({ error: (err as Error).message }, 500);
   }
 });

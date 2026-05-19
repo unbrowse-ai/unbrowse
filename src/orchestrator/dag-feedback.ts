@@ -12,7 +12,7 @@
 
 import { nanoid } from "nanoid";
 import { cachePublishedSkill, getApiKey } from "../client/index.js";
-import { recordSession, recordNegative } from "../client/graph-client.js";
+import { recordSession, recordNegative, syncEdgeConfidence, type EdgeOutcomeSignal } from "../client/graph-client.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
 import type { OperationBinding, SkillManifest, SkillOperationEdge, SkillOperationNode } from "../types/index.js";
 import { DEFAULT_BACKEND_URL } from "../version.js";
@@ -122,6 +122,38 @@ function adjustEdgeConfidences(
 function operationIdForEndpoint(skill: SkillManifest, endpointId: string): string | undefined {
   return skill.operation_graph?.operations.find((op) => op.endpoint_id === endpointId)
     ?.operation_id;
+}
+
+/**
+ * Report sanitized edge outcomes to the server-authoritative confidence
+ * store (the DAG moat). The cross-user online learning lives server-side;
+ * this only sends which graph edges a real execution traversed and whether
+ * it worked. No payloads, no auth context, no secrets.
+ *
+ * Fire-and-forget: a throw means the backend is unreachable, in which case
+ * the local cache write (degraded, no learning) is the fallback. Never
+ * blocks or breaks an execution.
+ *
+ * `weight` lets a judge-rejected result count as a stronger negative than a
+ * plain failure (mirrors the old local 2x-penalty intent) WITHOUT shipping
+ * the learning math to the client.
+ */
+function reportEdgeOutcomeToServer(
+  skill: SkillManifest,
+  operationId: string,
+  succeeded: boolean,
+  weight = 1,
+): void {
+  if (!skill.domain || !skill.operation_graph) return;
+  const outcomes: EdgeOutcomeSignal[] = skill.operation_graph.edges
+    .filter(
+      (edge) => edge.to_operation_id === operationId || edge.from_operation_id === operationId,
+    )
+    .map((edge) => ({ edge_id: edge.edge_id, succeeded, weight }));
+  if (outcomes.length === 0) return;
+  syncEdgeConfidence(skill.domain, outcomes).catch(() => {
+    /* backend unreachable; local cache fallback already applied */
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -308,6 +340,12 @@ export function recordDagSessionAction(
       succeeded ? "success" : "failure",
     ).catch(() => {});
   }
+
+  // Server-authoritative: report the sanitized edge outcome UP so the
+  // cross-user confidence is learned server-side. The local cache write
+  // above is the degraded fallback used only when the backend is
+  // unreachable; the server projection overlays it at resolve.
+  reportEdgeOutcomeToServer(skill, opId, succeeded);
 }
 
 /**
@@ -340,6 +378,11 @@ export function recordDagNegative(skill: SkillManifest, endpointId: string): voi
       endpointId,
     ).catch(() => {});
   }
+
+  // Server-authoritative: an explicit negative is a stronger signal than a
+  // plain failure: report it UP with weight 2 (mirrors the old local
+  // `PENALTY_STEP * 2` intent) without shipping the learning math here.
+  reportEdgeOutcomeToServer(skill, opId, false, 2);
 }
 
 /**

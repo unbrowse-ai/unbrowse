@@ -20,6 +20,7 @@ import {
   computeReachableEndpoints,
   ensureSkillOperationGraph,
   toAgentWorkflowDagView,
+  applyProjectedEdgeConfidences,
   filterDagOperationsByRankedEndpoints,
 } from "../graph/index.js";
 import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
@@ -27,6 +28,7 @@ import { getRegistrableDomain, isSameBrandDomain } from "../domain.js";
 import { extractTemplateQueryBindings, mergeContextTemplateParams, normalizeQueryBindingKey } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationGraph } from "./dag-feedback.js";
+import { syncEdgeConfidence, getCachedEdgeConfidenceProjection } from "../client/graph-client.js";
 import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
@@ -2307,8 +2309,28 @@ export async function resolveAndExecute(
         epRanked.sort((a, b) => b.score - a.score);
       }
     }
-    // Graph-aware reachability filter
-    const deferGraph = ensureSkillOperationGraph(endpointScopedSkill);
+    // Graph-aware reachability filter. Edge confidences are
+    // server-authoritative (the DAG moat): the structural topology is built
+    // locally, but the cross-user online-learned confidence is projected
+    // down here. The projection is whatever the server last returned for
+    // this domain (cached in-process by syncEdgeConfidence, refreshed by the
+    // fire-and-forget outcome reports). Degraded fallback: no cached
+    // projection (backend never reached) leaves the local last-known /
+    // structural confidence in place; resolve never hard-fails on this.
+    let deferGraph = ensureSkillOperationGraph(endpointScopedSkill);
+    if (endpointScopedSkill.domain && deferGraph.edges.length > 0) {
+      // Fire-and-forget refresh so the NEXT resolve sees the latest
+      // cross-user projection. Never blocks this resolve.
+      void syncEdgeConfidence(
+        endpointScopedSkill.domain,
+        [],
+        deferGraph.edges.map((edge) => edge.edge_id),
+      ).catch(() => { /* backend unreachable; keep cached/local */ });
+      deferGraph = applyProjectedEdgeConfidences(
+        deferGraph,
+        getCachedEdgeConfidenceProjection(endpointScopedSkill.domain),
+      );
+    }
     const reachableIds = computeReachableEndpoints(deferGraph, knownBindings);
     if (reachableIds.size > 0) {
       const reachableEndpointIds = new Set(
