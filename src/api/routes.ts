@@ -35,6 +35,7 @@ import { isEndpointStale, buildAuthHint } from "../auth/stale-endpoints.js";
 import { consumeDashboardPairingToken, recordFeedback, recordDiagnostics, recordExecution, getApiKey, getAgentId, getRecentLocalSkill, recordAnalyticsSession, listSkills, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
+import { traceAsync } from "../logger.js";
 import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
@@ -2586,6 +2587,10 @@ export async function registerRoutes(app: FastifyInstance) {
       captureUrl: session.url,
       harEntries,
       intent: `browse ${session.domain || profileName(session.url)}`,
+      // Periodic streaming checkpoint: snapshot what is already captured.
+      // The first-capture content-ready wait belongs to the one-shot
+      // close/sync path (flushBrowseCapture), not this 10s repeating tick.
+      skipContentReadyWait: true,
     });
 
     // Removed the `allRequests.length === 0` early-return so SSR-only pages
@@ -2684,7 +2689,7 @@ export async function registerRoutes(app: FastifyInstance) {
       const live = browseSessions.get(session.sessionId);
       if (!live || !live.harActive) return;
       try {
-        const flushed = await lightFlushBrowseCapture(live);
+        const flushed = await traceAsync("streaming", session.sessionId, "tick", () => lightFlushBrowseCapture(live));
         const state = streamingState.get(session.sessionId);
         if (!state) return;
         const grew = flushed.endpoint_count > state.lastEndpointCount
@@ -2764,24 +2769,24 @@ export async function registerRoutes(app: FastifyInstance) {
     let harEntries: KuriHarEntry[] = [];
     if (session.harActive) {
       try {
-        const { entries } = await brokerForSession(session).harStop(session.tabId);
+        const { entries } = await traceAsync("close", session.sessionId, "har-stop", () => brokerForSession(session).harStop(session.tabId));
         harEntries = entries;
       } catch { /* non-fatal */ }
     }
     harEntries = [...drainInspectedHarEntries(session.sessionId), ...harEntries];
     session.harActive = false;
 
-    const allRequests = await enrichPassiveCaptureRequests({
+    const allRequests = await traceAsync("close", session.sessionId, "enrich-capture", () => enrichPassiveCaptureRequests({
       tabId: session.tabId,
       captureUrl: session.url,
       harEntries,
       intent: `browse ${session.domain || profileName(session.url)}`,
-    });
+    }));
 
     // Collect JS bundle bodies for token source scanning
     const jsBundles = new Map<string, string>();
     try {
-      const intercepted = await collectInterceptedRequests(session.tabId).catch(() => []);
+      const intercepted = await traceAsync("close", session.sessionId, "collect-js-intercepted", () => collectInterceptedRequests(session.tabId).catch(() => []));
       for (const entry of intercepted) {
         if (entry.is_js && entry.response_body && jsBundles.size < 20) {
           jsBundles.set(entry.url, entry.response_body);
@@ -2792,7 +2797,7 @@ export async function registerRoutes(app: FastifyInstance) {
     // for auth-header extraction only. These capture Authorization / x-csrf-* / etc. from
     // XHRs the JS interceptor and HAR missed. Generic — works for any domain.
     const cdpExtraAuthRequests = getCapturedNetworkHeadersAsRequests(session.tabId);
-    const syncResult = await cacheBrowseRequests({
+    const syncResult = await traceAsync("close", session.sessionId, "cache-requests", () => cacheBrowseRequests({
       sessionUrl: session.url,
       sessionDomain: session.domain,
       requests: allRequests,
@@ -2806,7 +2811,7 @@ export async function registerRoutes(app: FastifyInstance) {
           return c.map((k) => ({ name: k.name, value: k.value, domain: k.domain }));
         } catch { return []; }
       },
-    });
+    }));
 
     // Persist domain-skill-cache SYNCHRONOUSLY so resolve can find this skill
     // immediately after close, without waiting for background index pipeline.
@@ -3609,38 +3614,36 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/browse/close", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: syncResult } = await withSerializedStrictBrowseSession(
+      const { session, result: syncResult } = await traceAsync("close", requestedSessionId(req), "close-total", () => withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
         requestedSessionId(req),
         async (session) => {
           const broker = brokerForSession(session);
-          if (session.domain) {
-            await saveAuthProfileBestEffort(session.tabId, session.domain, "browse_close");
+          const dom = session.domain;
+          if (dom) {
+            await traceAsync("close", session.sessionId, "save-auth", () => saveAuthProfileBestEffort(session.tabId, dom, "browse_close"));
           }
-          const syncResult = await flushBrowseCapture(session, { queueIndex: true, queuePublish: true });
+          const syncResult = await traceAsync("close", session.sessionId, "flush-capture", () => flushBrowseCapture(session, { queueIndex: true, queuePublish: true }));
           stopStreamingWatcher(session.sessionId);
-          await broker.closeTab(session.tabId).catch(() => {});
+          await traceAsync("close", session.sessionId, "close-tab", () => broker.closeTab(session.tabId).catch(() => {}));
           const closedBrokerPort = session.brokerPort;
           removeBrowseSession(browseSessions, session.sessionId);
           // Per-session broker shutdown. When this session was on a dedicated
           // broker (port >= PER_SESSION_BROKER_BASE_PORT) and no other live
           // session still uses that port, tear down the kuri+chrome processes
-          // so they don't leak. Pre-fix: every session_id since the broker
-          // isolation fix allocated a fresh kuri + chrome that never got
-          // stopped on close, so a single MCP session piled up 9 brokers +
-          // 10 chromes after 5 closes (sample-{anchor-mdn,rank-reddit,...}).
-          // Pool brokers (port < base) are intentionally kept; they're reused.
+          // so they don't leak. Pool brokers (port < base) are intentionally
+          // kept; they're reused.
           if (
             typeof closedBrokerPort === "number"
             && closedBrokerPort >= PER_SESSION_BROKER_BASE_PORT
             && ![...browseSessions.values()].some((s) => s.brokerPort === closedBrokerPort)
           ) {
-            await broker.stop().catch(() => {});
+            await traceAsync("close", session.sessionId, "broker-stop", () => broker.stop().catch(() => {}));
           }
           return syncResult;
         },
-      );
+      ));
       return reply.send({
         ok: true,
         checkpointed: true,

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getKuriErrorMessage } from "../kuri/client.js";
 import { recordSessionCreate, recordSessionDrop, recordSessionUpdate } from "./session-store.js";
+import { traceAsync } from "../logger.js";
 
 export interface BrowseSession {
   sessionId: string;
@@ -555,7 +556,7 @@ async function withSessionQueue<T>(sessionId: string, fn: () => Promise<T>): Pro
   });
   const gate = prev.catch(() => {}).then(() => waitTurn);
   sessionQueues.set(sessionId, gate);
-  await prev.catch(() => {});
+  await traceAsync("session-queue", sessionId, "lock-wait", () => prev.catch(() => {}));
   try {
     return await fn();
   } finally {
@@ -668,14 +669,14 @@ export async function withSerializedStrictBrowseSession<T>(
     const session = sessions.get(resolved.sessionId);
     if (!session) throw new BrowseSessionError("session_expired");
 
-    const live = await isBrowseSessionLive(session, client);
+    const live = await traceAsync("browse-strict", resolved.sessionId, "liveness", () => isBrowseSessionLive(session, client));
     if (!live) {
       removeBrowseSession(sessions, resolved.sessionId);
       throw new BrowseSessionError("session_expired");
     }
 
     try {
-      const result = await run(session);
+      const result = await traceAsync("browse-strict", resolved.sessionId, "run", () => run(session));
       if (shouldExpire?.(result)) {
         const stillLive = await isBrowseSessionLive(session, client);
         if (!stillLive) {
