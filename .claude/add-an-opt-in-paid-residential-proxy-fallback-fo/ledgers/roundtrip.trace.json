@@ -1,0 +1,15 @@
+{
+  "ts": "2026-05-19T21:29:35.280976+00:00",
+  "target_url": "https://httpbin.org/status/429",
+  "ip_url": "https://httpbin.org/ip",
+  "creds_present": false,
+  "skipped_reason": "IPROYAL_USER or IPROYAL_PASS unset",
+  "what_a_live_run_would_collect": {
+    "step_1": "direct fetch of TARGET_URL \u2014 expected 429",
+    "step_2": "proxied fetch via IProyal \u2014 observe post-proxy status and body",
+    "step_3": "direct fetch of IP_URL \u2014 record baseline origin IP",
+    "step_4": "proxied fetch of IP_URL \u2014 record proxied origin IP, compare",
+    "step_5": "POST /v1/account/proxy-surcharge \u2014 record ledger_id and surcharge amount"
+  },
+  "next_step_for_agent": "set IPROYAL_USER+IPROYAL_PASS and re-run; agent then judges whether the proxied retry unblocked the target and the surcharge ledger row landed."
+}

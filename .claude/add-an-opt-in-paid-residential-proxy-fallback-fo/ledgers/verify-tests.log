@@ -1,0 +1,41 @@
+bun test v1.3.13 (bf2e2cec)
+
+tests/proxy-fallback-429.test.ts:
+[payment] skill-httpbin: lobster available — proceeding with auto-pay
+[21:28:11] [auth] no vault cookies for httpbin.org — auto-extracting from browser
+[21:28:11] [auth] extracted 0 cookies for httpbin.org from Chrome default profile
+[21:28:11] [auth] extracted 0 cookies for httpbin.org from Chrome user data "/Users/lekt9/Library/Application Support/Google/Chrome"
+[21:28:11] [auth] extracted 0 cookies for httpbin.org from Dia user data "/Users/lekt9/Library/Application Support/Dia/User Data"
+[21:28:11] [exec] auth_tokens check: 0 bindings on ep-httpbin
+[21:28:11] [exec] endpoint ep-httpbin: cookies=0 authHeaders=0 hasAuth=false
+[payment] skill-httpbin: lobster available — proceeding with auto-pay
+[21:28:15] [auth] no vault cookies for httpbin.org — auto-extracting from browser
+[21:28:15] [auth] extracted 0 cookies for httpbin.org from Chrome default profile
+[21:28:15] [auth] extracted 0 cookies for httpbin.org from Chrome user data "/Users/lekt9/Library/Application Support/Google/Chrome"
+[21:28:15] [auth] extracted 0 cookies for httpbin.org from Dia user data "/Users/lekt9/Library/Application Support/Dia/User Data"
+[21:28:15] [exec] auth_tokens check: 0 bindings on ep-httpbin
+[21:28:15] [exec] endpoint ep-httpbin: cookies=0 authHeaders=0 hasAuth=false
+
+backend/tests/x402-skill-route.test.ts:
+[sponsor] PLATFORM_SPONSOR_WALLET_ADDRESS/PLATFORM_SPONSOR_WALLET_KEY not set; sponsor mode refuses-to-enable. Standard 402 flow unchanged.
+[flex] buildFlexPaymentTerms failed: FLEX_PLATFORM_RECIPIENT_USDC_ATA does not look like a base58 Solana address (got length=45). Expected a 32-44 char base58 USDC ATA pubkey.
+156 |         payTo: string;
+157 |         extra: { splits: Array<{ recipient: string; bps: number }>; programId: string };
+158 |       }>;
+159 |     };
+160 | 
+161 |     expect(res.status).toBe(402);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 402
+Received: 500
+
+      at <anonymous> (/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/backend/tests/x402-skill-route.test.ts:161:24)
+(fail) public skill x402 route — Flex envelope (v6.16) > returns Flex envelope when agent is fully onboarded (has flex_escrow_address) [16.66ms]
+
+ 14 pass
+ 2 skip
+ 1 fail
+ 34 expect() calls
+Ran 17 tests across 3 files. [5.84s]
