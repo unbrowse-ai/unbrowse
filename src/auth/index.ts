@@ -60,19 +60,34 @@ export function getAuthenticatedCookiesForDomain(
   );
 }
 
-export async function importBrowserCookiesIntoTab(tabId: string, domain: string): Promise<number> {
+export async function importBrowserCookiesIntoTab(
+  tabId: string,
+  domain: string,
+  client?: kuri.KuriClient,
+): Promise<number> {
   if (!shouldImportBrowserCookies()) return 0;
 
   try {
     const { extractBrowserCookies, findBestBrowserSession } = await import("./browser-cookies.js");
-    // Try all browsers, pick the one with the best session for this domain
     const bestSession = findBestBrowserSession(domain);
     const cookies = bestSession ? bestSession.cookies : extractBrowserCookies(domain).cookies;
-    let setCallsOk = 0;
 
+
+    // B-023 fix v3 2026-05-19: routes.ts's /v1/browse/go uses per-session
+    // brokers (selectBrowseBrokerClient → brokerForSession) that live on
+    // their OWN ports. The previous implementation called
+    // kuri.setCookie(...) which defaults to the singleton default broker
+    // at port 7700 — the WRONG broker for the per-session tab. Result:
+    // every gate probe got 404 "Tab not found" and jarCount=0 even
+    // though the diagnostic primitive (single default broker) hit jar=22.
+    // Threading the per-session client through fixes the broker mismatch.
+    const setCookie = client ? client.setCookie.bind(client) : kuri.setCookie;
+    const getCookies = client ? client.getCookies.bind(client) : kuri.getCookies;
+
+    let setCallsOk = 0;
     for (const cookie of cookies) {
       try {
-        await kuri.setCookie(tabId, cookie);
+        await setCookie(tabId, cookie);
         setCallsOk += 1;
       } catch (error) {
         log(
@@ -90,7 +105,7 @@ export async function importBrowserCookiesIntoTab(tabId: string, domain: string)
     // on `cookies_injected > 0` was reading a lying counter.
     let jarCount = 0;
     try {
-      const jar = await kuri.getCookies(tabId);
+      const jar = await getCookies(tabId);
       for (const cookie of jar) {
         if (isDomainMatch(cookie.domain, domain)) jarCount += 1;
       }
