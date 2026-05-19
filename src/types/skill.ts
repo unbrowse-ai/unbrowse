@@ -224,6 +224,14 @@ export interface EndpointDescriptor {
   graph_visibility?: GraphVisibility;
   /** Server-owned corroboration counters used for staged promotion. */
   corroboration?: EndpointCorroboration;
+  /** Loop 4 (B-023 follow-up): admission-time signal that the captured response
+   *  body looked like a login-wall page (HTML + title contains sign in / log in
+   *  / signin / login). Set in `extractEndpoints` from the raw response body
+   *  shape. Read by `rankEndpoints` to demote auth_walled endpoints below
+   *  sibling data XHRs for content-read intents — so x.com/home (LoggedOutShell
+   *  HTML, scored ~229 from URL-exact-match against the probe url) stops
+   *  outranking HomeTimeline graphql XHRs at the top of the shortlist. */
+  auth_walled?: boolean;
   /** Semantic v2 metadata for endpoint-level retrieval and DAG planning */
   semantic?: EndpointSemanticDescriptor;
   /** Path template inferred by batch mining (passive captures without a context page URL).

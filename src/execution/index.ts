@@ -6028,6 +6028,21 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       score = Math.min(score, 60);
     }
 
+    // Loop 4 (B-023 follow-up): demote auth_walled endpoints below sibling
+    // data XHRs when the intent is NOT auth-shaped. The auth_walled signal
+    // is set at admission (extractEndpoints/detectAuthWalled) based on
+    // response body shape — no per-domain registry. Magnitude (350) is
+    // larger than the typical URL-exact-match boost (~229 observed on
+    // x.com /home vs HomeTimeline -15) so the demoted SSR page sorts
+    // below any sibling negative-scored XHR. When the intent itself
+    // includes auth keywords (sign in / log in / signin / login / signup),
+    // the demotion is suppressed — the user explicitly asked for the
+    // auth page.
+    if (ep.auth_walled && intent) {
+      const intentIsAuthShaped = /\b(sign[\s\-_]?in|log[\s\-_]?in|sign[\s\-_]?up|signin|login|signup|auth(?:enticate)?)\b/i.test(intent);
+      if (!intentIsAuthShaped) score -= 350;
+    }
+
     return { endpoint: ep, score };
   });
 
