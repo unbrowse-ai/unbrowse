@@ -17,7 +17,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 env:
   STAGING_HOST: lekt8@89.169.121.108
@@ -196,101 +195,3 @@ jobs:
             }
             main().catch(() => {});
           '
-
-  file-issue-on-failure:
-    name: Auto-File GitHub Issue
-    runs-on: self-hosted
-    needs: [verify-on-staging, traction-watchdog]
-    if: |
-      always() && (
-        needs.verify-on-staging.outputs.failed == 'true' ||
-        needs.traction-watchdog.outputs.anomaly_detected == 'true'
-      )
-    permissions:
-      issues: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check for existing open issue
-        id: existing
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Don't spam — check if we already have an open regression issue
-          EXISTING="$(gh issue list --label "regression,automated" --state open --limit 1 --json number -q '.[0].number' || true)"
-          if [[ -n "$EXISTING" ]]; then
-            echo "existing_issue=$EXISTING" >> "$GITHUB_OUTPUT"
-            echo "Found existing open issue #$EXISTING — will comment instead of creating new"
-          else
-            echo "existing_issue=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build issue body
-        id: body
-        run: |
-          VERIFY_FAILED="${{ needs.verify-on-staging.outputs.failed }}"
-          VERIFY_VERSION="${{ needs.verify-on-staging.outputs.version }}"
-          VERIFY_REPORT="${{ needs.verify-on-staging.outputs.report }}"
-          TRACTION_ANOMALY="${{ needs.traction-watchdog.outputs.anomaly_detected }}"
-          TRACTION_DETAILS="${{ needs.traction-watchdog.outputs.anomaly_details }}"
-
-          cat > /tmp/issue-body.md <<'ISSUE_EOF'
-          ## Automated Regression Report
-
-          **Detected at:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          **Trigger:** ${{ github.event_name }}
-          **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          ISSUE_EOF
-
-          if [[ "$VERIFY_FAILED" == "true" ]]; then
-            cat >> /tmp/issue-body.md <<VERIFY_EOF
-          ### Staging VM Verification Failed (v${VERIFY_VERSION})
-
-          \`\`\`json
-          ${VERIFY_REPORT}
-          \`\`\`
-          VERIFY_EOF
-          fi
-
-          if [[ "$TRACTION_ANOMALY" == "true" ]]; then
-            cat >> /tmp/issue-body.md <<TRACTION_EOF
-
-          ### Traction Anomaly Detected
-
-          ${TRACTION_DETAILS}
-
-          This may indicate a breaking change in a recent release that is causing agent churn.
-          Check recent commits and releases for regressions in the resolve/execute pipeline.
-          TRACTION_EOF
-          fi
-
-          cat >> /tmp/issue-body.md <<'FOOTER_EOF'
-
-          ---
-          *Filed automatically by post-release-verify.yml. Fix the regression and close this issue.*
-          FOOTER_EOF
-
-      - name: Create or update issue
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          EXISTING="${{ steps.existing.outputs.existing_issue }}"
-          VERSION="${{ needs.verify-on-staging.outputs.version }}"
-          TITLE="[automated] Regression detected in v${VERSION:-unknown}"
-
-          # Ensure labels exist
-          gh label create "regression" --color "B60205" --description "Automated regression detection" --force 2>/dev/null || true
-          gh label create "automated" --color "FBCA04" --description "Filed by CI automation" --force 2>/dev/null || true
-
-          if [[ -n "$EXISTING" ]]; then
-            gh issue comment "$EXISTING" --body-file /tmp/issue-body.md
-            echo "Updated existing issue #$EXISTING"
-          else
-            gh issue create \
-              --title "$TITLE" \
-              --body-file /tmp/issue-body.md \
-              --label "regression,automated" \
-              --assignee "lewistham9x"
-            echo "Created new regression issue"
-          fi
