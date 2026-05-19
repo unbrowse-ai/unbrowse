@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getInProcessApp } from "./runtime/in-process-app.js";
+import { traceAsync } from "./logger.js";
 import { listWorkflowPublishArtifacts, readWorkflowPublishArtifact } from "./workflow/publish.js";
 import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
@@ -1229,7 +1230,7 @@ async function api(method: string, route: string, body?: unknown): Promise<unkno
   // inject against the same route surface server.ts would listen on. Kuri
   // (the separate CDP broker) holds the only live state.
   const app = await getInProcessApp();
-  const res = await app.inject({
+  const res = await traceAsync("mcp", undefined, `inject:${method} ${route}`, () => app.inject({
     method: method as "GET" | "POST",
     url,
     headers: {
@@ -1237,7 +1238,7 @@ async function api(method: string, route: string, body?: unknown): Promise<unkno
       "x-unbrowse-client-id": CLIENT_ID,
     },
     payload: payload !== undefined ? JSON.stringify(payload) : undefined,
-  });
+  }));
 
   const ct = res.headers["content-type"];
   const ctStr = Array.isArray(ct) ? ct.join(";") : String(ct ?? "");
@@ -3028,7 +3029,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
     const telemetryLogger = getSessionLogger();
     const callId = telemetryLogger.recordToolStart(name, toolArgs);
     try {
-      const result = await tool.handler(toolArgs);
+      const result = await traceAsync("mcp", undefined, `tools-call:${name}`, () => tool.handler(toolArgs));
       // Pull decision_trace out of structured results if the handler
       // produced one (resolve/execute do). Pass through unmodified —
       // it's already structural (step names per the convention).

@@ -1077,15 +1077,26 @@ export async function enrichPassiveCaptureRequests(params: {
   captureUrl: string;
   harEntries: kuri.KuriHarEntry[];
   intent?: string;
+  // When true, skip waitForContentReady's first-capture settle (up to ~1s
+  // initial + 5s readyState + 8s intent-aware poll). That wait exists to give
+  // a freshly-navigated SPA time to fire its XHRs on a ONE-SHOT capture
+  // (close/sync). The periodic streaming checkpoint re-enters this function
+  // every STREAMING_INTERVAL_MS on the SAME long-lived tab; paying the full
+  // wait every tick means a no-API page burns ~8.3s out of every 10s forever
+  // (proven via scope=streaming phase=tick dur traces). A periodic snapshot
+  // must only enrich what is ALREADY captured; the thorough wait stays on the
+  // one-shot close/sync path. Caller-declared, default false (no behavior
+  // change for close/sync).
+  skipContentReadyWait?: boolean;
 }): Promise<RawRequest[]> {
-  const { tabId, captureUrl, harEntries, intent } = params;
+  const { tabId, captureUrl, harEntries, intent, skipContentReadyWait } = params;
   const responseBodies = new Map<string, string>();
   const perfEntries = await collectPerformanceResourceEntries(tabId).catch(() => []);
 
   let intercepted = await collectInterceptedRequests(tabId).catch(() => []);
   appendInterceptedResponseBodies(intercepted, responseBodies);
 
-  if (intercepted.length === 0 && harEntries.length === 0) {
+  if (!skipContentReadyWait && intercepted.length === 0 && harEntries.length === 0) {
     await waitForContentReady(tabId, captureUrl, intent, responseBodies).catch(() => {});
     intercepted = await collectInterceptedRequests(tabId).catch(() => intercepted);
     appendInterceptedResponseBodies(intercepted, responseBodies);
