@@ -16,8 +16,8 @@
  * No mocks. Pure-function unit tests against the real classifier.
  */
 
-import { test, expect } from "bun:test";
-import { classifyDrift } from "../src/transform/drift-classifier.js";
+import { test, expect, beforeEach, afterEach } from "bun:test";
+import { classifyDrift, detectGraphqlErrorEnvelope } from "../src/transform/drift-classifier.js";
 import type { DriftResult } from "../src/types/index.js";
 
 function drift(input: Partial<DriftResult>): DriftResult {
@@ -138,4 +138,94 @@ test("classify: drifted but only additive returns is_breaking=false (#030 pubmed
     drift({ added_fields: ["title", "url"] }),
   );
   expect(c.is_breaking).toBe(false);
+});
+
+// --- detectGraphqlErrorEnvelope ---
+// Regression: bench-gate 010_anchor 2026-05-19 dockerhub
+// api.scout.docker.com/v1/graphql returned {errors: [{message: "..."}]} with
+// no data — schema_drift fired and hid the actual GraphQL error from the agent.
+
+test("envelope: errors[] populated and data absent is an envelope, messages extracted", () => {
+  const result = detectGraphqlErrorEnvelope({
+    errors: [{ message: "unauthorized" }, { message: "missing input" }],
+  });
+  expect(result.is_envelope).toBe(true);
+  expect(result.messages).toEqual(["unauthorized", "missing input"]);
+});
+
+test("envelope: errors[] populated and data null is still an envelope (graphql nulls data on full error)", () => {
+  const result = detectGraphqlErrorEnvelope({
+    errors: [{ message: "query rejected" }],
+    data: null,
+  });
+  expect(result.is_envelope).toBe(true);
+  expect(result.messages).toEqual(["query rejected"]);
+});
+
+test("envelope: data populated rules out envelope even when errors[] also present (partial-success graphql)", () => {
+  const result = detectGraphqlErrorEnvelope({
+    data: { user: { id: 1 } },
+    errors: [{ message: "deprecated field used" }],
+  });
+  expect(result.is_envelope).toBe(false);
+  expect(result.messages).toEqual([]);
+});
+
+test("envelope: errors must be a non-empty array", () => {
+  expect(detectGraphqlErrorEnvelope({ errors: [] }).is_envelope).toBe(false);
+  expect(detectGraphqlErrorEnvelope({ errors: "string-not-array" }).is_envelope).toBe(false);
+  expect(detectGraphqlErrorEnvelope({}).is_envelope).toBe(false);
+});
+
+test("envelope: rejects non-object inputs (string, null, array)", () => {
+  expect(detectGraphqlErrorEnvelope(null).is_envelope).toBe(false);
+  expect(detectGraphqlErrorEnvelope(undefined).is_envelope).toBe(false);
+  expect(detectGraphqlErrorEnvelope("error string").is_envelope).toBe(false);
+  expect(detectGraphqlErrorEnvelope([{ message: "x" }]).is_envelope).toBe(false);
+});
+
+test("envelope: error objects without message field are skipped from extraction", () => {
+  const result = detectGraphqlErrorEnvelope({
+    errors: [
+      { message: "good msg" },
+      { code: "no_message_here" },
+      "plain string instead of object",
+    ],
+  });
+  expect(result.is_envelope).toBe(true);
+  expect(result.messages).toEqual(["good msg"]);
+});
+
+// --- recordStaleEndpoint feedback loop for graphql_error_envelope ---
+// Regression: bench-gate 010_anchor 2026-05-19 dockerhub kept ranking the
+// known-broken graphql GET endpoint at score 36.6 across runs because the
+// envelope failure was not fed back into the stale-endpoints store. The
+// existing 401/403 path already records to stale-endpoints (see
+// staleEndpointResult); the envelope path now does the same with a distinct
+// reason so the agent can tell why the endpoint was hidden.
+
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { recordStaleEndpoint, isEndpointStale, listStaleEndpoints, type StaleReason } from "../src/auth/stale-endpoints.js";
+
+let tmp: string;
+
+beforeEach(() => {
+  tmp = mkdtempSync(join(tmpdir(), "stale-test-"));
+  process.env.UNBROWSE_STALE_ENDPOINTS_PATH = join(tmp, "stale-endpoints.json");
+});
+
+afterEach(() => {
+  delete process.env.UNBROWSE_STALE_ENDPOINTS_PATH;
+  rmSync(tmp, { recursive: true, force: true });
+});
+
+test("stale-record: graphql_error_envelope is an allowed reason and round-trips", () => {
+  recordStaleEndpoint("hub.docker.com", "2dDqJBfd8VsJ4nB8BPB0J", 200, "unknown", undefined, "graphql_error_envelope");
+  expect(isEndpointStale("hub.docker.com", "2dDqJBfd8VsJ4nB8BPB0J")).toBe(true);
+  const all = listStaleEndpoints("hub.docker.com");
+  expect(all.length).toBe(1);
+  expect(all[0]?.reason).toBe<StaleReason>("graphql_error_envelope");
+  expect(all[0]?.status).toBe(200);
 });
