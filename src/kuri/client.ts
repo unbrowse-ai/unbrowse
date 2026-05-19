@@ -219,6 +219,48 @@ function forgetBrokerClient(state: BrokerState): void {
   brokerClients.delete(brokerCacheKey(state.port));
 }
 
+// Global semaphore around the kuri-spawn work. The per-broker
+// `state.startPromise` already single-flights concurrent calls for the
+// SAME broker, but distinct sessions own distinct brokers — so N
+// concurrent /v1/browse/go calls each trigger their own spawn, and the
+// host's chrome PIDs / ports / file-descriptor budget runs out after
+// ~6-8 simultaneous spawns. Gate run 20260518T125601Z surfaced this
+// as "Kuri failed to start after 4 attempts" on probes 019-058 once
+// the earlier failure modes (kuri.evaluate / liveness / concat-reject)
+// stopped short-circuiting probes.
+//
+// This bounds the total in-flight spawn count to a small K (env
+// KURI_SPAWN_CONCURRENCY, default 4) and queues the rest. Each waiter
+// resolves when an active spawn finishes. The semaphore wraps ONLY the
+// expensive process-launch + chrome-startup work; reuse-existing-broker
+// short-circuits don't take a slot.
+const KURI_SPAWN_CONCURRENCY = Math.max(
+  1,
+  Number(process.env.KURI_SPAWN_CONCURRENCY) || 4,
+);
+let activeKuriSpawns = 0;
+const kuriSpawnWaiters: Array<() => void> = [];
+
+export function _kuriSpawnSemaphoreStateForTests(): { active: number; queued: number; cap: number } {
+  return { active: activeKuriSpawns, queued: kuriSpawnWaiters.length, cap: KURI_SPAWN_CONCURRENCY };
+}
+
+async function acquireKuriSpawnSlot(): Promise<() => void> {
+  if (activeKuriSpawns < KURI_SPAWN_CONCURRENCY) {
+    activeKuriSpawns += 1;
+  } else {
+    await new Promise<void>((resolve) => kuriSpawnWaiters.push(resolve));
+    activeKuriSpawns += 1;
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    activeKuriSpawns -= 1;
+    const next = kuriSpawnWaiters.shift();
+    if (next) next();
+  };
+}
 function envFlag(value: string | undefined): boolean {
   return value === "1" || value?.toLowerCase() === "true";
 }
@@ -256,33 +298,40 @@ export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): K
   }
   const cleanRoom = envFlag(env.UNBROWSE_LOCAL_ONLY) || envFlag(env.KURI_CLEAN_ROOM);
   const disableCdpAttach = envFlag(env.KURI_DISABLE_CDP_ATTACH);
-  // Default-on opportunistic attach (North Star): if Chrome is already running
-  // on a known CDP port (9222 today), attach to it instead of launching a
-  // separate managed Chrome. Captures every tab any agent opens — chrome-
-  // devtools MCP, Playwright, the user's own logged-in Chrome — through one
-  // pipeline. When no existing Chrome is found, Kuri falls through to the
-  // managed-Chrome launch, preserving Kuri-native auth (cookie injection,
-  // stealth, keychain auth-profile) as the primary capture mode.
-  // Follow-up: rebuild Kuri Zig binary to spawn Chrome on a dedicated port
-  // (42069) instead of 9222, then advertise via CHROME_DEBUG_URL — that lets
-  // us avoid touching the user's personal Chrome by accident.
-  // Opt-out: env KURI_DISABLE_CDP_ATTACH=1 / UNBROWSE_LOCAL_ONLY=1 /
-  // KURI_CLEAN_ROOM=1 (per-process), OR the persisted user setting
-  // unbrowse_settings browser.attach_existing_chrome=false. Default stays
-  // attach (North Star). Defensive: any settings-read failure keeps the
-  // attach default so a broken config can never wedge kuri launch.
-  let attachDisabledBySetting = false;
+  // Default-OFF opportunistic attach (flipped 2026-05-18): kuri no longer
+  // silently attaches to whatever Chrome instance happens to be running
+  // with CDP. The original "attach by default" North Star (catch every
+  // tab any agent opens through one pipeline) had a hidden cost: when
+  // the user has Chrome open (Claude Code, a debugger, daily browsing),
+  // every bench-gate run, every automated capture, every privacy-
+  // sensitive flow silently coupled to the user's visible browser —
+  // bypassing HEADLESS=true entirely, because headless only governs
+  // MANAGED Chrome that kuri launches itself, not chrome it attached to.
+  //
+  // Post-flip, attach is OPT-IN: set env `KURI_ATTACH_EXISTING_CHROME=1`
+  // OR the persisted setting `browser.attach_existing_chrome=true`. The
+  // existing opt-OUT flags (KURI_DISABLE_CDP_ATTACH / UNBROWSE_LOCAL_ONLY
+  // / KURI_CLEAN_ROOM) still trump opt-in (so a CI pipeline can force
+  // clean-room even if a user setting tries to attach).
+  //
+  // Defensive: any settings-read failure keeps attach OFF — a broken
+  // config can never silently flip a user into hijacking their visible
+  // browser.
+  const explicitAttachEnv = envFlag(env.KURI_ATTACH_EXISTING_CHROME);
+  let attachEnabledBySetting = false;
   try {
-    attachDisabledBySetting = getBrowserAttachEnabled() === false;
+    attachEnabledBySetting = getBrowserAttachEnabled() === true;
   } catch {
-    attachDisabledBySetting = false;
+    attachEnabledBySetting = false;
   }
-  const attachToExistingChrome = !disableCdpAttach && !cleanRoom && !attachDisabledBySetting;
+  const attachToExistingChrome =
+    (explicitAttachEnv || attachEnabledBySetting) && !disableCdpAttach && !cleanRoom;
   return {
     headless,
     attachToExistingChrome,
   };
 }
+
 
 function kuriBinaryName(): string {
   return process.platform === "win32" ? "kuri.exe" : "kuri";
@@ -753,6 +802,16 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
     // Reuse only when the broker is healthy and either CDP or tabs are still reachable.
     if (await reuseHealthyBrokerIfPossible(state, launchConfig)) return;
 
+    // From here on we'll spawn a fresh kuri process + (optionally) a
+    // managed Chrome — both expensive and resource-bound. Bound the
+    // GLOBAL concurrent spawn count via the module-level semaphore so
+    // sustained-load runs (bench-gate, parallel collectors, codex
+    // workers) can't exhaust the host's chrome PIDs / ports / FDs.
+    // Reuse short-circuits above bypass the slot, so cold brokers
+    // already running don't pay this cost.
+    const releaseSpawnSlot = await acquireKuriSpawnSlot();
+    try {
+
     const binary = findKuriBinary();
     log("kuri", `starting: ${binary} on port ${state.port}`);
     if (!existsSync(binary)) {
@@ -872,6 +931,9 @@ async function startOn(state: BrokerState, port?: number): Promise<void> {
       } catch { /* no matching process — fine */ }
     }
     throw new Error(`Kuri failed to start after ${maxAttempts} attempts`);
+    } finally {
+      releaseSpawnSlot();
+    }
   })();
 
   state.startPromise = startPromise.finally(() => {
@@ -1083,11 +1145,27 @@ export async function evaluate(tabId: string, expression: string, state: BrokerS
     raw = (await kuriGet(state, "/evaluate", { tab_id: tabId, expression })) as typeof raw;
   }
   // CDP Runtime.evaluate response: { id, result: { result: { type, value } } }
+  // When kuri's /evaluate cannot produce a usable CDP value — error
+  // envelope (`result: { error: "..." }`), runtime exception
+  // (`result: { exceptionDetails: ... }`), or any shape missing the
+  // nested `result.result` — return undefined.
+  //
+  // Pre-fix this function returned the raw error object via `return raw`,
+  // which caused callers to do `String(rawObj ?? "")` and silently
+  // produce the literal 15-byte string `"[object Object]"`. That string
+  // passes the `livePageHtmlSize > 0` accounting in
+  // src/api/browse-index.ts but fails `html.trimStart().startsWith("<")`,
+  // so the DOM fallback reported `dom_html_size: 15` and proceeded —
+  // concealing the actual CDP failure behind a fake "tiny page" signal.
+  // Surfaced by 2026-05-18 MCP gate run 20260518T115632Z probe 001
+  // (Hacker News) where ~5 SSR probes (HN, MDN, figma, openlibrary)
+  // all carried the 15-byte fingerprint.
   const inner = raw?.result?.result;
-  if (!inner) return raw;
+  if (!inner) return undefined;
+  if (raw?.result && "exceptionDetails" in raw.result && raw.result.exceptionDetails) return undefined;
   if (inner.type === "undefined") return undefined;
   if ("value" in inner) return inner.value;
-  return inner.description ?? raw;
+  return inner.description ?? undefined;
 }
 
 export function getKuriErrorMessage(value: unknown): string | null {
@@ -1148,20 +1226,7 @@ async function setCookieViaCDP(wsUrl: string, cookie: {
   });
 }
 
-function parseCdpResolveRetryDelays(raw: string | undefined): number[] {
-  // Default: 3 attempts at 0ms, 150ms, 350ms (cumulative <=500ms wait).
-  // Configurable via UNBROWSE_KURI_CDP_RESOLVE_RETRY_MS (comma-separated ms values, first should be 0).
-  const fallback = [0, 150, 350];
-  if (typeof raw !== "string" || raw.trim().length === 0) return fallback;
-  const parts = raw.split(",").map((s) => Number.parseInt(s.trim(), 10));
-  if (parts.length === 0 || parts.some((n) => !Number.isFinite(n) || n < 0)) return fallback;
-  // Hard cap on total wait to keep the happy-path bounded.
-  const total = parts.reduce((sum, n) => sum + n, 0);
-  if (total > 2000) return fallback;
-  return parts;
-}
-
-async function resolveCdpDebuggerUrlForTabOnce(tabId: string): Promise<string | null> {
+async function resolveCdpDebuggerUrlForTab(tabId: string): Promise<string | null> {
   const portsToTry = Array.from(new Set(
     [kuriCdpPort, 9222, 9223, 9224, 9225].filter((port): port is number => typeof port === "number"),
   ));
@@ -1187,32 +1252,10 @@ async function resolveCdpDebuggerUrlForTabOnce(tabId: string): Promise<string | 
   return null;
 }
 
-async function resolveCdpDebuggerUrlForTab(tabId: string): Promise<string | null> {
-  // Freshly-spawned tabs from kuri.newTab() are sometimes not yet visible in the
-  // /json listing at the moment setCookie runs (race between tab creation and
-  // CDP-listing exposure). Retry with bounded backoff so the secure-cookie path
-  // does not silently fall through to the legacy /cookies fallback that cannot
-  // persist secure/httpOnly cookies. Bounded total wait per CLAUDE.md discipline.
-  const delays = parseCdpResolveRetryDelays(process.env.UNBROWSE_KURI_CDP_RESOLVE_RETRY_MS);
-  for (let attempt = 0; attempt < delays.length; attempt += 1) {
-    if (delays[attempt] > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
-    }
-    const url = await resolveCdpDebuggerUrlForTabOnce(tabId);
-    if (url) {
-      if (attempt > 0) {
-        log("kuri", `CDP target ${tabId} resolved after retry attempt=${attempt} delay_ms=${delays[attempt]}`);
-      }
-      return url;
-    }
-  }
-  return null;
-}
-
 /** Set a single cookie via raw CDP (Chrome debug port) for full attribute support.
- *  Falls back to Kuri's /cookies endpoint only for non-secure non-httpOnly cookies.
- *  For secure/httpOnly cookies, throws when CDP is unavailable instead of silently
- *  losing the cookie via the legacy /cookies endpoint (which strips those flags). */
+ *  Falls back to Kuri's /cookies endpoint if CDP is unavailable. */
+/** Set a single cookie via raw CDP (Chrome debug port) for full attribute support.
+ *  Falls back to Kuri's /cookies endpoint if CDP is unavailable. */
 export async function setCookie(tabId: string, cookie: KuriCookie, state: BrokerState = defaultBrokerState): Promise<void> {
   // Strip wrapping quotes from cookie values (Chrome stores some values like JSESSIONID with literal quotes)
   const value = cookie.value.replace(/^"|"$/g, "");
@@ -1220,49 +1263,28 @@ export async function setCookie(tabId: string, cookie: KuriCookie, state: Broker
   // Try raw CDP first — Kuri's /cookies endpoint doesn't pass secure/httpOnly/sameSite/expires
   // which causes auth failures on sites like LinkedIn that require secure cookies.
   if (cookie.secure || cookie.httpOnly) {
-    let debuggerUrl: string | null = null;
     try {
-      debuggerUrl = await resolveCdpDebuggerUrlForTab(tabId);
-    } catch (err) {
-      // CDP resolution itself threw (very rare; fetch swallows network errors).
-      // Treat as unresolved so the secure-cookie branch surfaces honestly.
-      log("kuri", `CDP resolve threw for tab ${tabId} cookie ${cookie.name}: ${err instanceof Error ? err.message : String(err)}`);
-      debuggerUrl = null;
-    }
-
-    if (debuggerUrl) {
-      const success = await setCookieViaCDP(debuggerUrl, {
-        name: cookie.name,
-        value,
-        domain: cookie.domain,
-        path: cookie.path || "/",
-        secure: cookie.secure ?? false,
-        httpOnly: cookie.httpOnly ?? false,
-        sameSite: cookie.sameSite || "Lax",
-        ...(cookie.expires && cookie.expires > 0 ? { expires: cookie.expires } : {}),
-      });
-      if (success) return;
-      // CDP target found but the setCookie command itself failed — surface as throw,
-      // do NOT silently fall through to /cookies which would strip secure/httpOnly.
-      throw new Error(
-        `kuri.setCookie: CDP setCookie failed for secure cookie ${cookie.name} on ${cookie.domain} (tab=${tabId}); ` +
-        `legacy /cookies fallback is disabled for secure/httpOnly cookies because it cannot persist those flags.`,
-      );
-    }
-
-    // CDP target not resolvable even after retry. Do NOT fall back to /cookies for
-    // secure/httpOnly cookies — that path silently strips the flags and the caller
-    // would think the cookie was set. Surface as an explicit throw so the caller
-    // (e.g. importBrowserCookiesIntoTab) can log the loss instead of swallowing it.
-    throw new Error(
-      `kuri.setCookie: no CDP websocket for tab ${tabId}; ` +
-      `cannot persist secure/httpOnly cookie ${cookie.name} on ${cookie.domain}. ` +
-      `Legacy /cookies fallback is disabled for secure/httpOnly cookies because it strips those flags.`,
-    );
+      const debuggerUrl = await resolveCdpDebuggerUrlForTab(tabId);
+      if (debuggerUrl) {
+        const success = await setCookieViaCDP(debuggerUrl, {
+          name: cookie.name,
+          value,
+          domain: cookie.domain,
+          path: cookie.path || "/",
+          secure: cookie.secure ?? false,
+          httpOnly: cookie.httpOnly ?? false,
+          sameSite: cookie.sameSite || "Lax",
+          ...(cookie.expires && cookie.expires > 0 ? { expires: cookie.expires } : {}),
+        });
+        if (success) return;
+        log("kuri", `CDP cookie set failed for ${cookie.name} on ${cookie.domain}; falling back to /cookies`);
+      } else {
+        log("kuri", `no CDP websocket for tab ${tabId}; falling back to /cookies for secure cookie ${cookie.name}`);
+      }
+    } catch { /* CDP unavailable, fall through to Kuri */ }
   }
 
-  // Fallback: Kuri's /cookies endpoint (no secure/httpOnly support).
-  // ONLY used for cookies that don't require secure/httpOnly — those can be set safely here.
+  // Fallback: Kuri's /cookies endpoint (no secure/httpOnly support)
   await kuriGet(state, "/cookies", {
     tab_id: tabId,
     name: cookie.name,
