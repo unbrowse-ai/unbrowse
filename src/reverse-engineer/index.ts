@@ -1203,6 +1203,11 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       ...(!req.synthetic_body && buildProvenRecipe(req, computedUrlTemplate)
         ? { proven_recipe: buildProvenRecipe(req, computedUrlTemplate)! }
         : {}),
+      // Loop 4 (B-023 follow-up): structural login-wall signal — set when the
+      // captured HTML response's title or first ~4KB contain login keywords.
+      // Read by `rankEndpoints` to demote below sibling data XHRs for
+      // content-read intents. See `detectAuthWalled` above for the detector.
+      ...(detectAuthWalled(req) ? { auth_walled: true } : {}),
     };
     endpoint = resolveEndpointPathBindings(endpoint);
     endpoint.semantic = inferEndpointSemantic(endpoint, {
@@ -1369,6 +1374,29 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
 
   if (traceSink) traceSink.rows = traceRows;
   return endpoints;
+}
+
+// Loop 4 (B-023 follow-up): admission-time login-wall detection. Structural
+// primitive (no per-domain registry): if the captured response was HTML AND
+// its title or first few KB of body contain login keywords, mark the
+// endpoint auth_walled so rankEndpoints can demote it below sibling data
+// XHRs for content-read intents. Generic across every host; runs on body
+// shape only.
+const AUTH_WALL_KEYWORDS = /\b(sign[\s\-_]?in|log[\s\-_]?in|sign[\s\-_]?up|signin|login|signup|loggedoutshell|please[\s\-_]?log[\s\-_]?in|you[\s\-_]+must[\s\-_]+log[\s\-_]+in)\b/i;
+const TITLE_RE = /<title[^>]*>([\s\S]{0,512}?)<\/title>/i;
+function detectAuthWalled(req: RawRequest): boolean {
+  const ct = getResponseContentType(req);
+  if (!ct || !/^text\/html/i.test(ct)) return false;
+  const body = req.response_body;
+  if (typeof body !== "string" || body.length === 0) return false;
+  const titleMatch = body.match(TITLE_RE);
+  if (titleMatch && AUTH_WALL_KEYWORDS.test(titleMatch[1])) return true;
+  // Body-level fallback: many SPAs ship a "LoggedOutShell"-style marker in
+  // the first ~4KB even when the title is generic. Bounded scan so the
+  // helper stays O(1) per request.
+  const head = body.slice(0, 4096);
+  if (AUTH_WALL_KEYWORDS.test(head)) return true;
+  return false;
 }
 
 function isApiLike(req: RawRequest): boolean {

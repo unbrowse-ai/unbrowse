@@ -110,6 +110,9 @@ export interface EndpointDescriptor {
    * `backend/src/types.ts` and `src/types/skill.ts` (CLAUDE.md).
    */
   owner_submitted?: boolean;
+  /** Loop 4 (B-023 follow-up): admission-time login-wall signal.
+   *  Tri-file synced with `src/types/skill.ts` and `backend/src/types.ts`. */
+  auth_walled?: boolean;
 }
 
 export interface SkillListEndpointPreview {

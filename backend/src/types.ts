@@ -359,6 +359,9 @@ export interface EndpointDescriptor {
   trigger_url?: string;
   graph_visibility?: GraphVisibility;
   corroboration?: EndpointCorroboration;
+  /** Loop 4 (B-023 follow-up): admission-time login-wall signal.
+   *  Tri-file synced with `src/types/skill.ts` and `frontend/src/lib/api.ts`. */
+  auth_walled?: boolean;
   /** Learned constraints from API errors and agent observations */
   constraints?: EndpointConstraint[];
   /** Agent-contributed best practices, tips, and gotchas */
