@@ -22,6 +22,7 @@ import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 import { verifyEndpointProofsInPlace, summarizeSkillProofs } from "../services/proof-verifier.js";
+import { enforcePublishSanitization, detectResidualSecretLeak } from "../services/publish-sanitize.js";
 
 type SkillRouteEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -407,6 +408,33 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
     if (proofResult.malformed.length > 0) {
       return c.json({ error: "Malformed ZK proof", details: proofResult.malformed }, 422);
     }
+  }
+
+  // WAVE 1 (SAFETY-CRITICAL): server-authoritative secret sanitization.
+  // Client-side sanitizeForPublish is advisory only — a stale or tampered
+  // client can skip it and leak the user's OWN secrets (bearer tokens,
+  // Cookie headers, api keys, high-entropy blobs, PII) into the PUBLIC
+  // marketplace. We re-run the IDENTICAL redaction core here, never trusting
+  // the client. Scrub-and-continue is the default (an honest stale client
+  // still publishes, just safely); we hard-reject 422 only for structural
+  // leakage a scrub cannot neutralize, which signals a malformed/hostile
+  // payload. Parity with the client redactor is pinned by
+  // backend/tests/sanitize-parity.test.ts.
+  if (Array.isArray(body.endpoints)) {
+    const { endpoints: scrubbed } = enforcePublishSanitization(body.endpoints);
+    const residual = detectResidualSecretLeak(scrubbed);
+    if (residual.length > 0) {
+      return c.json({
+        error: "publish_rejected_residual_secret_leak",
+        message:
+          "One or more endpoints embed a secret-shaped value in a field the " +
+          "sanitizer cannot safely scrub. Re-run client sanitization and remove " +
+          "raw credentials before publishing.",
+        details: residual,
+      }, 422);
+    }
+    body.endpoints = scrubbed as unknown[];
+    (body as Record<string, unknown>).server_sanitized = true;
   }
 
   let skill;
