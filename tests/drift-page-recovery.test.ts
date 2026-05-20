@@ -121,4 +121,14 @@ describe("tryRecoverFromSchemaDrift: page-fetch + DOM extraction recovery", () =
       expect(result.confidence).toBeGreaterThanOrEqual(0.5);
     }
   });
+
+  test("recovery_path field is present and set to http_fetch when SSR fastpath unavailable", async () => {
+    // Without a Kuri broker, the SSR fastpath call returns null and we
+    // fall through to plain tryHttpFetch. Assert the result names which
+    // path produced the recovery so callers can attribute the source.
+    const result = await tryRecoverFromSchemaDrift(`${BASE}/article`, "get paper", {}, []);
+    expect(result).not.toBeNull();
+    if (!result) throw new Error("unreachable");
+    expect(result.recovery_path).toBe("http_fetch");
+  });
 });
