@@ -757,12 +757,6 @@ function cleanText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function normalizeLinkedInProfilePath(href: string | undefined): string | null {
-  if (!href) return null;
-  const clean = href.split("?")[0].replace(/\/+$/, "");
-  const match = clean.match(/\/in\/([^/]+)$/);
-  return match ? match[1] : null;
-}
 
 function extractGitHubSpecial(html: string, intent: string): ExtractedStructure[] {
   if (
@@ -885,46 +879,136 @@ function extractGitHubSpecial(html: string, intent: string): ExtractedStructure[
   return results;
 }
 
-function extractLinkedInSpecial(html: string, intent: string): ExtractedStructure[] {
-  if (!/linkedin/i.test(html)) return [];
+// extractRepeatedPersonSpecial — generic primitive for repeated-person pages
+// (search results, directories, team pages, alumni listings). Replaces the
+// retired per-host extractLinkedInSpecial which keyed on `linkedin` literal
+// + `a[href*='/in/']` CSS hint.
+//
+// Universal web standards only (per CLAUDE.md "Ranker philosophy: heuristics
+// OUT, primitives + LLM judge IN" and "Anti-patterns: per-domain heuristics
+// that don't generalise"):
+//
+//   Strategy 1: JSON-LD `schema.org/ItemList` whose `itemListElement[].item`
+//     is a `Person`. Standards-conformant directory/search pages emit this.
+//   Strategy 2: Multiple top-level JSON-LD `schema.org/Person` nodes anywhere
+//     in the document — search pages that emit one Person per result block.
+//
+// Same code path subsumes LinkedIn search-results AND any standards-
+// conformant people-listing site (team pages, alumni directories, federated
+// social discovery, About.me search, etc).
+function extractRepeatedPersonSpecial(html: string, intent: string): ExtractedStructure[] {
   const intentLower = intent.toLowerCase();
-  if (!/(search|people|person|profile|member)/.test(intentLower)) return [];
-  const $ = cheerio.load(html);
-  const seen = new Set<string>();
-  const people: Record<string, string>[] = [];
+  if (!/(search|people|person|persons|profile|profiles|member|members|directory|team|staff|roster|alumni)/.test(intentLower)) return [];
 
-  $("a[href*='/in/']").each((_, el) => {
-    const $a = $(el);
-    const handle = normalizeLinkedInProfilePath($a.attr("href"));
-    if (!handle || seen.has(handle)) return;
-    const name = cleanText($a.text());
-    if (!name || name.length < 3 || name.length > 120) return;
-    const card = $a.closest("li, div");
-    const cardText = cleanText(card.text());
-    if (cardText.length < name.length + 5) return;
-    const headline = cleanText(
-      card.find("div, span, p")
-        .map((_, node) => cleanText($(node).text()))
-        .get()
-        .find((text) =>
-          !!text &&
-          text !== name &&
-          text.length >= 8 &&
-          text.length <= 220 &&
-          !/^(message|connect|follow|premium|linkedin|see more|show all)$/i.test(text)
-        ) ?? ""
-    );
-    const row: Record<string, string> = {
-      name,
-      url: `https://www.linkedin.com/in/${handle}`,
-      public_identifier: handle,
+  // Cheap pre-filter: avoid parsing every page. Require at least one
+  // JSON-LD block AND a Person-type marker somewhere in the raw HTML.
+  if (!/<script[^>]+type=["']application\/ld\+json["']/i.test(html)) return [];
+  if (!/"@type"\s*:\s*"Person"/.test(html)) return [];
+
+  const $ = cheerio.load(html);
+
+  // Universal canonical/og:url resolution for relative-href fallback.
+  const canonicalUrl = ($('link[rel="canonical"]').attr("href") || "").trim();
+  const ogUrl = ($('meta[property="og:url"]').attr("content") || "").trim();
+  let baseOrigin = "";
+  for (const candidate of [canonicalUrl, ogUrl]) {
+    if (!candidate) continue;
+    try {
+      baseOrigin = new URL(candidate).origin;
+      break;
+    } catch {
+      // fall through
+    }
+  }
+  const resolveHref = (href: string): string => {
+    if (!href) return "";
+    if (/^https?:\/\//i.test(href)) return href;
+    if (!baseOrigin) return href;
+    if (href.startsWith("/")) return `${baseOrigin}${href}`;
+    return `${baseOrigin}/${href}`;
+  };
+
+  const flattenJsonLdNodes = (node: unknown): unknown[] => {
+    const out: unknown[] = [];
+    const visit = (n: unknown): void => {
+      if (!n) return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      if (typeof n !== "object") return;
+      const obj = n as Record<string, unknown>;
+      out.push(obj);
+      if (Array.isArray(obj["@graph"])) (obj["@graph"] as unknown[]).forEach(visit);
+      if (Array.isArray(obj.itemListElement)) (obj.itemListElement as unknown[]).forEach(visit);
+      if (obj.item && typeof obj.item === "object") visit(obj.item);
+      if (obj.mainEntity && typeof obj.mainEntity === "object") visit(obj.mainEntity);
     };
-    if (headline) row.headline = headline;
-    people.push(row);
-    seen.add(handle);
+    visit(node);
+    return out;
+  };
+  const nodeType = (n: Record<string, unknown>): string[] => {
+    const t = n["@type"];
+    if (typeof t === "string") return [t];
+    if (Array.isArray(t)) return t.filter((x): x is string => typeof x === "string");
+    return [];
+  };
+  const asStringField = (n: Record<string, unknown>, ...keys: string[]): string => {
+    for (const k of keys) {
+      const v = n[k];
+      if (typeof v === "string" && v.trim().length > 0) return v.trim();
+    }
+    return "";
+  };
+
+  const seen = new Set<string>();
+  const rows: Record<string, string>[] = [];
+
+  $('script[type="application/ld+json"]').each((_, el) => {
+    const raw = $(el).contents().text();
+    if (!raw || raw.length > 200_000) return;
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { return; }
+    for (const node of flattenJsonLdNodes(parsed)) {
+      if (!node || typeof node !== "object") continue;
+      const obj = node as Record<string, unknown>;
+      if (!nodeType(obj).includes("Person")) continue;
+      const name = cleanText(asStringField(obj, "name", "givenName"));
+      if (!name || name.length < 2 || name.length > 120) continue;
+      const url = resolveHref(asStringField(obj, "url"));
+      const altName = cleanText(asStringField(obj, "alternateName"));
+      // Username: alternateName, else trailing path segment of url.
+      let username = altName;
+      if (!username && url) {
+        try {
+          const u = new URL(url);
+          const segs = u.pathname.split("/").filter(Boolean);
+          if (segs.length > 0) {
+            const seg = segs[segs.length - 1].replace(/^@/, "");
+            if (/^[A-Za-z0-9_.-]{1,64}$/.test(seg)) username = seg;
+          }
+        } catch {
+          // fall through
+        }
+      }
+      // Dedupe key: prefer url, else username, else name.
+      const key = (url || username || name).split("?")[0];
+      if (seen.has(key)) continue;
+      const headline = cleanText(asStringField(obj, "jobTitle", "description", "disambiguatingDescription"));
+      const image = cleanText(asStringField(obj, "image"));
+      const row: Record<string, string> = { name };
+      if (username) {
+        row.username = username;
+        row.public_identifier = username;
+      }
+      if (url) row.url = url;
+      if (headline) row.headline = headline;
+      if (image) row.image = image;
+      rows.push(row);
+      seen.add(key);
+    }
   });
 
-  return people.length >= 2 ? [{ type: "repeated-elements", data: people.slice(0, 10), element_count: people.length }] : [];
+  return rows.length >= 2
+    ? [{ type: "repeated-elements", data: rows.slice(0, 20), element_count: rows.length }]
+    : [];
 }
 
 function extractPackageSearchSpecial(html: string, intent: string): ExtractedStructure[] {
@@ -2510,7 +2594,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const flashStructures = extractFlashNoticeSpecial(workingHtml, intent);
   const cleaned = cleanDOM(workingHtml);
   const githubStructures = extractGitHubSpecial(workingHtml, intent);
-  const linkedInStructures = extractLinkedInSpecial(workingHtml, intent);
+  const repeatedPersonStructures = extractRepeatedPersonSpecial(workingHtml, intent);
   const packageSearchStructures = extractPackageSearchSpecial(workingHtml, intent);
   const xProfileStructures = extractPersonProfileSpecial(workingHtml, intent);
   const postStructures = extractPostSpecial(workingHtml, intent);
@@ -2524,7 +2608,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   // wikipedia mw-parser-output marker survives even on giant pages with massive
   // reference sections that would otherwise push it past the cap.
   const articleStructures = extractArticleBodySpecial(html.length > 600_000 ? html.slice(0, 600_000) : html, intent);
-  const allStructures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...repeatedArticleStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const allStructures = [...flashStructures, ...githubStructures, ...repeatedPersonStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...repeatedArticleStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
   // W3-followup: filter out degenerate repeated-elements arrays whose rows
   // each collapse to a single unique string. They're junk shapes that the
