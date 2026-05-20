@@ -3355,6 +3355,34 @@ export async function executeEndpoint(
         result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
         decisionTrace.push({ step: "server_fetch", status: result.status });
         workflowChosenStrategy = workflowChosenStrategy ?? "server";
+        // W-AKAMAI-BM-VERIFY-BROWSER-FALLBACK: serverFetch can return HTTP
+        // 200 carrying a bot-management interstitial body (Akamai bm-verify,
+        // DataDome, PerimeterX, Cloudflare challenge, etc.). The status-only
+        // path can't see this. Re-use the existing classifyExecuteFailure
+        // vendor-pattern detector (W6, L5092) and fall through to browserCall
+        // when a vendor marker fires. Substrate-faithful: generic vendor
+        // patterns (no per-host), same recovery path as the trigger-intercept
+        // defensive branch at L3363.
+        const serverClassification = classifyExecuteFailure({
+          status: result.status,
+          body: result.data,
+          headers: result.response_headers,
+        });
+        if (serverClassification.kind === "vendor_blocked") {
+          decisionTrace.push({
+            step: "server_fetch_vendor_block_detected",
+            vendor: serverClassification.vendor,
+            evidence: serverClassification.evidence,
+            status: result.status,
+          });
+          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+          decisionTrace.push({
+            step: "browser_fallback",
+            reason: `vendor_block_${serverClassification.vendor ?? "unknown"}`,
+            status: result.status,
+          });
+          workflowChosenStrategy = "browser-fetch";
+        }
         break;
       }
       case "trigger-intercept": {
