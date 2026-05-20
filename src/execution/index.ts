@@ -5912,6 +5912,23 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       score += 30;
     }
 
+    // W-RANKER-DEMOTE-AUTOCOMPLETE: when intent is a LIST intent and the
+    // user did NOT ask for completions, demote endpoints whose path is
+    // an autocomplete / suggestions / typeahead surface. Live regression:
+    // .bench-gate/20260520T015714Z probe 030 pubmed picked
+    // /suggestions/?term over /?term because the suggestions URL was
+    // shorter and the canonical page scored worse. Generic URL-token
+    // signal; no per-domain registry. The user-asked gate prevents
+    // double-penalising endpoints when the intent legitimately wants
+    // completions.
+    if (intent && LIST_INTENT.test(intent)) {
+      const isAutocompletePath = /\/(suggestions?|autocomplete|typeahead|complete|hints?|lookup)(\/|$|\?)/i.test(pathname);
+      const intentAsksForCompletions = /\b(suggest|suggestion|suggestions|autocomplete|typeahead|complete|completion|hint|lookup)\b/i.test(intent);
+      if (isAutocompletePath && !intentAsksForCompletions) {
+        score -= 250;
+      }
+    }
+
     // === Penalties ===
     if (META_PATHS.test(pathname)) score -= 15;
     if (DISCORD_META_PATHS.test(pathname)) score -= 35;
