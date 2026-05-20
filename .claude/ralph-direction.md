@@ -518,3 +518,37 @@ Convert ONE extraction-special per wave to a generic primitive. Order by impact 
 
 **Reminder:** Per policy, do NOT trigger a full bench-gate restart from scratch yet. Continue shipping fixes against the existing verdict. The gate measurement comes when testing for regression (after a batch of fixes lands or before declaring convergence).
 
+
+---
+
+## Tick 63-66 update — benchmax session: 5 PRs shipped + merged
+
+**Lewis 2026-05-21 benchmax directive:** "okay lets go benchmax this shit" + refined "make it prioritise XHR JSON above all else - if not fallback to ssr/html - content, and make postprocess step to convert it to json regardless. json should sanitize html to markdown where relevant, tables turned into json".
+
+**Principles crystallised + applied:**
+- `20260520T231912Z-edda7df4` (project-wide loop policy: auto-merge to cwd, pull main, no bench restart unless regression, next problem)
+- `20260520T234023Z-9e43abdb` (XHR JSON > DOM/SSR + JSON post-process required)
+
+**Ships this session (5 PRs, all admin-merged + pulled to main):**
+
+| PR | Commit | What |
+|---|---|---|
+| #595 | `b76fd483` | W3 duplicate-row chrome demotion (-250) |
+| #596 | `41e59454` | config-shape i18n token substring + pre-score filter |
+| #597 | `a5ec3edd` | reject URL-shaped text as card title fallback |
+| #598 | `bd79d650` | empty-container demotion (-200) — Redux entity shells |
+| #599 | `5fcdba8b` | JSON post-process: HTML->markdown + table-string->JSON array |
+
+**Demotion family now (src/extraction/index.ts):**
+- `scoreConfigShapeDemotion` -200 — i18n/RSC bootstrap
+- `scoreDegenerateRowDemotion` -300 — all-collapsed-values per row (pypi dates)
+- `scoreDuplicateRowDemotion` -250 — same row repeated (follow-CTA, sidebar chips)
+- `scoreEmptyContainerDemotion` -200 — >=80% empty leaves (Redux store)
+- All three pre-score filtered so metadata-fallback runs on lone-candidate cases.
+
+**Tick 67+ candidates (priority order):**
+1. Re-bench against current HEAD (regression-cycle warranted by 5 PRs of substantive surface area)
+2. XHR response sanitization in execute path
+3. 005 github stale_endpoint marketplace
+4. Kuri-blocked: 031 priceline / 059 target / 066 vinted (cross-repo)
+
