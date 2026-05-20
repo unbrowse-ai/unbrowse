@@ -28,6 +28,11 @@ import { cookieRoutes } from "./routes/cookies.js";
 import { adminRoutes } from "./routes/admin.js";
 import { syntheticRoutes } from "./routes/synthetic.js";
 import { llmRoutes } from "./routes/llm.js";
+import {
+  mountFaremeterTestRoute,
+  stubFaremeterHandlers,
+  stubFaremeterPricing,
+} from "./routes/faremeter-test.js";
 import { flushQueuedGithubNotifications } from "./services/github-webhooks.js";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -98,6 +103,16 @@ app.route("/v1", dashboardRoutes);
 // rate-limited inside the router. Path is /v1/test/* (not /v1/internal/*)
 // so the URL doesn't falsely imply a protected surface.
 app.route("/v1/test", syntheticRoutes);
+
+// Wave 3: env-flagged `@faremeter/middleware` test route at /v1/test/paid.
+// OFF by default; flip FAREMETER_ENABLED=1 to emit 402 with payment
+// requirements. Uses the stub handler from routes/faremeter-test.ts —
+// no real Solana settlement happens. See PR #572, #582 and this PR for
+// the full wave history.
+mountFaremeterTestRoute(app, {
+  handlers: stubFaremeterHandlers,
+  pricing: stubFaremeterPricing,
+});
 
 export { app };
 
