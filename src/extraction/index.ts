@@ -954,32 +954,178 @@ function extractPackageSearchSpecial(html: string, intent: string): ExtractedStr
   return rows.length >= 2 ? [{ type: "repeated-elements", data: rows.slice(0, 20), element_count: rows.length }] : [];
 }
 
-function extractXProfileSpecial(html: string, intent: string): ExtractedStructure[] {
+// ---------------------------------------------------------------------------
+// extractPersonProfileSpecial — generic primitive for person/profile pages
+// ---------------------------------------------------------------------------
+//
+// Replaces the prior per-host `extractXProfileSpecial` (deleted 2026-05-20)
+// per CLAUDE.md ranker philosophy: heuristics OUT, universal-web-standards
+// primitives IN. No `x.com` / `twitter.com` host literal, no
+// `https://x.com/${username}` URL fallback. Same code path now handles X,
+// Mastodon, Bluesky, Threads, About.me, GitHub user pages, and any
+// platform that emits standards-conformant person markup:
+//
+//   Strategy 1 (JSON-LD schema.org/Person, highest confidence):
+//     <script type="application/ld+json"> blocks with @type "Person".
+//     Surfaces name, alternateName (handle), url, description, image.
+//     Walks @graph and mainEntity nesting.
+//
+//   Strategy 2 (OpenGraph profile object type):
+//     <meta property="og:type" content="profile"> with
+//     `profile:username`, `profile:first_name`, `profile:last_name`
+//     per https://ogp.me/#type_profile. Falls back to og:title's
+//     "Display Name (@handle)" pattern shared by virtually every social
+//     platform's OG card.
+//
+//   Strategy 3 (Twitter card + canonical handle):
+//     `<meta name="twitter:title">` + `<link rel="canonical">` whose
+//     last path segment looks like a username. Subsumes the X case
+//     without naming x.com.
+//
+// Returns [] when no name + username pair can be assembled, letting
+// downstream generic extractors (metadata fallback, SPA) handle the page.
+function extractPersonProfileSpecial(html: string, intent: string): ExtractedStructure[] {
   const intentLower = intent.toLowerCase();
   if (!/(person|people|profile|profiles|user|users|member)/.test(intentLower)) return [];
-  if (!/(twitter|x\.com|twitter:|og:)/i.test(html)) return [];
+  // Cheap pre-filter: only proceed if the HTML carries at least one
+  // person-profile structured marker. Avoids parsing every page.
+  if (!/<meta[^>]+property=["']og:|<meta[^>]+name=["']twitter:|"@type"\s*:\s*"Person"/i.test(html)) return [];
   const $ = cheerio.load(html);
-  const title = cleanText($("title").first().text());
-  const ogTitle = cleanText($('meta[property="og:title"]').attr("content") ?? $('meta[name="twitter:title"]').attr("content") ?? "");
-  const description = cleanText($('meta[name="description"]').attr("content") ?? $('meta[property="og:description"]').attr("content") ?? "");
-  const canonical = ($('link[rel="canonical"]').attr("href") ?? $('meta[property="og:url"]').attr("content") ?? "").trim();
 
-  const source = ogTitle || title;
-  const titleMatch = source.match(/^(.*?)\s*\(@?([A-Za-z0-9_]{1,30})\)/);
-  const handleFromUrl = canonical.match(/https?:\/\/(?:www\.)?x\.com\/([A-Za-z0-9_]{1,30})(?:\/|$)/)?.[1]
-    ?? canonical.match(/https?:\/\/(?:www\.)?twitter\.com\/([A-Za-z0-9_]{1,30})(?:\/|$)/)?.[1];
-  const username = titleMatch?.[2] ?? handleFromUrl ?? "";
-  const name = cleanText(titleMatch?.[1] ?? source.replace(/\s*\/\s*[XT]$/i, ""));
+  // Universal helpers — same canonical/og:url resolution used by the
+  // scholarly primitive. No host literal.
+  const canonical = cleanText(
+    $('link[rel="canonical"]').attr("href")
+      ?? $('meta[property="og:url"]').attr("content")
+      ?? "",
+  );
+
+  // ---- Strategy 1: JSON-LD schema.org/Person ----
+  const flattenJsonLdNodes = (node: unknown): unknown[] => {
+    const out: unknown[] = [];
+    const visit = (n: unknown): void => {
+      if (!n) return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      if (typeof n !== "object") return;
+      const obj = n as Record<string, unknown>;
+      out.push(obj);
+      if (Array.isArray(obj["@graph"])) (obj["@graph"] as unknown[]).forEach(visit);
+      if (obj.mainEntity && typeof obj.mainEntity === "object") visit(obj.mainEntity);
+    };
+    visit(node);
+    return out;
+  };
+  const nodeType = (n: Record<string, unknown>): string[] => {
+    const t = n["@type"];
+    if (typeof t === "string") return [t];
+    if (Array.isArray(t)) return t.filter((x): x is string => typeof x === "string");
+    return [];
+  };
+  const asStringField = (n: Record<string, unknown>, ...keys: string[]): string => {
+    for (const k of keys) {
+      const v = n[k];
+      if (typeof v === "string" && v.trim().length > 0) return v.trim();
+    }
+    return "";
+  };
+
+  let jsonLdPerson: Record<string, string> | null = null;
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (jsonLdPerson) return;
+    const raw = $(el).contents().text();
+    if (!raw || raw.length > 200_000) return;
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { return; }
+    for (const node of flattenJsonLdNodes(parsed)) {
+      if (jsonLdPerson) break;
+      if (!node || typeof node !== "object") continue;
+      const obj = node as Record<string, unknown>;
+      if (!nodeType(obj).includes("Person")) continue;
+      const name = cleanText(asStringField(obj, "name", "givenName"));
+      if (!name) continue;
+      const altName = cleanText(asStringField(obj, "alternateName"));
+      const url = cleanText(asStringField(obj, "url"));
+      const description = cleanText(asStringField(obj, "description", "disambiguatingDescription"));
+      const image = cleanText(asStringField(obj, "image"));
+      // Username = alternateName when present, else trailing path segment
+      // of the person URL (mastodon `@handle`, etc).
+      let username = altName;
+      if (!username && url) {
+        const m = url.match(/\/@?([A-Za-z0-9_.-]{1,64})\/?$/);
+        if (m) username = m[1].replace(/^@/, "");
+      }
+      if (!username) continue;
+      const row: Record<string, string> = {
+        name,
+        username,
+        public_identifier: username,
+        url: url || canonical,
+      };
+      if (description) row.description = description;
+      if (image) row.image = image;
+      jsonLdPerson = row;
+    }
+  });
+  if (jsonLdPerson) return [{ type: "key-value", data: jsonLdPerson, element_count: 1 }];
+
+  // ---- Strategy 2 + 3: OpenGraph profile / Twitter card + canonical ----
+  const ogType = cleanText($('meta[property="og:type"]').attr("content") ?? "");
+  const ogTitle = cleanText($('meta[property="og:title"]').attr("content") ?? $('meta[name="twitter:title"]').attr("content") ?? "");
+  const ogDescription = cleanText($('meta[name="description"]').attr("content") ?? $('meta[property="og:description"]').attr("content") ?? $('meta[name="twitter:description"]').attr("content") ?? "");
+  const title = cleanText($("title").first().text());
+
+  // OG profile object type carries `profile:username` per ogp.me.
+  const profileUsername = cleanText($('meta[property="profile:username"]').attr("content") ?? "");
+  const profileFirstName = cleanText($('meta[property="profile:first_name"]').attr("content") ?? "");
+  const profileLastName = cleanText($('meta[property="profile:last_name"]').attr("content") ?? "");
+
+  // Title pattern "Display Name (@handle)" — virtually every social
+  // platform emits this in og:title / <title>. NOT host-specific.
+  const titleSource = ogTitle || title;
+  const titleMatch = titleSource.match(/^(.*?)\s*\(@?([A-Za-z0-9_.-]{1,64})\)/);
+
+  // Last path segment of canonical/og:url as final-fallback handle.
+  // Strip leading `@` (Mastodon style) and version-y trailing slashes.
+  const canonicalHandle = (() => {
+    if (!canonical) return "";
+    try {
+      const u = new URL(canonical);
+      const segs = u.pathname.split("/").filter(Boolean);
+      if (segs.length !== 1) return "";
+      const seg = segs[0].replace(/^@/, "");
+      // Reject reserved/system segments that obviously aren't usernames.
+      if (/^(home|about|login|signup|signin|search|explore|settings|help|terms|privacy)$/i.test(seg)) return "";
+      if (!/^[A-Za-z0-9_.-]{1,64}$/.test(seg)) return "";
+      return seg;
+    } catch { return ""; }
+  })();
+
+  const username = profileUsername || titleMatch?.[2] || canonicalHandle || "";
+  const composedName = [profileFirstName, profileLastName].filter(Boolean).join(" ").trim();
+  const name = cleanText(
+    composedName
+      || titleMatch?.[1]
+      || titleSource.replace(/\s*[\/—|·]\s*[^/—|·]+$/, "")
+  );
 
   if (!name || !username) return [];
+
+  // Require AT LEAST ONE strong profile signal so we don't fabricate a
+  // person from a generic OG card on a marketing/landing page.
+  const hasStrongSignal =
+    ogType === "profile"
+    || profileUsername !== ""
+    || titleMatch !== null
+    || $('meta[name="twitter:creator"]').attr("content")?.trim().length;
+  if (!hasStrongSignal) return [];
 
   const row: Record<string, string> = {
     name,
     username,
     public_identifier: username,
-    url: canonical || `https://x.com/${username}`,
+    url: canonical,
   };
-  if (description) row.description = description;
+  if (ogDescription) row.description = ogDescription;
   return [{ type: "key-value", data: row, element_count: 1 }];
 }
 
@@ -2366,7 +2512,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const githubStructures = extractGitHubSpecial(workingHtml, intent);
   const linkedInStructures = extractLinkedInSpecial(workingHtml, intent);
   const packageSearchStructures = extractPackageSearchSpecial(workingHtml, intent);
-  const xProfileStructures = extractXProfileSpecial(workingHtml, intent);
+  const xProfileStructures = extractPersonProfileSpecial(workingHtml, intent);
   const postStructures = extractPostSpecial(workingHtml, intent);
   const repeatedArticleStructures = extractRepeatedArticleSpecial(workingHtml, intent);
   const trendStructures = extractTrendSpecial(workingHtml, intent);
