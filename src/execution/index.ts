@@ -44,7 +44,7 @@ function stableEndpointId(method: string, urlTemplate: string): string {
   return createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url").slice(0, 21);
 }
 import { getRegistrableDomain } from "../domain.js";
-import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
+import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson } from "../extraction/index.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -3235,6 +3235,13 @@ export async function executeEndpoint(
       }
       const responseHeaders: Record<string, string> = {};
       res.headers.forEach((v, k) => { responseHeaders[k] = v; });
+      // Lewis 2026-05-21: every execute response goes through the JSON
+      // post-process. XHR JSON with embedded HTML strings (WordPress
+      // content.rendered, reddit selftext_html, etc.) gets cleaned to
+      // markdown; whole-table-string values become JSON arrays. DOM-
+      // extracted paths already went through _finalize in extractFromDOM,
+      // so this is a no-op for them but covers the JSON.parse path too.
+      data = sanitizeExtractionToJson(data);
       last = { data, status: res.status, response_headers: responseHeaders };
 
       // Learn constraints from API validation errors
