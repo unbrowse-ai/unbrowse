@@ -1,12 +1,13 @@
 name: kuri-vendor
 
-# Tier 1 (plan-v13): manual-dispatch native build of kuri darwin-arm64 from
-# lekt9/kuri@feat/sandbox-proxy. Cross-platform matrix (darwin-x64,
-# linux-arm64, linux-x64) is deferred — Zig 0.16's cross-compile mode
-# requires sysroots GH-hosted runners don't ship (libiconv/icucore for
-# macOS, libidn2/libz for linux). Native darwin-arm64 works without
-# -Dtarget; that's what release.yml uses successfully today. Cross-
-# platform binaries are a separate workstream (file an issue when needed).
+# Native-builder matrix: each runner builds its own host triple via plain
+# `zig build` (no -Dtarget), avoiding Zig 0.16's cross-compile sysroot
+# requirement. darwin-arm64 is the original lane (release.yml uses the same
+# pattern). windows-x64 added 2026-05-20 per
+# .claude/build-kuri-for-windows-x86-64-windows-so-unbrows scaffold —
+# windows-latest ships MSVC + the SDK headers Zig 0.16 needs for a Windows
+# host build, so native build succeeds where macOS-host cross-compile fails.
+# darwin-x64, linux-arm64, linux-x64 still deferred.
 
 on:
   workflow_dispatch:
@@ -27,7 +28,18 @@ jobs:
           - platform: darwin-arm64
             runner: macos-latest
             zig_target: aarch64-macos
+            bin_name: kuri
+            shell: bash
+          - platform: windows-x64
+            runner: windows-latest
+            zig_target: x86_64-windows
+            bin_name: kuri.exe
+            shell: bash
           # darwin-x64, linux-arm64, linux-x64 deferred — see header comment.
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
 
     steps:
       - name: Checkout kuri
@@ -46,23 +58,29 @@ jobs:
 
       - name: Build kuri (native ${{ matrix.zig_target }})
         # Native build only — no -Dtarget. Zig cross-compile mode triggered
-        # by -Dtarget skips the macOS SDK lookup for libiconv/icucore even
-        # when arch matches the runner. release.yml uses this same pattern.
+        # by -Dtarget skips the host SDK lookup even when arch matches the
+        # runner. Each runner builds its own host triple.
         working-directory: kuri
         run: |
           zig build -Doptimize=ReleaseSafe
           ls -la zig-out/bin/
+
       - name: Locate binary
         id: locate
         working-directory: kuri
         run: |
-          BIN_PATH=$(find zig-out -type f -name 'kuri' | head -n1)
+          BIN_PATH=$(find zig-out -type f -name '${{ matrix.bin_name }}' | head -n1)
           if [ -z "$BIN_PATH" ]; then
             echo "kuri binary not found under zig-out/" >&2
+            ls -laR zig-out/ >&2
             exit 1
           fi
           echo "bin_path=kuri/$BIN_PATH" >> "$GITHUB_OUTPUT"
-          shasum -a 256 "$BIN_PATH" || sha256sum "$BIN_PATH"
+          if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 "$BIN_PATH"
+          else
+            sha256sum "$BIN_PATH"
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
