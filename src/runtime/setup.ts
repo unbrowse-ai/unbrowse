@@ -203,8 +203,43 @@ export async function runSetup(options?: {
   // Auto-install + setup Crossmint lobster.cash wallet.
   // Wallet is required for the agent economy — agents earn USDC when their
   // indexed routes are used by others, and spend credits/USDC on paid routes.
+  //
+  // Trust gradient: the user typed `unbrowse setup`, not "install Crossmint",
+  // so print a clear preamble that names the next process by hand and explains
+  // why before we hand stdio to a stranger's CLI. Default action is continue
+  // (Enter), but TTY users get [s]kip as a back-out. Non-interactive (no TTY)
+  // proceeds without prompting so CI flows aren't blocked.
   if (!skipWalletSetup && !walletCheck.configured) {
-    if (!lobsterInstalled) {
+    const isInteractive = !!process.stdin.isTTY && !!process.stdout.isTTY &&
+      process.env.UNBROWSE_NON_INTERACTIVE !== "1";
+    let userOptedToSkip = false;
+    if (isInteractive) {
+      console.log("");
+      console.log("[unbrowse] Next step: pair a Crossmint lobster.cash wallet (USDC payouts)");
+      console.log("  Why: when other agents reuse routes your install captured, the");
+      console.log("       payment settles in USDC on Solana to the wallet you pair here.");
+      console.log("       Without it, you stay on the platform sponsor pool ($1/day/agent,");
+      console.log("       $50/day/platform) and don't earn from your captures.");
+      console.log("  What runs next: `npx @crossmint/lobster-cli setup` (a separate CLI");
+      console.log("       owned by Crossmint; you can audit it at https://crossmint.com).");
+      const { createInterface } = await import("node:readline");
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        const ans = await new Promise<string>((resolve) => {
+          rl.question("  [Enter] continue  /  [s] skip wallet pairing for now: ", resolve);
+        });
+        if (ans.trim().toLowerCase().startsWith("s")) userOptedToSkip = true;
+      } finally {
+        rl.close();
+      }
+    }
+
+    if (userOptedToSkip) {
+      console.log("[unbrowse] Wallet pairing skipped. Run `unbrowse wallet` anytime to pair.");
+      // Mark skip so the rest of the function reports honestly and any later
+      // re-prompts honor the choice for this run.
+      process.env.UNBROWSE_SKIP_WALLET_SETUP = "1";
+    } else if (!lobsterInstalled) {
       console.log("[unbrowse] Setting up Crossmint wallet (required for earning + payments)...");
       try {
         execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
