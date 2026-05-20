@@ -27,7 +27,7 @@ Add this once to your host config (Claude Desktop, Cursor, Codex, Open Code, Win
 }
 ```
 
-That's it. `npx` fetches the `unbrowse` binary on first run; every web task in that host now routes through Unbrowse. On the first call you'll be walked through ToS, agent registration, and an optional wallet pairing.
+That's it. `npx` fetches the `unbrowse` binary on first run; every web task in that host now routes through Unbrowse. Local browsing tools (`unbrowse_go`, `unbrowse_snap`, `unbrowse_eval`, `unbrowse_fetch`) work without registration. Backend-bound tools (`unbrowse_resolve`, `unbrowse_execute`, `unbrowse_publish`, `unbrowse_earnings`) require an API key — register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) or run `npx unbrowse register`. To earn USDC on captured routes, pair a wallet via `npx @crossmint/lobster-cli setup`.
 
 ### Option 2 — TypeScript SDK
 
