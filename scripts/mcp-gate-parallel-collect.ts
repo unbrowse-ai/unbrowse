@@ -31,6 +31,14 @@ import { join } from "node:path";
 
 const RUN_DIR = process.argv[2];
 if (!RUN_DIR) { console.error("usage: bun scripts/mcp-gate-parallel-collect.ts <run-dir>"); process.exit(2); }
+
+// Hard-headless lock. Bench-gate runs must never pop a Chrome window onto
+// the user's screen, not from the substrate-internal anti-bot retry path
+// in execution/index.ts:1605, not from a peer harness leaking
+// UNBROWSE_ALLOW_VISIBLE_AUTH_FALLBACK=1 into the process env. Set BEFORE
+// getInProcessApp() spawns so the kuri client picks it up at launch.
+process.env.UNBROWSE_FORCE_HEADLESS = "1";
+
 const manifest = JSON.parse(readFileSync(join(RUN_DIR, "manifest.json"), "utf8"));
 const probes: Array<{ probe_id: string; intent: string; url: string; lane: string }> = manifest.probes;
 const CONC = Number(process.env.UNBROWSE_GATE_CONCURRENCY) || 30;
