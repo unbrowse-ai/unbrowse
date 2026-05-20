@@ -11,6 +11,7 @@
     "vendor/kuri",
     "scripts/release-assets.mjs",
     "scripts/postinstall.mjs",
+    "scripts/postinstall-ping.mjs",
     "scripts/verify-release-assets.mjs",
     "README.md",
     "LICENSE"
