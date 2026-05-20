@@ -2542,6 +2542,55 @@ function scoreDuplicateRowDemotion(structure: ExtractedStructure): number {
   return looksLikeDuplicateRowArray(structure.data) ? -250 : 0;
 }
 
+// W3-followup: empty-container demotion. A structure where the leaves
+// are >=80% empty {} / [] / blank strings is a container shell with no
+// payload. Common shape: SPA SSR-renders the Redux/MobX entity store
+// with all buckets empty because the data was meant to populate from
+// post-mount XHR. Live source from .bench-gate/20260520T093742Z:
+//   - 020/021/022 x.com cold: {optimist:[],entities:{broadcasts:{entities:{},
+//     errors:{},fetchStatus:{}}, ...}} — 173KB of key names, zero scalars.
+//
+// Sits beside the existing three:
+//   scoreConfigShapeDemotion       -> i18n/RSC bootstrap (-200)
+//   scoreDegenerateRowDemotion     -> all-collapsed-values inside one row (-300)
+//   scoreDuplicateRowDemotion      -> same row repeated across array (-250)
+//   scoreEmptyContainerDemotion    -> all leaves empty containers (-200, NEW)
+//
+// Substrate-faithful: structural primitive, no per-host registry. Real
+// listings have many scalar leaves; chrome / unfilled stores have very
+// few. Threshold at 80% empty so a sparse-but-real structure (one real
+// scalar plus many empty buckets) survives.
+function looksLikeEmptyContainer(data: unknown): boolean {
+  if (data == null) return false;
+  if (typeof data !== "object") return false;
+  let scalars = 0;
+  let empties = 0;
+  const walk = (node: unknown): void => {
+    if (node == null) return;
+    if (Array.isArray(node)) {
+      if (node.length === 0) { empties++; return; }
+      for (const e of node) walk(e);
+      return;
+    }
+    if (typeof node === "object") {
+      const keys = Object.keys(node as object);
+      if (keys.length === 0) { empties++; return; }
+      for (const k of keys) walk((node as Record<string, unknown>)[k]);
+      return;
+    }
+    if (typeof node === "string" && node.trim().length === 0) { empties++; return; }
+    scalars++;
+  };
+  walk(data);
+  const total = scalars + empties;
+  if (total < 3) return false;
+  return empties / total >= 0.8;
+}
+
+function scoreEmptyContainerDemotion(structure: ExtractedStructure): number {
+  return looksLikeEmptyContainer(structure.data) ? -200 : 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // extractFromDOM
@@ -2672,7 +2721,8 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   //       that would otherwise be the LONE candidate and win by default.
   const structures = allStructures.filter((s) =>
     !(s.type === "repeated-elements" && looksLikeDegenerateRowArray(s.data)) &&
-    !looksLikeConfigShape(s.data));
+    !looksLikeConfigShape(s.data) &&
+    !looksLikeEmptyContainer(s.data));
 
   if (structures.length === 0) {
     const fallback = extractHtmlMetadataFallback(html);
@@ -2686,7 +2736,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s),
+    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s) + scoreEmptyContainerDemotion(s),
   }));
   scored.sort((a, b) => b.score - a.score);
   const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
