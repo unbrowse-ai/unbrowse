@@ -1038,41 +1038,187 @@ function extractPostSpecial(html: string, intent: string): ExtractedStructure[] 
   return posts.length >= 1 ? [{ type: "repeated-elements", data: posts.slice(0, 20), element_count: posts.length }] : [];
 }
 
-function extractDevToPostSpecial(html: string, intent: string): ExtractedStructure[] {
+// ---------------------------------------------------------------------------
+// extractRepeatedArticleSpecial — generic primitive for repeated-article pages
+// ---------------------------------------------------------------------------
+//
+// Replaces the prior per-host `extractDevToPostSpecial` (deleted 2026-05-20)
+// per CLAUDE.md ranker philosophy: heuristics OUT, universal-web-standards
+// primitives IN. No `host === "dev.to"`, no `crayons-story` CSS hint, no
+// `data-content-user-id` literal. Same code path now handles any site that
+// emits standards-conformant article markup:
+//
+//   Strategy 1 (JSON-LD schema.org, highest confidence):
+//     <script type="application/ld+json"> blocks containing Article /
+//     BlogPosting / NewsArticle / TechArticle (single, nested in ItemList,
+//     or inside @graph). Surfaces headline, url, author.name, datePublished,
+//     description.
+//
+//   Strategy 2 (HTML5 semantic + OpenGraph, when JSON-LD is absent):
+//     >=1 <article> elements with an h1/h2/h3 > a title link, plus optional
+//     <time>, [rel=author] / [class*=author], and tag-like /t/ links.
+//     Base URL for relative hrefs comes from <link rel="canonical"> or
+//     <meta property="og:url"> — no per-host string is hardcoded.
+//
+// Returns [] when neither strategy yields >=1 rows, letting downstream
+// generic extractors (article-body, SPA, metadata fallback) handle the page.
+function extractRepeatedArticleSpecial(html: string, intent: string): ExtractedStructure[] {
   const intentLower = intent.toLowerCase();
-  if (!/(devto|dev\.to|post|posts|article|articles)/.test(intentLower)) return [];
-  if (!/dev\.to|crayons-story|data-content-user-id/i.test(html)) return [];
+  if (!/(post|posts|article|articles|blog|story|stories|tutorial|tutorials)/.test(intentLower)) return [];
   const $ = cheerio.load(html);
-  const seen = new Set<string>();
-  const posts: Record<string, string>[] = [];
 
-  $("article.crayons-story, .crayons-story, [data-content-user-id]").each((_, el) => {
-    const $el = $(el);
-    const titleLink = $el.find("h2 a[href], h3 a[href], a[href*='/'][href]").filter((__, a) => {
-      const href = ($(a).attr("href") ?? "").split("?")[0];
-      return /^\/[^/\s]+\/[^/\s]+/.test(href) && !/^\/(?:signin|login|enter|settings|search|tags|new|notifications)\b/i.test(href);
-    }).first();
-    const href = (titleLink.attr("href") ?? "").split("?")[0];
-    const title = cleanText(titleLink.text());
-    if (!href || !title || title.length < 6 || seen.has(href)) return;
-    const description = cleanText($el.find("p, .crayons-story__snippet, [class*='snippet']").first().text());
-    const author = cleanText($el.find("[class*='user-name'], [class*='author'], .crayons-story__secondary").first().text());
-    const date = cleanText($el.find("time").first().text() || $el.find("[datetime]").first().attr("datetime") || "");
-    const tags = $el.find("a[href^='/t/']").map((__, a) => cleanText($(a).text()).replace(/^#/, "")).get().filter(Boolean).slice(0, 8);
-    const row: Record<string, string> = {
-      title,
-      url: href.startsWith("http") ? href : `https://dev.to${href}`,
-      link: href,
+  // Derive base URL for relative-href resolution from canonical/og:url.
+  // Universal web-standards lookup; no host literal anywhere.
+  const canonicalUrl = ($('link[rel="canonical"]').attr("href") || "").trim();
+  const ogUrl = ($('meta[property="og:url"]').attr("content") || "").trim();
+  let baseOrigin = "";
+  for (const candidate of [canonicalUrl, ogUrl]) {
+    if (!candidate) continue;
+    try {
+      baseOrigin = new URL(candidate).origin;
+      break;
+    } catch {
+      // fall through
+    }
+  }
+  const resolveHref = (href: string): string => {
+    if (!href) return "";
+    if (/^https?:\/\//i.test(href)) return href;
+    if (!baseOrigin) return href;
+    if (href.startsWith("/")) return `${baseOrigin}${href}`;
+    return `${baseOrigin}/${href}`;
+  };
+
+  const seen = new Set<string>();
+  const rows: Record<string, string>[] = [];
+
+  // ---- Strategy 1: JSON-LD schema.org ----
+  const ARTICLE_TYPES = new Set([
+    "Article", "BlogPosting", "NewsArticle", "TechArticle", "ScholarlyArticle", "Report",
+  ]);
+  const flattenJsonLdNodes = (node: unknown): unknown[] => {
+    const out: unknown[] = [];
+    const visit = (n: unknown): void => {
+      if (!n) return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      if (typeof n !== "object") return;
+      const obj = n as Record<string, unknown>;
+      out.push(obj);
+      if (Array.isArray(obj["@graph"])) (obj["@graph"] as unknown[]).forEach(visit);
+      if (Array.isArray(obj.itemListElement)) (obj.itemListElement as unknown[]).forEach(visit);
+      if (obj.item && typeof obj.item === "object") visit(obj.item);
     };
-    if (description && description !== title) row.description = description;
-    if (author && author.length < 120) row.author = author;
-    if (date) row.date = date;
-    if (tags.length > 0) row.tags = tags.join(", ");
-    posts.push(row);
-    seen.add(href);
+    visit(node);
+    return out;
+  };
+  const nodeType = (n: Record<string, unknown>): string[] => {
+    const t = n["@type"];
+    if (typeof t === "string") return [t];
+    if (Array.isArray(t)) return t.filter((x): x is string => typeof x === "string");
+    return [];
+  };
+  const asStringField = (n: Record<string, unknown>, ...keys: string[]): string => {
+    for (const k of keys) {
+      const v = n[k];
+      if (typeof v === "string" && v.trim().length > 0) return v.trim();
+    }
+    return "";
+  };
+  const authorName = (n: Record<string, unknown>): string => {
+    const a = n.author;
+    if (typeof a === "string") return a.trim();
+    if (a && typeof a === "object" && !Array.isArray(a)) {
+      const name = (a as Record<string, unknown>).name;
+      if (typeof name === "string") return name.trim();
+    }
+    if (Array.isArray(a)) {
+      const first = a[0];
+      if (typeof first === "string") return first.trim();
+      if (first && typeof first === "object") {
+        const name = (first as Record<string, unknown>).name;
+        if (typeof name === "string") return name.trim();
+      }
+    }
+    return "";
+  };
+
+  $('script[type="application/ld+json"]').each((_, el) => {
+    const raw = $(el).contents().text();
+    if (!raw || raw.length > 200_000) return;
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { return; }
+    for (const node of flattenJsonLdNodes(parsed)) {
+      if (!node || typeof node !== "object") continue;
+      const obj = node as Record<string, unknown>;
+      const types = nodeType(obj);
+      if (!types.some((t) => ARTICLE_TYPES.has(t))) continue;
+      const title = asStringField(obj, "headline", "name");
+      const url = resolveHref(asStringField(obj, "url", "mainEntityOfPage", "@id"));
+      if (!title || title.length < 6) continue;
+      if (!url) continue;
+      const canonicalKey = url.split("?")[0];
+      if (seen.has(canonicalKey)) continue;
+      const description = asStringField(obj, "description", "articleBody", "abstract");
+      const author = authorName(obj);
+      const date = asStringField(obj, "datePublished", "dateModified", "dateCreated");
+      const row: Record<string, string> = { title, url, link: url };
+      if (description && description !== title) row.description = description.slice(0, 400);
+      if (author && author.length < 120) row.author = author;
+      if (date) row.date = date;
+      rows.push(row);
+      seen.add(canonicalKey);
+    }
   });
 
-  return posts.length >= 1 ? [{ type: "repeated-elements", data: posts.slice(0, 20), element_count: posts.length }] : [];
+  // ---- Strategy 2: HTML5 semantic <article> elements with title-linked heading ----
+  // Triggers when JSON-LD is absent or sparse. Site-agnostic: relies on the
+  // HTML5 spec — `<article>` for "self-contained composition that is, in
+  // principle, independently distributable or reusable, e.g. a forum post or
+  // a magazine or newspaper article or a blog entry".
+  if (rows.length < 2) {
+    $("article, [role='article']").each((_, el) => {
+      const $el = $(el);
+      const titleLink = $el.find("h1 a[href], h2 a[href], h3 a[href]").filter((__, a) => {
+        const href = ($(a).attr("href") ?? "").split("?")[0];
+        if (!href) return false;
+        // Reject obvious chrome/auth/nav links by path-shape, not by domain.
+        if (/^\/(?:signin|login|enter|signup|register|settings|search|tags|new|notifications|about|contact|terms|privacy)\b/i.test(href)) return false;
+        return true;
+      }).first();
+      const href = (titleLink.attr("href") ?? "").split("?")[0];
+      const title = cleanText(titleLink.text());
+      if (!href || !title || title.length < 6) return;
+      const resolved = resolveHref(href);
+      const canonicalKey = resolved.split("?")[0];
+      if (seen.has(canonicalKey)) return;
+      const description = cleanText(
+        $el.find("p, [class*='snippet'], [class*='excerpt'], [class*='summary']").first().text()
+      );
+      const author = cleanText(
+        $el.find("[rel='author'], [itemprop='author'], [class*='author'], [class*='byline']").first().text()
+      );
+      const date = cleanText(
+        $el.find("time[datetime]").first().attr("datetime") ||
+        $el.find("time").first().text() || ""
+      );
+      const tags = $el.find("a[href*='/t/'], a[href*='/tag/'], a[href*='/tags/'], a[rel='tag']")
+        .map((__, a) => cleanText($(a).text()).replace(/^#/, ""))
+        .get()
+        .filter(Boolean)
+        .slice(0, 8);
+      const row: Record<string, string> = { title, url: resolved, link: href };
+      if (description && description !== title) row.description = description;
+      if (author && author.length < 120) row.author = author;
+      if (date) row.date = date;
+      if (tags.length > 0) row.tags = tags.join(", ");
+      rows.push(row);
+      seen.add(canonicalKey);
+    });
+  }
+
+  return rows.length >= 1
+    ? [{ type: "repeated-elements", data: rows.slice(0, 20), element_count: rows.length }]
+    : [];
 }
 
 function extractDefinitionSpecial(html: string, intent: string): ExtractedStructure[] {
@@ -2069,7 +2215,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const packageSearchStructures = extractPackageSearchSpecial(workingHtml, intent);
   const xProfileStructures = extractXProfileSpecial(workingHtml, intent);
   const postStructures = extractPostSpecial(workingHtml, intent);
-  const devToPostStructures = extractDevToPostSpecial(workingHtml, intent);
+  const repeatedArticleStructures = extractRepeatedArticleSpecial(workingHtml, intent);
   const trendStructures = extractTrendSpecial(workingHtml, intent);
   const definitionStructures = extractDefinitionSpecial(workingHtml, intent);
   const packageDetailStructures = extractPackageDetailSpecial(workingHtml, intent);
@@ -2079,7 +2225,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   // wikipedia mw-parser-output marker survives even on giant pages with massive
   // reference sections that would otherwise push it past the cap.
   const articleStructures = extractArticleBodySpecial(html.length > 600_000 ? html.slice(0, 600_000) : html, intent);
-  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...devToPostStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...repeatedArticleStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {
@@ -2096,9 +2242,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
     structure: s,
     score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s),
   }));
-
   scored.sort((a, b) => b.score - a.score);
-
   const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
   const bestPassing = (() => {
     // Prefer article-body extraction over a schema-only JSON-LD / meta envelope.
