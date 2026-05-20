@@ -2217,7 +2217,12 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     }
     candidates.push($el.find("a").first().text().trim());
     for (const linkText of candidates) {
-      if (linkText && linkText.length > 2 && linkText.length < 200 && !/^(read|more|view|see|click)/i.test(linkText) && !/^\d+$/.test(linkText)) {
+      // Reject URL-shaped text — when the anchor's text is its href (the
+      // common reddit / aggregator / link-list shape where the post title
+      // wasn't extracted), the link text duplicates the URL and carries
+      // no caption. Skip so the next candidate (or og:title fallback)
+      // can take over.
+      if (linkText && linkText.length > 2 && linkText.length < 200 && !/^(read|more|view|see|click)/i.test(linkText) && !/^\d+$/.test(linkText) && !/^https?:\/\//i.test(linkText) && !/^\/\//.test(linkText)) {
         fields["title"] = linkText;
         break;
       }
