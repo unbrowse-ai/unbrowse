@@ -1,4 +1,5 @@
 import { getConfiguredApiOrigin } from "./api-base";
+import { checkAuthInvalidResponse } from "./auth-invalid-event";
 
 export interface AccountMe {
   user_id: string;
@@ -141,6 +142,7 @@ async function authed<T>(
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    await checkAuthInvalidResponse(res);
     throw new AccountClientError(res.status, await readErrorBody(res));
   }
   if (res.status === 204) return undefined as T;

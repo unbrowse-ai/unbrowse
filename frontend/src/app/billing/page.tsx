@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
+import { checkAuthInvalidResponse } from "@/lib/auth-invalid-event";
 
 type SubState =
   | { status: "none" }
@@ -28,10 +29,25 @@ export default function BillingPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/v1/billing/me`, { headers: { Authorization: `Bearer ${apiKey}` } })
-      .then((r) => r.json() as Promise<SubState>)
-      .then(setSub)
-      .catch((err) => setSub({ error: String(err) }));
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_URL}/v1/billing/me`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (await checkAuthInvalidResponse(r)) {
+          if (!cancelled) setSub({ error: "Your API key was rotated. Sign in to mint a new one." });
+          return;
+        }
+        const data = (await r.json()) as SubState;
+        if (!cancelled) setSub(data);
+      } catch (err) {
+        if (!cancelled) setSub({ error: String(err) });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [apiKey]);
 
   async function startCheckout() {
@@ -47,6 +63,10 @@ export default function BillingPage() {
         },
         body: JSON.stringify({ return_url: `${window.location.origin}/billing/success` }),
       });
+      if (await checkAuthInvalidResponse(r)) {
+        setActionError("Your API key was rotated. Sign in to mint a new one.");
+        return;
+      }
       const body = (await r.json()) as { url?: string; error?: string };
       if (body.url) {
         window.location.href = body.url;
@@ -68,6 +88,10 @@ export default function BillingPage() {
       const r = await fetch(`${API_URL}/v1/billing/portal`, {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
+      if (await checkAuthInvalidResponse(r)) {
+        setActionError("Your API key was rotated. Sign in to mint a new one.");
+        return;
+      }
       const body = (await r.json()) as { url?: string; error?: string };
       if (body.url) {
         window.location.href = body.url;

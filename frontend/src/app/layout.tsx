@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { DocsEmbed } from "@/components/docs-embed";
 import { ContentPageTracker } from "@/components/content-page-tracker";
+import { AuthInvalidGlobalBanner } from "@/components/auth-invalid-global-banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -187,6 +188,7 @@ export default function RootLayout({
           <PrivyOptionalProvider>
             <AuthProvider>
               <ContentPageTracker />
+              <AuthInvalidGlobalBanner />
               <Navbar />
               <main className="min-h-screen">
                 {children}

@@ -1,4 +1,5 @@
 import { getConfiguredApiOrigin } from "@/lib/api-base";
+import { checkAuthInvalidResponse } from "@/lib/auth-invalid-event";
 
 const API_URL = getConfiguredApiOrigin();
 const SUPPRESSED_MARKETPLACE_DOMAINS = new Set(["pearlpediatric.curvehero.com"]);
@@ -365,6 +366,7 @@ async function request<T = unknown>(
     signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) {
+    await checkAuthInvalidResponse(res);
     const data = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
@@ -696,6 +698,7 @@ async function authRequestOrAccountRequired<T>(path: string): Promise<T | null> 
     throw new Error(data.error ?? `HTTP 403`);
   }
   if (!res.ok) {
+    await checkAuthInvalidResponse(res);
     const data = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
