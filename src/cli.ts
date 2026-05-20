@@ -1947,6 +1947,36 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     }
   }
 
+  // Also auto-register the MCP server into any detected GUI/editor host
+  // configs (Claude Desktop, Cursor, Codex, Continue, Windsurf). Each host
+  // gets its own per-host result. Hosts that aren't installed report
+  // "not_detected" and nothing is written; idempotent on re-run. Opt-out via
+  // --no-mcp-host-register.
+  if (flags["no-mcp-host-register"]) {
+    info("MCP host registration skipped (--no-mcp-host-register).");
+  } else {
+    try {
+      const { registerMcpHosts } = await import("./setup/mcp-hosts-register.js");
+      // GUI hosts cannot spawn `bun` reliably without a fully-loaded PATH;
+      // route them through `npx` so the host picks up the package from npm.
+      const hostResults = registerMcpHosts({
+        serverCommand: "npx",
+        serverArgs: ["-y", "unbrowse", "mcp"],
+      });
+      for (const r of hostResults) {
+        if (r.action === "merged") {
+          info(`MCP host ${r.host}: registered at ${r.config_path}`);
+        } else if (r.action === "already_present") {
+          info(`MCP host ${r.host}: already configured`);
+        } else if (r.action === "parse_error") {
+          info(`MCP host ${r.host}: ${r.detail ?? "config malformed; skipped"}`);
+        }
+        // "not_detected" stays silent so we don't spam users about hosts they don't have.
+      }
+    } catch (err) {
+      info(`MCP host registration skipped (${err instanceof Error ? err.message : String(err)}).`);
+    }
+  }
 
   await recordInstallTelemetryEvent("setup", {
     hostType,
