@@ -134,7 +134,7 @@ export default function RootLayout({
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "macOS, Linux, Windows",
-              softwareVersion: "6.5.2",
+              softwareVersion: "6.17.0",
               downloadUrl: "https://www.npmjs.com/package/unbrowse",
               codeRepository: "https://github.com/unbrowse-ai/unbrowse",
               isAccessibleForFree: true,

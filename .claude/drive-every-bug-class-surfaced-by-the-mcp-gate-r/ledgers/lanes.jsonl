@@ -1,0 +1,2 @@
+{"ts":"2026-05-20T04:09:45Z","plan":"drive-gate-bugs","phase":"verify","latest_run":".bench-gate/20260520T025154Z","gate":{"passed":"False","index":0.5,"retrieve":0.39285714285714285}}
+{"ts":"2026-05-20T08:40:32Z","plan":"drive-gate-bugs","phase":"verify","latest_run":".bench-gate/20260520T081602Z","gate":{"passed":"False","index":0.82,"retrieve":0.4473684210526316}}

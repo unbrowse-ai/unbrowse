@@ -9,6 +9,8 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  EMPTY_ENTITY_BAG_DEMOTION,
+  EMPTY_ENTITY_BAG_FLOOR,
   HARD_NEGATIVE_FLOOR,
   WEAK_NEGATIVE_FLOOR,
   PAGE_ARTIFACT_DEMOTION,
@@ -20,7 +22,9 @@ const EXEC_PATH = join(REPO_ROOT, "src/execution/index.ts");
 const CLAMPS_PATH = join(REPO_ROOT, "src/ranking/clamps.ts");
 
 describe("clamps module surface", () => {
-  it("exports three numeric constants with paper-anchored values", () => {
+  it("exports numeric constants with paper-anchored values", () => {
+    expect(EMPTY_ENTITY_BAG_DEMOTION).toBe(650);
+    expect(EMPTY_ENTITY_BAG_FLOOR).toBe(-700);
     expect(HARD_NEGATIVE_FLOOR).toBe(-2000);
     expect(WEAK_NEGATIVE_FLOOR).toBe(-400);
     expect(PAGE_ARTIFACT_DEMOTION).toBe(800);
@@ -100,7 +104,9 @@ describe("anti-goal anchors — fail loud if extraction is reverted", () => {
   const execSrc = readFileSync(EXEC_PATH, "utf8");
   const clampsSrc = readFileSync(CLAMPS_PATH, "utf8");
 
-  it("clamps.ts contains all three constants and the function", () => {
+  it("clamps.ts contains all constants and the function", () => {
+    expect(clampsSrc).toContain("export const EMPTY_ENTITY_BAG_DEMOTION = 650");
+    expect(clampsSrc).toContain("export const EMPTY_ENTITY_BAG_FLOOR = -700");
     expect(clampsSrc).toContain("export const HARD_NEGATIVE_FLOOR = -2000");
     expect(clampsSrc).toContain("export const WEAK_NEGATIVE_FLOOR = -400");
     expect(clampsSrc).toContain("export const PAGE_ARTIFACT_DEMOTION = 800");
@@ -123,9 +129,9 @@ describe("anti-goal anchors — fail loud if extraction is reverted", () => {
 
   it("clamps.ts is short — sufficient unto the day", () => {
     // Anti-bloat guard: if someone tries to grow clamps.ts into a registry,
-    // the byte budget reminds them this was a 4-export wedge.
+    // the byte budget reminds them this is still a small clamp wedge.
     expect(clampsSrc.length).toBeLessThan(4096);
     const exportCount = (clampsSrc.match(/^export /gm) ?? []).length;
-    expect(exportCount).toBe(4);
+    expect(exportCount).toBe(6);
   });
 });

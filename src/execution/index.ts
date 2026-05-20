@@ -30,7 +30,14 @@ import { createHash } from "node:crypto";
 import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../ranking/signals/bm25.js";
 import { semanticIntentAdjustment, AGENT_DESC_DELTA_WEIGHT, CURRENCY_TIME_DELTA_WEIGHT, COMMS_PATH_DELTA_WEIGHT, CHART_PRICING_DELTA_WEIGHT } from "../ranking/signals/intent-yield.js";
 import { NOISE_HOSTS, NOISE_PATHS, I18N_CONFIG_PATHS, AUTH_CONFIG_PATHS, SESSION_PLUMBING, STATIC_ASSET_PATTERNS, UI_ASSET_PATHS } from "../ranking/filters/noise-patterns.js";
-import { HARD_NEGATIVE_FLOOR, WEAK_NEGATIVE_FLOOR, PAGE_ARTIFACT_DEMOTION, clampToFloor } from "../ranking/clamps.js";
+import {
+  EMPTY_ENTITY_BAG_DEMOTION,
+  EMPTY_ENTITY_BAG_FLOOR,
+  HARD_NEGATIVE_FLOOR,
+  WEAK_NEGATIVE_FLOOR,
+  PAGE_ARTIFACT_DEMOTION,
+  clampToFloor,
+} from "../ranking/clamps.js";
 
 function stableEndpointId(method: string, urlTemplate: string): string {
   if (!method || !urlTemplate) return nanoid();
@@ -388,6 +395,38 @@ function looksLikeUiChromeText(value: string): boolean {
     if (lower.includes(token)) hits++;
   }
   return hits >= 2;
+}
+
+function schemaProperties(schema: unknown): Record<string, unknown> | undefined {
+  if (!schema || typeof schema !== "object") return undefined;
+  const props = (schema as Record<string, unknown>).properties;
+  return props && typeof props === "object" ? props as Record<string, unknown> : undefined;
+}
+
+function pageArtifactSchemaIsAllEmptyContainers(schema: unknown): boolean {
+  const rootProps = schemaProperties(schema);
+  const entityStores = schemaProperties(rootProps?.entities);
+  if (!entityStores) return false;
+
+  let bagCount = 0;
+  let emptyEntityBags = 0;
+  for (const store of Object.values(entityStores)) {
+    const storeProps = schemaProperties(store);
+    if (!storeProps || !("entities" in storeProps) || !("errors" in storeProps) || !("fetchStatus" in storeProps)) {
+      continue;
+    }
+    const entitiesProps = schemaProperties(storeProps.entities);
+    bagCount += 1;
+    if (!entitiesProps || Object.keys(entitiesProps).length === 0) emptyEntityBags += 1;
+  }
+
+  return bagCount >= 4 && emptyEntityBags / bagCount >= 0.8;
+}
+
+function schemaIsHtmlDocument(schema: unknown): boolean {
+  if (!schema || typeof schema !== "object") return false;
+  const s = schema as Record<string, unknown>;
+  return s.type === "string" && s.format === "html";
 }
 
 /** Detect concatenated values like "AAPLApple" or "Inc978,583".
@@ -5897,9 +5936,24 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         }
         return false;
       })();
+    const pageArtifactHasEmptyEntityBags =
+      (isCapturedPageArtifact || isStructuralPageArtifact)
+      && !!ep.dom_extraction
+      && pageArtifactSchemaIsAllEmptyContainers(ep.response_schema);
+    const pageArtifactIsHtmlOnly =
+      !!ep.dom_extraction
+      && schemaIsHtmlDocument(ep.response_schema);
+    const siblingHasEmptyEntityBagArtifact =
+      !!ep.trigger_url
+      && rankedCandidates.some((other) =>
+        other !== ep
+        && other.trigger_url === ep.trigger_url
+        && !!other.dom_extraction
+        && pageArtifactSchemaIsAllEmptyContainers(other.response_schema)
+      );
     if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
       score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
-    } else if (looksLikeContentRead && pageArtifactIsDataRich) {
+    } else if (looksLikeContentRead && pageArtifactIsDataRich && !pageArtifactHasEmptyEntityBags) {
       // Counter-promotion for content-read intents on data-rich page artifacts.
       // Beats the structural API demotion magnitude so the page wins.
       score += 250;
@@ -5913,7 +5967,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // when LIST_INTENT matches.
       score = Math.max(score, 100);
     }
-      score = Math.max(score, 100);
+    if (looksLikeContentRead && (pageArtifactHasEmptyEntityBags || (pageArtifactIsHtmlOnly && siblingHasEmptyEntityBagArtifact))) {
+      score = clampToFloor(score, EMPTY_ENTITY_BAG_DEMOTION, EMPTY_ENTITY_BAG_FLOOR);
+    }
     // LIST_INTENT scalar-schema demotion (lane-01 / AC2):
     // For content-read list intents, an endpoint whose response schema declares
     // ONLY scalar-typed top-level properties (count, total, number, string, bool)
@@ -6406,6 +6462,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (ep.auth_walled && intent) {
       const intentIsAuthShaped = /\b(sign[\s\-_]?in|log[\s\-_]?in|sign[\s\-_]?up|signin|login|signup|auth(?:enticate)?)\b/i.test(intent);
       if (!intentIsAuthShaped) score -= 350;
+    }
+    if (looksLikeContentRead && (pageArtifactHasEmptyEntityBags || (pageArtifactIsHtmlOnly && siblingHasEmptyEntityBagArtifact))) {
+      score = clampToFloor(score, 0, EMPTY_ENTITY_BAG_FLOOR);
     }
     return { endpoint: ep, score };
   });

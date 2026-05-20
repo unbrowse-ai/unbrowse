@@ -949,8 +949,19 @@ async function stopOn(state: BrokerState): Promise<void> {
   if (state.startPromise) {
     await state.startPromise.catch(() => {});
   }
-  if (state.process) {
-    state.process.kill("SIGTERM");
+  const proc = state.process;
+  if (proc) {
+    // SIGTERM is fire-and-forget. Previously stopOn nulled state.process
+    // immediately and returned in 0ms while the kuri process kept running,
+    // leaking zombie kuri+Chrome pids on every per-session broker close.
+    // Await actual exit with a deadline; SIGKILL if the process refuses.
+    proc.kill("SIGTERM");
+    const exited = await waitForProcessExit(proc, 3000);
+    if (!exited) {
+      log("kuri", `stopOn: pid=${proc.pid} did not exit on SIGTERM in 3000ms; sending SIGKILL`);
+      proc.kill("SIGKILL");
+      await waitForProcessExit(proc, 2000);
+    }
     state.process = null;
   }
   state.ready = false;
@@ -959,6 +970,24 @@ async function stopOn(state: BrokerState): Promise<void> {
   state.managedChrome = false;
   state.startPromise = null;
   forgetBrokerClient(state);
+}
+
+export function waitForProcessExit(proc: ChildProcess, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      resolve(true);
+      return;
+    }
+    let settled = false;
+    const settle = (v: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(v);
+    };
+    const timer = setTimeout(() => settle(false), timeoutMs);
+    proc.once("exit", () => settle(true));
+  });
 }
 
 /** List discovered Chrome tabs. */

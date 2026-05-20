@@ -3652,7 +3652,10 @@ export async function registerRoutes(app: FastifyInstance) {
           }
           const syncResult = await traceAsync("close", session.sessionId, "flush-capture", () => flushBrowseCapture(session, { queueIndex: true, queuePublish: true }));
           stopStreamingWatcher(session.sessionId);
-          await traceAsync("close", session.sessionId, "close-tab", () => broker.closeTab(session.tabId).catch(() => {}));
+          await traceAsync("close", session.sessionId, "close-tab", async () => {
+            try { await broker.closeTab(session.tabId); }
+            catch (err) { console.error(`[browse-close] closeTab failed sid=${session.sessionId}: ${(err as Error).message}`); }
+          });
           const closedBrokerPort = session.brokerPort;
           removeBrowseSession(browseSessions, session.sessionId);
           // Per-session broker shutdown. When this session was on a dedicated
@@ -3665,7 +3668,10 @@ export async function registerRoutes(app: FastifyInstance) {
             && closedBrokerPort >= PER_SESSION_BROKER_BASE_PORT
             && ![...browseSessions.values()].some((s) => s.brokerPort === closedBrokerPort)
           ) {
-            await traceAsync("close", session.sessionId, "broker-stop", () => broker.stop().catch(() => {}));
+            await traceAsync("close", session.sessionId, "broker-stop", async () => {
+              try { await broker.stop(); }
+              catch (err) { console.error(`[browse-close] broker.stop failed sid=${session.sessionId} port=${closedBrokerPort}: ${(err as Error).message}`); }
+            });
           }
           return syncResult;
         },
