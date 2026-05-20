@@ -30,7 +30,13 @@ const EXTRA_WATCH = [
   "harness/probes/corpus-gate.txt",
   "harness/probes/GATE_JUDGE.md",
   "harness/probes/bench-gate-baseline.json",
+  ".mcp-proxy-env.json",
 ];
+// Mid-session env hot-swap: a JSON file the proxy re-reads BEFORE EACH spawnChild.
+// Edit this file (e.g. flip UNBROWSE_API_URL between beta and gate-staging) and
+// the watcher's debounce -> restart picks it up; the new child inherits the
+// merged env (file overrides process.env) on its next start. No /mcp reconnect.
+const ENV_FILE = path.join(REPO_ROOT, ".mcp-proxy-env.json");
 const DEBOUNCE_MS = Number(process.env.UNBROWSE_PROXY_DEBOUNCE_MS || 300);
 const CHILD_GRACE_MS = Number(process.env.UNBROWSE_PROXY_CHILD_GRACE_MS || 2000);
 const CHILD_INIT_TIMEOUT_MS = Number(process.env.UNBROWSE_PROXY_CHILD_INIT_TIMEOUT_MS || 5000);
@@ -41,6 +47,28 @@ const SILENT = process.env.UNBROWSE_PROXY_SILENT === "1";
 function log(msg: string): void {
   if (SILENT) return;
   process.stderr.write(`[mcp-hot-proxy] ${msg}\n`);
+}
+
+function readEnvFile(): Record<string, string> {
+  try {
+    const fs = require("node:fs");
+    if (!fs.existsSync(ENV_FILE)) return {};
+    const raw = fs.readFileSync(ENV_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      log(`env-file ${ENV_FILE}: not a JSON object; ignoring`);
+      return {};
+    }
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === "string") out[k] = v;
+    }
+    log(`env-file applied: ${Object.keys(out).join(", ") || "(empty)"}`);
+    return out;
+  } catch (err) {
+    log(`env-file read error: ${err}`);
+    return {};
+  }
 }
 
 type ProxyState = {
@@ -111,7 +139,7 @@ async function spawnChild(): Promise<void> {
   const child = spawn(cmd, args, {
     cwd: REPO_ROOT,
     stdio: ["pipe", "pipe", "inherit"],
-    env: { ...process.env, UNBROWSE_PROXY_CHILD: "1" },
+    env: { ...process.env, ...readEnvFile(), UNBROWSE_PROXY_CHILD: "1" },
   });
   state.child = child;
   state.childReader = createInterface({ input: child.stdout!, crlfDelay: Infinity });

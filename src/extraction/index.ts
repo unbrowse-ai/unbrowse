@@ -2492,6 +2492,37 @@ function scoreDegenerateRowDemotion(structure: ExtractedStructure): number {
   return looksLikeDegenerateRowArray(structure.data) ? -300 : 0;
 }
 
+// W3-continuation: duplicate-row chrome demotion. A repeated-elements
+// array whose distinct-row-stringify ratio drops below 0.5 carries less
+// signal than its row count suggests — more than half the rows are
+// duplicates, so the array is chrome (repeated nav button, repeated
+// Follow CTA, repeated sidebar facet) not real content. Live regressions
+// from .bench-gate/20260520T093742Z:
+//   - 011 dev.to/anthropic: 6x identical Follow-CTA rows dominated extraction
+//   - 018/019 openlibrary/works: duplicate publisher/language sidebar chips
+//
+// Substrate-faithful: shape-only, no domain or intent matching.
+// Catches the symmetric case the existing two demotions miss:
+//   scoreConfigShapeDemotion       -> i18n/RSC bootstrap
+//   scoreDegenerateRowDemotion     -> all-collapsed-values inside one row (pypi dates)
+//   scoreDuplicateRowDemotion      -> same row repeated across the array (this one)
+function looksLikeDuplicateRowArray(data: unknown): boolean {
+  if (!Array.isArray(data)) return false;
+  if (data.length < 4) return false;
+  const rows = data as unknown[];
+  const stringified = rows
+    .filter((row): row is Record<string, unknown> => row != null && typeof row === "object" && !Array.isArray(row))
+    .map((row) => JSON.stringify(row));
+  if (stringified.length < 4) return false;
+  const unique = new Set(stringified);
+  return unique.size / stringified.length < 0.5;
+}
+
+function scoreDuplicateRowDemotion(structure: ExtractedStructure): number {
+  if (structure.type !== "repeated-elements") return 0;
+  return looksLikeDuplicateRowArray(structure.data) ? -250 : 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // extractFromDOM
@@ -2630,7 +2661,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s),
+    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s),
   }));
   scored.sort((a, b) => b.score - a.score);
   const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
@@ -2785,55 +2816,76 @@ function scoreRelevance(structure: ExtractedStructure, intentWords: string[]): n
 }
 
 function computeConfidence(structure: ExtractedStructure, relevanceScore: number): number {
+  // Confidence is derived from STRUCTURAL signals on the extracted data,
+  // not from an opaque extractor-type ladder. The earlier `switch (type)`
+  // form (forbidden surface per CLAUDE.md: hardcoded confidence switch
+  // with type list) silently sent unknown extractor types to the
+  // sub-gate default (0.3) so adding a new extractor required also
+  // editing the switch, and types that returned thin data still got
+  // their high base score.
+  //
+  // The signals below describe what the extracted block actually
+  // contains. New extractor types whose data is structurally rich
+  // clear the 0.5 promotion gate automatically; types that emit thin
+  // data do not, regardless of what they call themselves.
   let confidence = 0;
 
-  // Base confidence from structure type
-  switch (structure.type) {
-    case "spa-nextjs":
-      confidence = 0.9;
-      break;
-    case "spa-nuxt":
-    case "spa-initial-state":
-    case "spa-preloaded-state":
-      confidence = 0.85;
-      break;
-    case "json-ld":
-      confidence = 0.9;
-      break;
-    case "article":
-      confidence = 0.9;
-      break;
-    case "itemlist":
-      confidence = 0.9;
-      break;
-    case "table":
-      confidence = 0.8;
-      break;
-    case "repeated-elements":
-      confidence = 0.7;
-      break;
-    case "key-value":
-      confidence = 0.7;
-      break;
-    case "meta":
-      confidence = 0.6;
-      break;
-    case "list":
-      confidence = 0.5;
-      break;
-    default:
-      confidence = 0.3;
+  // Signal 1: any structured data at all
+  if (structure.element_count >= 1) confidence += 0.3;
+
+  // Signal 2: shape richness of the extracted data
+  const shape = inspectExtractedShape(structure.data);
+  if (shape.kind === "array_of_objects") {
+    if (shape.avg_keys_per_item >= 3) confidence += 0.3;
+    else if (shape.avg_keys_per_item >= 1) confidence += 0.15;
+  } else if (shape.kind === "object_with_keys") {
+    if (shape.key_count >= 5) confidence += 0.3;
+    else if (shape.key_count >= 2) confidence += 0.15;
+  } else if (shape.kind === "array_of_primitives") {
+    confidence += 0.1;
   }
 
-  // Boost from element count (more data = more confidence)
-  if (structure.element_count > 5) confidence += 0.05;
-  if (structure.element_count > 10) confidence += 0.05;
+  // Signal 3: scale of the extracted block
+  if (structure.element_count >= 3) confidence += 0.05;
+  if (structure.element_count >= 5) confidence += 0.05;
+  if (structure.element_count >= 10) confidence += 0.05;
 
-  // Boost from relevance score
+  // Signal 4: intent-relevance (BM25-ish over keywords; computed upstream)
   if (relevanceScore > 5) confidence += 0.05;
   if (relevanceScore > 10) confidence += 0.05;
 
   return Math.min(confidence, 1);
+}
+
+interface ExtractedShape {
+  kind: "array_of_objects" | "array_of_primitives" | "object_with_keys" | "scalar_or_empty";
+  avg_keys_per_item: number;
+  key_count: number;
+}
+
+function inspectExtractedShape(data: unknown): ExtractedShape {
+  if (Array.isArray(data)) {
+    if (data.length === 0) {
+      return { kind: "scalar_or_empty", avg_keys_per_item: 0, key_count: 0 };
+    }
+    const objectItems = data.filter(
+      (item) => item !== null && typeof item === "object" && !Array.isArray(item),
+    ) as Array<Record<string, unknown>>;
+    if (objectItems.length >= Math.max(1, Math.floor(data.length / 2))) {
+      const totalKeys = objectItems.reduce((sum, item) => sum + Object.keys(item).length, 0);
+      return {
+        kind: "array_of_objects",
+        avg_keys_per_item: totalKeys / objectItems.length,
+        key_count: 0,
+      };
+    }
+    return { kind: "array_of_primitives", avg_keys_per_item: 0, key_count: 0 };
+  }
+  if (data !== null && typeof data === "object") {
+    const keys = Object.keys(data as Record<string, unknown>);
+    return { kind: "object_with_keys", avg_keys_per_item: 0, key_count: keys.length };
+  }
+  return { kind: "scalar_or_empty", avg_keys_per_item: 0, key_count: 0 };
 }
 
 // ---------------------------------------------------------------------------

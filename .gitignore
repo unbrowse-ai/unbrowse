@@ -154,3 +154,4 @@ packages/skill/dist-sm/
 # bench-converge runtime artifacts (per-run dirs + sandboxed unbrowse state).
 # Stamp output lands in .bench-gate/stamp.mcp.json (whitelisted above).
 .bench-converge/
+.mcp-proxy-env.json

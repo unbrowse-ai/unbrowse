@@ -11,7 +11,7 @@ verify_gate: "Re-run the /unbrowse-mcp-gate skill end-to-end (preflight + parall
 verify_command: |
     bash .claude/drive-every-bug-class-surfaced-by-the-mcp-gate-r/scripts/verify.sh
 validation_channel: "http-curl"
-loop_primitive: self-build
+loop_primitive: linear-iterate
 parallel_budget: 8
 iteration_cap: 30
 inferred_from:
@@ -118,12 +118,12 @@ on every run.
 
 ## Loop primitive
 
-self-build - meaning:
+linear-iterate - meaning:
 
-- linear-iterate: one verify -> ship cycle per invocation
-- self-build: spawn N parallel probes, delegate to /self-build, write conductor row referencing its run_id
-- jesus-loop: delegate to /jesus-loop:take-the-wheel, poll its state via adapter
-- evidence-build: delegate to /evidence-build, poll its convergence ledger via adapter
+- one verify -> ship cycle per invocation
+- this scaffold does not delegate to `/self-build`
+- MCP probe convergence for this product is `/unbrowse-self-build` (sub-agents run
+  `mcp__unbrowse__unbrowse_resolve -> unbrowse_go -> unbrowse_snap -> unbrowse_close -> unbrowse_resolve -> unbrowse_execute -> unbrowse_reflect` and write into the harness artifact evidence)
 
 ## Optional gate phase
 

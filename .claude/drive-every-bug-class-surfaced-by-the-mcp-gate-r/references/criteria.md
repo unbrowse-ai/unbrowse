@@ -4,6 +4,9 @@ _Optional. If this file exists, `verify.sh` will collect per-lane raw evidence
 into `lanes.jsonl` and the agent will judge in-thread. If absent, verify is
 a single binary pass/fail._
 
+This plan intentionally excludes generic `/self-build` because it targets CLI bench.
+For MCP-driven spawn-and-judge flow use `/unbrowse-self-build` (`resolve -> go -> snap -> close -> resolve -> execute -> reflect`).
+
 _Borrowed from `/evidence-build` criteria.md shape. Every lane cites at least
 one `source_id` that resolves in real evidence (file path, URL, transcript
 line, etc.). No uncited criteria. This is one face of the inherited substrate
