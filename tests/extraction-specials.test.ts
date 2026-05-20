@@ -117,9 +117,17 @@ describe("special HTML extraction", () => {
   });
 
   it("extracts arXiv abstracts as single records", () => {
+    // Standards-conformant arxiv-shaped page: arxiv.org emits BOTH
+    // citation_title AND citation_abstract in <meta> tags (Highwire
+    // standard), in addition to the legacy `.title` / `.abstract`
+    // CSS classes. The generic primitive reads the Highwire meta
+    // path — no host literal, no class-name dependence.
     const html = `
       <html><head>
         <meta name="citation_title" content="A Test-Time Compute Model" />
+        <meta name="citation_author" content="Jane Doe" />
+        <meta name="citation_author" content="John Smith" />
+        <meta name="citation_abstract" content="We study how additional inference-time computation changes model behavior across difficult reasoning tasks and report a compact scaling law." />
         <link rel="canonical" href="https://arxiv.org/abs/2604.00694" />
       </head><body>
         <main>
