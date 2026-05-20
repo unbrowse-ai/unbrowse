@@ -122,9 +122,41 @@ async function HeroStats() {
   } catch {
     summary = null;
   }
-  const domains = summary?.domains ?? 600;
-  const executions = summary?.executions ?? 1_000_000;
-  const skills = summary?.skills ?? 18_000;
+
+  // No fake numbers: when the stats API is unreachable, render the
+  // section as a labeled placeholder instead of painting 600/1M/18K
+  // as if they were live data. Per CLAUDE.md design law.
+  if (!summary || typeof summary.domains !== "number") {
+    return (
+      <section
+        id="hero-stats"
+        aria-label="Unbrowse marketplace stats — loading"
+        className="relative py-10"
+      >
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center font-mono">
+            {["domains in registry", "agent visits", "shadow API endpoints"].map((label) => (
+              <div
+                key={label}
+                className="bg-[#070503]/90 border border-[rgba(255,122,32,0.18)] rounded-sm py-5 px-3"
+              >
+                <div className="text-3xl sm:text-4xl text-[rgba(255,176,96,0.4)] tracking-tighter font-display">
+                  —
+                </div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted mt-2">
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const domains = summary.domains;
+  const executions = summary.executions ?? 0;
+  const skills = summary.skills ?? 0;
 
   const fmt = (n: number) => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
