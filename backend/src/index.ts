@@ -27,6 +27,7 @@ import { accountRoutes } from "./routes/account.js";
 import { cookieRoutes } from "./routes/cookies.js";
 import { adminRoutes } from "./routes/admin.js";
 import { syntheticRoutes } from "./routes/synthetic.js";
+import { llmRoutes } from "./routes/llm.js";
 import { flushQueuedGithubNotifications } from "./services/github-webhooks.js";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -59,7 +60,10 @@ app.route("/v1", adminRoutes);
 app.route("/v1", publicStatsRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", publicSkillRoutes);
-app.route("/v1", publicValidateRoutes);
+app.route("/v1", analyticsRoutes);
+// Universal x402-gated LLM proxy (Stripe x402 -> xgate.run upstream + 50% markup).
+// Additive to the existing Faremeter Flex/Solana skill routes; both coexist.
+app.route("/v1/llm", llmRoutes);
 app.route("/v1", analyticsRoutes);
 app.route("/v1", publicAgentRoutes);
 app.route("/v1", publicIssueRoutes);

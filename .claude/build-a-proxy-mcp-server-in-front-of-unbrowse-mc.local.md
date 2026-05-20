@@ -19,8 +19,9 @@ inferred_from:
   scope: project
   shipping: meta-harness.local.md
 created: 2026-05-20
-last_iterated: ""
-status: pending
+last_iterated: "2026-05-20"
+status: converged
+converged_evidence: "shipped in commit 309cf9c2 (#538) with verify-hot-reload.ts live round-trip PASS (41 tools listed pre+post, sentinel reached child swap); wire-up gap closed 2026-05-20 by pointing ~/.claude.json projects[unbrowse].mcpServers.unbrowse.args + global mcpServers.unbrowse.args at scripts/mcp-hot-proxy.ts (backup at ~/.claude.json.bak.20260520). Proxy startup smoke shows 'proxy ready' with watcher on src/**/*.ts + corpus + judge + baseline."
 ---
 
 # build a proxy MCP server in front of unbrowse_mcp that hot-reloads the child stdio server when src/mcp.ts or src/execution/index.ts or src/capture/index.ts changes. The proxy keeps the Claude Code parent connection alive, exec()s a child 'bun src/mcp.ts', forwards JSON-RPC bidirectionally, watches the file tree, restarts the child on change, and replays any pending requests. This enables a closed-loop gate-fix run: invoke /unbrowse-mcp-gate, agent finds a bug, edits source, proxy hot-reloads, gate re-runs, repeat until gate.json.passed=true. The verify gate is: an end-to-end probe that (1) starts the proxy, (2) calls a tool, (3) edits src/mcp.ts trivially, (4) waits for proxy to reload, (5) calls the same tool again, (6) confirms the new behavior takes effect — all from one persistent Claude MCP connection.

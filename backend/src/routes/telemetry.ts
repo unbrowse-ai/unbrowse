@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env, FunnelEventName, FunnelEventSource, WebTelemetryEventName } from "../types.js";
-import { optionalAuth } from "../middleware/auth.js";
+import { bearerAuth, optionalAuth } from "../middleware/auth.js";
 import { recordFunnelEvent } from "../services/funnel.js";
 import { recordInstallTelemetry } from "../services/install-telemetry.js";
 import { recordWebTelemetry } from "../services/acquisition.js";
@@ -308,5 +308,92 @@ telemetryRoutes.delete("/telemetry/sessions", async (c) => {
   } catch (err) {
     console.error("[telemetry/sessions DELETE] failed:", err instanceof Error ? err.message : String(err));
     return c.json({ error: "delete_failed" }, 500);
+  }
+});
+
+// ============================================================================
+// Admin reader for the autonomous bench-feeder.
+// Surfaces recent failed/partial intent reflections so the agent (or a cron
+// worker) can read them, judge in-thread which are good benchmark probes,
+// and propose new corpus rows for harness/probes/corpus-gate.txt.
+// Mirrors the admin-gate shape used in routes/ops.ts. Substrate-faithful:
+// emits raw evidence; never auto-merges into the bench corpus.
+// ============================================================================
+telemetryRoutes.get("/telemetry/recent-failures", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ error: "storage_not_configured" }, 503);
+  }
+
+  const limitRaw = parseInt(c.req.query("limit") ?? "200", 10);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 1000)) : 200;
+  const sinceRaw = c.req.query("since");
+  const since = sinceRaw && !Number.isNaN(Date.parse(sinceRaw))
+    ? new Date(sinceRaw).toISOString()
+    : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  try {
+    const sql = await getNeonClient(c.env.DATABASE_URL);
+    const rows = await sql`
+      SELECT session_id, received_at, reflection_status, events_json,
+             mcp_version, platform, agent_kind_fingerprint
+      FROM telemetry_sessions
+      WHERE reflection_status IN ('failed', 'partial', 'unknown', 'missing')
+        AND received_at >= ${since}
+      ORDER BY received_at DESC
+      LIMIT ${limit}
+    ` as Array<{
+      session_id: string;
+      received_at: string;
+      reflection_status: string;
+      events_json: unknown;
+      mcp_version: string | null;
+      platform: string | null;
+      agent_kind_fingerprint: string;
+    }>;
+
+    const failures: Array<Record<string, unknown>> = [];
+    for (const row of rows) {
+      const events = Array.isArray(row.events_json) ? row.events_json : [];
+      const refl = events.find((e: unknown): e is Record<string, unknown> => {
+        return Boolean(e && typeof e === "object" && (e as { event?: string }).event === "reflection");
+      });
+      const sessionStart = events.find((e: unknown): e is Record<string, unknown> => {
+        return Boolean(e && typeof e === "object" && (e as { event?: string }).event === "session_start");
+      });
+      const lastTool = [...events].reverse().find((e: unknown): e is Record<string, unknown> => {
+        const ev = (e && typeof e === "object") ? (e as { event?: string }).event : undefined;
+        return typeof ev === "string" && (ev === "tool_call" || ev === "tool_result" || ev === "error");
+      });
+
+      failures.push({
+        session_id: row.session_id,
+        received_at: row.received_at,
+        reflection_status: row.reflection_status,
+        intent: refl?.intent ?? sessionStart?.intent ?? null,
+        url: refl?.url ?? sessionStart?.url ?? null,
+        intent_status: refl?.intent_status ?? null,
+        error_class: lastTool?.error_class ?? lastTool?.error ?? null,
+        last_tool: lastTool?.tool ?? lastTool?.name ?? null,
+        mcp_version: row.mcp_version,
+        platform: row.platform,
+        agent_kind_fingerprint: row.agent_kind_fingerprint,
+      });
+    }
+
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      ok: true,
+      since,
+      limit,
+      count: failures.length,
+      failures,
+    });
+  } catch (err) {
+    console.error("[telemetry/recent-failures] query failed:", err instanceof Error ? err.message : String(err));
+    return c.json({ error: "query_failed" }, 500);
   }
 });

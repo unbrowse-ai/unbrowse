@@ -47,6 +47,13 @@ export const WEAK_NEGATIVE_FLOOR = -400;
 export const PAGE_ARTIFACT_DEMOTION = 800;
 
 /**
+ * Empty normalized entity bags are SPA/runtime state, not content. They
+ * should lose to real timeline/search APIs and often trigger a clean handoff.
+ */
+export const EMPTY_ENTITY_BAG_DEMOTION = 650;
+export const EMPTY_ENTITY_BAG_FLOOR = -700;
+
+/**
  * Pure clamp: subtract `demotion` from `score`, then snap to `floor` as the
  * upper bound (since `floor` is negative, `Math.min` is the right primitive
  * — the clamped score will be ≤ floor regardless of how high the input was).

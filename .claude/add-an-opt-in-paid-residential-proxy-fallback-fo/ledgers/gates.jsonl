@@ -1,0 +1,1 @@
+{"gate": "substrate-audit", "baseline": "HEAD~5", "em_dash_hits": 107, "hardcoded_host_lines": 4, "host_branch_lines": 1, "prose_template_lines": 3, "banned_list_lines": 0, "mirrored_assert_lines": 2, "real_channel_lines": 3, "proxy_gate_lines": 3, "proxy_only_gate_lines": 0}

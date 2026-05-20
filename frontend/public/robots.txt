@@ -8,6 +8,9 @@ Allow: /
 User-agent: ChatGPT-User
 Allow: /
 
+User-agent: GPTBot
+Allow: /
+
 User-agent: PerplexityBot
 Allow: /
 
@@ -18,6 +21,13 @@ User-agent: Claude-Web
 Allow: /
 
 User-agent: anthropic-ai
+Allow: /
+
+# AI training crawlers (best-practice opt-in)
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
 Allow: /
 
 User-agent: Googlebot
