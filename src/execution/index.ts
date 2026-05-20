@@ -16,6 +16,7 @@ import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { classifyDrift, detectGraphqlErrorEnvelope } from "../transform/drift-classifier.js";
 import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
+import { tryRecoverFromSchemaDrift } from "./drift-page-recovery.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { recordEndpointStrike, clearEndpointStrikes } from "../client/eviction-strikes.js";
@@ -4010,6 +4011,45 @@ export async function executeEndpoint(
           };
         }
         trace.result = data;
+        // W-SCHEMA-DRIFT-PAGE-RECOVERY: best-effort inline recovery. When
+        // breaking drift fires AND the substrate already determined a
+        // re-capture URL, try fetching that URL as a page and running DOM
+        // extraction. If extraction yields high-confidence structured
+        // data, return THAT as the call's result instead of the bare
+        // envelope. The agent gets useful data on the same turn; the
+        // envelope path remains the fallback when fetch/extract fails.
+        // Generic and structural: no per-domain logic. Helper module:
+        // src/execution/drift-page-recovery.ts.
+        if (!gqlEnvelope.is_envelope && recaptureSignal.url) {
+          try {
+            const recovery = await tryRecoverFromSchemaDrift(
+              recaptureSignal.url,
+              options?.intent ?? skill.intent_signature,
+              undefined,
+              undefined,
+            );
+            if (recovery) {
+              trace.success = true;
+              trace.error = undefined;
+              trace.steps?.push({
+                step: "schema_drift_recovered_via_page_fetch",
+                confidence: recovery.confidence,
+                extraction_method: recovery.extraction_method,
+              });
+              data = {
+                _drift_recovered: true,
+                _drift_recovery_method: "page_fetch",
+                _drift_recovery_confidence: recovery.confidence,
+                _drift_recovery_final_url: recovery.final_url,
+                re_capture_signal: recaptureSignal,
+                data: recovery.data,
+              };
+              trace.result = data;
+            }
+          } catch {
+            /* best-effort; fall through to envelope */
+          }
+        }
       } else if (recaptureSignal) {
         // Additive drift only — record the signal informationally so
         // the agent can choose to re-capture proactively, but do NOT
