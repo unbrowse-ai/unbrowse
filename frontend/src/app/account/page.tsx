@@ -34,6 +34,7 @@ import {
   type UserCreditBalance,
   type AccountMe,
 } from "@/lib/account-client";
+import { checkAuthInvalidResponse } from "@/lib/auth-invalid-event";
 
 function copy(value: string): void {
   if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -1014,6 +1015,13 @@ function TierPicker({
         // direct backend POST in that case.
         throw err;
       });
+      // Surface rotated-key recovery on the shim path before falling through
+      // to the direct-backend retry, which would otherwise mask a 401 as
+      // "url not returned" and silently re-fire the same auth-doomed request.
+      if (await checkAuthInvalidResponse(res)) {
+        setError("Your API key was rotated. Sign in to mint a new one.");
+        return;
+      }
       let url: string | null = null;
       if (res.ok) {
         const json = (await res.json()) as { url?: string };
@@ -1031,6 +1039,10 @@ function TierPicker({
           },
           body: JSON.stringify({ tier, return_url: `${origin}/billing/success` }),
         });
+        if (await checkAuthInvalidResponse(direct)) {
+          setError("Your API key was rotated. Sign in to mint a new one.");
+          return;
+        }
         if (!direct.ok) {
           throw new Error(`HTTP ${direct.status}: ${await direct.text()}`);
         }
