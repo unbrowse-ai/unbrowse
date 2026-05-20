@@ -1,0 +1,159 @@
+name: kuri-windows-cross-build (long-pole surface)
+
+# Plan: build-kuri-for-windows-x86-64-windows-so-unbrows
+#
+# This workflow's only job is to make the Windows long pole VISIBLE as a
+# failing CI channel, NOT to claim a green Windows port.
+#
+# Background:
+#   submodules/kuri/build.zig already uses b.standardTargetOptions(.{})
+#   so cross-compilation is a one-flag operation. The long pole is the
+#   native vendored static-dep set for the Windows target:
+#
+#     - vendor/curl-impersonate/x86_64-windows/libcurl-impersonate.lib is
+#       PRESENT today (PE/COFF .lib files vendored 2026-05-20).
+#     - pickCurlImpersonateTriple() in build.zig lacks a Windows arm, so
+#       even with the .lib files vendored, -Dtarget=x86_64-windows-gnu
+#       returns error.UnsupportedTriple and skips the link step.
+#     - mingw expects .a archives; the .lib files are MSVC-format. Either
+#       a .a mirror needs to be vendored under the same prefix, OR the
+#       build.zig branch chooses -Dtarget=x86_64-windows-msvc and a
+#       different link path.
+#
+#   This workflow runs the cross-link attempt unconditionally so the gap
+#   stops being invisible. When it eventually goes green, the same job
+#   uploads kuri.exe as an artifact and tier-1 (test-windows.yml)
+#   consumes it.
+#
+# Out of scope (intentionally):
+#   - Editing unbrowse/src/kuri/client.ts (CLAUDE.md: never edit unless
+#     explicitly asked).
+#   - Cross-compiling unbrowse itself (separate channel; tier 1 already
+#     does bun build ... --target=bun-windows-x64).
+#   - Wiring win-x64 into packages/skill/scripts/lib/kuri-vendor.mjs
+#     supportedTargets — that lands when this workflow is green.
+
+on:
+  workflow_dispatch:
+    inputs:
+      kuri_ref:
+        description: "kuri ref to cross-build (branch, tag, commit). Defaults to submodule HEAD."
+        required: false
+        default: ""
+  pull_request:
+    paths:
+      - ".github/workflows/kuri-windows-cross-build.yml"
+      - "submodules/kuri/build.zig"
+      - "submodules/kuri/build.zig.zon"
+
+permissions:
+  contents: read
+
+jobs:
+  cross-link:
+    name: zig build -Dtarget=x86_64-windows-gnu
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Optionally switch kuri ref
+        if: github.event.inputs.kuri_ref != ''
+        working-directory: submodules/kuri
+        run: |
+          git fetch --all --tags
+          git checkout "${{ github.event.inputs.kuri_ref }}"
+
+      - name: Install Zig 0.16.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Pre-flight, declare the long pole
+        working-directory: submodules/kuri
+        run: |
+          echo "::group::vendor/curl-impersonate/x86_64-windows contents"
+          ls -la vendor/curl-impersonate/x86_64-windows/ 2>&1 || echo "DIR ABSENT"
+          echo "::endgroup::"
+
+          echo "::group::pickCurlImpersonateTriple Windows arm"
+          if grep -q "\.windows =>" build.zig; then
+            echo "PRESENT: build.zig has a .windows => arm"
+          else
+            echo "ABSENT: pickCurlImpersonateTriple has no .windows arm in build.zig"
+            echo "This is the declared long pole. The cross-link below will fail."
+          fi
+          echo "::endgroup::"
+
+      - name: Cross-link kuri.exe (will fail-closed on the long pole)
+        id: cross_build
+        working-directory: submodules/kuri
+        # set +e so we capture the failure as evidence rather than masking
+        # it. The step's exit code is preserved via outputs for the
+        # downstream summary step.
+        run: |
+          set +e
+          zig build -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe 2>&1 | tee build.log
+          rc=${PIPESTATUS[0]}
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ -f zig-out/bin/kuri.exe ]; then
+            echo "produced_exe=true" >> "$GITHUB_OUTPUT"
+            ls -la zig-out/bin/
+            sha256sum zig-out/bin/kuri.exe || shasum -a 256 zig-out/bin/kuri.exe
+          else
+            echo "produced_exe=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-windows-cross-build-log
+          path: submodules/kuri/build.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload kuri.exe (only when cross-link succeeded)
+        if: steps.cross_build.outputs.produced_exe == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-win-x64
+          path: submodules/kuri/zig-out/bin/kuri.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Fail-closed summary
+        # Authoritative gate: if the cross-link did not produce kuri.exe,
+        # this job FAILS. The long pole is now visible in red on every PR
+        # touching kuri's build path.
+        run: |
+          if [ "${{ steps.cross_build.outputs.produced_exe }}" != "true" ]; then
+            cat <<'MSG'
+          ::error::Windows cross-link failed (expected today).
+          Long pole: submodules/kuri/build.zig pickCurlImpersonateTriple()
+          has no .windows arm, OR the vendored .lib (MSVC PE/COFF) is not
+          linkable by the -Dtarget=x86_64-windows-gnu (mingw) path which
+          expects .a.
+
+          To clear this gate, in submodules/kuri:
+            1) Add a .windows arm to pickCurlImpersonateTriple in build.zig.
+            2) Either vendor a mingw-format .a mirror at
+               vendor/curl-impersonate/x86_64-windows/libcurl-impersonate.a,
+               OR have build.zig pick libcurl-impersonate.lib + the matching
+               Windows system libs (Crypt32, Wldap32, Normaliz, ws2_32) and
+               require the -Dtarget=x86_64-windows-msvc branch.
+            3) Re-run this workflow; the green kuri.exe artifact unblocks
+               packages/skill/scripts/lib/kuri-vendor.mjs adding win-x64 to
+               supportedTargets, which unblocks test-windows.yml E2E.
+
+          References:
+            .claude/build-kuri-for-windows-x86-64-windows-so-unbrows/references/UPSTREAM-PR-PLAN.md
+            .claude/build-kuri-for-windows-x86-64-windows-so-unbrows/references/BLOCKER-ANALYSIS.md
+          MSG
+            exit 1
+          fi
+          echo "kuri.exe cross-linked from ubuntu-latest. Pole cleared."
