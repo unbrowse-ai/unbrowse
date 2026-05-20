@@ -16,7 +16,7 @@ import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index
 import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { generateLocalDescription, writeSkillSnapshot, readSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
-import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, PACKAGE_VERSION } from "../version.js";
+import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, RUNTIME_GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
 import { getContributionConfig, setContributionConfig, type ContributionConfig } from "../config/contribution.js";
 import { getSkill } from "../marketplace/index.js";
@@ -2358,6 +2358,7 @@ export async function registerRoutes(app: FastifyInstance) {
     trace_version: TRACE_VERSION,
     code_hash: CODE_HASH,
     git_sha: GIT_SHA,
+    runtime_git_sha: RUNTIME_GIT_SHA,
     pid: process.pid,
   }));
 

@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { dirname, join, parse } from "path";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 import {
   BUILD_CODE_HASH,
   BUILD_DEFAULT_BACKEND_URL,
@@ -134,6 +135,48 @@ export const CODE_HASH: string = BUILD_CODE_HASH?.trim() || computeCodeHash();
 
 /** Short git commit SHA */
 export const GIT_SHA: string = getGitSha();
+
+/**
+ * Git SHA of the code ACTUALLY RUNNING, resolved live at process start.
+ * BUILD_GIT_SHA / GIT_SHA above is a release-only baked constant (signed
+ * release provenance) — it goes stale the instant the running code
+ * differs from the last release cut (feature branch, dev, a worktree on
+ * another branch). Health/identity must tell the truth about what is
+ * running, so resolve it from git here; fall back to the baked GIT_SHA
+ * only when there is no git checkout (installed npm package).
+ */
+function getRuntimeGitSha(): string {
+  try {
+    const sha = execSync("git rev-parse --short=12 HEAD", {
+      cwd: MODULE_DIR,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+      timeout: 2000,
+    }).trim();
+    if (!sha) return GIT_SHA;
+    let dirty = false;
+    try {
+      dirty =
+        execSync("git status --porcelain", {
+          cwd: MODULE_DIR,
+          stdio: ["ignore", "pipe", "ignore"],
+          encoding: "utf8",
+          timeout: 2000,
+        }).trim().length > 0;
+    } catch { /* dirty-check best-effort */ }
+    return dirty ? `${sha}-dirty` : sha;
+  } catch {
+    // Not a git checkout (installed npm) — release provenance is the
+    // only identity available.
+    return GIT_SHA;
+  }
+}
+
+/** SHA of the code actually running (live git HEAD, "-dirty" if the
+ * working tree has uncommitted changes); falls back to the baked
+ * release GIT_SHA when not in a git checkout. Use this for "what code
+ * is this process running", NOT GIT_SHA (which is release provenance). */
+export const RUNTIME_GIT_SHA: string = getRuntimeGitSha();
 
 /** package.json version for CLI/runtime mismatch checks */
 export const PACKAGE_VERSION: string = getPackageVersion();
