@@ -138,6 +138,25 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
     go = await post("/v1/browse/go", { url: p.url, session_id: sid });
     if (go.status === 200 && go.body?.session_id) {
       snap = await post("/v1/browse/snap", { session_id: sid, detail_level: "minimal" });
+      // SPA hydration race: snap can fire before React/Next.js hydrates the
+      // DOM, leaving the snapshot empty and the page captureable but unseen.
+      // Probe 002 (npmjs/openai), 016 (stackoverflow), 018 (openlibrary) all
+      // trip this. One bounded re-snap with a poll for body content closes
+      // the race for slow-hydrating SPAs without masking real anti-bot empty
+      // pages (those still come back empty after the retry, and the
+      // empty_snapshot block signal still fires for the in-thread judge).
+      const snapEmpty = !snap.body?.snapshot || snap.body.snapshot.length < 32;
+      if (snapEmpty) {
+        // Poll up to 4 times at 750ms for body content via eval; bail early
+        // if content arrives. Total max wait: 3s extra per probe.
+        for (let attempt = 0; attempt < 4; attempt++) {
+          await new Promise((r) => setTimeout(r, 750));
+          const probe = await post("/v1/browse/eval", { session_id: sid, expression: "(document.body && document.body.innerText ? document.body.innerText.length : 0)" });
+          const bodyLen = Number(probe.body?.result ?? 0);
+          if (bodyLen > 200) break;
+        }
+        snap = await post("/v1/browse/snap", { session_id: sid, detail_level: "minimal" });
+      }
       evalRes = await post("/v1/browse/eval", { session_id: sid, expression: "JSON.stringify(document.documentElement.outerHTML).slice(0,8192)" });
       close = await post("/v1/browse/close", { session_id: sid });
     } else {
