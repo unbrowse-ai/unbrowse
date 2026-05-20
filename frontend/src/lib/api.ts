@@ -513,6 +513,37 @@ export async function getAnalyticsEngagement(): Promise<EngagementMetrics> {
   return authApi<EngagementMetrics>("GET", "/v1/analytics/engagement");
 }
 
+// Admin-gated: backend route checks `agent_id === "__admin__"`. Non-admin
+// callers get a 403; the caller surfaces that as a forbidden-state UI.
+export interface TelemetryFailureRow {
+  session_id: string;
+  received_at: string;
+  reflection_status: string;
+  intent: string | null;
+  url: string | null;
+  intent_status: string | null;
+  error_class: string | null;
+  last_tool: string | null;
+  mcp_version: string | null;
+  platform: string | null;
+  agent_kind_fingerprint: string;
+}
+
+export interface TelemetryRecentFailuresResponse {
+  ok: boolean;
+  since: string;
+  limit: number;
+  count: number;
+  failures: TelemetryFailureRow[];
+}
+
+export async function getTelemetryRecentFailures(opts: { limit?: number; sinceIsoUtc?: string } = {}): Promise<TelemetryRecentFailuresResponse> {
+  const qs: string[] = [];
+  if (typeof opts.limit === "number") qs.push(`limit=${encodeURIComponent(String(opts.limit))}`);
+  if (opts.sinceIsoUtc) qs.push(`since=${encodeURIComponent(opts.sinceIsoUtc)}`);
+  const suffix = qs.length > 0 ? `?${qs.join("&")}` : "";
+  return authApi<TelemetryRecentFailuresResponse>("GET", `/v1/telemetry/recent-failures${suffix}`);
+}
 export async function getDashboardByWallet(walletAddress: string): Promise<DashboardData> {
   return api<DashboardData>("GET", `/v1/dashboard/wallet/${encodeURIComponent(walletAddress.trim())}`);
 }
