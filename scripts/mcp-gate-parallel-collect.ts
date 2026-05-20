@@ -218,10 +218,25 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
 
   w(dir, "resolve.shortlist.json", JSON.stringify(post2.body, null, 2));
 
-  const pick = eps[0] ?? null;
+  // resolve_hard_handoff short-circuit: when the orchestrator emits a handoff
+  // envelope, `available_endpoints` is still populated (the rubric calls it
+  // a "shortlist for judgment" with negative scores). The PRIOR collector
+  // greedy-picked eps[0] anyway and executed it, which silently bypassed the
+  // handoff and produced misleading FAIL_EMPTY verdicts (x.com 020/021/022
+  // hit this 2026-05-20 9:37Z gate run: resolve correctly emitted handoff,
+  // collector executed the empty SPA endpoint anyway, judged FAIL).
+  //
+  // Fix: when result.status (or top-level status) is "resolve_hard_handoff",
+  // record the handoff envelope as the execute response and skip execute.
+  // That preserves the substrate's signal (the agent told you to do
+  // something else; doing the wrong thing anyway is leaven).
+  const resolveStatus = post2.body?.result?.status ?? post2.body?.status ?? null;
+  const isHandoff = resolveStatus === "resolve_hard_handoff";
+
+  const pick = (eps[0] && !isHandoff) ? eps[0] : null;
   w(dir, "resolve.pick.json", JSON.stringify(
     pick ? { ...pick, picked_from: post2.body?.available_endpoints || (Array.isArray(post2.body?.result) ? "available_endpoints" : "available_operations") }
-         : { picked_from: "none", status: post2.body?.status ?? "no_match" }, null, 2));
+         : { picked_from: "none", status: resolveStatus ?? "no_match" }, null, 2));
 
   if (pick && skillId) {
     const params = { endpoint_id: pick.endpoint_id, url: p.url, ...derivedParams(p.url) };
@@ -236,10 +251,14 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
       decision_trace: ex.body?.trace?.decision_trace ?? [],
     }, null, 2));
   } else {
-    w(dir, "execute.input.json", JSON.stringify({ skill: null, endpoint: null, intent: p.intent, context_url: p.url, params: {}, note: "no_match: execute not run" }, null, 2));
-    const handoff = JSON.stringify(post2.body?.next_step ?? post2.body?.next_action ?? post2.body ?? {});
+    const note = isHandoff ? "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)" : "no_match: execute not run";
+    w(dir, "execute.input.json", JSON.stringify({ skill: null, endpoint: null, intent: p.intent, context_url: p.url, params: {}, note }, null, 2));
+    // Record the FULL handoff envelope as the execute response so the
+    // in-thread judge can read suggested_next_action / commands / message.
+    const handoff = JSON.stringify(
+      post2.body?.result ?? post2.body?.next_step ?? post2.body?.next_action ?? post2.body ?? {});
     w(dir, "execute.response.raw", handoff);
-    w(dir, "execute.meta.json", JSON.stringify({ status_code: null, response_bytes: Buffer.byteLength(handoff, "utf8"), decision_trace: [] }, null, 2));
+    w(dir, "execute.meta.json", JSON.stringify({ status_code: null, response_bytes: Buffer.byteLength(handoff, "utf8"), decision_trace: [], resolve_status: resolveStatus }, null, 2));
   }
   const flag = isoSelfCheck.host_match === false ? " *** ISO-MISMATCH (raw evidence; judge in-thread) ***" : "";
   return `${p.probe_id} done eps=${eps.length} indexed=${cb.indexed ?? false} iso=${isoSelfCheck.host_match}${flag}`;
