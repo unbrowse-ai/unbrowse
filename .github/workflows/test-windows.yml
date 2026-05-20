@@ -38,11 +38,49 @@ jobs:
             Get-ChildItem "C:\Program Files*\Google\Chrome\Application\chrome.exe" -ErrorAction SilentlyContinue
           }
 
-      - name: Test kuri.exe health
+      - name: Resolve kuri.exe (vendored or latest kuri-vendor artifact)
+        id: resolve_kuri
         shell: pwsh
         run: |
-          $kuriExe = "packages\skill\vendor\kuri\win-x64\kuri.exe"
-          if (-not (Test-Path $kuriExe)) { Write-Error "kuri.exe not found"; exit 1 }
+          $vendored = "packages\skill\vendor\kuri\win-x64\kuri.exe"
+          if (Test-Path $vendored) {
+            Write-Host "Using vendored kuri.exe at $vendored"
+            "kuri_path=$vendored" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            exit 0
+          }
+          Write-Host "No vendored kuri.exe; falling back to latest kuri-vendor artifact"
+          "kuri_path=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Download kuri-windows-x64 artifact (fallback path)
+        if: steps.resolve_kuri.outputs.kuri_path == ''
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: kuri-vendor.yml
+          workflow_conclusion: success
+          name: kuri-windows-x64
+          path: .kuri-artifact
+          if_no_artifact_found: fail
+
+      - name: Set kuri path from artifact
+        if: steps.resolve_kuri.outputs.kuri_path == ''
+        id: artifact_kuri
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path .kuri-artifact -Recurse -Filter kuri.exe | Select-Object -First 1
+          if (-not $exe) { Write-Error "kuri.exe not found in downloaded artifact"; exit 1 }
+          $resolved = $exe.FullName
+          Write-Host "Using artifact kuri.exe at $resolved"
+          "kuri_path=$resolved" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Test kuri.exe health
+        shell: pwsh
+        env:
+          KURI_PATH_VENDORED: ${{ steps.resolve_kuri.outputs.kuri_path }}
+          KURI_PATH_ARTIFACT: ${{ steps.artifact_kuri.outputs.kuri_path }}
+        run: |
+          $kuriExe = if ($env:KURI_PATH_VENDORED) { $env:KURI_PATH_VENDORED } else { $env:KURI_PATH_ARTIFACT }
+          if (-not (Test-Path $kuriExe)) { Write-Error "kuri.exe still not resolvable"; exit 1 }
+          Write-Host "Using kuri.exe at $kuriExe"
           $env:HEADLESS = "true"
           $proc = Start-Process -FilePath $kuriExe -PassThru -NoNewWindow
           Start-Sleep -Seconds 5
