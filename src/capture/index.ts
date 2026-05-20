@@ -517,6 +517,35 @@ export function matchInterceptedToHint(
   return wantedHints.find((hint) => u.includes(hint)) ?? null;
 }
 
+// Pure decision core of the noise-aware early-exit for issue #98 (SPA
+// network-idle: wait for lazy-loaded API calls). The pre-fix early-exit
+// at waitForContentReady fired whenever ANY response body existed; on
+// dashboard SPAs that's true within ~1s (HTML shell + bundle JS chunks
+// + analytics pings) so the real data XHR firing 2-5s into React
+// hydration was never seen. The fix: only declare "captured enough" if
+// at least one body is API-shaped per URL pattern. Extracted as a pure
+// helper so the regression is deterministically pinnable without a
+// live kuri tab.
+//
+// API_URL_PATTERN mirrors the same constant used by the CDP body
+// auto-fetch path at L1509 (kept inline there because that scope owns
+// the WebSocket / requestId state machine). If you change one, change
+// both; the test suite pins this exact pattern against representative
+// URLs from issue #98 (ads.x.com, music.youtube.com).
+export const API_URL_PATTERN = /\/api\/|\/graphql|voyager|youtubei|\/v\d+\//i;
+
+export function isApiShapedUrl(url: string): boolean {
+  return API_URL_PATTERN.test(url);
+}
+
+export function hasApiShapedBody(urls: Iterable<string>): boolean {
+  for (const url of urls) {
+    if (isApiShapedUrl(url)) return true;
+  }
+  return false;
+}
+
+
 async function maybeProbeIntentApis(
   tabId: string,
   captureUrl: string | undefined,
@@ -1226,8 +1255,14 @@ async function waitForContentReady(
   // Phase 1: Initial settle — let the page start rendering
   await new Promise((r) => setTimeout(r, 1000));
 
-  // Early exit: if interceptor already captured API responses, page is loaded enough
-  if (responseBodies && responseBodies.size > 0) {
+  // Early exit: only bail when at least one captured body is API-shaped.
+  // Pre-fix this fired whenever responseBodies.size>0, which on dashboard
+  // SPAs is true within ~1s (HTML shell, bundle JS chunks, analytics
+  // pings); the real data XHR firing 2-5s into React hydration was
+  // never seen. See issue #98 (SPA network-idle: wait for lazy-loaded
+  // API calls) for the full trace. isApiShapedUrl uses the same
+  // API_URL_PATTERN the CDP auto-fetch path uses.
+  if (responseBodies && hasApiShapedBody(responseBodies.keys())) {
     log("capture", `early exit: ${responseBodies.size} API responses already captured during navigation`);
     // Brief extra settle to catch any trailing responses
     await new Promise((r) => setTimeout(r, 500));
@@ -1259,7 +1294,7 @@ async function waitForContentReady(
         responseBodies.set(entry.url, entry.response_body);
       }
     }
-    if (responseBodies.size > 0) {
+    if (hasApiShapedBody(responseBodies.keys())) {
       log("capture", `early exit after readyState: ${responseBodies.size} API responses captured`);
       return;
     }
@@ -1506,7 +1541,6 @@ export async function captureSession(
     let cdpMsgId = 10;
     const cdpPendingBodies = new Map<number, string>(); // msgId -> requestId
     const cdpResolvedBodies = new Map<string, string>(); // url -> body
-    const API_URL_PATTERN = /\/api\/|\/graphql|voyager|youtubei|\/v\d+\//i;
     try {
       const cdpPort = kuri.getCdpPort();
       if (cdpPort) {
