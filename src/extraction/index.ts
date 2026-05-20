@@ -2662,6 +2662,7 @@ export function extractFromDOMWithHint(
  * the best match for the given intent.
  */
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
+  const _finalize = (r: ExtractionResult): ExtractionResult => ({ ...r, data: sanitizeExtractionToJson(r.data) });
   // Extract SPA-embedded data from the FULL untruncated HTML. Next.js SSR
   // pages often place <script id="__NEXT_DATA__"> near the end of the
   // document (past byte 300K on large pages like coinmarketcap). Truncating
@@ -2727,9 +2728,9 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   if (structures.length === 0) {
     const fallback = extractHtmlMetadataFallback(html);
     if (fallback) {
-      return { data: fallback, extraction_method: "html_metadata_fallback", confidence: 0.4 };
+      return _finalize({ data: fallback, extraction_method: "html_metadata_fallback", confidence: 0.4 });
     }
-    return { data: null, extraction_method: "none", confidence: 0 };
+    return _finalize({ data: null, extraction_method: "none", confidence: 0 });
   }
 
   // Score each structure by relevance to intent
@@ -2771,46 +2772,46 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
     return bestPassingOverall;
   })();
   if (bestPassing) {
-    return {
+    return _finalize({
       data: bestPassing.structure.data,
       extraction_method: bestPassing.structure.type,
       confidence: computeConfidence(bestPassing.structure, bestPassing.score),
       selector: bestPassing.structure.selector,
-    };
+    });
   }
 
   const best = scored[0];
   if (isMessageLikeStructure(best.structure, intent)) {
-    return {
+    return _finalize({
       data: best.structure.data,
       extraction_method: best.structure.type,
       confidence: computeConfidence(best.structure, best.score),
       selector: best.structure.selector,
-    };
+    });
   }
 
   if (scored.length === 1) {
-    return {
+    return _finalize({
       data: best.structure.data,
       extraction_method: best.structure.type,
       confidence: computeConfidence(best.structure, best.score),
       selector: best.structure.selector,
-    };
+    });
   }
 
   const hasClearWinner = best.score > scored[1].score * 1.5;
 
   if (hasClearWinner && best.score > 0) {
-    return {
+    return _finalize({
       data: best.structure.data,
       extraction_method: best.structure.type,
       confidence: computeConfidence(best.structure, best.score),
       selector: best.structure.selector,
-    };
+    });
   }
 
   // No clear winner — return all structures
-  return {
+  return _finalize({
     data: scored.map((s) => ({
       type: s.structure.type,
       data: s.structure.data,
@@ -2819,7 +2820,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
     extraction_method: "multiple",
     confidence: computeConfidence(best.structure, best.score) * 0.7,
     selector: best.structure.selector,
-  };
+  });
 }
 
 function scoreRelevance(structure: ExtractedStructure, intentWords: string[]): number {
@@ -3168,4 +3169,160 @@ export function buildStructuredDataHeader(html: string): string | null {
   }
   const generic = formatGenericBlock(highlight, type);
   return generic || null;
+}
+
+// ---------------------------------------------------------------------------
+// JSON post-process: sanitise HTML string values to markdown,
+// convert embedded <table> markup to JSON arrays.
+// ---------------------------------------------------------------------------
+//
+// Lewis 2026-05-21 redirect (third time): "make it prioritise XHR JSON
+// above all else - if not fallback to ssr/html - content, and make
+// postprocess step to convert it to json regardless. json should
+// sanitize html to markdown where relevant, tables turned into json".
+//
+// The XHR-first ranking layer lives in src/execution/index.ts
+// rankEndpoints. This module handles the orthogonal piece: whatever the
+// extractor returns, walk it and clean up string values that contain
+// HTML so the agent receives JSON without raw markup. Tables embedded
+// in string values become JSON arrays (header-row -> keys; data-row ->
+// values), preserving structure that would otherwise be lost as
+// markdown.
+
+const HTML_TAG_RE = /<[a-z][a-z0-9]*(\s[^>]*)?>/i;
+const TABLE_RE = /<table[\s\S]*?<\/table>/i;
+
+function looksHtml(s: string): boolean {
+  return s.length > 0 && HTML_TAG_RE.test(s);
+}
+
+function htmlTableToJson(tableHtml: string): Record<string, string>[] | null {
+  try {
+    const $ = cheerio.load(`<div>${tableHtml}</div>`, undefined, false);
+    const $table = $("table").first();
+    if (!$table.length) return null;
+    const rows = parseTable($, $table);
+    return rows.length > 0 ? rows : null;
+  } catch {
+    return null;
+  }
+}
+
+// Minimal HTML -> markdown for inline content. Cheerio-based walk;
+// covers the common formatting tags + links + lists + tables (which
+// inline as markdown rather than JSON, since the parent string context
+// can't accept an array). Falls back to text content for unknown tags.
+function htmlToMarkdown(html: string): string {
+  // Pre-strip script/style/noscript/iframe blocks entirely — cheerio's
+  // default mode keeps their text content as a child text node which
+  // can leak into the markdown output via the walker.
+  const preStripped = html.replace(/<(script|style|noscript|iframe|svg)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+  try {
+    const $ = cheerio.load(`<div id="_root_">${preStripped}</div>`, undefined, false);
+    const root = $("#_root_").get(0);
+    if (!root) return $("body").text().trim() || stripTags(html);
+    const walk = (node: unknown): string => {
+      const n = node as { type?: string; data?: string; name?: string; attribs?: Record<string, string>; children?: unknown[] };
+      if (!n) return "";
+      if (n.type === "text") return n.data ?? "";
+      if (n.type !== "tag") {
+        return (n.children ?? []).map(walk).join("");
+      }
+      const tag = (n.name ?? "").toLowerCase();
+      const inner = (n.children ?? []).map(walk).join("");
+      switch (tag) {
+        case "h1": return `\n# ${inner.trim()}\n\n`;
+        case "h2": return `\n## ${inner.trim()}\n\n`;
+        case "h3": return `\n### ${inner.trim()}\n\n`;
+        case "h4": return `\n#### ${inner.trim()}\n\n`;
+        case "h5": return `\n##### ${inner.trim()}\n\n`;
+        case "h6": return `\n###### ${inner.trim()}\n\n`;
+        case "p": return `${inner.trim()}\n\n`;
+        case "br": return "\n";
+        case "hr": return "\n---\n\n";
+        case "strong": case "b": return `**${inner}**`;
+        case "em": case "i": return `*${inner}*`;
+        case "code": return `\`${inner}\``;
+        case "pre": return `\n\`\`\`\n${inner}\n\`\`\`\n\n`;
+        case "blockquote": return inner.split("\n").map((l) => `> ${l}`).join("\n") + "\n\n";
+        case "a": {
+          const href = n.attribs?.href ?? "";
+          return href ? `[${inner}](${href})` : inner;
+        }
+        case "img": {
+          const src = n.attribs?.src ?? "";
+          const alt = n.attribs?.alt ?? "";
+          return src ? `![${alt}](${src})` : "";
+        }
+        case "li": return `- ${inner.trim()}\n`;
+        case "ul": case "ol": return `\n${inner}\n`;
+        case "table": return tableToMarkdown(node);
+        case "thead": case "tbody": case "tfoot": case "tr": case "th": case "td":
+          return inner;
+        case "script": case "style": case "noscript": case "iframe": case "svg": return "";
+        case "div": case "section": case "article": case "main": case "aside": case "nav": case "header": case "footer":
+          return `${inner.trim()}\n`;
+        case "span": case "small": case "abbr": case "cite": case "mark": case "sub": case "sup":
+          return inner;
+        default:
+          return inner;
+      }
+    };
+    return walk(root).trim();
+  } catch {
+    return stripTags(html);
+  }
+}
+
+function tableToMarkdown(tableNode: unknown): string {
+  try {
+    const $ = cheerio.load("<div></div>", undefined, false);
+    const $table = $((tableNode as unknown) as never);
+    const rows = parseTable($, $table);
+    if (rows.length === 0) return "";
+    const headers = Object.keys(rows[0]);
+    const headerRow = `| ${headers.join(" | ")} |`;
+    const separator = `| ${headers.map(() => "---").join(" | ")} |`;
+    const dataRows = rows.map((r) => `| ${headers.map((h) => String(r[h] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`);
+    return `\n\n${headerRow}\n${separator}\n${dataRows.join("\n")}\n\n`;
+  } catch {
+    return "";
+  }
+}
+
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Walk extraction output; for any string value that contains HTML
+ * markup, convert to markdown. If the HTML is a single `<table>` and
+ * the parser yields rows, REPLACE the string with the rows array (JSON)
+ * — caller can then iterate. Recursion-bounded.
+ */
+export function sanitizeExtractionToJson(data: unknown, depth = 0): unknown {
+  if (depth > 32 || data == null) return data;
+  if (typeof data === "string") {
+    if (!looksHtml(data)) return data;
+    const trimmed = data.trim();
+    // Whole-string-is-a-table: prefer the JSON array shape.
+    if (TABLE_RE.test(trimmed) && trimmed.replace(/\s/g, "").startsWith("<table")) {
+      const tableJson = htmlTableToJson(trimmed);
+      if (tableJson && tableJson.length > 0) return tableJson;
+    }
+    return htmlToMarkdown(data);
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeExtractionToJson(item, depth + 1));
+  }
+  if (typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(obj)) {
+      out[k] = sanitizeExtractionToJson(obj[k], depth + 1);
+    }
+    return out;
+  }
+  return data;
 }
