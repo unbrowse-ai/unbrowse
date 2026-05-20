@@ -38,6 +38,7 @@ const COMPANY_LINKS: Array<{ href: string; label: string }> = [
   { href: "https://discord.gg/VWugEeFNsG", label: "Discord" },
   { href: "https://x.com/unbrowse", label: "X / @unbrowse" },
   { href: "/openclaw-earn", label: "Earn" },
+  { href: "/claim", label: "Claim a domain" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
 ];
