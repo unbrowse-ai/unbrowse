@@ -1563,8 +1563,15 @@ export async function captureSession(
           };
           // cdpEnable: must happen before first navigate (issue #403)
           cdpWs.send(JSON.stringify({ id: 1, method: "Network.enable", params: {} }));
+          // Force fresh network fetches so SPA HTTP cache + service workers
+          // cannot hide API calls from the interceptor (issue #62).
+          // setCacheDisabled disables memory+disk HTTP cache; setBypassServiceWorker
+          // forces requests to skip SW fetch handlers. Both apply only while this
+          // CDP session is attached, so normal user browsing is unaffected.
+          cdpWs.send(JSON.stringify({ id: 2, method: "Network.setCacheDisabled", params: { cacheDisabled: true } }));
+          cdpWs.send(JSON.stringify({ id: 3, method: "Network.setBypassServiceWorker", params: { bypass: true } }));
           await new Promise(r => setTimeout(r, 200));
-          log("capture", "CDP network capture enabled (direct websocket, pre-navigation)");
+          log("capture", "CDP network capture enabled (direct websocket, pre-navigation, cache+SW bypassed)");
         }
       }
     } catch { /* CDP direct capture is best-effort */ }
