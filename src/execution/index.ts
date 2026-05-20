@@ -5850,9 +5850,25 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // W4: response_schema is OPTIONAL for page-artifacts. The dom_extraction
       // confidence IS the data-shape signal; page-artifacts often have null
       // response_schema. When schema IS present, still require array/object.
-      && (!ep.response_schema
-        || (ep.response_schema as Record<string, unknown>).type === "array"
-        || (ep.response_schema as Record<string, unknown>).type === "object");
+      // W4-followup-3: object schema is list-shaped ONLY if a property is array-
+      // typed (items / results / docs / posts / products / hits / tags / etc.).
+      // Sites that capture a SPA shell page-artifact often emit only site-meta
+      // {title:str, url:str} which is type==="object" but has no array property.
+      // Those must NOT get the +250 LIST_INTENT promotion (beatsaver wave-4 case).
+      // Generic structural primitive: count array-typed property values; require >= 1.
+      && (() => {
+        const schema = ep.response_schema as Record<string, unknown> | undefined;
+        if (!schema) return true;
+        if (schema.type === "array") return true;
+        if (schema.type === "object") {
+          const props = schema.properties as Record<string, unknown> | undefined;
+          if (!props || typeof props !== "object") return false;
+          return Object.values(props).some((p) => {
+            return p && typeof p === "object" && (p as Record<string, unknown>).type === "array";
+          });
+        }
+        return false;
+      })();
     if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
       score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
     } else if (looksLikeContentRead && pageArtifactIsDataRich) {
