@@ -740,6 +740,10 @@ export async function updateAccountPreferences(
     signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) {
+    // Surface rotated-key recovery before throwing a generic "HTTP 401" that
+    // the preferences toggle would otherwise render as a no-op. The detector
+    // is idempotent, safe to call on any !ok branch.
+    await checkAuthInvalidResponse(res);
     const data = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
