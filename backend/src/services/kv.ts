@@ -418,38 +418,51 @@ type KVEnv = {
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY?: string;
   ENVIRONMENT?: string;
+  /**
+   * Emergency rollback flag (2026-05-21 Lewis decision: flip primary back to
+   * EmergentDB qdkv, reversing the Apr-21 Neon migration). Default unset =
+   * EdbKV primary. Set to "1" / "true" to route writes through PgKV instead,
+   * which is the legacy path kept available until the Neon -> qdkv data
+   * migration (backend/scripts/migrate-neon-to-edb.mjs) is verified.
+   */
+  USE_PGKV?: string;
 };
 
+function pgkvRollbackEnabled(env: KVEnv): boolean {
+  const v = (env.USE_PGKV ?? "").trim().toLowerCase();
+  return v === "1" || v === "true";
+}
+
 export function skillsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
-  const ns = env.ENVIRONMENT === "staging" ? "staging-skills-v3" : "skills-v2";
+  const ns = env.ENVIRONMENT === "gate-staging" ? "gate-staging-skills-v3" : env.ENVIRONMENT === "staging" ? "staging-skills-v3" : "skills-v2";
   if (env.ENVIRONMENT === "local-dev") {
     return new LocalKV(ns);
   }
-  if (env.DATABASE_URL?.trim()) {
+  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) {
     return new PgKV(env.DATABASE_URL, ns);
   }
   if (!env.EMERGENTDB_API_KEY?.trim()) {
-    throw new Error("EMERGENTDB_API_KEY is required when DATABASE_URL is unset");
+    throw new Error("EMERGENTDB_API_KEY is required (set USE_PGKV=1 + DATABASE_URL for legacy PgKV path)");
   }
   return new EdbKV(env.EMERGENTDB_API_KEY, ns);
 }
 
 export function statsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
-  const ns = env.ENVIRONMENT === "staging" ? "staging-stats" : "stats";
+  const ns = env.ENVIRONMENT === "gate-staging" ? "gate-staging-stats" : env.ENVIRONMENT === "staging" ? "staging-stats" : "stats";
   if (env.ENVIRONMENT === "local-dev") {
     return new LocalKV(ns);
   }
-  if (env.DATABASE_URL?.trim()) {
+  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) {
     return new PgKV(env.DATABASE_URL, ns);
   }
   if (!env.EMERGENTDB_API_KEY?.trim()) {
-    throw new Error("EMERGENTDB_API_KEY is required when DATABASE_URL is unset");
+    throw new Error("EMERGENTDB_API_KEY is required (set USE_PGKV=1 + DATABASE_URL for legacy PgKV path)");
   }
   return new EdbKV(env.EMERGENTDB_API_KEY, ns);
 }
 
 export function kvBackend(env: KVEnv): "postgres" | "emergentdb" | "unconfigured" {
-  if (env.DATABASE_URL?.trim()) return "postgres";
+  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) return "postgres";
   if (env.EMERGENTDB_API_KEY?.trim()) return "emergentdb";
   return "unconfigured";
 }

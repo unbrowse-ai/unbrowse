@@ -5770,12 +5770,14 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     // === Data-relevance signals ===
     if (DATA_INDICATORS.test(ep.url_template)) score += 5;
-    // REST-style resource URL bonus — /api/v*/search, /search, /products, /items, etc.
-    if (/\/api\/v?\d*\/(search|products?|items?|results?|catalog|listings?|goods|feed)\b/i.test(pathname)) score += 25;
-    // Intent keyword present in URL path — strong signal the endpoint serves the requested resource
-    if (rawTokens.length > 0 && !intent?.match(/\b(search|find|get|list|fetch)\b/i)?.input) {
-      // Already handled by URL-to-intent match above; add bonus for explicit resource nouns
-    }
+    // (W4 audit, 2026-05-20): removed hardcoded REST-resource-keyword bonus
+    // `/\/api\/v?\d*\/(search|products?|items?|results?|catalog|listings?|goods|feed)\b/`.
+    // The keyword list was prescriptive — it preferred 8 specific resource
+    // nouns over equally-valid alternatives (orders, accounts, etc.). The
+    // structural part of the signal is covered evidence-side: DATA_INDICATORS
+    // (line above) + response_schema richness (+5/+10/+20 at L5714) + BM25
+    // over intent vs endpoint text + API_SUBDOMAIN bonus + dom_extraction
+    // bonus. Resource-noun intent matching is BM25's job, not a keyword arm.
     if (CURRENCY_TIME_PATTERNS.test(pathname)) score += CURRENCY_TIME_DELTA_WEIGHT;
     if (intent && COMMS_INTENT.test(intent) && COMMS_PATH.test(pathname)) score += COMMS_PATH_DELTA_WEIGHT;
     if (intent && COMMS_INTENT.test(intent) && DISCORD_META_PATHS.test(pathname)) score -= 220;

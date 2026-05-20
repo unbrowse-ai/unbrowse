@@ -85,3 +85,31 @@ CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
+
+# --- gate-staging environment (MCP release-gate harness uses this) ---
+# Deploy: wrangler deploy --env gate-staging
+# Provision STATS_KV first: wrangler kv namespace create STATS_KV --env gate-staging  (and --preview)
+# Secrets: wrangler secret put DATABASE_URL --env gate-staging  (point at same Neon DB; ns isolation is in kv.ts)
+#          wrangler secret put EMERGENTDB_API_KEY --env gate-staging  (fallback)
+# Isolation: ENVIRONMENT="gate-staging" routes marketplace writes to PgKV ns "gate-staging-skills-v3"
+#            and stats writes to "gate-staging-stats" via backend/src/services/kv.ts.
+[env.gate-staging]
+name = "unbrowse-backend-gate-staging"
+workers_dev = true
+routes = []
+
+[[env.gate-staging.kv_namespaces]]
+binding = "STATS_KV"
+id = "930ed4fa3d1c4febafcafb6905365dc8"
+preview_id = "1eac26403aab4949ad69c35678dca938"
+
+[env.gate-staging.vars]
+ENVIRONMENT = "gate-staging"
+PAYMENTS_ENABLED = "false"
+CREDITS_ENABLED = "0"
+X402_SEARCH_ENABLED = "false"
+X402_NETWORK_MODE = "devnet"
+PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
+PLATFORM_SPONSOR_WALLET_ADDRESS = ""
+SPONSOR_CAP_DAILY_USD = "0.0"
+SPONSOR_GLOBAL_DAILY_USD = "0.0"
