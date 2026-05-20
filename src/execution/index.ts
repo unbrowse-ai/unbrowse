@@ -1600,7 +1600,7 @@ async function executeBrowserCapture(
         );
         if (wallSignal) {
           process.stderr.write(
-            `[unbrowse] Anti-bot wall detected (${wallSignal}). Retrying once with visible browser — pop a Chrome window for ~5s, future captures stay headless.\n`,
+            `[unbrowse] Anti-bot wall detected (${wallSignal}). Retrying capture once with a fresh kuri session (stays headless by default; opt in with UNBROWSE_ALLOW_VISIBLE_AUTH_FALLBACK=1 for visible-browser fallback).\n`,
           );
           const restoreVisibleKuriEnv = forceVisibleKuriEnv();
           try {
@@ -3784,7 +3784,7 @@ export async function executeEndpoint(
     }
   }
 
-  if (!trace.success && (status === 404 || status === 429 || status >= 500)) {
+  if (!trace.success && (status === 404 || status === 429 || status >= 500 || status === 401 || status === 403)) {
     // 5xx → ssr-fastpath fallback: when the captured endpoint returns a
     // transient server error (or the captured pattern is stale), try
     // libcurl-impersonate Chrome131 JA4 via Kuri sandbox at the page URL.
@@ -3831,6 +3831,51 @@ export async function executeEndpoint(
       } catch (err) {
         log("exec", `5xx ssr-fastpath fallback errored: ${err instanceof Error ? err.message : String(err)}`);
         decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_error", reason: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    // W-STALE-ENDPOINT-PAGE-FALLBACK: 401/403 -> ssr-fastpath fallback. When
+    // the captured endpoint returned a 401/403 and the auth-recovery chain
+    // above (live-session, browser-cookie refresh, login flow, vendor
+    // solvers) all failed, the response is either stale credentials OR CF
+    // /Datadome/PerimeterX classifying libcurl as a bot. The 5xx block
+    // above bypasses both via libcurl-impersonate Chrome131 JA4 in the Kuri
+    // sandbox; the same path works for 4xx auth/bot walls. Live regression:
+    // .bench-gate/20260520T025154Z probes 012/013 (reddit r/programming,
+    // r/singularity) returned RETRIEVE_FAIL_ERROR_BODY with stale_endpoint
+    // 403 after auth_recovery_retry. Recursion-guarded by isPageFetchEndpoint.
+    if ((status === 401 || status === 403) && !isPageFetchEndpoint(endpoint)) {
+      const fallbackIntent = options?.intent || skill.intent_signature || "";
+      const fallbackUrl = endpoint.trigger_url || url;
+      decisionTrace.push({ step: "4xx_ssr_fastpath_fallback", from: endpoint.endpoint_id, original_status: status, target: fallbackUrl });
+      try {
+        const { ensureKuriSandboxReachable } = await import("../kuri/spawn.js");
+        const sandboxBase = process.env.KURI_BASE_URL ?? "http://127.0.0.1:8080";
+        const ready = await ensureKuriSandboxReachable(sandboxBase);
+        if (!ready) {
+          decisionTrace.push({ step: "4xx_ssr_fastpath_fallback_kuri_unavailable", target_kuri: sandboxBase });
+          throw new Error(`Kuri sandbox not reachable at ${sandboxBase}`);
+        }
+        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
+        if (ssr) {
+          log("exec", `4xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
+          const extracted = extractFromDOM(ssr.html, fallbackIntent);
+          if (extracted.data) {
+            trace.success = true;
+            trace.status_code = ssr.status;
+            trace.error = undefined;
+            data = flattenExtracted(extracted.data);
+            trace.result = data;
+            decisionTrace.push({ step: "4xx_ssr_fastpath_fallback_success", status: ssr.status, bytes: ssr.html.length });
+            return { trace, result: data };
+          }
+          decisionTrace.push({ step: "4xx_ssr_fastpath_fallback_extract_empty", status: ssr.status });
+        } else {
+          decisionTrace.push({ step: "4xx_ssr_fastpath_fallback_no_html", reason: "ssr_returned_null" });
+        }
+      } catch (err) {
+        log("exec", `4xx ssr-fastpath fallback errored: ${err instanceof Error ? err.message : String(err)}`);
+        decisionTrace.push({ step: "4xx_ssr_fastpath_fallback_error", reason: err instanceof Error ? err.message : String(err) });
       }
     }
     // B3: honor Retry-After before treating 429 as stale.
