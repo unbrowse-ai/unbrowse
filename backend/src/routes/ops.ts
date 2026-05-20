@@ -17,6 +17,10 @@ export const opsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string
  * qdkv index cache is shared across all three reads.
  */
 opsRoutes.get("/ops", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
   const [skillEntries, statEntries, skills, agents] = await Promise.all([
     skillsKV(c.env).listWithValues("skill:"),
     statsKV(c.env).listWithValues("stats:"),

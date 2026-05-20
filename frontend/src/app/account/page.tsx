@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getStatus as getDomainClaimStatus, getTakedownStatus as getDomainTakedownStatus } from "@/lib/claim-client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -44,6 +45,10 @@ function isRegisterRequired(err: unknown): boolean {
   return err instanceof AccountClientError && err.status === 403;
 }
 
+function isAuthInvalid(err: unknown): boolean {
+  return err instanceof AccountClientError && err.status === 401;
+}
+
 function Field({
   label,
   value,
@@ -75,9 +80,27 @@ function Field({
 }
 
 function ErrorChip({ message }: { message: string }) {
+  const [showDetails, setShowDetails] = useState(false);
+  const hasDetails = typeof message === "string" && message.length > 0;
   return (
-    <div className="rounded-2xl border border-border bg-surface-sunken p-4 text-sm text-text-secondary">
-      Failed to load: {message}
+    <div className="rounded-2xl border border-border bg-surface-sunken p-4 text-sm text-text-secondary space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span>Couldn&rsquo;t load this section.</span>
+        {hasDetails && (
+          <button
+            type="button"
+            onClick={() => setShowDetails((v) => !v)}
+            className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
+          >
+            {showDetails ? "Hide" : "Details"}
+          </button>
+        )}
+      </div>
+      {showDetails && hasDetails && (
+        <pre className="whitespace-pre-wrap break-words text-xs text-text-muted font-mono pt-1 border-t border-border">
+          {message}
+        </pre>
+      )}
     </div>
   );
 }
@@ -110,6 +133,31 @@ function RegisterRequiredBanner() {
         </code>{" "}
         in your terminal to access this dashboard.
       </p>
+    </section>
+  );
+}
+
+function AuthInvalidBanner({ message }: { message: string }) {
+  return (
+    <section className="rounded-2xl border border-border bg-surface-raised p-5 space-y-3">
+      <h2 className="text-sm font-medium text-text-primary">
+        Your API key is no longer valid
+      </h2>
+      <p className="text-sm text-text-secondary">{message}</p>
+      <div className="flex gap-3 flex-wrap pt-1">
+        <Link
+          href="/login"
+          className="rounded-2xl bg-text-primary text-surface px-4 py-2 text-sm font-medium hover:opacity-90"
+        >
+          Sign in to mint a new key
+        </Link>
+        <Link
+          href="/"
+          className="rounded-2xl border border-border px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface-raised"
+        >
+          Back to home
+        </Link>
+      </div>
     </section>
   );
 }
@@ -1355,15 +1403,20 @@ function QuickLinks() {
 }
 
 export default function AccountPage() {
+  const router = useRouter();
   const { isAuthenticated, apiKey } = useAuth();
   const [registerRequired, setRegisterRequired] = useState(false);
+  const [authInvalid, setAuthInvalid] = useState<string | null>(null);
 
   useEffect(() => {
     if (!apiKey) return;
     let cancelled = false;
     fetchMe(apiKey).catch((err: unknown) => {
-      if (!cancelled && isRegisterRequired(err)) {
+      if (cancelled) return;
+      if (isRegisterRequired(err)) {
         setRegisterRequired(true);
+      } else if (isAuthInvalid(err)) {
+        setAuthInvalid(err instanceof Error ? err.message : String(err));
       }
     });
     return () => {
@@ -1371,8 +1424,22 @@ export default function AccountPage() {
     };
   }, [apiKey]);
 
+  useEffect(() => {
+    if (!authInvalid) return;
+    const t = setTimeout(() => {
+      router.push("/login?reason=key_rotated");
+    }, 1800);
+    return () => clearTimeout(t);
+  }, [authInvalid, router]);
+
   function handleAuthError(err: unknown) {
-    if (isRegisterRequired(err)) setRegisterRequired(true);
+    if (isRegisterRequired(err)) {
+      setRegisterRequired(true);
+    } else if (isAuthInvalid(err)) {
+      setAuthInvalid((prev) =>
+        prev ?? (err instanceof Error ? err.message : String(err)),
+      );
+    }
   }
 
   if (!isAuthenticated || !apiKey) {
@@ -1396,6 +1463,22 @@ export default function AccountPage() {
             <PrivyLoginButtonOptional className="rounded-2xl" />
           </div>
         </div>
+      </main>
+    );
+  }
+
+  if (authInvalid) {
+    return (
+      <main className="mx-auto max-w-[70ch] px-6 py-16 space-y-6">
+        <header>
+          <h1 className="text-2xl font-semibold tracking-tight text-text-primary mb-2">
+            Your account
+          </h1>
+          <p className="text-sm text-text-secondary">
+            Redirecting you to sign in...
+          </p>
+        </header>
+        <AuthInvalidBanner message={authInvalid} />
       </main>
     );
   }
