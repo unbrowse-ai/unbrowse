@@ -47,22 +47,22 @@ describe("special HTML extraction", () => {
     expect((extracted.data as Array<Record<string, string>>)[0]?.stargazers_count).toBe("10000");
   });
 
-  it("extracts LinkedIn people-like rows from search html", () => {
+  it("extracts people-like rows from JSON-LD ItemList<Person> search html", () => {
+    // Universal-web-standards primitive (replaces the retired per-host
+    // LinkedIn CSS-hint extractor). Standards-conformant search/directory
+    // pages emit schema.org ItemList containing Person items — same code
+    // path handles linkedin.com, mastodon discovery, About.me search, and
+    // any standards-conformant people-listing site.
     const html = `
-      <html><body>
-        <main>
-          <ul>
-            <li>
-              <a href="https://www.linkedin.com/in/sam-altman/">Sam Altman</a>
-              <div>CEO at OpenAI</div>
-            </li>
-            <li>
-              <a href="https://www.linkedin.com/in/greg-brockman/">Greg Brockman</a>
-              <div>President at OpenAI</div>
-            </li>
-          </ul>
-        </main>
-      </body></html>
+      <html><head>
+        <link rel="canonical" href="https://www.linkedin.com/search/results/people/?keywords=openai" />
+        <script type="application/ld+json">
+        {"@context":"https://schema.org","@type":"ItemList","itemListElement":[
+          {"@type":"ListItem","position":1,"item":{"@type":"Person","name":"Sam Altman","alternateName":"sam-altman","url":"https://www.linkedin.com/in/sam-altman","jobTitle":"CEO at OpenAI"}},
+          {"@type":"ListItem","position":2,"item":{"@type":"Person","name":"Greg Brockman","alternateName":"greg-brockman","url":"https://www.linkedin.com/in/greg-brockman","jobTitle":"President at OpenAI"}}
+        ]}
+        </script>
+      </head><body><main></main></body></html>
     `;
 
     const extracted = extractFromDOM(html, "search people");
