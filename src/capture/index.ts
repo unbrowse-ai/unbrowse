@@ -1037,9 +1037,13 @@ async function replayPerformanceApiResponses(
   if (perfUrls.length === 0) return [];
 
   log("capture", `Performance API selected ${perfUrls.length} replayable resource URLs`);
+  // Parallel fetch — sequential awaits previously made enrich-capture 6-14s
+  // for close-with-many-XHRs sessions. Each XHR is a separate kuri.evaluate
+  // round-trip; no inter-dependency, so Promise.allSettled is safe. Per-call
+  // failure is already non-fatal; cap and dedup against responseBodies stay.
+  const todo = perfUrls.filter((perfUrl) => !responseBodies.has(perfUrl));
   let replayCount = 0;
-  for (const perfUrl of perfUrls) {
-    if (responseBodies.has(perfUrl)) continue;
+  await Promise.allSettled(todo.map(async (perfUrl) => {
     try {
       const body = await kuri.evaluate(
         tabId,
@@ -1053,7 +1057,7 @@ async function replayPerformanceApiResponses(
     } catch {
       // non-fatal
     }
-  }
+  }));
 
   if (replayCount > 0) {
     log("capture", `replay-fetched ${replayCount} API response bodies via Performance API`);
@@ -1066,34 +1070,43 @@ async function replayHarApiResponses(
   harEntries: kuri.KuriHarEntry[],
   responseBodies: Map<string, string>,
 ): Promise<void> {
-  let harReplayCount = 0;
-
+  // Sequential await per HAR entry previously dominated close enrich-capture
+  // duration (up to 20 entries × ~hundreds-of-ms each kuri.evaluate). The
+  // filter+cap is preserved exactly; only the per-entry await loop is now
+  // parallelized via Promise.allSettled. Per-call failure stays non-fatal.
+  const candidates: Array<{ url: string; method: string; postData?: string }> = [];
   for (const entry of harEntries) {
     const harUrl = entry.request?.url;
     if (!harUrl || responseBodies.has(harUrl)) continue;
     if (REPLAY_SKIP.test(harUrl)) continue;
-    const method = entry.request?.method?.toUpperCase();
+    const method = entry.request?.method?.toUpperCase() ?? "GET";
     if (method === "OPTIONS" || method === "HEAD") continue;
     const status = entry.response?.status ?? 0;
     if (status < 200 || status >= 400) continue;
     const ct = (entry.response?.headers ?? []).find((header: { name: string }) => header.name.toLowerCase() === "content-type")?.value ?? "";
     if (!HAR_REPLAY_CT.test(ct) && !harUrl.includes("/api/") && !harUrl.includes("_search") && !harUrl.includes("graphql") && !harUrl.includes("voyager")) continue;
-    if (harReplayCount >= 20) break;
+    if (candidates.length >= 20) break;
+    const postData = method !== "GET" ? entry.request?.postData?.text : undefined;
+    candidates.push({ url: harUrl, method, postData });
+  }
+  if (candidates.length === 0) return;
+
+  let harReplayCount = 0;
+  await Promise.allSettled(candidates.map(async ({ url, method, postData }) => {
     try {
-      const postData = method !== "GET" ? entry.request?.postData?.text : undefined;
       const replayScript = method === "GET" || !postData
-        ? `(function(){var x=new XMLHttpRequest();x.open('GET','${harUrl.replace(/'/g, "\\'")}',false);x.send();return x.status>=200&&x.status<400?x.responseText:''})()`
-        : `(function(){var x=new XMLHttpRequest();x.open('${method}','${harUrl.replace(/'/g, "\\'")}',false);x.setRequestHeader('Content-Type','application/json');x.send(${JSON.stringify(postData)});return x.status>=200&&x.status<400?x.responseText:''})()`;
+        ? `(function(){var x=new XMLHttpRequest();x.open('GET','${url.replace(/'/g, "\\'")}',false);x.send();return x.status>=200&&x.status<400?x.responseText:''})()`
+        : `(function(){var x=new XMLHttpRequest();x.open('${method}','${url.replace(/'/g, "\\'")}',false);x.setRequestHeader('Content-Type','application/json');x.send(${JSON.stringify(postData)});return x.status>=200&&x.status<400?x.responseText:''})()`;
       const body = await kuri.evaluate(tabId, replayScript);
       if (typeof body === "string" && body.length > 0 && body.length < 512 * 1024) {
-        responseBodies.set(harUrl, body);
+        responseBodies.set(url, body);
         harReplayCount++;
-        log("capture", `har-replay-fetched ${harUrl.substring(0, 80)} (${body.length}B)`);
+        log("capture", `har-replay-fetched ${url.substring(0, 80)} (${body.length}B)`);
       }
     } catch {
       // non-fatal
     }
-  }
+  }));
 
   if (harReplayCount > 0) {
     log("capture", `har-replay-fetched ${harReplayCount} API response bodies from HAR entries`);
