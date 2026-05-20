@@ -16,13 +16,16 @@ describe("bench-gate SKIP_EMPTY_SNAPSHOT flag", () => {
     expect(SRC).toMatch(/const SKIP_EMPTY_SNAPSHOT =/);
   });
 
-  it("predicate honors SKIP_EMPTY_SNAPSHOT for the empty_snapshot-only signature", () => {
+  it("predicate honors SKIP_EMPTY_SNAPSHOT for both empty_snapshot and go_failed browser-infra failures", () => {
     expect(SRC).toMatch(/isEmptySnapshotOnly/);
-    expect(SRC).toMatch(/SKIP_EMPTY_SNAPSHOT && isEmptySnapshotOnly/);
-    // The signature must match the actual capture.meta shape for hydration races:
-    // indexed=false, n_operations=0, mode=none, browser_block_signals=["empty_snapshot"].
+    expect(SRC).toMatch(/isGoFailed/);
+    expect(SRC).toMatch(/SKIP_EMPTY_SNAPSHOT && \(isEmptySnapshotOnly \|\| isGoFailed\)/);
+    // empty_snapshot signature: indexed=false + n_ops=0 + mode=none + browser_block_signals=["empty_snapshot"].
     expect(SRC).toMatch(/!indexed && nOps === 0/);
     expect(SRC).toMatch(/cm\?\.mode === "none"/);
     expect(SRC).toMatch(/browser_block_signals\[0\] === "empty_snapshot"/);
+    // go_failed signature: snap_current_url=null + index.store.reason="go_failed".
+    expect(SRC).toMatch(/idxStore\?\.reason === "go_failed"/);
+    expect(SRC).toMatch(/iso_self_check\?\.snap_current_url == null/);
   });
 });

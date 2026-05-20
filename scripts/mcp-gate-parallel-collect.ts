@@ -86,8 +86,8 @@ function w(dir: string, name: string, content: string) { writeFileSync(join(dir,
 // holistically. Used by UNBROWSE_GATE_STOP_ON_FAIL=1 to STOP the collector
 // at the first probe whose artifact doesn't look like a clean pass for its
 // lane. Returns null on pass (do not stop), or a string reason on fail.
-function structuralPassPredicate(p: { lane: string }, artifacts: { cm: any; em: any; raw: string }): string | null {
-  const { cm, em, raw } = artifacts;
+function structuralPassPredicate(p: { lane: string }, artifacts: { cm: any; em: any; raw: string; idxStore?: any }): string | null {
+  const { cm, em, raw, idxStore } = artifacts;
   if (cm?.crashed_during_collect) return `crashed_during_collect (W0 timeout)`;
   const indexed = cm?.indexed === true;
   const nOps = Number(cm?.n_operations ?? 0);
@@ -119,17 +119,27 @@ function structuralPassPredicate(p: { lane: string }, artifacts: { cm: any; em: 
     return `hostile lane lacks real-data PASS and lacks vendor-block marker (status=${status} bytes=${bytes} head=${head.slice(0,80)})`;
   }
   if (isRealData) return null;
-  // SKIP_EMPTY_SNAPSHOT: when set, treat empty_snapshot block-signaled probes
-  // (kuri/SPA hydration races, signature: indexed=false + n_ops=0 + mode=none
-  // + browser_block_signals=["empty_snapshot"] AND eval returned undefined)
-  // as "skip past for this loop iteration" so the loop advances to surface
-  // OTHER bugs. The artifact still records the empty_snapshot signal for
-  // the in-thread judge to see.
+  // SKIP_EMPTY_SNAPSHOT: when set, advance past BROWSER-INFRA failures so the
+  // loop surfaces OTHER bugs. Two signatures qualify:
+  //  (a) empty_snapshot: browser landed, snap returned empty (SPA hydration
+  //      race; signature: indexed=false + n_ops=0 + mode=none +
+  //      browser_block_signals=["empty_snapshot"]). Observed: probe 002
+  //      npmjs/openai, kuri.evaluate also returns undefined for that tab.
+  //  (b) go_failed: browser navigate failed entirely (anti-bot, CF challenge
+  //      at GO phase before snap; signature: indexed=false + n_ops=0 +
+  //      mode=none + snap_current_url=null + index.store.reason="go_failed").
+  //      Observed: probe 016 stackoverflow/questions, CF-blocked headless tab.
+  // The artifact still records the real signal; this only changes whether
+  // STOP_ON_FAIL halts. Real substrate fixes (SSR-fastpath for GO failures,
+  // tab-level CDP attachment retry for empty_snapshot) are separate.
   const isEmptySnapshotOnly = !indexed && nOps === 0 && cm?.mode === "none"
     && Array.isArray(cm?.browser_block_signals)
     && cm.browser_block_signals.length === 1
     && cm.browser_block_signals[0] === "empty_snapshot";
-  if (SKIP_EMPTY_SNAPSHOT && isEmptySnapshotOnly) return null;
+  const isGoFailed = !indexed && nOps === 0 && cm?.mode === "none"
+    && cm?.iso_self_check?.snap_current_url == null
+    && idxStore?.reason === "go_failed";
+  if (SKIP_EMPTY_SNAPSHOT && (isEmptySnapshotOnly || isGoFailed)) return null;
   return `non-excluded lane (${lane}) expected real data: indexed=${indexed} n_ops=${nOps} status=${status} bytes=${bytes} head=${head.slice(0,80)}`;
 }
 
@@ -251,11 +261,12 @@ async function worker(wid: number) {
       // evidence and set the shared stopped flag; remaining workers exit.
       if (STOP_ON_FAIL) {
         const dir = join(RUN_DIR, p.probe_id);
-        let cm: any = {}, em: any = {}, raw = "";
+        let cm: any = {}, em: any = {}, raw = "", idxStore: any = {};
         try { cm = JSON.parse(readFileSync(join(dir, "capture.meta.json"), "utf8")); } catch {}
         try { em = JSON.parse(readFileSync(join(dir, "execute.meta.json"), "utf8")); } catch {}
         try { raw = readFileSync(join(dir, "execute.response.raw"), "utf8"); } catch {}
-        const reason = structuralPassPredicate(p, { cm, em, raw });
+        try { idxStore = JSON.parse(readFileSync(join(dir, "index.store.json"), "utf8")); } catch {}
+        const reason = structuralPassPredicate(p, { cm, em, raw, idxStore });
         if (reason) {
           stopped = true;
           const marker = {
