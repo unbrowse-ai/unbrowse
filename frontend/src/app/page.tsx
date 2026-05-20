@@ -5,6 +5,7 @@ import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { ScrollToButton } from "@/components/full-page-scroll";
+import { LandingVisitTracker } from "@/components/landing-visit-tracker";
 import { FlowingDotField } from "@/components/flowing-dot-field";
 import { HeroHands } from "@/components/hero-hands";
 import { HeroTerminalGated } from "@/components/hero-terminal-gated";
@@ -208,6 +209,7 @@ export default function Home() {
     <>
       <FlowingDotField />
       <MobileNav />
+      <LandingVisitTracker />
       <div className="relative selection:bg-orange-500/30" style={{ zIndex: 2 }}>
         <script
           type="application/ld+json"
@@ -322,6 +324,7 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <ScrollToButton
                   sectionId="install"
+                  umamiEvent="install_cta_click"
                   className="group flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500
                              text-white font-mono font-medium text-sm w-full sm:w-auto
                              hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer"
