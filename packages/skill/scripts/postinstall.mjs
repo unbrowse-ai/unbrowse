@@ -168,3 +168,20 @@ if (lastError) {
   console.error(`[unbrowse] The CLI will fall back to source mode but may be slower.`);
   process.exitCode = 1;
 }
+
+// Opt-in install telemetry ping. Default OFF: only fires when the user
+// (or distro) sets UNBROWSE_TELEMETRY=1. Spawned detached + unref'd so
+// it can never block the install, even if the network hangs.
+try {
+  if (process.env.UNBROWSE_TELEMETRY === "1") {
+    const { spawn } = await import("node:child_process");
+    const child = spawn(process.execPath, [join(__dirname, "postinstall-ping.mjs")], {
+      detached: true,
+      stdio: "ignore",
+      env: process.env,
+    });
+    child.unref();
+  }
+} catch {
+  // Telemetry must never break install.
+}

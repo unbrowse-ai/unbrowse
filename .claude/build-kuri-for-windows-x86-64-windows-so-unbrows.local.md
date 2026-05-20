@@ -18,8 +18,9 @@ inferred_from:
   verify: package.json:scripts.test
   shipping: meta-harness.local.md
 created: 2026-05-20
-last_iterated: ""
-status: pending
+last_iterated: "2026-05-20T14:10:00Z"
+status: blocked-on-kuri-windows-port
+last_verdict: "WAVE-1/1.1/2/3 SHIPPED — 4 commits on lekt9/kuri@feat/windows-port-wave-1 closed 13 of 16 windows-x64 errors. compat.zig migrated to impl-struct pattern (proven template). 3 remain: Zig 0.16 std/c.zig clock_gettime extern decl poisons the whole std.c namespace on Windows, surfaced via 7 kuri files (chrome/launcher, storage/local, storage/auth_profiles, crawler/validator, cdp/websocket, server/router, agent_main partial) that still use std.c.* directly. Mechanical port to compat.* abstractions (1-2 day Zig work) should be its OWN sub-harness."
 ---
 
 # Build Kuri for Windows (x86_64-windows) so unbrowse supports Windows end to end. Kuri is a separately-maintained Zig 0.16.0 submodule (submodules/kuri, mirror justrach/kuri); build.zig already uses b.standardTargetOptions so zig build -Dtarget=x86_64-windows-gnu cross-compiles from macOS with no Windows machine. THE REAL LONG POLE is native vendored static deps for the windows target: vendor/curl-impersonate/x86_64-windows/libcurl-impersonate.a (libcurl+BoringSSL+nghttp2+brotli+zstd+libpsl, today darwin/linux-only) plus quickjs-ng must link for x86_64-windows, then Windows Chrome.exe discovery + CDP transport portability in kuri src (chrome/, cdp/, server/). Constraint: do NOT edit unbrowse src/kuri/client.ts unless explicitly asked; Windows changes land in the kuri submodule + the unbrowse vendor/packaging path (packages/skill assert-kuri-vendor); public unbrowse-ai/unbrowse repo is frozen-by-design. VERIFY GATE (declared): a GitHub Actions windows-latest job that consumes the cross-built kuri.exe artifact, launches headless Chrome, and runs a real unbrowse go/snap/close browse E2E on Windows. FIRST MILESTONE: full browse E2E (kuri.exe links + Chrome launch + CDP + real unbrowse go/snap/close) green on windows-latest. Tracked public gap: issues #76 #52 #109.
