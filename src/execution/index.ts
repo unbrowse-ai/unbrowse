@@ -3784,14 +3784,22 @@ export async function executeEndpoint(
     }
   }
 
-  if (!trace.success && (status === 404 || status === 429 || status >= 500 || status === 401 || status === 403)) {
+  if (!trace.success && (status === 0 || status === 401 || status === 403 || status === 404 || status === 429 || status >= 500)) {
     // 5xx → ssr-fastpath fallback: when the captured endpoint returns a
     // transient server error (or the captured pattern is stale), try
     // libcurl-impersonate Chrome131 JA4 via Kuri sandbox at the page URL.
     // This routes through a DIFFERENT network path than serverFetch (which
     // uses Node fetch) — sites that 500 Node fetch (walmart) often return
     // 200 to libcurl-impersonate. Recursion-guarded by isPageFetchEndpoint.
-    if (status >= 500 && !isPageFetchEndpoint(endpoint)) {
+    //
+    // Status 0 (network_failure / browser fetch blocked) is the page-artifact
+    // case: probe 010 (hub.docker.com/_/nginx/tags) has dom_extraction set,
+    // gets picked by W4 promotion at score 380, but the browser fetch
+    // returns HTTP 0 because anti-bot rejected the headless tab. The
+    // SSR fastpath bypasses headless detection via libcurl-impersonate,
+    // so we try it on status 0 too when the endpoint is a page-artifact.
+    const isStatusZeroPageArtifact = status === 0 && !!endpoint.dom_extraction;
+    if ((status >= 500 || isStatusZeroPageArtifact) && !isPageFetchEndpoint(endpoint)) {
       const fallbackIntent = options?.intent || skill.intent_signature || "";
       const fallbackUrl = endpoint.trigger_url || url;
       decisionTrace.push({ step: "5xx_ssr_fastpath_fallback", from: endpoint.endpoint_id, original_status: status, target: fallbackUrl });
