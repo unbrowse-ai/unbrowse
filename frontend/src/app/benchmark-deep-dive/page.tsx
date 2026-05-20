@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@getFoundry",
+    site: "@unbrowse",
     title: TITLE,
     description: SUBTITLE,
     images: ["https://www.unbrowse.ai/og-image.png"],

@@ -123,7 +123,7 @@ export default function PrivacyPage() {
         <Section title="Questions?">
           <p>
             If you have questions about what data unbrowse handles, reach out
-            at <a href="https://x.com/getFoundry" target="_blank" rel="noopener" className="text-orange-500 hover:underline">@getFoundry</a> or
+            at <a href="https://x.com/unbrowse" target="_blank" rel="noopener" className="text-orange-500 hover:underline">@unbrowse</a> or
             open an issue on <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="text-orange-500 hover:underline">GitHub</a>.
           </p>
           <p className="text-sm text-text-muted mt-2">

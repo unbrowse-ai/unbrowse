@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   alternates: {
     canonical: `https://www.unbrowse.ai${CANONICAL_PATH}`,
   },
-  authors: [{ name: "Lewis Tham", url: "https://x.com/getFoundry" }],
+  authors: [{ name: "Lewis Tham", url: "https://x.com/unbrowse" }],
   openGraph: {
     title: TITLE,
     description,
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@getFoundry",
+    site: "@unbrowse",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -64,7 +64,7 @@ export default function AgentFleetEconomicsPage() {
     author: {
       "@type": "Person",
       name: "Lewis Tham",
-      url: "https://x.com/getFoundry",
+      url: "https://x.com/unbrowse",
     },
     publisher: {
       "@type": "Organization",

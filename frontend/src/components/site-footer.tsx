@@ -36,7 +36,7 @@ const RESOURCES_LINKS: Array<{ href: string; label: string }> = [
 
 const COMPANY_LINKS: Array<{ href: string; label: string }> = [
   { href: "https://discord.gg/VWugEeFNsG", label: "Discord" },
-  { href: "https://x.com/getFoundry", label: "X / @getFoundry" },
+  { href: "https://x.com/unbrowse", label: "X / @unbrowse" },
   { href: "/openclaw-earn", label: "Earn" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
@@ -124,7 +124,7 @@ export function SiteFooter() {
               <Github className="w-4 h-4" />
             </a>
             <a
-              href="https://x.com/getFoundry"
+              href="https://x.com/unbrowse"
               target="_blank"
               rel="noopener"
               aria-label="X / Twitter"

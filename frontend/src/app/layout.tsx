@@ -47,7 +47,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@getFoundry",
+    site: "@unbrowse",
     title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
     description:
       "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
@@ -116,7 +116,7 @@ export default function RootLayout({
               sameAs: [
                 "https://github.com/unbrowse-ai",
                 "https://github.com/unbrowse-ai/unbrowse",
-                "https://x.com/getFoundry",
+                "https://x.com/unbrowse",
                 "https://www.npmjs.com/package/unbrowse",
               ],
             }),

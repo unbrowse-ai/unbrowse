@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@getFoundry",
+    site: "@unbrowse",
     title: `${TITLE} — Earn From Web Indexing for AI Agents`,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],

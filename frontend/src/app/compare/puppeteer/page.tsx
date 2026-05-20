@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@getFoundry",
+    site: "@unbrowse",
     title: `${c.tagline} — Puppeteer Alternative for AI Agents`,
     description: c.description,
     images: ["https://www.unbrowse.ai/og-image.png"],
