@@ -68,6 +68,7 @@
     "bench:gate:compare": "bun scripts/bench-gate-compare.ts",
     "bench:gate:stamp": "bun scripts/bench-gate-compare.ts --stamp",
     "bench:gate:prerelease": "bash scripts/bench-gate-prerelease.sh",
+    "bench:gate:refresh-corpus": "bash scripts/refresh-bench-corpus.sh",
     "bench:gate:freeze": "bun scripts/bench-gate-compare.ts --freeze",
     "bench:gate:full": "bash scripts/bench-gate-full.sh",
     "bench:gate:mcp": "bash scripts/bench-gate-mcp.sh",
