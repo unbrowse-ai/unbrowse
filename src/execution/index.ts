@@ -5756,8 +5756,17 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // Counter-promotion for content-read intents on data-rich page artifacts.
       // Beats the structural API demotion magnitude so the page wins.
       score += 250;
+      // W4-followup-2: pin the floor unconditionally here. The downstream
+      // L5791/L6212 pins are gated by isPageFetchEndpoint (which requires
+      // extraction_method === "page_fetch"). Real page-artifacts often
+      // have extraction_method === "multiple" so those pins do not fire,
+      // and subsequent demotion paths (PII / cross-brand / auth-walled
+      // / write-verb / scalar-schema) drive the +250 boost back into deep
+      // negative. Pin here so the data-rich page-artifact actually wins
+      // when LIST_INTENT matches.
+      score = Math.max(score, 100);
     }
-
+      score = Math.max(score, 100);
     // LIST_INTENT scalar-schema demotion (lane-01 / AC2):
     // For content-read list intents, an endpoint whose response schema declares
     // ONLY scalar-typed top-level properties (count, total, number, string, bool)
@@ -5812,6 +5821,12 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (
       isCapturedPageArtifact &&
       !!ep.trigger_url &&
+      // W4-followup-2: when the page-artifact is data-rich (LIST_INTENT
+      // + high-confidence DOM + array/object schema), the page IS the
+      // data even if API siblings exist on the same trigger_url. Skip
+      // the API-sibling clamp so the pageArtifactIsDataRich promotion
+      // can hold.
+      !pageArtifactIsDataRich &&
       rankedCandidates.some(
         (other) =>
           other !== ep &&
@@ -5837,7 +5852,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       if (/(sidebar|recommend|recommendations|suggested|spotlight|timeline|tweets|following|followers)/i.test(profileHaystack)) score -= 90;
       if (/(sharebox|closedsharebox|mailbox|messaging|conversation|alerts?|notification|presence|badging|feedtype|main_feed)/i.test(profileHaystack)) score -= 180;
       if (/(userbyscreenname|profile|profiles|memberprofile|identityprofile|person)/i.test(profileHaystack) && looksLikeApiEndpoint) score += 80;
-      if (/(search\/results\/people|searchcluster|searchresult|public_identifier|headline|mini_profile|memberresult)/i.test(profileHaystack)) score += 95;
     }
 
     if (intent && /\b(feed|timeline|stream|home)\b/i.test(intent) && /\b(post|posts|status|statuses|update|updates)\b/i.test(intent)) {
@@ -5987,7 +6001,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
               score += 100; // schema cross-check bonus (param echoed in response shape)
             }
           }
-        } else {
           // Param doesn't match any template slot — possible extra context, small bonus
           score += 3;
         }
@@ -6230,7 +6243,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       const intentIsAuthShaped = /\b(sign[\s\-_]?in|log[\s\-_]?in|sign[\s\-_]?up|signin|login|signup|auth(?:enticate)?)\b/i.test(intent);
       if (!intentIsAuthShaped) score -= 350;
     }
-
     return { endpoint: ep, score };
   });
 
