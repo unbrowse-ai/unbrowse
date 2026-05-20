@@ -1,4 +1,4 @@
-import { searchSkills, listSkills, type SkillManifest } from "@/lib/api";
+import { searchSkills, listSkills, getStatsSummary, type SkillManifest } from "@/lib/api";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
 import { getRegistrySkillHref, parseSearchMetadata } from "@/lib/registry-search";
 import { SearchBar } from "@/components/search-bar";
@@ -17,6 +17,17 @@ export default async function SearchPage({
   let results: Awaited<ReturnType<typeof searchSkills>> = [];
   let allSkills: SkillManifest[] = [];
   let error = "";
+
+  // Pull live coverage numbers so the subhead reflects actual marketplace
+  // size, not the prior "search millions of mapped endpoints" hyperbole
+  // (mismatched with the JSON-LD "600+ domains" and HeroStats live count).
+  // Falls back to neutral copy when the stats API is unreachable.
+  let stats: Awaited<ReturnType<typeof getStatsSummary>> | null = null;
+  try {
+    stats = await getStatsSummary();
+  } catch {
+    stats = null;
+  }
 
   try {
     allSkills = await listSkills();
@@ -117,7 +128,9 @@ export default async function SearchPage({
           Find any skill.
         </h1>
           <p className="text-text-secondary text-lg animate-fade-up stagger-2 max-w-2xl mx-auto leading-relaxed">
-            Search millions of mapped endpoints by natural language intent.
+            {stats && typeof stats.skills === "number" && typeof stats.domains === "number"
+              ? `Search ${stats.skills.toLocaleString()} mapped endpoints across ${stats.domains.toLocaleString()} domains by natural language intent.`
+              : "Search mapped endpoints by natural language intent."}
           </p>
       </div>
 
