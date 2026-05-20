@@ -1,24 +1,24 @@
 /**
  * /v1/llm/:provider/messages — universal x402-gated LLM endpoint.
  *
- * Adds an OpenAI-compatible LLM surface to the unbrowse backend that proxies
- * to xgate.run (ai.xgate.run) with a 50% operator markup, gated by Stripe's
- * native x402 product (paymentMiddleware from @x402/hono). When the client
- * lacks a valid PAYMENT-SIGNATURE, the middleware returns 402 with a
- * Stripe-issued PaymentIntent deposit address; client pays, retries, and
- * the response streams through.
+ * v2 (post wave-144 pivot): facilitator is Faremeter Flex on Solana, NOT
+ * Stripe x402. Reason: the operating Stripe account is SG-region; Stripe's
+ * Stablecoins+Crypto / machine-payments is US-only (confirmed via P4+P5+P6
+ * agent-browser dashboard inspection). Faremeter Flex is already wired in
+ * unbrowse v6.16 (no US-business gate, mainnet Solana USDC, 50/35/15 splits)
+ * so the pivot reuses the existing facilitator instead of waiting on Stripe
+ * Atlas + Delaware incorporation.
  *
- * This route is ADDITIVE to the existing Faremeter Flex/Solana skill routes
- * (routes/skills.ts and friends); they remain UNTOUCHED. The two facilitators
- * coexist: Stripe x402 for the LLM/agent layer, Faremeter Flex/Solana for the
- * unbrowse skill execution layer. rail-rotation.ts is the existing primitive
- * that already accommodates multi-rail; this is its first cross-facilitator
- * use case.
+ * Upstream: ai.xgate.run (OpenAI-compatible, Base USDC + ERC-2612 permits,
+ * <5ms overhead, multi-provider catalog). Operator wallet bridges Base/Solana:
+ * pays xgate.run in Base USDC permits; charges users in Solana USDC via Flex
+ * with 50% markup; off-chain reconciliation.
  *
  * Cites:
- *   https://docs.stripe.com/payments/machine/x402 (protocol + middleware shape)
- *   https://ai.xgate.run/SKILL.md (upstream OpenAI-compatible router)
- *   unbrowse-toll-booth-monetization.md (existing strategic frame; L4)
+ *   https://ai.xgate.run/SKILL.md (upstream router)
+ *   unbrowse/backend/src/services/flex-route-helpers.ts (Flex facilitator)
+ *   P6 (20260520T104814Z-ad127adc): dashboard-state-check precondition
+ *   wave-144 of universal-x402-hidden-entry-point-across-web-unb harness
  */
 
 import { Hono, type Context } from "hono";
@@ -30,16 +30,17 @@ import {
   proxyToXgate,
   OPERATOR_MARKUP,
 } from "../services/xgate.js";
+import {
+  sponsorAcceptsForPriceUsd,
+  handleFlexPaymentAuthorized,
+} from "../services/flex-route-helpers.js";
 
 type LlmRouteEnv = { Bindings: Env; Variables: { agent_id?: string; user_id?: string } };
 
 export const llmRoutes = new Hono<LlmRouteEnv>();
 
-// Default token estimates for pre-call pricing. The substrate principle binds
-// this surface: these are evidence-derived primitives (real xgate models have
-// 4k typical context + 1k typical completion in production traffic; we don't
-// invent the numbers) rather than per-model heuristics. Override per request
-// by including max_tokens in the body.
+// Default token estimates for pre-call pricing. Substrate-faithful: declared
+// constants, not per-model heuristics. Override per request via body.max_tokens.
 const DEFAULT_PROMPT_TOKEN_ESTIMATE = 4_000;
 const DEFAULT_OUTPUT_TOKEN_ESTIMATE = 1_000;
 
@@ -64,8 +65,6 @@ llmRoutes.post("/:provider/messages", async (c: Context<LlmRouteEnv>) => {
     return c.json({ error: { code: "missing_model", message: "model is required" } }, 400);
   }
 
-  // Resolve live pricing from xgate. If the model isn't catalogued, fail closed
-  // so the operator never proxies an un-priced call.
   const pricing = await resolveModelPricing(model);
   if (!pricing) {
     return c.json(
@@ -79,105 +78,55 @@ llmRoutes.post("/:provider/messages", async (c: Context<LlmRouteEnv>) => {
   const passthroughUsd = estimatePassthroughUsd(pricing, promptTokens, outputTokens);
   const chargeUsd = operatorChargeUsd(passthroughUsd);
 
-  // x402 payment gate. The substrate principle binds this hand-off: we declare
-  // the price + receiver primitive, we DO NOT inline Stripe's facilitator
-  // logic (that's Stripe's job; we are a declarant of accepts[]). Per Stripe's
-  // x402 docs, paymentMiddleware would resolve the PaymentIntent via
-  // createPayToAddress; here we surface the same shape inline so the route
-  // works in environments where @x402/hono Middleware setup is not pre-wired.
-  const paymentHeader = c.req.header("PAYMENT-SIGNATURE") ?? c.req.header("payment-signature");
-  if (!paymentHeader) {
-    const accepts = [
-      {
-        scheme: "exact",
-        network: "eip155:8453", // Base mainnet
-        amount: chargeUsd.toFixed(6),
-        asset: "USDC",
-        payTo: await createPayToAddress(c, chargeUsd),
-        maxTimeoutSeconds: 60,
-        extra: {
-          provider,
-          model,
-          markup: OPERATOR_MARKUP,
-          passthrough_usd: passthroughUsd.toFixed(6),
-        },
-      },
-    ];
+  // Faremeter Flex path: when the request lacks an X-PAYMENT header, return
+  // a 402 with the sponsor-accepts envelope (single payee, platform wallet,
+  // Solana USDC). When the header is present, verify+execute through the
+  // shared helper which dispatches to the Flex facilitator.
+  const payment = c.req.header("X-PAYMENT") ?? c.req.header("x-payment");
+  if (!payment) {
+    const operatorWallet = (c.env as { PAYMENT_RECIPIENT?: string }).PAYMENT_RECIPIENT
+      ?? (c.env as { PAYTO_ADDRESS?: string }).PAYTO_ADDRESS
+      ?? "";
+    if (!operatorWallet) {
+      return c.json(
+        { error: { code: "operator_wallet_missing", message: "PAYMENT_RECIPIENT not configured on this Worker" } },
+        503,
+      );
+    }
+    const accepts = sponsorAcceptsForPriceUsd(chargeUsd, operatorWallet);
     const required = {
       x402Version: 2,
       error: "payment_required",
       accepts,
+      facilitator: "faremeter-flex-solana",
+      extra: {
+        provider,
+        model,
+        markup: OPERATOR_MARKUP,
+        passthrough_usd: passthroughUsd.toFixed(6),
+      },
     };
-    const encoded = btoa(JSON.stringify(required));
-    c.header("payment-required", encoded);
-    return c.json(required, 402);
+    return c.json(required, 402, {
+      "PAYMENT-REQUIRED": btoa(JSON.stringify(required)),
+    });
   }
 
-  // Payment present (Stripe captures asynchronously per docs); proxy upstream.
-  const outcome = await proxyToXgate(c.env, { model, body });
-  if (outcome.status === 402) {
-    // Upstream xgate wants payment from the operator wallet; surface as 503
-    // because the user already paid us. This is the operator's responsibility,
-    // not the user's. Bug-report path: ops alert + retry.
-    return c.json(
-      { error: { code: "operator_upstream_payment_required", message: "operator wallet needs replenishment" } },
-      503,
-    );
-  }
-  // Stamp the audit-trail headers on the response so cell-wire's COURT verdict
-  // can record cost_usd from real numbers, not synthesized estimates.
-  c.header("x-aiko-cost-usd", chargeUsd.toFixed(6));
-  c.header("x-aiko-passthrough-usd", passthroughUsd.toFixed(6));
-  c.header("x-aiko-markup", String(OPERATOR_MARKUP));
-  return c.json(outcome.body as Record<string, unknown>, outcome.status as 200);
-});
-
-/**
- * Create a Stripe PaymentIntent (mode:'deposit') and return the Base
- * deposit address that the client retries against. Per Stripe x402 docs,
- * this is the function passed as `payTo` in the paymentMiddleware accepts[]
- * entry. For non-Stripe deployments (or unit tests), env.PAYTO_ADDRESS
- * overrides this; the substrate principle keeps the resolver injectable.
- */
-async function createPayToAddress(c: Context<LlmRouteEnv>, amountUsd: number): Promise<string> {
-  const override = (c.env as { PAYTO_ADDRESS?: string }).PAYTO_ADDRESS;
-  if (override && override.length > 0) return override;
-
-  const stripeKey = (c.env as { STRIPE_SECRET_KEY?: string }).STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    throw new Error("STRIPE_SECRET_KEY not configured; cannot create PaymentIntent");
-  }
-
-  // Cents are amount * 100; Stripe expects integer cents. Truncate down so
-  // we never over-bill via rounding (operator absorbs sub-cent rounding error).
-  const amountInCents = Math.max(1, Math.floor(amountUsd * 100));
-
-  const params = new URLSearchParams();
-  params.append("amount", String(amountInCents));
-  params.append("currency", "usd");
-  params.append("payment_method_types[]", "crypto");
-  params.append("payment_method_data[type]", "crypto");
-  params.append("payment_method_options[crypto][mode]", "deposit");
-  params.append("payment_method_options[crypto][deposit_options][networks][]", "base");
-  params.append("confirm", "true");
-
-  const res = await fetch("https://api.stripe.com/v1/payment_intents", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${stripeKey}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": "2026-03-04.preview",
+  // X-PAYMENT present: hand off to the shared Flex verifier. It parses,
+  // verifies via the Flex facilitator, runs executeFn, then settles + flushes.
+  return handleFlexPaymentAuthorized(c, payment, {
+    executeFn: async () => {
+      const outcome = await proxyToXgate(c.env, { model, body });
+      if (outcome.status === 402) {
+        return c.json(
+          { error: { code: "operator_upstream_payment_required", message: "operator wallet needs replenishment" } },
+          503,
+        );
+      }
+      const resp = c.json(outcome.body as Record<string, unknown>, outcome.status as 200);
+      resp.headers.set("x-aiko-cost-usd", chargeUsd.toFixed(6));
+      resp.headers.set("x-aiko-passthrough-usd", passthroughUsd.toFixed(6));
+      resp.headers.set("x-aiko-markup", String(OPERATOR_MARKUP));
+      return resp;
     },
-    body: params,
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Stripe PaymentIntent create failed: ${res.status} ${text.slice(0, 200)}`);
-  }
-  const pi = (await res.json()) as {
-    next_action?: { type?: string; crypto_display_details?: { deposit_addresses?: { base?: { address?: string } } } };
-  };
-  const deposit = pi.next_action?.crypto_display_details?.deposit_addresses?.base?.address;
-  if (!deposit) throw new Error("PaymentIntent did not return Base deposit address");
-  return deposit;
-}
+});
