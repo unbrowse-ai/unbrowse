@@ -147,3 +147,25 @@ describe("W4-followup: production-shape page-artifact (extraction_method 'multip
     expect(ranked[0].endpoint.endpoint_id).toBe("nginx-tags-page");
   });
 });
+
+describe("W4-followup-2: page-artifact floor pin must hold post-promotion (probe 010)", () => {
+  test("dockerhub real fixture from skill-cache: page-artifact score >= 100", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { homedir } = await import("node:os");
+    const { join } = await import("node:path");
+    const skill = JSON.parse(readFileSync(join(homedir(), ".unbrowse/skill-cache/6Od4QfMyWRrO74oCaDp55.json"), "utf8"));
+    const ranked = rankEndpoints(
+      skill.endpoints,
+      "get dockerhub image tags",
+      "hub.docker.com",
+      "https://hub.docker.com/r/library/nginx/tags",
+    );
+    const target = ranked.find((r: any) => r.endpoint.endpoint_id === "BVRZcyG0RSW3m_cAVvvWV");
+    expect(target).toBeDefined();
+    // After the +250 promotion + unconditional Math.max(100) pin, the
+    // page-artifact MUST score at least 100. Without the pin, downstream
+    // demotions (PII/auth/cross-brand/etc.) drove it to -1720 even though
+    // pageArtifactIsDataRich was true.
+    expect(target!.score).toBeGreaterThanOrEqual(100);
+  });
+});
