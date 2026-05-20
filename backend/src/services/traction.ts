@@ -56,7 +56,7 @@ interface StoredEndpointStats {
  * the real verification signal lives in version_history[] on each
  * stats:{skill_id}--{endpoint_id} record (see scoring.ts).
  */
-async function scanVersionHistory(env: Env): Promise<{
+export async function scanVersionHistory(env: Env): Promise<{
   totalPasses: number;
   passesByAgent: Map<string, number>;
 }> {
@@ -229,7 +229,7 @@ function buildVerificationFunnel(
  * Derived from agent:{id}.activity_dates[] (the same source getEngagement
  * uses for WAU). 0 when prior week is empty.
  */
-async function computeWeeklyRetention(env: Env): Promise<number> {
+export async function computeWeeklyRetention(env: Env): Promise<number> {
   try {
     const entries = await statsKV(env).listWithValues("agent:");
     const todayMs = Date.now();
