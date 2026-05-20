@@ -2435,20 +2435,34 @@ function looksLikeConfigShape(data: unknown): boolean {
     });
     if (allChunkObjects) return true;
   }
-  // i18n / theme: an object with a known top-level config key whose value
-  // is itself an object with many entries. We do NOT use intent or
-  // domain, only the structural shape.
+  // i18n / theme: an object with a known top-level config token (literal
+  // OR as a SUBSTRING of the key — catches `globalTranslations`,
+  // `appMessages`, `themeTokens`, `i18nResources`, `localeBundles`, etc.
+  // without per-variant maintenance). We do NOT use intent or domain,
+  // only the structural shape of the key name + the absence of sibling
+  // data keys.
   if (typeof data === "object" && !Array.isArray(data)) {
     const obj = data as Record<string, unknown>;
     const topKeys = Object.keys(obj);
     if (topKeys.length === 0) return false;
-    const hasConfigTop = topKeys.some((k) => CONFIG_TOP_LEVEL_KEYS.has(k));
+    const looksLikeConfigKey = (k: string): boolean => {
+      const lower = k.toLowerCase();
+      if (CONFIG_TOP_LEVEL_KEYS.has(lower)) return true;
+      // Substring match against the canonical i18n/theme tokens. The
+      // literal set above is also lowercase so the membership check
+      // doubles as the seed for the substring rule.
+      for (const token of CONFIG_TOP_LEVEL_KEYS) {
+        if (lower.includes(token)) return true;
+      }
+      return false;
+    };
+    const hasConfigTop = topKeys.some((k) => looksLikeConfigKey(k));
     if (!hasConfigTop) return false;
     // Confirm the config bucket is the dominant payload, not a sibling
     // of real data. A page with `{products: [...], translations: {...}}`
     // should NOT trip; the products array would be the real signal and
     // the parent object as a whole still carries data.
-    const configKeyCount = topKeys.filter((k) => CONFIG_TOP_LEVEL_KEYS.has(k)).length;
+    const configKeyCount = topKeys.filter((k) => looksLikeConfigKey(k)).length;
     const dataKeyCount = topKeys.length - configKeyCount;
     // If the object is ONLY config buckets (no sibling data keys), it
     // is config-shape. If there are sibling data keys, leave it alone.
@@ -2641,13 +2655,19 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const articleStructures = extractArticleBodySpecial(html.length > 600_000 ? html.slice(0, 600_000) : html, intent);
   const allStructures = [...flashStructures, ...githubStructures, ...repeatedPersonStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...repeatedArticleStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
-  // W3-followup: filter out degenerate repeated-elements arrays whose rows
-  // each collapse to a single unique string. They're junk shapes that the
-  // sibling-pattern detector synthesises (e.g. a pypi release table where
-  // every row is {date, info, description} all equal to one date string).
-  // Filtering pre-score lets the metadata-fallback path catch the page
-  // when no other structure remains.
-  const structures = allStructures.filter((s) => !(s.type === "repeated-elements" && looksLikeDegenerateRowArray(s.data)));
+  // W3-followup: filter out junk shapes pre-score so the metadata-fallback
+  // path can catch the page when nothing else remains. Two filter classes:
+  //   (1) degenerate repeated-elements arrays whose rows each collapse to
+  //       a single unique string (pypi release table {date,info,description}
+  //       all equal to one date per row)
+  //   (2) pure config-shape structures (i18n bundles, theme tokens, RSC
+  //       bootstrap chunks). The -200 scoreConfigShapeDemotion still runs
+  //       on any config-shape that escapes this filter (mixed-shape with
+  //       sibling data keys); pre-filtering only removes the structures
+  //       that would otherwise be the LONE candidate and win by default.
+  const structures = allStructures.filter((s) =>
+    !(s.type === "repeated-elements" && looksLikeDegenerateRowArray(s.data)) &&
+    !looksLikeConfigShape(s.data));
 
   if (structures.length === 0) {
     const fallback = extractHtmlMetadataFallback(html);
