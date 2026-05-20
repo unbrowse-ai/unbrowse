@@ -17,7 +17,7 @@ anchor | none | easy | dom-artifact | get mdn page | https://developer.mozilla.o
 anchor | none | medium | dom-artifact | get arxiv abstract | https://arxiv.org/abs/2604.00694
 anchor | none | easy | structured-replay | get pypi package info | https://pypi.org/project/anthropic/
 anchor | none | medium | direct-api | get dockerhub image tags | https://hub.docker.com/r/library/nginx/tags
-anchor | none | medium | dom-artifact | get devto post | https://dev.to/anthropic
+anchor | none | medium | dom-artifact | get devto post | https://dev.to/ben
 
 # ─── semantic-rank (8) — A1/A8 entity substitution; catches reddit r/X bug ────
 semantic-rank | none | medium | semantic-rank | get singularity subreddit posts | https://www.reddit.com/r/singularity/
