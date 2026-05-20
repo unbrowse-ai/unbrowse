@@ -23,7 +23,7 @@ import { getSkill } from "../marketplace/index.js";
 import { getPopularUnreviewedSkills, getMyContributions, computeMilestoneState } from "../marketplace/popular-unreviewed.js";
 import { getRecentTraces } from "../graph/trace-store.js";
 import { executeSkill } from "../execution/index.js";
-import { rankEndpoints } from "../ranking/index.js";
+import { rankEndpointsServerFirst } from "../ranking/index.js";
 import {
   extractBrowserAuth,
   importBrowserCookiesIntoTab,
@@ -1879,7 +1879,12 @@ export async function registerRoutes(app: FastifyInstance) {
     }
 
     const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
-    const ranked = rankEndpoints(indexed.skill.endpoints, indexed.skill.intent_signature, indexed.skill.domain);
+    // WAVE 2 server-move: the publish describe-endpoints listing is
+    // agent-visible (the LLM reads endpoints_to_describe and writes
+    // descriptions in order), so the ordering must match server
+    // intelligence. rankEndpointsServerFirst transparently falls back to
+    // the local ranker on any backend failure.
+    const ranked = await rankEndpointsServerFirst(indexed.skill.endpoints, indexed.skill.intent_signature, indexed.skill.domain);
     const endpoints_to_describe = ranked.map((r) => {
       const descriptionMeta = getEndpointDescriptionMetadata(r.endpoint);
       return {
