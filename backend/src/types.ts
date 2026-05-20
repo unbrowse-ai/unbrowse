@@ -49,6 +49,13 @@ export interface Env {
    * accept entry to pay; this only biases the order they see.
    */
   PAYAI_ROTATION_BPS?: string;
+  /**
+   * Wave 3 of the integrate-abk-labs-fair-meter-faremeter-x402-pay scaffold.
+   * When "1" / "true", `/v1/test/paid` mounts `@faremeter/middleware` and
+   * emits a real 402 with payment requirements. OFF by default. Existing
+   * Flex/PayAI paths are unaffected — this is an isolated test surface.
+   */
+  FAREMETER_ENABLED?: string;
   // v6.16: CASCADE_PLATFORM_WALLET and CASCADE_SIGNER_SECRET_KEY are unused by
   // the runtime — Flex carries the 10% platform cut natively in every signed
   // authorization's splits. They remain in the Env shape for one release so
