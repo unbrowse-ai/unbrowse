@@ -41,9 +41,17 @@ process.env.UNBROWSE_FORCE_HEADLESS = "1";
 
 const manifest = JSON.parse(readFileSync(join(RUN_DIR, "manifest.json"), "utf8"));
 const probes: Array<{ probe_id: string; intent: string; url: string; lane: string }> = manifest.probes;
-const CONC = Number(process.env.UNBROWSE_GATE_CONCURRENCY) || 30;
+const CONC_ENV = Number(process.env.UNBROWSE_GATE_CONCURRENCY) || 30;
 const FORCE_GO = parseForceGoEnv(process.env.UNBROWSE_GATE_FORCE_GO);
 const PROBE_TIMEOUT_MS = parseProbeTimeoutMs(process.env.UNBROWSE_GATE_PROBE_TIMEOUT_MS);
+// Early-stop mode: when UNBROWSE_GATE_STOP_ON_FAIL=1, force conc=1 and exit
+// the collector at the first probe whose artifact doesn't satisfy the
+// lane-aware structural-pass predicate. The agent reads .stop-marker, ships
+// a fix, re-runs (resume-skip pulls the last-completed probes; the stopped
+// probe is NOT resume-skipped because its artifact predicate failed).
+const STOP_ON_FAIL = process.env.UNBROWSE_GATE_STOP_ON_FAIL === "1"
+  || (process.env.UNBROWSE_GATE_STOP_ON_FAIL ?? "").toLowerCase() === "true";
+const CONC = STOP_ON_FAIL ? 1 : CONC_ENV;
 const HDR = { "content-type": "application/json", "x-unbrowse-client-id": "mcp-gate-parallel" };
 
 const app = await getInProcessApp();
@@ -66,6 +74,46 @@ function derivedParams(u: string): Record<string, string> {
   catch { return {}; }
 }
 function w(dir: string, name: string, content: string) { writeFileSync(join(dir, name), content); }
+
+// Structural-pass predicate. RAW signals only; agent still judges PASS/FAIL
+// holistically. Used by UNBROWSE_GATE_STOP_ON_FAIL=1 to STOP the collector
+// at the first probe whose artifact doesn't look like a clean pass for its
+// lane. Returns null on pass (do not stop), or a string reason on fail.
+function structuralPassPredicate(p: { lane: string }, artifacts: { cm: any; em: any; raw: string }): string | null {
+  const { cm, em, raw } = artifacts;
+  if (cm?.crashed_during_collect) return `crashed_during_collect (W0 timeout)`;
+  const indexed = cm?.indexed === true;
+  const nOps = Number(cm?.n_operations ?? 0);
+  const status = em?.status_code;
+  const bytes = Number(em?.response_bytes ?? 0);
+  const head = (raw ?? "").slice(0, 300);
+  const isErrEnv =
+    /^\s*\{\s*"error"\s*:/.test(head) ||
+    head.includes('"status":"no_match"') ||
+    head.includes("resolve_hard_handoff") ||
+    head.includes("schema_drift_recapture_required") ||
+    head.includes('"error":"stale_endpoint"') ||
+    head.includes('"error":"network_failure"') ||
+    head.includes('"error":"confirmation_required"');
+  const isVendorBlocked = /perimeterx|datadome|akamai|kasada|imperva|cf-mitigated|captcha/i.test(head.slice(0, 600));
+  const isSpaNoise = head.startsWith('{"type":"spa-nextjs"') || /^\[\{"type":"spa-nextjs"/.test(head);
+  const isSlackCfg = /"module_loader_url":/.test(head.slice(0, 200));
+  const isRealData = status === 200 && bytes > 200 && !isErrEnv && !isSpaNoise && !isSlackCfg;
+  const lane = p.lane;
+  if (lane === "auth-gated" || lane === "auth-cookies") {
+    if (isRealData) return null;
+    if (head.includes("resolve_hard_handoff")) return null;
+    if (head.includes("schema_drift_recapture_required")) return null;
+    return `auth lane lacks real-data PASS and lacks proper handoff envelope (status=${status} bytes=${bytes} head=${head.slice(0,80)})`;
+  }
+  if (lane === "hostile") {
+    if (isRealData) return null;
+    if (isVendorBlocked) return null;
+    return `hostile lane lacks real-data PASS and lacks vendor-block marker (status=${status} bytes=${bytes} head=${head.slice(0,80)})`;
+  }
+  if (isRealData) return null;
+  return `non-excluded lane (${lane}) expected real data: indexed=${indexed} n_ops=${nOps} status=${status} bytes=${bytes} head=${head.slice(0,80)}`;
+}
 
 async function runProbe(p: { probe_id: string; intent: string; url: string; lane: string }): Promise<string> {
   const dir = join(RUN_DIR, p.probe_id);
@@ -151,29 +199,51 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
 }
 
 // bounded worker pool
-console.log(`[collector] ${probes.length} probes, concurrency=${CONC} (NOTE: >6 exceeds the N<=6 verified-clean band; per-probe iso_self_check is the in-run isolation falsifier — raw evidence, judged in-thread, NOT a script verdict)`);
-let idx = 0; let doneN = 0;
+console.log(`[collector] ${probes.length} probes, concurrency=${CONC}${STOP_ON_FAIL ? " (STOP_ON_FAIL=1: conc=1, halt at first structural-fail probe)" : ""} (NOTE: >6 exceeds the N<=6 verified-clean band; per-probe iso_self_check is the in-run isolation falsifier, raw evidence judged in-thread, NOT a script verdict)`);
+let idx = 0; let doneN = 0; let stopped = false;
 async function worker(wid: number) {
   while (true) {
+    if (stopped) return;
     const i = idx++; if (i >= probes.length) return;
     const p = probes[i]!;
     try {
-      // W0: per-probe timeout. Without this, a single auth-cookies /
-      // hostile probe whose browse-strict phase=run took 470s+ would
-      // freeze its worker indefinitely and (across enough such probes)
-      // drag the whole collector into a stuck-and-killed state. The
-      // wrapper races the probe against PROBE_TIMEOUT_MS; on timeout,
-      // a crashed_during_collect marker is written so the probe dir
-      // is "complete" (resume-skip on next run) and the in-thread
-      // judge sees the raw evidence (not a verdict).
       const msg = await withProbeTimeout(p.probe_id, PROBE_TIMEOUT_MS, () => runProbe(p));
       doneN++; console.log(`[w${wid}] (${doneN}/${probes.length}) ${msg}`);
+      // STOP_ON_FAIL: read the probe's just-written artifacts and apply the
+      // structural-pass predicate. On fail, write .stop-marker with raw
+      // evidence and set the shared stopped flag; remaining workers exit.
+      if (STOP_ON_FAIL) {
+        const dir = join(RUN_DIR, p.probe_id);
+        let cm: any = {}, em: any = {}, raw = "";
+        try { cm = JSON.parse(readFileSync(join(dir, "capture.meta.json"), "utf8")); } catch {}
+        try { em = JSON.parse(readFileSync(join(dir, "execute.meta.json"), "utf8")); } catch {}
+        try { raw = readFileSync(join(dir, "execute.response.raw"), "utf8"); } catch {}
+        const reason = structuralPassPredicate(p, { cm, em, raw });
+        if (reason) {
+          stopped = true;
+          const marker = {
+            stopped_at: new Date().toISOString(),
+            probe_id: p.probe_id, lane: p.lane, intent: p.intent, url: p.url,
+            structural_fail_reason: reason,
+            signals: {
+              indexed: cm?.indexed, n_operations: cm?.n_operations, mode: cm?.mode,
+              status_code: em?.status_code, response_bytes: em?.response_bytes,
+              browser_block_signals: cm?.browser_block_signals ?? [],
+              iso_self_check: cm?.iso_self_check ?? null,
+            },
+            response_head: raw.slice(0, 600),
+            artifact_dir: dir,
+          };
+          writeFileSync(join(RUN_DIR, ".stop-marker"), JSON.stringify(marker, null, 2));
+          console.log(`[collector] STOP-ON-FAIL at ${p.probe_id}: ${reason}`);
+          console.log(`[collector] evidence written to ${join(RUN_DIR, ".stop-marker")}`);
+          console.log(`[collector] agent: read .stop-marker, ship a fix, re-run with the same run-dir (resume-skip picks back up from this probe)`);
+          return;
+        }
+      }
     } catch (e) {
       doneN++;
       if (e instanceof ProbeTimeoutError) {
-        // Write minimal artifacts so the probe dir is complete and
-        // does NOT get retried on the next collector run (resume-skip
-        // rule: existsSync(execute.meta.json) -> SKIP).
         const dir = join(RUN_DIR, p.probe_id);
         try { mkdirSync(dir, { recursive: true }); } catch { /* race-safe */ }
         const marker = {
@@ -195,6 +265,16 @@ async function worker(wid: number) {
         try { writeFileSync(join(dir, "execute.response.raw"), JSON.stringify({ error: "crashed_during_collect", timeout_ms: e.ms })); } catch { /* best-effort */ }
         try { writeFileSync(join(dir, "execute.meta.json"), JSON.stringify({ status_code: null, response_bytes: 0, decision_trace: [{ step: "crashed_during_collect", timeout_ms: e.ms }] }, null, 2)); } catch { /* best-effort */ }
         console.log(`[w${wid}] (${doneN}/${probes.length}) ${p.probe_id} TIMEOUT after ${e.ms}ms (crashed_during_collect marker written)`);
+        if (STOP_ON_FAIL) {
+          stopped = true;
+          writeFileSync(join(RUN_DIR, ".stop-marker"), JSON.stringify({
+            stopped_at: new Date().toISOString(), probe_id: p.probe_id, lane: p.lane, intent: p.intent, url: p.url,
+            structural_fail_reason: `W0 timeout after ${e.ms}ms`, signals: { crashed_during_collect: true, timeout_ms: e.ms },
+            response_head: "", artifact_dir: dir,
+          }, null, 2));
+          console.log(`[collector] STOP-ON-FAIL at ${p.probe_id}: W0 timeout`);
+          return;
+        }
       } else {
         console.log(`[w${wid}] (${doneN}/${probes.length}) ${p.probe_id} ERROR ${(e as Error)?.message ?? e}`);
       }
@@ -202,5 +282,9 @@ async function worker(wid: number) {
   }
 }
 await Promise.all(Array.from({ length: Math.min(CONC, probes.length) }, (_, k) => worker(k)));
+if (stopped) {
+  console.log(`[collector] STOPPED early at structural-fail probe; ${doneN}/${probes.length} probes completed before stop. Read ${join(RUN_DIR, ".stop-marker")} for evidence.`);
+  process.exit(2);
+}
 console.log(`[collector] all ${probes.length} probes collected to ${RUN_DIR}. NO verdicts emitted. Next: in-thread judge vs harness/probes/GATE_JUDGE.md.`);
 process.exit(0);
