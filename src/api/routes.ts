@@ -3640,7 +3640,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/browse/close", async (req, reply) => {
     try {
       const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
-      const { session, result: syncResult } = await traceAsync("close", requestedSessionId(req), "close-total", () => withSerializedStrictBrowseSession(
+      const { session, result } = await traceAsync("close", requestedSessionId(req), "close-total", () => withSerializedStrictBrowseSession(
         browseSessions,
         browseClient,
         requestedSessionId(req),
@@ -3663,19 +3663,38 @@ export async function registerRoutes(app: FastifyInstance) {
           // session still uses that port, tear down the kuri+chrome processes
           // so they don't leak. Pool brokers (port < base) are intentionally
           // kept; they're reused.
+          //
+          // broker.stop awaits a 3s SIGTERM deadline + 2s SIGKILL fallback
+          // (src/kuri/client.ts:stopOn). Blocking the close response on that
+          // teardown made the agent-visible /v1/browse/close hang up to 5s
+          // after enrich-capture already completed. We detach the stop into
+          // a background promise: the session is already removed from
+          // browseSessions, perSessionBrokerCursor is monotonic so no future
+          // session can reuse this port, and the existing traceAsync wrapper
+          // continues to log BEGIN/END so the trace still tells the truth
+          // about when the kuri pair actually dies.
+          let pendingBrokerStop: Promise<void> | null = null;
           if (
             typeof closedBrokerPort === "number"
             && closedBrokerPort >= PER_SESSION_BROKER_BASE_PORT
             && ![...browseSessions.values()].some((s) => s.brokerPort === closedBrokerPort)
           ) {
-            await traceAsync("close", session.sessionId, "broker-stop", async () => {
+            pendingBrokerStop = traceAsync("close", session.sessionId, "broker-stop", async () => {
               try { await broker.stop(); }
               catch (err) { console.error(`[browse-close] broker.stop failed sid=${session.sessionId} port=${closedBrokerPort}: ${(err as Error).message}`); }
             });
           }
-          return syncResult;
+          return { syncResult, pendingBrokerStop };
         },
       ));
+      const { syncResult, pendingBrokerStop } = result;
+      // Fire-and-forget the broker teardown so the agent's close returns
+      // sub-1s instead of waiting on SIGTERM/SIGKILL. The .catch keeps the
+      // promise from becoming an unhandled rejection; the inner try/catch
+      // already logged the underlying error.
+      if (pendingBrokerStop) {
+        void pendingBrokerStop.catch(() => {});
+      }
       return reply.send({
         ok: true,
         checkpointed: true,
