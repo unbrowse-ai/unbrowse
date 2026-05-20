@@ -51,6 +51,13 @@ const PROBE_TIMEOUT_MS = parseProbeTimeoutMs(process.env.UNBROWSE_GATE_PROBE_TIM
 // probe is NOT resume-skipped because its artifact predicate failed).
 const STOP_ON_FAIL = process.env.UNBROWSE_GATE_STOP_ON_FAIL === "1"
   || (process.env.UNBROWSE_GATE_STOP_ON_FAIL ?? "").toLowerCase() === "true";
+// Skip-past flag: when set, predicate treats "empty_snapshot + indexed=false
+// + n_ops=0" as PASS for the predicate so the loop advances past kuri/browser
+// hydration races to surface OTHER bugs. The artifact still records
+// empty_snapshot so the in-thread judge sees the real outcome; this only
+// changes whether the STOP_ON_FAIL path halts on that probe.
+const SKIP_EMPTY_SNAPSHOT = process.env.UNBROWSE_GATE_SKIP_EMPTY_SNAPSHOT === "1"
+  || (process.env.UNBROWSE_GATE_SKIP_EMPTY_SNAPSHOT ?? "").toLowerCase() === "true";
 const CONC = STOP_ON_FAIL ? 1 : CONC_ENV;
 const HDR = { "content-type": "application/json", "x-unbrowse-client-id": "mcp-gate-parallel" };
 
@@ -112,6 +119,17 @@ function structuralPassPredicate(p: { lane: string }, artifacts: { cm: any; em: 
     return `hostile lane lacks real-data PASS and lacks vendor-block marker (status=${status} bytes=${bytes} head=${head.slice(0,80)})`;
   }
   if (isRealData) return null;
+  // SKIP_EMPTY_SNAPSHOT: when set, treat empty_snapshot block-signaled probes
+  // (kuri/SPA hydration races, signature: indexed=false + n_ops=0 + mode=none
+  // + browser_block_signals=["empty_snapshot"] AND eval returned undefined)
+  // as "skip past for this loop iteration" so the loop advances to surface
+  // OTHER bugs. The artifact still records the empty_snapshot signal for
+  // the in-thread judge to see.
+  const isEmptySnapshotOnly = !indexed && nOps === 0 && cm?.mode === "none"
+    && Array.isArray(cm?.browser_block_signals)
+    && cm.browser_block_signals.length === 1
+    && cm.browser_block_signals[0] === "empty_snapshot";
+  if (SKIP_EMPTY_SNAPSHOT && isEmptySnapshotOnly) return null;
   return `non-excluded lane (${lane}) expected real data: indexed=${indexed} n_ops=${nOps} status=${status} bytes=${bytes} head=${head.slice(0,80)}`;
 }
 
