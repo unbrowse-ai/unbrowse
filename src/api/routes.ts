@@ -3084,7 +3084,7 @@ export async function registerRoutes(app: FastifyInstance) {
           const classified = classifyAuthSignals(info);
           if (classified.required) {
             authRequired = true;
-            authHint = `Page requires authentication (${classified.reason}). Visible Chrome opening for sign-in; cookies will save automatically. Retry unbrowse_go once you've logged in.`;
+            authHint = `Page requires authentication (${classified.reason}). Authenticate (sign in, or run unbrowse_auth_capture), then retry unbrowse_go; cookies save automatically.`;
           }
         }
       } catch { /* non-fatal */ }
@@ -3095,10 +3095,24 @@ export async function registerRoutes(app: FastifyInstance) {
       // after the user finishes signing in. Opt out with
       // UNBROWSE_AUTO_AUTH=0 / "false".
       const autoAuth = (process.env.UNBROWSE_AUTO_AUTH ?? "1").trim().toLowerCase();
-      const autoAuthEnabled = autoAuth !== "0" && autoAuth !== "false";
+      // Never pop a visible Chrome window in an automated/agent context
+      // (MCP server, bench gate, non-interactive/piped): no human is
+      // present to complete a login, so a window is pure screen spam.
+      // The auth_required + auth_hint handoff below is returned either
+      // way, so the calling agent still gets an actionable next step;
+      // only the visible-window side effect is suppressed. CLAUDE.md:
+      // production must NEVER pop a window; return an actionable
+      // next_step instead.
+      const inAutomatedCtx =
+        process.env.MCP_SERVER_MODE === "1" ||
+        process.env.UNBROWSE_NONINTERACTIVE === "1" ||
+        process.stdout?.isTTY !== true;
+      const autoAuthEnabled =
+        autoAuth !== "0" && autoAuth !== "false" && !inAutomatedCtx;
       let loginWindowOpened = false;
       if (authRequired && autoAuthEnabled) {
         loginWindowOpened = true;
+        authHint = `Page requires authentication. Visible Chrome opening for sign-in; cookies will save automatically. Retry unbrowse_go once you've logged in.`;
         const loginUrl = session.url;
         const loginDomain = session.domain;
         setImmediate(() => {
