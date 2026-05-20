@@ -437,7 +437,7 @@ function extractRouteHint(url: string): string | null {
   return null;
 }
 
-function deriveIntentHints(captureUrl?: string, intent?: string): string[] {
+export function deriveIntentHints(captureUrl?: string, intent?: string): string[] {
   const derivedHints = new Set<string>();
   if (captureUrl) {
     const routeHint = extractRouteHint(captureUrl);
@@ -487,6 +487,34 @@ function hasCapturedHint(responseUrls: Iterable<string>, hint: string): boolean 
     if (url.toLowerCase().includes(lowerHint)) return true;
   }
   return false;
+}
+
+// Pure decision core of the Phase-4 intent-aware lazy-API wait, issue
+// #98 (SPA network-idle: wait for lazy-loaded API calls). Extracted so
+// the lazy/late-arrival recognition is deterministically pinnable
+// without a live kuri tab. Byte-identical to the prior inline Phase-4
+// logic: hint is matched as-written against a lowercased URL, matching
+// the original `u.toLowerCase().includes(hint)` semantics.
+export function computeWantedHints(
+  derivedHints: Iterable<string>,
+  capturedUrls: Iterable<string>,
+): string[] {
+  const captured = [...capturedUrls];
+  return [...derivedHints].filter(
+    (hint) => !captured.some((u) => u.toLowerCase().includes(hint)),
+  );
+}
+
+// The first still-wanted hint a (possibly lazily / late-arriving)
+// request URL satisfies, or null. Pure; mirrors the Phase-4 poll match
+// step exactly so a late API call matching a wanted hint is recognized
+// the moment it is intercepted.
+export function matchInterceptedToHint(
+  entryUrl: string,
+  wantedHints: readonly string[],
+): string | null {
+  const u = entryUrl.toLowerCase();
+  return wantedHints.find((hint) => u.includes(hint)) ?? null;
 }
 
 async function maybeProbeIntentApis(
@@ -1227,9 +1255,7 @@ async function waitForContentReady(
   // Phase 4: Intent-aware API wait — poll intercepted requests for matching API URLs
   if (captureUrl && responseBodies) {
     const derivedHints = new Set(deriveIntentHints(captureUrl, intent));
-    const wantedHints = [...derivedHints].filter((hint) =>
-      ![...responseBodies.keys()].some((u) => u.toLowerCase().includes(hint))
-    );
+    const wantedHints = computeWantedHints(derivedHints, responseBodies.keys());
     if (wantedHints.length > 0) {
       log("capture", `intent-aware wait: looking for API matching one of [${wantedHints.join(", ")}] (from ${captureUrl})`);
       const intentStart = Date.now();
@@ -1240,8 +1266,7 @@ async function waitForContentReady(
         // Check newly intercepted requests
         const intercepted = await collectInterceptedRequests(tabId);
         for (const entry of intercepted) {
-          const respUrl = entry.url.toLowerCase();
-          const matchedHint = wantedHints.find((hint) => respUrl.includes(hint));
+          const matchedHint = matchInterceptedToHint(entry.url, wantedHints);
           if (matchedHint) {
             log("capture", `intent-aware wait: matched ${matchedHint} via ${entry.url.substring(0, 120)}`);
             // Add to responseBodies so downstream sees it
