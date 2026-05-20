@@ -15,6 +15,37 @@ afterEach(() => {
 });
 
 describe("runtime paths", () => {
+
+  // unbrowse-ai/unbrowse#76 — force-cover the Windows branch on every host OS.
+  // Without this, the win32 path inside runtimeArgsForEntrypoint is dead-code
+  // on POSIX CI and the original ERR_UNSUPPORTED_ESM_URL_SCHEME crash can
+  // silently regress. We monkey-patch process.platform so the win32 branch
+  // is exercised structurally even when bun test runs on darwin/linux.
+  it("emits a file:// URL for bare .js entrypoints when process.platform is win32 (issue #76)", () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-runtime-paths-win-"));
+    tmpDirs.push(tmpDir);
+
+    const jsEntry = path.join(tmpDir, "dist", "cli.js");
+    mkdirSync(path.dirname(jsEntry), { recursive: true });
+    writeFileSync(jsEntry, "// cli\n");
+
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    let args: string[];
+    try {
+      args = runtimeArgsForEntrypoint(pathToFileURL(path.join(tmpDir, "meta.js")).href, jsEntry);
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
+    }
+
+    expect(args).toHaveLength(1);
+    expect(args[0]).toMatch(/^file:\/\//);
+    expect(args[0]).not.toBe(jsEntry);
+    // The decoded URL must round-trip back to the original entrypoint path.
+    // (pathToFileURL handles drive-letter on Windows and absolute path on POSIX
+    // identically for our purposes — the contract is "valid ESM specifier".)
+    expect(args[0]).toContain(encodeURI(jsEntry.split(path.sep).join("/")).replace(/^\//, ""));
+  });
   it("treats a symlinked npm bin path as the main module", () => {
     const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-runtime-paths-"));
     tmpDirs.push(tmpDir);
