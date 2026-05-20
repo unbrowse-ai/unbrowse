@@ -2109,6 +2109,37 @@ function scoreConfigShapeDemotion(structure: ExtractedStructure): number {
   return looksLikeConfigShape(structure.data) ? -200 : 0;
 }
 
+// W3-followup: degenerate-row demotion. A repeated-elements array
+// whose rows each collapse to a single unique string (multiple keys
+// but every value within a row is the same string) carries less
+// information than its key count suggests — the keys are synthetic
+// labels (`date`, `info`, `description`) but the payload is one
+// string per row. Live regression: pypi.org/project/anthropic/
+// release-history table emitted 170 such rows that the extractor
+// ranked above the package metadata fallback.
+//
+// Substrate-faithful: shape-only, no domain or intent matching.
+// Only fires when EVERY row in a repeated-elements array of >=4
+// rows has multiple keys but all its non-empty values stringify
+// to the same trimmed string. Distinct-value tables (real release
+// history with version+date+type) are untouched.
+function looksLikeDegenerateRowArray(data: unknown): boolean {
+  if (!Array.isArray(data)) return false;
+  if (data.length < 4) return false;
+  return (data as unknown[]).every((row) => {
+    if (row == null || typeof row !== "object" || Array.isArray(row)) return false;
+    const values = Object.values(row as Record<string, unknown>).filter((v) => v != null && v !== "");
+    if (values.length < 2) return false;
+    const stringified = values.map((v) => String(v).trim());
+    return stringified.every((s) => s === stringified[0]);
+  });
+}
+
+function scoreDegenerateRowDemotion(structure: ExtractedStructure): number {
+  if (structure.type !== "repeated-elements") return 0;
+  return looksLikeDegenerateRowArray(structure.data) ? -300 : 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // extractFromDOM
@@ -2225,8 +2256,15 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   // wikipedia mw-parser-output marker survives even on giant pages with massive
   // reference sections that would otherwise push it past the cap.
   const articleStructures = extractArticleBodySpecial(html.length > 600_000 ? html.slice(0, 600_000) : html, intent);
-  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...repeatedArticleStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const allStructures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...repeatedArticleStructures, ...trendStructures, ...definitionStructures, ...packageDetailStructures, ...arxivAbstractStructures, ...courseStructures, ...articleStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
+  // W3-followup: filter out degenerate repeated-elements arrays whose rows
+  // each collapse to a single unique string. They're junk shapes that the
+  // sibling-pattern detector synthesises (e.g. a pypi release table where
+  // every row is {date, info, description} all equal to one date string).
+  // Filtering pre-score lets the metadata-fallback path catch the page
+  // when no other structure remains.
+  const structures = allStructures.filter((s) => !(s.type === "repeated-elements" && looksLikeDegenerateRowArray(s.data)));
 
   if (structures.length === 0) {
     const fallback = extractHtmlMetadataFallback(html);
@@ -2240,7 +2278,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s),
+    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s),
   }));
   scored.sort((a, b) => b.score - a.score);
   const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
