@@ -1315,40 +1315,162 @@ function extractPackageDetailSpecial(html: string, intent: string): ExtractedStr
   return [{ type: "key-value", data: row, element_count: 1 }];
 }
 
-function extractArxivAbstractSpecial(html: string, intent: string): ExtractedStructure[] {
+// ---------------------------------------------------------------------------
+// extractScholarlyArticleSpecial — generic primitive for scholarly papers
+// ---------------------------------------------------------------------------
+//
+// Replaces the prior per-host `extractArxivAbstractSpecial` (deleted
+// 2026-05-20) per CLAUDE.md ranker philosophy: heuristics OUT, universal-
+// web-standards primitives IN. No `arxiv.org` literal, no `.abstract` /
+// `.authors` / `.title` arxiv-specific CSS classes. Same code path now
+// handles arxiv AND any standards-conformant scholarly publisher:
+//
+//   Strategy 1 (Highwire citation_* meta tags):
+//     <meta name="citation_title|citation_author|citation_abstract|
+//     citation_publication_date|citation_doi|citation_pdf_url"> — the
+//     Highwire Press standard emitted by arxiv, biorxiv, medrxiv, ACS,
+//     IEEE, Springer, PLOS, JSTOR, Wiley, PubMed Central, and the
+//     publisher pages that Google Scholar indexes. Multiple
+//     `citation_author` tags are collected into the authors array.
+//
+//   Strategy 2 (JSON-LD schema.org/ScholarlyArticle):
+//     <script type="application/ld+json"> blocks with @type in
+//     {ScholarlyArticle, Article, Report} carrying an `abstract` field.
+//     Surfaces headline, abstract, author[].name, datePublished, url.
+//
+// Returns [] when neither strategy yields a non-empty title + a
+// substantive (>=40 char) abstract, letting downstream generic
+// extractors (article-body, SPA, metadata fallback) handle the page.
+function extractScholarlyArticleSpecial(html: string, intent: string): ExtractedStructure[] {
   const intentLower = intent.toLowerCase();
-  if (!/\b(arxiv|abstract|paper)\b/.test(intentLower)) return [];
-  if (!/arxiv\.org|class=["'][^"']*abstract|citation_title/i.test(html)) return [];
+  if (!/\b(arxiv|abstract|paper|preprint|publication|article|study|research)\b/.test(intentLower)) return [];
+  // Cheap pre-filter: only proceed if the HTML carries at least one
+  // scholarly standard marker (Highwire citation_* meta OR JSON-LD
+  // ScholarlyArticle). Avoids parsing every page on the web.
+  if (!/<meta[^>]+name=["']citation_(title|author|abstract|doi)/i.test(html)
+      && !/"@type"\s*:\s*"ScholarlyArticle"/i.test(html)) return [];
   const $ = cheerio.load(html);
-  const title = cleanText(
-    $('meta[name="citation_title"]').attr("content")
-    || $(".title").first().text().replace(/^\s*Title:\s*/i, "")
-    || $("h1").first().text().replace(/^\s*Title:\s*/i, "")
-    || $("title").first().text()
-  );
-  const abstract = cleanText(
-    $(".abstract").first().text().replace(/^\s*Abstract:\s*/i, "")
-    || $('meta[name="description"]').attr("content")
-    || ""
-  );
-  if (!title || abstract.length < 40) return [];
-  const authors = $(".authors a")
-    .map((_, el) => cleanText($(el).text()))
-    .get()
-    .filter(Boolean)
-    .slice(0, 20);
-  const canonical = cleanText($('link[rel="canonical"]').attr("href") ?? $('meta[property="og:url"]').attr("content") ?? "");
-  return [{
-    type: "key-value",
-    data: {
-      title,
-      abstract,
-      summary: abstract,
-      ...(authors.length > 0 ? { authors } : {}),
-      ...(canonical ? { url: canonical } : {}),
-    },
-    element_count: 1,
-  }];
+
+  // ---- Strategy 1: Highwire citation_* meta tags ----
+  const highwireGet = (name: string): string => {
+    const v = $(`meta[name="${name}"]`).attr("content")
+      ?? $(`meta[name="${name.toUpperCase()}"]`).attr("content")
+      ?? "";
+    return cleanText(v);
+  };
+  const highwireGetAll = (name: string): string[] => {
+    const out: string[] = [];
+    $(`meta[name="${name}"], meta[name="${name.toUpperCase()}"]`).each((_, el) => {
+      const v = cleanText($(el).attr("content") ?? "");
+      if (v) out.push(v);
+    });
+    return out;
+  };
+
+  const hwTitle = highwireGet("citation_title");
+  const hwAbstract = highwireGet("citation_abstract");
+  const hwAuthors = highwireGetAll("citation_author").slice(0, 20);
+  const hwDate = highwireGet("citation_publication_date") || highwireGet("citation_date");
+  const hwDoi = highwireGet("citation_doi");
+  const hwPdf = highwireGet("citation_pdf_url");
+
+  if (hwTitle && hwAbstract.length >= 40) {
+    const canonical = cleanText(
+      $('link[rel="canonical"]').attr("href")
+        ?? $('meta[property="og:url"]').attr("content")
+        ?? "",
+    );
+    const data: Record<string, unknown> = {
+      title: hwTitle,
+      abstract: hwAbstract,
+      summary: hwAbstract,
+    };
+    if (hwAuthors.length > 0) data.authors = hwAuthors;
+    if (hwDate) data.date = hwDate;
+    if (hwDoi) data.doi = hwDoi;
+    if (hwPdf) data.pdf_url = hwPdf;
+    if (canonical) data.url = canonical;
+    return [{ type: "key-value", data, element_count: 1 }];
+  }
+
+  // ---- Strategy 2: JSON-LD schema.org/ScholarlyArticle ----
+  const SCHOLARLY_TYPES = new Set(["ScholarlyArticle", "Article", "Report"]);
+  const flattenJsonLdNodes = (node: unknown): unknown[] => {
+    const out: unknown[] = [];
+    const visit = (n: unknown): void => {
+      if (!n) return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      if (typeof n !== "object") return;
+      const obj = n as Record<string, unknown>;
+      out.push(obj);
+      if (Array.isArray(obj["@graph"])) (obj["@graph"] as unknown[]).forEach(visit);
+      if (obj.mainEntity && typeof obj.mainEntity === "object") visit(obj.mainEntity);
+    };
+    visit(node);
+    return out;
+  };
+  const nodeType = (n: Record<string, unknown>): string[] => {
+    const t = n["@type"];
+    if (typeof t === "string") return [t];
+    if (Array.isArray(t)) return t.filter((x): x is string => typeof x === "string");
+    return [];
+  };
+  const asStringField = (n: Record<string, unknown>, ...keys: string[]): string => {
+    for (const k of keys) {
+      const v = n[k];
+      if (typeof v === "string" && v.trim().length > 0) return v.trim();
+    }
+    return "";
+  };
+  const authorNames = (n: Record<string, unknown>): string[] => {
+    const a = n.author;
+    const collect = (x: unknown): string => {
+      if (typeof x === "string") return x.trim();
+      if (x && typeof x === "object" && !Array.isArray(x)) {
+        const name = (x as Record<string, unknown>).name;
+        if (typeof name === "string") return name.trim();
+      }
+      return "";
+    };
+    if (Array.isArray(a)) return a.map(collect).filter(Boolean).slice(0, 20);
+    const one = collect(a);
+    return one ? [one] : [];
+  };
+
+  let jsonLdResult: ExtractedStructure | null = null;
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (jsonLdResult) return;
+    const raw = $(el).contents().text();
+    if (!raw || raw.length > 200_000) return;
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { return; }
+    for (const node of flattenJsonLdNodes(parsed)) {
+      if (jsonLdResult) break;
+      if (!node || typeof node !== "object") continue;
+      const obj = node as Record<string, unknown>;
+      const types = nodeType(obj);
+      if (!types.some((t) => SCHOLARLY_TYPES.has(t))) continue;
+      const title = asStringField(obj, "headline", "name");
+      const abstract = asStringField(obj, "abstract", "description");
+      if (!title || abstract.length < 40) continue;
+      const authors = authorNames(obj);
+      const date = asStringField(obj, "datePublished", "dateCreated");
+      const url = asStringField(obj, "url", "mainEntityOfPage", "@id");
+      const data: Record<string, unknown> = {
+        title,
+        abstract,
+        summary: abstract,
+      };
+      if (authors.length > 0) data.authors = authors;
+      if (date) data.date = date;
+      if (url) data.url = url;
+      jsonLdResult = { type: "key-value", data, element_count: 1 };
+      break;
+    }
+  });
+  if (jsonLdResult) return [jsonLdResult];
+
+  return [];
 }
 
 /**
@@ -2250,7 +2372,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const trendStructures = extractTrendSpecial(workingHtml, intent);
   const definitionStructures = extractDefinitionSpecial(workingHtml, intent);
   const packageDetailStructures = extractPackageDetailSpecial(workingHtml, intent);
-  const arxivAbstractStructures = extractArxivAbstractSpecial(workingHtml, intent);
+  const arxivAbstractStructures = extractScholarlyArticleSpecial(workingHtml, intent);
   const courseStructures = extractCourseSearchSpecial(workingHtml, intent);
   // Article extractor reads full html (not the 300KB-capped workingHtml) so the
   // wikipedia mw-parser-output marker survives even on giant pages with massive
