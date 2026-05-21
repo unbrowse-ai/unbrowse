@@ -4157,7 +4157,18 @@ export async function executeEndpoint(
         // envelope path remains the fallback when fetch/extract fails.
         // Generic and structural: no per-domain logic. Helper module:
         // src/execution/drift-page-recovery.ts.
-        if (!gqlEnvelope.is_envelope && recaptureSignal.url) {
+        //
+        // Previously gated on !gqlEnvelope.is_envelope under the assumption
+        // that a graphql error envelope meant the page was also broken.
+        // Bench cycle-3 probe 010 (dockerhub graphql `Must provide query
+        // string.`) falsified that: api.scout.docker.com/v1/graphql went
+        // stale but https://hub.docker.com/r/library/nginx/tags still
+        // server-renders the actual tag listings. The shape-overlap gate
+        // below (PR #609) safely protects against accepting unrelated
+        // junk, so the graphql-envelope case can take the same recovery
+        // path: it either returns real data extracted from the contextUrl
+        // or falls back to the envelope (no worse than today).
+        if (recaptureSignal.url) {
           try {
             const recovery = await tryRecoverFromSchemaDrift(
               recaptureSignal.url,
