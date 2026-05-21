@@ -654,6 +654,37 @@ async function apiRequest<T = unknown>(
     } catch (flexErr) {
       console.warn(`[x402] flex settle failed: ${(flexErr as Error).message}`);
     }
+    // Wave 5: try pay.sh BEFORE lobster when the user explicitly picked
+    // it in `unbrowse setup` (the local config writes payment.provider).
+    // Fall through to lobster on miss so users without pay-cli still
+    // pay via lobster (the historical default). Read provider from the
+    // payment-provider config helper added in Wave 1 (#690); falls back
+    // to "skip" when unset so the existing lobster-first ordering stays
+    // intact for un-prompted users.
+    try {
+      const { getPaymentProviderConfig } = await import("../config/payment-provider.js");
+      const provider = getPaymentProviderConfig().payment.provider;
+      if (provider === "pay_sh") {
+        const { isPayShAvailable, payAndRetryPaySh } = await import("../payments/paysh-pay.js");
+        if (isPayShAvailable()) {
+          const fullUrl = `${API_URL}${path}`;
+          const paidResult = await payAndRetryPaySh<T>(fullUrl, {
+            body,
+            headers: {
+              "Content-Type": "application/json",
+              "Accept-Encoding": "gzip, deflate",
+              ...releaseAttestationHeaders,
+              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+            },
+          });
+          if (paidResult) {
+            return { data: paidResult.data, headers: new Headers() };
+          }
+        }
+      }
+    } catch (payErr) {
+      console.warn(`[x402] paysh pay-and-retry failed: ${(payErr as Error).message}`);
+    }
     // Try lobster.cash automatic payment before throwing
     try {
       const { isLobsterAvailable, payAndRetry } = await import("../payments/lobster-pay.js");
