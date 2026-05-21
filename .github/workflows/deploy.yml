@@ -31,17 +31,61 @@ jobs:
         with:
           bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
+      # Principle 20260521T194246Z-7ad798e3: deploy-time identity vars feed
+      # GET /v1/version so any caller can verify they hit the artifact CI
+      # built (signed_manifest_hash = hex(hmac-sha256(version|build_sha|
+      # deployed_at, RELEASE_MANIFEST_SIGNING_SECRET))). Without these,
+      # /v1/version surfaces null fields per the no-stubs principle
+      # 20260521T193905Z-61e01c0e and the gate cannot fire.
+      - name: Compute deploy identity vars
+        id: vars
+        working-directory: .
+        run: |
+          VERSION=$(node -e "console.log(require('./version.json').version)")
+          BUILD_SHA="${GITHUB_SHA}"
+          DEPLOYED_AT=$(date -u +%FT%TZ)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "build_sha=${BUILD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "deployed_at=${DEPLOYED_AT}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Deploy identity v=${VERSION} sha=${BUILD_SHA:0:8} at=${DEPLOYED_AT}"
+      # Staging-first gate (principle 20260521T194246Z-7ad798e3). main-branch
+      # deploys MUST find the staging worker already on the same commit AND
+      # its signed_manifest_hash MUST verify against the shared
+      # RELEASE_MANIFEST_SIGNING_SECRET. If staging is on a different SHA or
+      # the HMAC mismatches, prod refuses to deploy. To pass: push the same
+      # commit to the staging branch first, let the staging deploy job
+      # complete, then push to main. There is no bypass flag; the gate IS
+      # the contract.
+      - name: Verify staging /v1/version before main deploy
+        if: github.ref_name == 'main'
+        working-directory: .
+        env:
+          RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.RELEASE_MANIFEST_SIGNING_SECRET || secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+          EXPECTED_SHA: ${{ steps.vars.outputs.build_sha }}
+          EXPECTED_CHANNEL: staging
+        run: |
+          if [ -z "$RELEASE_MANIFEST_SIGNING_SECRET" ]; then
+            echo "::error::Neither RELEASE_MANIFEST_SIGNING_SECRET nor UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET is set; cannot verify staging manifest"
+            exit 1
+          fi
+          STAGING_URL="${{ vars.PREVIEW_API_URL }}"
+          if [ -z "$STAGING_URL" ]; then
+            STAGING_URL="https://unbrowse-backend-staging.lewis-6d8.workers.dev"
+          fi
+          echo "::notice::Staging-first gate: verifying ${STAGING_URL}/v1/version against $EXPECTED_SHA"
+          bash scripts/verify-release-manifest.sh "$STAGING_URL"
       - name: Deploy backend worker
         run: |
+          WRANGLER_VARS="--var UNBROWSE_VERSION:${{ steps.vars.outputs.version }} --var UNBROWSE_BUILD_SHA:${{ steps.vars.outputs.build_sha }} --var UNBROWSE_DEPLOYED_AT:${{ steps.vars.outputs.deployed_at }}"
           case "${GITHUB_REF_NAME}" in
             staging)
-              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging $WRANGLER_VARS
               ;;
             lewis/experiments)
-              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments $WRANGLER_VARS
               ;;
             *)
-              bun run deploy:ci
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml $WRANGLER_VARS
               ;;
           esac
         env:
