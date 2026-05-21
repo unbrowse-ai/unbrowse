@@ -184,7 +184,16 @@ async function fetchViaIproyal(
 
   // Open TCP socket to iproyal proxy endpoint. Cloudflare's cloudflare:sockets
   // connect() returns a Socket with readable/writable streams.
-  const sock: Socket = connect({ hostname: iproyalHost, port: iproyalPort });
+  const sock: Socket = connect(
+    { hostname: iproyalHost, port: iproyalPort },
+    // `secureTransport: "starttls"` is required by cloudflare:sockets so a
+    // later sock.startTls() upgrade is allowed. Without it, startTls() throws
+    // "The `secureTransport` socket option must be set to 'starttls'".
+    {
+      secureTransport: isHttps ? "starttls" : "off",
+      allowHalfOpen: false,
+    },
+  );
 
   const enc = new TextEncoder();
   const dec = new TextDecoder();
