@@ -68,8 +68,18 @@ def classify(probe, cap_meta, exec_meta, exec_raw_bytes):
     if iso.get("host_match") is False:
         return ("INDEX_EXCLUDED_BLOCKED", "RETRIEVE_EXCLUDED_BLOCKED")
 
-    # Index verdict
-    if indexed and n_ops > 0:
+    # Index verdict: `n_operations > 0` is the load-bearing pass signal
+    # (skill resolved to a non-empty op list, regardless of whether THIS
+    # cycle ran a fresh index). `indexed` is bench-cycle bookkeeping that
+    # only flips true on fresh capture; a pre-cached marketplace skill
+    # short-circuits with `indexed=False` but `n_ops>0` and a real
+    # `skill_id`, which is still a PASS. Pre-fix the classifier required
+    # `indexed=True` AND `n_ops>0`, false-FAIL'ing every marketplace-cache
+    # short-circuit. Cycle-4 evidence: probe 015 vercel/next.js had
+    # `indexed=False n_ops=10 skill_id="VcgCjZpSiWnEEiAKeh8pt"` and
+    # execute returned 124KB of real data; was marked INDEX_FAIL.
+    skill_id = cap_meta.get("skill_id")
+    if n_ops > 0:
         index_verdict = "INDEX_PASS"
     elif indexed and mode == "dom":
         index_verdict = "INDEX_PASS"
