@@ -1,5 +1,5 @@
 {
-  "name": "@unbrowse/sdk",
+  "name": "@unbrowse/client",
   "version": "7.0.0-preview.1",
   "description": "Thin HTTP-first SDK for the Unbrowse API. Browser + Node 18+. Zero runtime deps.",
   "type": "module",

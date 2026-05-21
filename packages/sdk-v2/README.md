@@ -1,17 +1,19 @@
-# @unbrowse/sdk
+# @unbrowse/client
 
 Thin HTTP-first SDK for the Unbrowse API. Browser + Node 18+. Zero runtime dependencies.
+
+> This is the v7 successor to `@unbrowse/sdk` (which still publishes the v6 binary-spawn client for legacy users). New code should use `@unbrowse/client`; existing v6 users keep working unchanged until they migrate.
 
 ## Install
 
 ```bash
-npm i @unbrowse/sdk
+npm i @unbrowse/client
 ```
 
 ## Quickstart (3 lines)
 
 ```ts
-import { Unbrowse } from "@unbrowse/sdk";
+import { Unbrowse } from "@unbrowse/client";
 
 const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 const result = await unbrowse.resolve({ intent: "search hackernews for AI agent papers" });
