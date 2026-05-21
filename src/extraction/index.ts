@@ -2480,30 +2480,43 @@ function scoreConfigShapeDemotion(structure: ExtractedStructure): number {
   return looksLikeConfigShape(structure.data) ? -200 : 0;
 }
 
-// W3-followup: degenerate-row demotion. A repeated-elements array
-// whose rows each collapse to a single unique string (multiple keys
-// but every value within a row is the same string) carries less
-// information than its key count suggests — the keys are synthetic
-// labels (`date`, `info`, `description`) but the payload is one
-// string per row. Live regression: pypi.org/project/anthropic/
-// release-history table emitted 170 such rows that the extractor
-// ranked above the package metadata fallback.
+// W3-followup: degenerate-row dominance check. A row is "collapsed" when
+// it has multiple keys but every non-empty value stringifies to the same
+// trimmed string. The array as a whole is degenerate when >=80% of its
+// well-formed rows collapse this way.
 //
-// Substrate-faithful: shape-only, no domain or intent matching.
-// Only fires when EVERY row in a repeated-elements array of >=4
-// rows has multiple keys but all its non-empty values stringify
-// to the same trimmed string. Distinct-value tables (real release
-// history with version+date+type) are untouched.
+// The original predicate required EVERY row to collapse (Array.every),
+// which silently passed when even one row in the array had distinct
+// values. Live regression from .bench-gate/20260521T010031Z/009 pypi:
+// the cheerio selector matched BOTH the 198-row release-date table AND
+// the 2 file-download anchors (`{link,url,title,description,meta,info}`
+// where link != title != description), merged into one 200-row array.
+// 2/200 = 1% non-degenerate, but `every` failed and the demotion never
+// fired. The dates won by sheer volume of word matches.
+//
+// Threshold 0.8: real card lists (title+url+description, name+price,
+// version+date+type) have 0% collapse and survive untouched. Pypi pure
+// case has 100% collapse. Pypi heterogeneous case has ~99% collapse.
+// 0.8 cleanly separates "dominantly degenerate" from "legitimately
+// mixed". Substrate-faithful: shape-only, no domain or intent matching.
 function looksLikeDegenerateRowArray(data: unknown): boolean {
   if (!Array.isArray(data)) return false;
   if (data.length < 4) return false;
-  return (data as unknown[]).every((row) => {
-    if (row == null || typeof row !== "object" || Array.isArray(row)) return false;
+  const rows = data as unknown[];
+  let wellFormed = 0;
+  let collapsed = 0;
+  for (const row of rows) {
+    if (row == null || typeof row !== "object" || Array.isArray(row)) continue;
     const values = Object.values(row as Record<string, unknown>).filter((v) => v != null && v !== "");
-    if (values.length < 2) return false;
+    if (values.length < 2) continue;
+    wellFormed++;
     const stringified = values.map((v) => String(v).trim());
-    return stringified.every((s) => s === stringified[0]);
-  });
+    if (stringified.every((s) => s === stringified[0])) {
+      collapsed++;
+    }
+  }
+  if (wellFormed < 4) return false;
+  return collapsed / wellFormed >= 0.8;
 }
 
 function scoreDegenerateRowDemotion(structure: ExtractedStructure): number {
