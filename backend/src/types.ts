@@ -98,6 +98,21 @@ export interface Env {
    */
   RESERVED_DOMAINS?: string;
   /**
+   * Privy server-side verification + embedded-wallet lookup
+   * (Wave 2 of wire-privy-authentication-end-to-end-for-unbrows).
+   *
+   * PRIVY_APP_ID is the public app id (same value as
+   * NEXT_PUBLIC_PRIVY_APP_ID on the frontend). Currently
+   * cmpalnem701z00cjmncqve4q0 per memory reference_privy_app_creds.
+   *
+   * PRIVY_APP_SECRET is the app secret minted in the Privy dashboard.
+   * Set via wrangler secret put PRIVY_APP_SECRET. NEVER commit. The
+   * 2026-05-18 value was pasted in chat and is pending rotation in the
+   * Privy dashboard before flipping prod traffic.
+   */
+  PRIVY_APP_ID?: string;
+  PRIVY_APP_SECRET?: string;
+  /**
    * Comma-separated list of domains where the well-known HTTP probe is
    * waived (test fixtures, internal hosts). Most operators leave this empty.
    */

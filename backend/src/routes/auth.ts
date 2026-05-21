@@ -260,3 +260,102 @@ authRoutes.get("/auth/email/poll", async (c) => {
     email: stored.email,
   });
 });
+
+// ---------------------------------------------------------------------------
+// Privy auth (Wave 3 of wire-privy-authentication-end-to-end-for-unbrows).
+//
+// Flow: frontend signs the user in via @privy-io/react-auth (the
+// PrivyOptionalProvider in frontend/src/lib/privy-provider.tsx), Privy
+// auto-creates an embedded Solana wallet for users without one (Wave 1
+// flipped this from ethereum), then the frontend posts the resulting
+// Privy access token here. The route verifies the JWT, fetches the
+// user's embedded Solana wallet via Privy's REST API, registers or
+// looks up the corresponding unbrowse agent, binds the wallet to the
+// agent (so x402 sponsor middleware in backend/src/middleware/sponsor.ts
+// settles to the right pubkey), and returns the api_key + agent_id +
+// wallet_address. Mirrors the shape of /v1/auth/email/poll so the
+// frontend hook can swap implementations without restructuring callers.
+// ---------------------------------------------------------------------------
+authRoutes.post("/auth/privy/start", async (c) => {
+  if (!c.env.PRIVY_APP_ID || !c.env.PRIVY_APP_SECRET) {
+    return c.json(
+      {
+        error: "privy_not_configured",
+        message:
+          "Backend PRIVY_APP_ID/PRIVY_APP_SECRET not set. Configure via wrangler secret put PRIVY_APP_SECRET and PRIVY_APP_ID in wrangler.toml.",
+      },
+      503,
+    );
+  }
+  let body: { privy_token?: string };
+  try {
+    body = (await c.req.json()) as { privy_token?: string };
+  } catch {
+    return c.json({ error: "invalid_json", message: "Request body must be JSON with a privy_token field" }, 400);
+  }
+  const token = (body.privy_token ?? "").trim();
+  if (!token) {
+    return c.json({ error: "privy_token_required", message: "POST body must include privy_token" }, 400);
+  }
+
+  const { verifyPrivyAndLoadWallet } = await import("../services/privy.js");
+  let verified: { privy_user_id: string; embedded_solana_wallet: string | null };
+  try {
+    verified = await verifyPrivyAndLoadWallet(token, c.env);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Privy errors carry stable prefixes (privy_jwt_expired, privy_jwt_signature_invalid,
+    // privy_jwt_audience_mismatch, privy_user_fetch_failed:<status>, etc). Surface
+    // them verbatim so the frontend can branch on the prefix.
+    return c.json({ error: message.split(":")[0] || "privy_verification_failed", message }, 401);
+  }
+
+  // The privy_user_id is our stable identity. Look up an existing user
+  // record bound to it (synthetic email shape "privy:<did>@unbrowse.local"
+  // so it doesn't collide with real emails) or upsert one.
+  const syntheticEmail = `privy-${verified.privy_user_id.replace(/[^a-zA-Z0-9_-]/g, "_")}@unbrowse.privy`;
+  const user = await upsertUser(c.env, syntheticEmail);
+  const userId = user.user_id;
+
+  // Mint a fresh API key for this session. createLocalKey returns
+  // { keyId, key, meta }; keyId IS the agent_id (32-char prefix), key
+  // is the full bearer-shaped token the client sends as Authorization.
+  const { keyId: agentId, key: apiKey } = await createLocalKey(c.env, syntheticEmail);
+
+  // Ensure an agent profile exists for this id; bind the user.
+  await ensureAgentProfile(c.env, agentId, { name: syntheticEmail });
+  await bindKeyToUser(c.env, agentId, userId);
+
+
+  // Wave 3 finale: bind the Privy embedded Solana wallet to the agent
+  // record so x402 sponsor middleware can settle to it. If the user
+  // signed in with an external (non-Privy) wallet on a non-Solana
+  // chain, embedded_solana_wallet is null and we just leave the agent
+  // without a wallet binding (the agent can attach one later via the
+  // existing /v1/account/wallet flow).
+  let walletBound: string | null = null;
+  if (verified.embedded_solana_wallet) {
+    try {
+      const { updateAgentWallet } = await import("../services/agents.js");
+      await updateAgentWallet(c.env, agentId, {
+        wallet_address: verified.embedded_solana_wallet,
+        wallet_provider: "privy_embedded_solana",
+      });
+      walletBound = verified.embedded_solana_wallet;
+    } catch (err) {
+      // Non-fatal: surface the binding error but still return the api_key
+      // so the user can sign in and bind manually later.
+      console.error("privy_wallet_bind_failed", agentId, (err as Error).message);
+    }
+  }
+
+  return c.json({
+    status: "verified",
+    api_key: apiKey,
+    agent_id: agentId,
+    user_id: userId,
+    privy_user_id: verified.privy_user_id,
+    wallet_address: walletBound,
+    wallet_provider: walletBound ? "privy_embedded_solana" : null,
+  });
+});
