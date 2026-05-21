@@ -20,7 +20,7 @@ inferred_from:
   shipping: meta-harness.local.md
 created: 2026-05-21
 last_iterated: ""
-status: blocked-on-prod-migration-or-rollback
+status: shipped-via-USE_PGKV_1-prod-rollback-2026-05-22
 blocked_reason: |
     PROD REGRESSION SURFACED 2026-05-22: wave-1 commit 720fbacc shipped (EdbKV
     primary, PgKV behind USE_PGKV=1) but wave-2 migrate-neon-to-edb.mjs NEVER RAN.
