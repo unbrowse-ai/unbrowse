@@ -101,3 +101,104 @@ export async function tryRecoverFromSchemaDrift(
     return null;
   }
 }
+
+/**
+ * Flatten a plain JS value into a Set of dot-path keys up to maxDepth levels.
+ * Arrays descend into `[0]` (the shape, not enumerated indices).
+ * Used to compare two structurally-distinct payloads for overlap.
+ * Substrate-faithful: structural primitive, no per-domain knowledge.
+ */
+export function flattenKeys(value: unknown, maxDepth = 3): Set<string> {
+  const keys = new Set<string>();
+  function walk(v: unknown, prefix: string, depth: number): void {
+    if (depth > maxDepth) return;
+    if (v === null || v === undefined) return;
+    if (Array.isArray(v)) {
+      if (v.length === 0) return;
+      walk(v[0], prefix + "[]", depth); // arrays do not consume a depth level
+      return;
+    }
+    if (typeof v === "object") {
+      for (const k of Object.keys(v as Record<string, unknown>)) {
+        const path = prefix ? `${prefix}.${k}` : k;
+        keys.add(path);
+        walk((v as Record<string, unknown>)[k], path, depth + 1);
+      }
+    }
+  }
+  walk(value, "", 0);
+  return keys;
+}
+
+/**
+ * Flatten a captured `ResponseSchema` (JSON-Schema-like) into the same
+ * dot-path key Set produced by `flattenKeys` for the live data. Walks
+ * `properties` and descends into `items` for arrays (annotating with `[]`
+ * to match flattenKeys's array convention).
+ *
+ * Typed `unknown` so the helper does not import the skill types and stays
+ * substrate-neutral; callers pass `endpoint.response_schema`.
+ */
+export function flattenSchemaKeys(schema: unknown, maxDepth = 3): Set<string> {
+  const keys = new Set<string>();
+  function walk(node: unknown, prefix: string, depth: number): void {
+    if (depth > maxDepth) return;
+    if (!node || typeof node !== "object") return;
+    const n = node as { type?: string; properties?: Record<string, unknown>; items?: unknown };
+    if (n.properties && typeof n.properties === "object") {
+      for (const k of Object.keys(n.properties)) {
+        const path = prefix ? `${prefix}.${k}` : k;
+        keys.add(path);
+        walk(n.properties[k], path, depth + 1);
+      }
+    }
+    if (n.items) {
+      // arrays don't consume a depth level; the array's element shape is
+      // the same logical level as the array itself.
+      walk(n.items, prefix + "[]", depth);
+    }
+  }
+  walk(schema, "", 0);
+  return keys;
+}
+
+/**
+ * Substrate-faithful shape-overlap gate for drift recovery.
+ *
+ * When `tryRecoverFromSchemaDrift` returns extracted data from a fallback
+ * page-fetch, the data may have NO structural relationship to the original
+ * endpoint's `response_schema` (real case: x.com /home logged-out SSR shell
+ * with keys `optimist`, `entities`, `featureSwitch`, `settings` passed
+ * extraction confidence 0.85 but had zero overlap with the actual
+ * `data.home.home_timeline_urt.instructions[].entries[]` GraphQL contract).
+ *
+ * Returns `matches: true` when recovery is acceptable, `false` when it
+ * should be rejected as structurally unrelated. Tiny schemas (<= 2 keys)
+ * skip the check; confidence alone gates them.
+ */
+export function recoveredDataMatchesOriginalShape(
+  originalSchema: unknown,
+  recoveredData: unknown,
+): {
+  matches: boolean;
+  originalKeys: string[];
+  recoveredKeys: string[];
+  intersection: string[];
+  reason: "skipped_tiny_schema" | "no_overlap" | "overlap_found";
+} {
+  const originalSet = flattenSchemaKeys(originalSchema, 3);
+  const recoveredSet = flattenKeys(recoveredData, 3);
+  const originalKeys = Array.from(originalSet);
+  const recoveredKeys = Array.from(recoveredSet);
+  if (originalSet.size <= 2) {
+    return { matches: true, originalKeys, recoveredKeys, intersection: [], reason: "skipped_tiny_schema" };
+  }
+  const intersection: string[] = [];
+  originalSet.forEach((k) => {
+    if (recoveredSet.has(k)) intersection.push(k);
+  });
+  if (intersection.length === 0) {
+    return { matches: false, originalKeys, recoveredKeys, intersection, reason: "no_overlap" };
+  }
+  return { matches: true, originalKeys, recoveredKeys, intersection, reason: "overlap_found" };
+}
