@@ -33,6 +33,13 @@ PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 PLATFORM_SPONSOR_WALLET_ADDRESS = ""
 SPONSOR_CAP_DAILY_USD = "1.0"
 SPONSOR_GLOBAL_DAILY_USD = "50.0"
+# Privy app id (public). Same value as NEXT_PUBLIC_PRIVY_APP_ID on the
+# frontend (frontend/src/lib/privy-provider.tsx, env override). Used by
+# backend/src/services/privy.ts to verify JWTs from the frontend
+# embedded-wallet flow against the matching JWKS endpoint. PRIVY_APP_SECRET
+# is a wrangler secret (wrangler secret put PRIVY_APP_SECRET) — never
+# commit. See memory reference_privy_app_creds.
+PRIVY_APP_ID = "cmpalnem701z00cjmncqve4q0"
 
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
