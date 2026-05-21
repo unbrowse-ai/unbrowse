@@ -13,10 +13,14 @@ export {
   UnbrowseTimeoutError,
 } from "./errors.js";
 export type {
-  AccountUsage,
+  AccountMe,
+  AccountCredits,
   ApiKey,
   ApiKeyCreateInput,
   ApiKeyCreateResponse,
+  ApiKeyFunding,
+  ApiKeyListResponse,
+  ApiKeyRevokeResponse,
   AvailableEndpoint,
   ExecuteInput,
   ExecuteResponse,
@@ -27,6 +31,7 @@ export type {
   SearchHit,
   SearchInput,
   SearchResponse,
+  SponsorStatus,
   UnbrowseClientOptions,
 } from "./types.js";
 export type {

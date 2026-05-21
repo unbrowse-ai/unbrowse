@@ -60,12 +60,18 @@ const caps = await unbrowse.proxy.capabilities();
 ## Resources
 
 ```ts
-await unbrowse.account.usage();
-await unbrowse.account.sponsorStatus();
-await unbrowse.keys.list();
+await unbrowse.account.me();             // user_id, email, email_verified, created_at
+await unbrowse.account.credits();        // balance_usd, used_usd, granted_usd
+await unbrowse.account.sponsorStatus();  // daily sponsor remaining (per-agent + global)
+
+await unbrowse.keys.list();              // { keys: ApiKey[] } with funding
 await unbrowse.keys.create({ name: "prod" });
+// → { keyId, key (plaintext, ONCE), name, created_at, message }
 await unbrowse.keys.revoke(keyId);
+await unbrowse.keys.rotate(keyId);       // revokes old, returns new key plaintext
 ```
+
+> Key-management endpoints (`/v1/account/keys`) authenticate via the magic-link cookie session, not bearer API key. Sign in at the dashboard once to mint your first key; after that, `new Unbrowse({ apiKey })` covers every other call.
 
 ## Errors
 
