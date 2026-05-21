@@ -243,7 +243,7 @@ export default function RootLayout({
                 {
                   "@type": "HowToStep",
                   position: 1,
-                  name: "Clone and run setup for an MCP host",
+                  name: "Install the Unbrowse MCP server",
                   text: INSTALL_CMD_MCP,
                   url: "https://www.unbrowse.ai/#install",
                 },

@@ -110,7 +110,7 @@ export function ComparisonPage({ slug }: { slug: string }) {
         name: "How do I switch from browser automation to Unbrowse?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Install with 'curl -fsSL https://unbrowse.ai/install.sh | bash'. After install, hosts with skills support can also use 'npx skills add unbrowse-ai/unbrowse'. Unbrowse works as a drop-in tool for AI coding agents like Claude Code, Cursor, and Windsurf. It discovers APIs automatically from real browsing traffic — no manual endpoint mapping required.",
+          text: "Install with 'npx unbrowse setup --mcp', which wires Unbrowse up as an MCP server in Claude Code, Cursor, Windsurf, Codex, OpenClaw, or any MCP-aware host. Unbrowse works as a drop-in tool for AI coding agents and discovers APIs automatically from real browsing traffic — no manual endpoint mapping required.",
         },
       },
     ],
