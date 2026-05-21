@@ -23,7 +23,24 @@ export interface DirectDocumentResult {
 
 export interface DirectDocumentRejection {
   rejected: true;
-  reason: "unsupported_domain" | "not_html" | "too_small" | "challenge_html";
+  reason:
+    | "unsupported_domain"
+    | "not_html"
+    | "too_small"
+    | "challenge_html"
+    | "interstitial_detected"
+    | "intent_mismatch";
+  // Optional evidence the agent reads in-thread when judging the rejection.
+  // Populated for intent_mismatch / interstitial_detected so the orchestrator's
+  // decision_trace can surface WHY direct-document handed off to the browser
+  // ladder instead of returning a structurally-PASSing 200.
+  evidence?: {
+    intent_tokens?: string[];
+    response_token_hits?: string[];
+    response_token_hit_rate?: number;
+    interstitial_signal?: string;
+    html_bytes?: number;
+  };
 }
 
 // Generic structural gates (HTML check, size floor, anti-bot challenge sniff).
@@ -38,6 +55,50 @@ const HTML_RE = /text\/html|application\/xhtml\+xml/i;
 const MIN_DIRECT_DOCUMENT_HTML_BYTES = 5_000;
 const CHALLENGE_RE =
   /\b(access denied|are you a robot|captcha|just a moment|pardon our interruption|robot check|unusual traffic|verify you are human)\b/i;
+
+// Interstitial / logged-out / antibot landing pages return 200 + HTML, but the
+// HTML is a wall (sign-in page, "please wait for verification", "JavaScript is
+// not available"). Without this gate the orchestrator returned them as a
+// structural direct-document PASS because the body cleared the size + content-
+// type + CHALLENGE_RE gates. Evidence: bench probes against mail.google.com,
+// linkedin.com/feed, x.com/home, reddit.com/r/* all hit this surface 2026-05-21.
+// Generic across vendors (cloudflare / datadome / akamai / perimeterx); no
+// per-host arm.
+const INTERSTITIAL_RE =
+  /\b(please wait for verification|just a moment|cf-mitigated|datadome|akamai bot|perimeterx|sign in to continue|log in to (?:continue|access)|javascript is not available)\b/i;
+
+// Floor below which the document is too thin to plausibly be the answer to any
+// content intent (observed 86-byte meta-only envelopes on SPA tag pages).
+// MIN_DIRECT_DOCUMENT_HTML_BYTES already gates raw HTML at 5KB, but the EXTRACTED
+// text inside a 5KB SPA shell can collapse to <500 chars. Apply this on text.
+const MIN_DIRECT_DOCUMENT_BODY_TEXT = 500;
+
+// Stopwords pulled from a generic English list; verbs that signal an intent
+// action are stripped because they are unlikely to appear verbatim in a result
+// body ("get the X": the response shows X, not the word "get").
+const INTENT_STOPWORDS = new Set([
+  "a", "an", "and", "any", "are", "as", "at", "be", "by", "for", "from", "get",
+  "got", "have", "how", "i", "in", "into", "is", "it", "its", "list", "me", "my",
+  "of", "on", "or", "search", "show", "that", "the", "their", "them", "then",
+  "there", "these", "they", "this", "those", "to", "view", "was", "what",
+  "when", "where", "which", "who", "why", "will", "with", "you", "your", "find",
+  "fetch", "see", "give", "want", "need", "please", "all", "some", "current",
+  "latest", "top", "page", "site", "open", "load", "trending", "discover",
+  "browse", "lookup", "look",
+]);
+
+function extractMeaningfulTokens(intent: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of intent.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (raw.length < 3) continue;
+    if (INTENT_STOPWORDS.has(raw)) continue;
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    out.push(raw);
+  }
+  return out;
+}
 
 const MARKDOWN_BUDGET = 12_000;
 const MAX_TABLES = 10;
@@ -61,6 +122,7 @@ export function buildDirectDocumentResult(
   url: string,
   html: string,
   contentType: string,
+  intent?: string,
 ): DirectDocumentResult | DirectDocumentRejection {
   if (!isDirectDocumentEligibleUrl(url)) return { rejected: true, reason: "unsupported_domain" };
   if (!HTML_RE.test(contentType)) return { rejected: true, reason: "not_html" };
@@ -79,6 +141,63 @@ export function buildDirectDocumentResult(
   );
   const challengeHaystack = `${title} ${bodyText.slice(0, 2_000)}`;
   if (CHALLENGE_RE.test(challengeHaystack)) return { rejected: true, reason: "challenge_html" };
+
+  // Interstitial / logged-out / SPA-meta-envelope detection. Generic across
+  // vendors (cloudflare / datadome / akamai / perimeterx) and across auth-walls
+  // (sign-in pages on linkedin / gmail / x.com). Runs BEFORE the intent check
+  // because an interstitial body coincidentally containing intent tokens
+  // (e.g. "Sign in to continue to Gmail" when intent is "gmail inbox") would
+  // otherwise pass the token-overlap gate.
+  const interstitialHit = INTERSTITIAL_RE.exec(`${title} ${bodyText.slice(0, 4_000)}`);
+  if (interstitialHit) {
+    return {
+      rejected: true,
+      reason: "interstitial_detected",
+      evidence: {
+        interstitial_signal: interstitialHit[0],
+        html_bytes: html.length,
+      },
+    };
+  }
+  if (bodyText.length < MIN_DIRECT_DOCUMENT_BODY_TEXT) {
+    return {
+      rejected: true,
+      reason: "interstitial_detected",
+      evidence: {
+        interstitial_signal: `body_text_below_floor:${bodyText.length}`,
+        html_bytes: html.length,
+      },
+    };
+  }
+
+  // Intent-check gate: when the caller hands us an intent, require non-trivial
+  // overlap between intent tokens and the response body. Wrong-template /
+  // wrong-page / logged-out captures often clear the structural gates above
+  // but score 0 on intent overlap because the body is talking about something
+  // else entirely (e.g. axios.com homepage when intent is "axios homepage"
+  // would actually score 1.0 on "axios"; a wrong-page capture for that intent
+  // scores 0). The 0.34 threshold matches the bench-rubric declared in
+  // CLAUDE.md (action-verification rubric).
+  if (intent && intent.trim().length > 0) {
+    const intentTokens = extractMeaningfulTokens(intent);
+    if (intentTokens.length >= 2) {
+      const haystack = `${title} ${bodyText}`.toLowerCase();
+      const hits = intentTokens.filter((tok) => haystack.includes(tok));
+      const hitRate = hits.length / intentTokens.length;
+      if (hitRate < 0.34) {
+        return {
+          rejected: true,
+          reason: "intent_mismatch",
+          evidence: {
+            intent_tokens: intentTokens,
+            response_token_hits: hits,
+            response_token_hit_rate: hitRate,
+            html_bytes: html.length,
+          },
+        };
+      }
+    }
+  }
 
   return {
     rejected: false,

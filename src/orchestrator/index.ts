@@ -4442,7 +4442,7 @@ export async function resolveAndExecute(
               }
             }
           }
-          const directDocument = buildBloombergDirectDocumentResult(context.url, bodyText, ct);
+          const directDocument = buildBloombergDirectDocumentResult(context.url, bodyText, ct, intent);
           if (!directDocument.rejected) {
             const trace: ExecutionTrace = {
               trace_id: nanoid(),
@@ -4461,6 +4461,14 @@ export async function resolveAndExecute(
               skill: undefined as any,
               timing: t,
             };
+          } else {
+            // Surface rejection in logs so bench-local diagnostic fields can be
+            // read at .bench-local/*.out and the agent can judge in-thread
+            // whether the fallthrough to the browser ladder was warranted.
+            // Generic: covers all rejection reasons (intent_mismatch /
+            // interstitial_detected / challenge_html / too_small / not_html).
+            const evidenceJson = (directDocument as any).evidence ? ` evidence=${JSON.stringify((directDocument as any).evidence)}` : "";
+            console.log(`[direct-document] ${context.url} REJECTED reason=${directDocument.reason}${evidenceJson}; handing off to browser ladder`);
           }
         }
         if (data !== undefined) {
