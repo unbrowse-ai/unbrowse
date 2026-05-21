@@ -51,7 +51,14 @@ async function startHeaderEchoServer(): Promise<{
   const server = createServer((_req: IncomingMessage, res: ServerResponse) => {
     lastHeaders = _req.headers;
     res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({ ok: true }));
+    res.end(JSON.stringify({
+      data: {
+        elements: [
+          { id: "post-1", description: "First feed item replayed via stored auth headers and JSESSIONID-derived csrf-token.", actor: "linkedin-member-1" },
+          { id: "post-2", description: "Second feed item proves the captured headers survived the publish-time stripping path.", actor: "linkedin-member-2" },
+        ],
+      },
+    }));
   });
   servers.add(server);
   server.listen(0, "127.0.0.1");
