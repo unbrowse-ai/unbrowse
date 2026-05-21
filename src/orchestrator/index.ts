@@ -11,7 +11,7 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint } from "../execution/index.js";
+import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint } from "../execution/index.js";
 import { rankEndpoints, rankEndpointsServerFirst } from "../ranking/index.js";
 import {
   getSkillChunk,
@@ -2534,11 +2534,21 @@ export async function resolveAndExecute(
     );
     const allNegative = epRanked.length > 0 && epRanked.every((r) => r.score < 0);
     if ((epRanked.length === 0 || allNegative) && hostMatches) {
-      // If the ranker emptied the corpus (epRanked === 0) we still want the
-      // agent to see what the published skill actually contains — otherwise
-      // they have NO evidence to judge whether handoff is correct. Source
-      // candidates from epRanked first; if empty, fall back to the skill's
-      // raw endpoints (no ranker scores).
+      // V1.5 (Lewis 2026-05-21 "fix it all up and benchmax til we hit 100%"):
+      // instead of returning a `resolve_hard_handoff` envelope that forces
+      // the agent to make a SECOND call (`unbrowse fetch`) to get the data,
+      // inject the structural page_fetch endpoint as a real selectable
+      // candidate. The agent's normal execute call against page_fetch
+      // returns the rendered HTML, then the dom_extraction path on execute
+      // returns the structured data inline. Same UX as a regular resolve.
+      // Substrate-faithful: page_fetch is a STRUCTURAL primitive (one per
+      // captured skill, no per-host arms), not a registry. It's the
+      // "invariant floor" the rest of the bedrock already builds on.
+      //
+      // The agent still sees the original ranker shortlist in
+      // available_endpoints + agent_warning, plus a diagnostic note that
+      // the page_fetch fallback is the recommended pick when none of the
+      // ranker candidates look intent-relevant. The agent judges.
       const sourceCandidates = epRanked.length > 0
         ? epRanked.map((r) => ({ ep: r.endpoint as Record<string, unknown>, score: r.score as number }))
         : (endpointScopedSkill.endpoints || []).map((ep) => ({ ep: ep as unknown as Record<string, unknown>, score: NaN }));
@@ -2553,45 +2563,36 @@ export async function resolveAndExecute(
           ? "ranker filtered ALL candidates — corpus is shown raw; agent must judge whether any satisfies intent"
           : "ranker scored ≤0; agent must judge whether this satisfies the intent",
       }));
+
+      const pageFetchUrl = context?.url ?? `https://${endpointScopedSkill.domain}`;
+      const pageFetchEp = buildPageFetchEndpoint(pageFetchUrl, queryIntent);
+      const pageFetchShortlistEntry = {
+        endpoint_id: pageFetchEp.endpoint_id,
+        source_skill_id: endpointScopedSkill.skill_id,
+        method: pageFetchEp.method,
+        url_template: pageFetchEp.url_template,
+        description: pageFetchEp.description,
+        score: 1, // positive so the agent sees it as recommended over neg-scored siblings
+        agent_warning: "page_fetch fallback (substrate's structural floor): fetches the rendered page + extracts inline. Pick this when none of the ranker candidates look intent-relevant.",
+      };
+      // page_fetch FIRST so picker.first() returns it. Ranker siblings follow.
+      const shortlistWithPageFetch = [pageFetchShortlistEntry, ...fallbackShortlist];
       return {
         result: {
-          status: "resolve_hard_handoff",
-          message: `No cached API available for this intent on ${endpointScopedSkill.domain}.`
-            + ` For SSR-rendered pages (search results in HTML, e.g. Amazon, Bing),`
-            + ` try \`unbrowse fetch ${context?.url ?? endpointScopedSkill.domain}\` to get the page HTML and extract client-side.`
-            + ` Otherwise drive a browser session interactively (snap/click/fill).`,
-          domain: endpointScopedSkill.domain,
-          // unbrowse fetch is the cheapest first-resort: many "no API exists"
-          // failures are SSR-page-as-data sites where the search results are
-          // already in the rendered HTML. The agent reads the markdown-
-          // converted page and extracts what it needs without needing capture
-          // to have published a synthetic page-artifact endpoint.
-          suggested_next_action: `unbrowse fetch ${context?.url ?? `https://${endpointScopedSkill.domain}`}`,
-          commands: [
-            `unbrowse fetch ${context?.url ?? `https://${endpointScopedSkill.domain}`}`,
-            "unbrowse snap --filter interactive",
-            "unbrowse click <ref>",
-            "unbrowse fill <ref> <value>",
-            "unbrowse press Enter",
-            "unbrowse text",
-            "unbrowse close",
-          ],
-          diagnostic: {
-            confidence: 0,
-            top_reasoning: `No endpoints on ${endpointScopedSkill.domain} matched intent "${queryIntent}"`,
-            known_issues: [`All ${endpointScopedSkill.endpoints.length} cached endpoints failed intent relevance check`],
-            endpoint_count: 0,
-            cache_source: source,
+          message: `No cached API for "${queryIntent}" on ${endpointScopedSkill.domain}; offering page_fetch fallback + ranker shortlist. Pick endpoint_id and call execute.`,
+          skill_id: endpointScopedSkill.skill_id,
+          available_operations: shortlistWithPageFetch,
+          available_endpoints: shortlistWithPageFetch,
+          shortlist_for_judgment: shortlistWithPageFetch,
+          agent_facing_shortlist: shortlistWithPageFetch,
+          // Keep diagnostic context for agents that want to know why
+          handoff_context: {
+            ranker_returned: epRanked.length,
+            all_negative: allNegative,
+            domain: endpointScopedSkill.domain,
+            note: "page_fetch fallback added so execute can return page content inline instead of forcing a second `unbrowse fetch` call.",
           },
-          // Surface the ranker's top-N candidates (with their negative scores)
-          // in BOTH `available_endpoints` (for cmdExplain to read) and the
-          // dedicated diagnostic field. Agent in-thread judges whether the
-          // ranker's pessimism was right by reading the shortlist evidence.
-          available_endpoints: fallbackShortlist,
-          available_operations: fallbackShortlist,
-          shortlist_for_judgment: fallbackShortlist,
-          agent_facing_shortlist: fallbackShortlist,
-          judgment_question: `Ranker handed off all ${endpointScopedSkill.endpoints.length} endpoints as low-confidence for intent "${queryIntent}". Inspect shortlist — if any candidate's url_template/description suggests it MIGHT satisfy the intent despite the negative score, call execute against its endpoint_id and judge the response. Otherwise follow suggested_next_action.`,
+          judgment_question: `Ranker handed off all ${endpointScopedSkill.endpoints.length} endpoints as low-confidence for intent "${queryIntent}". page_fetch is the recommended structural fallback (always-callable, returns rendered HTML + auto-extracts). Pick it OR inspect the ranker shortlist if any candidate's url_template suggests intent-relevance.`,
         },
         trace: deferTrace,
         source: "deferral" as any,
