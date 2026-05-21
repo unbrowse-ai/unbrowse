@@ -1,0 +1,307 @@
+{
+  "result": {
+    "status": "resolve_hard_handoff",
+    "message": "No cached API available for this intent on www.figma.com. For SSR-rendered pages (search results in HTML, e.g. Amazon, Bing), try `unbrowse fetch https://www.figma.com/files/recent` to get the page HTML and extract client-side. Otherwise drive a browser session interactively (snap/click/fill).",
+    "domain": "www.figma.com",
+    "suggested_next_action": "unbrowse fetch https://www.figma.com/files/recent",
+    "commands": [
+      "unbrowse fetch https://www.figma.com/files/recent",
+      "unbrowse snap --filter interactive",
+      "unbrowse click <ref>",
+      "unbrowse fill <ref> <value>",
+      "unbrowse press Enter",
+      "unbrowse text",
+      "unbrowse close"
+    ],
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "No endpoints on www.figma.com matched intent \"figma file canvas\"",
+      "known_issues": [
+        "All 13 cached endpoints failed intent relevance check"
+      ],
+      "endpoint_count": 0,
+      "cache_source": "marketplace"
+    },
+    "available_endpoints": [
+      {
+        "endpoint_id": "thPle194pZ3cDCbZdHySr",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/statsig/v1_ruleset",
+        "description": "Returns resource details",
+        "score": -370.34586297109655,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "VzU9DBI7_UzgwmZEEvq3G",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/figment-proxy/monitor",
+        "description": "Returns resource details",
+        "score": -370.3728505863798,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "IaQeKE1iwOwNnfDbOeEtb",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/web_logger/histogram_batched",
+        "description": "Returns resource details",
+        "score": -370.39860491712824,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "jKWDsGYJbu3UqF5sKo1tS",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/statsig/bootstrap?integration_host={integration_host}&page_locale={page_locale}&release_manifest_git_commit={release_manifest_git_commit}&release_server_git_commit={release_server_git_commit}",
+        "description": "Returns status with error, status, and meta",
+        "score": -407.88801793592785,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "fMMKv1djlP3EXxlBy5bRy",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://errors.figma.com/api/sentry/api/{id}/envelope/?sentry_key={sentry_key}&sentry_version={sentry_version}&sentry_client={sentry_client}",
+        "description": "Returns resource details",
+        "score": -415.60345681543504,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "available_operations": [
+      {
+        "endpoint_id": "thPle194pZ3cDCbZdHySr",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/statsig/v1_ruleset",
+        "description": "Returns resource details",
+        "score": -370.34586297109655,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "VzU9DBI7_UzgwmZEEvq3G",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/figment-proxy/monitor",
+        "description": "Returns resource details",
+        "score": -370.3728505863798,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "IaQeKE1iwOwNnfDbOeEtb",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/web_logger/histogram_batched",
+        "description": "Returns resource details",
+        "score": -370.39860491712824,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "jKWDsGYJbu3UqF5sKo1tS",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/statsig/bootstrap?integration_host={integration_host}&page_locale={page_locale}&release_manifest_git_commit={release_manifest_git_commit}&release_server_git_commit={release_server_git_commit}",
+        "description": "Returns status with error, status, and meta",
+        "score": -407.88801793592785,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "fMMKv1djlP3EXxlBy5bRy",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://errors.figma.com/api/sentry/api/{id}/envelope/?sentry_key={sentry_key}&sentry_version={sentry_version}&sentry_client={sentry_client}",
+        "description": "Returns resource details",
+        "score": -415.60345681543504,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "shortlist_for_judgment": [
+      {
+        "endpoint_id": "thPle194pZ3cDCbZdHySr",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/statsig/v1_ruleset",
+        "description": "Returns resource details",
+        "score": -370.34586297109655,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "VzU9DBI7_UzgwmZEEvq3G",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/figment-proxy/monitor",
+        "description": "Returns resource details",
+        "score": -370.3728505863798,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "IaQeKE1iwOwNnfDbOeEtb",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/web_logger/histogram_batched",
+        "description": "Returns resource details",
+        "score": -370.39860491712824,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "jKWDsGYJbu3UqF5sKo1tS",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/statsig/bootstrap?integration_host={integration_host}&page_locale={page_locale}&release_manifest_git_commit={release_manifest_git_commit}&release_server_git_commit={release_server_git_commit}",
+        "description": "Returns status with error, status, and meta",
+        "score": -407.88801793592785,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "fMMKv1djlP3EXxlBy5bRy",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://errors.figma.com/api/sentry/api/{id}/envelope/?sentry_key={sentry_key}&sentry_version={sentry_version}&sentry_client={sentry_client}",
+        "description": "Returns resource details",
+        "score": -415.60345681543504,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "agent_facing_shortlist": [
+      {
+        "endpoint_id": "thPle194pZ3cDCbZdHySr",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/statsig/v1_ruleset",
+        "description": "Returns resource details",
+        "score": -370.34586297109655,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "VzU9DBI7_UzgwmZEEvq3G",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/figment-proxy/monitor",
+        "description": "Returns resource details",
+        "score": -370.3728505863798,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "IaQeKE1iwOwNnfDbOeEtb",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/web_logger/histogram_batched",
+        "description": "Returns resource details",
+        "score": -370.39860491712824,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "jKWDsGYJbu3UqF5sKo1tS",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://www.figma.com/api/statsig/bootstrap?integration_host={integration_host}&page_locale={page_locale}&release_manifest_git_commit={release_manifest_git_commit}&release_server_git_commit={release_server_git_commit}",
+        "description": "Returns status with error, status, and meta",
+        "score": -407.88801793592785,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "fMMKv1djlP3EXxlBy5bRy",
+        "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+        "method": "GET",
+        "url_template": "https://errors.figma.com/api/sentry/api/{id}/envelope/?sentry_key={sentry_key}&sentry_version={sentry_version}&sentry_client={sentry_client}",
+        "description": "Returns resource details",
+        "score": -415.60345681543504,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "judgment_question": "Ranker handed off all 13 endpoints as low-confidence for intent \"figma file canvas\". Inspect shortlist — if any candidate's url_template/description suggests it MIGHT satisfy the intent despite the negative score, call execute against its endpoint_id and judge the response. Otherwise follow suggested_next_action."
+  },
+  "trace": {
+    "trace_id": "MngNqGCZ4mMkto2rqRh_g",
+    "skill_id": "w3bIuIAfygHXF4KUXS8pt",
+    "endpoint_id": "",
+    "started_at": "2026-05-21T00:04:31.596Z",
+    "completed_at": "2026-05-21T00:04:31.596Z",
+    "success": true,
+    "session_id": "20DgH2dYoR4UW-YQZnX8H",
+    "step_index": 1,
+    "state_hash": "2d01ef03009e65eb7bf2a16a",
+    "candidate_count": 9,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0
+  },
+  "source": "deferral",
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 6,
+    "source": "deferral",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 0,
+    "response_bytes": 2,
+    "time_saved_pct": 0,
+    "tokens_saved_pct": 0,
+    "actual_total_ms": 6,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "deferral",
+    "actual_cost_uc": 3
+  },
+  "impact": {
+    "source": "deferral",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "actual_total_ms": 6,
+    "time_saved_pct": 0,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0,
+    "actual_cost_uc": 3
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "thPle194pZ3cDCbZdHySr",
+      "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+      "method": "GET",
+      "url_template": "https://www.figma.com/api/statsig/v1_ruleset",
+      "description": "Returns resource details",
+      "score": -370.34586297109655,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    },
+    {
+      "endpoint_id": "VzU9DBI7_UzgwmZEEvq3G",
+      "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+      "method": "GET",
+      "url_template": "https://www.figma.com/api/figment-proxy/monitor",
+      "description": "Returns resource details",
+      "score": -370.3728505863798,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    },
+    {
+      "endpoint_id": "IaQeKE1iwOwNnfDbOeEtb",
+      "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+      "method": "GET",
+      "url_template": "https://www.figma.com/api/web_logger/histogram_batched",
+      "description": "Returns resource details",
+      "score": -370.39860491712824,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    },
+    {
+      "endpoint_id": "jKWDsGYJbu3UqF5sKo1tS",
+      "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+      "method": "GET",
+      "url_template": "https://www.figma.com/api/statsig/bootstrap?integration_host={integration_host}&page_locale={page_locale}&release_manifest_git_commit={release_manifest_git_commit}&release_server_git_commit={release_server_git_commit}",
+      "description": "Returns status with error, status, and meta",
+      "score": -407.88801793592785,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    },
+    {
+      "endpoint_id": "fMMKv1djlP3EXxlBy5bRy",
+      "source_skill_id": "w3bIuIAfygHXF4KUXS8pt",
+      "method": "GET",
+      "url_template": "https://errors.figma.com/api/sentry/api/{id}/envelope/?sentry_key={sentry_key}&sentry_version={sentry_version}&sentry_client={sentry_client}",
+      "description": "Returns resource details",
+      "score": -415.60345681543504,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    }
+  ]
+}

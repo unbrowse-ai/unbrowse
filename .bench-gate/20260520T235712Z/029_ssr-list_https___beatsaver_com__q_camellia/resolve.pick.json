@@ -1,0 +1,109 @@
+{
+  "endpoint_id": "odqcmGoYJ2pJA8wtcmc_G",
+  "source_skill_id": "4KAz1h6I9IwMhtsfUaWZy",
+  "method": "GET",
+  "description": "Searches BeatSaver maps for camellia",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://api.beatsaver.com/search/text/0?q={q}",
+  "score": 154.4,
+  "schema_summary": {
+    "docs": [
+      {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "uploader": "object",
+        "stats": "object"
+      }
+    ]
+  },
+  "input_params": [],
+  "description_in": "Public read-only API endpoint derived from the requested URL",
+  "example_fields": [
+    "docs[].id",
+    "docs[].name",
+    "docs[].description",
+    "docs[].uploader.name",
+    "docs[].stats.downloads"
+  ],
+  "sample_values": null,
+  "dom_extraction": false,
+  "trigger_url": "https://beatsaver.com/?q=camellia",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "odqcmGoYJ2pJA8wtcmc_G",
+      "source_skill_id": "4KAz1h6I9IwMhtsfUaWZy",
+      "method": "GET",
+      "description": "Searches BeatSaver maps for camellia",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://api.beatsaver.com/search/text/0?q={q}",
+      "score": 154.4,
+      "schema_summary": {
+        "docs": [
+          {
+            "id": "string",
+            "name": "string",
+            "description": "string",
+            "uploader": "object",
+            "stats": "object"
+          }
+        ]
+      },
+      "input_params": [],
+      "description_in": "Public read-only API endpoint derived from the requested URL",
+      "example_fields": [
+        "docs[].id",
+        "docs[].name",
+        "docs[].description",
+        "docs[].uploader.name",
+        "docs[].stats.downloads"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://beatsaver.com/?q=camellia",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "p7NfTi4HcQlIyhs_KDliR",
+      "source_skill_id": "4KAz1h6I9IwMhtsfUaWZy",
+      "method": "GET",
+      "description": "Returns resource details with titles and url",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://beatsaver.com/?q={q}",
+      "score": -2105,
+      "schema_summary": {
+        "title": "string",
+        "url": "string"
+      },
+      "input_params": [
+        {
+          "key": "q",
+          "type": "input",
+          "required": true
+        }
+      ],
+      "description_in": "Requires q",
+      "example_fields": [
+        "title",
+        "url"
+      ],
+      "sample_values": {
+        "title": "BeatSaver.com",
+        "url": "https://beatsaver.com"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://beatsaver.com/?q=camellia",
+      "needs_params": true,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

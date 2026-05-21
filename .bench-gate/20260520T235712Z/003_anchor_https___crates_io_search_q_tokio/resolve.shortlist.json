@@ -1,0 +1,1153 @@
+{
+  "result": {
+    "message": "Found 4 endpoint(s). Pick one and call POST /v1/skills/V-ugzSxDfgDKHR0TD_ufE/execute with params.endpoint_id.",
+    "skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+    "available_operations": [
+      {
+        "operation_id": "8PHsp5fAXZX1P4Z8nuT9_",
+        "endpoint_id": "8PHsp5fAXZX1P4Z8nuT9_",
+        "method": "GET",
+        "action_kind": "search",
+        "resource_kind": "repository",
+        "title": "search repository",
+        "url_template": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}",
+        "description_out": "Searches repositories with crates, ids, and names",
+        "requires": [
+          "page",
+          "per_page",
+          "sort",
+          "q"
+        ],
+        "yields": [
+          "crate_name",
+          "crate_id",
+          "id",
+          "repo_name",
+          "repository_name",
+          "repo",
+          "repository_id",
+          "repo_id"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      },
+      {
+        "operation_id": "btvIBgbBxHO8hIG7jciOJ",
+        "endpoint_id": "btvIBgbBxHO8hIG7jciOJ",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "resource",
+        "title": "detail resource",
+        "url_template": "https://crates.io/crates/serde",
+        "description_out": "Returns resource details with link, url, and titles",
+        "requires": [],
+        "yields": [
+          "resource_url",
+          "resource_name"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      },
+      {
+        "operation_id": "3bqbHNiOc3pUKKy3ezdAG",
+        "endpoint_id": "3bqbHNiOc3pUKKy3ezdAG",
+        "method": "GET",
+        "action_kind": "search",
+        "resource_kind": "resource",
+        "title": "search resource",
+        "url_template": "https://crates.io/search?q={q}",
+        "description_out": "Searches resources with relevance score",
+        "requires": [
+          "q"
+        ],
+        "yields": [],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      }
+    ],
+    "workflow_dag": {
+      "skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+      "intent": "rust crates",
+      "missing_bindings": [],
+      "suggested_next_operation_id": "8PHsp5fAXZX1P4Z8nuT9_",
+      "operations": [
+        {
+          "operation_id": "8PHsp5fAXZX1P4Z8nuT9_",
+          "endpoint_id": "8PHsp5fAXZX1P4Z8nuT9_",
+          "method": "GET",
+          "action_kind": "search",
+          "resource_kind": "repository",
+          "title": "search repository",
+          "url_template": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}",
+          "description_out": "Searches repositories with crates, ids, and names",
+          "requires": [
+            "page",
+            "per_page",
+            "sort",
+            "q"
+          ],
+          "yields": [
+            "crate_name",
+            "crate_id",
+            "id",
+            "repo_name",
+            "repository_name",
+            "repo",
+            "repository_id",
+            "repo_id"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        },
+        {
+          "operation_id": "btvIBgbBxHO8hIG7jciOJ",
+          "endpoint_id": "btvIBgbBxHO8hIG7jciOJ",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "title": "detail resource",
+          "url_template": "https://crates.io/crates/serde",
+          "description_out": "Returns resource details with link, url, and titles",
+          "requires": [],
+          "yields": [
+            "resource_url",
+            "resource_name"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        },
+        {
+          "operation_id": "3bqbHNiOc3pUKKy3ezdAG",
+          "endpoint_id": "3bqbHNiOc3pUKKy3ezdAG",
+          "method": "GET",
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "title": "search resource",
+          "url_template": "https://crates.io/search?q={q}",
+          "description_out": "Searches resources with relevance score",
+          "requires": [
+            "q"
+          ],
+          "yields": [],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        }
+      ],
+      "edges": []
+    },
+    "missing_bindings": [],
+    "available_endpoints": [
+      {
+        "endpoint_id": "8PHsp5fAXZX1P4Z8nuT9_",
+        "source_skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+        "method": "GET",
+        "description": "Searches crates.io crates for tokio",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}",
+        "score": 276.1,
+        "schema_summary": {
+          "crates": [
+            {
+              "id": "string",
+              "name": "string",
+              "description": "string",
+              "downloads": "number",
+              "repository": "string"
+            }
+          ],
+          "meta": "object"
+        },
+        "input_params": [
+          {
+            "key": "page",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "per_page",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "sort",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "q",
+            "type": "input",
+            "required": false
+          }
+        ],
+        "description_in": "Requires page, per_page, sort, q",
+        "example_fields": [
+          "crates[].id",
+          "crates[].name",
+          "crates[].description",
+          "crates[].downloads",
+          "meta.total"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://crates.io/search?q=tokio",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "pjQbrDvLCm4-EFywyGoaj",
+        "source_skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+        "method": "GET",
+        "description": "Returns resource details",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://crates.io/api/v1/site_metadata",
+        "score": -169.1,
+        "schema_summary": null,
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://crates.io/search?q=tokio",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "btvIBgbBxHO8hIG7jciOJ",
+        "source_skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+        "method": "GET",
+        "description": "Returns resource details with link, url, and titles",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://crates.io/crates/serde",
+        "score": -423.1,
+        "schema_summary": {
+          "[]": {
+            "link": "string",
+            "url": "string",
+            "title": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].link",
+          "[].url",
+          "[].title"
+        ],
+        "sample_values": {
+          "[].link": "https://choosealicense.com/licenses/mit",
+          "[].url": "https://choosealicense.com/licenses/mit",
+          "[].title": "MIT"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://crates.io/crates/serde",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "3bqbHNiOc3pUKKy3ezdAG",
+        "source_skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+        "method": "GET",
+        "description": "Searches resources with relevance score",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://crates.io/search?q={q}",
+        "score": -1920,
+        "schema_summary": {
+          "[]": {
+            "type": "string",
+            "data": [
+              "string"
+            ],
+            "relevance_score": "integer"
+          }
+        },
+        "input_params": [
+          {
+            "key": "q",
+            "type": "input",
+            "required": true
+          }
+        ],
+        "description_in": "Requires q",
+        "example_fields": [
+          "[].type",
+          "[].data",
+          "[].relevance_score",
+          "[].data[]"
+        ],
+        "sample_values": {
+          "[].type": "list",
+          "[].relevance_score": -139
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://crates.io/search?q=tokio",
+        "needs_params": true,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      }
+    ],
+    "decision_trace": {
+      "intent": "search rust crates",
+      "params": {
+        "url": "https://crates.io/search?q=tokio"
+      },
+      "context": {
+        "url": "https://crates.io/search?q=tokio"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "rust crates",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 0,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "won",
+            "ms": 0
+          },
+          {
+            "name": "marketplace",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          },
+          {
+            "name": "probe",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          }
+        ],
+        "winner": "marketplace"
+      }
+    },
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "Best match: Public crates.io search API for tokio (score: 276.0813531502574)",
+      "known_issues": [],
+      "endpoint_count": 4,
+      "cache_source": "marketplace"
+    }
+  },
+  "trace": {
+    "trace_id": "pC31E3PtUbe9ZpzAIcVQE",
+    "skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+    "endpoint_id": "",
+    "started_at": "2026-05-20T23:57:56.174Z",
+    "completed_at": "2026-05-20T23:57:56.174Z",
+    "success": true,
+    "session_id": "73xd9PYCy-dp_vcULUBq6",
+    "step_index": 1,
+    "state_hash": "4b565744d6957e39ed2ba884",
+    "candidate_count": 4,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100
+  },
+  "source": "marketplace",
+  "skill": {
+    "skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+    "version": "1.0.0",
+    "schema_version": "1",
+    "lifecycle": "active",
+    "execution_type": "http",
+    "created_at": "2026-05-18T14:42:23.824Z",
+    "updated_at": "2026-05-20T23:57:56.167Z",
+    "name": "crates.io",
+    "intent_signature": "browse crates.io",
+    "domain": "crates.io",
+    "description": "DOM skill for crates.io",
+    "owner_type": "agent",
+    "endpoints": [
+      {
+        "endpoint_id": "8PHsp5fAXZX1P4Z8nuT9_",
+        "method": "GET",
+        "url_template": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}",
+        "query": {
+          "page": "1",
+          "per_page": "10",
+          "sort": "relevance",
+          "q": "tokio"
+        },
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.9,
+        "description": "Public crates.io search API for tokio",
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "crates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "downloads": {
+                    "type": "number"
+                  },
+                  "repository": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "meta": {
+              "type": "object"
+            }
+          }
+        },
+        "trigger_url": "https://crates.io/search?q=tokio",
+        "semantic": {
+          "action_kind": "search",
+          "resource_kind": "crate",
+          "description_in": "Requires page, per_page, sort, q",
+          "description_out": "Searches crates.io crates for tokio",
+          "example_request": {
+            "page": "1",
+            "per_page": "10",
+            "sort": "relevance",
+            "q": "tokio"
+          },
+          "example_fields": [
+            "crates[].id",
+            "crates[].name",
+            "crates[].description",
+            "crates[].downloads",
+            "meta.total"
+          ],
+          "requires": [
+            {
+              "key": "page",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            },
+            {
+              "key": "per_page",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            },
+            {
+              "key": "sort",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            },
+            {
+              "key": "q",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "crate_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            },
+            {
+              "key": "crate_id",
+              "semantic_type": "resource_identifier",
+              "source": "response"
+            }
+          ]
+        }
+      },
+      {
+        "endpoint_id": "3bqbHNiOc3pUKKy3ezdAG",
+        "method": "GET",
+        "url_template": "https://crates.io/search?q={q}",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.5,
+        "description": "Page content from crates.io",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "inferred_from_samples": 16
+              },
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "inferred_from_samples": 16
+                },
+                "inferred_from_samples": 16
+              },
+              "relevance_score": {
+                "type": "integer",
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "inferred_from_samples": 16
+                  },
+                  {
+                    "type": "number",
+                    "inferred_from_samples": 16
+                  }
+                ],
+                "inferred_from_samples": 16
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "relevance_score"
+            ],
+            "inferred_from_samples": 16
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "multiple",
+          "confidence": 0.385
+        },
+        "trigger_url": "https://crates.io/search?q=tokio",
+        "semantic": {
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "description_in": "Requires q",
+          "description_out": "Searches resources with relevance score",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].type, [].data, [].relevance_score, [].data[]",
+          "example_response_compact": [
+            {
+              "type": "list",
+              "data": [
+                "tokio v1.52.3  An event-driven, non-blocking I/O platform for writing asynchronous I/O\nbacked applications.\n  All-TimeDownloads:   682,305,491  RecentDownloads:   150,517,938  Updated:   12 days ago   Homepage  Repository",
+                "oxide-tokio-rt v0.1.6  Shared Tokio runtime configuration for production Oxide software  All-TimeDownloads:   128,157  RecentDownloads:   54,843  Updated:   9 days ago     Repository"
+              ],
+              "relevance_score": -139
+            },
+            {
+              "type": "list",
+              "data": [
+                "All-TimeDownloads:   682,305,491",
+                "RecentDownloads:   150,517,938"
+              ],
+              "relevance_score": -139.7
+            }
+          ],
+          "example_fields": [
+            "[].type",
+            "[].data",
+            "[].relevance_score",
+            "[].data[]"
+          ],
+          "requires": [
+            {
+              "key": "q",
+              "required": true,
+              "source": "url_template",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:57:55.874Z",
+          "sample_request_url": "https://crates.io/search?q=tokio",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "pjQbrDvLCm4-EFywyGoaj",
+        "method": "GET",
+        "url_template": "https://crates.io/api/v1/site_metadata",
+        "description": "Returns resource details",
+        "headers_template": {},
+        "query": {},
+        "idempotency": "safe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "trigger_url": "https://crates.io/search?q=tokio",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T07:53:31.732Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "1779176817592",
+          "sample_request_url": "https://crates.io/api/v1/site_metadata",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "btvIBgbBxHO8hIG7jciOJ",
+        "method": "GET",
+        "url_template": "https://crates.io/crates/serde",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.5,
+        "description": "Page content from crates.io",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "link": {
+                "type": "string",
+                "inferred_from_samples": 6
+              },
+              "url": {
+                "type": "string",
+                "inferred_from_samples": 6
+              },
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 5
+              }
+            },
+            "required": [
+              "link",
+              "url"
+            ],
+            "inferred_from_samples": 6
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "repeated-elements",
+          "confidence": 0.8500000000000001,
+          "selector": "div.msrv.svelte-pctbe6"
+        },
+        "trigger_url": "https://crates.io/crates/serde",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with link, url, and titles",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].link, [].url, [].title",
+          "example_response_compact": [
+            {
+              "link": "https://choosealicense.com/licenses/mit",
+              "url": "https://choosealicense.com/licenses/mit",
+              "title": "MIT"
+            },
+            {
+              "link": "https://github.com/package-url/purl-spec",
+              "url": "https://github.com/package-url/purl-spec"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T17:01:03.191Z",
+          "sample_request_url": "https://crates.io/crates/serde",
+          "auth_required": false
+        }
+      }
+    ],
+    "operation_graph": {
+      "generated_at": "2026-05-20T23:57:56.169Z",
+      "entry_operation_ids": [
+        "8PHsp5fAXZX1P4Z8nuT9_",
+        "pjQbrDvLCm4-EFywyGoaj",
+        "btvIBgbBxHO8hIG7jciOJ"
+      ],
+      "operations": [
+        {
+          "operation_id": "8PHsp5fAXZX1P4Z8nuT9_",
+          "endpoint_id": "8PHsp5fAXZX1P4Z8nuT9_",
+          "method": "GET",
+          "url_template": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}",
+          "trigger_url": "https://crates.io/search?q=tokio",
+          "action_kind": "search",
+          "resource_kind": "repository",
+          "description_in": "Requires page, per_page, sort, q",
+          "description_out": "Searches repositories with crates, ids, and names",
+          "response_summary": "crates, crates[].id, crates[].name, crates[].description, crates[].downloads, crates[].repository, meta",
+          "requires": [
+            {
+              "key": "page",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            },
+            {
+              "key": "per_page",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            },
+            {
+              "key": "sort",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            },
+            {
+              "key": "q",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "crate_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            },
+            {
+              "key": "crate_id",
+              "semantic_type": "resource_identifier",
+              "source": "response"
+            },
+            {
+              "key": "id",
+              "semantic_type": "repository_identifier",
+              "source": "response"
+            },
+            {
+              "key": "repo_name",
+              "semantic_type": "repo_name",
+              "source": "response"
+            },
+            {
+              "key": "repository_name",
+              "semantic_type": "repository_name",
+              "source": "response"
+            },
+            {
+              "key": "repo",
+              "semantic_type": "repository_name",
+              "source": "response"
+            },
+            {
+              "key": "repository_id",
+              "semantic_type": "repository_identifier",
+              "source": "response"
+            },
+            {
+              "key": "repo_id",
+              "semantic_type": "repo_identifier",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {
+            "page": "1",
+            "per_page": "10",
+            "sort": "relevance",
+            "q": "tokio"
+          },
+          "example_fields": [
+            "crates",
+            "crates[].id",
+            "crates[].name",
+            "crates[].description",
+            "crates[].downloads",
+            "crates[].repository",
+            "meta",
+            "meta.total"
+          ],
+          "confidence": 0.8,
+          "auth_required": false
+        },
+        {
+          "operation_id": "3bqbHNiOc3pUKKy3ezdAG",
+          "endpoint_id": "3bqbHNiOc3pUKKy3ezdAG",
+          "method": "GET",
+          "url_template": "https://crates.io/search?q={q}",
+          "trigger_url": "https://crates.io/search?q=tokio",
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "description_in": "Requires q",
+          "description_out": "Searches resources with relevance score",
+          "response_summary": "[].type, [].data, [].relevance_score, [].data[]",
+          "requires": [
+            {
+              "key": "q",
+              "required": true,
+              "source": "url_template",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "type": "list",
+              "data": [
+                "tokio v1.52.3  An event-driven, non-blocking I/O platform for writing asynchronous I/O\nbacked applications.\n  All-TimeDownloads:   682,305,491  RecentDownloads:   150,517,938  Updated:   12 days ago   Homepage  Repository",
+                "oxide-tokio-rt v0.1.6  Shared Tokio runtime configuration for production Oxide software  All-TimeDownloads:   128,157  RecentDownloads:   54,843  Updated:   9 days ago     Repository"
+              ],
+              "relevance_score": -139
+            },
+            {
+              "type": "list",
+              "data": [
+                "All-TimeDownloads:   682,305,491",
+                "RecentDownloads:   150,517,938"
+              ],
+              "relevance_score": -139.7
+            }
+          ],
+          "example_fields": [
+            "[].type",
+            "[].data",
+            "[].relevance_score",
+            "[].data[]"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:57:55.874Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "pjQbrDvLCm4-EFywyGoaj",
+          "endpoint_id": "pjQbrDvLCm4-EFywyGoaj",
+          "method": "GET",
+          "url_template": "https://crates.io/api/v1/site_metadata",
+          "trigger_url": "https://crates.io/search?q=tokio",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details",
+          "response_summary": "data.__typename",
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T07:53:31.732Z"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "1779176817592",
+          "auth_required": false
+        },
+        {
+          "operation_id": "btvIBgbBxHO8hIG7jciOJ",
+          "endpoint_id": "btvIBgbBxHO8hIG7jciOJ",
+          "method": "GET",
+          "url_template": "https://crates.io/crates/serde",
+          "trigger_url": "https://crates.io/crates/serde",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with link, url, and titles",
+          "response_summary": "[].link, [].url, [].title",
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "link": "https://choosealicense.com/licenses/mit",
+              "url": "https://choosealicense.com/licenses/mit",
+              "title": "MIT"
+            },
+            {
+              "link": "https://github.com/package-url/purl-spec",
+              "url": "https://github.com/package-url/purl-spec"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T17:01:03.191Z",
+          "auth_required": false
+        }
+      ],
+      "edges": []
+    },
+    "intents": [
+      "search rust crates",
+      "browse crates.io"
+    ]
+  },
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 3,
+    "source": "marketplace",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 29999,
+    "response_bytes": 2,
+    "time_saved_pct": 100,
+    "tokens_saved_pct": 100,
+    "actual_total_ms": 3,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+    "actual_cost_uc": 3,
+    "baseline_total_ms": 22000,
+    "time_saved_ms": 21997,
+    "baseline_cost_uc": 90000,
+    "cost_saved_uc": 89997
+  },
+  "impact": {
+    "source": "marketplace",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "baseline_total_ms": 22000,
+    "actual_total_ms": 3,
+    "time_saved_ms": 21997,
+    "time_saved_pct": 100,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100,
+    "baseline_cost_uc": 90000,
+    "actual_cost_uc": 3,
+    "cost_saved_uc": 89997
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "8PHsp5fAXZX1P4Z8nuT9_",
+      "source_skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+      "method": "GET",
+      "description": "Searches crates.io crates for tokio",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&sort={sort}&q={q}",
+      "score": 276.1,
+      "schema_summary": {
+        "crates": [
+          {
+            "id": "string",
+            "name": "string",
+            "description": "string",
+            "downloads": "number",
+            "repository": "string"
+          }
+        ],
+        "meta": "object"
+      },
+      "input_params": [
+        {
+          "key": "page",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "per_page",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "sort",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "q",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires page, per_page, sort, q",
+      "example_fields": [
+        "crates[].id",
+        "crates[].name",
+        "crates[].description",
+        "crates[].downloads",
+        "meta.total"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://crates.io/search?q=tokio",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "pjQbrDvLCm4-EFywyGoaj",
+      "source_skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://crates.io/api/v1/site_metadata",
+      "score": -169.1,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://crates.io/search?q=tokio",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "btvIBgbBxHO8hIG7jciOJ",
+      "source_skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+      "method": "GET",
+      "description": "Returns resource details with link, url, and titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://crates.io/crates/serde",
+      "score": -423.1,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "title": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].title"
+      ],
+      "sample_values": {
+        "[].link": "https://choosealicense.com/licenses/mit",
+        "[].url": "https://choosealicense.com/licenses/mit",
+        "[].title": "MIT"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://crates.io/crates/serde",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "3bqbHNiOc3pUKKy3ezdAG",
+      "source_skill_id": "V-ugzSxDfgDKHR0TD_ufE",
+      "method": "GET",
+      "description": "Searches resources with relevance score",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://crates.io/search?q={q}",
+      "score": -1920,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": [
+            "string"
+          ],
+          "relevance_score": "integer"
+        }
+      },
+      "input_params": [
+        {
+          "key": "q",
+          "type": "input",
+          "required": true
+        }
+      ],
+      "description_in": "Requires q",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data[]"
+      ],
+      "sample_values": {
+        "[].type": "list",
+        "[].relevance_score": -139
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://crates.io/search?q=tokio",
+      "needs_params": true,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

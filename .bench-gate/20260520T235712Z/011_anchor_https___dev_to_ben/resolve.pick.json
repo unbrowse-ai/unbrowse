@@ -1,0 +1,198 @@
+{
+  "endpoint_id": "z9mcJp8_WN1i8Q1JnfzjH",
+  "source_skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+  "method": "GET",
+  "description": "Returns DEV articles for ben",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://dev.to/api/articles?username={username}",
+  "score": 221.4,
+  "schema_summary": {
+    "[]": {
+      "title": "string",
+      "url": "string",
+      "description": "string",
+      "published_at": "string",
+      "tag_list": "array"
+    }
+  },
+  "input_params": [
+    {
+      "key": "username",
+      "type": "input",
+      "required": false
+    }
+  ],
+  "description_in": "Requires username",
+  "example_fields": [
+    "[].title",
+    "[].url",
+    "[].description",
+    "[].published_at",
+    "[].tag_list"
+  ],
+  "sample_values": null,
+  "dom_extraction": false,
+  "trigger_url": "https://dev.to/ben",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "z9mcJp8_WN1i8Q1JnfzjH",
+      "source_skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+      "method": "GET",
+      "description": "Returns DEV articles for ben",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://dev.to/api/articles?username={username}",
+      "score": 221.4,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "url": "string",
+          "description": "string",
+          "published_at": "string",
+          "tag_list": "array"
+        }
+      },
+      "input_params": [
+        {
+          "key": "username",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires username",
+      "example_fields": [
+        "[].title",
+        "[].url",
+        "[].description",
+        "[].published_at",
+        "[].tag_list"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://dev.to/ben",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "_UbW2E9oKTmE_YjZTlPvg",
+      "source_skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+      "method": "GET",
+      "description": "Returns resource details with relevance score, @context, and @type",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://dev.to/ben",
+      "score": -286.9,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": {
+            "@context": "string",
+            "@type": "string",
+            "mainEntityOfPage": "object",
+            "url": "string",
+            "sameAs": "array",
+            "image": "string",
+            "name": "string",
+            "email": "string",
+            "description": "string",
+            "title": "string",
+            "heading_1": "string",
+            "heading_2": "string",
+            "heading_3": "string",
+            "heading_4": "string",
+            "heading_5": "string",
+            "heading_6": "string",
+            "heading_7": "string",
+            "heading_8": "string",
+            "heading_9": "string",
+            "heading_10": "string",
+            "heading_11": "string",
+            "heading_12": "string",
+            "heading_13": "string",
+            "heading_14": "string",
+            "heading_15": "string",
+            "heading_16": "string",
+            "heading_17": "string",
+            "heading_18": "string",
+            "heading_19": "string",
+            "heading_20": "string",
+            "heading_21": "string",
+            "heading_22": "string",
+            "heading_23": "string",
+            "heading_24": "string",
+            "heading_25": "string",
+            "heading_26": "string",
+            "heading_27": "string",
+            "heading_28": "string",
+            "heading_29": "string",
+            "heading_30": "string",
+            "heading_31": "string",
+            "heading_32": "string",
+            "heading_33": "string",
+            "heading_34": "string",
+            "heading_35": "string",
+            "heading_36": "string",
+            "heading_37": "string",
+            "heading_38": "string",
+            "heading_39": "string",
+            "heading_40": "string",
+            "heading_41": "string",
+            "heading_42": "string",
+            "heading_43": "string",
+            "heading_44": "string",
+            "heading_45": "string",
+            "heading_46": "string",
+            "heading_47": "string",
+            "heading_48": "string",
+            "heading_49": "string",
+            "heading_50": "string",
+            "heading_51": "string",
+            "heading_52": "string",
+            "link": "string",
+            "info": "string",
+            "message": "string"
+          },
+          "relevance_score": "number"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data.@context",
+        "[].data.@type",
+        "[].data.mainEntityOfPage.@type",
+        "[].data.mainEntityOfPage.@id",
+        "[].data.url",
+        "[].data.sameAs[]",
+        "[].data.image",
+        "[].data.name",
+        "[].data.email"
+      ],
+      "sample_values": {
+        "[].type": "spa-initial-state",
+        "[].data.@context": "http://schema.org",
+        "[].data.@type": "Person",
+        "[].data.mainEntityOfPage.@type": "WebPage",
+        "[].data.mainEntityOfPage.@id": "https://dev.to/ben",
+        "[].data.url": "https://dev.to/ben",
+        "[].data.image": "https://media2.dev.to/dynamic/image/width=320,height=320,fit=cover,gravity=au...",
+        "[].data.name": "Ben Halpern",
+        "[].data.email": "ben@forem.com",
+        "[].relevance_score": 8.2
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://dev.to/ben",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

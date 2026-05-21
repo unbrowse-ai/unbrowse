@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 0,
+  "n_operations": 0,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": false,
+  "mode": "none",
+  "skill_id": null,
+  "iso_self_check": {
+    "snap_current_url": "https://www.nike.com/w/mens-shoes-nik1zy7ok",
+    "intended_host": "www.nike.com",
+    "snap_host": "www.nike.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 39,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0,
+    "dom_decision_reason": "no_dom_data"
+  },
+  "cookies_injected": null
+}

@@ -1,0 +1,10 @@
+{
+  "skill": "jERQ-T3VPZ6YlAzWtedOx",
+  "endpoint": "bjuGxuwqFfzX7IUqGuXcZ",
+  "intent": "get home timeline",
+  "context_url": "https://x.com/home",
+  "params": {
+    "endpoint_id": "bjuGxuwqFfzX7IUqGuXcZ",
+    "url": "https://x.com/home"
+  }
+}

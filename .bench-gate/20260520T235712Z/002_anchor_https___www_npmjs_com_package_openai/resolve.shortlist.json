@@ -1,0 +1,89 @@
+{
+  "result": {
+    "status": "no_match",
+    "tried": [
+      "marketplace",
+      "probe"
+    ],
+    "ms": 767,
+    "next_step": {
+      "recommended": "capture",
+      "reason": "no probe evidence; capture is the safe default",
+      "commands": {
+        "capture": "unbrowse capture --url \"https://www.npmjs.com/package/openai\" --intent \"get package info\""
+      },
+      "est_ms": 8000,
+      "creates_skill": true
+    },
+    "decision_trace": {
+      "intent": "get package info",
+      "params": {
+        "url": "https://www.npmjs.com/package/openai"
+      },
+      "context": {
+        "url": "https://www.npmjs.com/package/openai"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "package info",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 767,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "lost",
+            "ms": 767,
+            "reason": "not_found"
+          },
+          {
+            "name": "probe",
+            "status": "lost",
+            "ms": 29,
+            "reason": "invalid_result"
+          }
+        ],
+        "winner": null
+      }
+    }
+  },
+  "trace": {
+    "trace_id": "d9TxrfmSm-EzFghA2QrIb",
+    "skill_id": "",
+    "endpoint_id": "",
+    "started_at": "2026-05-20T23:57:54.708Z",
+    "completed_at": "2026-05-20T23:57:55.475Z",
+    "success": false,
+    "tokens_used": 189,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0
+  },
+  "source": "live-capture",
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 767,
+    "source": "live-capture",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 0,
+    "response_bytes": 756,
+    "time_saved_pct": 0,
+    "tokens_saved_pct": 0,
+    "actual_total_ms": 767,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "actual_cost_uc": 567
+  },
+  "impact": {
+    "source": "live-capture",
+    "cache_hit": false,
+    "browser_avoided": false,
+    "actual_total_ms": 767,
+    "time_saved_pct": 0,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0,
+    "actual_cost_uc": 567
+  }
+}

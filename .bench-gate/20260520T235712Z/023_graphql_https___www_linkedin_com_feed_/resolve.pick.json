@@ -1,0 +1,198 @@
+{
+  "endpoint_id": "c3M4fqN8-f-WTCXu59CJa",
+  "source_skill_id": "o79QxibmeOa9fKdUEdSAJ",
+  "method": "GET",
+  "description": "Returns posts timeline with link, url, and descriptions",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://www.linkedin.com/feed/",
+  "score": 685.4,
+  "schema_summary": {
+    "[]": {
+      "link": "string",
+      "url": "string",
+      "description": "string",
+      "title": "string",
+      "image": "string",
+      "message": "string",
+      "rating": "string"
+    }
+  },
+  "input_params": [],
+  "description_in": "No additional inputs required",
+  "example_fields": [
+    "[].link",
+    "[].url",
+    "[].description",
+    "[].title",
+    "[].image",
+    "[].message",
+    "[].rating"
+  ],
+  "sample_values": {
+    "[].link": "https://www.linkedin.com/in/lewistham/",
+    "[].url": "https://www.linkedin.com/in/lewistham/",
+    "[].description": "Start a post"
+  },
+  "dom_extraction": true,
+  "trigger_url": "https://www.linkedin.com/feed/",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 1,
+  "picked_from": [
+    {
+      "endpoint_id": "c3M4fqN8-f-WTCXu59CJa",
+      "source_skill_id": "o79QxibmeOa9fKdUEdSAJ",
+      "method": "GET",
+      "description": "Returns posts timeline with link, url, and descriptions",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.linkedin.com/feed/",
+      "score": 685.4,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "description": "string",
+          "title": "string",
+          "image": "string",
+          "message": "string",
+          "rating": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].description",
+        "[].title",
+        "[].image",
+        "[].message",
+        "[].rating"
+      ],
+      "sample_values": {
+        "[].link": "https://www.linkedin.com/in/lewistham/",
+        "[].url": "https://www.linkedin.com/in/lewistham/",
+        "[].description": "Start a post"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.linkedin.com/feed/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 1
+    },
+    {
+      "endpoint_id": "JprD44qaGTOveYOsH2nov",
+      "source_skill_id": "o79QxibmeOa9fKdUEdSAJ",
+      "method": "GET",
+      "description": "Returns resource details with relevance score, link, and url",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.linkedin.com/",
+      "score": -5.1,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": "array",
+          "relevance_score": "number"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data[].link",
+        "[].data[].url",
+        "[].data[].title",
+        "[].data[].description"
+      ],
+      "sample_values": {
+        "[].type": "repeated-elements",
+        "[].data[].link": "https://www.linkedin.com/login",
+        "[].data[].url": "https://www.linkedin.com/login",
+        "[].data[].title": "Sign in with email",
+        "[].data[].description": "By clicking Continue to join or sign in, you agree to LinkedIn’s User Agreeme...",
+        "[].relevance_score": 44.9
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.linkedin.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "EEX1fMywiUl1FLrbYg9O-",
+      "source_skill_id": "o79QxibmeOa9fKdUEdSAJ",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://www.linkedin.com/{id}/{slug}?session_redirect={session_redirect}",
+      "score": -310.1,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "id",
+          "type": "identifier",
+          "required": false
+        },
+        {
+          "key": "slug",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "session_redirect",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires id, slug, session_redirect",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.linkedin.com/uas/login?session_redirect=https%3A%2F%2Fwww.linkedin.com%2Ffeed%2F",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "c_T11R3utot41peDrIbzn",
+      "source_skill_id": "o79QxibmeOa9fKdUEdSAJ",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://www.linkedin.com/uas/{uas}?session_redirect={session_redirect}",
+      "score": -510,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "uas",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "session_redirect",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires uas, session_redirect",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.linkedin.com/login/?session_redirect=https%3A%2F%2Fwww.linkedin.com%2Ffeed%2F",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

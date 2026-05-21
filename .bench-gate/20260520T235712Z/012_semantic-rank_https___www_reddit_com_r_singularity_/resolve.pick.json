@@ -1,0 +1,398 @@
+{
+  "endpoint_id": "c8UquxzSOU_xMrbd62Mj4",
+  "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+  "method": "GET",
+  "description": "Returns resource details with link, url, and titles",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://www.reddit.com/r/singularity/",
+  "score": 158.5,
+  "schema_summary": {
+    "[]": {
+      "link": "string",
+      "url": "string",
+      "title": "string",
+      "image": "string",
+      "info": "string",
+      "description": "string"
+    }
+  },
+  "input_params": [],
+  "description_in": "No additional inputs required",
+  "example_fields": [
+    "[].link",
+    "[].url",
+    "[].title",
+    "[].image",
+    "[].info",
+    "[].description"
+  ],
+  "sample_values": {
+    "[].link": "/r/singularity/comments/1tiwa59/openai_general_purpose_model_had_a_breakthrough/",
+    "[].url": "/r/singularity/comments/1tiwa59/openai_general_purpose_model_had_a_breakthrough/",
+    "[].title": "OpenAI general purpose model had a breakthrough on famous 80 year old Erdos p...",
+    "[].image": "https://external-preview.redd.it/openai-general-purpose-model-had-a-breakthro...",
+    "[].info": "4 hr. ago"
+  },
+  "dom_extraction": true,
+  "trigger_url": "https://www.reddit.com/r/singularity/",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "c8UquxzSOU_xMrbd62Mj4",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "GET",
+      "description": "Returns resource details with link, url, and titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.reddit.com/r/singularity/",
+      "score": 158.5,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "title": "string",
+          "image": "string",
+          "info": "string",
+          "description": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].title",
+        "[].image",
+        "[].info",
+        "[].description"
+      ],
+      "sample_values": {
+        "[].link": "/r/singularity/comments/1tiwa59/openai_general_purpose_model_had_a_breakthrough/",
+        "[].url": "/r/singularity/comments/1tiwa59/openai_general_purpose_model_had_a_breakthrough/",
+        "[].title": "OpenAI general purpose model had a breakthrough on famous 80 year old Erdos p...",
+        "[].image": "https://external-preview.redd.it/openai-general-purpose-model-had-a-breakthro...",
+        "[].info": "4 hr. ago"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.reddit.com/r/singularity/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "DuHOQGvIFj7NjYV598dot",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "GET",
+      "description": "Returns resource details with link, url, and titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.reddit.com/r/programming/",
+      "score": -540,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "title": "string",
+          "image": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].title",
+        "[].image"
+      ],
+      "sample_values": {
+        "[].link": "https://rival.security/posts/mythos-discovered-a-cve-already-in-its-training-...",
+        "[].url": "https://rival.security/posts/mythos-discovered-a-cve-already-in-its-training-...",
+        "[].title": "https://rival.security/posts/mythos-discovered-a-cve-already-in-its-training-...",
+        "[].image": "https://external-preview.redd.it/SCo3iqjU1Yi3Bh_MFntNf06RdhgAdFoszrtZNShiqX4...."
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.reddit.com/r/programming/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "gA9z0PzGAA4gyEimsjWFf",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "POST",
+      "description": "Creates post",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://www.reddit.com/svc/shreddit/graphql",
+      "score": -821.6,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.reddit.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "R3KzjIwxefVsrjyvuNz2E",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "POST",
+      "description": "Creates post",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://error-tracking.reddit.com/o418887/api/{id}/envelope/",
+      "score": -907.8,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "id",
+          "type": "identifier",
+          "required": false
+        }
+      ],
+      "description_in": "Requires id",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.reddit.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "iQ4jRjYfLSg1JvTF8_TfI",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://www.redditstatic.com/js/concat?prefix={prefix}&chunks={chunks}",
+      "score": -1152,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "prefix",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "chunks",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires prefix, chunks",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.reddit.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "WNqm8jmR6bYDH3La5RT1-",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "GET",
+      "description": "Returns resource details with titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.reddit.com/",
+      "score": -2450,
+      "schema_summary": {
+        "title": "string"
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "title"
+      ],
+      "sample_values": {
+        "title": "Reddit - Please wait for verification"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.reddit.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "NvDJVL_A5vccpBdDs82kq",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "GET",
+      "description": "Returns posts timeline",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://www.reddit.com/svc/shreddit/feeds/home-feed?after={after}&distance={distance}&adDistance={adDistance}&navigation...",
+      "score": -3967.9,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "after",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "distance",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "adDistance",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "navigationSessionId",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "ad_posts_served",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "cursor",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "sort",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires after, distance, adDistance, navigationSessionId, ad_posts_served, cursor, sort",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.reddit.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "qKdyrtdfcGd-cp3U3S0ow",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://matrix.redditspace.com/_matrix/client/v3/pushrules/",
+      "score": -4511.5,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.reddit.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "tItZ_BQNZp5HMnVgPfIpC",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://matrix.redditspace.com/_matrix/client/v3/sync?filter={filter}&timeout={timeout}&since={since}&streaming={streami...",
+      "score": -4528.3,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "filter",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "timeout",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "since",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "streaming",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires filter, timeout, since, streaming",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.reddit.com/r/singularity/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "sPLC9XUTDFdxvQDVw-x01",
+      "source_skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://matrix.redditspace.com/_matrix/client/v3/sync?filter={filter}&timeout={timeout}&_cacheBuster={cacheBuster}&strea...",
+      "score": -4571.5,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "filter",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "timeout",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "cacheBuster",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "streaming",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires filter, timeout, cacheBuster, streaming",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.reddit.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

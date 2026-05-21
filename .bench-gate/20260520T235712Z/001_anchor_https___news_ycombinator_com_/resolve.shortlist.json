@@ -1,0 +1,802 @@
+{
+  "result": {
+    "message": "Found 2 endpoint(s). Pick one and call POST /v1/skills/K5_NrSRPqNmKrtJFpugdO/execute with params.endpoint_id.",
+    "skill_id": "K5_NrSRPqNmKrtJFpugdO",
+    "available_operations": [
+      {
+        "operation_id": "kss9G1JnMCSbr7xGXuH-t",
+        "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "comment",
+        "title": "detail comment",
+        "url_template": "https://news.ycombinator.com/",
+        "description_out": "Returns comment details with titles, link, and rank",
+        "requires": [],
+        "yields": [
+          "comment_name",
+          "comment_url",
+          "author",
+          "owner"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      },
+      {
+        "operation_id": "98w2_YwTRqhYrMBnts3_D",
+        "endpoint_id": "98w2_YwTRqhYrMBnts3_D",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "comment",
+        "title": "detail comment",
+        "url_template": "https://news.ycombinator.com/newest",
+        "description_out": "Returns comment details with titles, link, and rank",
+        "requires": [],
+        "yields": [
+          "comment_name",
+          "comment_url",
+          "author",
+          "owner"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      }
+    ],
+    "workflow_dag": {
+      "skill_id": "K5_NrSRPqNmKrtJFpugdO",
+      "intent": "top hacker news stories",
+      "missing_bindings": [],
+      "suggested_next_operation_id": "kss9G1JnMCSbr7xGXuH-t",
+      "operations": [
+        {
+          "operation_id": "kss9G1JnMCSbr7xGXuH-t",
+          "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "comment",
+          "title": "detail comment",
+          "url_template": "https://news.ycombinator.com/",
+          "description_out": "Returns comment details with titles, link, and rank",
+          "requires": [],
+          "yields": [
+            "comment_name",
+            "comment_url",
+            "author",
+            "owner"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        },
+        {
+          "operation_id": "98w2_YwTRqhYrMBnts3_D",
+          "endpoint_id": "98w2_YwTRqhYrMBnts3_D",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "comment",
+          "title": "detail comment",
+          "url_template": "https://news.ycombinator.com/newest",
+          "description_out": "Returns comment details with titles, link, and rank",
+          "requires": [],
+          "yields": [
+            "comment_name",
+            "comment_url",
+            "author",
+            "owner"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        }
+      ],
+      "edges": []
+    },
+    "missing_bindings": [],
+    "available_endpoints": [
+      {
+        "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+        "source_skill_id": "K5_NrSRPqNmKrtJFpugdO",
+        "method": "GET",
+        "description": "Returns comment details with titles, link, and rank",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://news.ycombinator.com/",
+        "score": 141.2,
+        "schema_summary": {
+          "[]": {
+            "title": "string",
+            "link": "string",
+            "rank": "string",
+            "score": "string",
+            "age": "string",
+            "author": "string",
+            "comments": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].title",
+          "[].link",
+          "[].rank",
+          "[].score",
+          "[].age",
+          "[].author",
+          "[].comments"
+        ],
+        "sample_values": {
+          "[].title": "An OpenAI model has disproved a central conjecture in discrete geometry",
+          "[].link": "https://openai.com/index/model-disproves-discrete-geometry-conjecture/",
+          "[].rank": "1",
+          "[].score": "624 points",
+          "[].age": "4 hours ago",
+          "[].author": "tedsanders",
+          "[].comments": "432 comments"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://news.ycombinator.com/",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "98w2_YwTRqhYrMBnts3_D",
+        "source_skill_id": "K5_NrSRPqNmKrtJFpugdO",
+        "method": "GET",
+        "description": "Returns comment details with titles, link, and rank",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://news.ycombinator.com/newest",
+        "score": -93.9,
+        "schema_summary": {
+          "[]": {
+            "title": "string",
+            "link": "string",
+            "rank": "string",
+            "score": "string",
+            "age": "string",
+            "author": "string",
+            "comments": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].title",
+          "[].link",
+          "[].rank",
+          "[].score",
+          "[].age",
+          "[].author",
+          "[].comments"
+        ],
+        "sample_values": {
+          "[].title": "Example post one about LLM coding agents",
+          "[].link": "https://example.com/blog/post-1",
+          "[].rank": "1",
+          "[].score": "12 points",
+          "[].age": "15 minutes ago",
+          "[].author": "alice",
+          "[].comments": "3 comments"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://news.ycombinator.com/newest",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      }
+    ],
+    "decision_trace": {
+      "intent": "get top hacker news stories",
+      "params": {
+        "url": "https://news.ycombinator.com/"
+      },
+      "context": {
+        "url": "https://news.ycombinator.com/"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "top hacker news stories",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 0,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "won",
+            "ms": 0
+          },
+          {
+            "name": "marketplace",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          },
+          {
+            "name": "probe",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          }
+        ],
+        "winner": "marketplace"
+      }
+    },
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "Best match: Page content from news.ycombinator.com (score: 141.242917119793)",
+      "known_issues": [],
+      "endpoint_count": 2,
+      "cache_source": "marketplace"
+    }
+  },
+  "trace": {
+    "trace_id": "Qt6Odqx6WU1IMn0EFJpqE",
+    "skill_id": "K5_NrSRPqNmKrtJFpugdO",
+    "endpoint_id": "",
+    "started_at": "2026-05-20T23:57:49.667Z",
+    "completed_at": "2026-05-20T23:57:49.667Z",
+    "success": true,
+    "session_id": "wRu5pXYKnexwA60lcQyBQ",
+    "step_index": 1,
+    "state_hash": "b202c2cdd10cd64d6d12e5c8",
+    "candidate_count": 2,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100
+  },
+  "source": "marketplace",
+  "skill": {
+    "skill_id": "K5_NrSRPqNmKrtJFpugdO",
+    "version": "1.0.0",
+    "schema_version": "1",
+    "lifecycle": "active",
+    "execution_type": "http",
+    "created_at": "2026-05-16T04:29:22.993Z",
+    "updated_at": "2026-05-20T23:57:49.658Z",
+    "name": "news.ycombinator.com",
+    "intent_signature": "browse news.ycombinator.com",
+    "domain": "news.ycombinator.com",
+    "description": "DOM skill for news.ycombinator.com",
+    "owner_type": "agent",
+    "endpoints": [
+      {
+        "endpoint_id": "98w2_YwTRqhYrMBnts3_D",
+        "method": "GET",
+        "url_template": "https://news.ycombinator.com/newest",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 1,
+        "description": "Page content from news.ycombinator.com",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 3
+              },
+              "link": {
+                "type": "string",
+                "inferred_from_samples": 3
+              },
+              "rank": {
+                "type": "string",
+                "inferred_from_samples": 3
+              },
+              "score": {
+                "type": "string",
+                "inferred_from_samples": 3
+              },
+              "age": {
+                "type": "string",
+                "inferred_from_samples": 3
+              },
+              "author": {
+                "type": "string",
+                "inferred_from_samples": 3
+              },
+              "comments": {
+                "type": "string",
+                "inferred_from_samples": 3
+              }
+            },
+            "required": [
+              "title",
+              "link",
+              "rank",
+              "score",
+              "age",
+              "author",
+              "comments"
+            ],
+            "inferred_from_samples": 3
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "itemlist",
+          "confidence": 1
+        },
+        "trigger_url": "https://news.ycombinator.com/newest",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "comment",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns comment details with titles, link, and rank",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].title, [].link, [].rank, [].score, [].age, [].author, [].comments",
+          "example_response_compact": [
+            {
+              "title": "Example post one about LLM coding agents",
+              "link": "https://example.com/blog/post-1",
+              "rank": "1",
+              "score": "12 points",
+              "age": "15 minutes ago",
+              "author": "alice",
+              "comments": "3 comments"
+            },
+            {
+              "title": "Bigger story two about distributed systems",
+              "link": "https://example.org/news/article-2",
+              "rank": "2",
+              "score": "8 points",
+              "age": "45 minutes ago",
+              "author": "bob",
+              "comments": "7 comments"
+            }
+          ],
+          "example_fields": [
+            "[].title",
+            "[].link",
+            "[].rank",
+            "[].score",
+            "[].age",
+            "[].author",
+            "[].comments"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "comment_name",
+              "semantic_type": "comment_name",
+              "source": "response"
+            },
+            {
+              "key": "comment_url",
+              "semantic_type": "comment_url",
+              "source": "response"
+            },
+            {
+              "key": "author",
+              "semantic_type": "comment_owner",
+              "source": "response"
+            },
+            {
+              "key": "owner",
+              "semantic_type": "comment_owner",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T11:50:21.058Z",
+          "sample_request_url": "https://news.ycombinator.com/newest",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+        "method": "GET",
+        "url_template": "https://news.ycombinator.com/",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 1,
+        "description": "Page content from news.ycombinator.com",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 30
+              },
+              "link": {
+                "type": "string",
+                "inferred_from_samples": 30
+              },
+              "rank": {
+                "type": "string",
+                "inferred_from_samples": 30
+              },
+              "score": {
+                "type": "string",
+                "inferred_from_samples": 30
+              },
+              "age": {
+                "type": "string",
+                "inferred_from_samples": 30
+              },
+              "author": {
+                "type": "string",
+                "inferred_from_samples": 30
+              },
+              "comments": {
+                "type": "string",
+                "inferred_from_samples": 28
+              }
+            },
+            "required": [
+              "title",
+              "link",
+              "rank",
+              "score",
+              "age",
+              "author"
+            ],
+            "inferred_from_samples": 30
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "itemlist",
+          "confidence": 0.8500000000000002
+        },
+        "trigger_url": "https://news.ycombinator.com/",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "comment",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns comment details with titles, link, and rank",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].title, [].link, [].rank, [].score, [].age, [].author, [].comments",
+          "example_response_compact": [
+            {
+              "title": "An OpenAI model has disproved a central conjecture in discrete geometry",
+              "link": "https://openai.com/index/model-disproves-discrete-geometry-conjecture/",
+              "rank": "1",
+              "score": "624 points",
+              "age": "4 hours ago",
+              "author": "tedsanders",
+              "comments": "432 comments"
+            },
+            {
+              "title": "GitHub confirms breach of 3,800 repos via malicious VSCode extension",
+              "link": "https://www.bleepingcomputer.com/news/security/github-confirms-breach-of-3-800-repos-via-malicious-vscode-extension/",
+              "rank": "2",
+              "score": "445 points",
+              "age": "5 hours ago",
+              "author": "Timofeibu",
+              "comments": "140 comments"
+            }
+          ],
+          "example_fields": [
+            "[].title",
+            "[].link",
+            "[].rank",
+            "[].score",
+            "[].age",
+            "[].author",
+            "[].comments"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "comment_name",
+              "semantic_type": "comment_name",
+              "source": "response"
+            },
+            {
+              "key": "comment_url",
+              "semantic_type": "comment_url",
+              "source": "response"
+            },
+            {
+              "key": "author",
+              "semantic_type": "comment_owner",
+              "source": "response"
+            },
+            {
+              "key": "owner",
+              "semantic_type": "comment_owner",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:57:49.311Z",
+          "sample_request_url": "https://news.ycombinator.com/",
+          "auth_required": false
+        }
+      }
+    ],
+    "operation_graph": {
+      "generated_at": "2026-05-20T23:57:49.659Z",
+      "entry_operation_ids": [
+        "98w2_YwTRqhYrMBnts3_D",
+        "kss9G1JnMCSbr7xGXuH-t"
+      ],
+      "operations": [
+        {
+          "operation_id": "98w2_YwTRqhYrMBnts3_D",
+          "endpoint_id": "98w2_YwTRqhYrMBnts3_D",
+          "method": "GET",
+          "url_template": "https://news.ycombinator.com/newest",
+          "trigger_url": "https://news.ycombinator.com/newest",
+          "action_kind": "detail",
+          "resource_kind": "comment",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns comment details with titles, link, and rank",
+          "response_summary": "[].title, [].link, [].rank, [].score, [].age, [].author, [].comments",
+          "requires": [],
+          "provides": [
+            {
+              "key": "comment_name",
+              "semantic_type": "comment_name",
+              "source": "response"
+            },
+            {
+              "key": "comment_url",
+              "semantic_type": "comment_url",
+              "source": "response"
+            },
+            {
+              "key": "author",
+              "semantic_type": "comment_owner",
+              "source": "response"
+            },
+            {
+              "key": "owner",
+              "semantic_type": "comment_owner",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "title": "Example post one about LLM coding agents",
+              "link": "https://example.com/blog/post-1",
+              "rank": "1",
+              "score": "12 points",
+              "age": "15 minutes ago",
+              "author": "alice",
+              "comments": "3 comments"
+            },
+            {
+              "title": "Bigger story two about distributed systems",
+              "link": "https://example.org/news/article-2",
+              "rank": "2",
+              "score": "8 points",
+              "age": "45 minutes ago",
+              "author": "bob",
+              "comments": "7 comments"
+            }
+          ],
+          "example_fields": [
+            "[].title",
+            "[].link",
+            "[].rank",
+            "[].score",
+            "[].age",
+            "[].author",
+            "[].comments"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T11:50:21.058Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "kss9G1JnMCSbr7xGXuH-t",
+          "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+          "method": "GET",
+          "url_template": "https://news.ycombinator.com/",
+          "trigger_url": "https://news.ycombinator.com/",
+          "action_kind": "detail",
+          "resource_kind": "comment",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns comment details with titles, link, and rank",
+          "response_summary": "[].title, [].link, [].rank, [].score, [].age, [].author, [].comments",
+          "requires": [],
+          "provides": [
+            {
+              "key": "comment_name",
+              "semantic_type": "comment_name",
+              "source": "response"
+            },
+            {
+              "key": "comment_url",
+              "semantic_type": "comment_url",
+              "source": "response"
+            },
+            {
+              "key": "author",
+              "semantic_type": "comment_owner",
+              "source": "response"
+            },
+            {
+              "key": "owner",
+              "semantic_type": "comment_owner",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "title": "An OpenAI model has disproved a central conjecture in discrete geometry",
+              "link": "https://openai.com/index/model-disproves-discrete-geometry-conjecture/",
+              "rank": "1",
+              "score": "624 points",
+              "age": "4 hours ago",
+              "author": "tedsanders",
+              "comments": "432 comments"
+            },
+            {
+              "title": "GitHub confirms breach of 3,800 repos via malicious VSCode extension",
+              "link": "https://www.bleepingcomputer.com/news/security/github-confirms-breach-of-3-800-repos-via-malicious-vscode-extension/",
+              "rank": "2",
+              "score": "445 points",
+              "age": "5 hours ago",
+              "author": "Timofeibu",
+              "comments": "140 comments"
+            }
+          ],
+          "example_fields": [
+            "[].title",
+            "[].link",
+            "[].rank",
+            "[].score",
+            "[].age",
+            "[].author",
+            "[].comments"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:57:49.311Z",
+          "auth_required": false
+        }
+      ],
+      "edges": []
+    },
+    "intents": [
+      "browse news.ycombinator.com"
+    ]
+  },
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 6,
+    "source": "marketplace",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 29999,
+    "response_bytes": 2,
+    "time_saved_pct": 100,
+    "tokens_saved_pct": 100,
+    "actual_total_ms": 6,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "K5_NrSRPqNmKrtJFpugdO",
+    "actual_cost_uc": 3,
+    "baseline_total_ms": 22000,
+    "time_saved_ms": 21994,
+    "baseline_cost_uc": 90000,
+    "cost_saved_uc": 89997
+  },
+  "impact": {
+    "source": "marketplace",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "baseline_total_ms": 22000,
+    "actual_total_ms": 6,
+    "time_saved_ms": 21994,
+    "time_saved_pct": 100,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100,
+    "baseline_cost_uc": 90000,
+    "actual_cost_uc": 3,
+    "cost_saved_uc": 89997
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+      "source_skill_id": "K5_NrSRPqNmKrtJFpugdO",
+      "method": "GET",
+      "description": "Returns comment details with titles, link, and rank",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://news.ycombinator.com/",
+      "score": 141.2,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "link": "string",
+          "rank": "string",
+          "score": "string",
+          "age": "string",
+          "author": "string",
+          "comments": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].title",
+        "[].link",
+        "[].rank",
+        "[].score",
+        "[].age",
+        "[].author",
+        "[].comments"
+      ],
+      "sample_values": {
+        "[].title": "An OpenAI model has disproved a central conjecture in discrete geometry",
+        "[].link": "https://openai.com/index/model-disproves-discrete-geometry-conjecture/",
+        "[].rank": "1",
+        "[].score": "624 points",
+        "[].age": "4 hours ago",
+        "[].author": "tedsanders",
+        "[].comments": "432 comments"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://news.ycombinator.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "98w2_YwTRqhYrMBnts3_D",
+      "source_skill_id": "K5_NrSRPqNmKrtJFpugdO",
+      "method": "GET",
+      "description": "Returns comment details with titles, link, and rank",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://news.ycombinator.com/newest",
+      "score": -93.9,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "link": "string",
+          "rank": "string",
+          "score": "string",
+          "age": "string",
+          "author": "string",
+          "comments": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].title",
+        "[].link",
+        "[].rank",
+        "[].score",
+        "[].age",
+        "[].author",
+        "[].comments"
+      ],
+      "sample_values": {
+        "[].title": "Example post one about LLM coding agents",
+        "[].link": "https://example.com/blog/post-1",
+        "[].rank": "1",
+        "[].score": "12 points",
+        "[].age": "15 minutes ago",
+        "[].author": "alice",
+        "[].comments": "3 comments"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://news.ycombinator.com/newest",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

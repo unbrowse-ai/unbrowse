@@ -1,0 +1,25 @@
+{
+  "status_code": 429,
+  "response_bytes": 627,
+  "decision_trace": [
+    {
+      "step": "probe",
+      "method": "GET-1byte",
+      "status": 0,
+      "ms": 2502,
+      "error": "The operation was aborted."
+    },
+    {
+      "step": "decision",
+      "strategy": "server",
+      "reason": "probe network error (The operation was aborted.) — libcurl-impersonate likely succeeds where bun fetch failed"
+    },
+    {
+      "step": "server_fetch",
+      "status": 429
+    },
+    {
+      "step": "429_proxy_fallback_consent_missing"
+    }
+  ]
+}

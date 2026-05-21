@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 3,
+  "n_operations": 1,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "NLXyBpuc06OGT-3rDdiaX",
+  "iso_self_check": {
+    "snap_current_url": "https://jmail.world/",
+    "intended_host": "jmail.world",
+    "snap_host": "jmail.world",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 409863,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.49,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": 2
+}

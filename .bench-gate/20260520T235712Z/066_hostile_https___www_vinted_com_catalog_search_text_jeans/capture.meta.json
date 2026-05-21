@@ -1,0 +1,27 @@
+{
+  "total_endpoints_captured": 0,
+  "n_operations": 0,
+  "captured_title": "",
+  "browser_block_signals": [
+    "crashed_during_collect"
+  ],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": false,
+  "mode": "none",
+  "skill_id": null,
+  "iso_self_check": {
+    "snap_current_url": null,
+    "intended_host": "www.vinted.com",
+    "snap_host": "",
+    "host_match": null
+  },
+  "capture_diagnostic": {
+    "reason": "crashed_during_collect",
+    "timeout_ms": 120000,
+    "probe_id": "066_hostile_https___www_vinted_com_catalog_search_text_jeans"
+  },
+  "cookies_injected": null,
+  "crashed_during_collect": true
+}

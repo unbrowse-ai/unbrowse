@@ -608,7 +608,7 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
 
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = (flags.intent ?? flags.task ?? flags.query) as string;
-  if (!intent) die("--intent is required");
+  if (!intent) die("--intent is required. Example: unbrowse resolve --intent 'search github for repos' --url https://github.com");
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
   await ensureCliInstallTracked(hostType);
@@ -1376,7 +1376,7 @@ function schemaOf(value: unknown, depth = 4): unknown {
 
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
   const skillId = (flags.skill ?? flags["skill-id"]) as string;
-  if (!skillId) die("--skill is required");
+  if (!skillId) die("--skill is required. List skills: unbrowse skills. Or run unbrowse resolve --intent '...' first to get a skill_id.");
   const endpointId = (flags.endpoint ?? flags["endpoint-id"]) as string | undefined;
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
@@ -3411,7 +3411,7 @@ async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<stri
 
 async function cmdGo(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const url = args[0] ?? flags.url as string;
-  if (!url) die("Usage: unbrowse go <url>");
+  if (!url) die("usage: unbrowse go <url>  (opens a Kuri tab; follow with: unbrowse snap, then click/fill/submit, then close)");
   maybeShowContributionNotice();
   output(await api("POST", "/v1/browse/go", {
     url,
@@ -3450,7 +3450,7 @@ async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
 
 async function cmdClick(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const ref = args[0] ?? (typeof flags.ref === "string" ? flags.ref : undefined);
-  if (!ref) die("Usage: unbrowse click <ref>");
+  if (!ref) die("usage: unbrowse click <ref>  (ref is an @eN id from `unbrowse snap`; run snap first to see the page's interactive elements)");
   output(await api("POST", "/v1/browse/click", {
     ref,
     ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
@@ -3466,7 +3466,7 @@ async function cmdFill(args: string[], flags: Record<string, string | boolean>):
       : typeof flags.value === "string"
         ? flags.value
         : "";
-  if (!ref || !value) die('Usage: unbrowse fill <ref> <value>  (also: unbrowse fill --ref e5 --text "hello")');
+  if (!ref || !value) die('usage: unbrowse fill <ref> <value>  (also: --ref e5 --text "hello"; ref comes from `unbrowse snap`)');
   output(await api("POST", "/v1/browse/fill", {
     ref,
     value,
@@ -3476,7 +3476,7 @@ async function cmdFill(args: string[], flags: Record<string, string | boolean>):
 
 async function cmdType(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const text = args.join(" ");
-  if (!text) die("Usage: unbrowse type <text>");
+  if (!text) die("usage: unbrowse type <text>  (types into the currently focused element; click an input first via `unbrowse click @eN`)");
   output(await api("POST", "/v1/browse/type", {
     text,
     ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
@@ -3485,7 +3485,7 @@ async function cmdType(args: string[], flags: Record<string, string | boolean>):
 
 async function cmdPress(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const key = args[0];
-  if (!key) die("Usage: unbrowse press <key>");
+  if (!key) die("usage: unbrowse press <key>  (Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, F1..F12)");
   output(await api("POST", "/v1/browse/press", {
     key,
     ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
@@ -3495,7 +3495,7 @@ async function cmdPress(args: string[], flags: Record<string, string | boolean>)
 async function cmdSelect(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const ref = args[0];
   const value = args.slice(1).join(" ");
-  if (!ref || !value) die("Usage: unbrowse select <ref> <value>");
+  if (!ref || !value) die("usage: unbrowse select <ref> <value>  (for <select> elements; ref from `unbrowse snap`, value matches option text or value attr)");
   output(await api("POST", "/v1/browse/select", {
     ref,
     value,

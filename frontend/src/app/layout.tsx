@@ -189,8 +189,11 @@ export default function RootLayout({
             <AuthProvider>
               <ContentPageTracker />
               <AuthInvalidGlobalBanner />
+              <a href="#main-content" className="skip-link">
+                Skip to main content
+              </a>
               <Navbar />
-              <main className="min-h-screen">
+              <main id="main-content" className="min-h-[100dvh]">
                 {children}
               </main>
               <SiteFooter />

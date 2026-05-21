@@ -1,0 +1,140 @@
+{
+  "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+  "source_skill_id": "K5_NrSRPqNmKrtJFpugdO",
+  "method": "GET",
+  "description": "Returns comment details with titles, link, and rank",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://news.ycombinator.com/",
+  "score": 141.2,
+  "schema_summary": {
+    "[]": {
+      "title": "string",
+      "link": "string",
+      "rank": "string",
+      "score": "string",
+      "age": "string",
+      "author": "string",
+      "comments": "string"
+    }
+  },
+  "input_params": [],
+  "description_in": "No additional inputs required",
+  "example_fields": [
+    "[].title",
+    "[].link",
+    "[].rank",
+    "[].score",
+    "[].age",
+    "[].author",
+    "[].comments"
+  ],
+  "sample_values": {
+    "[].title": "An OpenAI model has disproved a central conjecture in discrete geometry",
+    "[].link": "https://openai.com/index/model-disproves-discrete-geometry-conjecture/",
+    "[].rank": "1",
+    "[].score": "624 points",
+    "[].age": "4 hours ago",
+    "[].author": "tedsanders",
+    "[].comments": "432 comments"
+  },
+  "dom_extraction": true,
+  "trigger_url": "https://news.ycombinator.com/",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+      "source_skill_id": "K5_NrSRPqNmKrtJFpugdO",
+      "method": "GET",
+      "description": "Returns comment details with titles, link, and rank",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://news.ycombinator.com/",
+      "score": 141.2,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "link": "string",
+          "rank": "string",
+          "score": "string",
+          "age": "string",
+          "author": "string",
+          "comments": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].title",
+        "[].link",
+        "[].rank",
+        "[].score",
+        "[].age",
+        "[].author",
+        "[].comments"
+      ],
+      "sample_values": {
+        "[].title": "An OpenAI model has disproved a central conjecture in discrete geometry",
+        "[].link": "https://openai.com/index/model-disproves-discrete-geometry-conjecture/",
+        "[].rank": "1",
+        "[].score": "624 points",
+        "[].age": "4 hours ago",
+        "[].author": "tedsanders",
+        "[].comments": "432 comments"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://news.ycombinator.com/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "98w2_YwTRqhYrMBnts3_D",
+      "source_skill_id": "K5_NrSRPqNmKrtJFpugdO",
+      "method": "GET",
+      "description": "Returns comment details with titles, link, and rank",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://news.ycombinator.com/newest",
+      "score": -93.9,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "link": "string",
+          "rank": "string",
+          "score": "string",
+          "age": "string",
+          "author": "string",
+          "comments": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].title",
+        "[].link",
+        "[].rank",
+        "[].score",
+        "[].age",
+        "[].author",
+        "[].comments"
+      ],
+      "sample_values": {
+        "[].title": "Example post one about LLM coding agents",
+        "[].link": "https://example.com/blog/post-1",
+        "[].rank": "1",
+        "[].score": "12 points",
+        "[].age": "15 minutes ago",
+        "[].author": "alice",
+        "[].comments": "3 comments"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://news.ycombinator.com/newest",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

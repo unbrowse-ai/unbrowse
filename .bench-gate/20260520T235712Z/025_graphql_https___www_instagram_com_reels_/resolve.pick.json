@@ -1,0 +1,138 @@
+{
+  "endpoint_id": "49TRaIUn4lW5Enw64HJAO",
+  "source_skill_id": "MZI5MEEPY_axbyQcEd-qN",
+  "method": "GET",
+  "description": "Returns the rendered HTML for \"get instagram reels feed\"",
+  "description_source": "auto",
+  "description_needs_review": true,
+  "description_warning": "Auto-generated description. Review before trusting or publishing.",
+  "url": "https://www.instagram.com/reels/",
+  "score": 340.3,
+  "schema_summary": null,
+  "input_params": [],
+  "description_in": "Fetches the rendered page at https://www.instagram.com/reels/",
+  "sample_values": null,
+  "dom_extraction": true,
+  "trigger_url": "https://www.instagram.com/reels/",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "49TRaIUn4lW5Enw64HJAO",
+      "source_skill_id": "MZI5MEEPY_axbyQcEd-qN",
+      "method": "GET",
+      "description": "Returns the rendered HTML for \"get instagram reels feed\"",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "description_warning": "Auto-generated description. Review before trusting or publishing.",
+      "url": "https://www.instagram.com/reels/",
+      "score": 340.3,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "Fetches the rendered page at https://www.instagram.com/reels/",
+      "sample_values": null,
+      "dom_extraction": true,
+      "trigger_url": "https://www.instagram.com/reels/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "VXfeUx9fwKBGaCgollQLL",
+      "source_skill_id": "MZI5MEEPY_axbyQcEd-qN",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://www.instagram.com/api/graphql",
+      "score": -67.6,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.instagram.com/reels/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "7f7Vxef-FHdyW8ONyciv2",
+      "source_skill_id": "MZI5MEEPY_axbyQcEd-qN",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://www.instagram.com/graphql/query",
+      "score": -72.6,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.instagram.com/reels/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "TRWQABNlHRXHCx4UJAYFp",
+      "source_skill_id": "MZI5MEEPY_axbyQcEd-qN",
+      "method": "GET",
+      "description": "Returns resource details with titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.instagram.com/reels/DYZD_Mwzcjn/",
+      "score": -112.6,
+      "schema_summary": {
+        "title": "string"
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "title"
+      ],
+      "sample_values": {
+        "title": "Instagram"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.instagram.com/reels/DYZD_Mwzcjn/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "7uebL-la8Pzz5OV_N3G-1",
+      "source_skill_id": "MZI5MEEPY_axbyQcEd-qN",
+      "method": "GET",
+      "description": "Returns resource details with titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.instagram.com/reels/DYQAZieP6TW/",
+      "score": -112.7,
+      "schema_summary": {
+        "title": "string"
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "title"
+      ],
+      "sample_values": {
+        "title": "Instagram"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.instagram.com/reels/DYQAZieP6TW/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

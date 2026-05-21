@@ -1,0 +1,10 @@
+{
+  "skill": "amXKBGXbuYuwnkH7LerI2",
+  "endpoint": "o-c-al60ezQfQ-8pcZGls",
+  "intent": "search statsmuse for player stats",
+  "context_url": "https://www.statmuse.com/nba/ask/lebron-points-per-game-this-season",
+  "params": {
+    "endpoint_id": "o-c-al60ezQfQ-8pcZGls",
+    "url": "https://www.statmuse.com/nba/ask/lebron-points-per-game-this-season"
+  }
+}

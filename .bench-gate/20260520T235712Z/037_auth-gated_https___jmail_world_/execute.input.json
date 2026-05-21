@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "get jmail messages",
+  "context_url": "https://jmail.world/",
+  "params": {},
+  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
+}

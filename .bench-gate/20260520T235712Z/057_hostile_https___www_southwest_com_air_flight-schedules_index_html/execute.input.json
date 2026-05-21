@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "search southwest flights",
+  "context_url": "https://www.southwest.com/air/flight-schedules/index.html",
+  "params": {},
+  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
+}

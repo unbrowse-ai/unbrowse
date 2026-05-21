@@ -1,0 +1,539 @@
+{
+  "endpoint_id": "QvQYZWZp42C5v7VEMwczb",
+  "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+  "method": "GET",
+  "description": "Returns resource details with relevance score and names",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://github.com/anthropics/anthropic-sdk-python",
+  "score": 475.5,
+  "schema_summary": {
+    "[]": {
+      "type": "string",
+      "data": "array",
+      "relevance_score": "integer"
+    }
+  },
+  "input_params": [],
+  "description_in": "No additional inputs required",
+  "example_fields": [
+    "[].type",
+    "[].data",
+    "[].relevance_score",
+    "[].data[].Name"
+  ],
+  "sample_values": {
+    "[].type": "table",
+    "[].data[].Name": "Latest commitstainless-app[bot]release: 0.103.1May 19, 202628cdc33 · May 19, ...",
+    "[].relevance_score": -8
+  },
+  "dom_extraction": true,
+  "trigger_url": "https://github.com/anthropics/anthropic-sdk-python",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "QvQYZWZp42C5v7VEMwczb",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Returns resource details with relevance score and names",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://github.com/anthropics/anthropic-sdk-python",
+      "score": 475.5,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": "array",
+          "relevance_score": "integer"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data[].Name"
+      ],
+      "sample_values": {
+        "[].type": "table",
+        "[].data[].Name": "Latest commitstainless-app[bot]release: 0.103.1May 19, 202628cdc33 · May 19, ...",
+        "[].relevance_score": -8
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://github.com/anthropics/anthropic-sdk-python",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "2RITzeXYUchK3O6MSXHK6",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Returns posts timeline with nav menu, home, and feed",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/_global-navigation/payloads.json?v={v}",
+      "score": -415.5,
+      "schema_summary": {
+        "nav_menu": {
+          "home": {
+            "href": "string"
+          },
+          "feed": {
+            "show": "boolean",
+            "href": "string"
+          },
+          "issues": {
+            "href": "string"
+          },
+          "pulls": {
+            "href": "string"
+          },
+          "contributedRepos": {
+            "show": "boolean",
+            "href": "string"
+          },
+          "projects": {
+            "href": "string"
+          },
+          "discussions": {
+            "show": "boolean",
+            "href": "string"
+          },
+          "codespaces": {
+            "show": "boolean",
+            "href": "string"
+          },
+          "copilot": {
+            "show": "boolean",
+            "href": "string"
+          },
+          "spark": {
+            "show": "boolean",
+            "href": "null"
+          },
+          "marketplace": {
+            "show": "boolean",
+            "href": "string"
+          },
+          "mcp": {
+            "show": "boolean",
+            "href": "string"
+          },
+          "explore": {
+            "show": "boolean",
+            "href": "string"
+          },
+          "richContent": {
+            "show": "boolean",
+            "contentUrl": "string",
+            "repositoriesSearchUrl": "string"
+          }
+        },
+        "user_menu": {
+          "owner": {
+            "login": "string",
+            "name": "string",
+            "avatarUrl": "string"
+          },
+          "lazyLoadItemDataFetchUrl": "string",
+          "canAddAccount": "boolean",
+          "addAccountPath": "string",
+          "switchAccountPath": "string",
+          "loginAccountPath": "string",
+          "projectsPath": "string",
+          "gistsUrl": "string",
+          "docsUrl": "string",
+          "yourEnterpriseUrl": "null",
+          "enterpriseSettingsUrl": "null",
+          "supportUrl": "string",
+          "showAccountSwitcher": "boolean",
+          "showCopilot": "boolean",
+          "showEnterprises": "boolean",
+          "showEnterprise": "boolean",
+          "showGists": "boolean",
+          "showOrganizations": "boolean",
+          "showSponsors": "boolean",
+          "showUpgrade": "boolean",
+          "showFeaturesPreviews": "boolean",
+          "showEnterpriseSettings": "boolean"
+        },
+        "create_menu": {
+          "showCreateRepo": "boolean",
+          "showImportRepo": "boolean",
+          "showCodespaces": "boolean",
+          "showSpark": "boolean",
+          "showCodingAgent": "boolean",
+          "showGist": "boolean",
+          "showCreateOrg": "boolean",
+          "showCreateProject": "boolean",
+          "showCreateLegacyProject": "boolean",
+          "showCreateIssue": "boolean",
+          "createProjectUrl": "string",
+          "org": "null",
+          "owner": "null",
+          "repo": "null"
+        },
+        "agents_menu": {},
+        "account_switch_dialog": {
+          "show": "boolean"
+        }
+      },
+      "input_params": [
+        {
+          "key": "v",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires v",
+      "example_fields": [
+        "nav_menu",
+        "nav_menu.home",
+        "nav_menu.feed",
+        "nav_menu.issues",
+        "nav_menu.pulls",
+        "nav_menu.contributedRepos",
+        "user_menu",
+        "user_menu.owner",
+        "user_menu.lazyLoadItemDataFetchUrl",
+        "user_menu.canAddAccount",
+        "user_menu.addAccountPath",
+        "user_menu.switchAccountPath"
+      ],
+      "sample_values": {
+        "nav_menu.home.href": "/dashboard",
+        "nav_menu.feed.href": "/feed",
+        "nav_menu.issues.href": "/issues",
+        "nav_menu.pulls.href": "/pulls",
+        "nav_menu.contributedRepos.show": true,
+        "nav_menu.contributedRepos.href": "/repos",
+        "nav_menu.projects.href": "/projects",
+        "nav_menu.discussions.show": true,
+        "nav_menu.discussions.href": "/discussions",
+        "nav_menu.codespaces.show": true,
+        "nav_menu.codespaces.href": "/codespaces",
+        "user_menu.owner.login": "lekt9"
+      },
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/search?q=anthropic&type=repositories",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "_edx0TLqY5btK02ZV3eTd",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Returns user details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/_side-panels/user.json",
+      "score": -447.5,
+      "schema_summary": {
+        "userStatus": {
+          "messageHtml": "string",
+          "message": "string",
+          "limitedAvailability": "boolean",
+          "expiresAt": "null",
+          "expiresIn": "null",
+          "organizationOptions": [
+            "object"
+          ],
+          "suggestions": [
+            "object"
+          ],
+          "expirationIntervals": [
+            "object"
+          ]
+        },
+        "enterpriseTrialUrl": "string",
+        "hasUnseenFeatures": "boolean",
+        "userPreferences": {
+          "tone": "integer"
+        },
+        "stashedAccounts": "array",
+        "showSSO": "boolean",
+        "ssoUrl": "null"
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/search?q=anthropic&type=repositories",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "KOzGHALj5Bgkccbyli3WX",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Returns resources",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/{id}/{slug}/used_by_list",
+      "score": -534.8,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "id",
+          "type": "identifier",
+          "required": false
+        },
+        {
+          "key": "slug",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires id, slug",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/anthropics/anthropic-sdk-python",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "RTG0wEMu5KmZ6vlRfPfhU",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Returns status",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/{id}/{slug}/environment_status?environment={environment}",
+      "score": -536.1,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "id",
+          "type": "identifier",
+          "required": false
+        },
+        {
+          "key": "slug",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "environment",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires id, slug, environment",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/anthropics/anthropic-sdk-python",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "OsBI7TYZj-H3I6RK3yegO",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Returns resources",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/{id}/{slug}/packages_list?current_repository={current_repository}",
+      "score": -537.3,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "id",
+          "type": "identifier",
+          "required": false
+        },
+        {
+          "key": "slug",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "current_repository",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires id, slug, current_repository",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/anthropics/anthropic-sdk-python",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "GFOSiEgvV7ti6oo3VrWmP",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/{id}/{slug}/refs?type={type}",
+      "score": -538.5,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "id",
+          "type": "identifier",
+          "required": false
+        },
+        {
+          "key": "slug",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "type",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires id, slug, type",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/anthropics/anthropic-sdk-python",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "T2Ln2YAw5F6F84iVRE10x",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Returns resources",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/{id}/{slug}/contributors_list?current_repository={current_repository}&deferred={deferred}",
+      "score": -539.6,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "id",
+          "type": "identifier",
+          "required": false
+        },
+        {
+          "key": "slug",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "current_repository",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "deferred",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires id, slug, current_repository, deferred",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/anthropics/anthropic-sdk-python",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "auycdnm2T4pV67srEul76",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Searches resources",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/search/suggestions?query={query}&saved_searches={saved_searches}",
+      "score": -625,
+      "schema_summary": {
+        "data": {
+          "__typename": "string"
+        }
+      },
+      "input_params": [
+        {
+          "key": "query",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "saved_searches",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires query, saved_searches",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/search?q=anthropic&type=repositories",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "moeenwR_pxrsY5gz1DyuN",
+      "source_skill_id": "VcgCjZpSiWnEEiAKeh8pt",
+      "method": "GET",
+      "description": "Searches resources",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://github.com/search/blackbird_count?saved_searches={saved_searches}&q={q}",
+      "score": -625,
+      "schema_summary": {
+        "data": {
+          "__typename": "string"
+        }
+      },
+      "input_params": [
+        {
+          "key": "saved_searches",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "q",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires saved_searches, q",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://github.com/search?q=anthropic&type=repositories",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}
