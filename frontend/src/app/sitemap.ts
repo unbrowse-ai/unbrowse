@@ -31,6 +31,9 @@ const STATIC_ROUTES: Entry[] = [
   { path: "/miners", priority: 0.85, changeFrequency: "weekly" },
   { path: "/openclaw-earn", priority: 0.8, changeFrequency: "weekly" },
 
+  // GEO definition page (cited by AI search for "what is Unbrowse"-shaped queries)
+  { path: "/what-is-unbrowse", priority: 0.95, changeFrequency: "monthly", lastModified: "2026-05-21" },
+
   // POV essays (high investment, high AI-citation value)
   { path: "/internal-apis-are-all-you-need", priority: 0.95, changeFrequency: "monthly", lastModified: "2026-03-25" },
   { path: "/mcp-is-now-the-default", priority: 0.95, changeFrequency: "monthly", lastModified: "2026-05-12" },
