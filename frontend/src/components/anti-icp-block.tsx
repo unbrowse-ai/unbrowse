@@ -14,7 +14,7 @@ export function AntiIcpBlock() {
     },
     {
       scenario: "Canvas-heavy apps that need imperative JS in-page",
-      instead: "Use an agent framework",
+      instead: "Use Browser Use or Stagehand",
     },
     {
       scenario: "End-user chat interfaces",
