@@ -1,8 +1,8 @@
 # Release-Gate Bench corpus (release-gate-bench-plan.md)
 # Format: lane | auth | difficulty | strategy | intent | contextUrl
-# Lanes: anchor (11) semantic-rank (11) graphql (6) ssr-list (13) auth-gated (8) auth-cookies (8) hostile (16)
-# Total: 73
-# Sources: original curated set (50) + v1 refresh from r/webscraping + HN (8 added 2026-05-14) + Dia-cookie auth lane (8 added 2026-05-19) + v2 refresh from r/webscraping 2026-05-21 (7 added via /meta-harness reddit-mine flow)
+# Lanes: anchor (11) semantic-rank (14) graphql (6) ssr-list (15) auth-gated (8) auth-cookies (8) hostile (18)
+# Total: 80
+# Sources: original curated set (50) + v1 r/webscraping + HN (8 added 2026-05-14) + Dia cookie auth (8 added 2026-05-19) + v2 r/webscraping (7 added 2026-05-21) + v3 use-case mining (7 added 2026-05-21: upwork gitlab cal eventbrite sec ups spotify)
 # Coverage denominator excludes auth-gated + hostile + auth-cookies-without-cookies that resolve as EXCLUDED_*.
 # Hostile-lane PASS is a yellow flag (anti-bot honey-trap), not celebrated.
 
@@ -32,6 +32,10 @@ semantic-rank | none | medium | semantic-rank | get openlibrary work | https://o
 semantic-rank | none | hard | semantic-rank | search used cars on car.gr Greek classifieds | https://www.car.gr/classifieds/cars/?lang=en
 semantic-rank | none | hard | semantic-rank | search Indonesian wealth declarations on elhkpn | https://elhkpn.kpk.go.id/
 semantic-rank | none | hard | semantic-rank | get luma event discover feed | https://lu.ma/discover
+# v3 use-case mining 2026-05-21 (reddit thread evidence)
+semantic-rank | none | hard | semantic-rank | search AI automation jobs on upwork | https://www.upwork.com/nx/search/jobs/?q=AI%20automation
+semantic-rank | none | medium | semantic-rank | get gitlab repo info for gitlab-org/gitlab | https://gitlab.com/gitlab-org/gitlab
+semantic-rank | none | hard | semantic-rank | browse cal.com booking templates | https://cal.com/discover
 
 # ─── graphql (6) — POST + operationName extraction; X timeline regression ─────
 graphql | optional | hard | graphql | search tweets about AI agents | https://x.com/search?q=AI+agents&src=typed_query
@@ -56,6 +60,9 @@ ssr-list | none | hard | ssr-list | search statsmuse for player stats | https://
 ssr-list | none | hard | ssr-list | search walmart for laptops | https://www.walmart.com/search?q=laptop
 ssr-list | none | hard | ssr-list | get latest AP news headlines | https://apnews.com/
 ssr-list | none | hard | ssr-list | search sweetwater for electric guitars | https://www.sweetwater.com/c700--Electric_Guitars
+# v3 use-case mining 2026-05-21 (canonical missing automation targets)
+ssr-list | none | medium | ssr-list | search eventbrite for free online events | https://www.eventbrite.com/d/online/free--events/
+ssr-list | none | easy | ssr-list | search SEC EDGAR for AAPL 10-K filings | https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000320193&type=10-K
 
 # ─── auth-gated (8) — must hand off, not crash; excluded from denominator ─────
 auth-gated | required | hard | auth-handoff | get gmail inbox messages | https://mail.google.com/mail/u/0/#inbox
@@ -100,3 +107,6 @@ hostile | blocked | hostile | browser-block | search glassdoor for engineering s
 hostile | blocked | hostile | browser-block | search vinted listings | https://www.vinted.com/catalog?search_text=jeans
 # v2 refresh from r/webscraping 2026-05-21 (added by /meta-harness reddit-mine flow)
 hostile | blocked | hostile | browser-block | search eporner adult videos | https://www.eporner.com/search/funny/
+# v3 use-case mining 2026-05-21 (canonical missing automation targets)
+hostile | blocked | hostile | browser-block | track UPS shipment | https://www.ups.com/track?tracknum=1Z999AA10123456784
+hostile | blocked | hostile | browser-block | search spotify for album | https://open.spotify.com/search/abbey%20road
