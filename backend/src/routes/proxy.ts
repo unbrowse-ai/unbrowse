@@ -12,6 +12,7 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { connect } from "cloudflare:sockets";
+import { optionalAuth } from "../middleware/auth.js";
 
 type Socket = ReturnType<typeof connect>;
 
@@ -60,8 +61,36 @@ function isPrivateOrLocalUrl(u: URL): boolean {
   return false;
 }
 
-async function handleProxy(c: Context<{ Bindings: Env }>): Promise<Response> {
+async function handleProxy(c: Context<{ Bindings: Env; Variables: { agent_id?: string } }>): Promise<Response> {
   const start = Date.now();
+
+  // Auth gate: accept EITHER (a) a valid Bearer API key (sets c.agent_id via
+  // optionalAuth applied at the route level) OR (b) an x402 payment proof on
+  // the request. If neither, return 402 with payment requirements so the
+  // caller can pay-as-you-go without an account. Substrate-faithful: the
+  // route surfaces the cost up front; the agent's LLM decides whether to
+  // attach a payment proof or use its key.
+  const agentId = c.get("agent_id");
+  const paymentProof = c.req.header("X-Payment-Proof") ?? c.req.header("PAYMENT-SIGNATURE");
+  if (!agentId && !paymentProof) {
+    return c.json({
+      error: "payment_required",
+      message: "Attach a Bearer API key (Authorization: Bearer ubr_...) or an x402 payment proof (X-Payment-Proof header) to use /v1/proxy.",
+      payment: {
+        scheme: "x402",
+        network: ((c.env as unknown as { X402_NETWORK_MODE?: string }).X402_NETWORK_MODE ?? "mainnet"),
+        // Direct mode: ~$0.0001 per call. Residential mode (iproyal): ~$0.001
+        // per call (bandwidth is the dominant cost). Exact cents settled by
+        // facilitator after upstream completes. Surface the upper-bound here
+        // so a sponsor agent can pre-budget.
+        max_amount_usd: 0.001,
+        currencies: ["USDC"],
+        signers: [(c.env as unknown as { PAYMENT_RECIPIENT?: string }).PAYMENT_RECIPIENT].filter(Boolean),
+      },
+      docs: "https://www.unbrowse.ai/docs/proxy",
+    }, 402);
+  }
+
   let req: ProxyRequestBody;
   try {
     req = await c.req.json<ProxyRequestBody>();
@@ -116,6 +145,8 @@ async function handleProxy(c: Context<{ Bindings: Env }>): Promise<Response> {
       result = await fetchDirect(target, method, headers, req.body ?? null, timeoutMs);
     }
     result.duration_ms = Date.now() - start;
+    // Tag the response so the caller can audit which auth path settled.
+    (result as ProxyResponseBody & { auth_used?: string }).auth_used = agentId ? "api_key" : "x402";
     return c.json(result, 200);
   } catch (e) {
     const message = (e as Error)?.message ?? String(e);
@@ -330,8 +361,10 @@ async function readAll(
   return out;
 }
 
-export const proxyRoutes = new Hono<{ Bindings: Env }>();
-proxyRoutes.post("/v1/proxy", handleProxy);
+export const proxyRoutes = new Hono<{ Bindings: Env; Variables: { agent_id?: string } }>();
+// optionalAuth so a Bearer key sets c.agent_id without rejecting unauthed callers
+// (handleProxy returns 402 with payment requirements when no auth path matched).
+proxyRoutes.post("/v1/proxy", optionalAuth, handleProxy);
 
 // Health probe: GET /v1/proxy returns capability info without making upstream calls.
 // Useful for the SDK to check "is residential mode wired" before requesting it.
