@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { ChatDemo } from "@/components/chat-demo";
+import { UnbrowseChatLive } from "@/components/unbrowse-chat-live";
 import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { RegistryShowcase } from "@/components/registry-showcase";
@@ -460,6 +461,21 @@ export default function Home() {
               </p>
             </div>
             <ChatDemo />
+
+            <div className="mt-10 sm:mt-14">
+              <div className="text-center mb-5">
+                <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
+                  ##  Try it live
+                </p>
+                <h3 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2 text-text-primary">
+                  Resolve against the live marketplace
+                </h3>
+                <p className="text-text-secondary text-sm max-w-xl mx-auto leading-relaxed">
+                  Anonymous, no signup. We call <span className="font-mono text-orange-500">POST /v1/search</span> on the public worker and return the ranked shortlist.
+                </p>
+              </div>
+              <UnbrowseChatLive />
+            </div>
           </div>
         </section>
 
