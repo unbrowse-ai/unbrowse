@@ -32,13 +32,38 @@ const data = await unbrowse.execute({
 // data.success, data.data, data.status_code, data._request_id
 ```
 
+## Worker-side fetch + IProyal residential proxy
+
+Browsers, edge runtimes, and any context where direct outbound fetches would expose the user IP or hit geo/anti-bot blocks should route through the worker:
+
+```ts
+// Low-level: ask the worker to fetch a URL on your behalf.
+const r = await unbrowse.proxy.fetch({
+  url: "https://www.reddit.com/r/singularity/top.json",
+  method: "GET",
+});
+// r.status, r.headers, r.body, r.proxy_used, r.duration_ms
+
+// Route through IProyal residential proxy so the request egresses from a residential IP.
+const r2 = await unbrowse.proxy.fetch({
+  url: "https://geo-fenced.example.com/api/data",
+  proxy: "residential",
+});
+
+// Check whether residential mode is configured before requesting it.
+const caps = await unbrowse.proxy.capabilities();
+// { modes: ["direct", "residential"], residential_configured: true, ... }
+```
+
+`execute()` accepts `transport: "worker-proxy" | "direct"` and `proxy: "direct" | "residential"` so any captured endpoint can be routed the same way.
+
 ## Resources
 
 ```ts
-await unbrowse.account.usage();         // your daily spend + cap
-await unbrowse.account.sponsorStatus(); // sponsor wallet status (Lewis-subsidized tier)
-await unbrowse.keys.list();             // your API keys
-await unbrowse.keys.create({ name: "prod" }); // returns { plaintext } once
+await unbrowse.account.usage();
+await unbrowse.account.sponsorStatus();
+await unbrowse.keys.list();
+await unbrowse.keys.create({ name: "prod" });
 await unbrowse.keys.revoke(keyId);
 ```
 

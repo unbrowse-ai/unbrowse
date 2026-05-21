@@ -29,3 +29,8 @@ export type {
   SearchResponse,
   UnbrowseClientOptions,
 } from "./types.js";
+export type {
+  WorkerProxyCapabilities,
+  WorkerProxyRequest,
+  WorkerProxyResponse,
+} from "./proxy-types.js";
