@@ -1,0 +1,6 @@
+{"phase": "cookie_baseline", "ts": "2026-05-21T13:04:17Z", "status": "OBSERVED", "sha": "097686bb9a3b21f93029cbc03ad843d3547430b4", "size": 1802240, "mtime": 1779329277, "path": "/Users/lekt9/Library/Application Support/Google/Chrome/Default/Cookies"}
+{"phase": "mcp_probe_sweep_summary", "ts": "2026-05-21T13:04:17Z", "bench_rc": 137, "wall_clock_seconds": 2, "results_path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.claude/use-unbrowse-mcp-against-the-1000-probe-bench-co/bench-out/results.jsonl"}
+{"phase": "cookie_integrity", "ts": "2026-05-21T13:04:17Z", "status": "PASS", "sha": "097686bb9a3b21f93029cbc03ad843d3547430b4", "size": 1802240}
+{"phase": "leak_summary", "ts": "2026-05-21T13:04:17Z", "total_hits": 0, "files_scanned": 2, "patterns_checked": 14}
+{"phase": "cross_domain_isolation", "ts": "2026-05-21T13:04:17Z", "status": "SKIPPED", "reason": "no auth-cookies probe artifact found"}
+{"phase": "latency_summary", "ts": "2026-05-21T13:04:17Z", "n": 0, "p50_ms": null, "p95_ms": null, "p99_ms": null, "max_ms": null, "per_lane_median_ms": {}}
