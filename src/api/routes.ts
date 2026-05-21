@@ -1363,7 +1363,66 @@ export async function registerRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: (err as Error).message, domain });
     }
   });
-  // GET /v1/skills/:skill_id — local route so skill lookups hit disk cache before proxying to backend
+  // GET /v1/skills — list locally-cached skill summaries. No auth required;
+  // this is the local cache view, not the marketplace. Sponsor-pool users
+  // who don't yet have an API key still need to see what they've captured.
+  // Backend marketplace listing (auth-gated) stays at api.unbrowse.ai/v1/skills.
+  app.get("/v1/skills", async (req, reply) => {
+    const fs = require("fs") as typeof import("fs");
+    const path = require("path") as typeof import("path");
+    const os = require("os") as typeof import("os");
+    const cacheDir = process.env.UNBROWSE_SKILL_CACHE_DIR
+      || path.join(process.env.UNBROWSE_CONFIG_DIR || path.join(os.homedir(), ".unbrowse"), "skill-cache");
+    const summaries: Array<{ skill_id: string; domain?: string; endpoint_count: number; updated_at?: string; source: "disk-cache" | "domain-cache" }> = [];
+    const seen = new Set<string>();
+
+    // Source 1: ~/.unbrowse/skill-cache/*.json (the canonical disk store)
+    try {
+      if (fs.existsSync(cacheDir)) {
+        for (const entry of fs.readdirSync(cacheDir)) {
+          if (!entry.endsWith(".json")) continue;
+          try {
+            const raw = JSON.parse(fs.readFileSync(path.join(cacheDir, entry), "utf-8")) as { skill_id?: string; domain?: string; endpoints?: unknown[]; updated_at?: string };
+            if (!raw.skill_id || seen.has(raw.skill_id)) continue;
+            seen.add(raw.skill_id);
+            summaries.push({
+              skill_id: raw.skill_id,
+              domain: raw.domain,
+              endpoint_count: Array.isArray(raw.endpoints) ? raw.endpoints.length : 0,
+              updated_at: raw.updated_at,
+              source: "disk-cache",
+            });
+          } catch { /* skip malformed JSON */ }
+        }
+      }
+    } catch { /* skip cache read errors */ }
+
+    // Source 2: in-memory domainSkillCache (recent captures not yet flushed to disk)
+    for (const [, entry] of domainSkillCache) {
+      if (!entry.skillId || seen.has(entry.skillId)) continue;
+      let endpoint_count = 0;
+      let domain: string | undefined;
+      if (entry.localSkillPath) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(entry.localSkillPath, "utf-8")) as { domain?: string; endpoints?: unknown[] };
+          endpoint_count = Array.isArray(raw.endpoints) ? raw.endpoints.length : 0;
+          domain = raw.domain;
+        } catch { /* skip */ }
+      }
+      seen.add(entry.skillId);
+      summaries.push({ skill_id: entry.skillId, domain, endpoint_count, source: "domain-cache" });
+    }
+
+    return reply.send({
+      skills: summaries,
+      count: summaries.length,
+      cache_dir: cacheDir,
+      next_step: summaries.length === 0
+        ? { command: "unbrowse capture --url <url> --intent <intent>", hint: "No locally-cached skills yet. Capture one or run a resolve that triggers capture." }
+        : undefined,
+    });
+  });
+
   app.get("/v1/skills/:skill_id", async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
