@@ -881,6 +881,17 @@ REQUIRED first action on a plan-shaped prompt:
 3. The harness surfaces evidence; you judge in-thread. It never bakes a
    verdict, a banned list, or a per-case rule into the substrate.
 
+DEFAULT for integration-shaped plans (connect to / integrate with / wire
+up any external service, API, SDK, webhook, OAuth flow, .env-keyed
+endpoint): the global `/integrate-anything` harness is the surfaced
+default. Run `INTEGRATION_TARGET=<service> bash
+~/.claude/skills/meta-harness/scripts/harness iterate integrate-anything
+--global` instead of building a bespoke scaffold. It already implements
+deepwiki research, masked .env key discovery, recipe generation, and a
+live authenticated probe asserting the declared 2xx (never a proxy).
+The agent JUDGES whether the plan truly fits; the default is a surface,
+not a verdict.
+
 EXEMPTIONS (the only cases where you may skip discover/build):
 
 - A single scoped edit with no convergence shape (one-line typo fix,
