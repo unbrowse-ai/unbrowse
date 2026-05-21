@@ -257,19 +257,30 @@ export default async function SearchPage({
       {!q && (
         <div className="animate-fade-up stagger-4 max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-[rgba(255,250,242,0.6)] text-sm mb-6">
-              Try searching for an intent to find matching APIs:
+            <p className="text-text-secondary text-sm mb-2">
+              Search by intent, domain, or full URL.
+            </p>
+            <p className="text-text-muted text-xs mb-6 font-mono">
+              intent &middot; domain &middot; url
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
-              {["get trending topics", "fetch user profile", "get newly launched token pairs"].map((example) => (
+              {[
+                { label: "search reddit for trending posts", hint: "intent" },
+                { label: "news.ycombinator.com", hint: "domain" },
+                { label: "https://github.com/trending", hint: "url" },
+              ].map((example) => (
                 <Link
-                  key={example}
-                  href={`/search?q=${encodeURIComponent(example)}`}
-                  className="px-4 py-2 bg-surface border border-border rounded-xl
+                  key={example.label}
+                  href={`/search?q=${encodeURIComponent(example.label)}`}
+                  className="group px-4 py-2 bg-surface border border-border rounded-xl
                              text-sm text-text-secondary hover:border-text-primary
-                             hover:text-text-primary transition-all shadow-sm"
+                             hover:text-text-primary transition-all shadow-sm
+                             flex items-center gap-2"
                 >
-                  {example}
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-text-muted group-hover:text-text-secondary">
+                    {example.hint}
+                  </span>
+                  <span>{example.label}</span>
                 </Link>
               ))}
             </div>
