@@ -150,7 +150,15 @@ if [[ "$ROW_EXIT" != "0" ]]; then
 fi
 
 # Lexicographic ISO-8601 comparison: row must be at-or-after last capability commit.
-if [[ "$ROW_TS" < "$LAST_CAP_TS" ]]; then
+# Lexicographic ISO-8601 comparison only works when both timestamps share
+# a timezone suffix. git log -%cI emits the committer's local offset
+# (e.g. +08:00 for SGT); python-written rows emit Z. Normalize both to UTC
+# before comparing so a row written in UTC isn't falsely rejected against
+# a commit timestamped in SGT.
+ROW_TS_UTC=$(python3 -c "from datetime import datetime,timezone; print(datetime.fromisoformat('$ROW_TS'.replace('Z','+00:00')).astimezone(timezone.utc).isoformat())" 2>/dev/null || echo "$ROW_TS")
+CAP_TS_UTC=$(python3 -c "from datetime import datetime,timezone; print(datetime.fromisoformat('$LAST_CAP_TS'.replace('Z','+00:00')).astimezone(timezone.utc).isoformat())" 2>/dev/null || echo "$LAST_CAP_TS")
+
+if [[ "$ROW_TS_UTC" < "$CAP_TS_UTC" ]]; then
   red "[bench-gate-prerelease] FAIL — capability code has changed since the last harness wave"
   red "  last capability commit: $LAST_CAP_SHA at $LAST_CAP_TS"
   red "  latest harness row:     iter=$ROW_ITER status=$ROW_STATUS at $ROW_TS"
