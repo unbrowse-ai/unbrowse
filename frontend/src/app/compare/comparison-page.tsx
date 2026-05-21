@@ -220,13 +220,14 @@ export function ComparisonPage({ slug }: { slug: string }) {
           </h2>
           <div className="space-y-4 text-base sm:text-lg leading-8 text-text-secondary">
             <p>
-              Every modern website is already powered by internal APIs that
-              return structured JSON before any pixel renders. {competitor.name}{" "}
-              works one layer too high, automating the rendered HTML, parsing
-              DOMs, and clicking buttons that exist for human eyes. That extra
-              translation costs about 8,000 tokens and several seconds on every
-              page, even when the data your agent needs was structured in the
-              first place. Working at the API layer skips the entire detour.
+              {competitor.name} works one layer too high for AI agents. It
+              automates the rendered HTML: parsing DOMs, clicking buttons, and
+              reading text that exists for human eyes, which costs roughly
+              8,000 tokens and several seconds on every page. The data your
+              agent actually needs was already structured as JSON one layer
+              below, returned by the internal APIs the site uses to render
+              itself. Skipping the DOM and calling those APIs directly cuts
+              out the translation entirely.
             </p>
             <p>
               Unbrowse captures those internal endpoints from one real browsing
