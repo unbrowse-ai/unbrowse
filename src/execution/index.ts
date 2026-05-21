@@ -2406,6 +2406,46 @@ async function executeBrowserCapture(
   };
 }
 
+/**
+ * Serialize cookies into a single Cookie header value while keeping the
+ * total byte count under the buffer ceiling that most upstream servers
+ * accept. Cycle-4 evidence: probe 026 amazon (`/s?k=usb-c+cable`) returned
+ * `400 Request Header Or Cookie Too Large` because the live tab carried
+ * ~15 cookies including amazon's large tracking blobs, and the original
+ * `cookies.map(...).join("; ")` blew past nginx's `large_client_header_
+ * buffers 4 16k` default. Substrate-faithful: prioritize cookies whose
+ * name matches structural auth/session patterns (token / session / auth /
+ * csrf / sid / uid / key), drop tracking cookies first; no per-host
+ * registry. Caller still sees a Cookie header when cookies exist, just
+ * trimmed to fit. Exported for unit pinning.
+ */
+export function serializeCookiesUnderLimit(
+  cookies: Array<{ name: string; value: string; domain: string }>,
+  maxBytes = 8192,
+): string {
+  if (!cookies || cookies.length === 0) return "";
+  const AUTH_NAME_RE = /(?:token|session|auth|csrf|sid|uid|^key$|jwt|bearer|account|user)/i;
+  const ranked = cookies
+    .map((c) => ({
+      cookie: c,
+      pair: `${c.name}=${c.value}`,
+      isAuthish: AUTH_NAME_RE.test(c.name),
+    }))
+    .sort((a, b) => {
+      if (a.isAuthish !== b.isAuthish) return a.isAuthish ? -1 : 1;
+      return a.pair.length - b.pair.length;
+    });
+  const kept: string[] = [];
+  let total = 0;
+  for (const row of ranked) {
+    const delta = (kept.length > 0 ? 2 : 0) + row.pair.length;
+    if (total + delta > maxBytes) continue;
+    kept.push(row.pair);
+    total += delta;
+  }
+  return kept.join("; ");
+}
+
 export async function tryHttpFetch(
   url: string,
   authHeaders: Record<string, string>,
@@ -2420,7 +2460,7 @@ export async function tryHttpFetch(
       ...authHeaders,
     };
     if (cookies && cookies.length > 0) {
-      headers["Cookie"] = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+      headers["Cookie"] = serializeCookiesUnderLimit(cookies);
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
