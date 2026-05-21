@@ -61,5 +61,10 @@ if has_match '^(docs/|README\.md|packages/skill/README\.md|packages/skill/SKILL\
   echo "[pre-commit] leak-guard: scanning public-reachable paths for alpha"
   bash scripts/leak-guard.sh
 fi
+# Doc-delta probe: when the staged diff carries shipping-surface signals
+# (new workspace member, [[bin]], deploy target, new top-level dir, new
+# manifest below root) AND no canonical doc (README / architecture /
+# CHANGELOG) was touched, print evidence to stderr. Never blocks.
+bash scripts/precommit-doc-delta.sh || true
 
 echo "[pre-commit] fast checks passed"

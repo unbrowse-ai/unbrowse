@@ -60,6 +60,7 @@ Every code change is judged against the calling agent's experience. The four inv
 ## Conventions
 
 - All notable changes must be written into `CHANGELOG.md`
+- **Docs reflect the codebase.** When a commit touches shipping-surface signals (new top-level dir, new workspace member, new binary/manifest, new deploy target like `wrangler.toml` / `.github/workflows/*deploy*.yml`), the same commit must also touch a canonical doc (`README.md`, `docs/README.md`, `docs/architecture.md`, or `CHANGELOG.md`) reflecting the new behaviour. Enforced as evidence (not auto-block) by `scripts/precommit-doc-delta.sh` wired into `scripts/precommit.sh`; full canonical gate lives at `~/.claude/skills/meta-harness/scripts/gates/doc-delta.sh` and fires on every `iterate.sh`. Substrate-faithful: gate surfaces the row; you judge in-thread whether the surface change is doc-worthy, and write the delta in the SAME commit.
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
 - Skill path retired in v6.15.0 — integration surface is `@unbrowse/sdk` + MCP; no skill-repo sync.
 - Kuri must work as a bundled runtime from the package/monorepo vendor path. Do not require end users to install Zig or a separate `kuri` binary.
